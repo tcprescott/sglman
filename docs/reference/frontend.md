@@ -186,6 +186,7 @@ The public event schedule with crew signup.
 - **Notifications:** a **Delivery** master checkbox ("Send me notifications about match updates" → `User.dm_notifications`), which governs *both* channels — device push is a mirror of the DM send path and every call site gates on `dm_notifications` first. A refreshable warning line appears while it is off, and the device subsection ([`web_push_section.py`](../../pages/home_tabs/web_push_section.py)) states the dependency. Below that, a **Match alerts by tournament** expansion holds one level select per active tournament (`TournamentNotificationService`), badged "Enrolled" where applicable — an alert is a *follow* and does not require enrollment.
 - **Tournament enrollment:** one checkbox per active tournament, split into "Staff-administered" and "Community" (on `tournament.staff_administered`) and ordered by name to match the alerts list above. The blurb names the distinction from the alerts list explicitly.
 - Challonge-linked tournaments don't use the manual opt-in: their checkbox is disabled — carrying a lock glyph and an "Automatic" badge, since Quasar's disabled state alone is only an opacity change — and reflects bracket membership from `ChallongeService.participant_tournament_ids`, with the explanation and `challonge_tournament_url` link indented beneath. An unlinked player sees a "Link Challonge account" call to action instead. These tournaments are excluded from `tournament_checkboxes`; any existing manual enrollment is carried through unchanged on save so the registration sync never drops it.
+- **Your feedback** ([`my_feedback_section.py`](../../pages/home_tabs/my_feedback_section.py)) — the submitter's half of the feedback loop: what they sent through the sidebar form and whether staff have read it (*Read by staff* / *Not read yet*). Read-only by design; it is the acknowledgement, not a reply thread. Renders **nothing** when the person has sent none (an empty card is noise for the majority who never use the form) or when the community has `FeatureFlag.FEEDBACK` off — it catches the service's `FeatureDisabledError` rather than flag-checking itself.
 - Saves go through `UserService.update_user_personal_info`, `manage_tournament_enrollments`, and `TournamentNotificationService.upsert_preference`, with the user as their own audit actor.
 - UX audit of this tab, with what was and wasn't changed: [../reviews/profile-page-ux-audit.md](../reviews/profile-page-ux-audit.md).
 
@@ -312,12 +313,12 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 | [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
 | [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
 | [`admin_equipment.py`](../../pages/admin_tabs/admin_equipment.py) | Equipment | Asset CRUD, checkout/checkin, and QR-page links |
-| [`admin_feedback.py`](../../pages/admin_tabs/admin_feedback.py) | Feedback | Review queue for user-submitted feedback |
+| [`admin_feedback.py`](../../pages/admin_tabs/admin_feedback.py) | Feedback | Review queue for user-submitted feedback; **reversible** (Reopen puts a row back in the queue). Behind `FeatureFlag.FEEDBACK`, as are the drawer's Feedback item and the profile's "Your feedback" card |
 | [`admin_system_config.py`](../../pages/admin_tabs/admin_system_config.py) | Settings | System configuration: event window, concurrency limits, tournament hours, Discord sync guild |
 
 ### Admin schedule (`pages/admin_tabs/admin_schedule.py`)
 
-`admin_schedule_page(access, match_id=None, tournament_ids=None)` — the operational heart of the app: a `MatchTableView` over `Match.all()` with `admin_controls=True`. Columns: ID, Tournament, Scheduled At, State, Players, Commentators, Trackers, Stage, Seed. The lifecycle handlers themselves live in `theme/tables/match_lifecycle.py:MatchLifecycleHandlers` (shared with the volunteer Proctor Station board, so the two surfaces cannot diverge on lifecycle behaviour); the page keeps only `submit_admin_match`, since creating a match is a scheduling action rather than a lifecycle one. Every handler calls `MatchScheduleService` with the current user as `actor`, catches `PermissionError` (negative notify) and `ValueError` (warning notify) through `notify_error`, and refreshes just the affected row via `table_view.update_row_by_id`. Construction is two-phase — `MatchLifecycleHandlers(page_container, access=...)`, then `MatchTableView(..., access=..., **handlers.callbacks())`, then `handlers.table_view = table_view` — because the view needs the callbacks and the callbacks need the view. `callbacks()` returns one *group* per capability and **omits** the rest rather than passing `None`, since `MatchTableView` keys its event wiring and part of its slot registration off callback presence.
+`admin_schedule_page(access, match_id=None, tournament_ids=None)` — the operational heart of the app: a `MatchTableView` over `Match.all()` with `admin_controls=True`. Columns: an edit pencil, Tournament, Scheduled At, State, Players, Commentators, Trackers, Stage, Seed. (The first column used to be the raw `id`, rendered as the board's *only* edit link; it is a labelled control now, on the desktop table and the mobile card alike. The proctor board keeps a read-only `#` instead — the one place a match id does a job for a human, since a proctor calls a match out by number.) The lifecycle handlers themselves live in `theme/tables/match_lifecycle.py:MatchLifecycleHandlers` (shared with the volunteer Proctor Station board, so the two surfaces cannot diverge on lifecycle behaviour); the page keeps only `submit_admin_match`, since creating a match is a scheduling action rather than a lifecycle one. Every handler calls `MatchScheduleService` with the current user as `actor`, catches `PermissionError` (negative notify) and `ValueError` (warning notify) through `notify_error`, and refreshes just the affected row via `table_view.update_row_by_id`. Construction is two-phase — `MatchLifecycleHandlers(page_container, access=...)`, then `MatchTableView(..., access=..., **handlers.callbacks())`, then `handlers.table_view = table_view` — because the view needs the callbacks and the callbacks need the view. `callbacks()` returns one *group* per capability and **omits** the rest rather than passing `None`, since `MatchTableView` keys its event wiring and part of its slot registration off callback presence.
 
 Two strips sit above the board, each shown only to whoever can act on what it counts: the **review queue** (`access.confirm` — flagged / no-result / awaiting-confirmation, with a filter to them) and the **crew queue** (`access.approve_crew` — pending signups per role, with a filter to exactly those matches via `MatchTableView.focus_matches`). `tournament_ids` narrows the board for a TA or crew coordinator, whose authority is per tournament; staff and the stream manager operate community-wide and get the whole board.
 
@@ -584,7 +585,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 
 - The Players multi-select is restricted to players enrolled in the selected tournament unless "Choose any players" is set; options reload whenever the tournament or checkbox changes.
 - **Bracket matchup** (optional, only when `FeatureFlag.BRACKETS` is live) — when the match already backs a game, a read-only matchup panel sits above the picker (`render_matchup_panel` → `BracketService.matchup_summary`) showing stage · round, series position and score, both entrants with seeds, and a button into the bracket view, so staff editing a game can see *what it is for*. The picker below lists the tournament's OPEN matchups with a free game slot (`BracketService.list_linkable_matches`); in edit mode the current link is preselected by hand (a linked matchup is no longer "linkable") and `(None)` unlinks. Lives in [`_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py).
-- **Edit mode only** adds the clear buttons, a read-only Player Acknowledgments list from `MatchAcknowledgmentRepository.list_for_match` (see [../features/match-participation.md](../features/match-participation.md#acknowledgment)), a **Racetime Room** section when the tournament has a racetime bot (slug + status, or a STAFF/`SYNC_ADMIN` "Create racetime room" button calling `RaceRoomService.manual_create_room` — a manual open independent of the auto-open toggle), and Delete.
+- **Edit mode only** adds the clear buttons, a read-only Player Acknowledgments list from `MatchAcknowledgmentRepository.list_for_match` (see [../features/match-participation.md](../features/match-participation.md#acknowledgment)), a **Racetime Room** section when the tournament has a racetime bot, and Delete. With no room, STAFF/`SYNC_ADMIN` get a "Create racetime room" button calling `RaceRoomService.manual_create_room` (a manual open independent of the auto-open toggle). With a room, the slug links to `RacetimeRoom.url` (a derived property the bracket watch-link shares, so the two cannot drift), the status renders as a labelled chip rather than its raw enum value, and a live room offers **Cancel race room** behind a confirmation — `RaceRoomService.cancel_room` was reachable over REST and from no web surface at all. A finished or already-cancelled room gets the chip and nothing else, since there is nothing left to stop. The confirmation says what it does *and does not* do: Wizzrobe stops treating the room as live, and the room itself stays open on racetime.gg.
 
 On save it validates required fields, runs `MatchService.ensure_players_enrolled`, then:
 
@@ -723,6 +724,37 @@ Two sanctioned ways to comply:
 2. **A bespoke `item` slot** with an inline `:grid="Quasar.Screen.lt.md"` prop — reserved for the four purpose-built family tables (match / user / tournament / equipment), whose cards are too custom for the generic helper.
 
 A table that legitimately must stay a table on mobile (a narrow 2-column reference) opts out with a `# mobile-grid: exempt` comment on the `ui.table` line. The generic card styling is `.wiz-grid-card` (the card counterpart of `.wiz-table`).
+
+#### `hidden` columns, and why they need help
+
+`{'hidden': True}` on a column is **this app's own convention, not Quasar's**. `QTable` has no such column property, so for a long time it did nothing on desktop: the mobile card skipped the column and the desktop table painted it anyway, which is how seven admin tables came to lead with a raw primary key on a wide screen while correctly hiding it on a phone.
+
+`apply_column_visibility(table, columns)` translates the convention into Quasar's real mechanism, `visible-columns`. `enable_mobile_grid` calls it for you; a bespoke `:grid` table (path 2 above) calls it directly. The **row dicts are untouched**, which is the point — `props.row.id` stays available to every slot template and `row_key='id'` keeps working, so row-action handlers are unaffected by hiding the column they key on.
+
+`tests/theme/test_admin_toolbar_wiring.py` fails a file that declares a `hidden` column without applying the visibility (or handing its columns to a `*TableView` that does).
+
+The general lesson, worth applying beyond tables: **when you invent a flag a third-party component is also expected to honour, prove the third party honours it.** Half-honoured conventions fail in exactly one environment, which is the hardest kind to notice.
+
+### The admin toolbar's Refresh control
+
+Use [`refresh_button(refresh)`](../../theme/tables/admin_crud.py), never a hand-rolled `ui.button(icon='refresh', on_click=lambda: background_tasks.create(reload()))`.
+
+The hand-rolled form reads fine and does nothing. A task spawned from a *click* has neither the tenant contextvar nor the client stash `get_current_tenant_id` falls back to, so the first scoped query inside raises, NiceGUI logs it, and the button fails **in silence** — eleven of the fifteen admin refresh controls were dead this way, and their server-side errors were worse than the silence (a staff member's click logged *"Only Staff can view webhooks"*; a community with SpeedGaming enabled logged *"not enabled for this community"*, because the actor and the flags both resolve against no tenant).
+
+`refresh_button` captures the render context during the page build, where it is still live, and rebinds it around the call. It takes a **callable**, not a coroutine, and invokes it inside the task — which is also what makes it correct for a `@ui.refreshable`'s `.refresh()`, an `AwaitableResponse` that must be awaited immediately or not at all. Pass `lambda: view.refresh()` where the toolbar is laid out before the thing it refreshes exists.
+
+```python
+from theme.tables.admin_crud import refresh_button
+
+with ui.row().classes('full-width'):
+    ui.button('Add Thing', icon='add', on_click=…).props('color=primary')
+    ui.space()
+    refresh_button(refresh_table)          # or: refresh_button(lambda: _render_table.refresh())
+```
+
+`test_no_tab_hand_rolls_a_refresh_button` fails the hand-rolled shape. The one sanctioned exception is a board whose loader is genuinely tenant-agnostic (the `/platform` health probe), which opts out with a `# refresh-context: exempt` comment — the same idiom as `# mobile-grid: exempt`.
+
+The sibling defect — reading `context.client` from *inside* a background coroutine, where it raises rather than returning `None` — is caught by [`check_slot_context.py`](../../.claude/scripts/check_slot_context.py)'s second check. Capture it at the call site and pass it in.
 
 ## Offline honesty (`theme/connection.py`)
 

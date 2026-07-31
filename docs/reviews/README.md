@@ -11,7 +11,6 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
-| [admin-toolbar-ux.md](admin-toolbar-ux.md) | The admin tabs no earlier audit covered (Online play, Webhooks, Discord, Feedback, Service Health, System Config), plus `/platform` | Eleven of fifteen Refresh buttons did nothing, silently — and SpeedGaming could not be configured at all |
 
 Shipped and deleted: the match-operations audit — its findings became
 `MatchBoardAccess` (one field per service gate, replacing the `can_crud`
@@ -51,6 +50,19 @@ report that names work (and the `?match_id=` / `?day=` params the destinations
 grew to receive it), the scroll position that survives a filter change, and the
 `FeatureFlag.VOLUNTEERS` gate the Volunteer Coverage report was the last entry
 surface to ignore.
+The unaudited-admin-tabs audit (PR #171) — the one that found the silent
+controls. Its findings became `theme.tables.admin_crud.refresh_button` (eleven of
+fifteen admin Refresh buttons were dead, and SpeedGaming's Add and Edit with
+them), `apply_column_visibility` making `{'hidden': True}` real on the desktop
+table, the schedule board's edit pencil where its primary key used to be, the
+last four surfaces routed through `match_labels` (On Air, both lifecycle dialogs
+and the station picker), the `BracketState.CANCELLED` filter that stops an
+abandoned stage handing out games, the Racetime Room section's link/status/cancel,
+Service Health's route out to the Challonge tab, the Webhooks list's 24h health
+column, `FeatureFlag.FEEDBACK` with a reversible review and the submitter's own
+status card, and `check_slot_context.py`'s second check. `/platform` was driven
+end to end in the same pass and found sound — recorded then, and worth knowing
+now only as "somebody looked".
 
 ## Cross-cutting themes
 
@@ -145,8 +157,8 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   and the flags both resolve against no tenant. The method that finds this is
   reading the **server log across a click**, not screenshotting the page; a
   screenshot sweep passes all eleven. `refresh_button` and
-  `test_no_tab_hand_rolls_a_refresh_button` close it
-  ([admin-toolbar](admin-toolbar-ux.md#1-a-refresh-button-spawned-from-a-click-loses-its-tenant-11-of-15-tabs)).
+  `test_no_tab_hand_rolls_a_refresh_button` close it; the rule lives in
+  [frontend.md](../reference/frontend.md#the-admin-toolbars-refresh-control).
   The generalisation is worth more than the fix: **once you find a broken
   wiring shape, click every other instance of it before you stop.** Doing that
   turned up My Crew's `acknowledge` and `withdraw`, which read `context.client`
