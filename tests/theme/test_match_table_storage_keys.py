@@ -34,6 +34,11 @@ def _view(storage_key='match', default_state_filter=None):
     view = MatchTableView.__new__(MatchTableView)
     view.storage_key = storage_key
     view.default_state_filter = default_state_filter
+    # The badge reads every filter widget; an unbuilt view has none.
+    view.tournament_filter = None
+    view.stream_room_filter = None
+    view.state_filter = None
+    view.day_filter = None
     return view
 
 
@@ -45,7 +50,7 @@ def test_two_views_do_not_share_a_filter_key():
 
 def test_every_filter_key_is_namespaced_by_the_view():
     view = _view('proctor')
-    for name in ('state_filter', 'tournament_filter', 'stream_room_filter'):
+    for name in ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter'):
         assert view._skey(name).startswith('proctor:')
         assert view._skey(name) != name
 
@@ -53,14 +58,14 @@ def test_every_filter_key_is_namespaced_by_the_view():
 def test_skey_keeps_the_filter_names_distinct_within_a_view():
     view = _view('admin_schedule')
     keys = {view._skey(n) for n in
-            ('state_filter', 'tournament_filter', 'stream_room_filter')}
-    assert len(keys) == 3
+            ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter')}
+    assert len(keys) == 4
 
 
 def test_no_bare_session_key_survives_in_the_view():
     """The whole bug was un-namespaced ``tenant_session_*`` calls."""
     src = inspect.getsource(MatchTableView)
-    for name in ('state_filter', 'tournament_filter', 'stream_room_filter'):
+    for name in ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter'):
         for call in ('tenant_session_get', 'tenant_session_set'):
             assert f"{call}('{name}'" not in src, (
                 f"{call}('{name}') is not namespaced — every board would share it; "
@@ -151,3 +156,65 @@ def test_badge_counts_a_state_filter_moved_off_the_boards_default():
     view.stream_room_filter = None
     view.state_filter = _FakeSelect(['Finished'])
     assert view._active_filter_count() == 1
+
+
+# --- The Day filter --------------------------------------------------------
+#
+# The board had no day or now anchor, so an operator standing at a venue
+# scrolled ~8 screenfuls of phone to find a match by eye.
+
+def test_all_dates_is_the_default_and_narrows_nothing():
+    """Nothing may be hidden until the operator asks for it."""
+    from theme.tables.match import ALL_DAYS, DAY_SCOPES, day_scope_window
+
+    assert DAY_SCOPES[0] == ALL_DAYS
+    assert day_scope_window(ALL_DAYS) is None
+    assert day_scope_window('nonsense') is None
+
+
+def test_today_is_one_local_day_wide():
+    from theme.tables.match import day_scope_window
+
+    start, end = day_scope_window('Today')
+    assert (end - start) == 24 * 3600
+
+
+def test_tomorrow_starts_where_today_ends():
+    """Half-open and adjacent, so no match falls between the two scopes."""
+    from theme.tables.match import day_scope_window
+
+    _today_start, today_end = day_scope_window('Today')
+    tomorrow_start, _tomorrow_end = day_scope_window('Tomorrow')
+    assert today_end == tomorrow_start
+
+
+def test_the_week_scope_starts_today_and_runs_seven_days():
+    from theme.tables.match import day_scope_window
+
+    today_start, _today_end = day_scope_window('Today')
+    week_start, week_end = day_scope_window('Next 7 days')
+    assert week_start == today_start
+    assert (week_end - week_start) == 7 * 24 * 3600
+
+
+def test_the_day_filter_counts_toward_the_mobile_badge():
+    """Otherwise a narrowed board looks unfiltered on the surface the filter
+    was added for."""
+    from types import SimpleNamespace
+
+    from theme.tables.match import ALL_DAYS
+
+    view = _view('admin_schedule', DEFAULT_STATE_FILTER)
+    view.state_filter = SimpleNamespace(value=list(DEFAULT_STATE_FILTER))
+    view.day_filter = SimpleNamespace(value=ALL_DAYS)
+    assert view._active_filter_count() == 0
+
+    view.day_filter = SimpleNamespace(value='Today')
+    assert view._active_filter_count() == 1
+
+
+def test_a_deep_link_suspends_the_day_filter():
+    """Same reason it suspends the State filter: a link to one match must not
+    land on an empty board."""
+    src = inspect.getsource(MatchTableView.refresh)
+    assert 'None if self.match_ids else day_scope_window' in src

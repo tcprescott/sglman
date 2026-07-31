@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
 from application.tenant_context import get_current_tenant_id
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
+from application.utils.timezone import local_day_bounds, today_local
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
@@ -18,6 +21,31 @@ from theme.tables.match_slots import register_body_slots
 # check in _active_filter_count cannot drift out of sync.
 ALL_MATCH_STATES = ['Scheduled', 'Checked In', 'Started', 'Finished', 'Confirmed']
 DEFAULT_STATE_FILTER = ['Scheduled', 'Checked In', 'Started']
+
+# Day scopes for the Day filter. The board had no day or now anchor at all, so
+# an operator standing at a venue scrolled ~8 screenfuls of phone to find a
+# match by eye — the cards carry every detail and nothing narrowed them to the
+# day being run. ``ALL_DAYS`` is the default, so nothing is hidden until asked.
+ALL_DAYS = 'All dates'
+DAY_SCOPES = [ALL_DAYS, 'Today', 'Tomorrow', 'Next 7 days']
+#: ``scope -> (days from today for the first day, for the last day)``, inclusive.
+_DAY_OFFSETS = {'Today': (0, 0), 'Tomorrow': (1, 1), 'Next 7 days': (0, 6)}
+
+
+def day_scope_window(scope: str):
+    """UTC ``(start, end)`` epoch seconds for a day scope, or ``None`` for all.
+
+    Resolved on the *display* clock — "today" at 21:00 in New York is not today
+    in London — and through ``local_day_bounds`` so the window is half-open and
+    does not lose its final second.
+    """
+    offsets = _DAY_OFFSETS.get(scope)
+    if offsets is None:
+        return None
+    first, last = offsets
+    today = today_local()
+    start, end = local_day_bounds(today + timedelta(days=first), today + timedelta(days=last))
+    return start.timestamp(), end.timestamp()
 
 
 class MatchTableView(MatchTableHandlersMixin):
@@ -86,6 +114,7 @@ class MatchTableView(MatchTableHandlersMixin):
         self.stream_room_filter = None
         self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.state_filter = None
+        self.day_filter = None
         # Mobile collapsible-filter state (CSS gates the toggle/card to <1024px)
         self.filters_card = None
         self.filter_badge = None
@@ -151,6 +180,11 @@ class MatchTableView(MatchTableHandlersMixin):
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
+    def _on_day_filter_change(self, *_args, **_kwargs):
+        tenant_session_set(self._skey('day_filter'), self.day_filter.value)
+        self._update_filter_badge()
+        self._refresh_unless_initializing()
+
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value (namespaced by tenant — ids are global).
         tenant_session_set(self._skey('tournament_filter'), self.tournament_filter.value)
@@ -200,6 +234,8 @@ class MatchTableView(MatchTableHandlersMixin):
             count += 1
         default_states = set(self.default_state_filter or DEFAULT_STATE_FILTER)
         if self.state_filter and set(self.state_filter.value or []) != default_states:
+            count += 1
+        if self.day_filter and self.day_filter.value not in (None, ALL_DAYS):
             count += 1
         return count
 
@@ -256,6 +292,16 @@ class MatchTableView(MatchTableHandlersMixin):
         self.filters_card = ui.card().classes('match-filters-card')
         with self.filters_card:
             with ui.row().classes('match-filter-row'):
+                # Day filter, first because it is the coarsest narrowing and
+                # the one an operator working a venue reaches for.
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Day').classes('match-filter-label')
+                    self.day_filter = ui.select(
+                        options=list(DAY_SCOPES),
+                        value=tenant_session_get(self._skey('day_filter'), ALL_DAYS),
+                        on_change=self._on_day_filter_change,
+                    ).classes('full-width').props('outlined dense')
+
                 # Tournament filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('Tournament').classes('match-filter-label')
@@ -442,6 +488,18 @@ class MatchTableView(MatchTableHandlersMixin):
         # Client-side filter by state (narrows within the fetched set)
         if state_filter:
             rows = [row for row in rows if row.get('state') in state_filter]
+
+        # ...then by day. Suspended under a deep link for the reason the state
+        # filter is: a link to one match must not land on an empty board.
+        window = None if self.match_ids else day_scope_window(
+            self.day_filter.value if self.day_filter else ALL_DAYS)
+        if window:
+            start, end = window
+            rows = [
+                row for row in rows
+                if row.get('scheduled_ts') is not None
+                and start <= row['scheduled_ts'] < end
+            ]
 
         watched_ids = await self._fetch_watched_ids()
         for row in rows:

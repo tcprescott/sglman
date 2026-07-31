@@ -57,6 +57,44 @@ def match_label(
     return name
 
 
+def match_model_label(match, *, with_context: bool = True) -> str:
+    """:func:`match_label` for a loaded ``Match``, for the lifecycle dialogs.
+
+    Its sibling below reads a board row; this one reads the model the dialog
+    already loaded (with ``players__user`` prefetched). Same rule either way —
+    an id in a sentence is a defect wherever a user can read it — so a dialog
+    that says "Start match #17?" is one that has not been through here.
+
+    Falls back to the plain id only when the match has no roster, no title and
+    no time, which is the one case where there is genuinely nothing else to say.
+    """
+    from application.utils.timezone import format_local_display
+
+    # Defensive on both relations: a caller that loaded the match without
+    # prefetching them should get a thinner label, never an exception in the
+    # middle of building a confirmation dialog.
+    try:
+        players = [
+            p.user.preferred_name for p in match.players
+            if getattr(p, 'user', None) is not None
+        ]
+    except Exception:
+        players = []
+    try:
+        tournament = match.tournament.name if match.tournament is not None else ''
+    except Exception:
+        tournament = ''
+
+    label = match_label(
+        player_names=players,
+        title=getattr(match, 'title', '') or '',
+        tournament=tournament,
+        scheduled_at=format_local_display(getattr(match, 'scheduled_at', None)),
+        with_context=with_context,
+    )
+    return f'match #{match.id}' if label == 'this match' else label
+
+
 def match_row_label(row: dict, *, with_context: bool = True) -> str:
     """:func:`match_label` for a match-table row dict (``MatchDisplayService``)."""
     players = [p.get('name', '') for p in (row.get('players') or []) if p.get('name')]

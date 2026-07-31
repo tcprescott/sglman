@@ -21,6 +21,7 @@ from nicegui import app, ui
 
 from application.services import MatchScheduleService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
+from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog import ConfirmationDialog, MatchResultDialog, StationAssignmentDialog
 from theme.dialog.match_dialog import AdminMatchDialog
@@ -49,7 +50,7 @@ def confirm_result_message(match: Match) -> str:
         return player.user.preferred_name if player else ''
 
     if winner is not None:
-        lines = [f'Record {name(winner)} as the winner of match #{match.id}?']
+        lines = [f'Record {name(winner)} as the winner of {match_model_label(match)}?']
         if len(others) == 1:
             lines.append(f'{name(winner)} beat {name(others[0])}.')
         elif others:
@@ -57,7 +58,7 @@ def confirm_result_message(match: Match) -> str:
     else:
         # Reachable from a stale row (someone else cleared the result between the
         # render and the click); confirm_match refuses it, so say so up front.
-        lines = [f'No winner is recorded for match #{match.id}.',
+        lines = [f'No winner is recorded for {match_model_label(match)}.',
                  'Record one before confirming.']
     if match.needs_review:
         lines.append(
@@ -136,7 +137,7 @@ class MatchLifecycleHandlers:
         await self.table_view.update_row_by_id(match_id)
 
     async def on_seat(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
@@ -155,13 +156,16 @@ class MatchLifecycleHandlers:
             await self.schedule_service.seat_match(match, actor=actor)
             await self.table_view.update_row_by_id(match.id)
             with self.page_container:
-                ui.notify(f'Match #{match.id} checked in.', color='positive')
+                ui.notify(
+                    f'{match_model_label(match, with_context=False)} checked in.',
+                    color='positive',
+                )
         except (PermissionError, ValueError) as e:
             with self.page_container:
                 notify_error(e)
 
     async def on_start(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
         player_names = ', '.join(
             [p.user.preferred_name for p in match.players])
 
@@ -170,8 +174,8 @@ class MatchLifecycleHandlers:
             await self.confirm_starting(match)
         with self.page_container:
             dialog = ConfirmationDialog(
-                title=f'Start match #{match.id}',
-                message=f'Start match #{match.id}?\n\n{player_names}',
+                title='Start match',
+                message=f'Start {match_model_label(match)}?\n\n{player_names}',
                 confirm_text='Start match',
                 tone='primary',
                 on_confirm=handle_confirm,
@@ -188,7 +192,7 @@ class MatchLifecycleHandlers:
                 notify_error(e)
 
     async def on_finish(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
@@ -210,14 +214,14 @@ class MatchLifecycleHandlers:
                 notify_error(e)
 
     async def on_confirm(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
             await self.confirm_confirming(match)
         with self.page_container:
             dialog = ConfirmationDialog(
-                title=f'Confirm match #{match.id}',
+                title='Confirm result',
                 message=confirm_result_message(match),
                 confirm_text='Confirm result',
                 tone='primary',
@@ -246,7 +250,7 @@ class MatchLifecycleHandlers:
         """
         match = await Match.get(
             id=match_id, tenant_id=require_tenant_id(),
-        ).prefetch_related('players', 'players__user')
+        ).prefetch_related('tournament', 'players', 'players__user')
 
         async def after_edit(_):
             await self.table_view.update_row_by_id(match_id)
