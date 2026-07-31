@@ -37,27 +37,6 @@ def _python_files():
                 yield path
 
 
-def _names_spawned_as_background_tasks(tree: ast.AST) -> set[str]:
-    """Function names this module hands to ``background_tasks.create(...)``.
-
-    ``background_tasks.create(foo(bar))`` → ``{'foo'}``. Only the direct call
-    form, which is how every spawn in this codebase is written.
-    """
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if not (isinstance(func, ast.Attribute) and func.attr == 'create'
-                and isinstance(func.value, ast.Name)
-                and func.value.id == 'background_tasks'):
-            continue
-        for arg in node.args:
-            if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name):
-                names.add(arg.func.id)
-    return names
-
-
 def _refresh_button_body() -> str:
     """``refresh_button``'s code with its docstring removed.
 
@@ -154,39 +133,10 @@ class TestRefreshControlsCarryTheirContext:
         assert body.index('capture_render_context()') < body.index('on_click=')
         assert 'scoped_background(context' in body
 
-    def test_no_background_coroutine_reads_context_client_itself(self):
-        """``context.client`` must be captured at the *call site*, never inside.
-
-        The sibling of the refresh bug, and it cost a user-facing control: My
-        Crew's ``acknowledge`` and ``withdraw`` opened with
-        ``client = context.client``. In a detached task the slot stack is empty
-        and that line *raises* rather than returning None, so the volunteer's
-        **Confirm I can cover this** and **Withdraw** both died before doing
-        anything — no notification, no server 500, nothing on screen.
-
-        ``check_slot_context.py`` catches the related shape (a ``ui.*`` call in
-        a background task with no slot) but not this one, because the offending
-        line looks like a perfectly ordinary capture.
-        """
-        offenders = []
-        for path in _python_files():
-            tree = ast.parse(path.read_text())
-            spawned = _names_spawned_as_background_tasks(tree)
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.AsyncFunctionDef) or node.name not in spawned:
-                    continue
-                for inner in ast.walk(node):
-                    if (isinstance(inner, ast.Attribute) and inner.attr == 'client'
-                            and isinstance(inner.value, ast.Name)
-                            and inner.value.id == 'context'):
-                        offenders.append(
-                            f'{path.relative_to(REPO)}:{inner.lineno} ({node.name})'
-                        )
-        assert not offenders, (
-            'these coroutines run as background tasks and read context.client from '
-            'inside, where it raises — pass it in from the call site instead: '
-            f'{offenders}'
-        )
+    # The sibling defect — a background coroutine reading ``context.client``
+    # from inside, where it raises — lives in ``check_slot_context.py`` now, so
+    # it fires on every edit rather than only with the suite. Its tests are in
+    # ``tests/test_hook_background_client.py``.
 
     def test_refresh_button_defers_the_call_into_the_task(self):
         """``refresh()`` must run *inside* the task, not when the button is built.

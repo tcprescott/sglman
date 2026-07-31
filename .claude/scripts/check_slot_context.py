@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 """
 PostToolUse hook: warn when a background-task coroutine calls NiceGUI UI
-functions without restoring a slot context.
+functions without restoring a slot context, or tries to fetch that context
+itself.
 
-The bug this catches
+The bugs this catches
 ---------------------
-A coroutine handed to ``background_tasks.create(...)`` runs with an empty slot
-stack. Any ``ui.*`` call inside it (``ui.notify``, element creation, navigation,
+**1. An unguarded ``ui.*`` call.** A coroutine handed to
+``background_tasks.create(...)`` runs with an empty slot stack. Any ``ui.*``
+call inside it (``ui.notify``, element creation, navigation,
 ``ui.run_javascript`` …) then raises::
 
     RuntimeError: The current slot cannot be determined because the slot stack
     for this task is empty.
+
+**2. Reading ``context.client`` from inside the task.** The same emptiness makes
+``context.client`` *raise* rather than return ``None``, so a coroutine that
+opens with ``client = context.client`` dies on its first statement — before it
+does anything, and with nothing on screen to say so. A UX audit found My Crew's
+``acknowledge`` and ``withdraw`` written this way: the volunteer's **Confirm I
+can cover this** and **Withdraw** had never worked from that page. Check 1 does
+not see it, because the offending line looks like an ordinary capture.
 
 The fix (per CLAUDE.md) is to capture ``context.client`` at the call site and
 restore it inside the coroutine with a **sync** ``with`` block. In NiceGUI 3.x
@@ -36,6 +46,9 @@ coroutine body are both visible even for fragment Edits). Using the AST it:
      would itself raise ``TypeError`` and is not accepted. An httpx-style
      ``async with httpx.AsyncClient() as c:`` is a Call, not a bare Name, so it
      does not count as a guard either.
+  3. For the same functions, flags any read of ``context.client`` anywhere in
+     the body — there is no guarded position for it, since the value it wants
+     does not exist in the task at all. It has to be passed in.
 
 Only presentation-layer files (pages/, theme/, frontend.py) are inspected.
 Exits 2 with guidance on a hit; exits 0 otherwise (fail open — non-Python,
@@ -130,6 +143,33 @@ def _find_unguarded_ui_calls(func: ast.AST) -> list[tuple[int, str]]:
     return hits
 
 
+def _find_context_client_reads(func: ast.AST) -> list[int]:
+    """Lines in `func` that read ``context.client``.
+
+    Unguarded/guarded is not a distinction here: in a detached task the value
+    simply is not there, so there is no ``with`` block that makes the read work.
+    Nested functions are skipped for the same reason check 1 skips them — a
+    nested handler is scheduled separately and gets flagged on its own.
+    """
+    hits: list[int] = []
+
+    def walk(node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.AsyncFunctionDef, ast.FunctionDef)):
+                continue
+            if (
+                isinstance(child, ast.Attribute)
+                and child.attr == "client"
+                and isinstance(child.value, ast.Name)
+                and child.value.id == "context"
+            ):
+                hits.append(child.lineno)
+            walk(child)
+
+    walk(func)
+    return hits
+
+
 def check(source: str, file_path: str) -> list[str]:
     try:
         tree = ast.parse(source, filename=file_path)
@@ -172,6 +212,26 @@ def check(source: str, file_path: str) -> list[str]:
                     f"        with client:\n"
                     f"            ...  # {label}(...) and other ui.* calls go here\n"
                     f"  (from nicegui import context). See CLAUDE.md > NiceGUI patterns."
+                )
+            for line in _find_context_client_reads(func):
+                key = (name, line)
+                if key in seen:
+                    continue
+                seen.add(key)
+                violations.append(
+                    f"SLOT-CONTEXT RISK in '{file_path}' (line {line}):\n"
+                    f"  '{name}' is run via background_tasks.create(...) and reads "
+                    f"context.client from inside.\n"
+                    f"  In a background task the slot stack is empty, so this *raises* "
+                    f"rather than returning None —\n"
+                    f"  the coroutine dies on that line, silently, with nothing on "
+                    f"screen to say so.\n"
+                    f"  Fix: capture it at the call site and pass it in:\n"
+                    f"    background_tasks.create({name}(..., context.client))\n"
+                    f"    async def {name}(..., client):\n"
+                    f"        with client:\n"
+                    f"            ...  # scoped reads and ui.* calls both go in here\n"
+                    f"  See CLAUDE.md > NiceGUI patterns."
                 )
     return violations
 
