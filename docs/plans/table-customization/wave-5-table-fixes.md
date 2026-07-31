@@ -23,12 +23,23 @@ comma-joined list where the sort would run on the string.
 | Player qualifiers (0/6, 0/5) | `rank`, time, status | |
 | Admin → Schedule (4/9) | `generated_seed` (present/absent sorts usefully) | `players`, `commentators`, `trackers`, `edit` |
 
-**`scheduled_at` sorts as a string today.** The row dict carries a formatted
-local time; Quasar sorts what it is given. Where a `*_ts` epoch already rides on
-the row (the match rows carry `scheduled_ts` for `proctor_row_order`), give the
-column a `:sort` function or point it at the numeric field. Check each before
-declaring it sortable — a column that sorts wrongly is worse than one that does
-not sort.
+**Check what each column actually holds before declaring it sortable.** Quasar
+sorts the raw field value, so a formatted string sorts as text.
+
+Two things were verified while writing this plan, and the answers are not
+symmetric:
+
+- **Date columns are safe.** Every one goes through `format_local_datetime` (`%Y-%m-%d %H:%M`) or `format_local_display` (the same, plus a zone label), and an ISO-ordered zero-padded prefix sorts lexically exactly as it sorts chronologically. `scheduled_at` needs no `:sort` and no numeric twin. (An earlier draft of this plan claimed otherwise; it was wrong.)
+- **Formatted numbers were not.** The Tournament-health table declared four such columns sortable — three percentages rendered `'85%'` and a score falling back to `'—'` — so `'100%' < '10%' < '9%'` and the report ranked backwards. **Fixed ahead of this wave** (`health_display_rows` in `reports/insights.py`, with `TestHealthDisplayRows` pinning it): the number stays in the field Quasar sorts, the rendering rides beside it in `<name>_display`, and one snippet per field serves the desktop cell and the mobile card.
+
+Note that NiceGUI 3.12 passes column dicts to Quasar as **plain JSON** — there is
+no `:sort` or `:format` function support — so the number-beside-its-rendering
+shape above is the only fix available, and it is the pattern to copy for any new
+sortable formatted column.
+
+Everything else in the reports was swept and is clean: the aggregates carry raw
+numbers, `_ratio_pct` returns a float, and the composite cells (`'6/8'`,
+`'41 (40)'`, `'2/3 · need 2'`) are deliberately not sortable.
 
 ## 2. Real text search — finding F3
 

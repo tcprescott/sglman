@@ -330,18 +330,7 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
             }
             ui.echart(themed_chart_option(option)).classes('chart-height')
 
-    display_rows = [
-        {
-            'tournament_name': r['tournament_name'],
-            'health_score': r['health_score'] if r['health_score'] is not None else '—',
-            'matches': f"{r['matches_finished']}/{r['matches_past']}",
-            'completion_pct': _pct(r['completion_pct']),
-            'on_time_pct': _pct(r['on_time_pct']),
-            'coverage_pct': _pct(r['coverage_pct']),
-            'avg_duration_min': _dur(r['avg_duration_min'], r['expected_avg_min']),
-        }
-        for r in rows
-    ]
+    display_rows = health_display_rows(rows)
     columns = [
         {'name': 'tournament_name', 'label': 'Tournament', 'field': 'tournament_name', 'sortable': True},
         {'name': 'health_score', 'label': 'Health', 'field': 'health_score', 'sortable': True},
@@ -381,7 +370,9 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
         else:
             table = ui.table(columns=columns, rows=display_rows, pagination=25, row_key='tournament_name') \
                 .classes('full-width')
-            enable_mobile_grid(table, columns)
+            for name, snippet in HEALTH_DISPLAY_CELLS.items():
+                table.add_slot(f'body-cell-{name}', f'<q-td :props="props">{snippet}</q-td>')
+            enable_mobile_grid(table, columns, field_slots=HEALTH_DISPLAY_CELLS)
 
 
 # --- Admin activity -------------------------------------------------------
@@ -441,6 +432,49 @@ def _has_signal(values: List) -> bool:
 
 def _pct(value: Optional[float]) -> str:
     return f'{value:.0f}%' if value is not None else '—'
+
+
+# The Tournament-health columns that are both **sortable** and **formatted**.
+# Quasar sorts the raw field value, so a column holding '9%' / '10%' / '100%'
+# sorts as text — '100%' first, '9%' last — which is silently wrong and reads as
+# a broken report rather than a broken column. So each of these keeps the number
+# in its own field (what Quasar sorts) and carries the formatted string beside it
+# in ``<name>_display`` (what the cell paints).
+HEALTH_SORTED_DISPLAY_FIELDS = (
+    'health_score', 'completion_pct', 'on_time_pct', 'coverage_pct',
+)
+
+# One snippet per field, used for the desktop cell *and* the mobile card: both
+# Quasar scopes expose ``props.row``, so the two cannot drift.
+HEALTH_DISPLAY_CELLS = {
+    name: '<span>{{ props.row.' + name + '_display }}</span>'
+    for name in HEALTH_SORTED_DISPLAY_FIELDS
+}
+
+
+def health_display_rows(rows: List[dict]) -> List[dict]:
+    """Table rows for the Tournament-health detail table.
+
+    Pure, so the number-beside-its-rendering invariant above is unit-testable
+    without a browser: every sortable column's field must stay numeric.
+    """
+    return [
+        {
+            'tournament_name': r['tournament_name'],
+            'health_score': r['health_score'],
+            'health_score_display': (
+                r['health_score'] if r['health_score'] is not None else '—'),
+            'matches': f"{r['matches_finished']}/{r['matches_past']}",
+            'completion_pct': r['completion_pct'],
+            'completion_pct_display': _pct(r['completion_pct']),
+            'on_time_pct': r['on_time_pct'],
+            'on_time_pct_display': _pct(r['on_time_pct']),
+            'coverage_pct': r['coverage_pct'],
+            'coverage_pct_display': _pct(r['coverage_pct']),
+            'avg_duration_min': _dur(r['avg_duration_min'], r['expected_avg_min']),
+        }
+        for r in rows
+    ]
 
 
 def _dur(avg: Optional[float], expected: Optional[int]) -> str:

@@ -9,6 +9,11 @@ labels; a URL that carries a hand-built tenant prefix).
 from datetime import date
 
 from pages.admin_tabs.links import SCHEDULE, VOL_SCHEDULE, admin_url
+from pages.admin_tabs.reports.insights import (
+    HEALTH_DISPLAY_CELLS,
+    HEALTH_SORTED_DISPLAY_FIELDS,
+    health_display_rows,
+)
 from pages.admin_tabs.reports.shared import _page_range_label, _refresh_params, reports_url
 
 
@@ -90,3 +95,71 @@ class TestRefreshParams:
             '/admin/reports?report=crew&start=2026-01-02&tournament_id=3'
         )
         assert _refresh_params(params) == {'start': '2026-01-02', 'tournament_id': 3}
+
+
+class TestHealthDisplayRows:
+    """A sortable column must hold the value Quasar sorts, not its rendering.
+
+    Quasar sorts the raw field value. The Tournament-health table declared four
+    formatted columns sortable — three percentages rendered as ``'85%'`` and a
+    score that fell back to ``'—'`` — so ``'100%' < '10%' < '9%'`` as text and
+    the report ranked tournaments backwards while looking entirely plausible.
+    The number now lives in the field and the rendering beside it in
+    ``<name>_display``.
+    """
+
+    @staticmethod
+    def _row(**over):
+        base = {
+            'tournament_name': 'Spring', 'health_score': 82.0,
+            'matches_total': 10, 'matches_past': 8, 'matches_finished': 6,
+            'completion_pct': 75.0, 'on_time_pct': 9.0, 'coverage_pct': 100.0,
+            'avg_start_delay_min': 3.0, 'avg_duration_min': 41.0,
+            'expected_avg_min': 40,
+        }
+        base.update(over)
+        return base
+
+    def test_every_sortable_column_holds_a_number(self):
+        [row] = health_display_rows([self._row()])
+        for field in HEALTH_SORTED_DISPLAY_FIELDS:
+            assert isinstance(row[field], (int, float)), field
+
+    def test_percentages_sort_numerically_not_lexically(self):
+        rows = health_display_rows([
+            self._row(tournament_name='a', completion_pct=9.0),
+            self._row(tournament_name='b', completion_pct=10.0),
+            self._row(tournament_name='c', completion_pct=100.0),
+        ])
+        ordered = [r['tournament_name'] for r in sorted(rows, key=lambda r: r['completion_pct'])]
+        assert ordered == ['a', 'b', 'c']
+
+    def test_the_rendered_string_is_unchanged(self):
+        [row] = health_display_rows([self._row()])
+        assert row['completion_pct_display'] == '75%'
+        assert row['on_time_pct_display'] == '9%'
+        assert row['coverage_pct_display'] == '100%'
+        assert row['health_score_display'] == 82.0
+
+    def test_an_unscoreable_tournament_keeps_none_in_the_field_and_a_dash_on_screen(self):
+        # None sorts consistently in Quasar (always to the same end); the em
+        # dash in the *field* is what made the score column sort as text.
+        [row] = health_display_rows([self._row(health_score=None, coverage_pct=None)])
+        assert row['health_score'] is None
+        assert row['health_score_display'] == '—'
+        assert row['coverage_pct'] is None
+        assert row['coverage_pct_display'] == '—'
+
+    def test_every_sortable_formatted_column_has_a_cell_template(self):
+        # The pairing is the whole fix: a field without its template would paint
+        # the raw number, a template without its field would paint nothing.
+        assert set(HEALTH_DISPLAY_CELLS) == set(HEALTH_SORTED_DISPLAY_FIELDS)
+        for name, snippet in HEALTH_DISPLAY_CELLS.items():
+            assert f'props.row.{name}_display' in snippet
+
+    def test_unsortable_columns_may_stay_formatted(self):
+        # 'matches' and 'avg_duration_min' render composites ("6/8", "41 (40)")
+        # and are deliberately not sortable, so they need no numeric twin.
+        [row] = health_display_rows([self._row()])
+        assert row['matches'] == '6/8'
+        assert row['avg_duration_min'] == '41 (40)'
