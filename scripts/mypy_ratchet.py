@@ -23,6 +23,15 @@ Record the baseline from a **cold** ``.mypy_cache``, which is what CI always has
 A warm cache reports a couple fewer errors in the files it has already seen; that
 direction is harmless (the ratchet only fails on an increase) but a baseline
 recorded warm would fail the first CI run.
+
+**Record it on the same Python CI uses (3.12).** ``--update`` re-records *every*
+file from whatever interpreter you are on, not just the ones you touched — so
+running it on a newer Python quietly lowers the entry for any file that reports
+fewer errors there, and the next CI run fails on files nobody edited. That
+happened once with ``preset_service.py`` and ``seedgen_service.py``, which report
+one error fewer on 3.13 than on 3.12. If it happens again, restore those specific
+entries by hand rather than re-running ``--update``: the numbers CI produces are
+the authoritative ones.
 """
 
 from __future__ import annotations
