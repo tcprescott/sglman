@@ -46,6 +46,11 @@ class BracketNotificationMixin:
         losers bracket runs, which match is the grand final), so it needs the
         stage's graph; :meth:`BracketRepository.round_links` is the lean
         projection for it. One query.
+
+        Only an elimination stage counts down to a final. Swiss and round robin
+        stay on "Round N" — the public bracket already names them that way
+        (``round_display_names``), and a group stage announcing "Quarterfinals"
+        tells its entrants they are in a knockout they are not in.
         """
         rows = await self.repository.round_links(bracket.id)
         names = round_names(
@@ -57,8 +62,24 @@ class BracketNotificationMixin:
                 for r in rows
             ],
             double_elim=bracket.format == BracketFormat.DOUBLE_ELIM,
+            # Defined on AdvancementMixin, reachable on the composed service.
+            elimination=bracket.format in self._ELIM_FORMATS,  # type: ignore[attr-defined]
         )
         return names.get(round_number) or f'Round {round_number}'
+
+    async def round_name_for_match(
+        self, bracket: Bracket, bracket_match: BracketMatch,
+    ) -> str:
+        """The round name a *matchup* carries, group-qualified in a grouped stage.
+
+        Every group of a round-robin stage runs the same round numbers at once,
+        so "Round 2" alone does not tell an entrant which of four concurrent
+        rounds is theirs. Mirrors the admin's ``match_label`` vocabulary.
+        """
+        name = await self.round_name_for(bracket, bracket_match.round)
+        if bracket_match.group_number:
+            return f'Group {bracket_match.group_number} · {name}'
+        return name
 
     # -- series context for the ordinary match DMs -------------------------
     async def bracket_line_for_match(self, match_id: int) -> str:
@@ -92,7 +113,7 @@ class BracketNotificationMixin:
             bracket_match = game.bracket_match
             bracket = await self._require_bracket(bracket_match.bracket_id)
             best_of = self.resolve_best_of(bracket, bracket_match)
-            parts = [await self.round_name_for(bracket, bracket_match.round)]
+            parts = [await self.round_name_for_match(bracket, bracket_match)]
             if best_of > 1:
                 parts.append(f'Game {game.game_number} of {best_of}')
                 games = await self.repository.list_games(bracket_match.id)
@@ -131,7 +152,7 @@ class BracketNotificationMixin:
         return {
             'bracket_id': bracket.id,
             'bracket_name': bracket.name,
-            'round_name': await self.round_name_for(bracket, resolved.round),
+            'round_name': await self.round_name_for_match(bracket, resolved),
             'game_number': game.game_number,
             'best_of': best_of,
             'standing': f'{max(e1, e2)}-{min(e1, e2)}' if (e1 or e2) else '',
@@ -179,7 +200,7 @@ class BracketNotificationMixin:
 
             bracket = resolved.bracket
             tournament = bracket.tournament
-            round_name = await self.round_name_for(bracket, resolved.round)
+            round_name = await self.round_name_for_match(bracket, resolved)
             best_of = self.resolve_best_of(bracket, resolved)
             schedule_url = await self._schedule_url(bracket.id)
 

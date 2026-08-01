@@ -69,6 +69,27 @@ async def _series(service, actor, *, best_of: int = 1, name: str = 'Cup'):
     return tournament, bracket, users, bmatch
 
 
+async def _groups(service, actor, *, name: str = 'Groups Cup'):
+    """A started round robin: 6 entrants in 2 groups of 3, so rounds run 1-3.
+
+    Three rounds is the shape that produced the bug — deep enough for the
+    elimination naming to reach back to "Quarterfinals".
+    """
+    tournament = await Tournament.create(name=name)
+    bracket = await service.create_bracket(
+        actor, tournament.id, 'Groups', 'round_robin', config={'group_count': 2},
+    )
+    for i in range(1, 7):
+        user = await User.create(discord_id=2000 + i, username=f'g{i}')
+        entrant = await service.add_entrant(
+            actor, tournament.id, f'G{i}', user_id=user.id,
+        )
+        await service.enroll(actor, bracket.id, entrant.id, seed=i)
+    await service.start_bracket(actor, bracket.id)
+    bmatch = (await service.get_open_matches(bracket.id))[0]
+    return tournament, bracket, bmatch
+
+
 async def _casual_match(actor, *, name: str = 'Casual') -> Match:
     """A plain scheduled match no bracket ever touched — the common case."""
     tournament = await Tournament.create(name=name)
@@ -505,3 +526,48 @@ class TestMatchupSummary:
         actor = await _staff()
         match = await _casual_match(actor)
         assert await service.matchup_summary(match.id) is None
+
+
+class TestGroupStageRoundNaming:
+    """A group stage told its entrants they were in a knockout.
+
+    Round naming is depth-from-the-deepest-round, which is only meaningful in an
+    elimination graph. A round-robin group of 3 runs rounds 1-3 with no
+    progression pointers, so the same rule read round 3 as the Final and named
+    the two before it Semifinals and Quarterfinals — and that string went out in
+    the matchup-ready DM as the round the player was about to schedule.
+    """
+
+    async def test_a_group_round_is_named_by_number_and_group(self, service):
+        actor = await _staff()
+        _, bracket, bmatch = await _groups(service, actor)
+
+        assert await service.round_name_for(bracket, 1) == 'Round 1'
+        assert await service.round_name_for(bracket, 3) == 'Round 3'
+        assert await service.round_name_for_match(bracket, bmatch) == \
+            f'Group {bmatch.group_number} · Round {bmatch.round}'
+
+    async def test_the_matchup_ready_dm_carries_the_group_round(
+        self, service, monkeypatch,
+    ):
+        sent = TestMatchupReadyNotification._capture(monkeypatch)
+        actor = await _staff()
+        await _groups(service, actor)
+        import asyncio
+        await asyncio.sleep(0)
+
+        names = {kwargs['round_name'] for kwargs in sent}
+        assert names, 'the group stage announced no matchups'
+        assert not names & {'Quarterfinals', 'Semifinals', 'Final'}
+        assert names <= {
+            f'Group {g} · Round {r}' for g in (1, 2) for r in (1, 2, 3)
+        }
+
+    async def test_the_bracket_line_on_a_group_match(self, service):
+        actor = await _staff()
+        _, _, bmatch = await _groups(service, actor)
+        match = await service.schedule_bracket_match(
+            actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+        )
+        assert await service.bracket_line_for_match(match.id) == \
+            f'Group {bmatch.group_number} · Round {bmatch.round}'

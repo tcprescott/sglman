@@ -128,7 +128,10 @@ def detect_finals_ids(
 
 
 def round_names(
-    nodes: List[RoundNode], *, double_elim: bool = False
+    nodes: List[RoundNode],
+    *,
+    double_elim: bool = False,
+    elimination: bool = True,
 ) -> Dict[int, str]:
     """``{round_number: name}`` for a whole stage graph, in one pass.
 
@@ -136,9 +139,17 @@ def round_names(
     ``max_winners_round`` is taken, exactly as the renderer does it — otherwise a
     double elim's grand final would be counted as the winners final and every
     winners round would be named one step too early.
+
+    ``elimination=False`` for the flat formats (Swiss, round robin). Their rounds
+    are a schedule, not a ladder: the deepest round is nothing but the last one
+    everybody plays, so counting down to Final/Semifinals/Quarterfinals off it
+    names rounds after an elimination structure the stage does not have. A
+    3-round group would otherwise open on "Quarterfinals".
     """
     if not nodes:
         return {}
+    if not elimination:
+        return {n.round: f'Round {n.round}' for n in nodes}
 
     gf_id, reset_id = detect_finals_ids(nodes) if double_elim else (None, None)
     by_id = {n.id: n for n in nodes}

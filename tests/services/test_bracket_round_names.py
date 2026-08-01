@@ -105,3 +105,20 @@ class TestRoundNames:
 
     def test_empty_graph(self):
         assert round_names([]) == {}
+
+    def test_a_flat_stage_never_counts_down_to_a_final(self):
+        """A round-robin group emits no progression pointers, so its deepest
+        round is only the last one — naming it "Final" (and the two before it
+        Semifinals/Quarterfinals) invents a knockout the stage does not have."""
+        nodes = [
+            RoundNode(id=1, round=1),
+            RoundNode(id=2, round=2),
+            RoundNode(id=3, round=3),
+        ]
+        assert round_names(nodes, elimination=False) == {
+            1: 'Round 1', 2: 'Round 2', 3: 'Round 3',
+        }
+        # The same graph read as an elimination stage is what produced the bug.
+        assert round_names(nodes) == {
+            1: 'Quarterfinals', 2: 'Semifinals', 3: 'Final',
+        }
