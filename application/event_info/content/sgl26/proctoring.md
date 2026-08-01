@@ -15,9 +15,13 @@ in, seating players, rolling the seed, recording a winner — is in
 [Running matches as a proctor](/help/proctor) under Help, and stays true whatever
 event you are working.
 
-> **TODO:** who the on-call admin is per day and how to find them, plus the
-> coordinator to ask about shifts. Staff are marked so you can pick one out on
-> sight, but name the escalation path here.
+**The room is never left unattended.** The on-call admin rotates through the day
+and is normally in the tournament room with you; if they need to step out briefly
+they will tell you before they go. Between the two of you there is always a
+proctor or an admin in the room — which is also why you should not leave it
+without handing over.
+
+> **TODO:** the coordinator to ask about shifts and swaps.
 
 ## Looking after the room
 
@@ -81,9 +85,14 @@ the useful thing.
 ## When things go wrong
 
 :::snippet proctor-escalation
-**Fetch the on-call admin in person.** They are on the floor, and staff are
-marked so you can pick one out on sight — you are looking around for a person,
-not sending a message and waiting for a reply.
+**Fetch the on-call admin in person.** They are usually in the room with you, and
+staff lanyards make them easy to pick out — you are looking around for a person,
+not sending a message and waiting for a reply. If they stepped out, they told you
+before they went.
+
+**If you genuinely cannot find one**, ping **@Staff** in the
+[event Discord](https://discord.gg/FfpqjcGsCM). That is the backstop for when
+nobody is reachable in the room, not the normal route.
 
 Four situations. Only the last one is yours to decide:
 

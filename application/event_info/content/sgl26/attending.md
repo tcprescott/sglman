@@ -42,14 +42,21 @@ Tickets are sold through [Matcherino](https://matcherino.com/t/sglive26).
 | VIP | $110 | Badge, lanyard, pin, and your name on stream |
 | Super VIP | $160 | The above, plus a t-shirt |
 
+**Everyone needs a badge, for every event space.** Not just players — spectators
+too. There is no part of the event you can be in without one, so collecting yours
+is the first thing to do when you arrive.
+
+**The check-in desk opens on Wednesday**, the day before play starts, so you can
+collect your badge the evening before rather than queueing on Thursday morning.
+
+> **TODO:** check-in desk hours, and where in the hotel it is. The Wednesday
+> opening is confirmed; the times are not set yet.
+
 **Your lanyard says what you are.** Attendee, volunteer and staff lanyards are
 different, which is how you pick a staff member out of a room when you need one.
 
 **Volunteering can pay for your badge.** Eight hours comps it outright, with more
 back at twelve and sixteen-plus. See [Who to ask](/event-info/who-to-ask).
-
-> **TODO:** where and when to collect a badge on arrival, and whether one is
-> needed to enter the tournament room.
 
 ## Check-in and stations
 
@@ -63,8 +70,9 @@ once they have, the station number shows next to your name on the schedule
 board so you and anyone looking for you can see where you are.
 
 The proctor counts you down out loud and starts the match. If your opponent has
-not turned up by the time your match is due, the proctor fetches an admin — that
-call is not theirs to make, so give them a moment rather than pressing them.
+not turned up by the time your match is due, the proctor fetches an admin —
+whether to wait, reschedule or forfeit is the admin's call rather than the
+proctor's.
 
 You do not check yourself in and you do not pick your own station.
 :::
@@ -145,7 +153,7 @@ the spot — an admin does — so raising it early is the fastest route.
 
 | What has happened | What you do |
 |---|---|
-| **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit. Give them a moment rather than pressing them — that call is not theirs. |
+| **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit — the proctor cannot make that call for you. |
 | **Hardware or the game fails mid-match** | Stop and tell the proctor. Do not start swapping cables or restarting things yourself: whether the match resumes, restarts or moves depends on the tournament's rules and on what actually broke. |
 | **You think something is not right** about how the match is being played | Tell the proctor or an admin, quietly, rather than raising it with your opponent. Describe what you saw and let them take it from there. |
 | **The two of you disagree on the result** | Tell the proctor before you leave. They record their best call and flag it for a staff member, who settles it when they confirm the result. |
@@ -183,6 +191,7 @@ proctor records the result.
 
 ## Anything else
 
-The [SpeedGaming Discord](https://discord.com/invite/T6qzxNJ) is where the
-community answers what this page does not.
+The [event Discord](https://discord.gg/FfpqjcGsCM) is where the community answers
+what this page does not. If you need staff and cannot find anyone in person,
+**@Staff** there reaches someone — see [Who to ask](/event-info/who-to-ask).
 
