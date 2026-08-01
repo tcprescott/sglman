@@ -76,6 +76,7 @@ from .match import (
     Tracker,
 )
 from .mcp import McpAuthorizationCode, McpOAuthClient
+from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
 from .system import SystemConfiguration
@@ -207,6 +208,8 @@ __all__ = [
     'TriforceText',
     'User',
     'UserRole',
+    # per-user UI preferences
+    'UserTablePreference',
     'VolunteerAssignment',
     'VolunteerAvailability',
     'VolunteerAvailabilityStatus',

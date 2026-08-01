@@ -74,6 +74,7 @@ from .speedgaming_sync_service import SpeedGamingSyncService
 from .station_service import StationService
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
+from .table_preference_service import TablePreferenceService
 from .telemetry_service import TelemetryService
 from .tenant_membership_service import TenantMembershipService
 from .tenant_service import TenantService
@@ -152,6 +153,7 @@ __all__ = [
     'StationService',
     'StreamRoomService',
     'SystemConfigService',
+    'TablePreferenceService',
     'TelemetryService',
     'TenantMembershipService',
     'TenantService',

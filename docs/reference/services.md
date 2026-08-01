@@ -73,6 +73,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
+| `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
@@ -664,6 +665,21 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; Staff-only. |
 | `validate_hours_mapping(mapping)` | `None` | Pure HH:MM / close-after-open validation (`ValueError`), shared with `set_tournament_hours`. |
 | `get_station_format(default=StationFormat.FREE)` | `StationFormat` | The venue's station-numbering mode. |
+
+### table_preference_service.py — TablePreferenceService
+
+One person's saved layout for one table, stored **globally** (no tenant — the
+`User.timezone` call). `prime(user)` loads the whole set in a single query at page
+build; `save` / `set_width` / `reset` / `reset_all` write it. `validate(config)` is
+pure and is the entire security surface, since the blob arrives from a browser:
+known keys only, `page_size` from `ALLOWED_PAGE_SIZES`, `density` from
+`ALLOWED_DENSITIES`, bounded widths and column-list length, no duplicate names —
+returning a normalised copy so storage is canonical. It deliberately never learns
+column *names*: the authoritative list lives in presentation, and reconciliation
+happens there (`theme/tables/preferences.effective_columns`). **No audit row and
+no event** — hiding a column is not a change to a community's data; `save` and
+`reset` fire a best-effort telemetry interaction instead. Collaborators:
+`TablePreferenceRepository`, `TelemetryService`.
 
 ### telemetry_service.py — TelemetryService
 

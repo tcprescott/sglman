@@ -75,6 +75,7 @@ from scripts.seed_online import (
 )
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
+from scripts.seed_preferences import seed_table_preferences
 from scripts.seed_support import (
     RACER_SPECS,
     USER_SPECS,
@@ -698,6 +699,7 @@ async def seed_all() -> None:
     """
     users = await seed_users()
     await seed_super_admin(users)
+    await seed_table_preferences(users)
     await seed_mcp_oauth(users)
     bots = await seed_racetime_bots()
     groups = await seed_feature_groups()
