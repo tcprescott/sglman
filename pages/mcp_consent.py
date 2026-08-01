@@ -11,6 +11,11 @@ anonymous visitor to ``/login`` and back here afterwards.
 There is no community picker. The issued token carries no tenant; each MCP tool
 call names its own community and is authorized against the user's role there.
 Asking here would imply a scoping the credential does not actually have.
+
+There *is* a write checkbox, unticked. Write access is the one thing a grant can
+carry that the user cannot undo by reading more carefully, so it is asked for
+here and nowhere else: a client cannot request its way past this, and a refresh
+cannot widen a grant that was approved without it.
 """
 
 import logging
@@ -36,6 +41,13 @@ _GRANTS = [
     ('event', 'Read tournaments, matches, schedules and results'),
     ('groups', 'Read crew and volunteer assignments'),
     ('history', 'Read audit history, where your role already allows it'),
+]
+
+# Added to the list only when the write box is ticked, so the card always
+# describes the grant the user is about to make rather than one they might.
+_WRITE_GRANTS = [
+    ('edit_calendar', 'Schedule, edit, cancel and run matches'),
+    ('emoji_events', 'Record results, roll seeds and manage crew signups'),
 ]
 
 
@@ -98,9 +110,14 @@ def create() -> None:
         client = await service.get_client(pending.client_id)
         client_name = client.client_name if client else 'An MCP client'
 
+        # Off by default. Everything below reads it; nothing else decides it.
+        allow_write = {'value': False}
+
         async def approve() -> None:
             try:
-                code, redirect_uri, state = await service.approve(txn, user)
+                code, redirect_uri, state = await service.approve(
+                    txn, user, allow_write=allow_write['value'],
+                )
             except (ValueError, NotFoundError) as exc:
                 ui.notify(str(exc), color='warning')
                 return
@@ -125,6 +142,39 @@ def create() -> None:
             """Whose grant this is, in the header — the same identity the card names."""
             ui.label(user.preferred_name).classes('user-name')
 
+        @ui.refreshable
+        def grant_summary() -> None:
+            """The grant list and its closing note, redrawn as the box is ticked.
+
+            Both halves move together on purpose: a card that lists writes but
+            still promises "it cannot change anything" is worse than either.
+            """
+            ui.label('It will be able to:').classes('consent-grants-title')
+            with ui.column().classes('consent-grants'):
+                grants = _GRANTS + (_WRITE_GRANTS if allow_write['value'] else [])
+                for icon, text in grants:
+                    with ui.row().classes('consent-grant no-wrap'):
+                        ui.icon(icon).props('size=sm').classes('consent-grant-icon')
+                        ui.label(text)
+            with ui.row().classes('consent-note consent-note--lock no-wrap'):
+                if allow_write['value']:
+                    ui.icon('lock_open').props('size=sm')
+                    ui.label(
+                        'It acts as you, so it can change whatever you can change '
+                        'and nothing you cannot. Every change lands in the audit '
+                        'log under your name.'
+                    )
+                else:
+                    ui.icon('lock').props('size=sm')
+                    ui.label(
+                        'It cannot change anything — this connection is read-only, '
+                        'and it only ever sees what you can already see.'
+                    )
+
+        def on_write_toggle(event) -> None:
+            allow_write['value'] = bool(event.value)
+            grant_summary.refresh()
+
         render_platform_chrome('Authorize', right=_signed_in_as)
 
         with ui.column().classes('consent-page'):
@@ -136,18 +186,16 @@ def create() -> None:
                     f'{user.preferred_name}.'
                 ).classes('consent-lede')
                 ui.separator().classes('consent-rule')
-                ui.label('It will be able to:').classes('consent-grants-title')
-                with ui.column().classes('consent-grants'):
-                    for icon, text in _GRANTS:
-                        with ui.row().classes('consent-grant no-wrap'):
-                            ui.icon(icon).props('size=sm').classes('consent-grant-icon')
-                            ui.label(text)
-                with ui.row().classes('consent-note consent-note--lock no-wrap'):
-                    ui.icon('lock').props('size=sm')
+                grant_summary()
+                with ui.column().classes('consent-write'):
+                    ui.checkbox(
+                        'Let it make changes', value=False, on_change=on_write_toggle,
+                    ).classes('consent-write-toggle')
                     ui.label(
-                        'It cannot change anything — this connection is read-only, '
-                        'and it only ever sees what you can already see.'
-                    )
+                        'Leave this off unless you want the client to schedule '
+                        'matches, record results and manage crew for you. You can '
+                        'turn it on later by reconnecting.'
+                    ).classes('consent-note')
                 ui.label(
                     'You can disconnect it at any time from your profile.'
                 ).classes('consent-note')

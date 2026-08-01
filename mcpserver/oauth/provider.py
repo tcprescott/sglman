@@ -27,7 +27,11 @@ from mcp.server.auth.provider import (
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from application.services import McpAuthService
-from application.services.mcp_auth_service import DEFAULT_SCOPE, PendingAuthorization
+from application.services.mcp_auth_service import (
+    CLIENT_SCOPE,
+    DEFAULT_SCOPE,
+    PendingAuthorization,
+)
 from application.utils.environment import get_base_url
 
 logger = logging.getLogger(__name__)
@@ -81,7 +85,12 @@ class WizzrobeOAuthProvider(
             grant_types=list(client_info.grant_types or []),
             response_types=list(client_info.response_types or []),
             token_endpoint_auth_method=client_info.token_endpoint_auth_method or 'none',
-            scope=client_info.scope or DEFAULT_SCOPE,
+            # Both scopes, so a client that explicitly requests write is not
+            # rejected at /authorize by the SDK's registered-scope check. It
+            # decides nothing: the consent screen grants the scope, and a client
+            # that asked for write still gets a read-only token unless the user
+            # said otherwise.
+            scope=client_info.scope or CLIENT_SCOPE,
         )
 
     # --- Authorization ----------------------------------------------------

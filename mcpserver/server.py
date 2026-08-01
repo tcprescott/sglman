@@ -8,21 +8,33 @@ logger names from every log line in the process. Building it from ``mount()``,
 which runs after logging is configured, keeps our format.
 """
 
+from typing import List
+
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import Tool as MCPTool
 
+from mcpserver.auth import optional_actor
+from mcpserver.registry import write_tool_names
 from mcpserver.tools import register_all
 
 INSTRUCTIONS = """\
-Read-only access to Wizzrobe, a tournament management platform. You can look up \
+Access to Wizzrobe, a tournament management platform. You can look up \
 tournaments, matches, schedules, brackets and qualifiers, people, crew and \
 volunteer assignments, equipment, seed presets, racetime and SpeedGaming \
-integrations, audit history, engagement telemetry, and operational reports. \
-Nothing here modifies data.
+integrations, audit history, engagement telemetry, and operational reports.
+
+Most tools only read. If this connection was approved for write access you will \
+also see tools that change data — scheduling and editing matches, running the \
+match lifecycle, recording results, rolling seeds, and crew signups. They are \
+the tools whose `readOnlyHint` is false. If you cannot see them, the person who \
+connected this client approved it for reading only, and reconnecting is the \
+only way to change that. Confirm with the user before a write that other people \
+are relying on, and never guess at an id — read it back first.
 
 Start with `whoami`. It reports which communities you belong to, what role you \
-hold in each, and which optional features each has enabled — so you can avoid \
-calling tools that would be refused.
+hold in each, which optional features each has enabled, and whether this \
+connection may write — so you can avoid calling tools that would be refused.
 
 Wizzrobe hosts many independent communities. Every tool except `whoami` and \
 `list_tenants` takes a required `tenant` argument: the community's slug, as \
@@ -34,9 +46,33 @@ members read them in, so convert before quoting a time to a person.\
 """
 
 
+class WizzrobeMCP(FastMCP):
+    """FastMCP that hides the write tools from a read-only connection.
+
+    Every write is refused at the gate regardless, so this is not the security
+    boundary — it is a context one. A read-only client offered nineteen tools it
+    can never call spends tokens on them and plans work it cannot do, and the
+    refusal arrives a round-trip after the model has already told the user it
+    would reschedule their match.
+
+    Listing runs inside the request's context (see ``mcpserver/asgi.py``), so
+    the actor is the one whose token is being served. Outside a request — the
+    SDK builds the list once while wiring itself up — there is no actor and the
+    full catalogue is returned.
+    """
+
+    async def list_tools(self) -> List[MCPTool]:
+        tools = await super().list_tools()
+        actor = optional_actor()
+        if actor is None or not actor.token.read_only:
+            return tools
+        hidden = write_tool_names()
+        return [tool for tool in tools if tool.name not in hidden]
+
+
 def build_server() -> FastMCP:
     """Construct the MCP server with every tool registered."""
-    mcp = FastMCP(
+    mcp = WizzrobeMCP(
         name='Wizzrobe',
         instructions=INSTRUCTIONS,
         # CORRECTNESS, not scaling. In stateful mode the MCP server task is

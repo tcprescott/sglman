@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 import mcpserver
 from application.services.api_token_service import MCP_TOKEN_PREFIX
+from application.services.mcp_auth_service import granted_scope
 from models import ApiToken, ApiTokenOrigin, McpOAuthClient, Role, User, UserRole
 
 # The transport validates both: a POST without JSON content-type is rejected,
@@ -60,6 +61,7 @@ async def create_oauth_token(
     is_active: bool = True,
     expired: bool = False,
     tenant_id: Optional[int] = None,
+    write: bool = False,
 ) -> Tuple[User, str]:
     """Create a user and a platform-wide OAuth token for them.
 
@@ -69,6 +71,9 @@ async def create_oauth_token(
     ``roles`` are granted in ``tenant_id`` (default: the ambient test tenant),
     because roles are per-tenant — granting them "globally" would silently test
     something the product cannot express.
+
+    ``write`` mirrors the consent screen's box and defaults off, so a test that
+    does not mention writing gets the connection most real users have.
     """
     if discord_id is None:
         discord_id = random.randint(1, 10 ** 12)
@@ -94,7 +99,8 @@ async def create_oauth_token(
     now = datetime.now(timezone.utc)
     await ApiToken.create(
         user=user, name='test-mcp', tenant_id=None, oauth_client=client,
-        origin=ApiTokenOrigin.OAUTH.value, read_only=True,
+        origin=ApiTokenOrigin.OAUTH.value, read_only=not write,
+        scope=granted_scope(allow_write=write),
         token_hash=hashlib.sha256(raw.encode()).hexdigest(),
         token_prefix=raw[:17],
         expires_at=now - timedelta(minutes=1) if expired else now + timedelta(hours=1),
