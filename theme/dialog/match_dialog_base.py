@@ -12,7 +12,6 @@ from application.services import (
     BracketService,
     CrewService,
     MatchService,
-    MatchSuggestionService,
     MatchWatcherService,
     StreamRoomService,
     TournamentService,
@@ -30,6 +29,7 @@ from theme.dialog._helpers import (
     dialog_header,
     native_date_input,
     native_time_input,
+    render_suggest_time_button,
     submit_on_enter,
 )
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -179,33 +179,21 @@ class BaseMatchDialog:
         time,
         missing_message: str,
     ) -> None:
-        """Render the 'Suggest a time' button shared by both dialogs.
+        """Render the 'Suggest a time' button shared by every scheduling dialog.
 
-        The two dialogs source player ids differently (admin from the players
-        multi-select, user from the single opponent select plus their own id), so
-        the ids are supplied by ``get_player_ids``, evaluated at click time.
+        The two callers on this class source player ids differently (admin from
+        the players multi-select, user from the single opponent select plus
+        their own id), so the ids are supplied by ``get_player_ids``, evaluated
+        at click time.
         """
-        async def suggest_time():
-            tournament_id = get_tournament_id()
-            player_ids = get_player_ids()
-            if not tournament_id or not player_ids:
-                with self.dialog:
-                    ui.notify(missing_message, color='warning')
-                return
-            try:
-                suggested = await MatchSuggestionService().suggest_match_time(
-                    tournament_id=tournament_id,
-                    player_ids=player_ids,
-                )
-                date.value = format_local_date(suggested)
-                time.value = format_local_time(suggested)
-                with self.dialog:
-                    ui.notify('Suggested time filled in — review and save.', color='info')
-            except ValueError as e:
-                with self.dialog:
-                    ui.notify(str(e), color='warning')
-
-        ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time).props('flat color=secondary').classes('mt-1')
+        render_suggest_time_button(
+            self.dialog,
+            get_tournament_id=get_tournament_id,
+            get_player_ids=get_player_ids,
+            date=date,
+            time=time,
+            missing_message=missing_message,
+        )
 
     def _render_state_summary(self, players) -> None:
         """Where this match currently stands, at the top of the edit dialog.
