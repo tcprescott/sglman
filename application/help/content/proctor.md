@@ -46,15 +46,27 @@ Six steps, in order. Everything but steps 2 and 4 happens from the match's row.
 6. **Record the winner** when it ends. That moves the match to
    {state:Finished}.
 
+**There is a PC in the room** for anyone who needs to copy seed data onto an SD
+card or another device. Point players at it rather than leaving them to find a
+spare laptop.
+
 You do **not** confirm the result — a staff member does that, and it is what
 makes the result official. Your job ends at recording it.
 :::
 
 ## Looking after the room
 
-Running matches is only half the job. The room itself is yours.
+Running matches is only half the job. The room itself is yours — and only that
+room.
 
 :::snippet proctor-room
+**You are responsible for the tournament room you are assigned to, and nothing
+outside it.** A match being played somewhere else — on a stage, or in a
+streaming room — is not yours to run. The broadcast techs handle those matches;
+the only part that may still come your way is rolling the seed. The rules below,
+spectators especially, are the rules for *your* room: the streaming rooms and
+stages run to different ones, and it is not your job to police them.
+
 **Keep the noise down.** Players are concentrating, and several matches share the
 room. Keeping it quiet is your responsibility — that includes spectators, players
 between matches, and conversations drifting in from the door.
@@ -73,6 +85,11 @@ both screens has information neither player has.
 **audio: check the TV is actually sending sound out of the headphone jack**
 before the match starts. A player who discovers that mid-race has lost time you
 cannot give back.
+
+**Beware of power.** While you are helping someone, know what every cable you
+touch is powering before you pull it. Trace it, check it twice, and only then
+unplug it — the console you kill might be the one running a live match at the
+next station.
 :::
 
 ### Which stations to use
