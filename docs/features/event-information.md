@@ -42,8 +42,8 @@ context.
 
 | Tenant | Articles |
 |---|---|
-| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) |
-| `default` | `attending` · `proctoring` — the **dev fixture**, see below |
+| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) · `broadcast` (Broadcast tech info — **role-gated**) |
+| `default` | `attending` · `proctoring` · `broadcast` — the **dev fixture**, see below |
 
 A tenant with no directory has **no articles**, not an error: a community that
 has just been granted the feature and written nothing renders an empty state.
@@ -75,6 +75,12 @@ are a snapshot — the article says so rather than implying they are fixed.
 >
 > The flag is dark, so none of this reaches a reader until the gaps are filled and
 > a super-admin grants it.
+
+`broadcast` (role-gated to `STREAM_MANAGER`/`STAFF`) is scaffolding: the room
+boundary and pre-air checklist are written, but the stage list, technical
+requirements (resolution/bitrate/audio, OBS scene collection, restream
+routing) and the broadcast lead's contact are all `TODO:` — nobody has
+supplied that content yet.
 
 ### This is v1 of a database-backed surface
 
