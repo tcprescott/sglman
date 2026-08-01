@@ -181,6 +181,13 @@ genuinely free. You do not need to do anything in the app, since the station
 releases itself once the proctor records the result.
 :::
 
+## Board game room
+
+> **TODO:** whether the event has a board game room this year, where it is, what
+> hours it runs, and whether you bring your own games or borrow from a shared
+> library. Not published anywhere yet — add the details once the venue and
+> programming are settled.
+
 ## Conduct
 
 > **TODO:** the event's code of conduct — link it here, and say how to report a
