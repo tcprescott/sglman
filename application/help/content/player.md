@@ -116,10 +116,12 @@ costs you time nobody can give back.
 card or another device. Ask the proctor where it is rather than hunting for a
 spare laptop.
 
-**Do not unplug anything.** Cables in a tournament room are not always plugged in
-where you would expect, and the socket you free up may be powering a station
-that is mid-match. If you need power, a cable moved, or anything repositioned,
-ask the proctor and let them do it.
+**Beware of power.** Unplugging your *own* equipment is fine — but be extremely
+careful about it, to exactly the standard the proctors are held to. Cables in a
+tournament room are not always plugged in where you would expect, and the plug
+you pull may be powering a station that is mid-match. Trace it to the thing it
+actually powers, check twice that it is yours, and only then unplug it. If you
+are not certain, ask the proctor rather than finding out.
 
 **Keep it quiet.** Several matches share the room and everyone in it is
 concentrating. That applies to you between your own matches as much as to
