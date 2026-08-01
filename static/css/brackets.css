@@ -438,9 +438,15 @@ body {
 
 .bracket-strow .c-name {
   flex: 1 1 auto;
-  /* 0, not a px floor: the floor would win over flex-shrink on a phone and push
-     the fixed cells off the row. The name cell ellipsises instead. */
-  min-width: 0;
+  /* A real floor, not 0: with several groups per row (.bracket-groups-grid can
+     pack cards down near its 320px track minimum) and both tiebreaker columns
+     shown, 0 let the fixed cells' leftover space win and the name shrank to a
+     sliver — unreadable rather than merely tight. This floor makes the row's
+     min-content wider than a squeezed card, so .bracket-standings' overflow-x
+     scrolls instead of crushing the name to nothing. Phones override back to 0
+     below, where the row is already full viewport width and the tiebreaker/seed/
+     avatar columns are dropped to make room instead. */
+  min-width: 64px;
 }
 
 .bracket-strow .c-rec {
@@ -718,6 +724,14 @@ body {
 
   .bracket-strow .c-pts {
     width: 28px;
+  }
+
+  /* Restore the shrink-to-nothing behavior the desktop floor above disables:
+     at this width the row already spans the full (single-column) viewport, so
+     letting the name give up its last few px keeps the fixed cells on-row
+     instead of forcing a sideways scroll on a phone. */
+  .bracket-strow .c-name {
+    min-width: 0;
   }
 
   /* Avatars hide at compact density (plan decision 7), and the per-row seed is
