@@ -99,23 +99,24 @@ class TestPlayerAvailability:
             assert resp.status_code == 403
 
 
+ONE_WINDOW = {
+    'windows': [
+        {
+            'starts_at': '2026-06-10T18:00:00+00:00',
+            'ends_at': '2026-06-10T20:00:00+00:00',
+            'status': 'preferred',
+        }
+    ]
+}
+
+
 class TestReadingAnotherPlayersAvailability:
     """``GET /users/{id}/availability`` — the scheduler's read, staff-gated."""
-
-    WINDOWS = {
-        'windows': [
-            {
-                'starts_at': '2026-06-10T18:00:00+00:00',
-                'ends_at': '2026-06-10T20:00:00+00:00',
-                'status': 'preferred',
-            }
-        ]
-    }
 
     async def _player_with_a_window(self, app):
         player, raw = await create_user_token(username='player')
         async with client_for(app, raw) as c:
-            await c.put('/api/users/me/availability', json=self.WINDOWS)
+            await c.put('/api/users/me/availability', json=ONE_WINDOW)
         return player
 
     async def test_staff_reads_another_players_windows(self, db, app):
@@ -129,7 +130,7 @@ class TestReadingAnotherPlayersAvailability:
     async def test_your_own_windows_need_no_role(self, db, app):
         player, raw = await create_user_token(username='player')
         async with client_for(app, raw) as c:
-            await c.put('/api/users/me/availability', json=self.WINDOWS)
+            await c.put('/api/users/me/availability', json=ONE_WINDOW)
             resp = await c.get(f'/api/users/{player.id}/availability')
             assert resp.status_code == 200
             assert len(resp.json()) == 1

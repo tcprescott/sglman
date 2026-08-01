@@ -15,6 +15,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
+from api._helpers import load_user_or_404
 from api.dependencies import (
     ServiceErrorRoute,
     require_api_actor,
@@ -24,7 +25,6 @@ from api.schemas.player_availability import (
     PlayerAvailabilityResponse,
     SetPlayerAvailabilityRequest,
 )
-from api._helpers import load_user_or_404
 from application.services import AuthService, PlayerAvailabilityService
 from models import User
 

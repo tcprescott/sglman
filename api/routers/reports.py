@@ -181,7 +181,7 @@ async def matches_active_at(
             match_id=match.id,
             tournament=match.tournament.name if match.tournament else None,
             scheduled_at=match.scheduled_at,
-            players=[p.user.preferred_name for p in match.players if p.user],
+            players=[p.user.preferred_name for p in match.players if p.user],  # type: ignore[attr-defined]
             stream_room=match.stream_room.name if match.stream_room else None,
         )
         for match in matches[:limit]

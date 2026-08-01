@@ -50,8 +50,8 @@ def _name(user: Optional[User]) -> Optional[str]:
 def _serialize_loan(loan: EquipmentLoan) -> LoanResponse:
     return LoanResponse(
         id=loan.id,
-        equipment_id=loan.equipment_id,
-        borrower_id=loan.borrower_id,
+        equipment_id=loan.equipment_id,  # type: ignore[attr-defined]
+        borrower_id=loan.borrower_id,  # type: ignore[attr-defined]
         borrower_name=_name(getattr(loan, 'borrower', None)),
         checked_out_at=loan.checked_out_at,
         checked_out_by_name=_name(getattr(loan, 'checked_out_by', None)),
@@ -72,7 +72,7 @@ def _serialize_asset(
         name=asset.name,
         status=getattr(asset.status, 'value', asset.status),
         description=asset.description,
-        owner_user_id=asset.owner_user_id,
+        owner_user_id=asset.owner_user_id,  # type: ignore[attr-defined]
         owner_name=_name(getattr(asset, 'owner_user', None)),
         borrower_name=_name(borrower),
         private_notes=asset.private_notes if can_manage else None,

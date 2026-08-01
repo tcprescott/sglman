@@ -44,7 +44,7 @@ def _serialize(row: Feedback, submitter: Optional[User]) -> FeedbackResponse:
         status=getattr(row.status, 'value', row.status),
         message=row.message,
         page_url=row.page_url,
-        submitted_by_id=row.user_id,
+        submitted_by_id=row.user_id,  # type: ignore[attr-defined]
         submitted_by_name=submitter.preferred_name if submitter else None,
         created_at=row.created_at,
     )

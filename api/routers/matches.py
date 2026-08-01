@@ -112,10 +112,10 @@ async def get_match_crew(match_id: int, actor: User = Depends(require_admin)):
         match_id=match.id,
         commentators=[
             CrewSignupInfo.model_validate(c, from_attributes=True)
-            for c in match.commentators
+            for c in match.commentators  # type: ignore[attr-defined]
         ],
         trackers=[
             CrewSignupInfo.model_validate(t, from_attributes=True)
-            for t in match.trackers
+            for t in match.trackers  # type: ignore[attr-defined]
         ],
     )
