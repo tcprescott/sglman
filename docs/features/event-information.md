@@ -68,7 +68,8 @@ are a snapshot — the article says so rather than implying they are fixed.
 > **What is still `TODO:`** renders as visible note blocks, because it is not
 > published anywhere to copy: the **daily agenda** (the most-asked question), each
 > tournament's **format and entry requirements**, **badge collection**, the room
-> and stage **locations**, **lost property / accessibility / first aid**, and a
+> and stage **locations**, **lost property / accessibility / first aid**, the
+> **board game room** (whether it exists this year, where, and its hours), and a
 > **code of conduct** — neither `sglive.speedgaming.org` nor `speedgaming.org`
 > publishes one that could be linked. One more is a genuine conflict: the site
 > gives hotel check-out as the 27th and the announcement as the 26th.

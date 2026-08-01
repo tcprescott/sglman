@@ -65,8 +65,8 @@ Recorded so they read as decisions rather than gaps:
   venue, room block, ticket tiers, both tournament lists, the volunteer form and
   its badge-comp tiers, the lanyard convention, Discord and Twitch. What is left
   is genuinely unpublished: the daily agenda, per-tournament formats, badge
-  collection, room locations, and **a code of conduct — neither the event site nor
-  speedgaming.org publishes one**. Prize-pool figures are a community-funded
+  collection, room locations, a **board game room for attendees**, and **a code
+  of conduct — neither the event site nor speedgaming.org publishes one**. Prize-pool figures are a community-funded
   snapshot and will drift. The `event_info` flag is dark, so nothing reaches a
   reader until the gaps and the grant are done.
 - **Event Information is file-backed, and meant not to stay that way.** Content is
