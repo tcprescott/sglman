@@ -56,6 +56,7 @@
   "application/services/match/match_review.py": 4,
   "application/services/match/match_schedule_service.py": 13,
   "application/services/match/match_service.py": 35,
+  "application/services/match/match_stations.py": 7,
   "application/services/match/match_suggestion_service.py": 6,
   "application/services/player_availability_service.py": 1,
   "application/services/preset_service.py": 5,

@@ -15,7 +15,7 @@ Three layers, and each catches something the others cannot:
 
 from datetime import datetime, timedelta, timezone
 
-from models import Match, Role, StreamRoom, Tournament, User
+from models import Match, MatchPlayers, Role, StreamRoom, Tournament, User
 from tests.mcp.conftest import call_tool, create_oauth_token, mcp_session
 
 TENANT = 'default'
@@ -58,8 +58,8 @@ async def _match(*, players: list[User] | None = None) -> Match:
         tournament=tournament,
         scheduled_at=datetime(2026, 5, 1, 18, 0, tzinfo=timezone.utc),
     )
-    for index, player in enumerate(players or []):
-        await match.players.model.create(match=match, user=player, seat=index)
+    for player in players or []:
+        await MatchPlayers.create(match=match, user=player)
     return match
 
 
@@ -189,6 +189,51 @@ class TestTheWritesLand:
         assert not is_error, payload
         assert payload['ok'] is True
         assert not await Match.filter(id=match.id).exists()
+
+    async def test_a_tournament_in_another_community_cannot_be_scheduled_into(self, db):
+        """A bare id must not be able to plant a match across the boundary.
+
+        The permission check short-circuits for staff and the scheduling-hours
+        check falls through for a tournament it cannot see, so before the scoped
+        resolve in `create_match` this produced a real match — and enrolled its
+        players — in the other community's tournament.
+        """
+        from models import Tenant
+
+        other = await Tenant.create(slug='other-community', name='Other', is_active=True)
+        _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
+        theirs = await Tournament.create(
+            name='Their Open', is_active=True, tenant_id=other.id,
+        )
+        player = await User.create(discord_id=772001, username='p1')
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'create_match', tenant=TENANT,
+                tournament_id=theirs.id, scheduled_date='2026-05-01',
+                scheduled_time='18:00', player_ids=[player.id],
+            )
+        assert is_error, payload
+        assert 'not_found:' in payload, payload
+        assert not await Match.filter(tournament_id=theirs.id).exists()
+
+    async def test_stations_keyed_by_user_id_are_refused(self, db):
+        """Applying nothing and reporting success is the worst answer here.
+
+        The keys are participation-row ids and the near-miss is a user id, so a
+        wrong key set used to mean a clean `MatchResponse`, an audit row and an
+        event for a write that changed nothing.
+        """
+        _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
+        player = await User.create(discord_id=772002, username='p2')
+        match = await _match(players=[player])
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'assign_match_stations', tenant=TENANT,
+                match_id=match.id, assignments={str(player.id + 5000): 'A'},
+            )
+        assert is_error, payload
+        assert 'invalid_request:' in payload, payload
+        assert 'user ids' in payload, payload
 
     async def test_a_match_in_another_community_is_not_found(self, db):
         """The write path hand-scopes its load; a bare id must not cross over."""

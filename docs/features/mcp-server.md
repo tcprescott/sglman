@@ -282,10 +282,21 @@ here belongs in the REST router too, and the reverse.
 Every one is registered at **ACTOR**, mirroring `require_write_actor`: holding a
 live token approved for writing is the bar at this layer, and the real check is
 the service's own (`can_crud_match`, `can_run_match`, `can_confirm_match`,
-`can_assign_match_stream`). A stricter gate here would make the two surfaces
-answer differently for the same person, and the service check is the one that
-knows about tournament admins. A writing grant is **not a promotion** — the token
-still acts as its user.
+`can_assign_match_stream`). The service check is the one that knows about
+tournament admins, so duplicating it here would only give the two surfaces a way
+to disagree. A writing grant is **not a promotion** — the token still acts as its
+user.
+
+**Where parity stops: the membership floor.** `mcpserver/auth.py` refuses anyone
+holding no role in the community, and the REST API has no equivalent (a PAT is
+bound to one community, so it never needed one). The floor governs the whole MCP
+surface, reads included, so the write tools did not introduce it — but it does
+mean the five self-service tools (crew signup and withdrawal, acknowledge, watch
+and unwatch) are out of reach for a plain member who joined a community without
+being given a role, even though the same actions work for them on the web and
+through a PAT. Widening the floor to `TenantMembershipService.is_member` would
+fix that, and would also widen what the *read* tools disclose to any member — a
+decision about the read surface's posture, not one to make from the write side.
 
 `delete_match` and `withdraw_crew_signup` are additionally annotated
 `destructiveHint`, which is how a client decides how hard to ask before

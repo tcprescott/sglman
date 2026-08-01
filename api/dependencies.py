@@ -89,10 +89,15 @@ async def resolve_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     user, token = result
-    # An OAuth token belongs to the MCP server: it is platform-wide (no tenant)
-    # and its holder consented to a read-only tool surface, not to the REST API.
-    # Refusing it here — and refusing a PAT at /mcp — means a credential minted
-    # for one surface can never be replayed against the other.
+    # An OAuth token belongs to the MCP server: it is platform-wide (no tenant),
+    # and its holder consented to that surface, not to this one. Refusing it
+    # here — and refusing a PAT at /mcp — means a credential minted for one
+    # surface can never be replayed against the other.
+    #
+    # More load-bearing than it looks now that an MCP grant can carry write
+    # access: an OAuth token has tenant=NULL, and everything below this line
+    # derives the request's community from token.tenant_id. A write-capable
+    # tenant-less credential reaching that code has no community to act in.
     if token.origin == ApiTokenOrigin.OAUTH.value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

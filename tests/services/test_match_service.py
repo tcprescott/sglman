@@ -41,6 +41,11 @@ def service():
     svc.station_repository.active_names = AsyncMock(return_value=set())
     svc.stream_room_repository = MagicMock()
     svc.tournament_repository = MagicMock()
+    # create_match resolves the tournament through the scoped repository before
+    # anything else, so the default has to be "it exists in this community".
+    svc.tournament_repository.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=1, name="Test Tournament")
+    )
     svc.user_repository = MagicMock()
     svc.commentator_repository = MagicMock()
     svc.tracker_repository = MagicMock()
