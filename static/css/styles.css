@@ -1671,16 +1671,22 @@ body.body--dark {
     background-color: var(--surface);
 }
 
-/* Only a table that has at least one stored width switches to fixed layout; an
-   unresized table keeps today's content-driven sizing exactly. */
-.wiz-table--sized table.q-table {
-    table-layout: fixed;
+/* A resized column is pinned by its own min/max width, not by a fixed table
+   layout — that would divide the leftover space equally between every unsized
+   column and clip their headers. Everything else keeps content-driven sizing.
+   The class marks the table as carrying at least one stored width. */
+.wiz-table--sized td .wrap {
+    /* The per-family .wrap caps fight the width the viewer chose; the pinned
+       column bounds its own content now. */
+    max-width: none;
 }
 
-/* With a fixed layout the column itself bounds its content, so the per-family
-   .wrap caps above become dead weight that fights the width the user chose. */
-.wiz-table--sized td .wrap {
-    max-width: none;
+/* A pinned column that cannot fit its content truncates cleanly rather than
+   spilling into its neighbour. */
+.wiz-table--sized thead th[style*="max-width"] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* The 6px resize affordance static/js/table-columns.js hit-tests. A

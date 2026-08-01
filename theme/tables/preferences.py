@@ -140,7 +140,7 @@ class ColumnPlan:
 
     @property
     def has_widths(self) -> bool:
-        """Whether any column carries a stored width (⇒ fixed table layout)."""
+        """Whether any column carries a stored width (⇒ the ``--sized`` class)."""
         return bool(self.widths)
 
 
@@ -243,8 +243,16 @@ def effective_columns(
         width = entry.get('width') if entry is not None else None
         if isinstance(width, int) and not isinstance(width, bool) and width > 0:
             widths[name] = width
-            out['style'] = _merge_style(out.get('style'), f'width: {width}px')
-            out['headerStyle'] = _merge_style(out.get('headerStyle'), f'width: {width}px')
+            # width alone is a *suggestion* the browser overrides from content;
+            # the min/max pair is what actually pins the column. Deliberately not
+            # `table-layout: fixed`, which would divide the remaining space
+            # equally between every unsized column and clip their headers — one
+            # dragged column on a nine-column board should not resize the other
+            # eight.
+            pinned = (f'width: {width}px; min-width: {width}px; '
+                      f'max-width: {width}px')
+            out['style'] = _merge_style(out.get('style'), pinned)
+            out['headerStyle'] = _merge_style(out.get('headerStyle'), pinned)
 
         # Keep the app's own ``hidden`` convention in step with the plan so the
         # card builder and visible-columns never disagree about one column.

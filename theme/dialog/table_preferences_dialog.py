@@ -46,13 +46,26 @@ class _Staged:
         self.wrap = bool(value)
 
 
+# A row-action column ships with an empty label — correct on the table, where
+# the buttons speak for themselves, and useless in a list of column names.
+FALLBACK_LABELS = {'actions': 'Row actions', 'edit': 'Edit'}
+
+
+def _label_for(column) -> str:
+    label = str(column.get('label') or '').strip()
+    if label:
+        return label
+    name = str(column.get('name', ''))
+    return FALLBACK_LABELS.get(name) or name.replace('_', ' ').title() or '(unlabelled)'
+
+
 def _staged_columns(custom) -> list[dict]:
     """The dialog's working copy: one entry per column, in the plan's order."""
     visible = set(custom.plan.visible)
     return [
         {
             'name': col.get('name', ''),
-            'label': str(col.get('label') or col.get('name', '')) or '(unlabelled)',
+            'label': _label_for(col),
             'visible': col.get('name', '') in visible,
             'width': custom.plan.widths.get(col.get('name', '')),
         }

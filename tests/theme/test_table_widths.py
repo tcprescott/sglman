@@ -41,13 +41,22 @@ def table():
 
 
 class TestWidthsReachTheTable:
-    def test_a_stored_width_becomes_style_and_header_style(self, table):
+    def test_a_stored_width_pins_the_column_from_both_sides(self, table):
+        # width alone is a suggestion the browser overrides from content.
         saved = {'columns': [{'name': 'username', 'visible': True, 'width': 260}]}
         with table_prefs_scope({'admin.users': saved}):
             customize_table(table, COLUMNS, key='admin.users')
         username = next(c for c in table.columns if c['name'] == 'username')
-        assert 'width: 260px' in username['style']
-        assert 'width: 260px' in username['headerStyle']
+        for style in (username['style'], username['headerStyle']):
+            assert 'width: 260px' in style
+            assert 'min-width: 260px' in style
+            assert 'max-width: 260px' in style
+
+    def test_a_sized_table_does_not_switch_to_a_fixed_layout(self, table):
+        # One dragged column on a nine-column board must not resize the other
+        # eight — which is exactly what table-layout: fixed did.
+        css = (REPO / 'static' / 'css' / 'styles.css').read_text()
+        assert 'table-layout: fixed' not in css
 
     def test_a_table_with_no_widths_does_not_get_fixed_layout(self, table):
         with table_prefs_scope({'admin.users': {'density': 'compact'}}):
@@ -122,9 +131,10 @@ class TestTheClient:
 
 
 class TestTheStylesheet:
-    def test_fixed_layout_is_conditional_on_a_stored_width(self):
+    def test_a_pinned_column_truncates_rather_than_spilling(self):
         css = (REPO / 'static' / 'css' / 'styles.css').read_text()
-        assert '.wiz-table--sized table.q-table {\n    table-layout: fixed;\n}' in css
+        assert '.wiz-table--sized thead th[style*="max-width"]' in css
+        assert 'text-overflow: ellipsis' in css
 
     def test_the_resize_affordance_is_hidden_on_mobile(self):
         css = (REPO / 'static' / 'css' / 'styles.css').read_text()

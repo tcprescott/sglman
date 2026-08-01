@@ -111,9 +111,10 @@ def create() -> None:
                 ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Platform Administration').classes('page-title')
-                # Filled once the table exists; the header is drawn first.
-                header_row = ui.row().classes('items-center')
-                ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
+                with ui.row().classes('items-center gap-2'):
+                    # Filled once the table exists; the header is drawn first.
+                    header_row = ui.row().classes('items-center')
+                    ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
 
             columns: list[dict] = [
                 {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
@@ -203,8 +204,9 @@ def create() -> None:
 
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Racetime Bots').classes('section-title')
-                bot_header_row = ui.row().classes('items-center')
-                ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
+                with ui.row().classes('items-center gap-2'):
+                    bot_header_row = ui.row().classes('items-center')
+                    ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
             ui.label(
                 'Shared, platform-managed bots — one per racetime category. Grant a '
                 "bot to a tenant to let its sync admins select it on a tournament. "
@@ -288,8 +290,9 @@ def create() -> None:
 
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Feature Groups').classes('section-title')
-                group_header_row = ui.row().classes('items-center')
-                ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
+                with ui.row().classes('items-center gap-2'):
+                    group_header_row = ui.row().classes('items-center')
+                    ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
             ui.label(
                 'Named feature bundles (tiers). Assign a tenant to a group from its '
                 'Features button; ungrouped tenants fall back to the default group. '

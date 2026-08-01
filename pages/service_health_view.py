@@ -88,6 +88,7 @@ def render_health_table(
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
+    gear_slot = ui.row().classes('w-full justify-end')
     table = ui.table(
         columns=_COLUMNS, rows=_rows(results, action_for), row_key='label',
     ).classes('w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
@@ -115,7 +116,7 @@ def render_health_table(
         </div>
     ''')
     customize_table(table, _COLUMNS, key=TableKeys.PLATFORM_SERVICE_HEALTH)
-    with ui.row().classes('full-width justify-end'):
+    with gear_slot:
         preferences_button(table)
 
 
