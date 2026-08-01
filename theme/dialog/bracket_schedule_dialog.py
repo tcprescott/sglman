@@ -11,8 +11,9 @@ date/time inputs.
 Two modes, because the two surfaces address different people: pass
 ``opponent_name`` for a player scheduling their own matchup ("Schedule vs Bob"),
 or ``matchup_label`` for staff scheduling someone else's ("Alice vs Bob"). Only
-the player mode pre-fills an availability/occupancy-aware suggestion — it needs
-the two user ids, which the staff bracket view does not carry.
+the player mode gets a Suggest a time button — it needs the two user ids, which
+the staff bracket view does not carry. Shares the button with the non-bracket
+UserMatchDialog match-request dialog (``theme/dialog/match_dialog.py``).
 
 ``tenant_id`` is optional: pass it from a detached client event (the bracket
 view's card click) so the service call is rebound with ``tenant_scope``; omit it
@@ -25,17 +26,19 @@ from typing import List, Optional
 
 from nicegui import ui
 
-from application.services import BracketService, MatchSuggestionService
+from application.services import BracketService
 from application.tenant_context import tenant_scope
-from application.utils.timezone import format_local_date, format_local_time, now_local
+from application.utils.timezone import now_local
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
     mobile_sheet,
     native_date_input,
     native_time_input,
+    render_suggest_time_button,
     submit_on_enter,
 )
+from theme.help import help_icon
 
 
 class BracketScheduleDialog:
@@ -78,23 +81,13 @@ class BracketScheduleDialog:
         )
         return f'{game} vs {self.opponent_name}' if self.opponent_name else game
 
-    async def _defaults(self) -> tuple:
+    def _defaults(self) -> tuple:
         now = now_local()
-        fallback = (now.strftime('%Y-%m-%d'), now.strftime('%H:%M'))
-        if not (self.tournament_id and len(self.player_ids) == 2):
-            return fallback
-        try:
-            with self._scope():
-                suggested = await MatchSuggestionService().suggest_match_time(
-                    tournament_id=self.tournament_id, player_ids=self.player_ids,
-                    bracket_match_id=self.bracket_match_id,
-                )
-        except ValueError:
-            return fallback
-        return format_local_date(suggested), format_local_time(suggested)
+        return now.strftime('%Y-%m-%d'), now.strftime('%H:%M')
 
     async def open(self):
-        default_date, default_time = await self._defaults()
+        default_date, default_time = self._defaults()
+        can_suggest = bool(self.opponent_name and self.tournament_id and len(self.player_ids) == 2)
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
@@ -105,15 +98,30 @@ class BracketScheduleDialog:
                     ui.label(self.tournament_name).classes('text-bold')
                 if self.opponent_name:
                     ui.label(f'Opponent: {self.opponent_name}').classes('text-muted')
-                    ui.label(
-                        'Pick a time you both can play — we suggested one for you.'
-                    ).classes('text-caption text-grey-7')
+                    ui.label('Pick a time you both can play.').classes('text-caption text-grey-7')
                 elif self.matchup_label:
                     ui.label(self.matchup_label).classes('text-muted')
 
                 with ui.row().classes('items-center gap-2'):
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
+
+                if can_suggest:
+                    # opponent_name is only set from the player dashboard's own
+                    # page handler, never the staff bracket view's detached
+                    # click — so tenant_id is never set here and the ordinary
+                    # request-scoped tenant context already applies.
+                    with ui.row().classes('items-center gap-1 no-wrap'):
+                        render_suggest_time_button(
+                            dialog,
+                            get_tournament_id=lambda: self.tournament_id,
+                            get_player_ids=lambda: self.player_ids,
+                            get_bracket_match_id=lambda: self.bracket_match_id,
+                            date=date,
+                            time=time,
+                            missing_message='Unable to suggest a time for this match.',
+                        )
+                        await help_icon('suggest-time')
 
             async def submit():
                 if not (date.value and time.value):

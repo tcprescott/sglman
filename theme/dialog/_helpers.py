@@ -1,8 +1,9 @@
 from contextlib import contextmanager
+from typing import Callable
 
 from nicegui import ui
 
-from application.utils.timezone import timezone_label
+from application.utils.timezone import format_local_date, format_local_time, timezone_label
 
 
 @contextmanager
@@ -146,6 +147,52 @@ def native_datetime_input(
     return ui.input(label, value=value).props(_native_props(
         'datetime-local', required=required, clearable=False, dense=dense, stack_label=stack_label,
     ))
+
+
+def render_suggest_time_button(
+    dialog,
+    *,
+    get_tournament_id: Callable[[], object],
+    get_player_ids: Callable[[], list],
+    date,
+    time,
+    missing_message: str,
+    get_bracket_match_id: Callable[[], object] = lambda: None,
+) -> None:
+    """The 'Suggest a time' button shared by every match-scheduling dialog.
+
+    Fills ``date``/``time`` from :class:`MatchSuggestionService` on click, rather
+    than silently pre-filling them on open — the suggestion should be a visible,
+    reviewable action the scheduler asked for, not a value baked into the form
+    before anyone looked at it. ``get_tournament_id``/``get_player_ids`` are
+    evaluated at click time so callers can source them from selects that change
+    after the dialog opens. ``get_bracket_match_id`` clamps the suggestion to a
+    bracket matchup's round window; omit it outside a bracket-run tournament.
+    """
+    from application.services import MatchSuggestionService
+
+    async def suggest_time():
+        tournament_id = get_tournament_id()
+        player_ids = get_player_ids()
+        if not tournament_id or not player_ids:
+            with dialog:
+                ui.notify(missing_message, color='warning')
+            return
+        try:
+            suggested = await MatchSuggestionService().suggest_match_time(
+                tournament_id=tournament_id,
+                player_ids=player_ids,
+                bracket_match_id=get_bracket_match_id(),
+            )
+            date.value = format_local_date(suggested)
+            time.value = format_local_time(suggested)
+            with dialog:
+                ui.notify('Suggested time filled in — review and save.', color='info')
+        except ValueError as e:
+            with dialog:
+                ui.notify(str(e), color='warning')
+
+    ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time).props('flat color=secondary').classes('mt-1')
 
 
 def mobile_sheet(dialog) -> None:
