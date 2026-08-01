@@ -36,8 +36,10 @@ from models import (
     SpeedGamingEventLink,
     StreamRoom,
     Tournament,
+    TriforceText,
     User,
     VolunteerAvailabilityStatus,
+    VolunteerPosition,
     Webhook,
     WebhookDelivery,
 )
@@ -201,6 +203,52 @@ class TestOnlinePlay:
         assert episodes['result'][0]['sg_episode_id'] == '4242'
         # The upstream payload blob is deliberately not echoed back.
         assert 'payload' not in episodes['result'][0]
+
+    async def test_randomizers_list_only_what_the_community_can_roll(self, db):
+        _, raw = await _staff()
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(client, raw, 'list_randomizers', tenant=TENANT)
+        assert not is_error, payload
+        names = {r['randomizer'] for r in payload['result']}
+        # ALTTPR needs no credential, so it is always rollable; the key-gated
+        # backends stay out until a credential is configured.
+        assert 'alttpr' in names
+        assert 'ootr' not in names
+        assert any(r['supports_triforce_texts'] for r in payload['result'])
+
+    async def test_triforce_texts_report_their_moderation_state(self, db):
+        user, raw = await _staff()
+        tournament = await _tournament('Triforce Cup')
+        await TriforceText.create(
+            tournament=tournament, user=user, text='HELLO', author='me',
+        )
+        await TriforceText.create(
+            tournament=tournament, user=user, text='NOPE', approved=False,
+        )
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'list_triforce_texts',
+                tenant=TENANT, tournament_id=tournament.id,
+            )
+            _, pending = await call_tool(
+                client, raw, 'list_triforce_texts',
+                tenant=TENANT, tournament_id=tournament.id, status='pending',
+            )
+        assert not is_error, payload
+        assert {t['status'] for t in payload['result']} == {'pending', 'rejected'}
+        assert [t['text'] for t in pending['result']] == ['HELLO']
+        assert pending['result'][0]['submitted_by'] == user.preferred_name
+
+    async def test_triforce_texts_refuse_a_non_moderator(self, db):
+        _, raw = await create_oauth_token(username='member', roles=[Role.VOLUNTEER])
+        tournament = await _tournament('Triforce Cup')
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'list_triforce_texts',
+                tenant=TENANT, tournament_id=tournament.id,
+            )
+        assert is_error
+        assert 'forbidden:' in payload
 
 
 class TestBrackets:
@@ -504,3 +552,63 @@ class TestPlayerAvailability:
             )
         assert is_error
         assert 'invalid_request:' in payload
+
+
+class TestTournamentsAndScheduling:
+    async def test_a_stream_room_reads_back_by_id(self, db):
+        _, raw = await _staff()
+        room = await StreamRoom.create(
+            name='Main Channel', is_active=True, stream_url='https://twitch.tv/x',
+        )
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'get_stream_room', tenant=TENANT, stream_room_id=room.id,
+            )
+        assert not is_error, payload
+        assert payload['name'] == 'Main Channel'
+        assert payload['stream_url'] == 'https://twitch.tv/x'
+
+    async def test_an_unknown_stream_room_is_not_found(self, db):
+        _, raw = await _staff()
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'get_stream_room', tenant=TENANT, stream_room_id=9999,
+            )
+        assert is_error
+        assert 'not_found:' in payload
+
+    async def test_a_match_time_is_suggested_inside_the_event_window(self, db):
+        from application.utils.timezone import now_local
+
+        _, raw = await _staff()
+        today = now_local().date()
+        tournament = await Tournament.create(
+            name='Suggestion Cup', is_active=True,
+            event_start_date=today, event_end_date=today + timedelta(days=2),
+        )
+        player = await User.create(discord_id=8801, username='p1')
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'suggest_match_time',
+                tenant=TENANT, tournament_id=tournament.id, player_ids=[player.id],
+            )
+        assert not is_error, payload
+        assert payload['suggested_at']
+
+
+class TestVolunteerPositions:
+    async def test_positions_list_and_active_only_narrows_them(self, db):
+        _, raw = await _staff()
+        await VolunteerPosition.create(name='Check-in Desk', description='Front door')
+        await VolunteerPosition.create(name='Retired Job', is_active=False)
+        async with mcp_session() as client:
+            is_error, everything = await call_tool(
+                client, raw, 'list_volunteer_positions', tenant=TENANT,
+            )
+            _, active = await call_tool(
+                client, raw, 'list_volunteer_positions', tenant=TENANT, active_only=True,
+            )
+        assert not is_error, everything
+        assert {p['name'] for p in everything['result']} == {'Check-in Desk', 'Retired Job'}
+        assert [p['name'] for p in active['result']] == ['Check-in Desk']
+        assert everything['result'][0]['description'] == 'Front door'

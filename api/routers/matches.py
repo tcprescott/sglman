@@ -6,7 +6,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 
 from api._match_view import MATCH_PREFETCH, serialize_match
-from api.dependencies import ServiceErrorRoute, require_api_actor
+from api.dependencies import ServiceErrorRoute, require_admin, require_api_actor
+from api.schemas.crew import CrewSignupInfo, MatchCrewResponse
 from api.schemas.matches import MatchResponse
 from application.errors import require_found
 from application.services import MatchWatcherService
@@ -88,3 +89,33 @@ async def get_match(match_id: int):
         "Match",
     )
     return serialize_match(match)
+
+
+@router.get(
+    "/{match_id}/crew",
+    response_model=MatchCrewResponse,
+    summary="List a match's crew, including pending signups (admin only)",
+    description=(
+        "The coordinator's view of who has actually volunteered. `GET "
+        "/matches/{id}` hides unapproved crew from everyone, so this sits "
+        "behind a higher gate than the match itself."
+    ),
+)
+async def get_match_crew(match_id: int, actor: User = Depends(require_admin)):
+    match = require_found(
+        await Match.filter(id=match_id, tenant_id=require_tenant_id())
+        .prefetch_related('commentators__user', 'trackers__user')
+        .first(),
+        "Match",
+    )
+    return MatchCrewResponse(
+        match_id=match.id,
+        commentators=[
+            CrewSignupInfo.model_validate(c, from_attributes=True)
+            for c in match.commentators  # type: ignore[attr-defined]
+        ],
+        trackers=[
+            CrewSignupInfo.model_validate(t, from_attributes=True)
+            for t in match.trackers  # type: ignore[attr-defined]
+        ],
+    )

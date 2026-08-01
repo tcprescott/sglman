@@ -14,12 +14,15 @@ from typing import Any, Dict, List
 from mcp.server.fastmcp import FastMCP
 
 from application.services import AnalyticsService
+from application.services.volunteer.volunteer_position_service import (
+    VolunteerPositionService,
+)
 from application.services.volunteer.volunteer_schedule_service import (
     VolunteerScheduleService,
 )
 from mcpserver.auth import Gate
 from mcpserver.registry import register
-from mcpserver.schemas import ShiftSummary, TenantArg
+from mcpserver.schemas import ShiftSummary, TenantArg, VolunteerPositionInfo
 from mcpserver.tools._args import window as _window
 from models import FeatureFlag
 
@@ -87,7 +90,26 @@ async def volunteer_hour_trends(
     )
 
 
+async def list_volunteer_positions(
+    tenant: TenantArg = None,
+    active_only: bool = False,
+) -> List[VolunteerPositionInfo]:
+    """List the volunteer jobs a community schedules — the names shifts hang off.
+
+    Requires admin access. Set `active_only` to skip retired positions.
+    """
+    service = VolunteerPositionService()
+    positions = await (service.list_active() if active_only else service.list_all())
+    return [
+        VolunteerPositionInfo.model_validate(p, from_attributes=True) for p in positions
+    ]
+
+
 def register_tools(mcp: FastMCP) -> None:
+    register(
+        mcp, list_volunteer_positions, gate=Gate.ADMIN,
+        feature=FeatureFlag.VOLUNTEERS, title='List volunteer positions',
+    )
     register(
         mcp, list_volunteer_shifts, gate=Gate.ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer shifts',

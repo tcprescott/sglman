@@ -17,11 +17,15 @@ from mcp.server.fastmcp import FastMCP
 
 from application.errors import require_found
 from application.services import (
+    AuthService,
     MatchService,
     PresetService,
     RaceRoomProfileService,
     RacetimeRoomService,
+    RandomizerCredentialService,
+    SeedGenerationService,
     SpeedGamingSyncService,
+    TriforceTextService,
 )
 from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
@@ -30,9 +34,11 @@ from mcpserver.schemas import (
     PresetSummary,
     RaceRoomInfo,
     RaceRoomProfileInfo,
+    RandomizerInfo,
     SpeedGamingEpisode,
     SpeedGamingLink,
     TenantArg,
+    TriforceTextEntry,
 )
 from models import FeatureFlag
 
@@ -165,9 +171,75 @@ async def list_speedgaming_episodes(
     ]
 
 
+async def list_randomizers(
+    tenant: TenantArg = None,
+) -> List[RandomizerInfo]:
+    """List the randomizers this community can roll seeds from.
+
+    A backend that needs an API key appears only once the community has supplied
+    that credential, so this is what a preset may actually name — not the full
+    catalogue the app knows about.
+    """
+    configured = await RandomizerCredentialService().configured_randomizers()
+    return [
+        RandomizerInfo(
+            randomizer=name,
+            supports_triforce_texts=SeedGenerationService.supports_triforce_texts(name),
+        )
+        for name in SeedGenerationService.available_randomizers(configured)
+    ]
+
+
+async def list_triforce_texts(
+    tournament_id: int,
+    tenant: TenantArg = None,
+    status: Optional[str] = None,
+) -> List[TriforceTextEntry]:
+    """List a tournament's submitted triforce texts — the moderation queue.
+
+    `status` filters to `pending`, `approved` or `rejected`; omit it for
+    everything submitted.
+
+    Requires staff, or being an admin of this tournament. That check runs here
+    rather than at the registry gate because it is per-tournament: it is the
+    same one `GET /api/triforce-texts` makes, and `TriforceTextService` does not
+    re-gate the read.
+    """
+    actor = current_actor().user
+    is_moderator = (
+        await AuthService.is_staff(actor)
+        or await AuthService.is_tournament_admin(actor, tournament_id)
+    )
+    if not is_moderator:
+        raise PermissionError('You do not have permission to moderate this pool')
+
+    rows = await TriforceTextService().list_for_moderation(tournament_id, status=status)
+    return [
+        TriforceTextEntry(
+            id=row.id,
+            tournament_id=row.tournament_id,
+            text=row.text,
+            author=row.author,
+            # ``approved`` is tri-state on the model: null is still pending.
+            status=(
+                'pending' if row.approved is None
+                else 'approved' if row.approved else 'rejected'
+            ),
+            submitted_by=row.user.preferred_name if row.user else None,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, list_presets, gate=Gate.ACTOR, title='List presets')
     register(mcp, get_preset, gate=Gate.ACTOR, title='Get preset')
+    register(mcp, list_randomizers, gate=Gate.ACTOR, title='List randomizers')
+    register(
+        mcp, list_triforce_texts, gate=Gate.ACTOR,
+        feature=FeatureFlag.TRIFORCE_TEXTS, title='List triforce texts',
+    )
     register(
         mcp, list_race_room_profiles, gate=Gate.ACTOR,
         feature=FeatureFlag.RACETIME_ROOMS, title='List race room profiles',

@@ -15,6 +15,7 @@ logic of its own.
 | Transport | Streamable HTTP, **stateless**, JSON responses (no SSE on POST) |
 | Auth | OAuth 2.1 (RFC 7591 dynamic registration + PKCE). **Personal access tokens are refused.** |
 | Writes | 19 match-management tools, served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
+| Reads | 54 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
 | Feature flag | None — the server is always on. `MCP_ENABLED=false` is an operational kill switch. |
 | Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). |
 | Code | [`mcpserver/`](../../mcpserver), consent page [`pages/mcp_consent.py`](../../pages/mcp_consent.py) |
@@ -173,9 +174,16 @@ hold a writing grant in one client and a reading one in another.
 ### Tournaments and matches
 | Tool | Gate | Flag |
 |---|---|---|
-| `list_tournaments`, `get_tournament`, `list_stream_rooms` | ACTOR | — |
+| `list_tournaments`, `get_tournament` | ACTOR | — |
+| `list_stream_rooms`, `get_stream_room` | ACTOR | — |
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
+| `suggest_match_time` | ACTOR | — |
 | `match_operations_report` | ADMIN | — |
+
+`suggest_match_time` mirrors `GET /tournaments/{id}/match-suggestion`. It reads
+rather than writes — it books nothing — but it is what makes the scheduling
+writes usable from a model, which would otherwise have to guess a slot and
+discover the clash after creating the match.
 
 ### People, crew, volunteers
 | Tool | Gate | Flag |
@@ -184,7 +192,8 @@ hold a writing grant in one client and a reading one in another.
 | `get_player_availability` | ACTOR (self, or staff for anyone else) | — |
 | `list_users` | STAFF | — |
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
-| `list_volunteer_shifts`, `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
+| `list_volunteer_positions`, `list_volunteer_shifts` | ADMIN | `VOLUNTEERS` |
+| `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
 
 The volunteer tools sit one gate **above** their REST counterparts
 (`require_api_actor`), deliberately: REST reads back a self-service view of your
@@ -216,11 +225,15 @@ every booking.
 ### Equipment
 | Tool | Gate | Flag |
 |---|---|---|
-| `list_equipment`, `get_equipment` | ADMIN | `EQUIPMENT` |
+| `list_equipment`, `get_equipment` | ACTOR | `EQUIPMENT` |
 
-No REST counterpart exists, so the gate of record is the Admin → Equipment tab
-(`is_staff or is_equipment_manager` — both satisfy `can_view_admin`).
-`private_notes` is deliberately not returned.
+Mirrors `api/routers/equipment.py`, which mirrors the **home** Equipment tab —
+a surface with no role check at all, where every member of a community with the
+feature on sees the inventory and its current holders. These were ADMIN when
+there was no REST counterpart, on the belief that the *admin* equipment tab was
+the gate of record; it is not, and the stricter gate only meant a member saw
+less through a connected client than in their own browser. `private_notes` is
+the one genuinely staff-only field and is absent from both shapes.
 
 ### Observability
 | Tool | Gate |
@@ -228,19 +241,36 @@ No REST counterpart exists, so the gate of record is the Admin → Equipment tab
 | `list_audit_log` | ADMIN |
 | `telemetry_summary`, `telemetry_top`, `get_system_config` | STAFF |
 | `list_service_health`, `list_webhooks`, `list_webhook_deliveries` | STAFF |
-| `list_feedback` | STAFF |
+| `list_feedback` | STAFF | `FEEDBACK` |
 
 `list_webhooks` never returns the signing secret, and `list_service_health` is
 the **tenant subset** only — the platform-wide board is a super-admin surface and
 is not exposed here.
 
+`list_feedback` mirrors `GET /api/feedback` and carries that router's flag.
+`FeedbackService` refuses a community with the feature off regardless, so the
+declaration changes no answer — it changes *when* the answer arrives, by hiding
+the tool from the listing instead of letting a model plan around a refusal it
+discovers a round-trip later.
+
 ### Online play
 | Tool | Gate | Flag |
 |---|---|---|
-| `list_presets`, `get_preset` | ACTOR | — |
+| `list_presets`, `get_preset`, `list_randomizers` | ACTOR | — |
+| `list_triforce_texts` | ACTOR | `TRIFORCE_TEXTS` |
 | `list_race_room_profiles`, `get_race_room` | ACTOR | `RACETIME_ROOMS` |
 | `list_race_rooms` | STAFF | `RACETIME_ROOMS` |
 | `list_speedgaming_links`, `list_speedgaming_episodes` | ACTOR | `SPEEDGAMING_ETL` |
+
+`list_randomizers` is the peer of `GET /seeds/randomizers`: it filters on the
+credentials the community has configured, not on a flag, so it answers what a
+preset may actually name rather than the full catalogue.
+
+`list_triforce_texts` is registered at ACTOR and does its own check — staff, or
+an admin of *this* tournament — because the gate it mirrors is per-tournament
+and neither ADMIN nor STAFF expresses it. `TriforceTextService` does not re-gate
+the read, so a bare ADMIN registration would have handed the moderation queue to
+any crew coordinator.
 
 Several sit at ACTOR because the *service* carries the real check
 (`can_manage_presets`, `ensure_can_manage_sync`); mirroring the router's gate

@@ -100,6 +100,40 @@ class StreamRoomInfo(BaseModel):
     stream_url: Optional[str] = None
 
 
+class MatchTimeSuggestion(BaseModel):
+    """A suggested slot. Wrapped in a model rather than returned as a bare
+    datetime so the tool publishes a named output schema."""
+
+    suggested_at: datetime = Field(description='UTC start time for the match.')
+
+
+class RandomizerInfo(BaseModel):
+    """A randomizer this community can actually roll seeds from."""
+
+    randomizer: str
+    supports_triforce_texts: bool = False
+
+
+class TriforceTextEntry(BaseModel):
+    id: int
+    tournament_id: int
+    text: str
+    author: Optional[str] = None
+    status: str = Field(description='pending, approved, or rejected.')
+    submitted_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class VolunteerPositionInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+    display_order: int = 0
+
+
 class UserSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

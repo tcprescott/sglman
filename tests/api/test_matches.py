@@ -16,11 +16,13 @@ from models import (
     GeneratedSeeds,
     Match,
     MatchPlayers,
+    Role,
     StreamRoom,
     Tournament,
     Tracker,
     User,
 )
+from tests.api_helpers import client_for, create_user_token
 
 
 @pytest.fixture
@@ -364,3 +366,58 @@ class TestRelatedData:
         )
         response = await client.get('/api/matches')
         assert response.json()[0]['generated_seed'] is None
+
+
+# ---------------------------------------------------------------------------
+# The coordinator's crew view
+# ---------------------------------------------------------------------------
+
+
+class TestMatchCrewEndpoint:
+    """``GET /matches/{id}/crew`` — unlike the match read, this shows pending
+    signups, which is why it sits behind the admin gate."""
+
+    async def _match_with_mixed_crew(self):
+        tournament = await Tournament.create(name='T')
+        match = await Match.create(
+            tournament=tournament,
+            scheduled_at=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
+        )
+        approved = await User.create(discord_id=301, username='approved')
+        pending = await User.create(discord_id=302, username='pending')
+        await Commentator.create(match=match, user=approved, approved=True)
+        await Commentator.create(match=match, user=pending, approved=False)
+        await Tracker.create(match=match, user=pending, approved=False)
+        return match
+
+    async def test_admin_sees_pending_signups(self, db, app):
+        match = await self._match_with_mixed_crew()
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            resp = await c.get(f'/api/matches/{match.id}/crew')
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body['match_id'] == match.id
+            assert {
+                (m['user']['username'], m['approved']) for m in body['commentators']
+            } == {('approved', True), ('pending', False)}
+            assert [t['user']['username'] for t in body['trackers']] == ['pending']
+
+    async def test_the_match_read_still_hides_them(self, db, app):
+        match = await self._match_with_mixed_crew()
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            body = (await c.get(f'/api/matches/{match.id}')).json()
+            assert [m['user']['username'] for m in body['commentators']] == ['approved']
+            assert body['trackers'] == []
+
+    async def test_a_plain_member_is_forbidden(self, db, app):
+        match = await self._match_with_mixed_crew()
+        _, raw = await create_user_token(username='plain')
+        async with client_for(app, raw) as c:
+            assert (await c.get(f'/api/matches/{match.id}/crew')).status_code == 403
+
+    async def test_unknown_match_is_404(self, db, app):
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/matches/9999/crew')).status_code == 404

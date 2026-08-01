@@ -4,8 +4,10 @@ Gates mirror ``api/routers/audit.py`` (admin), ``api/routers/system_config.py``
 (staff), ``api/routers/webhooks.py`` (staff), ``api/routers/service_health.py``
 (staff for the tenant subset), and the telemetry service's own staff check.
 
-Feedback has no REST counterpart; its gate of record is the Admin → Feedback
-tab, which is staff-only.
+``list_feedback`` mirrors ``api/routers/feedback.py``'s staff queue and carries
+that router's ``FEEDBACK`` flag. ``FeedbackService`` refuses a community with
+the feature off regardless, but declaring the flag here is what hides the tool
+instead of letting a model discover the refusal a round-trip later.
 """
 
 from typing import Any, Dict, List, Optional
@@ -33,6 +35,7 @@ from mcpserver.schemas import (
     WebhookInfo,
 )
 from mcpserver.tools._args import choose, clamp, parse_ts
+from models import FeatureFlag
 
 MAX_ROWS = 500
 
@@ -235,4 +238,7 @@ def register_tools(mcp: FastMCP) -> None:
         mcp, list_webhook_deliveries, gate=Gate.STAFF,
         title='List webhook deliveries',
     )
-    register(mcp, list_feedback, gate=Gate.STAFF, title='List feedback')
+    register(
+        mcp, list_feedback, gate=Gate.STAFF,
+        feature=FeatureFlag.FEEDBACK, title='List feedback',
+    )

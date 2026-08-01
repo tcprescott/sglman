@@ -17,6 +17,8 @@ from api.routers import (
     crew,
     discord_events,
     discord_role_mappings,
+    equipment,
+    feedback,
     health,
     match_actions,
     matches,
@@ -26,12 +28,14 @@ from api.routers import (
     race_room_profiles,
     race_rooms,
     racetime_bots,
+    reports,
     seeds,
     service_health,
     speedgaming,
     stream_room_actions,
     stream_rooms,
     system_config,
+    telemetry,
     tokens,
     tournament_actions,
     tournaments,
@@ -54,7 +58,11 @@ router.include_router(tournament_actions.router)
 router.include_router(stream_rooms.router)
 router.include_router(stream_room_actions.router)
 router.include_router(users.router)
+# The literal ``/users/me/availability`` router must be included before the one
+# carrying ``/users/{user_id}/availability``, or ``me`` matches the int path
+# param and 422s instead of falling through.
 router.include_router(player_availability.router)
+router.include_router(player_availability.other_players_router)
 router.include_router(
     triforce.router,
     dependencies=[Depends(require_feature(FeatureFlag.TRIFORCE_TEXTS))],
@@ -68,6 +76,16 @@ router.include_router(
     dependencies=[Depends(require_feature(FeatureFlag.VOLUNTEERS))],
 )
 router.include_router(discord_role_mappings.router)
+router.include_router(reports.router)
+router.include_router(telemetry.router)
+router.include_router(
+    equipment.router,
+    dependencies=[Depends(require_feature(FeatureFlag.EQUIPMENT))],
+)
+router.include_router(
+    feedback.router,
+    dependencies=[Depends(require_feature(FeatureFlag.FEEDBACK))],
+)
 # Also no auth dependency: the service worker that calls it has no session to
 # present, and proves ownership of the subscription instead (see the module).
 router.include_router(web_push.router)
