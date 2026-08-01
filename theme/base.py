@@ -34,7 +34,10 @@ class BaseLayout:
         section: str | None = None,
         base_path: str | None = None,
         tabs: list | None = None,
-        user: User = None,
+        # Optional in fact as well as in the default: every public page
+        # (the bracket views, /help) renders chrome for an anonymous visitor,
+        # and the error page does too.
+        user: User | None = None,
         show_admin: bool = False,
         show_volunteer: bool | None = None,
         wordmark: str | None = None,
@@ -374,11 +377,24 @@ class BaseLayout:
                             tab_item.props(add='active')
                         self._tab_item_refs[tab['label']] = tab_item
 
-            # Feedback is flag-gated: no item where the community has it off,
-            # because the dialog's submit would be refused by the service.
-            if self.user and self._show_feedback:
-                ui.separator()
-                with ui.list().props('padding'):
+            ui.separator()
+            with ui.list().props('padding'):
+                # Not gated on ``self.user``: /help is a public page, and a
+                # signed-out visitor on any framed public surface is exactly the
+                # reader who most needs the way in. The real /login is a bare
+                # redirect to Discord with no page to hang a link on, so the
+                # drawer is that way in.
+                with ui.item(
+                    on_click=lambda: ui.navigate.to('/help')
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('help_outline').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Help')
+
+                # Feedback is flag-gated: no item where the community has it off,
+                # because the dialog's submit would be refused by the service.
+                if self.user and self._show_feedback:
                     with ui.item(
                         on_click=lambda: FeedbackDialog(self.user).open()
                     ).props('clickable v-ripple'):

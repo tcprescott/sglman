@@ -8,4 +8,5 @@ async def availability_tab() -> None:
     await render_availability_editor(
         VolunteerAvailabilityService(),
         help_text='Add the windows you can work.',
+        help_snippet='volunteer-availability',
     )

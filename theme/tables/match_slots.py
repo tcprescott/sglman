@@ -373,8 +373,12 @@ def state_readonly_slot(*, scheduled_detailed: bool = True) -> str:
 
 # --- Parameterized slots (admin / admin+crud / non-admin collapsed) --------
 
-# Players: station shown only for admins; the self-acknowledge button and the
-# Assign-Stations button are mutually exclusive across the variants.
+# Players: the self-acknowledge button and the Assign-Stations button are
+# mutually exclusive across the variants. The station chip is *not* admin-gated —
+# a player could not see the seat they had been assigned to, which is the one
+# fact about check-in they need and the only place the app holds it. It is a
+# venue seat number, not private data, so it renders for every viewer of the
+# board; setting it stays behind `__RUN__`.
 PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div style="display: flex; align-items: center; gap: 8px;">
         <div>
@@ -390,7 +394,7 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
                         {{ player.name }}
-                        <span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                        <span v-if="player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
                     <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">

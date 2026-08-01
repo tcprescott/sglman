@@ -23,6 +23,7 @@ from pages import (
     challonge_oauth,
     equipment,
     equipment_labels,
+    help as help_pages,
     home,
     mcp_consent,
     platform,
@@ -174,6 +175,7 @@ def init(fastapi_app: FastAPI) -> None:
     static_brackets.create()
     platform.create()
     qualifiers.create()
+    help_pages.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

@@ -13,6 +13,7 @@ from models import FeatureFlag
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
+from theme.help import help_icon
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 from theme.tables.preferences import TableKeys
@@ -46,6 +47,8 @@ async def render_player_dashboard():
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Your Schedule').classes('page-title')
+            await help_icon('player-schedule')
+            await help_icon('check-in', label='Check-in')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')

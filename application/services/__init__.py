@@ -46,6 +46,7 @@ from .discord import (
 from .equipment_service import EquipmentService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
+from .help_service import HelpService
 from .identity_link_service import IdentityLinkProvider, IdentityLinkService
 from .match import (
     CancellationMixin,
@@ -124,6 +125,7 @@ __all__ = [
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
+    'HelpService',
     'IdentityLinkProvider',
     'IdentityLinkService',
     'MatchDisplayService',

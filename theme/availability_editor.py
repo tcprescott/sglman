@@ -22,6 +22,7 @@ from application.utils.timezone import (
 )
 from models import VolunteerAvailabilityStatus
 from theme.dialog._helpers import native_date_input, native_time_input
+from theme.help import help_icon
 
 _STATUS_OPTIONS = {
     VolunteerAvailabilityStatus.PREFERRED.value: 'Preferred',
@@ -50,12 +51,19 @@ def _status_label(status) -> str:
     return _STATUS_OPTIONS.get(status.value, str(status))
 
 
-async def render_availability_editor(service, *, help_text: str) -> None:
+async def render_availability_editor(
+    service, *, help_text: str, help_snippet: str = '',
+) -> None:
     """Render the availability window editor + effective-availability graph.
 
     ``service`` must expose ``availability_for(user)``, ``set_windows(user, ...)``
     and the static ``effective_segments(windows, start, end)`` — satisfied by both
     ``PlayerAvailabilityService`` and ``VolunteerAvailabilityService``.
+
+    ``help_snippet`` names the in-app help region to hang off the title. The two
+    callers pass different ones on purpose: the editors look identical but hold
+    different data and feed different things, which is the single most confusing
+    thing about this surface.
     """
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
@@ -91,8 +99,10 @@ async def render_availability_editor(service, *, help_text: str) -> None:
     ]
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row'):
+        with ui.row().classes('header-row items-center'):
             ui.label('My Availability').classes('page-title')
+            if help_snippet:
+                await help_icon(help_snippet)
         ui.separator().classes('separator-spacing')
         ui.label(
             f'Event window: {format_local_date(event_start)} → {format_local_date(event_end)} '

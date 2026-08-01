@@ -23,6 +23,7 @@ from application.services import CrewService, get_user_from_discord_id
 from application.utils.match_labels import match_label
 from application.utils.timezone import format_local_display
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.help import help_icon
 from theme.notify import notify_error
 
 
@@ -64,8 +65,12 @@ async def my_crew_tab() -> None:
     state = {'upcoming_only': True}
 
     with ui.column().classes('page-container') as page:
-        with ui.row().classes('header-row items-center justify-between full-width'):
+        with ui.row().classes('header-row items-center full-width'):
             ui.label('My Crew').classes('page-title')
+            await help_icon('crew-status')
+            await help_icon('crew-approval', label='Approval')
+            await help_icon('crew-withdraw', label='Withdrawing')
+            ui.space()
 
         ui.separator().classes('separator-spacing')
 

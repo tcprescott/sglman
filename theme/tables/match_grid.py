@@ -7,7 +7,7 @@ and the current user's discord id the column slots use (``match_slots.py``).
 
 The card is deliberately bespoke (not a generic ``label: value`` loop): a
 headline row (scheduled time + compact state chip), a players line (ack icons,
-``(auto)`` markers, winner emphasis, admin stations, self-ack), the dispute flag
+``(auto)`` markers, winner emphasis, stations, self-ack), the dispute flag
 with the proctor's note as text, a muted caption (tournament + ``#id`` edit
 link), ``v-if``-gated detail rows that render nothing when empty (commentators,
 trackers, stage, seed, comment), and a single top-bordered actions row
@@ -82,7 +82,7 @@ _PLAYERS = '''
                         <q-tooltip>Hasn't confirmed they're playing</q-tooltip>
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
-                        {{ player.name }}<span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                        {{ player.name }}<span v-if="player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
                     <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">

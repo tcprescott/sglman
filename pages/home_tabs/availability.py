@@ -8,4 +8,5 @@ async def availability_tab() -> None:
     await render_availability_editor(
         PlayerAvailabilityService(),
         help_text='Add the windows when you can play.',
+        help_snippet='player-availability',
     )

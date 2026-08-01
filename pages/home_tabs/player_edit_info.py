@@ -22,6 +22,7 @@ from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_web_push_section
+from theme.help import help_icon
 
 
 async def render_edit_info_tab():
@@ -338,7 +339,9 @@ async def render_edit_info_tab():
         # Notifications — the delivery master switch, the per-device channel, and
         # per-tournament granularity, so "how do I get notified" lives in one place.
         with ui.card().classes('card-full-width'):
-            ui.label('Notifications').classes('section-title')
+            with ui.row().classes('items-center gap-1 no-wrap'):
+                ui.label('Notifications').classes('section-title')
+                await help_icon('notification-settings')
             ui.label('Choose whether and where Wizzrobe reaches you about your matches.') \
                 .classes('text-muted text-caption')
 
