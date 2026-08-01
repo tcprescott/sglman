@@ -115,7 +115,7 @@ def create() -> None:
                 header_row = ui.row().classes('items-center')
                 ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
 
-            columns = [
+            columns: list[dict] = [
                 {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
                 {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
                 {'name': 'slug', 'label': 'Slug (/t/…)', 'field': 'slug', 'align': 'left'},
@@ -211,7 +211,7 @@ def create() -> None:
                 'Client secrets are write-only and never shown.'
             ).classes('text-caption text-grey')
 
-            bot_columns = [
+            bot_columns: list[dict] = [
                 {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
                 {'name': 'category', 'label': 'Category', 'field': 'category', 'align': 'left', 'sortable': True},
                 {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left'},
@@ -296,7 +296,7 @@ def create() -> None:
                 'Editing a group updates every tenant on it, live.'
             ).classes('text-caption text-grey')
 
-            group_columns = [
+            group_columns: list[dict] = [
                 {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
                 {'name': 'flags', 'label': 'Features', 'field': 'flags', 'align': 'left'},
                 {'name': 'default', 'label': 'Default', 'field': 'default', 'align': 'left'},

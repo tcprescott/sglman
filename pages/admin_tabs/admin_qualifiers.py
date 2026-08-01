@@ -573,7 +573,7 @@ async def admin_qualifiers_page() -> None:
         if not runs:
             ui.label('No runs yet.').classes('text-grey')
             return
-        columns = [
+        columns: list[dict] = [
             {'name': 'player', 'label': 'Player', 'field': 'player', 'align': 'left',
              'sortable': True},
             {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
@@ -640,7 +640,7 @@ async def admin_qualifiers_page() -> None:
         if not entries:
             ui.label('No scored runs yet.').classes('text-grey')
             return
-        columns = [
+        columns: list[dict] = [
             {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
             {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left',
              'sortable': True},

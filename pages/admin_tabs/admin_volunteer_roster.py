@@ -21,7 +21,7 @@ _STATUS_ABBR = {
     VolunteerAvailabilityStatus.UNAVAILABLE: 'Unavailable',
 }
 
-_COLUMNS = [
+_COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True, 'align': 'left'},
     {'name': 'opted_in', 'label': 'Opted In', 'field': 'opted_in', 'sortable': True, 'align': 'center'},
     {'name': 'qualifications', 'label': 'Qualifications', 'field': 'qualifications', 'align': 'left'},

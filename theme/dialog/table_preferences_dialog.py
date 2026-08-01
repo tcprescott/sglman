@@ -10,6 +10,8 @@ dragging exists: a dialog whose whole purpose is making a table usable must not
 itself be mouse-only.
 """
 
+from dataclasses import dataclass
+
 from nicegui import ui
 
 from application.services import TablePreferenceService
@@ -19,6 +21,29 @@ from theme.tables.preferences import apply_saved_config, customization_of
 
 PAGE_SIZE_LABELS = {0: 'All', 10: '10', 25: '25', 50: '50', 100: '100'}
 DENSITY_LABELS = {'comfortable': 'Comfortable', 'compact': 'Compact'}
+
+
+@dataclass
+class _Staged:
+    """The dialog's working copy of the scalar preferences.
+
+    A dataclass rather than a dict so each field keeps its own type: the radios
+    and the switch hand back whatever Quasar sends, and a shared dict would erase
+    the difference between a page size and a density.
+    """
+
+    page_size: int
+    density: str
+    wrap: bool
+
+    def set_page_size(self, value) -> None:
+        self.page_size = int(value)
+
+    def set_density(self, value) -> None:
+        self.density = str(value)
+
+    def set_wrap(self, value) -> None:
+        self.wrap = bool(value)
 
 
 def _staged_columns(custom) -> list[dict]:
@@ -61,16 +86,14 @@ async def open_table_preferences(table: ui.table) -> None:
 
     service = TablePreferenceService()
     staged = _staged_columns(custom)
-    state = {
-        'page_size': custom.plan.page_size,
-        'density': custom.plan.density,
-        'wrap': custom.plan.wrap,
-    }
+    state = _Staged(page_size=custom.plan.page_size,
+                    density=custom.plan.density,
+                    wrap=custom.plan.wrap)
     # A table shipped with a page size the radio does not offer (some reports use
     # 15) must still show its current value rather than silently reading as 'All'.
     size_options = dict(PAGE_SIZE_LABELS)
-    if state['page_size'] not in size_options:
-        size_options[state['page_size']] = str(state['page_size'])
+    if state.page_size not in size_options:
+        size_options[state.page_size] = str(state.page_size)
 
     with form_dialog('Table preferences') as dialog:
         with ui.column().classes('q-pa-md gap-3 full-width'):
@@ -78,16 +101,16 @@ async def open_table_preferences(table: ui.table) -> None:
                 with ui.column().classes('gap-1'):
                     ui.label('Rows per page').classes('text-caption text-grey-7')
                     ui.radio(dict(sorted(size_options.items())),
-                             value=state['page_size'],
-                             on_change=lambda e: state.update(page_size=e.value)) \
+                             value=state.page_size,
+                             on_change=lambda e: state.set_page_size(e.value)) \
                         .props('inline dense')
                 with ui.column().classes('gap-1'):
                     ui.label('Density').classes('text-caption text-grey-7')
-                    ui.radio(DENSITY_LABELS, value=state['density'],
-                             on_change=lambda e: state.update(density=e.value)) \
+                    ui.radio(DENSITY_LABELS, value=state.density,
+                             on_change=lambda e: state.set_density(e.value)) \
                         .props('inline dense')
-            ui.switch('Wrap long values', value=state['wrap'],
-                      on_change=lambda e: state.update(wrap=e.value))
+            ui.switch('Wrap long values', value=state.wrap,
+                      on_change=lambda e: state.set_wrap(e.value))
 
             ui.separator()
             ui.label('Columns').classes('text-caption text-grey-7')
@@ -152,7 +175,7 @@ async def open_table_preferences(table: ui.table) -> None:
         render_columns()
 
         async def confirm() -> None:
-            config = _config_from(staged, state['page_size'], state['density'], state['wrap'])
+            config = _config_from(staged, state.page_size, state.density, state.wrap)
             try:
                 saved = await service.save(actor, custom.key, config)
             except ValueError as e:

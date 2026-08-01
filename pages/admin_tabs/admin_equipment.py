@@ -20,7 +20,7 @@ _STATUS_LABELS = {
     'retired': 'Retired',
 }
 
-_COLUMNS = [
+_COLUMNS: list[dict] = [
     {'name': 'asset_number', 'label': '#', 'field': 'asset_number', 'align': 'left', 'sortable': True},
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
     {'name': 'owner', 'label': 'Owner', 'field': 'owner', 'align': 'left'},

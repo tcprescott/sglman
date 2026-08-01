@@ -31,7 +31,7 @@ async def admin_tournaments_page() -> None:
             'entrants.'
         ).classes('text-caption text-grey')
 
-        columns = [
+        columns: list[dict] = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
             # Not sortable: free prose, where alphabetical order means nothing.
@@ -89,7 +89,7 @@ async def admin_stream_rooms_page() -> None:
             'across the schedule and On Air views. Click a name to edit it.'
         ).classes('text-caption text-grey')
 
-        columns = [
+        columns: list[dict] = [
             # No id column: the primary key was this table's only edit affordance
             # ("click the 1 to rename Stage 1"), which is both a database value on
             # screen and an unguessable control. The name carries the link now.

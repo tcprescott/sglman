@@ -19,7 +19,7 @@ _STATUS_LABELS = {
     'retired': 'Retired',
 }
 
-_INVENTORY_COLUMNS = [
+_INVENTORY_COLUMNS: list[dict] = [
     {'name': 'asset_number', 'label': '#', 'field': 'asset_number', 'align': 'left', 'sortable': True},
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status', 'align': 'left', 'sortable': True},
@@ -27,7 +27,7 @@ _INVENTORY_COLUMNS = [
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
 
-_MINE_COLUMNS = [
+_MINE_COLUMNS: list[dict] = [
     {'name': 'asset_number', 'label': '#', 'field': 'asset_number', 'align': 'left', 'sortable': True},
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
     {'name': 'checked_out_at', 'label': 'Checked out', 'field': 'checked_out_at', 'align': 'left'},

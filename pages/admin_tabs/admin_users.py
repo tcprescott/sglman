@@ -94,7 +94,7 @@ async def admin_users_page() -> None:
 
         selected = {'value': []}
 
-        columns = [
+        columns: list[dict] = [
             {'name': 'username', 'label': 'Username', 'field': 'username', 'sortable': True},
             {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name',
              'sortable': True},

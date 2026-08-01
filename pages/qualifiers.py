@@ -312,7 +312,7 @@ def create() -> None:
                 ui.label('You have no runs yet.').classes('text-grey')
                 return
             can_reattempt = window_open and allowance.remaining > 0
-            columns = [
+            columns: list[dict] = [
                 {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
                  'sortable': True},
                 {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
@@ -389,7 +389,7 @@ def create() -> None:
             if not entries:
                 ui.label('No scored runs yet.').classes('text-grey')
                 return
-            columns = [
+            columns: list[dict] = [
                 {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
                 {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left',
                  'sortable': True},

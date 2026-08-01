@@ -155,10 +155,11 @@ def _merge_style(existing: Any, addition: str) -> str:
 
 def _signature(columns: Sequence[Mapping], visible: Sequence[str],
                widths: Mapping[str, int]) -> list[tuple]:
-    return [
-        (c.get('name'), c.get('name') in visible, widths.get(c.get('name')))
-        for c in columns
-    ]
+    signature = []
+    for column in columns:
+        name = str(column.get('name', ''))
+        signature.append((name, name in visible, widths.get(name)))
+    return signature
 
 
 def effective_columns(
@@ -386,6 +387,8 @@ def _wire_width_drags(table: ui.table, key: str) -> None:
             return
         width = args.get('width')
         column = args.get('column')
+        if not isinstance(column, str):
+            return
         with client:
             actor = await current_actor()
             if actor is None:

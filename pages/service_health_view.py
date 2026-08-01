@@ -38,7 +38,7 @@ _CATEGORY_LABEL = {
     'discord': 'Discord',
 }
 
-_COLUMNS = [
+_COLUMNS: list[dict] = [
     {'name': 'label', 'label': 'Dependency', 'field': 'label', 'align': 'left', 'sortable': True},
     {'name': 'category', 'label': 'Category', 'field': 'category', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status', 'align': 'left'},
