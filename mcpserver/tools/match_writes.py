@@ -19,7 +19,7 @@ from `list_matches`, user ids from `list_users`, and `winner_id` from
 user.
 """
 
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -388,28 +388,34 @@ async def unwatch_match(
 
 
 def register_tools(mcp: FastMCP) -> None:
-    write = {'gate': Gate.ACTOR, 'write': True}
-    register(mcp, create_match, title='Create match', **write)
-    register(mcp, submit_match_request, title='Request match', **write)
-    register(mcp, update_match, title='Update match', **write)
-    register(mcp, delete_match, title='Delete match', destructive=True, **write)
-    register(
-        mcp, set_match_stream_candidate, title='Set stream candidate', **write,
-    )
-    register(mcp, assign_match_stream_room, title='Assign stream room', **write)
-    register(mcp, assign_match_stations, title='Assign stations', **write)
-    register(mcp, seat_match, title='Check in match', **write)
-    register(mcp, start_match, title='Start match', **write)
-    register(mcp, finish_match, title='Finish match', **write)
-    register(mcp, confirm_match, title='Confirm match', **write)
-    register(mcp, record_match_result, title='Record result', **write)
-    register(mcp, set_match_review, title='Flag or clear review', **write)
-    register(mcp, generate_match_seed, title='Generate seed', **write)
-    register(mcp, signup_as_crew, title='Sign up as crew', **write)
-    register(
-        mcp, withdraw_crew_signup, title='Withdraw crew signup',
-        destructive=True, **write,
-    )
-    register(mcp, acknowledge_match, title='Acknowledge match', **write)
-    register(mcp, watch_match, title='Watch match', **write)
-    register(mcp, unwatch_match, title='Stop watching match', **write)
+    def write_tool(fn: Callable, title: str, *, destructive: bool = False) -> None:
+        """Every tool in this module, registered the same way.
+
+        The gate and ``write=True`` are not per-tool decisions here — they are
+        what the module is — so they are stated once rather than repeated
+        nineteen times where one of them could quietly go missing.
+        """
+        register(
+            mcp, fn, gate=Gate.ACTOR, write=True, title=title,
+            destructive=destructive,
+        )
+
+    write_tool(create_match, 'Create match')
+    write_tool(submit_match_request, 'Request match')
+    write_tool(update_match, 'Update match')
+    write_tool(delete_match, 'Delete match', destructive=True)
+    write_tool(set_match_stream_candidate, 'Set stream candidate')
+    write_tool(assign_match_stream_room, 'Assign stream room')
+    write_tool(assign_match_stations, 'Assign stations')
+    write_tool(seat_match, 'Check in match')
+    write_tool(start_match, 'Start match')
+    write_tool(finish_match, 'Finish match')
+    write_tool(confirm_match, 'Confirm match')
+    write_tool(record_match_result, 'Record result')
+    write_tool(set_match_review, 'Flag or clear review')
+    write_tool(generate_match_seed, 'Generate seed')
+    write_tool(signup_as_crew, 'Sign up as crew')
+    write_tool(withdraw_crew_signup, 'Withdraw crew signup', destructive=True)
+    write_tool(acknowledge_match, 'Acknowledge match')
+    write_tool(watch_match, 'Watch match')
+    write_tool(unwatch_match, 'Stop watching match')
