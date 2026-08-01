@@ -17,13 +17,16 @@ architecture. An unknown stored name is dropped silently at render time — that
 the mechanism for a developer deleting a column, not an error.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import AbstractSet, Any, Final, Mapping, Optional, Sequence
 
-from nicegui import ui
+from nicegui import background_tasks, context, ui
 
+from application.services import TablePreferenceService
 from application.table_preferences_context import table_prefs_for
 from theme.connection import REQUIRES_SOCKET_CLASS
+from theme.tables.admin_crud import current_actor
 
 __all__ = [
     'DEFAULT_REQUIRED',
@@ -42,6 +45,9 @@ __all__ = [
 # row action behind no affordance at all, and the way back is a reset the user
 # cannot find because the gear that offers it is in the toolbar, not the row.
 DEFAULT_REQUIRED: Final[frozenset[str]] = frozenset({'actions', 'edit'})
+
+# Column names are code identifiers, but a CSS class cannot assume that.
+_CLASS_SAFE = re.compile(r'[^A-Za-z0-9_-]')
 
 
 class TableKeys:
@@ -302,11 +308,57 @@ def customize_table(
         plan=plan,
     )
     setattr(table, _STASH, custom)
-    # Read off the DOM by the resize client (wave 3) to know which table a
+    # Read off the DOM by static/js/table-columns.js to know which table a
     # dragged header belongs to; nothing else identifies one.
     table._props['data-wiz-table-key'] = key
     _apply_plan(table, plan)
+    _wire_width_drags(table, key)
     return plan
+
+
+def _wire_width_drags(table: ui.table, key: str) -> None:
+    """Persist widths the resize client reports for this table.
+
+    Registered on ``ui.on`` rather than ``table.on``: the drag is handled by a
+    delegated listener in plain JS, outside Vue, which can only reach the app's
+    global event channel — so every customized table listens and each one filters
+    on its own key.
+
+    ``context.client`` is captured **here**, at build time. Reading it inside the
+    coroutine raises: a background task has no slot context (``check_slot_context``
+    enforces the same rule for slot handlers).
+    """
+    client = context.client
+
+    async def _persist(args) -> None:
+        if not isinstance(args, Mapping) or args.get('key') != key:
+            return
+        width = args.get('width')
+        column = args.get('column')
+        with client:
+            actor = await current_actor()
+            if actor is None:
+                return
+            try:
+                saved = await TablePreferenceService().set_width(
+                    actor, key, column, int(width) if width is not None else None)
+            except (ValueError, TypeError) as e:
+                ui.notify(str(e), color='warning')
+                return
+            # The browser has already painted the new width, so nothing is
+            # repainted here — but the stashed plan has to follow, or the modal
+            # and the "customized" dot would show the pre-drag state.
+            custom = customization_of(table)
+            if custom is not None:
+                custom.plan = effective_columns(
+                    custom.defaults, saved, custom.required,
+                    page_size=custom.page_size, density=custom.density,
+                    wrap=custom.wrap,
+                )
+                if custom.badge is not None:
+                    custom.badge.set_visibility(custom.plan.is_customized)
+
+    ui.on('wiz_table_width', lambda e: background_tasks.create(_persist(e.args)))
 
 
 def apply_saved_config(table: ui.table, saved: Optional[Mapping]) -> ColumnPlan:
@@ -338,7 +390,7 @@ def _apply_plan(table: ui.table, plan: ColumnPlan) -> None:
     mechanism QTable actually reads; row dicts are untouched, so ``row_key`` and
     every row handler keep working.
     """
-    table.columns = list(plan.columns)
+    table.columns = [_with_header_class(c) for c in plan.columns]
     table._props['visible-columns'] = list(plan.visible)
 
     pagination = dict(table._props.get('pagination') or {})
@@ -353,6 +405,22 @@ def _apply_plan(table: ui.table, plan: ColumnPlan) -> None:
     _toggle_class(table, 'wiz-table--wrap', plan.wrap)
     _toggle_class(table, 'wiz-table--sized', plan.has_widths)
     table.update()
+
+
+def _with_header_class(column: Mapping) -> dict:
+    """Tag a column's header cell with ``wiz-col-<name>``.
+
+    The resize client reads the column name off this class: Quasar's own header
+    cells carry no identifier, and matching by position breaks the moment a
+    column is hidden.
+    """
+    out = dict(column)
+    name = _CLASS_SAFE.sub('-', str(out.get('name', '')))
+    marker = f'wiz-col-{name}'
+    existing = str(out.get('headerClasses') or '')
+    if marker not in existing.split():
+        out['headerClasses'] = f'{existing} {marker}'.strip()
+    return out
 
 
 def _toggle_class(table: ui.table, name: str, on: bool) -> None:

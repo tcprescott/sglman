@@ -1655,6 +1655,60 @@ body.body--dark {
     min-width: 0;
 }
 
+/* Only a table that has at least one stored width switches to fixed layout; an
+   unresized table keeps today's content-driven sizing exactly. */
+.wiz-table--sized table.q-table {
+    table-layout: fixed;
+}
+
+/* With a fixed layout the column itself bounds its content, so the per-family
+   .wrap caps above become dead weight that fights the width the user chose. */
+.wiz-table--sized td .wrap {
+    max-width: none;
+}
+
+/* The 6px resize affordance static/js/table-columns.js hit-tests. A
+   pseudo-element, so nothing is inserted into the DOM Vue owns and re-renders
+   cannot destroy it. */
+.wiz-table thead th,
+.match-table thead th,
+.user-table thead th,
+.tournament-table thead th,
+.equipment-table thead th {
+    position: relative;
+}
+
+.wiz-table thead th::after,
+.match-table thead th::after,
+.user-table thead th::after,
+.tournament-table thead th::after,
+.equipment-table thead th::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+}
+
+/* Without this the drag selects header text on every table it crosses. */
+.wiz-resizing,
+.wiz-resizing * {
+    user-select: none !important;
+    cursor: col-resize !important;
+}
+
+@media (max-width: 1023.98px) {
+    .wiz-table thead th::after,
+    .match-table thead th::after,
+    .user-table thead th::after,
+    .tournament-table thead th::after,
+    .equipment-table thead th::after {
+        display: none;
+    }
+}
+
 /* Wrap long values — the modal's opt-in counterpart to the per-family .wrap
    caps above, applied to whichever table the viewer turned it on for. */
 .wiz-table--wrap td,

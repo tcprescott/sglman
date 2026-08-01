@@ -48,7 +48,10 @@ SAVED = {
 
 @pytest.fixture
 def table():
-    with ui.element():
+    # Building any element needs a slot context; there is no page here.
+    from nicegui.client import Client
+
+    with Client(lambda: None, request=None):
         # mobile-grid: exempt — a fixture; each test adds the card it needs.
         yield ui.table(columns=[dict(c) for c in COLUMNS],
                        rows=[dict(r) for r in ROWS], row_key='id')

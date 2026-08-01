@@ -13,6 +13,7 @@ from theme.dialog.match_dialog import AdminMatchDialog
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
+from theme.tables.preferences import TableKeys
 
 
 def admin_schedule_page(
@@ -193,6 +194,7 @@ def admin_schedule_page(
             submit_match_callback=submit_admin_match if access.edit else None,
             extra_slots=extra_slots,
             storage_key='admin_schedule',
+            table_key=TableKeys.ADMIN_SCHEDULE,
             # The admin's job *is* the Finished-not-yet-Confirmed set, so it
             # must be on screen without them discovering the State filter.
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],

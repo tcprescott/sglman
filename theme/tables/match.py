@@ -13,6 +13,7 @@ from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
 from theme.tables.match_slots import CANDIDATE_STAGE, register_body_slots
+from theme.tables.preferences import customize_table, preferences_button
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -69,8 +70,13 @@ class MatchTableView(MatchTableHandlersMixin):
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
-                 scope_tournament_ids=None):
+                 scope_tournament_ids=None, table_key=None):
         self.columns = columns
+        # When set, this board's desktop columns follow the viewer's saved
+        # layout. Each surface built on this class passes its **own** key: a
+        # proctor's column choices must not follow them onto the admin board.
+        self.table_key = table_key
+        self._plan = None
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
@@ -357,9 +363,14 @@ class MatchTableView(MatchTableHandlersMixin):
 
                 ui.space()
 
-                # Refresh button
+                # Refresh button, and a placeholder the preferences gear is
+                # rendered into once the table exists (the filter strip is built
+                # first, for visual order).
                 with ui.column().classes('flex-center'):
-                    ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
+                    with ui.row().classes('items-center'):
+                        gear_slot = ui.row().classes('items-center')
+                        ui.button(icon='refresh', on_click=self.refresh) \
+                            .props('flat color=primary').tooltip('Refresh table')
 
         # Restore the filters, then load the table — one task, one load.
         self._bg(self._initial_load())
@@ -405,6 +416,15 @@ class MatchTableView(MatchTableHandlersMixin):
             has_edit=self.on_edit is not None,
             actions_first=self.actions_first,
         )
+
+        if self.table_key:
+            # **After** render_grid_slot(), never before: the card's item slot is
+            # generated from these columns at build time, so applying a saved
+            # layout here cannot reach it. Pinned by
+            # tests/theme/test_table_preferences.py.
+            self._plan = customize_table(self.table, self.columns, key=self.table_key)
+            with gear_slot:
+                preferences_button(self.table)
 
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
         self.table.on('acknowledge_match', lambda event: background_tasks.create(

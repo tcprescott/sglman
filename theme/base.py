@@ -232,6 +232,10 @@ class BaseLayout:
         install_timezone_detection()
         # A dropped socket eats a click silently; this makes the page say so.
         install_connection_watch()
+        # Drag-to-resize headers on any table carrying data-wiz-table-key. In the
+        # head, not the body, for the same reason as install_connection_watch:
+        # markup added from a lazy tab build never executes its <script>.
+        ui.add_head_html('<script src="/static/js/table-columns.js"></script>')
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
         # colors stay fixed, warm-tuned to match the --status-* tokens in
