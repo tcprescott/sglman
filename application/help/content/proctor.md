@@ -31,7 +31,7 @@ where. Each match carries its number (`#`) so you can call it out across a room.
 ## Running a match
 
 :::snippet proctor-run-match
-Six steps, in order. Everything but step 2 happens from the match's row.
+Six steps, in order. Everything but steps 2 and 4 happens from the match's row.
 
 1. **Greet the players and seat them.** Press **Check In**. The dialog asks which
    station each player is at — put the numbers in and confirm. That stamps the
@@ -120,7 +120,7 @@ the useful thing.
 :::snippet proctor-escalation
 **Fetch the on-call admin in person.** They are on the floor; go and find them.
 
-Three situations, and two of them are not yours to decide:
+Four situations. Only the last one is yours to decide:
 
 | Situation | What you do |
 |---|---|

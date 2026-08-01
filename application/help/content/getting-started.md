@@ -27,15 +27,11 @@ call you.
 
 ## Opt into a tournament
 
-You cannot be scheduled into a tournament you have not opted into. Opt in from
-the tournament's page, and you become selectable as a player.
-
 :::snippet getting-started-optin
-### Opting into a tournament
-
 You have to opt into a tournament before anyone can schedule you in it, and
-before you can request a match yourself. If a tournament is missing from a
-dropdown, opting in is almost always what is missing.
+before you can request a match yourself. Opt in from the tournament's page and
+you become selectable as a player. If a tournament is missing from a dropdown,
+opting in is almost always what is missing.
 :::
 
 ## Then, depending on why you are here

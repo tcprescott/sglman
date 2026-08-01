@@ -129,7 +129,22 @@ There is no user-specific content on either page.
 - **Index** — a search box (AND over whitespace-separated terms, matched against
   title + summary + flattened body) over article cards.
 - **Article** — a sticky sidebar listing every article plus the current one's own
-  `##` headings, and the rendered body. Both stack below 1024px.
+  `##` headings, and the rendered body. Both stack below 1024px, and there the
+  **body is ordered first**: the sidebar is ~550px of links, which in source
+  order put the title below the fold and the first sentence most of a second
+  screen down — on the surface most of these readers are on. Stacked, the
+  article list reads as a "more help" footer instead.
+
+**Prose is block flow, not flex.** `render_blocks` output goes inside a
+`.wiz-help-prose` div on both surfaces, because the containers around it are
+`ui.column`s and a flex parent breaks prose two ways: its `gap` adds to every
+block's own margin (so a heading sits equidistant from the section above and the
+sentence it introduces, and the hierarchy flattens), and its children shrink
+below their content when the container is height-capped — which silently cut a
+help popup's table off mid-row rather than letting the popup scroll. Block flow
+restores margin collapsing and lets the tuned margins set the rhythm. The
+article's copy is additionally capped at `56ch` (~80 characters) so a paragraph
+does not track the full width of a desktop monitor.
 
 **Entry point: the drawer.** The Help item sits above Feedback and is *not*
 gated on `self.user`, so a signed-out visitor on any framed public surface can
