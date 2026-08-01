@@ -96,12 +96,13 @@ costs you time nobody can give back.
 card or another device. Ask the proctor where it is rather than hunting for a
 spare laptop.
 
-**Beware of power.** Unplugging your *own* equipment is fine — but be extremely
-careful about it, to exactly the standard the proctors are held to. Cables in a
+**Beware of power.** Unplugging your *own* equipment is fine, but it is worth
+being careful — to the same standard the proctors hold themselves to. Cables in a
 tournament room are not always plugged in where you would expect, and the plug
 you pull may be powering a station that is mid-match. Trace it to the thing it
 actually powers, check twice that it is yours, and only then unplug it. If you
-are not certain, ask the proctor rather than finding out.
+are not sure, ask the proctor — it is a much better question to ask than to find
+out the hard way.
 
 **What you can have at your station.** Your phone, notes, trackers, your own
 headphones or earbuds in the TV's jack, and a capture of your own POV if you
@@ -135,10 +136,10 @@ you hear your game, and they are yours to bring. Pack a pair for the event, and
 once you have seen a Stage on a match of yours, keep them on you rather than in
 a bag in another room.
 
-A stage or streaming room is not a proctor's room. The **broadcast techs** run
-it: they handle the setup, the capture and the stream, and they will tell you
-where to sit and when you are going live. Do what they ask — seed rolling aside,
-the whole thing is theirs.
+A stage or streaming room belongs to the **broadcast techs**: they handle the
+setup, the capture and the stream, and they will tell you where to sit and when
+you are going live. Seed rolling aside, the whole thing is theirs to run, so
+follow their lead there.
 
 The room rules above, spectators especially, are the tournament room's. A stage
 runs to its own, set by the people producing it. If you are unsure what applies,
@@ -154,7 +155,7 @@ the spot — an admin does — so raising it early is the fastest route.
 | What has happened | What you do |
 |---|---|
 | **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit — the proctor cannot make that call for you. |
-| **Hardware or the game fails mid-match** | Stop and tell the proctor. Do not start swapping cables or restarting things yourself: whether the match resumes, restarts or moves depends on the tournament's rules and on what actually broke. |
+| **Hardware or the game fails mid-match** | Stop and tell the proctor, and leave the cables and restarts to them: whether the match resumes, restarts or moves depends on the tournament's rules and on what actually broke. |
 | **You think something is not right** about how the match is being played | Tell the proctor or an admin, quietly, rather than raising it with your opponent. Describe what you saw and let them take it from there. |
 | **The two of you disagree on the result** | Tell the proctor before you leave. They record their best call and flag it for a staff member, who settles it when they confirm the result. |
 

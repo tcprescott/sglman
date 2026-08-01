@@ -26,9 +26,8 @@ If they need to step out briefly, they will tell you before they go.
 
 **The same goes the other way. If you need to leave the room — for any reason,
 however briefly — tell the admin first**, so they know they are covering it until
-you are back. Not a request for permission, and you do not need a reason: it is
-just how the room stays staffed. Walking out without saying so is the one thing
-that breaks it, because nobody else knows the room is now empty.
+you are back. Not a request for permission, and you do not need a reason: saying
+so on your way out is simply what keeps the room staffed the whole time.
 
 > **TODO:** the coordinator to ask about shifts and swaps.
 
@@ -40,16 +39,15 @@ room.
 :::snippet proctor-room
 **You are responsible for the tournament room you are assigned to, and nothing
 outside it.** A match being played somewhere else — on a stage, or in a
-streaming room — is not yours to run. The broadcast techs handle those matches;
-the only part that may still come your way is rolling the seed. The rules below,
-spectators especially, are the rules for *your* room: the streaming rooms and
-stages run to different ones, and it is not your job to police them.
+streaming room — belongs to the broadcast techs; the only part that may still
+come your way is rolling the seed. The rules below, spectators especially, are
+the rules for *your* room: the streaming rooms and stages run to their own, set
+by the people producing them.
 
 **The room is for the matches on the board, not for casual or practice play.**
-Point anyone asking to the dedicated Casual Gaming Room. The only exception is an
-explicit sign-off from an on-call admin or SGL staff for a station that is
-genuinely not in use — your own judgement that a station "isn't being used right
-now" is not that sign-off.
+Point anyone asking to the dedicated Casual Gaming Room. A station genuinely not
+in use can be an exception, but only with explicit sign-off from an on-call admin
+or SGL staff — worth checking with them rather than deciding it looks free.
 
 **Keep the noise down.** Players are concentrating, and several matches share the
 room. Keeping it quiet is your responsibility — that includes spectators, players
@@ -72,8 +70,8 @@ cannot give back.
 
 **Beware of power.** While you are helping someone, know what every cable you
 touch is powering before you pull it. Trace it, check it twice, and only then
-unplug it — the console you kill might be the one running a live match at the
-next station.
+unplug it — the console you cut power to might be the one running a live match
+at the next station.
 :::
 
 ## Game integrity
@@ -83,15 +81,14 @@ Part of the job is watching that the competition is clean. Nobody expects you to
 have eyes on every match every second — you are running a room, not invigilating
 an exam.
 
-What is expected is this: **if something looks wrong, tell the on-call admin.**
+What is expected is this: **if something looks wrong, tell the on-call admin
+rather than raising it with the player yourself.** Go find the admin and describe
+what you saw — no questions, hints, or "just checking" in the moment.
 
-**Do not confront the player.** Not a question, not a hint, not "just checking".
-Go and find the admin and describe what you saw. Two reasons, and both matter:
-
-- If there is nothing in it, you have accused someone in front of a room for no
-  reason.
-- If there *is* something in it, you have told them they were noticed before
-  anyone could establish what happened.
+Two reasons this works better than asking directly: it avoids accusing someone
+in front of a room over something that turns out to be nothing, and it avoids
+tipping someone off that they have been noticed before anyone has looked into
+it.
 
 Report it and let the admin take it from there. Your account of what you saw is
 the useful thing.
@@ -114,7 +111,7 @@ Four situations. Only the last one is yours to decide:
 | Situation | What you do |
 |---|---|
 | **A player has not turned up** and the match is due | Tell the admin straight away. Do not sit on it — they decide whether to wait, reschedule or forfeit. |
-| **Hardware or the game fails mid-match** | **Do nothing before you have spoken to an admin.** Whether the match restarts, resumes or moves depends on that tournament's rules and on what actually failed. Get guidance first. |
+| **Hardware or the game fails mid-match** | **Wait until you have spoken to an admin before doing anything.** Whether the match restarts, resumes or moves depends on that tournament's rules and on what actually failed, so get guidance first. |
 | **Something looks suspicious** | Tell the admin. Do not confront the player — see [Game integrity](/event-info/proctoring#game-integrity). |
 | **The players disagree on the result** | Record your best call and flag it for review. That one you can handle. |
 

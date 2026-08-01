@@ -44,12 +44,10 @@ There is a **dedicated Casual Gaming Room**, separate from the tournament room
 and open throughout the event. It is fairly small, and **priority goes to anyone
 practicing for an upcoming match** — casual play gives way if the room fills up.
 
-**The tournament room is not a casual space.** No practice or casual gaming there
-while it is in use for an active match — the room is for the matches on the
-board, and that always comes first. Staff can authorize an exception when the
-room genuinely is not in use (an on-call admin or SGL staff signs off; a proctor
-using their own judgement is not enough). Outside of that, the Casual Gaming Room
-is where practice and casual play belong.
+**The tournament room is for the matches on the board.** Practice and casual play
+belong in the Casual Gaming Room instead, while the tournament room is hosting an
+active match. A station that is genuinely not in use can be an exception, but
+only with sign-off from an on-call admin or SGL staff.
 
 ## On-site tournaments
 
