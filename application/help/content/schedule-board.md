@@ -35,7 +35,7 @@ The **State** column moves through five values, in order:
 | State | Meaning |
 |---|---|
 | {state:Scheduled} | A time is booked. Nobody has arrived yet. |
-| {state:Checked In} | Both players are at their stations and a proctor has checked the match in. |
+| {state:Checked In} | Both players are at their stations and the match has been checked in. |
 | {state:Started} | The match is under way. |
 | {state:Finished} | Someone has recorded a result. It is not official yet. |
 | {state:Confirmed} | A staff member has confirmed the result. This is the official record. |

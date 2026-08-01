@@ -24,13 +24,16 @@ goes:
 | Answers | "how does this app work?" | "what about *this* event?" |
 | True for | every community | one community |
 | Goes stale when | the code changes | the event changes |
-| Example | the six steps to run a match on the Proctor Station | who the on-call admin is, and that you fetch them in person |
+| Example | the steps to run a match on the Proctor Station | who the on-call admin is, and that you fetch them in person |
 
-Two help articles were trimmed when this landed: `player.md` lost check-in, the
-tournament room, stages, what to do when something breaks and turnover;
-`proctor.md` lost looking after the room, game integrity, escalation, shift
-handover and "what you cannot do". Both keep a pointer to Event Information
-written **without a link**, deliberately — a community without the flag has no
+Three help articles have been trimmed against this line: `player.md` lost
+check-in, the tournament room, stages, what to do when something breaks and
+turnover; `proctor.md` lost looking after the room, game integrity, escalation,
+shift handover and "what you cannot do", and later the floor half of running a
+match (setup checks, the countdown, the room's PC); `on-air.md` lost the rules
+for watching from the room, which turned out to be a per-event policy rather than
+one the app could state. All three keep a pointer to Event Information written
+**without a link**, deliberately — a community without the flag has no
 `/event-info` for the link to reach.
 
 ## Where the content lives

@@ -61,13 +61,15 @@ back at twelve and sixteen-plus. See [Who to ask](/event-info/who-to-ask).
 ## Check-in and stations
 
 :::snippet check-in
-Turn up at the tournament room in good time. A **proctor**, the volunteer running
-that room, checks your match in once both players are seated, and the board
-flips to {state:Checked In}.
+Turn up in good time and **check in with the on-call admin at the admin desk**,
+not with the proctor. The admin checks your match in and the board flips to
+{state:Checked In}. It works that way so the admin knows what is running in the
+room at any given moment. If they are tied up and your match is due, the
+**proctor**, the volunteer running the room, checks you in instead.
 
-Your **station** is the physical seat you play at. The proctor assigns it, and
-once they have, the station number shows next to your name on the schedule
-board so you and anyone looking for you can see where you are.
+Your **station** is the physical seat you play at. It is assigned to you at
+check-in, and the number then shows next to your name on the schedule board so
+you and anyone looking for you can see where you are.
 
 The proctor counts you down out loud and starts the match. If your opponent has
 not turned up by the time your match is due, the proctor fetches an admin, and
@@ -76,6 +78,10 @@ proctor's.
 
 You do not check yourself in and you do not pick your own station.
 :::
+
+> **TODO:** where the admin desk is. Worth naming precisely, since the
+> **check-in desk** above is where you collect your badge and these are two
+> different places.
 
 ## In the tournament room
 
@@ -107,15 +113,16 @@ and a capture of your own POV if you want to stream yourself are all fine.
 Nothing on this list needs clearing with anyone first.
 
 Several matches share the room and everyone in it is concentrating, so keep it
-quiet. That applies to you between your own matches as much as to anyone
-watching, and to whatever you are streaming or talking into.
+quiet. That applies to you between your own matches as much as to anyone else,
+and to whatever you are streaming or talking into.
 
-Spectators are welcome in the room, and one of them may stand behind you for
-the whole match, which is allowed. What is not allowed is a spectator moving
-between your screen and your opponent's part way through, because someone who
-has seen both knows things neither of you does. If you see it happening, or
-anyone in the room is disrupting your match, tell the proctor. Asking someone
-to leave is their call, not yours.
+The room is not open to spectators. Friends who want to watch you play should
+watch from the stream room instead, and a proctor will send them there. An
+on-site admin can make an exception for someone with a reason to be in the room,
+so that is who to ask; it is not the proctor's to grant. Anyone who is let in
+picks one player and stays with them for the whole match, because someone who
+has seen both screens knows things neither of you does. If you see that
+happening, or anyone in the room is disrupting your match, tell the proctor.
 :::
 
 ## If your match is on a stage

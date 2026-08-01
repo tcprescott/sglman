@@ -31,8 +31,8 @@ When you are scheduled into a match, the bot DMs you with an **Acknowledge**
 button. Pressing it tells staff you have seen the time and intend to be there.
 
 It is not a requirement, and nobody is stopped from playing for not
-acknowledging. It is, though, genuinely useful to the on-call admin and your
-proctor: it tells them you know about the match. They work from the
+acknowledging. It is, though, genuinely useful to staff and to your proctor: it
+tells them you know about the match. They work from the
 unacknowledged list to decide who to chase, so acknowledging is the difference
 between being left alone and being tracked down.
 

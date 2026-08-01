@@ -35,25 +35,17 @@ or approved crew, you are told anyway.
 See [Reading the schedule board](/help/schedule-board#watching-a-match) for how
 to turn it on and off.
 
-## Watching in the room
+## Watching in person
 
-You are welcome to watch matches in the tournament room, as long as you are not
-disruptive. Players are concentrating and several matches share the space, so
-keep it quiet.
+Whether you can watch a match from the room it is being played in, and what is
+expected of you if you can, is the event's call rather than the app's. Some
+events keep the tournament room to players and crew and point everyone else at
+the stream. Where your community publishes its rules, they are under **Event
+Information** in the sidebar.
 
-**Pick one player and stay with them.** If you are watching a match in the room,
-watch one side of it for the whole match. Do not move across to watch their
-opponent part way through. Someone who has seen both screens knows things neither
-player does, and proctors will stop it.
-
-The proctor running the room can ask you to leave, whether because you are being
-disruptive or simply because the room has filled up. Take it as a room-capacity
-call rather than a personal one.
-
-**A stage is different.** Matches played on a stage or in a streaming room are
-run by the broadcast techs, not by a proctor, and those spaces set their own
-rules about who can be where. Follow what the techs there tell you rather than
-assuming the tournament room's rules carry over.
+A stage or stream room is separate again: it belongs to the broadcast techs, not
+to a proctor, and they set who can be where. Follow what the techs there tell
+you.
 
 ## Spectating without an account
 

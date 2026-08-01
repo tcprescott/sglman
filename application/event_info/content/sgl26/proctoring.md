@@ -31,6 +31,24 @@ saying so on your way out is simply what keeps the room staffed the whole time.
 
 > **TODO:** the coordinator to ask about shifts and swaps.
 
+## Checking a match in
+
+:::snippet proctor-check-in
+**Players check in at the admin desk, not with you.** When a pair turn up for
+their match they go to the on-call admin, who checks the match in and assigns
+their stations. Checking every match in is how the admin keeps track of what is
+actually happening in the room, so it is theirs to do rather than a formality
+they have delegated.
+
+**Check them in yourself when the admin is busy.** If the desk is occupied and a
+match is due, do not leave players standing around waiting for it to clear: seat
+them and check the match in from Proctor Station. Tell the admin once things are
+calm, so what they think is running matches what is.
+
+Everything after check-in is yours as normal: setup, the countdown, the start,
+and recording the result.
+:::
+
 ## Looking after the room
 
 Running matches is only half the job. The room itself is yours, and only that
@@ -50,18 +68,23 @@ in use can be an exception, but only with explicit sign-off from an on-call admi
 or SGL staff, so it is worth checking with them rather than deciding it looks free.
 
 **Keep the noise down.** Players are concentrating, and several matches share the
-room, so keeping it quiet is your responsibility. That includes spectators, players
-between matches, and conversations drifting in from the door.
+room, so keeping it quiet is your responsibility. That includes players between
+matches and conversations drifting in from the door.
 
-**Spectators are welcome** as long as they are not disruptive. You can ask any
-spectator to leave, whether because they are being disruptive or simply because
-the room has filled up past what it can hold. You do not need to clear it with
-anyone first, and you do not need a reason beyond those two.
+**Spectators do not watch from the tournament room.** Point anyone who wants to
+watch at the stream room, which is what it is for. That is the answer by default,
+and it does not depend on how quiet they are being or how full the room is: the
+room is for the people playing in it and the people running it.
 
-**A spectator picks one player and stays there.** Watching over one player's
-shoulder for the whole match is fine; moving across to the opponent's side part
-way through is not, and you should stop it when you see it. Someone who has seen
-both screens has information neither player has.
+**Exceptions are the on-site admin's call, one person at a time.** If someone has
+a reason to be in the room, send them to the admin rather than deciding it
+yourself. An admin who says yes will tell you, and what they have agreed covers
+that person for that match, not spectators generally.
+
+**Anyone the admin does let in picks one player and stays there.** Watching over
+one player's shoulder for the whole match is fine; moving across to the
+opponent's side part way through is not, and you should stop it when you see it.
+Someone who has seen both screens has information neither player has.
 
 **Help players get set up** if they need it. The one that catches people out is
 **audio: check the TV is actually sending sound out of the headphone jack**
