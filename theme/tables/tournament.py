@@ -7,12 +7,17 @@ from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.mobile_grid import apply_column_visibility
+from theme.tables.preferences import customize_table, preferences_button
 
 
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
-    def __init__(self, columns, get_query, extra_slots=None, submit_tournament_callback=None):
+    def __init__(self, columns, get_query, extra_slots=None, submit_tournament_callback=None,
+                 table_key=None):
         self.columns = columns
+        # When set, this view's desktop columns follow the viewer's saved layout.
+        self.table_key = table_key
+        self._plan = None
         self.get_query = get_query
         self.extra_slots = extra_slots
         self.submit_tournament_callback = submit_tournament_callback
@@ -35,6 +40,8 @@ class TournamentTableView:
             if self.submit_tournament_callback:
                 ui.button('Add Tournament', icon='add', on_click=self.submit_tournament_callback).props('color=primary')
             ui.space()
+            # Filled after the table exists; the toolbar is drawn first.
+            gear_slot = ui.row().classes('items-center')
             ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
         with ui.column().classes('full-width'):
@@ -117,6 +124,13 @@ class TournamentTableView:
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
+        if self.table_key:
+            # **After** the item slot above, never before: the card is generated
+            # from these columns at build time and must not follow a saved
+            # layout. Pinned by tests/theme/test_table_preferences.py.
+            self._plan = customize_table(self.table, self.columns, key=self.table_key)
+            with gear_slot:
+                preferences_button(self.table)
         # Register edit_tournament event handler immediately after table creation
         self.table.on('edit_tournament', self.handle_edit_tournament)
         self.table.on('show_players', self.handle_show_players)

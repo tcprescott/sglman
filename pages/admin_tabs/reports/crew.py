@@ -11,6 +11,7 @@ from application.services import AuthService, ReportsService, get_user_from_disc
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     clicked_row,
@@ -168,7 +169,8 @@ async def crew_page(
                 enabled=can_open_board,
                 hint='Open on the schedule board',
             )
-            enable_mobile_grid(cov_table, cov_columns, actions=drill_actions)
+            enable_mobile_grid(cov_table, cov_columns, actions=drill_actions,
+                               table_key=TableKeys.REPORTS_CREW_COVERAGE)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -215,7 +217,8 @@ async def crew_page(
                 row_key='user_id',
             ).classes('full-width wiz-rowclick')
             contrib_table.on('row-click', _row_clicked)
-            enable_mobile_grid(contrib_table, contrib_columns, row_click_event='row-click')
+            enable_mobile_grid(contrib_table, contrib_columns, row_click_event='row-click',
+                               table_key=TableKeys.REPORTS_CREW_CONTRIBUTIONS)
             if user_id_int is None:
                 ui.label('Click a row to filter both tables to that person.').classes('italic-note')
 

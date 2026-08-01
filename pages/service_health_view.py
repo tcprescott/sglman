@@ -11,6 +11,7 @@ from nicegui import background_tasks, context, ui
 
 from application.services import ProbeResult, ServiceStatus
 from application.utils.timezone import format_local_display
+from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _STATUS_COLOR = {
     ServiceStatus.HEALTHY: 'positive',
@@ -113,6 +114,9 @@ def render_health_table(
             </q-card>
         </div>
     ''')
+    customize_table(table, _COLUMNS, key=TableKeys.PLATFORM_SERVICE_HEALTH)
+    with ui.row().classes('full-width justify-end'):
+        preferences_button(table)
 
 
 def build_refreshable_board(

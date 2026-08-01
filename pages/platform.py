@@ -13,15 +13,18 @@ from application.services import (
     FeatureFlagService,
     RacetimeBotService,
     ServiceHealthService,
+    TablePreferenceService,
     TenantService,
     TenantSetupService,
     get_user_from_discord_id,
 )
 from application.services.auth_service import AuthService
+from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
+from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _bot_service = RacetimeBotService()
 
@@ -95,9 +98,16 @@ def create() -> None:
 
         ui.page_title('Platform Administration')
         _render_platform_chrome()
-        with ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
+        # This surface builds its own chrome rather than BaseLayout, so it primes
+        # the viewer's table layouts itself — without this the gears below would
+        # save preferences that never came back.
+        prefs = await TablePreferenceService().prime(user)
+        with table_prefs_scope(prefs), \
+                ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Platform Administration').classes('page-title')
+                # Filled once the table exists; the header is drawn first.
+                header_row = ui.row().classes('items-center')
                 ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
 
             columns = [
@@ -162,6 +172,10 @@ def create() -> None:
                 </div>
             ''')
 
+            customize_table(table, columns, key=TableKeys.PLATFORM_TENANTS)
+            with header_row:
+                preferences_button(table)
+
             async def _on_edit(e) -> None:
                 # Awaited by NiceGUI within the client's slot context (not a
                 # background task), so ui.* calls in the dialog are safe.
@@ -183,6 +197,7 @@ def create() -> None:
 
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Racetime Bots').classes('section-title')
+                bot_header_row = ui.row().classes('items-center')
                 ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
             ui.label(
                 'Shared, platform-managed bots — one per racetime category. Grant a '
@@ -244,6 +259,10 @@ def create() -> None:
                 </div>
             ''')
 
+            customize_table(bot_table, bot_columns, key=TableKeys.PLATFORM_RACETIME_BOTS)
+            with bot_header_row:
+                preferences_button(bot_table)
+
             async def _on_edit_bot(e) -> None:
                 await _open_bot_edit_dialog(user, bot_table, e.args)
 
@@ -263,6 +282,7 @@ def create() -> None:
 
             with ui.row().classes('w-full items-center justify-between'):
                 ui.label('Feature Groups').classes('section-title')
+                group_header_row = ui.row().classes('items-center')
                 ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
             ui.label(
                 'Named feature bundles (tiers). Assign a tenant to a group from its '
@@ -311,6 +331,11 @@ def create() -> None:
                     </q-card>
                 </div>
             ''')
+
+            customize_table(group_table, group_columns,
+                            key=TableKeys.PLATFORM_FEATURE_GROUPS)
+            with group_header_row:
+                preferences_button(group_table)
 
             async def _on_edit_group(e) -> None:
                 await _open_group_edit_dialog(user, group_table, e.args)

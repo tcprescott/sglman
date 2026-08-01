@@ -77,7 +77,7 @@ class TestHiddenColumnsAreActuallyHidden:
         # bespoke :grid table calls apply_column_visibility directly. A page
         # that hands its column list to a *TableView delegates the duty to it
         # (theme/tables/tournament.py applies it there).
-        applies = re.compile(r'enable_mobile_grid|apply_column_visibility')
+        applies = re.compile(r'enable_mobile_grid|apply_column_visibility|customize_table')
         delegates = re.compile(r'TableView\(\s*\n?\s*columns=')
         offenders = []
         for path in _python_files():

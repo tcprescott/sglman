@@ -13,6 +13,7 @@ from application.services import (
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
@@ -182,7 +183,8 @@ async def admin_presets_page() -> None:
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
-            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_PRESETS)
 
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))

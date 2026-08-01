@@ -577,6 +577,7 @@ def _create_mock() -> None:
                     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
                 ]
 
+                # table-prefs: exempt — development-only mock-Discord user picker
                 table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full')
                 table.add_slot('body-cell-actions', f'<q-td :props="props">{_LOGIN_ACTION}</q-td>')
                 enable_mobile_grid(table, columns, actions=_LOGIN_ACTION)

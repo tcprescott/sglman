@@ -35,7 +35,8 @@ def table():
     from nicegui.client import Client
 
     with Client(lambda: None, request=None):
-        # mobile-grid: exempt — a fixture, not a rendered surface.
+        # A fixture, not a rendered surface.
+        # mobile-grid: exempt, table-prefs: exempt
         yield ui.table(columns=[dict(c) for c in COLUMNS], rows=[], row_key='id')
 
 

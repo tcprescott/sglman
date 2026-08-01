@@ -20,6 +20,7 @@ from models import Role
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
 
@@ -255,7 +256,8 @@ async def admin_discord_roles_page() -> None:
 
             table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, context.client)))
 
-            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_DISCORD_ROLES)
 
         wire_tab_refresh('Discord Roles', refresh_table)
         background_tasks.create(refresh_table())

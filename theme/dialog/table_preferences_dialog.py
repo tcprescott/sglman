@@ -93,18 +93,38 @@ async def open_table_preferences(table: ui.table) -> None:
             ui.label('Columns').classes('text-caption text-grey-7')
             column_list = ui.column().classes('full-width gap-0')
 
+        dragging = {'index': -1}
+
         def move(index: int, delta: int) -> None:
             target = index + delta
             if 0 <= target < len(staged):
                 staged[index], staged[target] = staged[target], staged[index]
                 render_columns()
 
+        def drop(source_index: int, target_index: int) -> None:
+            if source_index == target_index or not 0 <= source_index < len(staged):
+                return
+            entry = staged.pop(source_index)
+            staged.insert(min(target_index, len(staged)), entry)
+            render_columns()
+
         def render_columns() -> None:
             column_list.clear()
             with column_list:
                 for index, entry in enumerate(staged):
                     required = entry['name'] in custom.required
-                    with ui.row().classes('full-width items-center gap-2 q-py-xs'):
+                    row = ui.row().classes(
+                        'full-width items-center gap-2 q-py-xs wiz-prefs-column-row')
+                    # Drag is an addition to the ▲/▼ buttons below, never a
+                    # replacement: a dialog whose whole purpose is making a table
+                    # usable must not itself be mouse-only.
+                    row.props('draggable="true"')
+                    row.on('dragstart', lambda _, i=index: dragging.update(index=i))
+                    row.on('dragover.prevent', lambda: None)
+                    row.on('drop', lambda _, i=index: drop(dragging['index'], i))
+                    with row:
+                        ui.icon('drag_indicator').classes('text-grey-6 cursor-move') \
+                            .tooltip('Drag to reorder')
                         checkbox = ui.checkbox(
                             value=True if required else entry['visible'],
                             on_change=lambda e, c=entry: c.update(visible=e.value),

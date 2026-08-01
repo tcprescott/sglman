@@ -27,6 +27,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.qualifier_copy import BOARD_EXPLAINER, SCORE_EXPLAINER
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 
 def _fmt(dt) -> str:
@@ -344,9 +345,10 @@ def create() -> None:
                 table.add_slot('body-cell-actions',
                                f'<q-td :props="props">{_REATTEMPT_ACTION}</q-td>')
                 table.on('reattempt', lambda e: _open_reattempt_dialog(e.args.get('id')))
-                enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION)
+                enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION,
+                                   table_key=TableKeys.QUALIFIERS_LIST)
             else:
-                enable_mobile_grid(table, columns)
+                enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LIST)
             ui.label(SCORE_EXPLAINER).classes('text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
@@ -400,7 +402,7 @@ def create() -> None:
                 for i, e in enumerate(entries)
             ]
             table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
-            enable_mobile_grid(table, columns)
+            enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LEADERBOARD)
             ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
         await render()

@@ -15,6 +15,7 @@ from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.preferences import TableKeys
 
 
 def _next_game_number(bracket_match, best_of: int) -> int:
@@ -204,6 +205,7 @@ async def render_player_dashboard():
             columns=columns,
             get_query=get_query,
             admin_controls=False,
+            table_key=TableKeys.HOME_PLAYER_MATCHES,
             submit_match_callback=submit_match,
             extra_slots=extra_slots,
             player_discord_id=discord_id,

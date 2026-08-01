@@ -6,6 +6,7 @@ from application.services import AuthService, EquipmentService, get_user_from_di
 from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import open_checkout, quick_checkin
+from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -111,6 +112,7 @@ async def equipment_tab() -> None:
                         }
                         for a in assets
                     ]
+                    gear_slot = ui.row().classes('full-width justify-end')
                     table = ui.table(
                         columns=_INVENTORY_COLUMNS, rows=rows, row_key='id'
                     ).classes('equipment-table equipment-table-container w-full').props(
@@ -155,6 +157,10 @@ async def equipment_tab() -> None:
                         </div>
                         <div class="row items-center justify-end q-gutter-xs">''' + actions(_LABEL_BTNS) + '''</div>
                     </div>''')
+                    customize_table(table, _INVENTORY_COLUMNS,
+                                    key=TableKeys.EQUIPMENT_INVENTORY)
+                    with gear_slot:
+                        preferences_button(table)
 
                     async def handle_checkout(row, client):
                         with client:
@@ -188,6 +194,7 @@ async def equipment_tab() -> None:
                     if not rows:
                         ui.label('You have no equipment checked out.').classes('italic-note')
                         return
+                    gear_slot = ui.row().classes('full-width justify-end')
                     table = ui.table(columns=_MINE_COLUMNS, rows=rows, row_key='id').classes(
                         'equipment-table equipment-table-container w-full'
                     ).props(':grid="Quasar.Screen.lt.md"')
@@ -208,6 +215,9 @@ async def equipment_tab() -> None:
                         </div>
                         <div class="row items-center justify-end">''' + _MINE_LABEL_BTN + '''</div>
                     </div>''')
+                    customize_table(table, _MINE_COLUMNS, key=TableKeys.EQUIPMENT_MINE)
+                    with gear_slot:
+                        preferences_button(table)
                     table.on('view', lambda e: ui.navigate.to(f"/equipment/{e.args['id']}"))
 
                 await my_table()

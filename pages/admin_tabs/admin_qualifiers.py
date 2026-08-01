@@ -28,6 +28,7 @@ from theme.notify import notify_error
 from theme.qualifier_copy import BOARD_EXPLAINER
 from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 
 def _fmt(dt) -> str:
@@ -600,7 +601,8 @@ async def admin_qualifiers_page() -> None:
         table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full wiz-table')
         table.add_slot('body-cell-actions', f'<q-td :props="props">{_GRANT_ACTION}</q-td>')
         table.on('grant', lambda e: _open_grant_dialog(by_id.get(e.args.get('id'))))
-        enable_mobile_grid(table, columns, actions=_GRANT_ACTION)
+        enable_mobile_grid(table, columns, actions=_GRANT_ACTION,
+                           table_key=TableKeys.ADMIN_QUALIFIERS)
 
     def _open_grant_dialog(run) -> None:
         if run is None:
@@ -648,7 +650,8 @@ async def admin_qualifiers_page() -> None:
             for i, e in enumerate(entries)
         ]
         table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
-        enable_mobile_grid(table, columns)
+        enable_mobile_grid(table, columns,
+                           table_key=TableKeys.ADMIN_QUALIFIER_LEADERBOARD)
         ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
     # ------------------------------------------------------------------ shell

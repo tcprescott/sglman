@@ -6,6 +6,7 @@ from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.preferences import TableKeys
 
 
 def schedule():
@@ -62,6 +63,7 @@ def schedule():
             columns=columns,
             get_query=get_query,
             admin_controls=False,
+            table_key=TableKeys.HOME_SCHEDULE,
             extra_slots=extra_slots,
             on_edit=on_edit if discord_id else None,
             grid_breakpoint='lt.lg',

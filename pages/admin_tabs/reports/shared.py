@@ -506,6 +506,7 @@ def paginated_event_log(
             ui.label(_page_range_label(total, page, page_size, count_noun)).classes('text-h6')
             csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
 
+        # table-prefs: exempt — whole-body slot, cannot honour column order yet
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')
         table.add_slot('body', _EVENT_LOG_BODY_ROWCLICK if on_row_click else _EVENT_LOG_BODY_PLAIN)
         if on_row_click is not None:

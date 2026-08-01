@@ -57,12 +57,58 @@ class TableKeys:
     quietly share one (which would have them trade column layouts).
     """
 
-    ADMIN_USERS = 'admin.users'
+    # Match boards. Four surfaces share one class and each carries its own key:
+    # a proctor's column choices must not follow them onto the admin board.
     ADMIN_SCHEDULE = 'admin.schedule'
-    ADMIN_TOURNAMENTS = 'admin.tournaments'
     HOME_SCHEDULE = 'home.schedule'
     HOME_PLAYER_MATCHES = 'home.player_matches'
     PROCTOR_STATION = 'volunteer.proctor_station'
+
+    # Admin
+    ADMIN_USERS = 'admin.users'
+    ADMIN_TOURNAMENTS = 'admin.tournaments'
+    ADMIN_BRACKETS = 'admin.brackets'
+    ADMIN_DISCORD_EVENTS = 'admin.discord_events'
+    ADMIN_DISCORD_EVENT_TOURNAMENTS = 'admin.discord_event_tournaments'
+    ADMIN_DISCORD_ROLES = 'admin.discord_roles'
+    ADMIN_EQUIPMENT = 'admin.equipment'
+    ADMIN_FEEDBACK = 'admin.feedback'
+    ADMIN_PRESETS = 'admin.presets'
+    ADMIN_QUALIFIERS = 'admin.qualifiers'
+    ADMIN_QUALIFIER_LEADERBOARD = 'admin.qualifier_leaderboard'
+    ADMIN_RACETIME = 'admin.racetime'
+    ADMIN_SPEEDGAMING = 'admin.speedgaming'
+    ADMIN_STREAM_ROOMS = 'admin.stream_rooms'
+    ADMIN_VOLUNTEER_ROSTER = 'admin.volunteer_roster'
+    ADMIN_WEBHOOKS = 'admin.webhooks'
+    ADMIN_WEBHOOK_DELIVERIES = 'admin.webhook_deliveries'
+
+    # Player-facing
+    EQUIPMENT_INVENTORY = 'equipment.inventory'
+    EQUIPMENT_MINE = 'equipment.mine'
+    QUALIFIERS_LIST = 'qualifiers.list'
+    QUALIFIERS_LEADERBOARD = 'qualifiers.leaderboard'
+
+    # Reports
+    REPORTS_CAPACITY_FOCUS = 'reports.capacity_focus'
+    REPORTS_CAPACITY_FORECAST = 'reports.capacity_forecast'
+    REPORTS_CREW_CONTRIBUTIONS = 'reports.crew_contributions'
+    REPORTS_CREW_COVERAGE = 'reports.crew_coverage'
+    REPORTS_INSIGHTS_CREW = 'reports.insights_crew'
+    REPORTS_INSIGHTS_PLAYERS = 'reports.insights_players'
+    REPORTS_MATCH_OPS_DETAIL = 'reports.match_ops_detail'
+    REPORTS_MATCH_OPS_SUMMARY = 'reports.match_ops_summary'
+    REPORTS_STREAM_ROOM_MATCHES = 'reports.stream_room_matches'
+    REPORTS_STREAM_ROOM_SUMMARY = 'reports.stream_room_summary'
+    REPORTS_TELEMETRY_TOP = 'reports.telemetry_top'
+    REPORTS_TOURNAMENT_HEALTH = 'reports.tournament_health'
+    REPORTS_VOLUNTEER_HOURS = 'reports.volunteer_hours'
+
+    # Platform (super-admin)
+    PLATFORM_FEATURE_GROUPS = 'platform.feature_groups'
+    PLATFORM_RACETIME_BOTS = 'platform.racetime_bots'
+    PLATFORM_SERVICE_HEALTH = 'platform.service_health'
+    PLATFORM_TENANTS = 'platform.tenants'
 
 
 def _declared_keys() -> frozenset[str]:

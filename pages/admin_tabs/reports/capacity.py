@@ -17,6 +17,7 @@ from application.services import (
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     CHART_GOLD,
@@ -230,7 +231,8 @@ async def capacity_page(
                         enabled=can_open_board,
                         hint='Open on the schedule board',
                     )
-                    enable_mobile_grid(focus_table, columns, actions=focus_actions)
+                    enable_mobile_grid(focus_table, columns, actions=focus_actions,
+                                       table_key=TableKeys.REPORTS_CAPACITY_FOCUS)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
@@ -256,7 +258,8 @@ async def capacity_page(
                     lambda: rows,
                 )
             forecast_table = ui.table(columns=columns, rows=rows, pagination=25, row_key='time').classes('full-width')
-            enable_mobile_grid(forecast_table, columns)
+            enable_mobile_grid(forecast_table, columns,
+                               table_key=TableKeys.REPORTS_CAPACITY_FORECAST)
 
 
 def _parse_focus(value: Optional[str]) -> Optional[datetime]:

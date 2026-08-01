@@ -14,6 +14,7 @@ from nicegui import ui
 from application.services import AnalyticsService
 from application.utils.timezone import now_local
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     CHART_GOLD,
@@ -236,7 +237,7 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
             ui.label('No crew contributors in this window.').classes('italic-note')
         else:
             table = ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
-            enable_mobile_grid(table, columns)
+            enable_mobile_grid(table, columns, table_key=TableKeys.REPORTS_INSIGHTS_CREW)
 
 
 # --- Volunteer hours ------------------------------------------------------
@@ -298,7 +299,7 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
             ui.label('No volunteer assignments in this window.').classes('italic-note')
         else:
             table = ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
-            enable_mobile_grid(table, columns)
+            enable_mobile_grid(table, columns, table_key=TableKeys.REPORTS_INSIGHTS_PLAYERS)
 
 
 # --- Tournament health ----------------------------------------------------
@@ -372,7 +373,8 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
                 .classes('full-width')
             for name, snippet in HEALTH_DISPLAY_CELLS.items():
                 table.add_slot(f'body-cell-{name}', f'<q-td :props="props">{snippet}</q-td>')
-            enable_mobile_grid(table, columns, field_slots=HEALTH_DISPLAY_CELLS)
+            enable_mobile_grid(table, columns, field_slots=HEALTH_DISPLAY_CELLS,
+                               table_key=TableKeys.REPORTS_TOURNAMENT_HEALTH)
 
 
 # --- Admin activity -------------------------------------------------------

@@ -13,6 +13,7 @@ from models import Match
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
+from theme.tables.preferences import TableKeys
 
 # Action-bearing columns first: on a phone-width table the right-hand columns are
 # what gets clipped, and the proctor's next action must never be the clipped one.
@@ -96,6 +97,7 @@ async def proctor_station_tab() -> None:
             admin_controls=True,
             access=access,
             storage_key='proctor',
+            table_key=TableKeys.PROCTOR_STATION,
             exclude_racetime=True,
             row_sort=proctor_row_order,
             actions_first=True,

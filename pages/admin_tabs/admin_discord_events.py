@@ -16,6 +16,7 @@ from application.services import (
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _ENABLED_ICON = '''
     <q-icon :name="props.row.enabled_bool ? 'check_circle' : 'cancel'"
@@ -188,11 +189,13 @@ async def admin_discord_events_page() -> None:
             tournament_table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             tournament_table.on('edit', lambda e: background_tasks.create(open_settings_dialog(e.args, context.client)))
             enable_mobile_grid(tournament_table, tournament_columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_DISCORD_EVENT_TOURNAMENTS,
                                field_slots={'enabled': _ENABLED_ICON})
 
         with events_container:
             event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full wiz-table')
-            enable_mobile_grid(event_table, event_columns)
+            enable_mobile_grid(event_table, event_columns,
+                               table_key=TableKeys.ADMIN_DISCORD_EVENTS)
 
         wire_tab_refresh('Discord Events', refresh_tables)
         background_tasks.create(refresh_link_banner())
