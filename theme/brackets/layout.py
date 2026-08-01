@@ -11,7 +11,7 @@ The algorithm is Toornament's (a rooted tree on winner-links): a depth-first pas
 assigns each leaf a sequential vertical *slot* and centers every parent on the
 mean of its children's slots; slots and the round-derived column map to pixels.
 Absolute positioning (rather than CSS grid) keeps connectors exact and the layout
-robust to the irregular losers bracket, where a "minor" round match has a single
+correct for the irregular losers bracket, where a "minor" round match has a single
 in-section feeder and a "major" round match has two.
 
 Byes, placeholder source hints ("Winner of 7") and match numbering are computed

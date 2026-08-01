@@ -641,9 +641,9 @@ This is not a rewrite. Several things here are better than the commercial tools.
    icon per roster row so unlinked entrants are visible at a glance.
 4. **"Import from tournament roster" button** (P3, P2). One call to
    `TournamentService.get_enrolled_players_by_tournament_id`, `add_entrant` per
-   row with `user_id` already attached, one refresh. **The single
-   highest-leverage change in this audit** — it collapses the click count *and*
-   eliminates the linking blocker as a side effect.
+   row with `user_id` already attached, one refresh. **The change in this audit that
+   buys the most** — it collapses the click count *and* eliminates the linking
+   blocker as a side effect.
 5. **`ConfirmationDialog` on Start** (P5), in the voice of the Complete one:
    *"Start "Round 1"? This generates the match graph from the current seeding,
    publishes the stage publicly, and DMs N entrants their opening matchup. Seeds
