@@ -209,7 +209,7 @@ async def admin_volunteer_roster_page() -> None:
             user_id = row.get('id')
             user = volunteers_by_id.get(user_id)
             if not user:
-                ui.notify('Volunteer not found.', color='warning')
+                ui.notify("Couldn't find that volunteer — they may have been removed.", color='warning')
                 return
             active_positions = await position_service.list_active()
             await VolunteerProfileDialog(

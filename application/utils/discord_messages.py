@@ -19,14 +19,22 @@ from application.utils.match_labels import players_label
 # ---------------------------------------------------------------------------
 
 MSG_NO_ACCOUNT = (
-    'You do not have an Wizzrobe account. Please log in at the website first.'
+    "Looks like you don't have a Wizzrobe account yet — log in at the website "
+    "first and this will work."
 )
-MSG_UNEXPECTED_ERROR_MATCH = (
-    'An unexpected error occurred. Please try again or use the website to acknowledge.'
-)
-MSG_UNEXPECTED_ERROR_CREW = (
-    'An unexpected error occurred. Please try again or use the website to acknowledge.'
-)
+
+
+def msg_unexpected_error(action: str = 'finish this') -> str:
+    """Standard fallback text for a failed Discord button interaction.
+
+    ``action`` names what the website can still do instead of the button —
+    "acknowledge", "sign up" — falling back to a generic phrase for
+    interactions with no single verb (e.g. unwatch).
+    """
+    return f"Something went wrong — try again in a moment, or {action} on the website."
+
+
+MSG_UNEXPECTED_ERROR = msg_unexpected_error()
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +95,7 @@ def scheduled_dm(
     )
     body = "\n".join(info)
     return (
-        f"A match has been scheduled for you in **{tournament_name}**.\n\n"
+        f"You've got a match scheduled in **{tournament_name}**.\n\n"
         f"{body}\n\n"
         f"Good luck!"
     )
@@ -110,9 +118,9 @@ def rescheduled_dm(
     )
     body = "\n".join(info)
     return (
-        f"Your match in **{tournament_name}** has been rescheduled.\n\n"
+        f"Your match in **{tournament_name}** got moved — here's the new time.\n\n"
         f"{body}\n\n"
-        f"Please update your calendar."
+        f"Make sure it's on your calendar."
     )
 
 
@@ -162,7 +170,7 @@ def checked_in_dm(
     )
     block = ("\n".join(info) + "\n\n") if info else ''
     return (
-        f"Your match in **{tournament_name}** has been checked in.\n\n"
+        f"You're checked in for your match in **{tournament_name}**.\n\n"
         f"{block}"
         f"The match is about to begin — good luck!"
     )
@@ -192,7 +200,7 @@ def cancelled_dm(
     # the opposite of the default "nothing further is needed".
     closing = (
         "This game has been released — the matchup is open to reschedule."
-        if released else "Nothing further is needed from you."
+        if released else "You're all set — nothing else to do here."
     )
     return (
         f"Your match in **{tournament_name}** has been cancelled.\n\n"
@@ -276,7 +284,7 @@ def stream_candidate_dm(
     )
     body = "\n".join(info)
     return (
-        f"A match in **{tournament_name}** has been flagged as a potential stream match!\n\n"
+        f"A match in **{tournament_name}** might be heading to stream!\n\n"
         f"{body}\n\n"
         f"Use the buttons below to sign up as crew."
     )
@@ -359,7 +367,7 @@ def crew_assignment_dm(
 ) -> str:
     """DM with crew-acknowledgment button sent when a crew member is approved."""
     return _crew_dm(
-        f"You've been approved as {crew_type}.",
+        f"You're confirmed as {crew_type} for this match!",
         _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
         "Please click below to acknowledge your assignment.",
     )
@@ -374,8 +382,7 @@ def crew_approval_withdrawn_dm(
 ) -> str:
     """DM sent when an admin withdraws a crew member's approval."""
     return _crew_dm(
-        f"Your approval as {crew_type} has been withdrawn — "
-        "you're no longer on the crew for this match.",
+        f"You've been taken off the {crew_type} slot for this match.",
         _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
         "Check with an admin if this looks wrong.",
     )
@@ -503,7 +510,7 @@ def volunteer_shift_changed_dm(
     unverifiable against what they remember agreeing to.
     """
     details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
-    blocks = ["A shift you are on has moved."]
+    blocks = ["Heads up — a shift you're on has moved."]
     if old_starts_display or old_ends_display:
         was = " → ".join(p for p in (old_starts_display, old_ends_display) if p)
         blocks.append(f"**Was:** {was}")
@@ -528,7 +535,8 @@ def volunteer_released_dm(
     if details:
         blocks.append("\n".join(details))
     if hours_notice is not None:
-        blocks.append(f"Notice: about {hours_notice:g} hour(s).")
+        hours = round(hours_notice)
+        blocks.append(f"Notice: about {hours} hour{'' if hours == 1 else 's'}.")
     if reason:
         blocks.append(f'Their reason: "{reason}"')
     blocks.append("This slot is open again.")
@@ -643,8 +651,8 @@ def qualifier_reattempt_granted_dm(
 def match_ack_confirmation(player_names: str) -> str:
     """Ephemeral success reply after a user clicks the match Acknowledge button."""
     if player_names:
-        return f'You have acknowledged your match ({player_names}). Thanks!'
-    return 'You have acknowledged your match. Thanks!'
+        return f"Got it — you've acknowledged your match ({player_names}). Thanks!"
+    return "Got it — you've acknowledged your match. Thanks!"
 
 
 # ---------------------------------------------------------------------------
@@ -655,10 +663,10 @@ def crew_ack_confirmation(crew_type: str, player_names: str) -> str:
     """Ephemeral success reply after a user clicks the crew Acknowledge button."""
     if player_names:
         return (
-            f'You have acknowledged your {crew_type} assignment '
+            f"Got it — you're confirmed for {crew_type} "
             f'({player_names}). Thanks!'
         )
-    return f'You have acknowledged your {crew_type} assignment. Thanks!'
+    return f"Got it — you're confirmed for {crew_type}. Thanks!"
 
 
 # ---------------------------------------------------------------------------
@@ -669,8 +677,8 @@ def crew_signup_confirmation(role: str, player_names: str) -> str:
     """Ephemeral success reply after a user signs up for crew via a DM button."""
     match_ref = f' for the match ({player_names})' if player_names else ''
     return (
-        f'You have been signed up as a **{role}**{match_ref}. '
-        f'Awaiting admin approval.'
+        f"You're signed up as **{role}**{match_ref} — an admin will confirm it "
+        f'shortly.'
     )
 
 
@@ -715,6 +723,6 @@ def join_decided_dm(community_name: str, approved: bool) -> str:
             f'You can open the community now.'
         )
     return (
-        f'Your request to join **{community_name}** was not approved. '
-        f'Ask the community for details if you think that is a mistake.'
+        f"Your request to join **{community_name}** wasn't approved this time. "
+        f"Reach out to the community if you'd like to know more."
     )

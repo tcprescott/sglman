@@ -272,7 +272,7 @@ class TestUpdateUserAdminFields:
 
 class TestCreateUser:
     async def test_empty_username_raises(self, service):
-        with pytest.raises(ValueError, match='Username is required'):
+        with pytest.raises(ValueError, match='Enter a username'):
             await service.create_user(username='   ', actor=make_user())
         service.repository.create.assert_not_called()
 

@@ -24,7 +24,7 @@ class TestCopy:
         assert OFFLINE_BANNER_TEXT == "No connection — actions won't be saved. Reconnecting…"
 
     def test_recovery_text_is_the_one_word_that_matters(self):
-        assert ONLINE_BANNER_TEXT == 'Reconnected.'
+        assert ONLINE_BANNER_TEXT == 'Back online.'
 
     def test_blocked_action_text_says_it_was_not_sent(self):
         assert BLOCKED_ACTION_TEXT == 'No connection — not sent. Try again when the banner clears.'

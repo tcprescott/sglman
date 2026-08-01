@@ -216,7 +216,7 @@ class TestUpdateCrewApproval:
         service.discord_service.send_dm.assert_called_once()
         args = service.discord_service.send_dm.call_args.args
         assert args[0] == 99887766
-        assert 'withdrawn' in args[1]
+        assert 'taken off the' in args[1]
 
     async def test_unapprove_without_discord_id_sends_nothing(self, service):
         user = make_user(discord_id=None)
@@ -334,7 +334,7 @@ class TestSignupCrew:
         match = make_signup_match()
         service.match_repository.get_by_id = AsyncMock(return_value=match)
         service.match_repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
-        with pytest.raises(ValueError, match="[Pp]layer"):
+        with pytest.raises(ValueError, match="crew a match you're playing in"):
             await service.signup_crew(match_id=1, user=user, role="commentator")
 
     async def test_refuses_a_role_the_tournament_does_not_use(self, service):

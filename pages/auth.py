@@ -192,19 +192,19 @@ def _register_discord_connect_callback() -> None:
 
         params = parse_qs(urlparse(url).query)
         if 'error' in params:
-            stash_notice('Discord authorization was cancelled or denied.', color='warning')
+            stash_notice("Looks like that Discord authorization didn't go through — go ahead and try again.", color='warning')
             ui.navigate.to(return_path)
             return
         returned_state = (params.get('state') or [None])[0]
         if not expected_state or returned_state != expected_state or not tenant_id:
-            stash_notice('Connection session expired or invalid. Please try again.', color='warning')
+            stash_notice('That connection link expired — try again.', color='warning')
             ui.navigate.to(return_path)
             return
 
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         tenant = await TenantService.get_by_id(int(tenant_id))
         if actor is None or tenant is None:
-            stash_notice('Session expired. Please try again.', color='warning')
+            stash_notice('Your session expired — log in again to continue.', color='warning')
             ui.navigate.to(return_path)
             return
 
@@ -219,7 +219,7 @@ def _register_discord_connect_callback() -> None:
                 else:
                     code = (params.get('code') or [None])[0]
                     if not code:
-                        stash_notice('Discord authorization was cancelled.', color='warning')
+                        stash_notice('Looks like the Discord authorization was cancelled.', color='warning')
                         ui.navigate.to(return_path)
                         return
                     await DiscordLinkService.complete_link(actor, tenant, code)
@@ -229,7 +229,7 @@ def _register_discord_connect_callback() -> None:
             return
         except Exception:
             logger.exception('Discord connect callback failed')
-            stash_notice('An unexpected error occurred while connecting Discord.', color='negative')
+            stash_notice('Something went wrong connecting to Discord. Give it another try.', color='negative')
             ui.navigate.to(return_path)
             return
 
@@ -301,21 +301,21 @@ def create() -> None:
 
             if 'error' in params:
                 logger.warning('OAuth callback returned error: %s', params.get('error'))
-                stash_notice('Discord login was cancelled or denied.', color='warning')
+                stash_notice("Looks like the Discord login didn't go through — go ahead and try again.", color='warning')
                 ui.navigate.to('/login')
                 return
 
             returned_state = (params.get('state') or [None])[0]
             if not expected_state or returned_state != expected_state:
                 logger.warning('OAuth state mismatch on callback.')
-                stash_notice('Login session expired or invalid. Please try again.', color='warning')
+                stash_notice('That login link expired — go ahead and log in again.', color='warning')
                 ui.navigate.to('/login')
                 return
 
             code = (params.get('code') or [None])[0]
             if not code:
                 logger.warning('OAuth callback missing authorization code.')
-                stash_notice('Login failed. Please try again.', color='warning')
+                stash_notice("That login didn't go through — try again.", color='warning')
                 ui.navigate.to('/login')
                 return
 
@@ -348,7 +348,7 @@ def create() -> None:
                 logger.warning('Inactive account %s attempted web login', current_user.id)
                 app.storage.user.clear()
                 stash_notice(
-                    'This account is inactive. Contact staff if you believe this is a mistake.',
+                    'This account is inactive. Contact staff if this seems wrong.',
                     color='negative',
                 )
                 ui.navigate.to('/login')
@@ -401,7 +401,7 @@ def create() -> None:
             app.storage.user.pop('referrer_path', None)
         except Exception:
             logger.exception('Unexpected error during OAuth callback')
-            stash_notice('An unexpected error occurred during login. Please try again.', color='negative')
+            stash_notice('Something went wrong logging you in. Give it another try.', color='negative')
             ui.navigate.to('/login')
 
     @ui.page('/oauth/start')
@@ -445,7 +445,7 @@ def create() -> None:
         bind = app.storage.user.pop('handoff_bind', None)
         payload = handoff_service.claim(token, request_host) if (token and request_host) else None
         if payload is None:
-            stash_notice('Login link expired or already used. Please try again.', color='warning')
+            stash_notice("That login link has expired or already been used — go ahead and log in again.", color='warning')
             ui.navigate.to('/login')
             return
         # Login-CSRF guard: the token must have been minted for a login *this*
@@ -456,7 +456,7 @@ def create() -> None:
         if not (expected and isinstance(bind, str)
                 and hmac.compare_digest(expected, _bind_commit(bind))):
             logger.warning('OAuth handoff browser-binding mismatch on %r', request_host)
-            stash_notice('Login link is not valid for this browser. Please try again.', color='warning')
+            stash_notice("That login link isn't valid for this browser — log in again from here.", color='warning')
             ui.navigate.to('/login')
             return
         # Re-check the account is still active (it was provisioned at mint time,

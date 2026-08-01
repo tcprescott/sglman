@@ -86,7 +86,7 @@ def render_health_table(
 ) -> None:
     """Render the status table for a set of probe results (no controls)."""
     if not results:
-        ui.label('No dependencies to report.').classes('text-caption text-grey')
+        ui.label('Nothing to report — no dependencies configured yet.').classes('text-caption text-grey')
         return
     gear_slot = ui.row().classes('w-full justify-end')
     table = ui.table(

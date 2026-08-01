@@ -498,7 +498,7 @@ class TestRecordMatchResult:
         match, players = await _make_onsite_match(seated=True)
         _, other_players = await _make_onsite_match()
 
-        with pytest.raises(ValueError, match='not a player'):
+        with pytest.raises(ValueError, match="isn't part of this match"):
             await MatchService().record_match_result(
                 match.id, winner_id=other_players[0].id, actor=actor,
             )

@@ -194,7 +194,7 @@ async def admin_equipment_page() -> None:
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     asset = await service.get_asset(row['id'])
                     if asset is None:
-                        ui.notify('Asset not found.', color='warning')
+                        ui.notify("Couldn't find that asset — try refreshing.", color='warning')
                         return
                     await EquipmentDialog(actor, equipment=asset, on_saved=_render_table.refresh).open()
 

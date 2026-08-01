@@ -145,7 +145,7 @@ async def admin_triforce_texts_page() -> None:
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return
-            ui.notify('Deleted.', color='positive')
+            ui.notify('Deleted that submission.', color='positive')
             submissions_table.refresh()
 
         def _confirm_delete(text_id: int) -> None:

@@ -222,7 +222,7 @@ class TestCancelledDmRelease:
 
     def test_an_ordinary_cancellation_is_unchanged(self):
         msg = dm.cancelled_dm('Cool Cup')
-        assert 'Nothing further is needed from you.' in msg
+        assert "You're all set — nothing else to do here." in msg
 
 
 class TestSchedulingDms:
@@ -239,9 +239,9 @@ class TestSchedulingDms:
 
     def test_rescheduled_dm_uses_new_time_label(self):
         msg = dm.rescheduled_dm('Cool Cup', '2025-03-02 12:00 EST', player_names=['A', 'B'])
-        assert 'has been rescheduled' in msg
+        assert 'got moved' in msg
         assert 'New time: 2025-03-02 12:00 EST' in msg
-        assert msg.endswith('Please update your calendar.')
+        assert msg.endswith("Make sure it's on your calendar.")
 
 
 class TestAcknowledgmentRequestDm:
@@ -265,13 +265,13 @@ class TestAcknowledgmentRequestDm:
 class TestCheckedInAndStateChangedDms:
     def test_checked_in_with_info(self):
         msg = dm.checked_in_dm('Cup', player_names=['A', 'B'], scheduled_at_display='noon')
-        assert 'has been checked in' in msg
+        assert "You're checked in" in msg
         assert 'Players: A vs B' in msg
         assert msg.endswith('about to begin — good luck!')
 
     def test_checked_in_without_info_has_no_block(self):
         msg = dm.checked_in_dm('Cup')
-        assert 'has been checked in' in msg
+        assert "You're checked in" in msg
         # No players/time/stage block when nothing supplied.
         assert 'Players:' not in msg
 
@@ -288,7 +288,7 @@ class TestCheckedInAndStateChangedDms:
 class TestStreamCandidateAndSeedDms:
     def test_stream_candidate_dm(self):
         msg = dm.stream_candidate_dm('Cup', 'noon', player_names=['A', 'B'])
-        assert 'potential stream match' in msg
+        assert 'might be heading to stream' in msg
         assert 'Players: A vs B' in msg
         assert msg.endswith('Use the buttons below to sign up as crew.')
 
@@ -313,7 +313,7 @@ class TestCrewAssignmentDm:
         msg = dm.crew_assignment_dm(
             'Commentator', 'Grand Final', 'noon', 'Stage 2', ['A', 'B'],
         )
-        assert "You've been approved as Commentator." in msg
+        assert "You're confirmed as Commentator for this match!" in msg
         assert '**Match:** Grand Final' in msg
         assert '**Players:** A vs B' in msg
         assert '**Scheduled:** noon' in msg
@@ -322,7 +322,7 @@ class TestCrewAssignmentDm:
 
     def test_optional_fields_suppressed(self):
         msg = dm.crew_assignment_dm('Tracker', None, '', None, None)
-        assert "You've been approved as Tracker." in msg
+        assert "You're confirmed as Tracker for this match!" in msg
         assert '**Match:**' not in msg
         assert '**Players:**' not in msg
         assert '**Scheduled:**' not in msg
@@ -449,29 +449,30 @@ class TestDiscordEmbeds:
 class TestEphemeralReplies:
     def test_match_ack_with_players(self):
         assert dm.match_ack_confirmation('A vs B') == \
-            'You have acknowledged your match (A vs B). Thanks!'
+            "Got it — you've acknowledged your match (A vs B). Thanks!"
 
     def test_match_ack_without_players(self):
-        assert dm.match_ack_confirmation('') == 'You have acknowledged your match. Thanks!'
+        assert dm.match_ack_confirmation('') == \
+            "Got it — you've acknowledged your match. Thanks!"
 
     def test_crew_ack_with_players(self):
         msg = dm.crew_ack_confirmation('Commentator', 'A vs B')
-        assert msg == 'You have acknowledged your Commentator assignment (A vs B). Thanks!'
+        assert msg == "Got it — you're confirmed for Commentator (A vs B). Thanks!"
 
     def test_crew_ack_without_players(self):
         msg = dm.crew_ack_confirmation('Commentator', '')
-        assert msg == 'You have acknowledged your Commentator assignment. Thanks!'
+        assert msg == "Got it — you're confirmed for Commentator. Thanks!"
 
     def test_crew_signup_with_players(self):
         msg = dm.crew_signup_confirmation('Tracker', 'A vs B')
         assert msg == (
-            'You have been signed up as a **Tracker** for the match (A vs B). '
-            'Awaiting admin approval.'
+            "You're signed up as **Tracker** for the match (A vs B) — "
+            "an admin will confirm it shortly."
         )
 
     def test_crew_signup_without_players(self):
         msg = dm.crew_signup_confirmation('Tracker', '')
-        assert msg == 'You have been signed up as a **Tracker**. Awaiting admin approval.'
+        assert msg == "You're signed up as **Tracker** — an admin will confirm it shortly."
 
     def test_unwatch_was_watching(self):
         assert dm.unwatch_confirmation('A vs B', True) == \

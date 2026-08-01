@@ -236,7 +236,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         # Business rule: Must have at least one player
         if not player_ids:
-            raise ValueError("Match must have at least one player")
+            raise ValueError("Add at least one player before creating the match.")
 
         await StreamRoomService().require_in_tenant(stream_room_id)
 
@@ -244,7 +244,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         try:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
-            raise ValueError(f"Invalid date/time format: {e}") from e
+            raise ValueError("That date or time doesn't look right — check the format and try again.") from e
 
         await self._assert_within_tournament_hours(scheduled_at, tournament_id)
 
@@ -256,9 +256,9 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         player_id_set = {u.id for u in players}
         if player_id_set & {u.id for u in commentators}:
-            raise ValueError("Players cannot be assigned as commentators for the same match")
+            raise ValueError("A player in this match can't also crew it as a commentator.")
         if player_id_set & {u.id for u in trackers}:
-            raise ValueError("Players cannot be assigned as trackers for the same match")
+            raise ValueError("A player in this match can't also crew it as a tracker.")
 
         # Create match
         match = await self.repository.create(
@@ -394,9 +394,9 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         effective_commentator_ids = set(commentator_ids) if commentator_ids is not None else {c.user_id for c in match.commentators}
         effective_tracker_ids = set(tracker_ids) if tracker_ids is not None else {t.user_id for t in match.trackers}
         if new_player_ids & effective_commentator_ids:
-            raise ValueError("Players cannot be assigned as commentators for the same match")
+            raise ValueError("A player in this match can't also crew it as a commentator.")
         if new_player_ids & effective_tracker_ids:
-            raise ValueError("Players cannot be assigned as trackers for the same match")
+            raise ValueError("A player in this match can't also crew it as a tracker.")
 
         # Build update fields
         update_fields = {}
@@ -694,7 +694,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             raise ValueError("Match has no players")
 
         if not any(p.id == winner_id for p in match.players):
-            raise ValueError("Winner is not a player in this match")
+            raise ValueError("That player isn't part of this match.")
 
         # D6: one correction path. A match whose bracket game already settled is
         # corrected from the bracket, which re-advances; rewriting the ranks here

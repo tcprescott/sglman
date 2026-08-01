@@ -42,7 +42,7 @@ __all__ = [
 
 # Copy says what it means for the operator, not what happened to the socket.
 OFFLINE_BANNER_TEXT = "No connection — actions won't be saved. Reconnecting…"
-ONLINE_BANNER_TEXT = 'Reconnected.'
+ONLINE_BANNER_TEXT = 'Back online.'
 BLOCKED_ACTION_TEXT = 'No connection — not sent. Try again when the banner clears.'
 
 #: Set on ``<body>`` while the client believes it cannot reach the server.

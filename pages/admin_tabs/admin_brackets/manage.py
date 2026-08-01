@@ -577,7 +577,7 @@ async def _open_qualifier_seeding(
             return
 
     if not qualifiers:
-        ui.notify('No qualifiers exist in this community yet', color='info')
+        ui.notify('No qualifiers yet — create one first to link entrants.', color='info')
         return
 
     with form_dialog('Seed from a qualifier') as dialog:

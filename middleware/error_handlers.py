@@ -88,7 +88,7 @@ def register_error_handlers(fastapi_app: FastAPI) -> None:
             render_error_page(
                 status_code=404,
                 headline='Page not found',
-                message="The page you're looking for doesn't exist or has moved.",
+                message="We couldn't find that page — it may have moved, or the link's out of date.",
                 user=user,
             )
         return client.build_response(request, 404)
@@ -109,8 +109,8 @@ def register_error_handlers(fastapi_app: FastAPI) -> None:
             status_code=500,
             headline='Something went wrong',
             message=(
-                'An unexpected error occurred. The team has been notified. '
-                'If you contact us about this, please include the reference below.'
+                "Something broke on our end — we've already been notified. "
+                'If you reach out about it, just include this reference:'
             ),
             error_id=error_id,
             traceback_text=traceback_text,

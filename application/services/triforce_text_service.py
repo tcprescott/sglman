@@ -40,7 +40,7 @@ class TriforceTextService:
     @staticmethod
     def _validate_lines(lines: List[str]) -> List[str]:
         if not isinstance(lines, list) or len(lines) != MAX_LINES:
-            raise ValueError(f"Must provide exactly {MAX_LINES} lines of text.")
+            raise ValueError(f"Triforce text needs exactly {MAX_LINES} lines.")
         cleaned = [(line or '').rstrip('\r\n') for line in lines]
         for idx, line in enumerate(cleaned, start=1):
             if not TEXT_LINE_REGEX.match(line):
@@ -48,7 +48,7 @@ class TriforceTextService:
                     f"Line {idx} contains invalid characters or exceeds 19 characters."
                 )
         if not any(line.strip() for line in cleaned):
-            raise ValueError("At least one line must contain text.")
+            raise ValueError("At least one line needs some text in it.")
         return cleaned
 
     @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
@@ -69,8 +69,8 @@ class TriforceTextService:
             raise ValueError("This tournament is not accepting submissions.")
         if not (await AuthService.is_staff(user) or await AuthService.is_triforce_submitter(user)):
             raise ValueError(
-                "Submitting triforce texts is a paid feature. See the tournament page "
-                "for how to get access."
+                "Triforce text submissions are a paid add-on for this event — "
+                "check the tournament page for how to unlock it."
             )
 
         cleaned = self._validate_lines(lines)

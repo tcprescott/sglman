@@ -253,7 +253,7 @@ def create() -> None:
             from theme.error_page import render_error_page
             render_error_page(
                 status_code=403, headline='Forbidden',
-                message="You don't have permission to view the admin area.",
+                message="You don't have access to the admin area. If you think that's wrong, ask a staff member to check your role.",
                 user=user,
             )
             return
