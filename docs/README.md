@@ -57,6 +57,7 @@ How each shipped subsystem behaves.
 | [features/web-push.md](features/web-push.md) | Declarative Web Push device notifications mirroring Discord DMs |
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
+| [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |
 
 Some subsystems have no dedicated feature doc and are covered at the reference level
 instead — **volunteering**, **equipment lending**, **Challonge**, **API tokens** and

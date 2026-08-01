@@ -29,6 +29,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Multitenancy (tenant context, `/t/<slug>`, query scoping, `/platform`) | [docs/features/multitenancy.md](docs/features/multitenancy.md) |
 | Per-tenant feature flags (two-tier availability + enable, gating) | [docs/features/feature-flags.md](docs/features/feature-flags.md) |
 | Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
+| In-app help (`/help` articles, help icons, the safe markdown model) | [docs/features/help.md](docs/features/help.md) |
 | Discord bot, notifications, role sync, mock mode | [docs/features/discord.md](docs/features/discord.md) |
 | Crew signup, match acknowledgment, watching | [docs/features/match-participation.md](docs/features/match-participation.md) |
 | Online tournaments (presets, race rooms, qualifiers, SG sync) | [docs/features/online-tournaments.md](docs/features/online-tournaments.md) |

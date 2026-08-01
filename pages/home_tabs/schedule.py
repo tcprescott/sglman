@@ -4,12 +4,13 @@ from nicegui import app, ui
 
 from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
+from theme.help import help_icon
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 from theme.tables.preferences import TableKeys
 
 
-def schedule():
+async def schedule():
     discord_id = app.storage.user.get('discord_id', None)
     match_service = MatchService()
 
@@ -17,6 +18,10 @@ def schedule():
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Schedule & Crew Signup').classes('page-title')
+            # Bare icon = "explain this page"; labelled icons = a named topic.
+            # Two bare help_outlines side by side are indistinguishable.
+            await help_icon('schedule-columns')
+            await help_icon('match-states', label='States')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')

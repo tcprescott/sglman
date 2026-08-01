@@ -8,6 +8,7 @@ from nicegui import app, ui
 from application.services import SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
+from theme.help import help_icon
 from theme.notify import notify_error
 
 
@@ -41,8 +42,10 @@ async def my_shifts_tab() -> None:
     lead_minutes = await SystemConfigService.get_volunteer_reminder_lead_minutes()
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row items-center justify-between full-width'):
+        with ui.row().classes('header-row items-center full-width'):
             ui.label('My Shifts').classes('page-title')
+            await help_icon('my-shifts')
+            ui.space()
 
         ui.separator().classes('separator-spacing')
 
@@ -50,7 +53,9 @@ async def my_shifts_tab() -> None:
             shift = assignment.shift
             position = shift.position.name if shift.position else 'Volunteer'
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                ui.label('Give this shift back?').classes('text-subtitle1 q-pa-sm')
+                with ui.row().classes('items-center no-wrap q-pa-sm'):
+                    ui.label('Give this shift back?').classes('text-subtitle1')
+                    await help_icon('shift-release')
                 ui.separator()
                 with ui.column().classes('q-pa-md gap-2 full-width'):
                     ui.label(

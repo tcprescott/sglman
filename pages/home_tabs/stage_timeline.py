@@ -10,6 +10,7 @@ from application.utils.timezone import format_local_time, today_local
 from models import Match, User
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.empty_state import empty_state
+from theme.help import help_icon
 from theme.realtime import register_view
 
 
@@ -49,6 +50,8 @@ async def stage_timeline_tab():
                 'Today',
                 on_click=lambda: None
             ).props('outline')
+
+            await help_icon('on-air')
 
             ui.space()
 

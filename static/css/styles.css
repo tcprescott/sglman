@@ -2042,3 +2042,184 @@ body.wiz-offline .wiz-requires-socket {
         display: none !important;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   In-app help (/help, and the tappable help icons scattered through the app).
+
+   Articles are parsed into a closed block/span vocabulary and rendered with
+   native elements (theme/help/render.py) — never ui.markdown — so everything
+   here styles elements this app created, not markup an article emitted.
+
+   The inline spans are the reason `.wiz-help-inline` exists at all: NiceGUI's
+   ui.label is a <div>, which would break every paragraph containing a bold run
+   or a status chip onto its own line.
+--------------------------------------------------------------------------- */
+.wiz-help-inline { display: inline; }
+.wiz-help-em { font-style: italic; }
+
+.wiz-help-p {
+    margin: 0 0 0.85rem;
+    line-height: 1.6;
+}
+
+.wiz-help-h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 1.6rem 0 0.6rem;
+    /* Anchored headings must clear the sticky header when jumped to. */
+    scroll-margin-top: 5rem;
+}
+
+.wiz-help-h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 1.2rem 0 0.5rem;
+    scroll-margin-top: 5rem;
+}
+
+.wiz-help-h4, .wiz-help-h5, .wiz-help-h6 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0.8rem 0 0.35rem;
+}
+
+.wiz-help-list {
+    margin: 0 0 0.85rem;
+    padding-left: 1.35rem;
+    line-height: 1.6;
+    /* Restated because the app's reset strips list-style globally: without it
+       every bullet rendered as an unmarked indented line, so a three-item list
+       read as three stray sentences. */
+    list-style-position: outside;
+}
+
+ul.wiz-help-list { list-style-type: disc; }
+ol.wiz-help-list { list-style-type: decimal; }
+.wiz-help-list li { display: list-item; }
+
+.wiz-help-list li { margin-bottom: 0.35rem; }
+
+.wiz-help-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.wiz-help-link { color: var(--wiz-link); text-decoration: underline; }
+
+/* A state name renders as the board's own icon + label pair, so the help shows
+   the reader the thing they will actually see. */
+.wiz-help-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.wiz-help-note {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-md, 8px);
+    border-left: 3px solid var(--wiz-primary, currentColor);
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    line-height: 1.55;
+}
+
+.wiz-help-note-icon { color: var(--wiz-primary, currentColor); margin-top: 2px; }
+
+/* Prose tables carry chips and icons, so they are hand-built rather than
+   ui.table. Wide ones scroll inside their own container — the page body must
+   never scroll sideways. */
+.wiz-help-table-wrap {
+    overflow-x: auto;
+    margin: 0 0 1rem;
+    max-width: 100%;
+}
+
+.wiz-help-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 22rem;
+    font-size: 0.92rem;
+}
+
+.wiz-help-table th,
+.wiz-help-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    line-height: 1.5;
+}
+
+.wiz-help-table th { font-weight: 700; white-space: nowrap; }
+
+/* --- /help layout ------------------------------------------------------- */
+
+.wiz-help-layout { gap: 2rem; }
+
+.wiz-help-nav {
+    flex: 0 0 15rem;
+    position: sticky;
+    top: 4.5rem;
+}
+
+.wiz-help-nav-item {
+    display: block;
+    padding: 0.3rem 0;
+    font-size: 0.92rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.wiz-help-nav-item--active { font-weight: 700; color: var(--wiz-link); }
+
+.wiz-help-nav-sub {
+    display: block;
+    padding: 0.15rem 0 0.15rem 0.75rem;
+    font-size: 0.85rem;
+    text-decoration: none;
+    opacity: 0.8;
+    color: inherit;
+}
+
+.wiz-help-card { width: 100%; padding: 0.75rem 1rem; }
+
+/* Below the drawer's own breakpoint the two columns stack and the nav stops
+   sticking — a sticky 15rem sidebar on a phone is most of the viewport. */
+@media (max-width: 1023.98px) {
+    .wiz-help-layout { flex-direction: column; gap: 1rem; }
+    .wiz-help-nav { flex: 1 1 auto; position: static; width: 100%; }
+}
+
+/* --- the tappable help icon --------------------------------------------- */
+
+/* Tap, not hover: a tooltip is unreachable on a touch screen, and this help is
+   read on phones. Muted until touched so it never competes with the control it
+   is explaining. */
+.wiz-help-icon { opacity: 0.6; }
+.wiz-help-icon:hover, .wiz-help-icon:focus-visible { opacity: 1; }
+
+.wiz-help-menu-body {
+    padding: 0.85rem 1rem;
+    max-height: 60vh;
+    overflow-y: auto;
+    font-size: 0.9rem;
+}
+
+/* The popup's last paragraph should not push the Read more link off its baseline
+   with a trailing margin. */
+.wiz-help-menu-body > .wiz-help-p:last-of-type { margin-bottom: 0.4rem; }
+
+.wiz-help-more {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--wiz-link);
+    text-decoration: underline;
+}

@@ -23,6 +23,7 @@ Everything listed is **stable in production** unless marked otherwise.
 | **Platform** | multitenancy (`/t/<slug>` + custom domains), the membership gate + self-serve join requests, per-tenant feature flags, `/platform` super-admin surface (incl. the first-admin grant and a setup-readiness column), the derived new-community setup checklist, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
 | **Identity & access** | Discord OAuth, eleven roles, guild-role sync, Challonge/Twitch/racetime identity linking | [roles](reference/authentication.md#roles), [authentication](reference/authentication.md) |
 | **Integrations** | REST API + personal access tokens, MCP server at `/mcp`, event bus, signed outbound webhooks, web push, Challonge | [rest-api](reference/rest-api.md), [mcp-server](features/mcp-server.md), [webhooks](features/webhooks.md) |
+| **Help** | public `/help` section (nine articles, search, anchored nav) for players, crew, volunteers and proctors, plus tappable help icons on the surfaces they explain; the proctor article doubles as a training aid carrying room procedure the code does not encode; content is in-repo Markdown parsed to a closed block model, never `ui.markdown` | [help](features/help.md) |
 | **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback (reversible review + the submitter's own status list; behind `FeatureFlag.FEEDBACK`), Sentry | [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
 
 ## Known issues
@@ -43,6 +44,20 @@ Everything listed is **stable in production** unless marked otherwise.
 
 Recorded so they read as decisions rather than gaps:
 
+- **In-app help covers the non-staff surfaces only.** The nine `/help` articles
+  are written for players, crew, volunteers and proctors; staff actions appear
+  only from the outside ("staff approve your signup"). Admin → Schedule and every
+  admin tab have no article and no help icons — a deliberate scope call, not an
+  oversight. One visible edge: the result dialog's *Flag for admin review* help
+  icon hangs off the `VOLUNTEERS`-gated proctor article, so a staff member
+  recording a result in a community with volunteers off sees the checkbox with no
+  help beside it. Adding a staff track fixes that and means new articles plus a
+  second set of icons; the parser, the page and the gating all already carry it.
+- **The proctor article encodes room procedure, and nothing checks it.** Who runs
+  the countdown, escalating a no-show, not touching a mid-match hardware failure
+  before an admin rules on it — none of that is in the code, so no test can catch
+  it drifting from how events actually run. It needs a human re-read when
+  procedure changes.
 - **The `System` service account is still offered as a person** wherever a picker is not membership-scoped. `UserRepository.get_community_people` excludes it, which covers every per-community picker; the platform-level `get_all_users` does not, because a super-admin's first-admin picker is choosing from every account (the checkout dialog, its other caller, re-applies the exclusion in Python). A general "service account" concept was out of scope.
 - **A brand-new community still shows the full admin drawer.** The setup checklist supplies the ordering the audit found missing, and nothing hides the other tabs — hiding tabs from a staff member who knows what they want is a worse failure than showing too many.
 

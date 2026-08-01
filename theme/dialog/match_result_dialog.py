@@ -8,6 +8,7 @@ from application.services import MatchService, get_user_from_discord_id
 from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.help import help_icon
 from theme.notify import notify_error
 
 
@@ -197,7 +198,9 @@ class MatchResultDialog:
                         # raise a dispute with themselves. Clearing it is the
                         # admin's own action (confirming, or the REST route).
                         ui.separator()
-                        self.review_flag = ui.checkbox('Flag for admin review')
+                        with ui.row().classes('items-center gap-1 no-wrap'):
+                            self.review_flag = ui.checkbox('Flag for admin review')
+                            await help_icon('proctor-result')
                         self.review_note = ui.textarea(
                             label='What happened?',
                         ).props('outlined dense autogrow').classes('full-width')
