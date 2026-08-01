@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from application.content.blocks import plain_text
+from application.event_info import snippet_for_tenant, tenant_slugs
 from application.help import (
     CHIP_TONES,
     STATE_STYLES,
@@ -33,8 +35,6 @@ from application.help import (
     reload_articles,
     slugify,
 )
-from application.content.blocks import plain_text
-from application.event_info import snippet_for_tenant, tenant_slugs
 from application.services.match.match_status import LEGACY_STATE_LABELS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
