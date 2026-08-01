@@ -25,7 +25,7 @@ first. So the room always has a proctor or an admin in it — you are never left
 with nobody to ask.
 
 **If you genuinely cannot find anyone**, ping the **@Staff** role in the
-[event Discord](https://discord.gg/FfpqjcGsCM). That is the backstop, not the
+[event Discord](https://discord.com/invite/T6qzxNJ). That is the backstop, not the
 first move: someone in the room will almost always be quicker.
 
 ## Volunteering
@@ -62,7 +62,7 @@ ask a coordinator — the role is what unlocks it.
 
 - [sglive.speedgaming.org](https://sglive.speedgaming.org) — tournaments, prize
   pools and tickets
-- [Event Discord](https://discord.gg/FfpqjcGsCM) — where the community answers
+- [Event Discord](https://discord.com/invite/T6qzxNJ) — where the community answers
   what these pages do not, and where **@Staff** reaches someone if nobody can be
   found in person
 

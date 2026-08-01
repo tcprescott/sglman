@@ -3,7 +3,7 @@ title: What's on, and when
 slug: schedule
 icon: event
 order: 10
-summary: The on-site days, tournament room hours, what's being played, and where to find your own times.
+summary: The on-site days, room and stage hours, what's being played, and where to find your own times.
 ---
 
 **SpeedGaming Live 2026** runs **Thursday 22 to Sunday 25 October 2026** at the
@@ -14,7 +14,9 @@ Prize pools, entry and the tournament pages are on the event site,
 [sglive.speedgaming.org](https://sglive.speedgaming.org) — this handbook does not
 repeat them, because they change.
 
-## Tournament room hours
+## Hours
+
+The tournament room and the stage keep the same hours:
 
 | Day | Open |
 |---|---|
@@ -22,18 +24,24 @@ repeat them, because they change.
 | Thursday 22 | 9:00 to midnight |
 | Friday 23 | 8:00 to midnight |
 | Saturday 24 | 8:00 to midnight |
-| Sunday 25 | Until the last off-stage match finishes |
+| Sunday 25 | 8:00 until the last match finishes |
 
-Sunday has no fixed close: the room stays open until the last match that needs
-off-stage play is done.
+Sunday has no fixed close — it runs until the last match is done.
+
+**Schedule your match to *finish* before midnight**, not to start before it. A
+slot late enough that the match would run past close is the one thing to avoid
+when you pick a time. **Suggest a time** in the app already works within the
+event's operating hours, so letting it propose the slot is the easy way to stay
+inside them — see [Getting a match scheduled](/help/player#getting-a-match-scheduled).
+
+Midnight is the normal close rather than a hard stop: the room can stay open
+longer in extenuating circumstances. That is a call staff make on the night, not
+something to schedule against.
 
 **The room may open for casual play.** If nothing is scheduled in the tournament
 room for the rest of a day, staff can open it up — most likely Saturday and
 Sunday, once the day's matches have cleared. It is their call and not guaranteed,
 so treat it as a bonus rather than something to plan around.
-
-> **TODO:** stage hours — when the stage goes live each day and when it wraps.
-> The tournament room hours above are settled; the stage's are not.
 
 ## On-site tournaments
 

@@ -191,7 +191,7 @@ proctor records the result.
 
 ## Anything else
 
-The [event Discord](https://discord.gg/FfpqjcGsCM) is where the community answers
+The [event Discord](https://discord.com/invite/T6qzxNJ) is where the community answers
 what this page does not. If you need staff and cannot find anyone in person,
 **@Staff** there reaches someone — see [Who to ask](/event-info/who-to-ask).
 

@@ -15,11 +15,20 @@ in, seating players, rolling the seed, recording a winner — is in
 [Running matches as a proctor](/help/proctor) under Help, and stays true whatever
 event you are working.
 
-**The room is never left unattended.** The on-call admin rotates through the day
-and is normally in the tournament room with you; if they need to step out briefly
-they will tell you before they go. Between the two of you there is always a
-proctor or an admin in the room — which is also why you should not leave it
-without handing over.
+## The room is never left unattended
+
+This is the one rule that holds the whole shift together: **there is always a
+proctor or an admin in the tournament room.** It works because both sides say so
+when they move.
+
+The on-call admin rotates through the day and is normally in the room with you.
+If they need to step out briefly, they will tell you before they go.
+
+**The same goes the other way. If you need to leave the room — for any reason,
+however briefly — tell the admin first**, so they know they are covering it until
+you are back. Not a request for permission, and you do not need a reason: it is
+just how the room stays staffed. Walking out without saying so is the one thing
+that breaks it, because nobody else knows the room is now empty.
 
 > **TODO:** the coordinator to ask about shifts and swaps.
 
@@ -91,7 +100,7 @@ not sending a message and waiting for a reply. If they stepped out, they told yo
 before they went.
 
 **If you genuinely cannot find one**, ping **@Staff** in the
-[event Discord](https://discord.gg/FfpqjcGsCM). That is the backstop for when
+[event Discord](https://discord.com/invite/T6qzxNJ). That is the backstop for when
 nobody is reachable in the room, not the normal route.
 
 Four situations. Only the last one is yours to decide:

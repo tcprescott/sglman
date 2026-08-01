@@ -106,6 +106,19 @@ class TestLinks:
                 assert target in help_slugs, \
                     f'{path.parent.name}/{path.name} links to missing /help/{target}'
 
+    def test_anchored_links_into_help_resolve(self):
+        """The gap the slug check leaves. A handbook deep-linking a *section* of
+        a help article breaks silently when that heading is renamed — and help's
+        own anchor test only scans help's own files, so this direction had
+        nothing watching it."""
+        from application.help import all_articles
+
+        by_slug = {a.slug: {anchor for anchor, _ in a.headings} for a in all_articles()}
+        for path, text in self._sources():
+            for slug, anchor in re.findall(r'\]\(/help/([a-z0-9-]+)#([a-z0-9-]+)\)', text):
+                assert anchor in by_slug.get(slug, set()), \
+                    f'{path.parent.name}/{path.name} links to /help/{slug}#{anchor}, no such heading'
+
     def test_no_unsafe_link_targets_survive_parsing(self):
         """The parser degrades an unsafe target to plain text; this asserts no
         article is relying on one having been rendered as a link."""
