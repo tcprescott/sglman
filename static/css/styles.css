@@ -2057,6 +2057,32 @@ body.wiz-offline .wiz-requires-socket {
 .wiz-help-inline { display: inline; }
 .wiz-help-em { font-style: italic; }
 
+/* Article prose is normal block flow, never a flex column. The surrounding
+   page/popup containers are `ui.column`s, and a flex parent does two things
+   prose cannot survive: its `gap` is added to every block's own margin (so a
+   heading ends up equidistant from the section above and the sentence it
+   introduces, and the hierarchy reads as one flat list), and its children
+   shrink below their content when the container is height-capped — which is
+   what silently ate half of a help popup's table. Block flow restores margin
+   collapsing, and the tuned margins below are what set the rhythm. */
+.wiz-help-prose {
+    display: block;
+    width: 100%;
+}
+
+.wiz-help-prose > :first-child { margin-top: 0; }
+
+/* Long-form reading measure. Uncapped, the article column tracks the viewport
+   and a paragraph on a desktop monitor runs past 110 characters a line. The cap
+   is in `ch`, which is the width of a `0` — wider than this face's average
+   character, so 56ch measures out at roughly 80 characters, the top of the
+   comfortable range. Narrower than the column on purpose; the slack on the
+   right is what keeps the line returns short enough to track. */
+.wiz-help-body .wiz-help-prose {
+    max-width: 56ch;
+    font-size: 0.95rem;
+}
+
 .wiz-help-p {
     margin: 0 0 0.85rem;
     line-height: 1.6;
@@ -2192,10 +2218,24 @@ ol.wiz-help-list { list-style-type: decimal; }
 .wiz-help-card { width: 100%; padding: 0.75rem 1rem; }
 
 /* Below the drawer's own breakpoint the two columns stack and the nav stops
-   sticking — a sticky 15rem sidebar on a phone is most of the viewport. */
+   sticking — a sticky 15rem sidebar on a phone is most of the viewport.
+
+   The body is ordered *first*. Stacked in source order the nav is ~550px of
+   links, which put the article's title below the fold and its first sentence
+   most of a second screen down — on the surface most of these readers are on.
+   Ordered this way the reader lands on the words, and the article list reads as
+   a "more help" footer, which is where a phone reader looks for one anyway. */
 @media (max-width: 1023.98px) {
     .wiz-help-layout { flex-direction: column; gap: 1rem; }
-    .wiz-help-nav { flex: 1 1 auto; position: static; width: 100%; }
+    .wiz-help-nav {
+        flex: 1 1 auto;
+        position: static;
+        width: 100%;
+        order: 2;
+        padding-top: 1rem;
+        border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    }
+    .wiz-help-body { order: 1; }
 }
 
 /* --- the tappable help icon --------------------------------------------- */
@@ -2215,7 +2255,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 /* The popup's last paragraph should not push the Read more link off its baseline
    with a trailing margin. */
-.wiz-help-menu-body > .wiz-help-p:last-of-type { margin-bottom: 0.4rem; }
+.wiz-help-menu-body .wiz-help-prose > .wiz-help-p:last-child { margin-bottom: 0.4rem; }
 
 .wiz-help-more {
     font-size: 0.85rem;

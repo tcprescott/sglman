@@ -126,4 +126,7 @@ def create() -> None:
                 if article.summary:
                     ui.label(article.summary).classes('text-muted')
                 ui.separator().classes('separator-spacing')
-                render_blocks(article.blocks)
+                # Block flow rather than the enclosing flex column, so the blocks'
+                # own margins set the rhythm instead of a uniform flex gap.
+                with ui.element('div').classes('wiz-help-prose'):
+                    render_blocks(article.blocks)

@@ -45,7 +45,11 @@ async def help_icon(snippet_name: str, *, label: str = '', size: str = 'xs') -> 
     with button.classes('wiz-help-icon'):
         with ui.menu().props('max-width=26rem').classes('wiz-help-menu'):
             with ui.column().classes('wiz-help-menu-body'):
-                # Demoted so a snippet that opens on its own heading does not
-                # render it at article-title scale inside a small popup.
-                render_blocks(snippet.blocks, heading_offset=2)
+                # Block flow, not the enclosing flex column: a height-capped flex
+                # parent shrinks its children, which crushed a snippet's table to
+                # half its rows instead of letting the popup scroll.
+                with ui.element('div').classes('wiz-help-prose'):
+                    # Demoted so a snippet that opens on its own heading does not
+                    # render it at article-title scale inside a small popup.
+                    render_blocks(snippet.blocks, heading_offset=2)
                 ui.link('Read more', href).classes('wiz-help-more')
