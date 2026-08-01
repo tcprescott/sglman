@@ -6,7 +6,12 @@ from application.services import AuthService, EquipmentService, get_user_from_di
 from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import open_checkout, quick_checkin
-from theme.tables.preferences import TableKeys, customize_table, preferences_button
+from theme.tables.preferences import (
+    TableKeys,
+    customize_table,
+    preferences_button,
+    search_input,
+)
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -160,6 +165,7 @@ async def equipment_tab() -> None:
                     customize_table(table, _INVENTORY_COLUMNS,
                                     key=TableKeys.EQUIPMENT_INVENTORY)
                     with gear_slot:
+                        search_input(table, placeholder='Search equipment…')
                         preferences_button(table)
 
                     async def handle_checkout(row, client):

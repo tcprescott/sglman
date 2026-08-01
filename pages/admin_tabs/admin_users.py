@@ -13,7 +13,8 @@ from application.tenant_context import require_tenant_id
 from models import Role, User
 from theme.dialog import AdminUserDialog
 from theme.tables.admin_crud import refresh_button
-from theme.tables.preferences import TableKeys, preferences_button
+from theme.tables.export import csv_export_button
+from theme.tables.preferences import TableKeys, preferences_button, search_input
 from theme.tables.user import UserTableView
 
 _TA_FILTER = '_tournament_admin'
@@ -94,10 +95,13 @@ async def admin_users_page() -> None:
         selected = {'value': []}
 
         columns = [
-            {'name': 'username', 'label': 'Username', 'field': 'username'},
-            {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name'},
-            {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns'},
-            {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge'},
+            {'name': 'username', 'label': 'Username', 'field': 'username', 'sortable': True},
+            {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name',
+             'sortable': True},
+            {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns', 'sortable': True},
+            {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge', 'sortable': True},
+            # Not sortable: a comma-joined list of role labels sorts on the
+            # string, which orders by whoever happens to hold 'Commentator'.
             {'name': 'roles', 'label': 'Roles', 'field': 'roles'},
             {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
         ]
@@ -224,6 +228,14 @@ async def admin_users_page() -> None:
             lambda e: background_tasks.create(remove_member(e.args, context.client)),
         )
         with gear_slot:
+            search_input(table_view.table, placeholder='Search people…')
+            # The plan's columns, not the shipped list: the export matches what
+            # the person is looking at, hidden columns and all.
+            csv_export_button(
+                'community-people',
+                lambda: table_view._plan.columns if table_view._plan else columns,
+                lambda: table_view.table.rows,
+            )
             preferences_button(table_view.table)
 
         # Same rebind as the tab-switch below: an 'update:model-value' handler

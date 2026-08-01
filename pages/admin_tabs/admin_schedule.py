@@ -67,20 +67,19 @@ def admin_schedule_page(
             # does call a match out by number.
             {'name': 'edit', 'label': '', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament',
-                'field': 'tournament', 'sortable': True, 'filterable': True},
+                'field': 'tournament', 'sortable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At',
-                'field': 'scheduled_at', 'sortable': True, 'filterable': True},
-            {'name': 'state', 'label': 'State', 'field': 'state',
-                'sortable': True, 'filterable': True},
-            {'name': 'players', 'label': 'Players',
-                'field': 'players', 'filterable': True},
-            {'name': 'commentators', 'label': 'Commentators',
-                'field': 'commentators', 'filterable': True},
-            {'name': 'trackers', 'label': 'Trackers',
-                'field': 'trackers', 'filterable': True},
+                'field': 'scheduled_at', 'sortable': True},
+            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
+            # Not sortable: a joined roster of names, where the sort would run on
+            # whoever happens to be listed first.
+            {'name': 'players', 'label': 'Players', 'field': 'players'},
+            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
+            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
             {'name': 'stream_room', 'label': 'Stage',
-                'field': 'stream_room', 'sortable': True, 'filterable': True, 'clickable': True},
-            {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
+                'field': 'stream_room', 'sortable': True},
+            # Sorts present-vs-absent, which is the question actually asked of it.
+            {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed', 'sortable': True},
         ]
 
         def get_query():
@@ -195,6 +194,7 @@ def admin_schedule_page(
             extra_slots=extra_slots,
             storage_key='admin_schedule',
             table_key=TableKeys.ADMIN_SCHEDULE,
+            searchable=True,
             # The admin's job *is* the Finished-not-yet-Confirmed set, so it
             # must be on screen without them discovering the State filter.
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],

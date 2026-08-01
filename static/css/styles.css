@@ -1655,6 +1655,22 @@ body.body--dark {
     min-width: 0;
 }
 
+/* Sticky header, opt-in per table (theme/tables/preferences.sticky_header).
+   Quasar's own recipe: the header sticks to the *scroll container*, so a table
+   without a bounded height has nothing to stick to — the helper sets both, and
+   the class is what pairs them. Applied to the long operational boards, never
+   to short reference tables, where an inner scrollbar is pure cost. */
+.wiz-table--sticky .q-table__middle {
+    overflow: auto;
+}
+
+.wiz-table--sticky thead tr th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--surface);
+}
+
 /* Only a table that has at least one stored width switches to fixed layout; an
    unresized table keeps today's content-driven sizing exactly. */
 .wiz-table--sized table.q-table {

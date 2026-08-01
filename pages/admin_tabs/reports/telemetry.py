@@ -201,6 +201,7 @@ async def telemetry_page(
             columns=columns,
             rows=rows,
             row_key='ev_id',
+            table_key=TableKeys.REPORTS_TELEMETRY_LOG,
             total=total,
             page=page_int,
             page_size=PAGE_SIZE,

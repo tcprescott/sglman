@@ -7,14 +7,14 @@ button, URL-state helpers, and a small page-shell wrapper.
 import json
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from nicegui import context, ui
 
 from application.services import SystemConfigService, TournamentService
-from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
 from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
+from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
 REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stream_rooms', 'audit')
@@ -190,22 +190,6 @@ async def tournament_filter(
     return select
 
 
-def csv_export_button(
-    filename_prefix: str,
-    columns_provider: Callable[[], Sequence[Mapping]],
-    rows_provider: Callable[[], Iterable[Mapping]],
-    label: str = 'Export CSV',
-) -> ui.button:
-    """Button that downloads the current rows as CSV when clicked."""
-
-    def _click():
-        try:
-            data = rows_to_csv_bytes(columns_provider(), rows_provider())
-            ui.download(data, filename=timestamped_filename(filename_prefix))
-        except Exception as exc:  # pragma: no cover - defensive UI feedback
-            ui.notify(f'Export failed: {exc}', color='negative')
-
-    return ui.button(label, icon='download', on_click=_click).props('flat dense')
 
 
 def show_navigating() -> None:
@@ -494,24 +478,30 @@ def paginated_event_log(
     note: str,
     on_row_click: Optional[Callable[[dict], None]] = None,
     card_classes: str = 'full-width q-pa-md',
+    table_key: Optional[str] = None,
 ) -> None:
     """Server-paginated event-log card (count + CSV + expandable table + pager).
 
     Shared by the Audit Log and Engagement Telemetry reports. ``on_row_click``,
     when given, wires a per-row drill-down filter (receives the clicked row
     dict); ``on_page`` reloads the page for a new 1-based page number.
+
+    The whole-``body`` slot below is customization-safe despite appearances: it
+    renders ``<q-td v-for="col in props.cols">``, and ``props.cols`` is Quasar's
+    own visible-columns-in-order list, so hiding and reordering both land. Only
+    the ``details`` cell is special-cased, and it is matched by name.
     """
     with ui.card().classes(card_classes):
         with ui.row().classes('items-center justify-between full-width'):
             ui.label(_page_range_label(total, page, page_size, count_noun)).classes('text-h6')
             csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
 
-        # table-prefs: exempt — whole-body slot, cannot honour column order yet
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')
         table.add_slot('body', _EVENT_LOG_BODY_ROWCLICK if on_row_click else _EVENT_LOG_BODY_PLAIN)
         if on_row_click is not None:
             table.on('row-click', lambda e: on_row_click(clicked_row(e)))
-        enable_mobile_grid(table, columns, row_click_event='row-click' if on_row_click else None)
+        enable_mobile_grid(table, columns, table_key=table_key,
+                           row_click_event='row-click' if on_row_click else None)
         ui.label(note).classes('italic-note')
 
         total_pages = max(1, (total + page_size - 1) // page_size)

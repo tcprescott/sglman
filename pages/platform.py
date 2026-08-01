@@ -24,7 +24,12 @@ from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
-from theme.tables.preferences import TableKeys, customize_table, preferences_button
+from theme.tables.preferences import (
+    TableKeys,
+    customize_table,
+    preferences_button,
+    search_input,
+)
 
 _bot_service = RacetimeBotService()
 
@@ -174,6 +179,7 @@ def create() -> None:
 
             customize_table(table, columns, key=TableKeys.PLATFORM_TENANTS)
             with header_row:
+                search_input(table, placeholder='Search communities…')
                 preferences_button(table)
 
             async def _on_edit(e) -> None:

@@ -23,7 +23,7 @@ PROCTOR_COLUMNS = [
     {'name': 'players', 'label': 'Players & stations', 'field': 'players'},
     {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
     {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament',
-     'sortable': True, 'filterable': True},
+     'sortable': True},
     {'name': 'id', 'label': '#', 'field': 'id'},
 ]
 
@@ -98,6 +98,7 @@ async def proctor_station_tab() -> None:
             access=access,
             storage_key='proctor',
             table_key=TableKeys.PROCTOR_STATION,
+            searchable=True,
             exclude_racetime=True,
             row_sort=proctor_row_order,
             actions_first=True,

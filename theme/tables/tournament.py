@@ -6,17 +6,26 @@ from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import apply_column_visibility
-from theme.tables.preferences import customize_table, preferences_button
+from theme.tables.preferences import (
+    customize_table,
+    preferences_button,
+    row_count_label,
+    search_input,
+    sticky_header,
+)
 
 
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
     def __init__(self, columns, get_query, extra_slots=None, submit_tournament_callback=None,
-                 table_key=None):
+                 table_key=None, searchable=False):
         self.columns = columns
         # When set, this view's desktop columns follow the viewer's saved layout.
         self.table_key = table_key
+        # A text box over the visible columns. Not persisted: working state.
+        self.searchable = searchable
         self._plan = None
         self.get_query = get_query
         self.extra_slots = extra_slots
@@ -49,13 +58,14 @@ class TournamentTableView:
                 columns=self.columns,
                 rows=[],
                 row_key='id',
-                # pagination={'rowsPerPage': 20, 'page': 1}
+                # Client-side paging over the rows already loaded — see the note
+                # in theme/tables/match.py; there is no pagination handler.
+                pagination={'rowsPerPage': 25, 'page': 1},
             ).classes('tournament-table tournament-table-container').props(':grid="Quasar.Screen.lt.md"')
         # This table wires its own :grid prop rather than going through
         # enable_mobile_grid, so it has to honour `hidden` itself.
         apply_column_visibility(self.table, self.columns)
         self.table.add_slot('no-data', no_data_slot('No tournaments yet.'))
-        self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable tournament name
         self.table.add_slot('body-cell-name', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_tournament', props)" class="table-link">{{ props.value }}</a>
@@ -129,7 +139,17 @@ class TournamentTableView:
             # from these columns at build time and must not follow a saved
             # layout. Pinned by tests/theme/test_table_preferences.py.
             self._plan = customize_table(self.table, self.columns, key=self.table_key)
+            with self.table.parent_slot:
+                row_count_label(self.table, 'tournaments')
+            sticky_header(self.table)
             with gear_slot:
+                if self.searchable:
+                    search_input(self.table, placeholder='Search tournaments…')
+                csv_export_button(
+                    'tournaments',
+                    lambda: self._plan.columns if self._plan else self.columns,
+                    lambda: self.table.rows,
+                )
                 preferences_button(self.table)
         # Register edit_tournament event handler immediately after table creation
         self.table.on('edit_tournament', self.handle_edit_tournament)
@@ -162,9 +182,6 @@ class TournamentTableView:
             rows.append(row)
         self.table.rows = rows
         self.table.update()
-
-    def _on_page_change(self, _event):
-        self._bg(self.refresh())
 
     async def update_row_by_id(self, tournament_id):
         """

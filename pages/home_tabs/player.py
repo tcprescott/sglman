@@ -180,11 +180,15 @@ async def render_player_dashboard():
                         ).props('color=primary flat')
 
         columns = [
-            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
-            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
-            {'name': 'state', 'label': 'State', 'field': 'state'},
+            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament',
+             'sortable': True},
+            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at',
+             'sortable': True},
+            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
+            # Not sortable: a joined roster of names.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
-            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room'},
+            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room',
+             'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]

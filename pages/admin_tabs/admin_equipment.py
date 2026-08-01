@@ -7,7 +7,12 @@ from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button
-from theme.tables.preferences import TableKeys, customize_table, preferences_button
+from theme.tables.preferences import (
+    TableKeys,
+    customize_table,
+    preferences_button,
+    search_input,
+)
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -168,6 +173,7 @@ async def admin_equipment_page() -> None:
             # gear lives outside it so it would otherwise stack up.
             gear_slot.clear()
             with gear_slot:
+                search_input(table, placeholder='Search equipment…')
                 preferences_button(table)
 
             def handle_view(event):

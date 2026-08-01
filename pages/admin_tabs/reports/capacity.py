@@ -218,7 +218,8 @@ async def capacity_page(
                         {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
                         {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
                         {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
-                        {'name': 'players', 'label': 'Players', 'field': 'players', 'sortable': True},
+                        # Not sortable: a joined roster sorts on whoever is listed first.
+                        {'name': 'players', 'label': 'Players', 'field': 'players'},
                         {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]

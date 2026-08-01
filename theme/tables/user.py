@@ -4,7 +4,7 @@ from application.tenant_context import get_current_tenant_id
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import capture_render_context, scoped_background
-from theme.tables.preferences import customize_table
+from theme.tables.preferences import customize_table, row_count_label, sticky_header
 
 
 class UserTableView:
@@ -51,13 +51,14 @@ class UserTableView:
                 columns=self.columns,
                 rows=[],
                 row_key='id',
-                # pagination={'rowsPerPage': 20, 'page': 1}
+                # Client-side paging over the rows already loaded — see the note
+                # in theme/tables/match.py; there is no pagination handler.
+                pagination={'rowsPerPage': 25, 'page': 1},
             ).classes('user-table user-table-container').props(':grid="Quasar.Screen.lt.md"')
         self.table.add_slot('no-data', no_data_slot(self.empty_message, icon='group'))
         if self.row_actions:
             self.table.add_slot(
                 'body-cell-actions', f'<q-td :props="props">{self.row_actions}</q-td>')
-        self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link">{{ props.value }}</a>
@@ -93,6 +94,9 @@ class UserTableView:
             # layout here cannot reach it. Pinned by
             # tests/theme/test_table_preferences.py.
             self._plan = customize_table(self.table, self.columns, key=self.table_key)
+            with self.table.parent_slot:
+                row_count_label(self.table, 'people')
+            sticky_header(self.table)
         # Handler for editing a user
 
         async def handle_edit_user(event):
@@ -202,9 +206,6 @@ class UserTableView:
             'created_at': format_local_display(u.created_at),
             'updated_at': format_local_display(u.updated_at),
         }
-
-    def _on_page_change(self, _event):
-        self._bg(self.refresh())
 
     async def update_row_by_id(self, user_id):
         """

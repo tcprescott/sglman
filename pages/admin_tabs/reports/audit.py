@@ -9,6 +9,7 @@ from nicegui import ui
 
 from application.services import AuditService
 from application.utils.timezone import format_local_display, timezone_label
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     date_range_filter,
@@ -129,6 +130,7 @@ async def audit_page(
             columns=columns,
             rows=rows,
             row_key='log_id',
+            table_key=TableKeys.REPORTS_AUDIT_LOG,
             total=total,
             page=page_int,
             page_size=PAGE_SIZE,

@@ -39,6 +39,9 @@ __all__ = [
     'customize_table',
     'effective_columns',
     'preferences_button',
+    'row_count_label',
+    'search_input',
+    'sticky_header',
 ]
 
 # Columns a person may not hide: the row-action cells. Hiding them strands every
@@ -90,6 +93,7 @@ class TableKeys:
     QUALIFIERS_LEADERBOARD = 'qualifiers.leaderboard'
 
     # Reports
+    REPORTS_AUDIT_LOG = 'reports.audit_log'
     REPORTS_CAPACITY_FOCUS = 'reports.capacity_focus'
     REPORTS_CAPACITY_FORECAST = 'reports.capacity_forecast'
     REPORTS_CREW_CONTRIBUTIONS = 'reports.crew_contributions'
@@ -100,6 +104,7 @@ class TableKeys:
     REPORTS_MATCH_OPS_SUMMARY = 'reports.match_ops_summary'
     REPORTS_STREAM_ROOM_MATCHES = 'reports.stream_room_matches'
     REPORTS_STREAM_ROOM_SUMMARY = 'reports.stream_room_summary'
+    REPORTS_TELEMETRY_LOG = 'reports.telemetry_log'
     REPORTS_TELEMETRY_TOP = 'reports.telemetry_top'
     REPORTS_TOURNAMENT_HEALTH = 'reports.tournament_health'
     REPORTS_VOLUNTEER_HOURS = 'reports.volunteer_hours'
@@ -500,3 +505,49 @@ def preferences_button(table: ui.table, *, tooltip: str = 'Table preferences') -
             .classes('wiz-table-prefs-dot')
         custom.badge.set_visibility(custom.plan.is_customized)
     return button
+
+
+def search_input(table: ui.table, *,
+                 placeholder: str = 'Search…',
+                 width: str = 'w-64') -> ui.input:
+    """A text box that filters ``table`` across its visible columns.
+
+    Quasar's ``filter`` prop is the real mechanism, and until now nothing in the
+    app set it: twelve columns carried a filterable flag that QTable has never
+    read, so "search this board" looked implemented and was not.
+
+    The text is **not** persisted. It is working state, not a preference — a
+    board that reopens still filtered to one name is a board that looks empty.
+    """
+    box = ui.input(placeholder=placeholder).props('dense outlined clearable') \
+        .props('debounce=200').classes(width)
+    with box.add_slot('prepend'):
+        ui.icon('search')
+    table.bind_filter_from(box, 'value', backward=lambda v: v or '')
+    return box
+
+
+def row_count_label(table: ui.table, noun: str = 'rows') -> ui.label:
+    """A live ``124 matches`` caption above a client-paginated board.
+
+    Deliberately *not* the reports' ``Showing 51–100 of 124`` — that one is
+    computed server-side because those tables page server-side. These boards hold
+    every row and let Quasar page over them, so the range is the pager's to state
+    and the only number the server can honestly add is the total.
+    """
+    return ui.label().classes('text-caption text-grey-7') \
+        .bind_text_from(table, 'rows',
+                        backward=lambda rows: f'{len(rows or []):,} {noun}')
+
+
+def sticky_header(table: ui.table, max_height: str = '70vh') -> ui.table:
+    """Keep ``table``'s header on screen while its rows scroll.
+
+    Quasar's header sticks to the table's own scroll container, so a table with
+    no bounded height has nothing to stick to — the two have to be set together,
+    which is what this pairs. Worth it on a long operational board and pure cost
+    on a short reference table, so it is opt-in rather than automatic.
+    """
+    table.classes(add='wiz-table--sticky')
+    table.style(f'max-height: {max_height}')
+    return table

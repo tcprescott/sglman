@@ -313,11 +313,13 @@ def create() -> None:
                 return
             can_reattempt = window_open and allowance.remaining > 0
             columns = [
-                {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
-                {'name': 'status', 'label': 'Status', 'field': 'status'},
-                {'name': 'review', 'label': 'Review', 'field': 'review'},
-                {'name': 'time', 'label': 'Time', 'field': 'time'},
-                {'name': 'score', 'label': 'Score', 'field': 'score'},
+                {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
+                 'sortable': True},
+                {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
+                {'name': 'review', 'label': 'Review', 'field': 'review', 'sortable': True},
+                # HH:MM:SS is zero-padded, so a lexical sort is a chronological one.
+                {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
+                {'name': 'score', 'label': 'Score', 'field': 'score', 'sortable': True},
                 # Capped and wrapping: a full rejection reason is the longest text
                 # on the row, and left to itself it pushes the row action off the
                 # right edge of a desktop table.
@@ -388,10 +390,12 @@ def create() -> None:
                 ui.label('No scored runs yet.').classes('text-grey')
                 return
             columns = [
-                {'name': 'rank', 'label': '#', 'field': 'rank'},
-                {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left'},
-                {'name': 'actual', 'label': 'Score', 'field': 'actual'},
-                {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate'},
+                {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
+                {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left',
+                 'sortable': True},
+                {'name': 'actual', 'label': 'Score', 'field': 'actual', 'sortable': True},
+                {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate',
+                 'sortable': True},
                 # Without this the caption's "unrun slots" names something the
                 # player cannot see; the admin board has always had it.
                 {'name': 'slots', 'label': 'Slots', 'field': 'slots'},
