@@ -440,7 +440,7 @@ One in-house renderer, consumed by both the public page and the admin Results di
 
 | Module | Role |
 |---|---|
-| `layout.py` | Pure, ORM-free layout walker: winner-link tree → absolute pixel placements + elbow connectors, robust to byes and the double-elim losers bracket. Unit-tested in [`tests/theme/`](../../tests/theme/) |
+| `layout.py` | Pure, ORM-free layout walker: winner-link tree → absolute pixel placements + elbow connectors, handling byes and the double-elim losers bracket. Unit-tested in [`tests/theme/`](../../tests/theme/) |
 | `cards.py` | Absolute-positioned match cards + sticky round headers |
 | `tables.py` | Swiss/group data tables (standings with tiebreaker columns + advancement tint, pairings, crosstable) as **NiceGUI elements, never `ui.html`** — entrant names are user-controlled |
 | `visibility.py` | The pure staff-only-DRAFT rule, shared by the public pages and the browse tab |

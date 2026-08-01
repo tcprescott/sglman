@@ -105,7 +105,7 @@ The only reliable signal that the row is read-only is the tooltip.
   and the page column adds `gap-4` on top, so cards sit ~40px apart;
   `.section-title` adds another `1em` under each title. Collapsed, the page is
   1734px for four cards holding two inputs, one checkbox, and a list. Above a
-  1100px fold the user sees two-and-a-half cards. Worth noting that the fix
+  1100px fold the user sees two-and-a-half cards. The fix
   below is a wash on total height (1734px → 1759px): dropping the doubled gap
   buys back roughly what the newly-visible field hints spend. The gain is that
   the space now carries information.
