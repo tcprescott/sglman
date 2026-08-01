@@ -1,9 +1,13 @@
 """Equipment inventory reads.
 
-Gated at **admin** behind the ``EQUIPMENT`` flag, mirroring the Admin →
-Equipment tab (``is_staff or is_equipment_manager``, both of which satisfy
-``can_view_admin``). There is no REST counterpart to mirror, so the admin tab is
-the gate of record.
+Gated at **actor** behind the ``EQUIPMENT`` flag, mirroring
+``api/routers/equipment.py`` and the home **Equipment** tab it shares a gate
+with. That tab carries no role check at all: in a community with the feature on,
+every member sees the inventory and who currently holds each item. These tools
+were originally ADMIN on the belief that the *admin* equipment tab was the gate
+of record; it is not, and the stricter gate only meant a member could see less
+through a connected client than in their own browser. ``private_notes`` — the
+one part of an asset that really is staff-only — stays out of both shapes.
 
 ``EquipmentService`` carries its own ``@requires_feature`` on every read, so the
 flag is enforced twice — once at the registry gate, once in the owning service.
@@ -44,8 +48,8 @@ async def list_equipment(
 ) -> List[EquipmentSummary]:
     """List the community's equipment inventory and who currently holds each item.
 
-    Requires admin access. `status` filters on the asset's state: `available`,
-    `checked_out`, or `retired`.
+    `status` filters on the asset's state: `available`, `checked_out`, or
+    `retired`.
     """
     wanted: Optional[str] = None
     if status:
@@ -78,10 +82,7 @@ async def get_equipment(
     equipment_id: int,
     tenant: TenantArg = None,
 ) -> EquipmentDetail:
-    """Get one asset with its full checkout history, most recent first.
-
-    Requires admin access.
-    """
+    """Get one asset with its full checkout history, most recent first."""
     service = EquipmentService()
     asset = require_found(await service.get_asset(equipment_id), 'Equipment')
     loans = await service.loan_history(asset)
@@ -100,10 +101,10 @@ async def get_equipment(
 
 def register_tools(mcp: FastMCP) -> None:
     register(
-        mcp, list_equipment, gate=Gate.ADMIN,
+        mcp, list_equipment, gate=Gate.ACTOR,
         feature=FeatureFlag.EQUIPMENT, title='List equipment',
     )
     register(
-        mcp, get_equipment, gate=Gate.ADMIN,
+        mcp, get_equipment, gate=Gate.ACTOR,
         feature=FeatureFlag.EQUIPMENT, title='Get equipment',
     )

@@ -81,6 +81,8 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
 
+- `GET /matches/{id}/crew` — the coordinator's crew list, **including unapproved signups** (admin). `GET /matches/{id}` hides those from everyone, so this sits behind a higher gate than the match itself; the peer of the MCP `list_match_crew` tool.
+
 ### Crew (`/api/crew`) · `crew.py`
 - `POST /crew/{crew_type}/{crew_id}/approval` — approve/reject (Staff/TA/Crew Coordinator).
 - `POST /crew/{crew_type}/{crew_id}/acknowledge` — crew member acknowledges their own approved assignment.
@@ -101,6 +103,7 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 
 ### Player availability (`/api/users/me/availability`) · `player_availability.py`
 - `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions.
+- `GET /users/{id}/availability?start=&end=` — another player's windows (self, or Staff for anyone else), optionally bounded to a UTC window. The scheduler's read, matching `GET /users/{id}` and the MCP `get_player_availability` tool. It rides a second router so the literal `/users/me/…` paths keep matching before the `{user_id}` param.
 
 ### Volunteers (`/api/volunteers`) · `volunteers.py`
 Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes are self-service. All routes require an authenticated actor; writes use a non-read-only token.
@@ -113,6 +116,32 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 ### Triforce texts (`/api/triforce-texts`) · `triforce.py`
 - `GET /mine?tournament_id=` (own; `tournament_id` required) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
 - `POST` (submit) · `POST /{id}/moderate` · `DELETE /{id}` (Staff/TA).
+
+### Equipment (`/api/equipment`) · `equipment.py`
+Lending inventory and the checkout workflow. **Reads take any token** — the gate of record is the home **Equipment** tab, which carries no role check, so every member of a community with the feature on sees the inventory and who holds each item. `private_notes` is the one field that isn't world-readable: it is returned only to a caller who passes `can_manage_equipment` (Staff or Equipment Manager) and is `null` for everyone else. Writes are re-gated in `EquipmentService`.
+- **Reads:** `GET /equipment?status=` (`available` / `checked_out` / `retired`) · `GET /equipment/{id}` (adds `current_loan`) · `GET /equipment/{id}/loans?limit=` (history, newest first) · `GET /equipment/me/checkouts` (what you are holding).
+- **Assets:** `POST /equipment` · `POST /equipment/bulk` (`{name, count}`, 1–200 identical assets with consecutive numbers) · `PUT /equipment/{id}` · `DELETE /equipment/{id}` (Staff/Equipment Manager; `400` on an asset that is checked out).
+  `PUT`, not `PATCH`, because the service takes the whole record: `description`, `private_notes` and `owner_user_id` are cleared when omitted. `status` is the exception (omit to leave it), and it cannot move into or out of `checked_out` — that is what the two lending routes are for.
+- **Lending:** `POST /equipment/{id}/checkout` (optional `{borrower_id}` — only an Equipment Manager may name someone else; anyone else borrows to themselves whatever they send) · `POST /equipment/{id}/checkin` (Staff/Equipment Manager only — the check-in gate is deliberately narrower than checkout, which admits volunteers).
+
+### Feedback (`/api/feedback`) · `feedback.py`
+In-app feedback: submit, read your own, and the staff queue.
+- `POST /feedback` (`{message, category?, page_url?}`) · `GET /feedback/mine?limit=` — any token; a person's own submissions carry their review status.
+- `GET /feedback?limit=` — the queue (Staff), mirroring the Admin → Feedback tab.
+- `POST /feedback/{id}/reviewed` (`{reviewed}`) — mark reviewed, or put it back in the queue. Reversible on purpose. The service gates this at `can_view_admin`, which is **wider than the queue's STAFF**: a tournament admin can clear a submission without being able to list them all.
+
+### Reports (`/api/reports`) · `reports.py`
+The programmatic peer of the Admin → Reports tab, at that tab's own gate (`can_view_admin`: staff, tournament admin, or crew coordinator). All reads, so a read-only token works throughout. A window is `start`/`end` (UTC ISO 8601, both required); `end` before `start` is `400`, and `bucket` accepts `week` or `month`.
+- `GET /reports/capacity-forecast` · `/stream-room-utilization` · `/match-operations` · `/crew-coverage` · `/tournament-health` · `/crew-participation-trends` · `/activity-trends`.
+- `GET /reports/matches-active-at?instant=&limit=` — what is in progress at one moment.
+- `GET /reports/volunteer-hour-trends` — carries the `VOLUNTEERS` flag **at the route** rather than the router, because `AnalyticsService` has no flag of its own; without it a community with volunteers off could still read its volunteer hours. Its siblings on the same router stay reachable.
+
+Two are **reshaped rather than passed through**, exactly as the matching MCP tools are: `ReportsService` builds its payloads for a chart, and `stream_room_utilization`'s even contains ORM `Match` rows. `capacity-forecast` returns peaks and headroom instead of the per-interval series; `stream-room-utilization` returns per-room totals plus `unplaced_candidate_count` instead of every booking.
+
+### Telemetry (`/api/telemetry`) · `telemetry.py`
+Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
+- `GET /telemetry/summary?start=&end=` — events, unique users, sessions, page views.
+- `GET /telemetry/top?dimension=&start=&end=&limit=` — `dimension` is `paths`, `event_types` or `users`.
 
 ### Notifications (`/api/notifications`) · `notifications.py`
 - `GET /preferences` · `PUT /preferences`.
@@ -144,8 +173,11 @@ When the caller's tenant has not enabled a router's flag, the **whole router 404
 | SpeedGaming | `SPEEDGAMING_ETL` |
 | Async qualifiers, Async qualifier live races | `ASYNC_QUALIFIERS` |
 | Brackets | `BRACKETS` |
+| Equipment | `EQUIPMENT` |
+| Feedback | `FEEDBACK` |
+| `GET /reports/volunteer-hour-trends` (that route only) | `VOLUNTEERS` |
 
-Every other group stays open, including presets, seeds, racetime bots, discord events and service health. `GET /seeds/randomizers` filters on a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).
+Every other group stays open, including presets, seeds, racetime bots, discord events, reports, telemetry and service health. `GET /seeds/randomizers` filters on a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).
 
 ## Online-tournament features
 

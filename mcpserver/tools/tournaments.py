@@ -5,16 +5,25 @@ Mirrors the gates on ``api/routers/tournaments.py`` and
 around the call does the rest.
 """
 
-from typing import List
+from typing import List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
 from api.schemas.tournaments import TournamentResponse
 from application.errors import require_found
-from application.services import StreamRoomService, TournamentService
+from application.services import (
+    MatchSuggestionService,
+    StreamRoomService,
+    TournamentService,
+)
 from mcpserver.auth import Gate
 from mcpserver.registry import register
-from mcpserver.schemas import StreamRoomInfo, TenantArg, TournamentSummary
+from mcpserver.schemas import (
+    MatchTimeSuggestion,
+    StreamRoomInfo,
+    TenantArg,
+    TournamentSummary,
+)
 
 
 async def list_tournaments(
@@ -50,7 +59,40 @@ async def list_stream_rooms(
     return [StreamRoomInfo.model_validate(r, from_attributes=True) for r in rooms]
 
 
+async def get_stream_room(
+    stream_room_id: int,
+    tenant: TenantArg = None,
+) -> StreamRoomInfo:
+    """Get one stream room by id."""
+    room = require_found(
+        await StreamRoomService().get_stream_room_by_id(stream_room_id), 'Stream room'
+    )
+    return StreamRoomInfo.model_validate(room, from_attributes=True)
+
+
+async def suggest_match_time(
+    tournament_id: int,
+    player_ids: List[int],
+    tenant: TenantArg = None,
+    bracket_match_id: Optional[int] = None,
+) -> MatchTimeSuggestion:
+    """Suggest a UTC start time for a match between the given players.
+
+    Searches the tournament's configured hours for the slot that fits everyone's
+    declared availability and adds least to the venue's concurrent load. Pass
+    `bracket_match_id` to confine the search to that matchup's round window.
+    Errors with `invalid_request` when no slot fits at all.
+    """
+    return MatchTimeSuggestion(
+        suggested_at=await MatchSuggestionService().suggest_match_time(
+            tournament_id, player_ids, bracket_match_id=bracket_match_id,
+        )
+    )
+
+
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, list_tournaments, gate=Gate.ACTOR, title='List tournaments')
     register(mcp, get_tournament, gate=Gate.ACTOR, title='Get tournament')
     register(mcp, list_stream_rooms, gate=Gate.ACTOR, title='List stream rooms')
+    register(mcp, get_stream_room, gate=Gate.ACTOR, title='Get stream room')
+    register(mcp, suggest_match_time, gate=Gate.ACTOR, title='Suggest a match time')

@@ -99,6 +99,76 @@ class TestPlayerAvailability:
             assert resp.status_code == 403
 
 
+class TestReadingAnotherPlayersAvailability:
+    """``GET /users/{id}/availability`` — the scheduler's read, staff-gated."""
+
+    WINDOWS = {
+        'windows': [
+            {
+                'starts_at': '2026-06-10T18:00:00+00:00',
+                'ends_at': '2026-06-10T20:00:00+00:00',
+                'status': 'preferred',
+            }
+        ]
+    }
+
+    async def _player_with_a_window(self, app):
+        player, raw = await create_user_token(username='player')
+        async with client_for(app, raw) as c:
+            await c.put('/api/users/me/availability', json=self.WINDOWS)
+        return player
+
+    async def test_staff_reads_another_players_windows(self, db, app):
+        player = await self._player_with_a_window(app)
+        _, staff = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, staff) as c:
+            resp = await c.get(f'/api/users/{player.id}/availability')
+            assert resp.status_code == 200
+            assert [w['status'] for w in resp.json()] == ['preferred']
+
+    async def test_your_own_windows_need_no_role(self, db, app):
+        player, raw = await create_user_token(username='player')
+        async with client_for(app, raw) as c:
+            await c.put('/api/users/me/availability', json=self.WINDOWS)
+            resp = await c.get(f'/api/users/{player.id}/availability')
+            assert resp.status_code == 200
+            assert len(resp.json()) == 1
+
+    async def test_reading_someone_else_without_staff_is_403(self, db, app):
+        player = await self._player_with_a_window(app)
+        _, nosy = await create_user_token(username='nosy')
+        async with client_for(app, nosy) as c:
+            assert (await c.get(f'/api/users/{player.id}/availability')).status_code == 403
+
+    async def test_the_window_filters_bound_the_answer(self, db, app):
+        player = await self._player_with_a_window(app)
+        _, staff = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, staff) as c:
+            after = await c.get(
+                f'/api/users/{player.id}/availability',
+                params={'start': '2026-06-11T00:00:00+00:00'},
+            )
+            assert after.json() == []
+            overlapping = await c.get(
+                f'/api/users/{player.id}/availability',
+                params={'start': '2026-06-10T19:00:00+00:00',
+                        'end': '2026-06-10T19:30:00+00:00'},
+            )
+            assert len(overlapping.json()) == 1
+
+    async def test_unknown_user_is_404(self, db, app):
+        _, staff = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, staff) as c:
+            assert (await c.get('/api/users/9999/availability')).status_code == 404
+
+    async def test_me_still_routes_to_the_self_service_endpoint(self, db, app):
+        """The literal ``/users/me/…`` router is included first, so ``me`` never
+        falls through to the int path param."""
+        _, raw = await create_user_token(username='player')
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/users/me/availability')).status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # Match-time suggestion
 # ---------------------------------------------------------------------------

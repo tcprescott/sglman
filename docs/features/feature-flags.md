@@ -81,10 +81,10 @@ the key is set, and rolling without one raises. See
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker | `speedgaming_sync_service.py`, `speedgaming_sync_worker.py` |
 | `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API | `bracket_service.py` |
 | `challonge` | Community | **yes** | admin Challonge tab (no REST router exists) | `challonge_service.py`; `push_result_if_linked` soft-skips |
-| `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs (no REST router exists) | `equipment_service.py` |
+| `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs, `api/routers/equipment.py` | `equipment_service.py` |
 | `volunteers` | Community | **yes** | `/volunteer` + its nav link, admin Vol. Roster/Schedule, `/volunteers` API | `volunteer/` (reminder worker skips) |
 | `triforce_texts` | Community | **yes** | home + admin Triforce tabs, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
-| `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card (no REST router exists) | `feedback_service.py` |
+| `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card, `api/routers/feedback.py` | `feedback_service.py` |
 | `event_info` | Community | no (ships dark) | `/event-info*`, the drawer's Event Information item (`theme/base.py`); `help_icon` resolves the flag itself before reading a handbook snippet (no REST router exists) | `event_info_service.py` |
 
 `established=True` marks a feature that was **already in live use** when its flag
