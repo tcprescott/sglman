@@ -225,6 +225,16 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         Raises:
             ValueError: If validation fails
         """
+        # Scoped read, so a foreign tournament id raises here rather than
+        # producing a match that points across the tenant boundary: is_staff
+        # short-circuits the check below, and _assert_within_tournament_hours
+        # falls through for a tournament it cannot see. submit_match_request
+        # already does this.
+        require_found(
+            await self.tournament_repository.get_by_id(tournament_id),
+            f"Tournament {tournament_id}",
+        )
+
         # Permission check: must be Staff or TA of the target tournament
         if await AuthService.is_staff(actor):
             pass
@@ -402,6 +412,12 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         update_fields = {}
 
         if tournament_id is not None:
+            # Same scoped resolve as create_match: reassignment must not be able
+            # to move a match into another community's tournament.
+            require_found(
+                await self.tournament_repository.get_by_id(tournament_id),
+                f"Tournament {tournament_id}",
+            )
             update_fields['tournament_id'] = tournament_id
 
         if scheduled_date and scheduled_time:
@@ -612,6 +628,17 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             if station in occupied:
                 name = await _station_copy.name_one(self.repository, occupied[station])
                 raise ValueError(f"Station {station} is in use by {name}.")
+
+        # Keys are MatchPlayers ids, and the confusion is with User ids. Without
+        # this an assignment naming only unknown ids applies nothing and still
+        # reports success, audits and publishes — a silent no-op is the worst
+        # answer to give a caller that got the id space wrong.
+        unknown = set(assignments) - {p.id for p in match.players}  # type: ignore[attr-defined]
+        if unknown:
+            raise ValueError(
+                f"No player of this match has id {', '.join(str(i) for i in sorted(unknown))}. "
+                "Station keys are the match's player-row ids, not user ids."
+            )
 
         for player in match.players:
             if player.id in assignments:

@@ -9,9 +9,20 @@ belongs in the REST router too, and vice versa.
 Every tool is registered at ``Gate.ACTOR``, mirroring ``require_write_actor``:
 holding a live token that was approved for writing is the bar at this layer, and
 the real permission check is the service's own (``can_crud_match``,
-``can_run_match``, ``can_confirm_match``, ``can_assign_match_stream``). Inventing
-a stricter gate here would make the two surfaces answer differently for the same
-person, and the service check is the one that knows about tournament admins.
+``can_run_match``, ``can_confirm_match``, ``can_assign_match_stream``). The
+service check is the one that knows about tournament admins, so duplicating it
+here would only give the two surfaces a way to disagree.
+
+The parity is not total, and the gap is worth knowing about. ``mcpserver`` has a
+**membership floor** (``mcpserver/auth.py``) that refuses anyone holding no role
+in the community, which the REST API has no equivalent of — a PAT is bound to
+one community, so it never needed one. The floor governs the whole MCP surface,
+reads included, so it is not something these tools introduced; but it does mean
+the five self-service tools here (crew signup, acknowledge, watch) are out of
+reach for a plain member who has joined a community without being given a role,
+even though the same actions work for them on the web and through a PAT.
+Widening the floor to membership is a decision about the read surface's
+disclosure posture, not one to make quietly from here.
 
 Ids are never guessed. Every tool takes ids a read tool returns — `match_id`
 from `list_matches`, user ids from `list_users`, and `winner_id` from
@@ -19,7 +30,7 @@ from `list_matches`, user ids from `list_users`, and `winner_id` from
 user.
 """
 
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Literal, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -38,6 +49,10 @@ from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import OperationResult, TenantArg
 
+# In the schema rather than only the prose, so the model reads the two legal
+# values off the tool definition instead of a docstring it may skim.
+CrewRole = Literal['commentator', 'tracker']
+
 
 async def _load_match(match_id: int):
     """Load a match in the bound community, or raise ``not_found``.
@@ -54,6 +69,14 @@ async def _load_match(match_id: int):
 
 
 async def _match_response(match_id: int) -> MatchResponse:
+    """Read a match back after writing it, scoped to the bound community.
+
+    ``load_match_response`` filters on the id alone — it is written for the REST
+    routers, which reach it only after a scoped service call. Re-checking the
+    tenant here costs nothing and means the next tool added to this file cannot
+    return a match by bare id without a scoped write in front of it.
+    """
+    await _load_match(match_id)
     return require_found(await load_match_response(match_id), 'Match')
 
 
@@ -311,6 +334,11 @@ async def generate_match_seed(
     generation for the same match is already running.
     """
     actor = current_actor().user
+    # Resolve the id before handing it to the service. ``generate_seed`` reports
+    # every failure as a ``(False, message, None)`` tuple, so an unknown id would
+    # otherwise come back as `invalid_request` — and reach Sentry as a logged
+    # traceback — where every other tool here answers `not_found`.
+    await _load_match(match_id)
     success, message, seed_url = await MatchScheduleService().generate_seed(
         match_id, actor=actor
     )
@@ -324,7 +352,7 @@ async def generate_match_seed(
 
 async def signup_as_crew(
     match_id: int,
-    role: str,
+    role: CrewRole,
     tenant: TenantArg = None,
 ) -> OperationResult:
     """Sign yourself up to crew a match as `commentator` or `tracker`.
@@ -339,7 +367,7 @@ async def signup_as_crew(
 
 async def withdraw_crew_signup(
     match_id: int,
-    role: str,
+    role: CrewRole,
     tenant: TenantArg = None,
 ) -> OperationResult:
     """Withdraw your own `commentator` or `tracker` signup from a match."""
