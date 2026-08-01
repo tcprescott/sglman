@@ -188,8 +188,8 @@ _STREAM_DETAIL = '''
             <span class="mgc-detail-value">
                 <q-select v-if="__STREAM__" :model-value="__STAGEVAL__" :options="props.row.stage_options || []"
                           @update:model-value="val => $parent.$emit('set_stage', { key: props.row.id, stage: val })"
-                          dense options-dense outlined clearable emit-value map-options
-                          style="min-width: 140px;" label="Stage" />
+                          dense options-dense outlined emit-value map-options
+                          style="min-width: 140px;" />
                 <a v-else-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
                 <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
                 <span v-if="!__STREAM__ && props.row.is_stream_candidate && !props.row.stream_room" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>

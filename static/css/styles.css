@@ -1637,6 +1637,44 @@ body.body--dark {
     }
 }
 
+/* The Stage cell on the match board reads as plain text and becomes a dropdown
+   on click. A bordered select in every row of a wide board is a box of chrome
+   around one word, on a board that is read far more often than it is edited —
+   but the control still has to be findable, so the arrow and the underline come
+   back on hover, on focus, and while the menu is open. */
+.wiz-stage-select .q-field__control:before,
+.wiz-stage-select .q-field__control:after {
+    border-bottom-color: transparent;
+    transition: border-bottom-color var(--dur-fast) var(--ease-out);
+}
+
+.wiz-stage-select .q-field__append {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.wiz-stage-select:hover .q-field__append,
+.wiz-stage-select.q-field--focused .q-field__append,
+.wiz-stage-select.q-field--highlighted .q-field__append {
+    opacity: 1;
+}
+
+.wiz-stage-select:hover .q-field__control:before,
+.wiz-stage-select.q-field--focused .q-field__control:after {
+    border-bottom-color: var(--border-strong);
+}
+
+/* An unassigned stage is a real answer ("No Stage"), not missing data — muted
+   so a scan of the column still separates it from an assigned one. */
+.wiz-stage-select .q-field__native > span {
+    color: inherit;
+}
+
+.wiz-stage-select.q-field--highlighted .q-field__native,
+.wiz-stage-select .q-field__native {
+    cursor: pointer;
+}
+
 /* Table preferences gear (theme/tables/preferences.preferences_button) — desktop
    only. Below the mobile-grid breakpoint every table renders as stacked cards,
    and a gear offering to reorder columns nobody can see is worse than no gear. */

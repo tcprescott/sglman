@@ -599,13 +599,18 @@ class MatchTableView(MatchTableHandlersMixin):
         template built at registration time would offer an empty list forever.
         One shared list object per refresh, not a copy per row.
 
-        ``Candidate`` leads because it is the answer before a stage is decided —
-        it writes ``is_stream_candidate`` rather than a room (see
-        ``match_slots.CANDIDATE_STAGE``).
+        ``No Stage`` leads, because "none" is one of the answers rather than the
+        absence of one — it is what the cell shows when nothing is assigned, and
+        it has to be selectable to be reversible. ``Candidate`` follows: the
+        answer before a stage is decided, writing ``is_stream_candidate`` rather
+        than a room (see ``match_slots.CANDIDATE_STAGE``).
         """
         if self.on_set_stage is None:
             return None
-        return [{'label': 'Candidate', 'value': CANDIDATE_STAGE}] + [
+        return [
+            {'label': 'No Stage', 'value': None},
+            {'label': 'Candidate', 'value': CANDIDATE_STAGE},
+        ] + [
             {'label': name, 'value': room_id}
             for room_id, name in (self.stream_rooms_list or {}).items()
         ]

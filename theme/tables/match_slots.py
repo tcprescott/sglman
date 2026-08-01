@@ -259,12 +259,20 @@ STAGE_VALUE_JS = (
     f"props.row.stream_room_id || (props.row.is_stream_candidate ? '{CANDIDATE_STAGE}' : null)"
 )
 
+# Reads as plain text and becomes a dropdown on click: a bordered select in
+# every row of a wide board is nine boxes of chrome around one word each, and the
+# board is read far more often than it is edited. The affordance returns on hover
+# and focus (see ``.wiz-stage-select`` in styles.css), so the control is still
+# discoverable and still keyboard-reachable. ``No Stage`` is an explicit option
+# rather than a clear button — "none" is one of the answers, not the absence of
+# one, and a clear affordance that only appears once something is chosen cannot
+# be found by someone looking for it.
 STREAM_ROOM_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
-                  dense options-dense outlined clearable emit-value map-options
-                  style="min-width: 132px;" label="Stage" />
+                  dense options-dense borderless emit-value map-options
+                  class="wiz-stage-select" style="min-width: 110px;" />
         <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url"
            target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);">
             <q-icon name="open_in_new" size="18px" />
