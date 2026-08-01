@@ -105,7 +105,7 @@ class UserTableView:
             user_query = self.get_query()
             u = await user_query.filter(id=user_id).first()
             if not u:
-                ui.notify('User not found.', color='warning')
+                ui.notify("We couldn't find that user.", color='warning')
                 return
             from theme.dialog import AdminUserDialog
             dialog = AdminUserDialog(u)

@@ -36,7 +36,7 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
                 return
             if not staff:
                 ui.label(
-                    'No admins yet — this community cannot be administered.'
+                    'No admins yet. Grant STAFF to someone below to get this community started.'
                 ).classes('text-caption text-warning')
                 return
             for member in staff:

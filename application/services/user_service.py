@@ -284,7 +284,7 @@ class UserService:
             "Only Staff can create users",
         )
         if not username or not username.strip():
-            raise ValueError("Username is required")
+            raise ValueError("Enter a username.")
         new_user = await self.repository.create(
             username=username.strip(),
             display_name=display_name.strip() if display_name else None,

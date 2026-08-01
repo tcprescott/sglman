@@ -482,7 +482,7 @@ class UserMatchDialog(BaseMatchDialog):
 
         user = await self.user_service.get_user_by_discord_id(self.discord_id)
         if not user:
-            ui.notify('User not found. Please log in again.', color='negative')
+            ui.notify("We couldn't find your account. Try logging in again.", color='negative')
             return
 
         # Bracket-run tournaments are excluded: their matches come from the

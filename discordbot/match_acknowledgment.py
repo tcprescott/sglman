@@ -7,8 +7,8 @@ import logging
 import discord
 
 from application.utils.discord_messages import (
-    MSG_UNEXPECTED_ERROR_MATCH,
     match_ack_confirmation,
+    msg_unexpected_error,
 )
 from discordbot._ack_common import (
     DMInteractionError,
@@ -75,5 +75,5 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         resolve_tenant=resolve_tenant,
         not_found_message='Match not found.',
         handle=handle,
-        unexpected_error_message=MSG_UNEXPECTED_ERROR_MATCH,
+        unexpected_error_message=msg_unexpected_error('acknowledge'),
     )

@@ -4,14 +4,10 @@ Discord crew signup interaction handler and view factory.
 
 import discord
 
-from application.utils.discord_messages import crew_signup_confirmation
+from application.utils.discord_messages import crew_signup_confirmation, msg_unexpected_error
 from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
 CUSTOM_ID_PREFIX = 'crew_signup'
-
-MSG_UNEXPECTED_ERROR = (
-    'An unexpected error occurred. Please try again or use the website to sign up.'
-)
 
 
 def make_crew_signup_view(match_id: int) -> discord.ui.View:
@@ -75,5 +71,5 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         resolve_tenant=resolve_tenant,
         not_found_message='Match not found.',
         handle=handle,
-        unexpected_error_message=MSG_UNEXPECTED_ERROR,
+        unexpected_error_message=msg_unexpected_error('sign up'),
     )

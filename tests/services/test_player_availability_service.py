@@ -130,13 +130,13 @@ class TestSetWindows:
     async def test_raises_when_window_ends_before_starts(self, service):
         user = SimpleNamespace(id=1)
         bad = (_dt(12), _dt(8), VolunteerAvailabilityStatus.AVAILABLE, None)
-        with pytest.raises(ValueError, match='end after'):
+        with pytest.raises(ValueError, match='after the start time'):
             await service.set_windows(user, [bad])
 
     async def test_raises_when_window_ends_equal_to_starts(self, service):
         user = SimpleNamespace(id=1)
         bad = (_dt(8), _dt(8), VolunteerAvailabilityStatus.AVAILABLE, None)
-        with pytest.raises(ValueError, match='end after'):
+        with pytest.raises(ValueError, match='after the start time'):
             await service.set_windows(user, [bad])
 
 

@@ -216,7 +216,7 @@ def _tenant_page(
                 render_error_page(
                     status_code=404,
                     headline='Not Found',
-                    message='This page is only available within a community (/t/<slug>/…).',
+                    message="This page only exists inside a specific community. Try getting there from your community's link.",
                     user=None,
                 )
                 return
@@ -289,8 +289,8 @@ def _tenant_page(
                     from theme.error_page import render_error_page
                     render_error_page(
                         status_code=403,
-                        headline='Forbidden',
-                        message='You do not have permission to view this page.',
+                        headline='Not available to you',
+                        message="You don't have access to this page. If you think that's wrong, ask a staff member to check your role.",
                         user=user,
                     )
                     return

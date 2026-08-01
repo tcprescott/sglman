@@ -663,7 +663,7 @@ class TestRecordMatchResult:
         match = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 18))
         p1 = await make_user("a", "A")
         await MatchPlayers.create(match=match, user=p1)
-        with pytest.raises(ValueError, match="not a player"):
+        with pytest.raises(ValueError, match="isn't part of this match"):
             await service.record_match_result(match_id=match.id, winner_id=424242, actor=actor)
 
     async def test_records_ranks(self, service, db, captured_events):

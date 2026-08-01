@@ -62,7 +62,7 @@ async def admin_discord_roles_page() -> None:
             ui.notify('You need the Staff role to connect a Discord server.', color='warning')
             return
         if tenant is None:
-            ui.notify('No community is in scope.', color='warning')
+            ui.notify('Select a community first.', color='warning')
             return
         # Carry the target tenant, CSRF state, and return path across the redirect
         # — the callback lands on the bare platform host with no tenant in scope.
@@ -82,7 +82,7 @@ async def admin_discord_roles_page() -> None:
             try:
                 current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 if tenant is None:
-                    ui.notify('No community is in scope.', color='warning')
+                    ui.notify('Select a community first.', color='warning')
                     return
                 await DiscordLinkService.disconnect(current, tenant)
             except (ValueError, PermissionError) as e:

@@ -11,7 +11,7 @@ DoubleTree by Hilton Washington Dulles Airport in Herndon, Virginia. The online
 tournaments that lead into it run through the summer and finish by **4 October**.
 
 Prize pools, entry and the tournament pages are on the event site,
-[sglive.speedgaming.org](https://sglive.speedgaming.org) — this handbook does not
+[sglive.speedgaming.org](https://sglive.speedgaming.org). This handbook does not
 repeat them, because they change.
 
 ## Hours
@@ -20,21 +20,21 @@ The tournament room and the stage keep the same hours:
 
 | Day | Open |
 |---|---|
-| Wednesday 21 | Check-in desk only — no play |
+| Wednesday 21 | Check-in desk only, no play |
 | Thursday 22 | 9:00 to midnight |
 | Friday 23 | 8:00 to midnight |
 | Saturday 24 | 8:00 to midnight |
 | Sunday 25 | 8:00 until the last match finishes |
 
-Sunday has no fixed close — it runs until the last match is done.
+Sunday has no fixed close: it runs until the last match is done.
 
 **Schedule your match to *finish* before midnight**, not to start before it. A
 slot late enough that the match would run past close is the one thing to avoid
 when you pick a time. **Suggest a time** in the app already works within the
 event's operating hours, so letting it propose the slot is the easy way to stay
-inside them — see [Getting a match scheduled](/help/player#getting-a-match-scheduled).
+inside them. See [Getting a match scheduled](/help/player#getting-a-match-scheduled).
 
-Midnight is the normal close rather than a hard stop: the room can stay open
+Midnight is the normal close rather than a hard stop, and the room can stay open
 longer in extenuating circumstances. That is a call staff make on the night, not
 something to schedule against.
 
@@ -42,7 +42,7 @@ something to schedule against.
 
 There is a **dedicated Casual Gaming Room**, separate from the tournament room
 and open throughout the event. It is fairly small, and **priority goes to anyone
-practicing for an upcoming match** — casual play gives way if the room fills up.
+practicing for an upcoming match**, so casual play gives way if the room fills up.
 
 **The tournament room is for the matches on the board.** Practice and casual play
 belong in the Casual Gaming Room instead, while the tournament room is hosting an
@@ -74,7 +74,7 @@ Randomizer · Mega Man 7 any%.
 ## Your own times
 
 Everything above is the shape of the event. **Your own matches are on the Player
-tab**, and the full board — every match, everyone's — is on **Schedule**.
+tab**, and **Schedule** shows the full board: every match, everyone's.
 
 Both show times **in your local time**, not the venue's. If you are reading this
 before you travel, the times you see are already converted for you.

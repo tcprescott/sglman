@@ -150,7 +150,7 @@ async def admin_challonge_page() -> None:
             except ValueError as e:
                 ui.notify(str(e), color='warning')
             except Exception as e:
-                ui.notify(f'Sync failed: {e}', color='negative')
+                ui.notify(f"Couldn't sync with Challonge: {e}", color='negative')
             await linked_tournaments.refresh()
             await connection_card.refresh()
 

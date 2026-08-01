@@ -139,7 +139,7 @@ async def render_web_push_section(user: User) -> None:
             return
         endpoint = args.get('endpoint')
         if not endpoint:
-            ui.notify('This device was not subscribed.', color='info')
+            ui.notify("This device wasn't subscribed to begin with.", color='info')
             return
         removed = await service.unsubscribe(user, endpoint)
         ui.notify('Notifications disabled on this device.', color='positive', icon='notifications_off')

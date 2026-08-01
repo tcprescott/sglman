@@ -28,7 +28,7 @@ DMs carry buttons so you can answer without opening the site.
 | **Unwatch** | Stops the updates for that match. |
 
 Pressing a button in Discord does exactly what the equivalent control on the site
-does — same record, same result. Use whichever is in front of you.
+does, same record, same result. Use whichever is in front of you.
 :::
 
 You can start watching a match only from the site. Discord can stop it, not start
@@ -45,8 +45,9 @@ Almost always one of three things:
 3. **You are not the person the app thinks you are.** Check that the Discord
    account you are signed in with is the one you actually use.
 
-If you fix your settings, DMs resume from the next event — the ones you missed
-are not resent. Check the schedule board for anything you might have missed.
+If you fix your settings, DMs resume from the next event, but the ones you
+missed are not resent. Check the schedule board for anything you might have
+missed.
 
 ## Where your settings live
 
@@ -54,8 +55,8 @@ Everything is on the **Profile** tab, under *Notifications*.
 
 :::snippet notification-settings
 **Send me notifications about match updates** is the master switch. Turn it off
-and nothing is sent — not Discord DMs, not device notifications — whatever else
-is set below it.
+and nothing is sent, neither Discord DMs nor device notifications, whatever
+else is set below it.
 
 **Devices** adds browser push on the device you are holding. It mirrors the same
 DMs rather than replacing them, and it is still governed by the master switch.
@@ -76,5 +77,5 @@ You do not have to be enrolled in a tournament to follow it.
 ## Turning it down
 
 If one tournament is noisier than you want, set its level to **None** rather than
-blocking the bot. Blocking the bot also cuts off the DMs you do want — being told
-your match moved, or that you have been approved for a slot.
+blocking the bot. Blocking the bot also cuts off the DMs you do want: being
+told your match moved, or that you have been approved for a slot.

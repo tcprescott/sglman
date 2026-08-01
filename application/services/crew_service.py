@@ -105,11 +105,11 @@ class CrewService:
         # Check if user already signed up
         crew_list = match.commentators if role == 'commentator' else match.trackers
         if any(c.user_id == user.id for c in crew_list):
-            raise ValueError(f"User already signed up as {role}")
+            raise ValueError(f"You're already signed up as {role} for this match.")
 
         players = await self.match_repository.get_players(match)
         if any(p.user_id == user.id for p in players):
-            raise ValueError("Players cannot sign up as crew for their own match")
+            raise ValueError("You can't crew a match you're playing in.")
 
         # Create crew entry (not approved by default)
         if role == 'commentator':
@@ -168,7 +168,7 @@ class CrewService:
         crew_member = next((c for c in crew_list if c.user_id == user.id), None)
 
         if not crew_member:
-            raise ValueError(f"User is not signed up as {role}")
+            raise ValueError(f"You're not signed up as {role} for this match.")
 
         # Read before the delete: the row is the only place the approver is
         # recorded, and the notification below needs it.

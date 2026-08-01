@@ -132,7 +132,7 @@ async def admin_stream_rooms_page() -> None:
             with client:
                 room = await StreamRoomService().get_stream_room_by_id(row['id'])
                 if not room:
-                    ui.notify('Stream room not found.', color='warning')
+                    ui.notify("Couldn't find that stream room.", color='warning')
                     return
                 async def after_submit(_):
                     await refresh_table()

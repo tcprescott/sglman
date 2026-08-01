@@ -217,7 +217,7 @@ class TournamentTableView:
         tournament_query = self.get_query()
         t = await tournament_query.filter(id=tournament_id).first()
         if not t:
-            ui.notify('Tournament not found.', color='warning')
+            ui.notify("We couldn't find that tournament. It may have been removed.", color='warning')
             return
         dialog = TournamentDialog(t)
         await dialog.open()
@@ -229,7 +229,7 @@ class TournamentTableView:
         tournament_query = self.get_query()
         t = await tournament_query.filter(id=tournament_id).first()
         if not t:
-            ui.notify('Tournament not found.', color='warning')
+            ui.notify("We couldn't find that tournament. It may have been removed.", color='warning')
             return
         # The dialog writes now, so the player-count column has to follow it.
         dialog = TournamentPlayersDialog(t, on_change=self.refresh)

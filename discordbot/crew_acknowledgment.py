@@ -7,8 +7,8 @@ import logging
 import discord
 
 from application.utils.discord_messages import (
-    MSG_UNEXPECTED_ERROR_CREW,
     crew_ack_confirmation,
+    msg_unexpected_error,
 )
 from discordbot._ack_common import (
     DMInteractionError,
@@ -78,5 +78,5 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
         resolve_tenant=resolve_tenant,
         not_found_message='Crew assignment not found.',
         handle=handle,
-        unexpected_error_message=MSG_UNEXPECTED_ERROR_CREW,
+        unexpected_error_message=msg_unexpected_error('acknowledge'),
     )

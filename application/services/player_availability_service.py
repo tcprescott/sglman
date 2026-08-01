@@ -34,7 +34,7 @@ class PlayerAvailabilityService:
         """Replace the user's availability with the supplied windows (self-service)."""
         for starts_at, ends_at, _status, _note in windows:
             if ends_at <= starts_at:
-                raise ValueError("Each availability window must end after it starts.")
+                raise ValueError("End time needs to be after the start time for each window.")
 
         async with in_transaction():
             await self.repository.delete_for_user(user)

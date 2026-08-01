@@ -7,14 +7,10 @@ can opt out of further notifications without leaving Discord.
 
 import discord
 
-from application.utils.discord_messages import unwatch_confirmation
+from application.utils.discord_messages import MSG_UNEXPECTED_ERROR, unwatch_confirmation
 from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
 CUSTOM_ID_PREFIX = 'match_watch'
-
-MSG_UNEXPECTED_ERROR = (
-    'An unexpected error occurred. Please try again or use the website.'
-)
 
 
 def make_unwatch_view(match_id: int) -> discord.ui.View:

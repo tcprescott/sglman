@@ -89,7 +89,7 @@ def create() -> None:
         if get_current_tenant_id() is not None:
             render_error_page(
                 status_code=404, headline='Not Found',
-                message='The platform surface lives at the bare host.', user=None,
+                message="Platform administration isn't available from this address.", user=None,
             )
             return
 
@@ -97,7 +97,7 @@ def create() -> None:
         if not await AuthService.is_super_admin(user):
             render_error_page(
                 status_code=403, headline='Forbidden',
-                message='Platform administration requires super-admin.', user=user,
+                message="You'll need super-admin access for this page.", user=user,
             )
             return
 
