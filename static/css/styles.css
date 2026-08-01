@@ -1637,6 +1637,33 @@ body.body--dark {
     }
 }
 
+/* Table preferences gear (theme/tables/preferences.preferences_button) — desktop
+   only. Below the mobile-grid breakpoint every table renders as stacked cards,
+   and a gear offering to reorder columns nobody can see is worse than no gear. */
+@media (max-width: 1023.98px) {
+    .wiz-table-prefs-btn {
+        display: none !important;
+    }
+}
+
+/* The "this table is customized" dot. Small, unlabelled, and only present when
+   a saved layout is in force — so "why does my table look like this" has an
+   answer on screen. */
+.wiz-table-prefs-dot {
+    padding: 4px;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Wrap long values — the modal's opt-in counterpart to the per-family .wrap
+   caps above, applied to whichever table the viewer turned it on for. */
+.wiz-table--wrap td,
+.wiz-table--wrap td .wrap {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    max-width: none;
+}
+
 /* The Filters toggle button/badge row — mobile only; the filter card is pinned
    open on desktop so the toggle is redundant there. */
 .wiz-filter-toggle {

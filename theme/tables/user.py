@@ -4,14 +4,19 @@ from application.tenant_context import get_current_tenant_id
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.preferences import customize_table
 
 
 class UserTableView:
     """Encapsulates the user table UI and logic for admin/player dashboards."""
 
     def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None,
-                 show_toolbar=True, row_actions=None, empty_message='No users match this filter.'):
+                 show_toolbar=True, row_actions=None, empty_message='No users match this filter.',
+                 table_key=None):
         self.columns = columns
+        # When set, this view's desktop columns follow the viewer's saved layout.
+        self.table_key = table_key
+        self._plan = None
         self.get_query = get_query
         self.extra_slots = extra_slots
         self.submit_user_callback = submit_user_callback
@@ -82,6 +87,12 @@ class UserTableView:
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
+        if self.table_key:
+            # **After** render_grid_slot(), never before: the card's item slot is
+            # generated from these columns at build time, so applying a saved
+            # layout here cannot reach it. Pinned by
+            # tests/theme/test_table_preferences.py.
+            self._plan = customize_table(self.table, self.columns, key=self.table_key)
         # Handler for editing a user
 
         async def handle_edit_user(event):

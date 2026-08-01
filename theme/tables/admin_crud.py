@@ -11,33 +11,36 @@ from typing import Any, Awaitable, Callable, Optional
 from nicegui import app, background_tasks, ui
 
 from application.services import get_user_from_discord_id
+from application.table_preferences_context import current_table_prefs, table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.timezone_context import current_timezone_name, tz_scope
 from models import User
 
 
-def capture_render_context() -> tuple[Optional[int], str]:
-    """Snapshot the ambient tenant and display zone during a page build.
+def capture_render_context() -> tuple[Optional[int], str, Optional[dict]]:
+    """Snapshot the ambient tenant, display zone and table layouts during a page build.
 
     Call at build time, use with :func:`scoped_background`. A detached task has
     neither the contextvars nor the client stash — NiceGUI keys its slot stack by
-    asyncio task id, so ``app.storage.client`` raises inside one — and both
+    asyncio task id, so ``app.storage.client`` raises inside one — and all three
     values must therefore be carried in by hand.
     """
-    return get_current_tenant_id(), current_timezone_name()
+    return get_current_tenant_id(), current_timezone_name(), current_table_prefs()
 
 
-def scoped_background(context: tuple[Optional[int], str], coro) -> None:
+def scoped_background(context: tuple[Optional[int], str, Optional[dict]], coro) -> None:
     """Run ``coro`` as a background task with a captured context rebound.
 
     The tenant alone is not enough: without the zone the task repaints the same
     rows on the fallback clock, so a table silently changes timezone the moment
-    you paginate or switch tabs.
+    you paginate or switch tabs — and without the table preferences it repaints
+    them in the *shipped* columns, so a customized board reverts to defaults on
+    the first refresh.
     """
-    tenant_id, tz = context
+    tenant_id, tz, prefs = context
 
     async def _run():
-        with tenant_scope(tenant_id), tz_scope(tz):
+        with tenant_scope(tenant_id), tz_scope(tz), table_prefs_scope(prefs):
             await coro
 
     background_tasks.create(_run())

@@ -4,6 +4,7 @@ import re
 
 from nicegui import app, ui
 
+from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import FeatureFlag, User
 from theme.chrome import dark_mode_button, install_timezone_detection
@@ -67,6 +68,9 @@ class BaseLayout:
         # Captured at page-build time (the request context) and rebound around a
         # deferred build, which runs in an event handler with no tenant contextvar.
         self._tenant_id = get_current_tenant_id()
+        # This viewer's saved table layouts, loaded once in render() and rebound
+        # the same way. Empty until then, which means "the shipped columns".
+        self._table_prefs: dict[str, dict] = {}
         # Base URL (including any /t/<slug> root_path) that section slugs hang
         # off of, e.g. '/t/foo/admin'. None for tab-less pages, which never
         # rewrite the URL.
@@ -114,9 +118,15 @@ class BaseLayout:
             from application.services import FeatureFlagService
             self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
         await self._load_theme_colors()
-        self.render_chrome()
-        if self.tabs:
-            await self._render_tab_panels()
+        # One query for every table on the page. Bound for the rest of the build
+        # so each customize_table call reads it back synchronously — a table
+        # build cannot await, and a page can host a dozen of them.
+        from application.services import TablePreferenceService
+        self._table_prefs = await TablePreferenceService().prime(self.user)
+        with table_prefs_scope(self._table_prefs):
+            self.render_chrome()
+            if self.tabs:
+                await self._render_tab_panels()
 
     async def _load_theme_colors(self) -> None:
         """Resolve the in-scope tenant's brand palette before drawing chrome.
@@ -527,7 +537,7 @@ class BaseLayout:
                 spinner = ui.spinner(size='lg').classes('q-ma-md')
         try:
             with container:
-                with tenant_scope(self._tenant_id):
+                with tenant_scope(self._tenant_id), table_prefs_scope(self._table_prefs):
                     await self._render_tab_content(tab)
         except Exception:
             logger.exception('Failed to build tab %r', label)

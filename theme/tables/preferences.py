@@ -20,8 +20,23 @@ the mechanism for a developer deleting a column, not an error.
 from dataclasses import dataclass, field
 from typing import AbstractSet, Any, Final, Mapping, Optional, Sequence
 
-__all__ = ['DEFAULT_REQUIRED', 'TABLE_KEYS', 'ColumnPlan', 'TableKeys',
-           'effective_columns']
+from nicegui import ui
+
+from application.table_preferences_context import table_prefs_for
+from theme.connection import REQUIRES_SOCKET_CLASS
+
+__all__ = [
+    'DEFAULT_REQUIRED',
+    'TABLE_KEYS',
+    'ColumnPlan',
+    'TableCustomization',
+    'TableKeys',
+    'apply_saved_config',
+    'customization_of',
+    'customize_table',
+    'effective_columns',
+    'preferences_button',
+]
 
 # Columns a person may not hide: the row-action cells. Hiding them strands every
 # row action behind no affordance at all, and the way back is a reset the user
@@ -216,3 +231,158 @@ def effective_columns(
         is_customized=is_customized,
         widths=widths,
     )
+
+
+# ---------------------------------------------------------------- application
+
+@dataclass
+class TableCustomization:
+    """Everything the gear needs, stashed on the table it belongs to."""
+
+    key: str
+    defaults: list[dict]
+    required: AbstractSet[str]
+    page_size: int
+    density: str
+    wrap: bool
+    plan: ColumnPlan
+    badge: Any = None          # the gear's "modified" dot, when a gear was rendered
+
+
+_STASH = '_wiz_table_customization'
+
+
+def customization_of(table: ui.table) -> Optional[TableCustomization]:
+    """The customization stashed on ``table`` by :func:`customize_table`, if any."""
+    return getattr(table, _STASH, None)
+
+
+def customize_table(
+    table: ui.table,
+    defaults: Sequence[Mapping],
+    *,
+    key: str,
+    required: AbstractSet[str] = DEFAULT_REQUIRED,
+    page_size: Optional[int] = None,
+    density: str = 'comfortable',
+    wrap: bool = False,
+) -> ColumnPlan:
+    """Apply this viewer's saved preferences to ``table``'s **desktop** view.
+
+    Call **after** ``enable_mobile_grid`` (or a bespoke ``item`` slot). That
+    ordering is the whole mobile-card guarantee: the card slot is a static Vue
+    string generated from the *defaults* at build time, addressing
+    ``props.row.<field>`` directly, so it never reads ``table.columns`` or
+    ``visible-columns`` and this call is invisible to it.
+    ``test_preferences_do_not_touch_the_mobile_card`` pins that; if you find
+    yourself reordering these calls, that test is the reason not to.
+
+    Reads the primed contextvar synchronously — a table build cannot await, and a
+    page can host a dozen tables. An unprimed context yields the shipped columns,
+    which is a correct answer rather than a failure.
+
+    ``page_size`` defaults to whatever the table was constructed with, so a
+    report that ships ``pagination=25`` keeps it until someone chooses otherwise.
+    """
+    if page_size is None:
+        pagination = table._props.get('pagination') or {}
+        page_size = pagination.get('rowsPerPage', 0) or 0
+
+    plan = effective_columns(
+        defaults, table_prefs_for(key), required,
+        page_size=page_size, density=density, wrap=wrap,
+    )
+    custom = TableCustomization(
+        key=key,
+        defaults=[dict(c) for c in defaults],
+        required=required,
+        page_size=page_size,
+        density=density,
+        wrap=wrap,
+        plan=plan,
+    )
+    setattr(table, _STASH, custom)
+    # Read off the DOM by the resize client (wave 3) to know which table a
+    # dragged header belongs to; nothing else identifies one.
+    table._props['data-wiz-table-key'] = key
+    _apply_plan(table, plan)
+    return plan
+
+
+def apply_saved_config(table: ui.table, saved: Optional[Mapping]) -> ColumnPlan:
+    """Recompute and re-apply ``table``'s plan from a freshly saved config.
+
+    Used by the preferences dialog, which already knows what it stored and must
+    not wait for the next page load to show it.
+    """
+    custom = customization_of(table)
+    if custom is None:
+        raise ValueError('This table is not customizable.')
+    plan = effective_columns(
+        custom.defaults, saved, custom.required,
+        page_size=custom.page_size, density=custom.density, wrap=custom.wrap,
+    )
+    custom.plan = plan
+    _apply_plan(table, plan)
+    if custom.badge is not None:
+        custom.badge.set_visibility(plan.is_customized)
+    return plan
+
+
+def _apply_plan(table: ui.table, plan: ColumnPlan) -> None:
+    """Push a plan onto the live table.
+
+    Quasar renders columns in array order and resolves ``body-cell-<name>`` slots
+    by name, so reordering needs nothing beyond the new array — existing slots
+    follow their column. Visibility goes through ``visible-columns``, the only
+    mechanism QTable actually reads; row dicts are untouched, so ``row_key`` and
+    every row handler keep working.
+    """
+    table.columns = list(plan.columns)
+    table._props['visible-columns'] = list(plan.visible)
+
+    pagination = dict(table._props.get('pagination') or {})
+    pagination['rowsPerPage'] = plan.page_size
+    table._props['pagination'] = pagination
+    table._props['hide-pagination'] = plan.page_size == 0
+
+    # Set as a real bool, not via .props('dense=true'): the prop string parser
+    # stores 'true', and Quasar reads a non-empty string as truthy either way —
+    # so 'dense=false' would render dense.
+    table._props['dense'] = plan.density == 'compact'
+    _toggle_class(table, 'wiz-table--wrap', plan.wrap)
+    _toggle_class(table, 'wiz-table--sized', plan.has_widths)
+    table.update()
+
+
+def _toggle_class(table: ui.table, name: str, on: bool) -> None:
+    if on:
+        table.classes(add=name)
+    else:
+        table.classes(remove=name)
+
+
+def preferences_button(table: ui.table, *, tooltip: str = 'Table preferences') -> ui.button:
+    """The gear that opens this table's Preferences dialog.
+
+    Hidden below the mobile-grid breakpoint by CSS: a gear above a card list,
+    offering to reorder columns nobody can see, is worse than no gear at all.
+    """
+    custom = customization_of(table)
+    if custom is None:
+        raise ValueError('Call customize_table(...) before rendering its gear.')
+
+    async def _open() -> None:
+        from theme.dialog.table_preferences_dialog import open_table_preferences
+        await open_table_preferences(table)
+
+    button = ui.button(icon='settings', on_click=_open) \
+        .props('flat round dense') \
+        .classes(f'wiz-table-prefs-btn {REQUIRES_SOCKET_CLASS}') \
+        .tooltip(tooltip)
+    with button:
+        # "Why does my table look like this" needs an answer on screen.
+        custom.badge = ui.badge().props('rounded floating color=primary') \
+            .classes('wiz-table-prefs-dot')
+        custom.badge.set_visibility(custom.plan.is_customized)
+    return button

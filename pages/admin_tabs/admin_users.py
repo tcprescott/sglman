@@ -13,6 +13,7 @@ from application.tenant_context import require_tenant_id
 from models import Role, User
 from theme.dialog import AdminUserDialog
 from theme.tables.admin_crud import refresh_button
+from theme.tables.preferences import TableKeys, preferences_button
 from theme.tables.user import UserTableView
 
 _TA_FILTER = '_tournament_admin'
@@ -188,6 +189,9 @@ async def admin_users_page() -> None:
             ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
             ui.button('Add User', icon='add', on_click=add_user).props('flat color=primary')
             ui.space()
+            # Placeholder filled after the table exists — the toolbar is built
+            # first for visual order, and the gear needs a live table to read.
+            gear_slot = ui.row().classes('items-center')
             # Lambda, not a direct reference: the toolbar is built before
             # table_view exists.
             refresh_button(lambda: table_view.refresh())
@@ -209,7 +213,7 @@ async def admin_users_page() -> None:
         # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
             columns=columns, get_query=get_query, show_toolbar=False,
-            row_actions=_ROW_ACTIONS,
+            row_actions=_ROW_ACTIONS, table_key=TableKeys.ADMIN_USERS,
             empty_message=(
                 'Nobody is a member of this community yet. Add Member brings an '
                 'existing account in; granting someone a role makes them a member too.'
@@ -219,6 +223,8 @@ async def admin_users_page() -> None:
             'remove_member',
             lambda e: background_tasks.create(remove_member(e.args, context.client)),
         )
+        with gear_slot:
+            preferences_button(table_view.table)
 
         # Same rebind as the tab-switch below: an 'update:model-value' handler
         # is a client event, so a bare background task loses the tenant.
