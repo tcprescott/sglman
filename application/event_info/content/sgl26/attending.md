@@ -155,7 +155,7 @@ the spot — an admin does — so raising it early is the fastest route.
 | What has happened | What you do |
 |---|---|
 | **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit — the proctor cannot make that call for you. |
-| **Hardware or the game fails mid-match** | Stop and tell the proctor, and leave the cables and restarts to them: whether the match resumes, restarts or moves depends on the tournament's rules and on what actually broke. |
+| **Hardware or the game fails mid-match** | Tell the proctor either way. If it is your own equipment, go ahead and troubleshoot it yourself if you are comfortable doing so — the proctor is there to help too, if you would rather. Whether the match resumes, restarts or moves once things are working again is the tournament's call, depending on its rules and what actually broke — that part waits for the proctor and an admin. |
 | **You think something is not right** about how the match is being played | Tell the proctor or an admin, quietly, rather than raising it with your opponent. Describe what you saw and let them take it from there. |
 | **The two of you disagree on the result** | Tell the proctor before you leave. They record their best call and flag it for a staff member, who settles it when they confirm the result. |
 

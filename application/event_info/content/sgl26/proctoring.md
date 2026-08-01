@@ -111,7 +111,7 @@ Four situations. Only the last one is yours to decide:
 | Situation | What you do |
 |---|---|
 | **A player has not turned up** and the match is due | Tell the admin straight away. Do not sit on it — they decide whether to wait, reschedule or forfeit. |
-| **Hardware or the game fails mid-match** | **Wait until you have spoken to an admin before doing anything.** Whether the match restarts, resumes or moves depends on that tournament's rules and on what actually failed, so get guidance first. |
+| **Hardware or the game fails mid-match** | Let the player troubleshoot their own equipment first if they are comfortable doing so — it is theirs to fix. **Wait until you have spoken to an admin before ruling on the match itself:** whether it restarts, resumes or moves depends on that tournament's rules and on what actually failed, so get guidance before deciding. |
 | **Something looks suspicious** | Tell the admin. Do not confront the player — see [Game integrity](/event-info/proctoring#game-integrity). |
 | **The players disagree on the result** | Record your best call and flag it for review. That one you can handle. |
 
