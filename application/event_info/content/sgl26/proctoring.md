@@ -45,6 +45,12 @@ the only part that may still come your way is rolling the seed. The rules below,
 spectators especially, are the rules for *your* room: the streaming rooms and
 stages run to different ones, and it is not your job to police them.
 
+**The room is for the matches on the board, not for casual or practice play.**
+Point anyone asking to the dedicated Casual Gaming Room. The only exception is an
+explicit sign-off from an on-call admin or SGL staff for a station that is
+genuinely not in use — your own judgement that a station "isn't being used right
+now" is not that sign-off.
+
 **Keep the noise down.** Players are concentrating, and several matches share the
 room. Keeping it quiet is your responsibility — that includes spectators, players
 between matches, and conversations drifting in from the door.

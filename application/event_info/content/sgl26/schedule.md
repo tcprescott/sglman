@@ -38,10 +38,18 @@ Midnight is the normal close rather than a hard stop: the room can stay open
 longer in extenuating circumstances. That is a call staff make on the night, not
 something to schedule against.
 
-**The room may open for casual play.** If nothing is scheduled in the tournament
-room for the rest of a day, staff can open it up — most likely Saturday and
-Sunday, once the day's matches have cleared. It is their call and not guaranteed,
-so treat it as a bonus rather than something to plan around.
+## Casual play and practice
+
+There is a **dedicated Casual Gaming Room**, separate from the tournament room
+and open throughout the event. It is fairly small, and **priority goes to anyone
+practicing for an upcoming match** — casual play gives way if the room fills up.
+
+**The tournament room is not a casual space.** No practice or casual gaming there
+while it is in use for an active match — the room is for the matches on the
+board, and that always comes first. Staff can authorize an exception when the
+room genuinely is not in use (an on-call admin or SGL staff signs off; a proctor
+using their own judgement is not enough). Outside of that, the Casual Gaming Room
+is where practice and casual play belong.
 
 ## On-site tournaments
 
