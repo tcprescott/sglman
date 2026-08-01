@@ -527,6 +527,12 @@ class BaseLayout:
         if not self.tabs:
             return
 
+        # Tells styles.css this page actually reserves bottom-nav clearance —
+        # see the --wiz-bottom-nav-h comment there. Without it, a tab-less page
+        # (e.g. /help, /event-info) still reserves 72px of dead space under the
+        # reconnect banner/popup and the refresh FAB, for a nav that never renders.
+        ui.query('body').classes(add='wiz-has-bottom-nav')
+
         with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
             self._bottom_tab_labels = [tab['label'] for tab in self.tabs[:4]]
             # A deep link may open on a tab that lives behind More; seed the bar

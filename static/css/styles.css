@@ -141,8 +141,13 @@
 
     /* Height reserved for the mobile bottom nav (.wiz-bottom-nav) — the fixed
        refresh FAB and the reconnect overlay clear it by this amount. Single
-       source so tuning the nav does not silently desync those offsets. */
-    --wiz-bottom-nav-h: 72px;
+       source so tuning the nav does not silently desync those offsets.
+       Zero by default: a page with no tabs (BaseLayout._render_footer skips
+       the <footer> entirely) renders no bottom nav to clear, so reserving 72px
+       anyway just floats these overlays in dead space above the true bottom of
+       the screen. `body.wiz-has-bottom-nav` (set only when the footer actually
+       renders) restores the clearance. */
+    --wiz-bottom-nav-h: 0px;
 
     /* Warm umber-tinted shadows (never pure black on the light theme) */
     --shadow-1: 0 1px 2px rgba(46, 32, 12, 0.07), 0 1px 4px rgba(46, 32, 12, 0.05);
@@ -153,6 +158,12 @@
     --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
     --dur-fast: 120ms;
     --dur-med: 220ms;
+}
+
+/* Set by BaseLayout._render_footer only on pages that actually render the
+   mobile bottom nav — see the --wiz-bottom-nav-h comment above. */
+body.wiz-has-bottom-nav {
+    --wiz-bottom-nav-h: 72px;
 }
 
 .body--dark,
