@@ -60,6 +60,7 @@ async def proctor_station_tab() -> None:
             # the hardware fails is the thing a proctor needs mid-incident, and
             # it is the one part of the job that is not theirs to decide.
             await help_icon('proctor-escalation', label='When things go wrong')
+            await help_icon('proctor-handover', label='Shift change')
             ui.space()
         ui.label(
             'Every match in this room. Check players in, seat them, roll the seed, '

@@ -50,6 +50,11 @@ The proctor running the room can ask you to leave — if you are being disruptiv
 or simply because the room has filled up. Take it as a room-capacity call rather
 than a personal one.
 
+**A stage is different.** Matches played on a stage or in a streaming room are
+run by the broadcast techs, not by a proctor, and those spaces set their own
+rules about who can be where. Follow what the techs there tell you rather than
+assuming the tournament room's rules carry over.
+
 ## Spectating without an account
 
 The schedule board and the stage timeline need you to be signed in and to be a

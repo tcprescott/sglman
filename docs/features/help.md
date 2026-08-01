@@ -7,11 +7,16 @@ explained from the outside ("staff approve your signup", "a proctor fetches an
 admin") so a reader understands why they are waiting on something, without
 documenting an admin surface they cannot reach.
 
-The proctor article is the exception to "documentation of the app": it is also a
-**training aid**, so it carries room procedure the code does not encode — who
-runs the countdown, what to do about a missing player, and which decisions are
-not the proctor's to make. That content came from the community, not from
-reading the source, and it will go stale independently of the code.
+The proctor and player articles are the exception to "documentation of the app":
+they also carry **room procedure the code does not encode** — who runs the
+countdown, what to do about a missing player, which decisions are not the
+proctor's to make, and on the player side the same floor from the other end
+(setting up, spectators, hardware failures, clearing the seat, and that a stage
+match is the broadcast techs' and needs your own earbuds under their isolation
+headphones). The two are written to mirror each other section for section, so an
+amendment to one usually wants the matching edit in the other. That content came
+from the community, not from reading the source, and it will go stale
+independently of the code.
 
 ## Where the content lives
 
@@ -26,7 +31,7 @@ is runtime content, not project documentation.
 | `getting-started` | Signing in, preferred name, opting into a tournament, where to go next | — |
 | `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
-| `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, check-in and stations, results | — |
+| `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, check-in and stations, room procedure, stages, results | — |
 | `on-air` | The stage timeline, finding a stream, spectating | — |
 | `proctor` | The Proctor Station, running a match start to finish, unclear finishes, when to fetch an admin | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
@@ -168,12 +173,13 @@ indistinguishable, and the reader has to open both to find which one answers
 their question.
 
 Wired at: Home → Schedule (columns + states), My Crew (statuses + approval +
-withdrawing), Player (overview + check-in), My Availability, Profile →
-Notifications; the Submit Match dialog and its Suggest a time button; Volunteer →
-My Shifts and its release dialog; Volunteer → Proctor Station (the board, running
-a match, and when things go wrong) and the result dialog's review flag; Home → On
-Air; and the shared availability editor, which takes `help_snippet=` because the
-two callers render identical UI over different data.
+withdrawing), Player (overview + check-in + the room + stages), My Availability,
+Profile → Notifications; the Submit Match dialog and its Suggest a time button;
+Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
+board, running a match, when things go wrong, and shift change) and the result
+dialog's review flag; Home → On Air; and the shared availability editor, which
+takes `help_snippet=` because the two callers render identical UI over different
+data.
 
 ## Tests
 

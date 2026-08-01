@@ -16,6 +16,10 @@ thing.
 **Bracket** — the structure that decides who plays whom. In a bracket-run
 tournament, matchups come from the bracket rather than from match requests.
 
+**Broadcast tech** — the people who run a stage: the setup, the capture and the
+stream. A stage is theirs rather than a proctor's, and what they ask for there
+takes precedence over the tournament room's rules.
+
 **Check-in** — the moment a proctor records that both players are seated and the
 match can begin. It is per match, not per player, and a proctor does it — not you.
 
@@ -36,9 +40,10 @@ signups, alongside staff and the tournament's admin.
 **Enrolled / opted in** — you have put your name forward for a tournament. You
 have to be opted in before you can be scheduled in it.
 
-**Proctor** — the volunteer running a room. They check matches in, seat players
-at stations, count them down, start them and record results. They do not confirm
-results, reschedule matches, or approve crew. See
+**Proctor** — the volunteer running one tournament room. They check matches in,
+seat players at stations, count them down, start them and record results, for
+that room only. They do not confirm results, reschedule matches, approve crew,
+or run matches played on a stage. See
 [Running matches as a proctor](/help/proctor).
 
 ## S–Z
@@ -46,12 +51,17 @@ results, reschedule matches, or approve crew. See
 **Seed** — the randomised game the match is played on. It appears in the
 *Generated Seed* column once it exists.
 
-**Stage** — the place a match is played and streamed from. Staff call the same
-thing a **stream room**; the board's *Stage* column and the admin *Stream Rooms*
-list are the same set of places.
+**Stage** — the place a match is played and streamed from, run by the broadcast
+techs rather than by a proctor. Staff call the same thing a **stream room**; the
+board's *Stage* column and the admin *Stream Rooms* list are the same set of
+places.
 
 **Station** — the numbered physical seat you play at. A proctor assigns it at
 check-in, and it then shows next to your name on the schedule board.
+
+**Tournament room** — a room of stations where matches are played off-stream,
+run by a proctor. The counterpart to a stage, and the two run to different
+rules. See [Being a player at the event](/help/player#in-the-tournament-room).
 
 **Tracker** — crew who run the item and progress tracking viewers see alongside
 the game.
