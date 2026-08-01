@@ -29,6 +29,18 @@ TenantArg = Annotated[
 ]
 
 
+class OperationResult(BaseModel):
+    """The outcome of a write that has no record to hand back.
+
+    Deliberately not a bare string: a tool must return a typed model or the SDK
+    ships its result as an untyped text blob, and the model is then left parsing
+    English to learn whether anything happened.
+    """
+
+    ok: bool = True
+    detail: str = Field(description='What changed, in one line.')
+
+
 class TenantInfo(BaseModel):
     """A community the caller can address."""
 
@@ -56,6 +68,12 @@ class WhoAmI(BaseModel):
     username: str
     display_name: Optional[str] = None
     is_super_admin: bool
+    can_write: bool = Field(
+        description=(
+            "Whether this connection was approved to change data. When false, "
+            "only the read tools are served and any write is refused."
+        )
+    )
     tenants: List[TenantInfo] = Field(
         description="Communities the caller holds a role in, or all of them for a super admin."
     )

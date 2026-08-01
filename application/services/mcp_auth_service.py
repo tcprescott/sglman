@@ -44,7 +44,30 @@ REFRESH_TOKEN_TTL = timedelta(days=30)
 # A consent screen the user never completes should not pin memory forever.
 PENDING_TTL = timedelta(minutes=15)
 
-DEFAULT_SCOPE = 'wizzrobe:read'
+READ_SCOPE = 'wizzrobe:read'
+WRITE_SCOPE = 'wizzrobe:write'
+# Kept under the old name because the SDK provider falls back to it wherever a
+# scope is absent, and read is the floor every grant carries.
+DEFAULT_SCOPE = READ_SCOPE
+# What a dynamically-registered client is allowed to *ask* for. Asking is not
+# getting: the granted scope is decided on the consent screen (see
+# :func:`granted_scope`), so a client that requests write still gets a read-only
+# token unless the person approving it ticks the box.
+CLIENT_SCOPE = f'{READ_SCOPE} {WRITE_SCOPE}'
+
+
+def granted_scope(*, allow_write: bool) -> str:
+    """The scope a consent decision grants.
+
+    Derived from the human's answer alone, never from what the client requested.
+    Read is unconditional — it is what the surface is for, and a grant that
+    carried only write would be a credential nobody asked for.
+    """
+    return CLIENT_SCOPE if allow_write else READ_SCOPE
+
+
+def scope_allows_write(scope: Optional[str]) -> bool:
+    return WRITE_SCOPE in (scope or '').split()
 
 
 def _hash(value: str) -> str:
@@ -59,6 +82,9 @@ class PendingAuthorization:
     redirect_uri: str
     redirect_uri_provided_explicitly: bool
     code_challenge: str
+    # What the client asked for. Recorded rather than honoured: the granted
+    # scope comes from the consent screen, so this is only ever context for the
+    # person deciding.
     scopes: List[str]
     state: Optional[str]
     resource: Optional[str]
@@ -146,12 +172,19 @@ class McpAuthService:
         for key in [k for k, v in _pending.items() if v.created_at < cutoff]:
             del _pending[key]
 
-    async def approve(self, txn_id: str, user: User) -> Tuple[str, str, Optional[str]]:
+    async def approve(
+        self, txn_id: str, user: User, *, allow_write: bool = False,
+    ) -> Tuple[str, str, Optional[str]]:
         """Consume a pending request and mint its authorization code.
 
         Returns ``(raw_code, redirect_uri, state)``. Popping the pending entry
         makes approval single-use, so a re-submitted consent form cannot mint a
         second code for the same request.
+
+        ``allow_write`` defaults to False and is the only thing that decides
+        whether the resulting token may change anything. It is a keyword with a
+        safe default on purpose: a caller that forgets it grants a read-only
+        connection, which is the outcome nobody has to be warned about.
         """
         pending = self.get_pending(txn_id)
         self.discard_pending(txn_id)
@@ -169,11 +202,12 @@ class McpAuthService:
             redirect_uri_provided_explicitly=pending.redirect_uri_provided_explicitly,
             code_challenge=pending.code_challenge,
             expires_at=datetime.now(timezone.utc) + CODE_TTL,
-            scope=' '.join(pending.scopes) if pending.scopes else DEFAULT_SCOPE,
+            scope=granted_scope(allow_write=allow_write),
             resource=pending.resource,
         )
         logger.info(
-            'MCP authorization approved: user=%s client=%s', user.id, client.client_id
+            'MCP authorization approved: user=%s client=%s write=%s',
+            user.id, client.client_id, allow_write,
         )
         return raw_code, pending.redirect_uri, pending.state
 
@@ -207,6 +241,10 @@ class McpAuthService:
 
         access_raw = MCP_TOKEN_PREFIX + secrets.token_urlsafe(32)
         refresh_raw = MCP_REFRESH_PREFIX + secrets.token_urlsafe(32)
+        # The scope on the code is the consent decision, carried forward. Writing
+        # it onto the token as ``read_only`` is what the MCP tool gate actually
+        # reads, so the two can never disagree.
+        write_allowed = scope_allows_write(code.scope)
         await self.token_repository.create_oauth_token(
             user=code.user,
             client=code.client,
@@ -217,11 +255,16 @@ class McpAuthService:
             refresh_token_hash=_hash(refresh_raw),
             refresh_expires_at=now + REFRESH_TOKEN_TTL,
             scope=code.scope,
+            read_only=not write_allowed,
         )
         await self.audit_service.write_log(
             code.user,
             AuditActions.APITOKEN_CREATED,
-            {'client': code.client.client_name, 'origin': ApiTokenOrigin.OAUTH.value},
+            {
+                'client': code.client.client_name,
+                'origin': ApiTokenOrigin.OAUTH.value,
+                'write': write_allowed,
+            },
         )
         return access_raw, refresh_raw, int(ACCESS_TOKEN_TTL.total_seconds())
 
@@ -243,6 +286,10 @@ class McpAuthService:
         makes a leaked refresh token single-use: the old hash stops matching the
         moment a legitimate client refreshes, so the theft surfaces as the
         attacker's next call failing rather than as silent shared access.
+
+        Re-keys the same row, so ``scope`` and ``read_only`` survive untouched.
+        A refresh can therefore never widen a grant: raising a read-only
+        connection to a writing one takes a fresh trip through consent.
         """
         now = datetime.now(timezone.utc)
         access_raw = MCP_TOKEN_PREFIX + secrets.token_urlsafe(32)

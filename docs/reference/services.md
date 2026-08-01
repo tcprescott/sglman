@@ -128,7 +128,7 @@ The OAuth 2.1 authorization server behind the MCP endpoint: dynamic client regis
 |---|---|---|
 | `register_client(...)` / `get_client(client_id)` | `McpOAuthClient` / `\| None` | Dynamic client registration (RFC 7591, open by design — registering grants nothing, since every code still needs interactive approval) and lookup. At least one redirect URI is required (`ValueError`). |
 | `begin_authorization(pending)` / `get_pending(txn_id)` / `discard_pending(txn_id)` | `str` / `PendingAuthorization` / `None` | Park an in-flight authorization request in the bounded in-process store while the user consents; `get_pending` raises on an unknown or expired transaction. Expired entries are swept on access. |
-| `approve(txn_id, user)` | `(code, redirect_uri, state)` | The user consented: mint a single-use authorization code bound to the client and the PKCE challenge. |
+| `approve(txn_id, user, *, allow_write=False)` | `(code, redirect_uri, state)` | The user consented: mint a single-use authorization code bound to the client and the PKCE challenge. `allow_write` is the consent screen's checkbox and the only thing that decides the granted scope — what the client requested is ignored. It is a keyword with a safe default so a caller that forgets it grants read-only. |
 | `load_code(client_id, raw_code)` | `McpAuthorizationCode \| None` | Resolve a raw code for its owning client (`None` when unknown, consumed, or expired). |
 | `exchange_code(...)` | `(access, refresh, expires_in)` | Verify the PKCE verifier and consume the code for a token pair. |
 | `load_refresh_token(client_id, raw_refresh)` / `exchange_refresh(token)` | `ApiToken \| None` / `(access, refresh, expires_in)` | Refresh-token rotation — the old token is replaced, not reused. |

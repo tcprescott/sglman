@@ -59,13 +59,18 @@ class ApiTokenRepository:
         refresh_token_hash: str,
         refresh_expires_at: datetime,
         scope: Optional[str] = None,
+        read_only: bool = True,
     ) -> ApiToken:
         """Create a platform-wide OAuth access token.
 
         Deliberately global — ``tenant`` stays NULL. An OAuth grant authenticates
         a user across the platform; the community each MCP tool call operates in
         is named by that call, so stamping a tenant here would be wrong, not
-        merely redundant. Always ``read_only``: the MCP surface performs no writes.
+        merely redundant.
+
+        ``read_only`` defaults to True, matching the consent screen's own
+        default: a connection changes nothing unless the person approving it
+        asked for that.
         """
         return await ApiToken.create(
             tenant_id=None,
@@ -74,7 +79,7 @@ class ApiTokenRepository:
             name=name,
             token_hash=token_hash,
             token_prefix=token_prefix,
-            read_only=True,
+            read_only=read_only,
             origin=ApiTokenOrigin.OAUTH.value,
             expires_at=expires_at,
             refresh_token_hash=refresh_token_hash,

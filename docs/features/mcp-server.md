@@ -4,16 +4,17 @@ Wizzrobe serves a remote **MCP** (Model Context Protocol) endpoint at `/mcp`, so
 organizers can connect Claude Desktop or Claude Code to their communities and
 ask questions across tournaments, matches, people, and history.
 
-The surface is **read-only** and **OAuth-only**. It is a fourth entry surface
-alongside the web UI, the REST API, and the Discord bot: it calls services, never
-repositories, and holds no business logic of its own.
+The surface is **OAuth-only**, and **read-only unless the person connecting asks
+otherwise**. It is a fourth entry surface alongside the web UI, the REST API, and
+the Discord bot: it calls services, never repositories, and holds no business
+logic of its own.
 
 | | |
 |---|---|
 | Endpoint | `POST/GET/DELETE {BASE_URL}/mcp` |
 | Transport | Streamable HTTP, **stateless**, JSON responses (no SSE on POST) |
 | Auth | OAuth 2.1 (RFC 7591 dynamic registration + PKCE). **Personal access tokens are refused.** |
-| Writes | None. Every tool is a read and is annotated `readOnlyHint`. |
+| Writes | 19 match-management tools, served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
 | Feature flag | None — the server is always on. `MCP_ENABLED=false` is an operational kill switch. |
 | Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). |
 | Code | [`mcpserver/`](../../mcpserver), consent page [`pages/mcp_consent.py`](../../pages/mcp_consent.py) |
@@ -57,7 +58,21 @@ expiry, and the profile listing have a single implementation.
 OAuth access tokens live 1 hour and carry a 30-day refresh token. Refreshing
 rotates **both** halves, so a leaked refresh token is single-use: the theft
 surfaces as the attacker's next call failing rather than as silent parallel
-access.
+access. Rotation re-keys the same row, so `scope` and `read_only` survive it —
+a refresh can never widen a grant.
+
+### Scopes
+
+| Scope | Granted | Effect |
+|---|---|---|
+| `wizzrobe:read` | always | The read tools. |
+| `wizzrobe:write` | only when the consent box is ticked | The write tools, and `read_only=False` on the token. |
+
+A dynamically-registered client is registered with **both**, so a client that
+asks for write is not rejected at `/authorize` — but asking is not getting.
+`McpAuthService.granted_scope` derives the granted scope from the human's answer
+alone and ignores what the client requested, which is what keeps the box on the
+consent screen from being decoration.
 
 ### Discovery
 
@@ -83,6 +98,16 @@ It still reads as Wizzrobe: the page applies
 its card, grant list and expired-transaction notice use the `.consent-*` classes
 in `styles.css`. The palette is the shipped default, not a tenant override,
 because the credential is not scoped to a community.
+
+**The write box.** One unticked checkbox, "Let it make changes". It is the only
+place write access can be granted: a client cannot request its way past it and a
+refresh cannot widen a grant without it, so raising a read-only connection to a
+writing one means reconnecting. Ticking it redraws the grant list — the two
+write lines appear and the closing note flips from "it cannot change anything" to
+"it acts as you" — because a card that lists writes while still promising
+read-only is worse than either half alone. The connection's kind is visible
+afterwards on the profile's credential list, where a writing grant carries a
+`can make changes` badge and a read-only one carries none.
 
 ## Choosing a community
 
@@ -115,10 +140,19 @@ The feature flag is checked **before** the role, matching `@protected_page`: a
 subsystem the community has not enabled is hidden from everyone, staff included,
 and answers `not_found` — a `forbidden` would confirm the feature exists.
 
-**Read-only tokens are never rejected.** Every OAuth token is minted
-`read_only=True` because the surface performs no writes, so a blanket rejection
-would refuse every legitimate caller. A write tool, if ever added, needs its own
-explicit check.
+**The read-only refusal is per tool, never per connection.** Read-only is the
+consent screen's default and most connections carry it, so the REST API's shape
+— reject the token outright — would refuse nearly every legitimate caller here.
+`authorize()` instead refuses only the tools registered `write=True`, and only
+after the feature and membership checks have run, so a read-only token learns no
+more about a community than a writing one would.
+
+Order within `authorize()`, and why: **feature → membership floor → connection →
+role**. The connection check sits below the membership floor because a
+`forbidden: read-only` for a community the user cannot see would disclose that
+the community exists. It sits above the role check because the two refusals
+call for different fixes — reconnect with the box ticked, versus ask someone for
+a role — and the connection one is both cheaper and the common case.
 
 ## Tool catalogue
 
@@ -127,12 +161,14 @@ explicit check.
 ### Orientation
 | Tool | Gate | Notes |
 |---|---|---|
-| `whoami` | GLOBAL | Identity, roles **and enabled flags** per community. The cheapest way to orient. |
+| `whoami` | GLOBAL | Identity, roles, enabled flags per community, **and `can_write`**. The cheapest way to orient. |
 | `list_tenants` | GLOBAL | The slugs every other tool needs, with the same roles/flags. |
 
 Both report each community's live feature flags. A flag is not a permission, so
 it goes to everyone who can see the community — and reporting it lets a client
 skip a tool instead of discovering its `not_found` a round-trip later.
+`can_write` is a property of the *connection*, not the person: the same user can
+hold a writing grant in one client and a reading one in another.
 
 ### Tournaments and matches
 | Tool | Gate | Flag |
@@ -225,13 +261,60 @@ question. `list_race_rooms` is the exception at STAFF, matching
 rather than prefetching per match: a fixed pair of queries covers the whole
 field, whatever its size.
 
+## Writes
+
+Nineteen tools in [`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py),
+served only to a connection approved for writing.
+
+**Scope, and the rule that fixes it.** The write surface is exactly what
+`api/routers/match_actions.py` exposes, tool for tool. That is worth stating
+because the alternative — adding whichever writes seem useful — leaves two
+surfaces that drift and no answer for the next proposal. A write that belongs
+here belongs in the REST router too, and the reverse.
+
+| Group | Tools |
+|---|---|
+| Scheduling | `create_match`, `submit_match_request`, `update_match`, `delete_match` |
+| Stream and stations | `set_match_stream_candidate`, `assign_match_stream_room`, `assign_match_stations` |
+| Lifecycle | `seat_match`, `start_match`, `finish_match`, `confirm_match`, `record_match_result`, `set_match_review`, `generate_match_seed` |
+| Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match` |
+
+Every one is registered at **ACTOR**, mirroring `require_write_actor`: holding a
+live token approved for writing is the bar at this layer, and the real check is
+the service's own (`can_crud_match`, `can_run_match`, `can_confirm_match`,
+`can_assign_match_stream`). A stricter gate here would make the two surfaces
+answer differently for the same person, and the service check is the one that
+knows about tournament admins. A writing grant is **not a promotion** — the token
+still acts as its user.
+
+`delete_match` and `withdraw_crew_signup` are additionally annotated
+`destructiveHint`, which is how a client decides how hard to ask before
+proceeding.
+
+### Hiding writes from a read-only listing
+
+`WizzrobeMCP.list_tools` (in `mcpserver/server.py`) filters the write tools out
+for a read-only connection. It is **not** the security boundary — the gate is,
+and `test_mcp_writes.py` calls every write tool over the wire with a read-only
+token to prove it. It is a context boundary: a read-only client offered nineteen
+tools it can never call spends tokens on their schemas and plans work it cannot
+do, with the refusal arriving a round-trip after the model has told the user it
+would reschedule their match.
+
+The listing runs inside the request's context (see `mcpserver/asgi.py`), so the
+actor is the one whose token is being served. Outside a request — the SDK builds
+the list once while wiring itself up — `optional_actor()` returns `None` and the
+full catalogue is returned.
+
 ## Response shapes
 
 Two rules, in `mcpserver/schemas.py`:
 
 - **Singular reads reuse the REST model.** `get_match` goes through
   `api/_match_view.serialize_match`, so rules baked into it cannot drift between
-  the two surfaces.
+  the two surfaces. Writes follow the same rule and return the same
+  `MatchResponse`, so the model reads back exactly what it changed; the four
+  that have no record to hand back return `OperationResult`.
 - **List reads get a compact shape.** A hundred full match records is mostly
   padding, which buries the answer and burns the model's context.
 
@@ -328,10 +411,19 @@ in pydantic-settings.
   async context manager used **inside** the test body: the session manager is
   single-use per instance and is an anyio cancel scope, which must be exited in
   the task that entered it, so a `yield`-style fixture cannot work.
+- `tests/mcp/test_mcp_writes.py` — the write surface in three layers: the
+  connection gate (every write tool called over the wire with a read-only
+  token), the role gate underneath it, and whether the writes actually land.
+  Plus the consent decision itself — the box unticked mints a read-only token, a
+  client that requests write without it still gets one, and a refresh cannot
+  widen the grant.
 - `tests/tenancy/test_mcp_tenant_isolation.py` — scoping plus context hygiene.
   Its interleaving test catches what a single-call test cannot: a binding set
   without a matching reset passes every one-call-at-a-time test.
 
-Dev fixtures: `scripts/seed_dev.py` seeds a registered client and a deterministic
-OAuth bearer (`wizzrobe_mcp_devseed_local_only_do_not_use`) so `/mcp` can be
-driven with curl without the browser flow.
+Dev fixtures: `scripts/seed_dev.py` seeds a registered client and **two**
+deterministic OAuth bearers so `/mcp` can be driven with curl without the browser
+flow — `wizzrobe_mcp_devseed_local_only_do_not_use` (read-only) and
+`wizzrobe_mcp_devseedwrite_local_only_do_not_use` (writing). Two, because the
+surface a token is served depends on the consent decision behind it; one would
+leave half the server unreachable from a dev loop.

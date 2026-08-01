@@ -28,6 +28,7 @@ from tortoise import Tortoise
 
 from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
+from application.services.mcp_auth_service import READ_SCOPE, WRITE_SCOPE
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_local, parse_local_datetime
 from models import (
@@ -651,12 +652,17 @@ async def seed_for_tenant(
 
 
 async def seed_mcp_oauth(users: dict[str, User]) -> None:
-    """Seed a registered MCP client and a deterministic dev OAuth token.
+    """Seed a registered MCP client and two deterministic dev OAuth tokens.
 
     Global, like the users above: an OAuth grant belongs to no community. The
-    token lets /api-validation and manual curl runs exercise ``/mcp`` without
+    tokens let /api-validation and manual curl runs exercise ``/mcp`` without
     driving the whole browser-based authorization flow, exactly as the dev PAT
     strings do for the REST API. Non-secret fixtures; only hashes are stored.
+
+    Two of them, because the surface a token sees depends on the consent
+    decision behind it: the read-only bearer is served the read tools alone,
+    the writing one is served those plus the match writes. A single seeded
+    token would leave half the server unreachable from a dev loop.
 
     ``McpAuthorizationCode`` is deliberately not seeded — see below.
     """
@@ -671,20 +677,28 @@ async def seed_mcp_oauth(users: dict[str, User]) -> None:
         },
     )
     staff = users["staff_user"]
-    oauth_bearer = "wizzrobe_mcp_devseed_local_only_do_not_use"
-    refresh_bearer = "wizzrobe_mcpref_devseed_local_only_do_not_use"
-    if not await ApiToken.filter(user=staff, name="Dev Seed MCP Token").exists():
-        now = datetime.now(timezone.utc)
-        await ApiToken.create(
-            user=staff, name="Dev Seed MCP Token", tenant=None,
-            oauth_client=client, origin=ApiTokenOrigin.OAUTH.value, read_only=True,
-            token_hash=hashlib.sha256(oauth_bearer.encode()).hexdigest(),
-            token_prefix=oauth_bearer[:17],
-            expires_at=now + timedelta(days=3650),
-            refresh_token_hash=hashlib.sha256(refresh_bearer.encode()).hexdigest(),
-            refresh_expires_at=now + timedelta(days=3650),
-        )
-    print(f"  mcp oauth ok (global; dev bearer: {oauth_bearer})")
+    grants = (
+        ("Dev Seed MCP Token", "wizzrobe_mcp_devseed_local_only_do_not_use",
+         "wizzrobe_mcpref_devseed_local_only_do_not_use", True, READ_SCOPE),
+        ("Dev Seed MCP Write Token", "wizzrobe_mcp_devseedwrite_local_only_do_not_use",
+         "wizzrobe_mcpref_devseedwrite_local_only_do_not_use", False,
+         f"{READ_SCOPE} {WRITE_SCOPE}"),
+    )
+    for name, oauth_bearer, refresh_bearer, read_only, scope in grants:
+        if not await ApiToken.filter(user=staff, name=name).exists():
+            now = datetime.now(timezone.utc)
+            await ApiToken.create(
+                user=staff, name=name, tenant=None,
+                oauth_client=client, origin=ApiTokenOrigin.OAUTH.value,
+                read_only=read_only, scope=scope,
+                token_hash=hashlib.sha256(oauth_bearer.encode()).hexdigest(),
+                token_prefix=oauth_bearer[:17],
+                expires_at=now + timedelta(days=3650),
+                refresh_token_hash=hashlib.sha256(refresh_bearer.encode()).hexdigest(),
+                refresh_expires_at=now + timedelta(days=3650),
+            )
+        kind = "read-only" if read_only else "write"
+        print(f"  mcp oauth ok (global; {kind} dev bearer: {oauth_bearer})")
 
 
 # seed-exempt: McpAuthorizationCode — ephemeral single-use rows minted mid-flow

@@ -45,6 +45,16 @@ def reset_actor(token: Token) -> None:
     _actor_var.reset(token)
 
 
+def optional_actor() -> Optional[McpActor]:
+    """The actor, or ``None`` when there is none.
+
+    Only for the places where absence is a real state rather than a bug — the
+    tool listing, which the SDK also builds outside a request while wiring the
+    server up. Tools use :func:`current_actor`.
+    """
+    return _actor_var.get()
+
+
 def current_actor() -> McpActor:
     """The authenticated actor for this request.
 
@@ -93,9 +103,14 @@ async def resolve_tenant(slug: Optional[str]) -> Optional[Tenant]:
 
 
 async def authorize(
-    actor: McpActor, gate: Gate, feature: Optional[FeatureFlag], slug: str = '',
+    actor: McpActor,
+    gate: Gate,
+    feature: Optional[FeatureFlag],
+    slug: str = '',
+    *,
+    write: bool = False,
 ) -> None:
-    """Run the feature gate then the role gate, in the already-bound tenant.
+    """Run the feature gate, the connection gate, then the role gate.
 
     Order matters and matches ``@protected_page``: a subsystem the community has
     not enabled is hidden from *everyone*, so the flag is checked before the
@@ -127,6 +142,17 @@ async def authorize(
         if not await AuthService.get_roles(actor.user):
             raise NotFoundError(f"No community '{slug}' is available.")
 
+    # What the *connection* may do, checked after the community is established
+    # so a read-only token learns no more about a community than a writing one
+    # would. Before the role gate because the two failures need different
+    # answers from the user: reconnect with the box ticked, versus ask someone
+    # for a role. A read-only grant is the default, so this is the common path.
+    if write and actor.token.read_only:
+        raise PermissionError(
+            'This connection was approved for reading only. Reconnect from your '
+            'MCP client and tick "Let it make changes" to use this tool.'
+        )
+
     if gate is Gate.ADMIN:
         await AuthService.ensure(
             await AuthService.can_view_admin(actor.user), 'Admin access required'
@@ -139,8 +165,8 @@ async def authorize(
     # the bar, exactly as `require_api_actor` is for the REST API.
 
 
-# Read-only tokens are NOT rejected anywhere in this package, and that is
-# deliberate: every OAuth token is minted read_only=True (the MCP surface
-# performs no writes), so a rejection here would refuse every legitimate caller.
-# If a write tool is ever added, it needs its own explicit read_only check —
-# do not "restore" a blanket one.
+# Read-only tokens are rejected per *tool*, never per connection. A read-only
+# grant is the consent screen's default and by far the common case, so a blanket
+# rejection here would refuse most legitimate callers; what a read-only token
+# must not reach is the tools registered with ``write=True``, which is exactly
+# what the check above covers.

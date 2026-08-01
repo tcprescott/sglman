@@ -16,9 +16,12 @@ from typing import Any, Dict
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from application.services.mcp_auth_service import READ_SCOPE, WRITE_SCOPE
 from application.utils.environment import get_base_url
 
-SCOPES_SUPPORTED = ['wizzrobe:read']
+# Advertised, not promised: a client may request the write scope, but only the
+# person on the consent screen can grant it.
+SCOPES_SUPPORTED = [READ_SCOPE, WRITE_SCOPE]
 
 _METADATA_PATHS = (
     '/.well-known/oauth-protected-resource/mcp',

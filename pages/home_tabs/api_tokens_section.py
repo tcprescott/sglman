@@ -37,6 +37,12 @@ async def render_api_tokens_section(user: User) -> None:
                                 # is what the token was named at issue), so the
                                 # badge marks the *kind* rather than repeating it.
                                 ui.badge('AI client').props('color=primary')
+                                # Only the writing grant is badged. Read-only is
+                                # the default and the unremarkable case; the
+                                # badge is here to make the other one visible on
+                                # a page people skim.
+                                if not t.read_only:
+                                    ui.badge('can make changes').props('color=warning')
                             else:
                                 if t.read_only:
                                     ui.badge('read-only').props('color=grey')
@@ -138,7 +144,8 @@ async def render_api_tokens_section(user: User) -> None:
             ui.label(
                 'Add this URL as a custom connector in Claude (or any MCP client) to '
                 'ask questions about your communities. You will be asked to sign in '
-                'and approve the connection. Access is read-only.'
+                'and approve the connection. It can only read unless you tick the box '
+                'to let it make changes.'
             ).classes('text-muted text-caption')
             with ui.row().classes('row-centered no-wrap input-full-width'):
                 ui.input(value=mcp_url).classes('col').props('outlined readonly dense')

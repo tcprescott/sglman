@@ -960,6 +960,22 @@ body.body--dark {
     gap: 0.5rem;
 }
 
+/* The write opt-in, set off from the grant list so it reads as a decision
+   rather than as one more thing the connection already does. */
+.consent-write {
+    width: 100%;
+    gap: 0.15rem;
+    padding: 0.75rem 0.9rem;
+    margin-top: 0.5rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--wiz-gold) 6%, transparent);
+}
+
+.consent-write-toggle {
+    font-weight: 600;
+}
+
 .consent-actions {
     width: 100%;
     justify-content: flex-end;

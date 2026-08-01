@@ -63,10 +63,11 @@ async def list_tenants() -> List[TenantInfo]:
 
 
 async def whoami() -> WhoAmI:
-    """Report who you are signed in as and which communities you can query.
+    """Report who you are signed in as, whether you may write, and where.
 
-    The cheapest way to orient: it tells you your roles per community, so you can
-    tell in advance which tools will be permitted.
+    The cheapest way to orient: it tells you your roles per community and
+    whether this connection can change anything, so you can tell in advance
+    which tools will be permitted.
     """
     actor = current_actor()
     return WhoAmI(
@@ -74,6 +75,9 @@ async def whoami() -> WhoAmI:
         username=actor.user.username,
         display_name=actor.user.display_name,
         is_super_admin=await AuthService.is_super_admin(actor.user),
+        # A property of the connection, not the person: the same user can hold
+        # a writing grant in one client and a reading one in another.
+        can_write=not actor.token.read_only,
         tenants=await _tenants_for_actor(),
     )
 

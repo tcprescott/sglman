@@ -4,17 +4,23 @@ Every tool is registered through :func:`register`, never through
 ``@mcp.tool()`` directly. That is the point: a tool cannot ship without an
 explicit gate, because there is no other way to get one onto the server.
 ``tests/mcp/test_mcp_catalogue.py`` asserts the listed tools and
-:data:`TOOL_GATES` agree, so a tool added the wrong way fails the suite rather
+:data:`TOOL_SPECS` agree, so a tool added the wrong way fails the suite rather
 than quietly serving unauthenticated data.
 
 The wrapper is also where the tenant is bound and where service exceptions are
 translated — both need to happen inside the tool call, and doing them here means
 no individual tool can forget either.
+
+A tool that changes data declares ``write=True``. That one flag drives three
+things at once — the ``readOnlyHint`` clients read, the read-only-token refusal
+in :func:`~mcpserver.auth.authorize`, and whether the tool is listed to a
+read-only connection at all — so a write tool cannot be half-declared.
 """
 
 import functools
 import inspect
-from typing import Callable, Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, FrozenSet, Optional
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -26,8 +32,24 @@ from mcpserver.auth import Gate, authorize, current_actor, resolve_tenant
 from mcpserver.errors import map_service_error
 from models import FeatureFlag
 
-# name -> (gate, feature). Read by the catalogue test and by whoami.
-TOOL_GATES: Dict[str, Tuple[Gate, Optional[FeatureFlag]]] = {}
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """How a tool is gated, as declared at registration."""
+
+    gate: Gate
+    feature: Optional[FeatureFlag] = None
+    write: bool = False
+    destructive: bool = False
+
+
+# name -> spec. Read by the catalogue test and by the tool listing.
+TOOL_SPECS: Dict[str, ToolSpec] = {}
+
+
+def write_tool_names() -> FrozenSet[str]:
+    """Tools that change data, by name."""
+    return frozenset(name for name, spec in TOOL_SPECS.items() if spec.write)
 
 
 def register(
@@ -37,8 +59,10 @@ def register(
     gate: Gate,
     feature: Optional[FeatureFlag] = None,
     title: Optional[str] = None,
+    write: bool = False,
+    destructive: bool = False,
 ) -> None:
-    """Register ``fn`` as a gated, read-only MCP tool.
+    """Register ``fn`` as a gated MCP tool.
 
     The wrapper resolves the actor, resolves and binds the community named by
     the call's ``tenant`` argument, authorizes inside that binding, and maps any
@@ -48,6 +72,10 @@ def register(
     in the ASGI layer, because an OAuth token is platform-wide and each call
     picks its own community. Using ``tenant_scope`` means set and reset are the
     same statement, so no tool can leak a community into the next call.
+
+    ``destructive`` narrows ``write``: it marks the writes that remove something
+    rather than adding or amending it, which is the distinction a client uses to
+    decide how hard to ask the user before proceeding.
     """
     name = fn.__name__
 
@@ -56,11 +84,11 @@ def register(
         try:
             actor = current_actor()
             if gate is Gate.GLOBAL:
-                await authorize(actor, gate, feature)
+                await authorize(actor, gate, feature, write=write)
                 return await fn(**kwargs)
             tenant = await resolve_tenant(kwargs.get('tenant'))
             with tenant_scope(tenant.id):
-                await authorize(actor, gate, feature, slug=tenant.slug)
+                await authorize(actor, gate, feature, slug=tenant.slug, write=write)
                 # An MCP caller has no browser and is not "a viewer", so there is
                 # no personal clock to resolve — but tools still take and derive
                 # calendar dates (``get_schedule(date=…)``), and those must land
@@ -78,12 +106,17 @@ def register(
     # empty schema and every tool would start accepting anything.
     assert inspect.signature(wrapped).parameters == inspect.signature(fn).parameters
 
-    TOOL_GATES[name] = (gate, feature)
+    TOOL_SPECS[name] = ToolSpec(
+        gate=gate, feature=feature, write=write, destructive=destructive
+    )
     mcp.add_tool(
         wrapped,
         name=name,
         title=title,
-        # Advertised on every tool: the surface is read-only, so a client need
-        # never prompt for confirmation before a call.
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False),
+        # The hint a client reads before deciding whether to prompt. A read tool
+        # never needs confirmation; a write one usually does, and a destructive
+        # one always does.
+        annotations=ToolAnnotations(
+            readOnlyHint=not write, destructiveHint=destructive
+        ),
     )

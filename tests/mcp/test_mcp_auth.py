@@ -125,14 +125,13 @@ class TestFeatureGate:
         assert not is_error, payload
 
 
-class TestReadOnlyTokensAreAccepted:
-    async def test_every_oauth_token_is_read_only_and_still_works(self, db):
-        """Explicit regression test for a deliberate omission.
+class TestReadOnlyTokensReachTheReads:
+    async def test_a_read_only_token_still_reads(self, db):
+        """The read-only rejection is per tool, never per connection.
 
-        Every OAuth token is minted read_only=True because the surface performs
-        no writes, so there is no read-only rejection anywhere in mcpserver/.
-        Someone "restoring" one for symmetry with the REST API would break every
-        single caller — this test is what stops that.
+        Read-only is the consent screen's default and most connections have it,
+        so a blanket rejection — the shape the REST API uses, where read-only is
+        the unusual choice — would refuse nearly every legitimate caller here.
         """
         from models import ApiToken
 
