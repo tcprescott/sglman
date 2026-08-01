@@ -17,9 +17,11 @@ own flag.
 
 What that leaves here: `player.md` covers Your Schedule, acknowledging,
 requesting a match, availability and results; `proctor.md` covers the Proctor
-Station board, the six steps of running a match, and recording a result. Both
-carry a pointer to Event Information written **without a link** — a community
-without the flag has no `/event-info` for one to reach.
+Station board, the four steps of running a match, and recording a result;
+`on-air.md` covers the stage timeline and watching a match, and defers what a
+room allows in person to the event. All three carry a pointer to Event
+Information written **without a link** — a community without the flag has no
+`/event-info` for one to reach.
 
 The rule for a new paragraph: if it is true for every community, it goes here.
 
@@ -37,8 +39,8 @@ is runtime content, not project documentation.
 | `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
 | `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
-| `on-air` | The stage timeline, finding a stream, spectating | — |
-| `proctor` | The Proctor Station board, the six steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
+| `on-air` | The stage timeline, finding a stream, watching a match | — |
+| `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |

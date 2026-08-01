@@ -90,4 +90,10 @@ and [twitch.tv/SpeedGaming2](https://twitch.tv/SpeedGaming2).
 
 In the app, the **On Air** tab is the stage timeline: what is on now and what is
 coming up. [On Air and watching](/help/on-air) explains how to follow a match you
-are not in, including from the room itself.
+are not in.
+
+**Watching happens in the stream room, not the tournament room.** The tournament
+room is not open to spectators, so a match played there is one to follow on the
+stream instead. An on-site admin can make an exception for someone with a reason
+to be in the room; ask them rather than the proctor. See
+[Attending the event](/event-info/attending#in-the-tournament-room).

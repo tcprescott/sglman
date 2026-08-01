@@ -17,11 +17,12 @@ thing.
 tournament, matchups come from the bracket rather than from match requests.
 
 **Broadcast tech**: the people who run a stage: the setup, the capture and the
-stream. A stage is theirs rather than a proctor's, and what they ask for there
-takes precedence over the tournament room's rules.
+stream. A stage is theirs rather than a proctor's, and it runs to its own rules
+rather than a tournament room's.
 
-**Check-in**: the moment a proctor records that both players are seated and the
-match can begin. It is per match, not per player, and it is a proctor who does it, not you.
+**Check-in**: the moment a match is recorded as ready to begin, with both players
+seated. It is per match, not per player, and a proctor or an admin does it, not
+you.
 
 **Commentator**: crew who talk over a match on stream.
 
@@ -40,10 +41,10 @@ signups, alongside staff and the tournament's admin.
 **Enrolled / opted in**: you have put your name forward for a tournament. You
 have to be opted in before you can be scheduled in it.
 
-**Proctor**: the volunteer running one tournament room. They check matches in,
-seat players at stations, count them down, start them and record results, for
-that room only. They do not confirm results, reschedule matches, approve crew,
-or run matches played on a stage. See
+**Proctor**: the volunteer running one tournament room. They seat players at
+stations, start matches and record results, for that room only. They do not
+confirm results, reschedule matches, approve crew, or run matches played on a
+stage. See
 [Running matches as a proctor](/help/proctor).
 
 ## S–Z
@@ -56,7 +57,7 @@ techs rather than by a proctor. Staff call the same thing a **stream room**; the
 board's *Stage* column and the admin *Stream Rooms* list are the same set of
 places.
 
-**Station**: the numbered physical seat you play at. A proctor assigns it at
+**Station**: the numbered physical seat you play at. It is assigned to you at
 check-in, and it then shows next to your name on the schedule board.
 
 **Tournament room**: a room of stations where matches are played off-stream,
@@ -85,7 +86,7 @@ The five values the *State* column shows:
 | State | Meaning |
 |---|---|
 | {state:Scheduled} | A time is booked. |
-| {state:Checked In} | Players are seated; a proctor has checked the match in. |
+| {state:Checked In} | Players are seated and the match has been checked in. |
 | {state:Started} | Under way. |
 | {state:Finished} | A result is recorded but not yet official. |
 | {state:Confirmed} | Staff have confirmed the result. It is official. |

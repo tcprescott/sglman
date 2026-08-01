@@ -19,8 +19,8 @@ icons open in a dev run rather than rendering nothing.
 
 :::snippet proctor-room
 Keep it quiet, help players get set up, and know what every cable you touch is
-powering before you pull it. Spectators are welcome as long as they are not
-disruptive, and asking one to leave is your call.
+powering before you pull it. Who else is allowed in the room, and who checks
+players in, is the event's to set and this fixture does not pretend to.
 :::
 
 ## When things go wrong
