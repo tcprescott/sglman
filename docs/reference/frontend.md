@@ -705,6 +705,51 @@ Two helpers every service-backed admin tab uses:
 
 The module previously also carried a `ServiceTableView` generic plus page-container, toolbar and actions-slot helpers, and a sibling `equipment.py` kit. Both were extracted in anticipation of adoption that never happened — after two audits recommending it, neither had a single importer — so they were deleted rather than left as an optional style choice. Recover them from git history if a genuine second caller appears.
 
+## Data tables
+
+Every table in the app shares one shape: a desktop `<table>`, a card view below
+`lt.md`, and a per-viewer column layout. The three rules below are enforced by
+guardrail hooks and source-scanning tests, because each one fails silently.
+
+| Name | Where | Purpose |
+|---|---|---|
+| `enable_mobile_grid(table, columns, …, table_key=…)` | [`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py) | The chokepoint. Generates the mobile card slot, then applies the viewer's saved layout — in that order, which it owns |
+| `customize_table(table, defaults, key=…)` | [`theme/tables/preferences.py`](../../theme/tables/preferences.py) | Applies a saved layout directly, for a table with a bespoke `item` slot. Call **after** that slot |
+| `effective_columns(defaults, saved, required)` | same | The pure reconciler: order, visibility, widths, page size, density, wrap |
+| `preferences_button(table)` | same | The gear that opens the Preferences modal; hidden below 1024px |
+| `search_input(table)` | same | A box bound to Quasar's real `filter` prop |
+| `row_count_label(table, noun)` | same | Live `124 matches` caption over a client-paginated board |
+| `sticky_header(table)` | same | Bounded height + sticky `<th>`; the two only work together |
+| `csv_export_button(prefix, columns, rows)` | [`theme/tables/export.py`](../../theme/tables/export.py) | Downloads what is on screen — pass the plan's columns, not the defaults |
+| `TableKeys` | [`theme/tables/preferences.py`](../../theme/tables/preferences.py) | Every table's stable key, namespaced `surface.table` |
+| `apply_column_visibility(table, columns)` | [`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py) | Turns this app's `hidden` convention into Quasar's `visible-columns` |
+
+**Call order is the mobile-card guarantee.** The card's `item` slot is a static
+Vue string built from the *defaults* at build time, addressing `props.row.<field>`
+directly — it never reads `table.columns` or `visible-columns`. So a saved layout
+cannot reach it, provided `customize_table` runs *after* the slot is registered.
+`enable_mobile_grid` owns both calls so a caller cannot get it wrong;
+`test_preferences_do_not_touch_the_mobile_card` and an AST order scan pin it for
+the bespoke tables that call it themselves.
+
+**Resolution is async; reading it back is sync.** `BaseLayout.render()` awaits
+`TablePreferenceService().prime(user)` once — one query for every table on the
+page — and binds the result in `application/table_preferences_context.py`. Each
+`customize_table` call reads it back synchronously, because a table build cannot
+await. Two carriers rebind it or the layout silently reverts: the lazy tab build
+(`BaseLayout._build_tab`) and `admin_crud.capture_render_context()`. An unprimed
+context yields the shipped columns, which is a correct answer, not a failure.
+
+**Defaults win for columns nobody has seen.** A saved list is a filter *over* the
+current defaults, never a replacement: a default absent from it is appended,
+visible. The opposite rule makes every newly added column invisible forever to
+anyone who ever opened the gear. Required columns (`actions`, `edit`) cannot be
+hidden, and a config that would leave nothing visible is discarded wholesale.
+
+A new table needs a `table_key` or a `# table-prefs: exempt — <reason>` comment;
+[`check_table_prefs.py`](../../.claude/scripts/check_table_prefs.py) and
+`tests/theme/test_table_preferences_coverage.py` enforce both halves.
+
 ### Responsive tables — the mobile grid rule
 
 **Every `ui.table` must have a mobile card view.** A bare HTML `<table>` overflows a phone: its columns and (worse) its row-action buttons scroll off the right edge. Quasar's *grid mode* fixes this — below a breakpoint the table renders an `item` slot per row instead of `<tr>`s. The mechanical guardrail [`check_table_grid.py`](../../.claude/scripts/check_table_grid.py) (PostToolUse) flags any presentation-layer `ui.table` that lacks it.

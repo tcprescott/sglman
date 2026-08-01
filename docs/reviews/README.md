@@ -11,9 +11,18 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
-| [table-ux-audit.md](table-ux-audit.md) | Every `ui.table` in the app, and the plan for user-controlled columns | Five ways to build a table, none of which remembers anything; the boards people work all day are the least sortable surfaces in the app |
 
-Shipped and deleted: the match-operations audit — its findings became
+Shipped and deleted: the table UX audit — its findings became
+`UserTablePreference` and the Preferences gear on every desktop table (visible
+columns, order, drag-to-resize widths, page size, density, wrap, remembered per
+person and resettable), the `table_key` argument `enable_mobile_grid` now owns
+alongside the mobile card, the `check_table_prefs` guardrail, sortable columns
+on the seven boards that had none, a search box bound to Quasar's real `filter`
+prop in place of twelve column keys nothing read, real pagination on the three
+unbounded family boards (and the deletion of the handler that re-queried the
+database on every page turn), live row counts, sticky headers, and CSV export
+moved out of the reports and onto the operational boards.
+The match-operations audit — its findings became
 `MatchBoardAccess` (one field per service gate, replacing the `can_crud`
 boolean), the STREAM_MANAGER's Schedule tab and the TA/CC-scoped board, the
 edit dialog's state strip and honest acknowledgment copy, the SpeedGaming
