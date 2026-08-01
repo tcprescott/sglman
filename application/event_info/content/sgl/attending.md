@@ -3,19 +3,53 @@ title: Attending the event
 slug: attending
 icon: how_to_reg
 order: 20
-summary: Check-in and stations, how the tournament room works, stage matches, and what to do when something goes wrong.
+summary: Getting there, tickets and badges, then the floor — check-in and stations, the tournament room, stage matches, and what to do when something goes wrong.
 ---
 
-This is the floor procedure for SpeedGaming Live: what happens when you sit down
-to play, what you can have at your station, and who to tell when something
-breaks. How the *app* works — your schedule, acknowledging a match, requesting
-one — is in Help.
+Where the event is, what a ticket gets you, and what happens once you sit down to
+play. How the *app* works — your schedule, acknowledging a match, requesting one
+— is in Help.
 
-> **TODO:** venue, doors, and where the tournament room is. Nobody has written
-> this yet; add the room name and the floor it is on before the event.
+## Getting there
 
-> **TODO:** registration and badges — where to collect one, what it gets you,
-> and whether a badge is needed to enter the tournament room.
+**DoubleTree by Hilton Washington Dulles Airport**
+13869 Park Center Road, Herndon, VA 20171
++1 703-478-2900
+
+The event runs Thursday 22 to Sunday 25 October 2026, in the hotel.
+
+**Staying there.** There is a room block at **$129/night**, either two double
+beds or one king, bookable through
+[the event's hotel link](https://www.hilton.com/en/attend-my-event/iaddddt-sgt-dbdc1c4d-2085-440e-abcd-94c590cebeee/).
+Check-in from Wednesday the 21st is what the organisers recommend, so you are
+there before the first day rather than travelling into it.
+
+> **TODO:** the last night of the room block — the event site says check-out the
+> 27th and the announcement says the 26th. Confirm which before this is read by
+> anyone booking.
+
+> **TODO:** which room the tournament room is, and where the stage is. Add the
+> room names and the floor once the venue map is settled.
+
+## Tickets and badges
+
+Tickets are sold through [Matcherino](https://matcherino.com/t/sglive26).
+
+| Tier | Price | Includes |
+|---|---|---|
+| Daily | $40 | One day |
+| Base | $80 | The event, plus breakfast |
+| VIP | $110 | Badge, lanyard, pin, and your name on stream |
+| Super VIP | $160 | The above, plus a t-shirt |
+
+**Your lanyard says what you are.** Attendee, volunteer and staff lanyards are
+different, which is how you pick a staff member out of a room when you need one.
+
+**Volunteering can pay for your badge.** Eight hours comps it outright, with more
+back at twelve and sixteen-plus. See [Who to ask](/event-info/who-to-ask).
+
+> **TODO:** where and when to collect a badge on arrival, and whether one is
+> needed to enter the tournament room.
 
 ## Check-in and stations
 
@@ -143,5 +177,12 @@ proctor records the result.
 ## Conduct
 
 > **TODO:** the event's code of conduct — link it here, and say how to report a
-> breach and who handles it. This is the one gap on this page that should not
-> ship empty.
+> breach and who handles it. Neither sglive.speedgaming.org nor speedgaming.org
+> publishes one that could be linked. This is the one gap on this page that
+> should not ship empty.
+
+## Anything else
+
+The [SpeedGaming Discord](https://discord.com/invite/T6qzxNJ) is where the
+community answers what this page does not.
+

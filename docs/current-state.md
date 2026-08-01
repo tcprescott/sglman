@@ -60,10 +60,15 @@ Recorded so they read as decisions rather than gaps:
   it drifting from how events actually run. It needs a human re-read when
   procedure changes. Moving it out of `/help` and into `/event-info` at least
   puts it where it is one community's to own and revise.
-- **The SGL handbook ships with `TODO:` callouts.** Dates, venue, the tournament
-  list, contacts and the code of conduct had no source in the codebase and were
-  not invented. They render as visible note blocks. The `event_info` flag is dark,
-  so nothing reaches a reader until both the copy and the grant are done.
+- **The SGL handbook ships with `TODO:` callouts, and one of them matters.** The
+  articles are written from sglive.speedgaming.org (read 2026-08-01) — dates,
+  venue, room block, ticket tiers, both tournament lists, the volunteer form and
+  its badge-comp tiers, the lanyard convention, Discord and Twitch. What is left
+  is genuinely unpublished: the daily agenda, per-tournament formats, badge
+  collection, room locations, and **a code of conduct — neither the event site nor
+  speedgaming.org publishes one**. Prize-pool figures are a community-funded
+  snapshot and will drift. The `event_info` flag is dark, so nothing reaches a
+  reader until the gaps and the grant are done.
 - **Event Information is file-backed, and meant not to stay that way.** Content is
   per-tenant Markdown in the repo, so a change needs a PR and a deploy. Everything
   above `application/event_info/catalog.py` — the flag, routes, page, nav, tests —

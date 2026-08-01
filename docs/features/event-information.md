@@ -48,11 +48,24 @@ context.
 A tenant with no directory has **no articles**, not an error: a community that
 has just been granted the feature and written nothing renders an empty state.
 
-> **The SGL articles ship with visible `TODO:` callouts.** Dates, venue,
-> contacts, the tournament list and the code of conduct had no source in the
-> codebase and were not invented. They render as note blocks, so the gaps are
-> obvious to whoever fills them in. The flag is dark; nothing reaches a reader
-> until both are dealt with.
+The SGL articles are written from
+[sglive.speedgaming.org](https://sglive.speedgaming.org) and its announcement
+posts (read 2026-08-01): dates, venue and room block, ticket tiers, the on-site
+and online tournament lists with their prize pools, the volunteer form and its
+badge-comp tiers, the lanyard convention, the Discord, and the Twitch channels.
+**Prize pools are community-funded and grow until the event**, so those figures
+are a snapshot — the article says so rather than implying they are fixed.
+
+> **What is still `TODO:`** renders as visible note blocks, because it is not
+> published anywhere to copy: the **daily agenda** (the most-asked question), each
+> tournament's **format and entry requirements**, **badge collection**, the room
+> and stage **locations**, **lost property / accessibility / first aid**, and a
+> **code of conduct** — neither `sglive.speedgaming.org` nor `speedgaming.org`
+> publishes one that could be linked. One more is a genuine conflict: the site
+> gives hotel check-out as the 27th and the announcement as the 26th.
+>
+> The flag is dark, so none of this reaches a reader until the gaps are filled and
+> a super-admin grants it.
 
 ### This is v1 of a database-backed surface
 
