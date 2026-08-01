@@ -28,6 +28,7 @@ from theme.notify import notify_error
 from theme.qualifier_copy import BOARD_EXPLAINER
 from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 
 def _fmt(dt) -> str:
@@ -572,14 +573,17 @@ async def admin_qualifiers_page() -> None:
         if not runs:
             ui.label('No runs yet.').classes('text-grey')
             return
-        columns = [
-            {'name': 'player', 'label': 'Player', 'field': 'player', 'align': 'left'},
-            {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
-            {'name': 'status', 'label': 'Status', 'field': 'status'},
-            {'name': 'review', 'label': 'Review', 'field': 'review'},
-            {'name': 'claimed', 'label': 'Claimed', 'field': 'claimed'},
-            {'name': 'timed', 'label': 'Timed', 'field': 'timed'},
-            {'name': 'score', 'label': 'Score', 'field': 'score'},
+        columns: list[dict] = [
+            {'name': 'player', 'label': 'Player', 'field': 'player', 'align': 'left',
+             'sortable': True},
+            {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
+             'sortable': True},
+            {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
+            {'name': 'review', 'label': 'Review', 'field': 'review', 'sortable': True},
+            # HH:MM:SS is zero-padded, so a lexical sort is a chronological one.
+            {'name': 'claimed', 'label': 'Claimed', 'field': 'claimed', 'sortable': True},
+            {'name': 'timed', 'label': 'Timed', 'field': 'timed', 'sortable': True},
+            {'name': 'score', 'label': 'Score', 'field': 'score', 'sortable': True},
             {'name': 'actions', 'label': '', 'field': 'actions'},
         ]
         rows = []
@@ -600,7 +604,8 @@ async def admin_qualifiers_page() -> None:
         table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full wiz-table')
         table.add_slot('body-cell-actions', f'<q-td :props="props">{_GRANT_ACTION}</q-td>')
         table.on('grant', lambda e: _open_grant_dialog(by_id.get(e.args.get('id'))))
-        enable_mobile_grid(table, columns, actions=_GRANT_ACTION)
+        enable_mobile_grid(table, columns, actions=_GRANT_ACTION,
+                           table_key=TableKeys.ADMIN_QUALIFIERS)
 
     def _open_grant_dialog(run) -> None:
         if run is None:
@@ -635,11 +640,13 @@ async def admin_qualifiers_page() -> None:
         if not entries:
             ui.label('No scored runs yet.').classes('text-grey')
             return
-        columns = [
-            {'name': 'rank', 'label': '#', 'field': 'rank'},
-            {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left'},
-            {'name': 'actual', 'label': 'Score', 'field': 'actual'},
-            {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate'},
+        columns: list[dict] = [
+            {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
+            {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left',
+             'sortable': True},
+            {'name': 'actual', 'label': 'Score', 'field': 'actual', 'sortable': True},
+            {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate', 'sortable': True},
+            # Not sortable: 'filled/total' is a composite, and 2/9 would sort above 10/10.
             {'name': 'slots', 'label': 'Slots', 'field': 'slots'},
         ]
         rows = [
@@ -648,7 +655,8 @@ async def admin_qualifiers_page() -> None:
             for i, e in enumerate(entries)
         ]
         table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
-        enable_mobile_grid(table, columns)
+        enable_mobile_grid(table, columns,
+                           table_key=TableKeys.ADMIN_QUALIFIER_LEADERBOARD)
         ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
     # ------------------------------------------------------------------ shell

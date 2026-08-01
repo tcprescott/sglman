@@ -16,6 +16,7 @@ from application.services import (
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="sync" color="primary"
@@ -231,6 +232,7 @@ async def admin_speedgaming_page() -> None:
             table.add_slot('body-cell-last_status', f'<q-td :props="props">{_LAST_STATUS_CHIP}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_SPEEDGAMING,
                                field_slots={'active': _ACTIVE_ICON, 'last_status': _LAST_STATUS_CHIP})
 
             table.on('edit', lambda e: background_tasks.create(

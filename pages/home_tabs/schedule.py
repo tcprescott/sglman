@@ -6,6 +6,7 @@ from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.preferences import TableKeys
 
 
 def schedule():
@@ -23,12 +24,15 @@ def schedule():
         ui.separator().classes('separator-spacing')
 
         columns = [
-            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
-            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
+            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
+            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at',
+             'sortable': True},
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
-            {'name': 'players', 'label': 'Players', 'field': 'players', 'filterable': True},
-            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True, 'filterable': True},
-            {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+            # Not sortable: joined rosters sort on whoever is listed first.
+            {'name': 'players', 'label': 'Players', 'field': 'players'},
+            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True},
+            {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed',
+             'sortable': True},
             {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
             {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
@@ -62,6 +66,7 @@ def schedule():
             columns=columns,
             get_query=get_query,
             admin_controls=False,
+            table_key=TableKeys.HOME_SCHEDULE,
             extra_slots=extra_slots,
             on_edit=on_edit if discord_id else None,
             grid_breakpoint='lt.lg',

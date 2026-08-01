@@ -9,10 +9,18 @@ from application.utils.timezone import local_day_bounds, today_local
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.export import csv_export_button
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
 from theme.tables.match_slots import CANDIDATE_STAGE, register_body_slots
+from theme.tables.preferences import (
+    customize_table,
+    preferences_button,
+    row_count_label,
+    search_input,
+    sticky_header,
+)
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -69,8 +77,16 @@ class MatchTableView(MatchTableHandlersMixin):
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
-                 scope_tournament_ids=None):
+                 scope_tournament_ids=None, table_key=None, searchable=False):
         self.columns = columns
+        # When set, this board's desktop columns follow the viewer's saved
+        # layout. Each surface built on this class passes its **own** key: a
+        # proctor's column choices must not follow them onto the admin board.
+        self.table_key = table_key
+        # A text box over the visible columns, for the boards where finding one
+        # row is the actual task. Not persisted: it is working state.
+        self.searchable = searchable
+        self._plan = None
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
@@ -357,9 +373,15 @@ class MatchTableView(MatchTableHandlersMixin):
 
                 ui.space()
 
-                # Refresh button
+                # Refresh button, and a placeholder the preferences gear is
+                # rendered into once the table exists (the filter strip is built
+                # first, for visual order).
                 with ui.column().classes('flex-center'):
-                    ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
+                    with ui.row().classes('items-center'):
+                        search_slot = ui.row().classes('items-center')
+                        gear_slot = ui.row().classes('items-center')
+                        ui.button(icon='refresh', on_click=self.refresh) \
+                            .props('flat color=primary').tooltip('Refresh table')
 
         # Restore the filters, then load the table — one task, one load.
         self._bg(self._initial_load())
@@ -370,10 +392,13 @@ class MatchTableView(MatchTableHandlersMixin):
                 columns=self.columns,
                 rows=[],
                 row_key='id',
-                # pagination={'rowsPerPage': 20, 'page': 1}
+            # Client-side paging over the rows already loaded. There is no
+            # 'update:pagination' handler: Quasar pages over table.rows, so
+            # re-querying the database on a page turn fetched data the browser
+            # already held. Refresh stays an explicit button.
+                pagination={'rowsPerPage': 25, 'page': 1},
             ).classes('match-table match-table-container').props(f':grid="Quasar.Screen.{self.grid_breakpoint}"')
             self.table.add_slot('no-data', no_data_slot('No matches to show yet.'))
-            self.table.on('update:pagination', self._on_page_change)
 
         # Resolve current user's discord_id once for slot templates and event wiring.
         discord_id = app.storage.user.get('discord_id', None)
@@ -405,6 +430,26 @@ class MatchTableView(MatchTableHandlersMixin):
             has_edit=self.on_edit is not None,
             actions_first=self.actions_first,
         )
+
+        if self.table_key:
+            # **After** render_grid_slot(), never before: the card's item slot is
+            # generated from these columns at build time, so applying a saved
+            # layout here cannot reach it. Pinned by
+            # tests/theme/test_table_preferences.py.
+            self._plan = customize_table(self.table, self.columns, key=self.table_key)
+            with gear_slot:
+                csv_export_button(
+                    'matches',
+                    lambda: self._plan.columns if self._plan else self.columns,
+                    lambda: self.table.rows,
+                )
+                preferences_button(self.table)
+            if self.searchable:
+                with search_slot:
+                    search_input(self.table, placeholder='Search matches…')
+            with self.table_container:
+                row_count_label(self.table, 'matches')
+            sticky_header(self.table)
 
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
         self.table.on('acknowledge_match', lambda event: background_tasks.create(
@@ -554,13 +599,18 @@ class MatchTableView(MatchTableHandlersMixin):
         template built at registration time would offer an empty list forever.
         One shared list object per refresh, not a copy per row.
 
-        ``Candidate`` leads because it is the answer before a stage is decided —
-        it writes ``is_stream_candidate`` rather than a room (see
-        ``match_slots.CANDIDATE_STAGE``).
+        ``No Stage`` leads, because "none" is one of the answers rather than the
+        absence of one — it is what the cell shows when nothing is assigned, and
+        it has to be selectable to be reversible. ``Candidate`` follows: the
+        answer before a stage is decided, writing ``is_stream_candidate`` rather
+        than a room (see ``match_slots.CANDIDATE_STAGE``).
         """
         if self.on_set_stage is None:
             return None
-        return [{'label': 'Candidate', 'value': CANDIDATE_STAGE}] + [
+        return [
+            {'label': 'No Stage', 'value': None},
+            {'label': 'Candidate', 'value': CANDIDATE_STAGE},
+        ] + [
             {'label': name, 'value': room_id}
             for room_id, name in (self.stream_rooms_list or {}).items()
         ]
@@ -590,9 +640,6 @@ class MatchTableView(MatchTableHandlersMixin):
         if not user:
             return set()
         return set(await self.watcher_service.list_watched_match_ids(user))
-
-    def _on_page_change(self, *_):
-        self._bg(self.refresh())
 
     async def update_row_by_id(self, match_id, flash=False):
         """

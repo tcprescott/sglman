@@ -40,6 +40,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .manage import open_manage
 from .results import open_results
@@ -448,6 +449,7 @@ async def admin_brackets_page() -> None:
             table.add_slot('body-cell-state', _STATE_CELL)
             enable_mobile_grid(
                 table, columns, actions=_ROW_ACTIONS,
+                table_key=TableKeys.ADMIN_BRACKETS,
                 field_slots={
                     'state': (
                         '<q-badge :color="props.row.state_color">'

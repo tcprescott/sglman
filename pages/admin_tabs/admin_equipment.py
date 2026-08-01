@@ -7,6 +7,12 @@ from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button
+from theme.tables.preferences import (
+    TableKeys,
+    customize_table,
+    preferences_button,
+    search_input,
+)
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -14,7 +20,7 @@ _STATUS_LABELS = {
     'retired': 'Retired',
 }
 
-_COLUMNS = [
+_COLUMNS: list[dict] = [
     {'name': 'asset_number', 'label': '#', 'field': 'asset_number', 'align': 'left', 'sortable': True},
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
     {'name': 'owner', 'label': 'Owner', 'field': 'owner', 'align': 'left'},
@@ -126,6 +132,8 @@ async def admin_equipment_page() -> None:
             ui.button('Print QR labels', icon='qr_code_2', on_click=print_labels).props(
                 'flat color=primary').classes(REQUIRES_SOCKET_CLASS)
             ui.space()
+            # Filled from inside _render_table, which owns the table.
+            gear_slot = ui.row().classes('items-center')
             # Lambda, not a direct reference: the toolbar is built before
             # _render_table exists.
             refresh_button(lambda: _render_table.refresh(), tooltip='Refresh') \
@@ -158,6 +166,15 @@ async def admin_equipment_page() -> None:
             table.add_slot('body-cell-status', _STATUS_CELL)
             table.add_slot('body-cell-actions', _ACTIONS_CELL)
             table.add_slot('item', _GRID_CARD)
+            # After the card slot, never before — the card is built from the
+            # shipped columns and must not follow a saved layout.
+            customize_table(table, _COLUMNS, key=TableKeys.ADMIN_EQUIPMENT)
+            # Cleared first: this whole block re-runs on every refresh, and the
+            # gear lives outside it so it would otherwise stack up.
+            gear_slot.clear()
+            with gear_slot:
+                search_input(table, placeholder='Search equipment…')
+                preferences_button(table)
 
             def handle_view(event):
                 ui.navigate.to(f"/equipment/{event.args['id']}")

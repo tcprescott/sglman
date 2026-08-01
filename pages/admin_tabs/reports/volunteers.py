@@ -13,6 +13,7 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 from application.utils.timezone import format_local_display, to_local
 from pages.admin_tabs.links import VOL_SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     csv_export_button,
@@ -107,7 +108,8 @@ async def volunteers_page(
                 enabled=can_staff_shifts,
                 hint='Staff this day',
             )
-            enable_mobile_grid(table, columns, actions=drill_actions)
+            enable_mobile_grid(table, columns, actions=drill_actions,
+                               table_key=TableKeys.REPORTS_VOLUNTEER_HOURS)
 
 
 def _local_day(when) -> str:

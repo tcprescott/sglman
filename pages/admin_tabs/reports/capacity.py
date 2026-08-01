@@ -17,6 +17,7 @@ from application.services import (
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     CHART_GOLD,
@@ -217,7 +218,8 @@ async def capacity_page(
                         {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
                         {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
                         {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
-                        {'name': 'players', 'label': 'Players', 'field': 'players', 'sortable': True},
+                        # Not sortable: a joined roster sorts on whoever is listed first.
+                        {'name': 'players', 'label': 'Players', 'field': 'players'},
                         {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]
@@ -230,7 +232,8 @@ async def capacity_page(
                         enabled=can_open_board,
                         hint='Open on the schedule board',
                     )
-                    enable_mobile_grid(focus_table, columns, actions=focus_actions)
+                    enable_mobile_grid(focus_table, columns, actions=focus_actions,
+                                       table_key=TableKeys.REPORTS_CAPACITY_FOCUS)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
@@ -256,7 +259,8 @@ async def capacity_page(
                     lambda: rows,
                 )
             forecast_table = ui.table(columns=columns, rows=rows, pagination=25, row_key='time').classes('full-width')
-            enable_mobile_grid(forecast_table, columns)
+            enable_mobile_grid(forecast_table, columns,
+                               table_key=TableKeys.REPORTS_CAPACITY_FORECAST)
 
 
 def _parse_focus(value: Optional[str]) -> Optional[datetime]:

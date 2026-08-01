@@ -10,6 +10,7 @@ from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import refresh_button
+from theme.tables.preferences import TableKeys, customize_table, preferences_button
 from theme.tables.tournament import TournamentTableView
 
 
@@ -30,17 +31,24 @@ async def admin_tournaments_page() -> None:
             'entrants.'
         ).classes('text-caption text-grey')
 
-        columns = [
+        columns: list[dict] = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
-            {'name': 'name', 'label': 'Name', 'field': 'name'},
+            {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
+            # Not sortable: free prose, where alphabetical order means nothing.
             {'name': 'description', 'label': 'Description', 'field': 'description'},
-            {'name': 'seed_generator', 'label': 'Seed Generator', 'field': 'seed_generator'},
-            {'name': 'is_active', 'label': 'Active', 'field': 'is_active'},
-            {'name': 'players_per_match', 'label': 'Players/Match', 'field': 'players_per_match'},
-            {'name': 'average_match_duration', 'label': 'Avg Match Duration (min)', 'field': 'average_match_duration'},
-            {'name': 'max_match_duration', 'label': 'Max Match Duration (min)', 'field': 'max_match_duration'},
-            {'name': 'staff_administered', 'label': 'Staff Administered', 'field': 'staff_administered'},
-            {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count'},
+            {'name': 'seed_generator', 'label': 'Seed Generator', 'field': 'seed_generator',
+             'sortable': True},
+            {'name': 'is_active', 'label': 'Active', 'field': 'is_active', 'sortable': True},
+            {'name': 'players_per_match', 'label': 'Players/Match',
+             'field': 'players_per_match', 'sortable': True},
+            {'name': 'average_match_duration', 'label': 'Avg Match Duration (min)',
+             'field': 'average_match_duration', 'sortable': True},
+            {'name': 'max_match_duration', 'label': 'Max Match Duration (min)',
+             'field': 'max_match_duration', 'sortable': True},
+            {'name': 'staff_administered', 'label': 'Staff Administered',
+             'field': 'staff_administered', 'sortable': True},
+            {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count',
+             'sortable': True},
         ]
 
         async def add_tournament():
@@ -55,6 +63,7 @@ async def admin_tournaments_page() -> None:
         table_view = TournamentTableView(
             columns=columns, get_query=get_query,
             submit_tournament_callback=add_tournament if can_create else None,
+            table_key=TableKeys.ADMIN_TOURNAMENTS, searchable=True,
         )
         
         # Route through the view's _bg so the tab-switch refresh rebinds the
@@ -80,7 +89,7 @@ async def admin_stream_rooms_page() -> None:
             'across the schedule and On Air views. Click a name to edit it.'
         ).classes('text-caption text-grey')
 
-        columns = [
+        columns: list[dict] = [
             # No id column: the primary key was this table's only edit affordance
             # ("click the 1 to rename Stage 1"), which is both a database value on
             # screen and an unguessable control. The name carries the link now.
@@ -135,6 +144,8 @@ async def admin_stream_rooms_page() -> None:
                 if can_manage:
                     ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
                 ui.space()
+                # Filled after the table exists; the toolbar is drawn first.
+                gear_slot = ui.row().classes('items-center')
                 refresh_button(refresh_table)
 
             table = ui.table(
@@ -224,6 +235,10 @@ async def admin_stream_rooms_page() -> None:
                 </div>
             ''')
             
+            customize_table(table, columns, key=TableKeys.ADMIN_STREAM_ROOMS)
+            with gear_slot:
+                preferences_button(table)
+
             table.on('edit', lambda e: background_tasks.create(edit_stream_room(e.args, context.client)))
 
         background_tasks.create(refresh_table())

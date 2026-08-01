@@ -31,7 +31,7 @@ community owns or produces is tenant-scoped.**
 
 | Class | Models | Notes |
 |---|---|---|
-| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
+| **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
 | **Nullable `tenant`** — stamped from context, NULL = platform-level row | `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), `UserRole` (`CASCADE`; NULL only for the global `SUPER_ADMIN`), `ApiToken` (`CASCADE`; NULL only for platform-wide OAuth tokens) | |
 | **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
@@ -74,6 +74,7 @@ erDiagram
     User |o--o{ AuditLog : "user"
     User |o--o{ TelemetryEvent : "user"
     User ||--o{ WebPushSubscription : "user"
+    User ||--o{ UserTablePreference : "user"
 
     Tournament }o--o{ User : "admins (TournamentAdmins)"
     Tournament }o--o{ User : "crew_coordinators (TournamentCrewCoordinators)"
@@ -840,6 +841,26 @@ to the owner's subscriptions as a native device notification. See
 | `user_agent` | `CharField(255)` | null | Captured at subscribe time to label the device in settings |
 | `last_used_at` | `DatetimeField` | null | Set on each successful delivery |
 
+#### `UserTablePreference`
+
+One person's saved layout for one table: visible columns, their order and
+widths, plus page size, density and line wrapping. **Deliberately global** — no
+`tenant` FK, the same call `User.timezone` makes: which columns you want on a
+board is a property of the table, not of the community whose rows fill it, so
+someone who is staff in two communities carries one answer between them.
+Validated for shape and bounds by `TablePreferenceService`; column *names* are
+reconciled against the shipped defaults in presentation
+(`theme/tables/preferences.py`), never here.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='table_preferences'` |
+| `table_key` | `CharField(64)` | not null | Stable per-table id, namespaced `surface.table`; declared in `TableKeys` |
+| `config` | `JSONField` | default `{}` | `columns` (name / visible / width), `page_size`, `density`, `wrap` |
+| `updated_at` | `DatetimeField` | `auto_now` | |
+
+Unique together: `(user, table_key)` — one row per person per table, written by upsert.
+
 #### `AuditLog`
 
 Append-only record of admin actions — rows are never modified. Action naming conventions are in [CLAUDE.md](../../CLAUDE.md); the feature in [audit-logging.md](../features/audit-logging.md).
@@ -1494,6 +1515,7 @@ Consult the source for full signatures.
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user`, `has_any` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `save_connection`, `update_connection_tokens`, `clear_connection`; mirror teardown: `delete_mirror` (drops a tournament's participants + matches, leaving the scheduled `Match` rows); participants: `upsert_participant`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `delete`, `delete_by_endpoint`, `touch_last_used` |
+| `TablePreferenceRepository` | [`table_preference_repository.py`](../../application/repositories/table_preference_repository.py) | `UserTablePreference` | **Global — never tenant-scoped** (the model has no tenant column). `all_for_user` (one query; the only read a page build makes), `get`, `upsert`, `delete`, `delete_all_for_user` |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` |
 | `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` |

@@ -11,6 +11,7 @@ from nicegui import background_tasks, context, ui
 
 from application.services import ProbeResult, ServiceStatus
 from application.utils.timezone import format_local_display
+from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _STATUS_COLOR = {
     ServiceStatus.HEALTHY: 'positive',
@@ -37,7 +38,7 @@ _CATEGORY_LABEL = {
     'discord': 'Discord',
 }
 
-_COLUMNS = [
+_COLUMNS: list[dict] = [
     {'name': 'label', 'label': 'Dependency', 'field': 'label', 'align': 'left', 'sortable': True},
     {'name': 'category', 'label': 'Category', 'field': 'category', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status', 'align': 'left'},
@@ -87,6 +88,7 @@ def render_health_table(
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
+    gear_slot = ui.row().classes('w-full justify-end')
     table = ui.table(
         columns=_COLUMNS, rows=_rows(results, action_for), row_key='label',
     ).classes('w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
@@ -113,6 +115,9 @@ def render_health_table(
             </q-card>
         </div>
     ''')
+    customize_table(table, _COLUMNS, key=TableKeys.PLATFORM_SERVICE_HEALTH)
+    with gear_slot:
+        preferences_button(table)
 
 
 def build_refreshable_board(

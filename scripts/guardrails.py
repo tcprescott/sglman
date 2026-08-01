@@ -60,6 +60,7 @@ FILE_CHECKS = [
     "check_slot_context",
     "check_syntax",
     "check_table_grid",
+    "check_table_prefs",
     "check_tenant_scoping",
     "enforce_architecture",
     "enforce_async_safety",

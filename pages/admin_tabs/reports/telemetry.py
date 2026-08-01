@@ -15,6 +15,7 @@ from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_local_display, timezone_label
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     date_range_filter,
@@ -200,6 +201,7 @@ async def telemetry_page(
             columns=columns,
             rows=rows,
             row_key='ev_id',
+            table_key=TableKeys.REPORTS_TELEMETRY_LOG,
             total=total,
             page=page_int,
             page_size=PAGE_SIZE,
@@ -239,6 +241,7 @@ def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
                 if uid is not None:
                     on_row_click(uid)
             table.on('lb-click', _handle)
-        enable_mobile_grid(table, columns, row_click_event='lb-click' if on_row_click is not None else None)
+        enable_mobile_grid(table, columns, table_key=TableKeys.REPORTS_TELEMETRY_TOP,
+                           row_click_event='lb-click' if on_row_click is not None else None)
         if on_row_click is not None:
             ui.label('Click a row to filter the log to that person.').classes('italic-note')

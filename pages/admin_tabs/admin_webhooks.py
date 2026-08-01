@@ -10,6 +10,7 @@ from application.utils.timezone import format_local_display
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 # Event-type options for the multiselect. '*' (all events) is offered first.
 _EVENT_OPTIONS = {EventType.WILDCARD: 'All events (*)'}
@@ -88,7 +89,9 @@ def _render_format_reference() -> None:
         ui.code(json.dumps(ref['example_payload'], indent=2), language='json').classes('w-full')
 
         ui.label('Headers').classes('text-subtitle2 q-mt-md')
-        # mobile-grid: exempt — static 2-column reference reads fine on mobile
+        # A static 2-column reference, not a board anyone works from; it reads
+        # fine on a phone as a table and has nothing worth customizing.
+        # mobile-grid: exempt, table-prefs: exempt
         ui.table(
             columns=[
                 {'name': 'name', 'label': 'Header', 'field': 'name', 'align': 'left'},
@@ -248,7 +251,8 @@ async def admin_webhooks_page() -> None:
                             rows=rows,
                             row_key='when',
                         ).classes('w-full wiz-table')
-                        enable_mobile_grid(delivery_table, delivery_columns)
+                        enable_mobile_grid(delivery_table, delivery_columns,
+                                           table_key=TableKeys.ADMIN_WEBHOOK_DELIVERIES)
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
@@ -330,6 +334,7 @@ async def admin_webhooks_page() -> None:
             table.on('delete', lambda e: background_tasks.create(delete_webhook(e.args, context.client)))
 
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_WEBHOOKS,
                                field_slots={'is_active': _IS_ACTIVE_ICON,
                                             'health': _HEALTH_CHIP})
 

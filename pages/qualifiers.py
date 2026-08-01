@@ -27,6 +27,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.qualifier_copy import BOARD_EXPLAINER, SCORE_EXPLAINER
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 
 def _fmt(dt) -> str:
@@ -311,12 +312,14 @@ def create() -> None:
                 ui.label('You have no runs yet.').classes('text-grey')
                 return
             can_reattempt = window_open and allowance.remaining > 0
-            columns = [
-                {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
-                {'name': 'status', 'label': 'Status', 'field': 'status'},
-                {'name': 'review', 'label': 'Review', 'field': 'review'},
-                {'name': 'time', 'label': 'Time', 'field': 'time'},
-                {'name': 'score', 'label': 'Score', 'field': 'score'},
+            columns: list[dict] = [
+                {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
+                 'sortable': True},
+                {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
+                {'name': 'review', 'label': 'Review', 'field': 'review', 'sortable': True},
+                # HH:MM:SS is zero-padded, so a lexical sort is a chronological one.
+                {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
+                {'name': 'score', 'label': 'Score', 'field': 'score', 'sortable': True},
                 # Capped and wrapping: a full rejection reason is the longest text
                 # on the row, and left to itself it pushes the row action off the
                 # right edge of a desktop table.
@@ -344,9 +347,10 @@ def create() -> None:
                 table.add_slot('body-cell-actions',
                                f'<q-td :props="props">{_REATTEMPT_ACTION}</q-td>')
                 table.on('reattempt', lambda e: _open_reattempt_dialog(e.args.get('id')))
-                enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION)
+                enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION,
+                                   table_key=TableKeys.QUALIFIERS_LIST)
             else:
-                enable_mobile_grid(table, columns)
+                enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LIST)
             ui.label(SCORE_EXPLAINER).classes('text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
@@ -385,11 +389,13 @@ def create() -> None:
             if not entries:
                 ui.label('No scored runs yet.').classes('text-grey')
                 return
-            columns = [
-                {'name': 'rank', 'label': '#', 'field': 'rank'},
-                {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left'},
-                {'name': 'actual', 'label': 'Score', 'field': 'actual'},
-                {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate'},
+            columns: list[dict] = [
+                {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
+                {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left',
+                 'sortable': True},
+                {'name': 'actual', 'label': 'Score', 'field': 'actual', 'sortable': True},
+                {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate',
+                 'sortable': True},
                 # Without this the caption's "unrun slots" names something the
                 # player cannot see; the admin board has always had it.
                 {'name': 'slots', 'label': 'Slots', 'field': 'slots'},
@@ -400,7 +406,7 @@ def create() -> None:
                 for i, e in enumerate(entries)
             ]
             table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
-            enable_mobile_grid(table, columns)
+            enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LEADERBOARD)
             ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
         await render()

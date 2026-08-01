@@ -12,6 +12,7 @@ from application.services import AuthService, ReportsService, get_user_from_disc
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     CHART_GOLD,
@@ -135,7 +136,8 @@ async def stream_rooms_page(
                 row_key='stream_room_id',
             ).classes('full-width wiz-rowclick')
             summary_table.on('row-click', _row_clicked)
-            enable_mobile_grid(summary_table, summary_columns, row_click_event='row-click')
+            enable_mobile_grid(summary_table, summary_columns, row_click_event='row-click',
+                               table_key=TableKeys.REPORTS_STREAM_ROOM_SUMMARY)
             if stream_room_id_int is None:
                 ui.label('Click a row to filter to a single stream room.').classes('italic-note')
 
@@ -171,7 +173,8 @@ async def stream_rooms_page(
                     enabled=can_open_board,
                     hint='Open on the schedule board',
                 )
-                enable_mobile_grid(match_table, match_columns, actions=match_actions)
+                enable_mobile_grid(match_table, match_columns, actions=match_actions,
+                                   table_key=TableKeys.REPORTS_STREAM_ROOM_MATCHES)
 
 
 def _render_utilization_chart(rooms) -> None:

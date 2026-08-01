@@ -12,6 +12,7 @@ from application.services import AuthService, ReportsService, get_user_from_disc
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 from .shared import (
     csv_export_button,
@@ -117,7 +118,8 @@ async def match_ops_page(
                     ),
                     hint='Show only this tournament',
                 )
-                enable_mobile_grid(agg_table, agg_columns, actions=agg_actions)
+                enable_mobile_grid(agg_table, agg_columns, actions=agg_actions,
+                                   table_key=TableKeys.REPORTS_MATCH_OPS_SUMMARY)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -159,4 +161,5 @@ async def match_ops_page(
                 enabled=can_open_board,
                 hint='Open on the schedule board',
             )
-            enable_mobile_grid(detail_table, detail_columns, actions=detail_actions)
+            enable_mobile_grid(detail_table, detail_columns, actions=detail_actions,
+                               table_key=TableKeys.REPORTS_MATCH_OPS_DETAIL)

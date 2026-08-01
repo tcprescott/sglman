@@ -8,6 +8,7 @@ from theme.empty_state import no_data_slot
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _CATEGORY_LABELS = {
     'bug': 'Bug',
@@ -87,6 +88,7 @@ async def admin_feedback_page() -> None:
             # is nothing to offer here beyond saying the queue is empty.
             table.add_slot('no-data', no_data_slot('No feedback submitted yet.', icon='feedback'))
             enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_FEEDBACK,
                                field_slots={'status': _STATUS_BADGE})
 
             async def set_reviewed(event, reviewed: bool):

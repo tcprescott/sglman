@@ -38,6 +38,7 @@ from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
 from .station_repository import StationRepository
 from .stream_room_repository import StreamRoomRepository
+from .table_preference_repository import TablePreferenceRepository
 from .telemetry_repository import TelemetryRepository
 from .tenant_join_request_repository import TenantJoinRequestRepository
 from .tenant_membership_repository import TenantMembershipRepository
@@ -89,6 +90,7 @@ __all__ = [
     'SpeedGamingEventLinkRepository',
     'StationRepository',
     'StreamRoomRepository',
+    'TablePreferenceRepository',
     'TelemetryRepository',
     'TenantFeatureFlagRepository',
     'TenantJoinRequestRepository',

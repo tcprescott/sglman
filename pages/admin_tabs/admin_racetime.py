@@ -11,6 +11,7 @@ from application.services import RaceRoomProfileService, get_user_from_discord_i
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
@@ -163,6 +164,7 @@ async def admin_racetime_page() -> None:
             table.add_slot('body-cell-auto_start', f'<q-td :props="props">{_AUTO_START_ICON}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               table_key=TableKeys.ADMIN_RACETIME,
                                field_slots={'auto_start': _AUTO_START_ICON})
 
             table.on('edit', lambda e: background_tasks.create(edit_profile(e.args, context.client)))

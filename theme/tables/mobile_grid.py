@@ -30,7 +30,7 @@ Presentation-only: builds NiceGUI/Vue slot strings, no business logic.
 """
 
 import html
-from typing import Mapping, Optional, Sequence
+from typing import AbstractSet, Mapping, Optional, Sequence
 
 from nicegui import ui
 
@@ -89,11 +89,20 @@ def enable_mobile_grid(
     field_slots: Optional[Mapping[str, str]] = None,
     row_click_event: Optional[str] = None,
     breakpoint: str = MOBILE_GRID_BREAKPOINT,
+    table_key: Optional[str] = None,
+    required: Optional[AbstractSet[str]] = None,
 ) -> ui.table:
     """Make ``table`` render as stacked cards below ``breakpoint``.
 
     Adds the ``:grid`` prop and an ``item`` slot generated from ``columns``.
     Returns ``table`` so the call can chain.
+
+    With ``table_key`` it *also* applies the viewer's saved desktop layout, and
+    the ordering that makes that safe is owned here rather than left to the
+    caller: the card slot is generated from ``columns`` **first**, exactly as it
+    always was, and ``customize_table`` runs as the last statement. A table that
+    goes through this helper therefore cannot get the order wrong, and the mobile
+    card cannot be reached by a column preference.
 
     Args:
         table: the ``ui.table`` to make responsive.
@@ -111,6 +120,11 @@ def enable_mobile_grid(
             ``$parent.$emit('<event>', props.row)``). Do not combine with
             ``actions`` — a button tap would also bubble the card click.
         breakpoint: Quasar Screen breakpoint (default ``lt.md``).
+        table_key: this table's stable preference key (a ``TableKeys`` constant).
+            Omit for a table that must not be customizable, and say why with a
+            ``# table-prefs: exempt`` comment so the guardrail agrees.
+        required: column names this table may never hide, overriding
+            ``DEFAULT_REQUIRED`` (the row-action cells).
     """
     field_slots = field_slots or {}
     table.props(f':grid="Quasar.Screen.{breakpoint}"')
@@ -153,4 +167,12 @@ def enable_mobile_grid(
         + ''.join(rows) + footer +
         '</q-card></div>',
     )
+
+    # Last statement, deliberately: see the note about ordering above. Imported
+    # here rather than at module scope because preferences.py imports the
+    # service layer, and this module is imported by every table in the app.
+    if table_key:
+        from theme.tables.preferences import DEFAULT_REQUIRED, customize_table
+        customize_table(table, columns, key=table_key,
+                        required=required if required is not None else DEFAULT_REQUIRED)
     return table

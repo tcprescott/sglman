@@ -13,6 +13,8 @@ from application.tenant_context import require_tenant_id
 from models import Role, User
 from theme.dialog import AdminUserDialog
 from theme.tables.admin_crud import refresh_button
+from theme.tables.export import csv_export_button
+from theme.tables.preferences import TableKeys, preferences_button, search_input
 from theme.tables.user import UserTableView
 
 _TA_FILTER = '_tournament_admin'
@@ -92,11 +94,14 @@ async def admin_users_page() -> None:
 
         selected = {'value': []}
 
-        columns = [
-            {'name': 'username', 'label': 'Username', 'field': 'username'},
-            {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name'},
-            {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns'},
-            {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge'},
+        columns: list[dict] = [
+            {'name': 'username', 'label': 'Username', 'field': 'username', 'sortable': True},
+            {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name',
+             'sortable': True},
+            {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns', 'sortable': True},
+            {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge', 'sortable': True},
+            # Not sortable: a comma-joined list of role labels sorts on the
+            # string, which orders by whoever happens to hold 'Commentator'.
             {'name': 'roles', 'label': 'Roles', 'field': 'roles'},
             {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
         ]
@@ -188,6 +193,9 @@ async def admin_users_page() -> None:
             ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
             ui.button('Add User', icon='add', on_click=add_user).props('flat color=primary')
             ui.space()
+            # Placeholder filled after the table exists — the toolbar is built
+            # first for visual order, and the gear needs a live table to read.
+            gear_slot = ui.row().classes('items-center')
             # Lambda, not a direct reference: the toolbar is built before
             # table_view exists.
             refresh_button(lambda: table_view.refresh())
@@ -209,7 +217,7 @@ async def admin_users_page() -> None:
         # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
             columns=columns, get_query=get_query, show_toolbar=False,
-            row_actions=_ROW_ACTIONS,
+            row_actions=_ROW_ACTIONS, table_key=TableKeys.ADMIN_USERS,
             empty_message=(
                 'Nobody is a member of this community yet. Add Member brings an '
                 'existing account in; granting someone a role makes them a member too.'
@@ -219,6 +227,16 @@ async def admin_users_page() -> None:
             'remove_member',
             lambda e: background_tasks.create(remove_member(e.args, context.client)),
         )
+        with gear_slot:
+            search_input(table_view.table, placeholder='Search people…')
+            # The plan's columns, not the shipped list: the export matches what
+            # the person is looking at, hidden columns and all.
+            csv_export_button(
+                'community-people',
+                lambda: table_view._plan.columns if table_view._plan else columns,
+                lambda: table_view.table.rows,
+            )
+            preferences_button(table_view.table)
 
         # Same rebind as the tab-switch below: an 'update:model-value' handler
         # is a client event, so a bare background task loses the tenant.

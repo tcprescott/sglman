@@ -419,3 +419,40 @@ def test_the_two_scheduled_variants_differ_only_in_their_scheduled_branch():
     plain = state_readonly_slot(scheduled_detailed=False)
     marker = '<!-- Scheduled state -->'
     assert detailed[:detailed.index(marker)] == plain[:plain.index(marker)]
+
+
+class TestTheStageCell:
+    """The Stage cell reads as text and becomes a dropdown on click."""
+
+    def test_it_is_borderless_with_no_floating_label(self):
+        from theme.tables.match_slots import STREAM_ROOM_ADMIN_SLOT
+        assert 'borderless' in STREAM_ROOM_ADMIN_SLOT
+        assert 'outlined' not in STREAM_ROOM_ADMIN_SLOT
+        assert 'label="Stage"' not in STREAM_ROOM_ADMIN_SLOT
+
+    def test_no_stage_is_an_option_rather_than_a_clear_button(self):
+        # "None" is one of the answers, not the absence of one — and a clear
+        # affordance that appears only once something is chosen cannot be found
+        # by someone looking for it.
+        from theme.tables.match_grid import _STREAM_DETAIL
+        from theme.tables.match_slots import STREAM_ROOM_ADMIN_SLOT
+        assert 'clearable' not in STREAM_ROOM_ADMIN_SLOT
+        assert 'clearable' not in _STREAM_DETAIL
+
+    def test_the_options_lead_with_no_stage_then_candidate(self):
+        from theme.tables.match import MatchTableView
+
+        view = object.__new__(MatchTableView)
+        view.on_set_stage = lambda *_: None
+        view.stream_rooms_list = {7: 'Stage 1', 8: 'Stage 2'}
+        options = view._stage_options()
+        assert options[0] == {'label': 'No Stage', 'value': None}
+        assert options[1]['label'] == 'Candidate'
+        assert [o['label'] for o in options[2:]] == ['Stage 1', 'Stage 2']
+
+    def test_a_board_that_cannot_set_a_stage_gets_no_options(self):
+        from theme.tables.match import MatchTableView
+
+        view = object.__new__(MatchTableView)
+        view.on_set_stage = None
+        assert view._stage_options() is None
