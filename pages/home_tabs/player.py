@@ -39,6 +39,10 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
 
 async def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
+    # Resolved once for the help icons below: three of them read from the event
+    # handbook, which filters by role, and each would otherwise look the viewer
+    # up for itself.
+    viewer = await get_user_from_discord_id(discord_id)
     match_service = MatchService()
     challonge_service = ChallongeService()
     bracket_service = BracketService()
@@ -47,10 +51,10 @@ async def render_player_dashboard():
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Your Schedule').classes('page-title')
-            await help_icon('player-schedule')
-            await help_icon('check-in', label='Check-in')
-            await help_icon('player-room', label='In the room')
-            await help_icon('player-stage', label='On a stage')
+            await help_icon('player-schedule', user=viewer)
+            await help_icon('check-in', label='Check-in', user=viewer)
+            await help_icon('player-room', label='In the room', user=viewer)
+            await help_icon('player-stage', label='On a stage', user=viewer)
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')

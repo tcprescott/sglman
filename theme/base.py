@@ -111,6 +111,10 @@ class BaseLayout:
         # False on the synchronous render_chrome() path (the error page), which
         # has no DB round-trip to spend and no need for the link.
         self._show_feedback = False
+        # Same shape again, but resolved for signed-out visitors too: /event-info
+        # is a public page, and someone who has not signed in is squarely who it
+        # is written for.
+        self._show_event_info = False
         self.top_menu: list[dict] = []
 
         if tabs:
@@ -136,9 +140,10 @@ class BaseLayout:
         if self._show_volunteer is None:
             from application.services import AuthService
             self._show_volunteer = await AuthService.can_view_volunteer(self.user)
+        from application.services import FeatureFlagService
         if self.user:
-            from application.services import FeatureFlagService
             self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
+        self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
         await self._load_theme_colors()
         # One query for every table on the page. Bound for the rest of the build
         # so each customize_table call reads it back synchronously — a table
@@ -398,6 +403,18 @@ class BaseLayout:
 
             ui.separator()
             with ui.list().props('padding'):
+                # Above Help, and ungated on ``self.user`` for the same reason:
+                # the event handbook answers the questions people have before
+                # they sign in, and some of its readers never will.
+                if self._show_event_info:
+                    with ui.item(
+                        on_click=lambda: ui.navigate.to('/event-info')
+                    ).props('clickable v-ripple'):
+                        with ui.item_section().props('avatar'):
+                            ui.icon('event_note').props('size=sm')
+                        with ui.item_section():
+                            ui.item_label('Event Information')
+
                 # Not gated on ``self.user``: /help is a public page, and a
                 # signed-out visitor on any framed public surface is exactly the
                 # reader who most needs the way in. The real /login is a bare

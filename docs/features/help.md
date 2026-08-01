@@ -7,16 +7,21 @@ explained from the outside ("staff approve your signup", "a proctor fetches an
 admin") so a reader understands why they are waiting on something, without
 documenting an admin surface they cannot reach.
 
-The proctor and player articles are the exception to "documentation of the app":
-they also carry **room procedure the code does not encode** — who runs the
-countdown, what to do about a missing player, which decisions are not the
-proctor's to make, and on the player side the same floor from the other end
-(setting up, spectators, hardware failures, clearing the seat, and that a stage
-match is the broadcast techs' and needs your own earbuds under their isolation
-headphones). The two are written to mirror each other section for section, so an
-amendment to one usually wants the matching edit in the other. That content came
-from the community, not from reading the source, and it will go stale
-independently of the code.
+Help is **app mechanics only**. It used to carry a second thing: the proctor and
+player articles also held **room procedure the code does not encode** — who runs
+the countdown, what to do about a missing player, spectators, hardware failures,
+clearing the seat. That content came from the community rather than the source
+and went stale on the event's clock, so it now lives in
+[Event Information](event-information.md), a per-community handbook behind its
+own flag.
+
+What that leaves here: `player.md` covers Your Schedule, acknowledging,
+requesting a match, availability and results; `proctor.md` covers the Proctor
+Station board, the six steps of running a match, and recording a result. Both
+carry a pointer to Event Information written **without a link** — a community
+without the flag has no `/event-info` for one to reach.
+
+The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
@@ -31,9 +36,9 @@ is runtime content, not project documentation.
 | `getting-started` | Signing in, preferred name, opting into a tournament, where to go next | — |
 | `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
-| `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, check-in and stations, room procedure, stages, results | — |
+| `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
 | `on-air` | The stage timeline, finding a stream, spectating | — |
-| `proctor` | The Proctor Station, running a match start to finish, unclear finishes, when to fetch an admin | `FeatureFlag.VOLUNTEERS` |
+| `proctor` | The Proctor Station board, the six steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
@@ -72,9 +77,14 @@ typo in an article header must not take the help page down.
 
 Articles are **never** rendered through `ui.markdown`. They are parsed into a
 closed vocabulary — six block kinds, seven span kinds
-(`application/help/blocks.py`) — and each one is drawn with a native NiceGUI
+(`application/content/blocks.py`) — and each one is drawn with a native NiceGUI
 element (`theme/help/render.py`). There is no path from article text to markup,
 so an article can only produce elements the renderer itself creates.
+
+The parser and the directory loader live in `application/content/` because
+[Event Information](event-information.md) shares them; `application/help/` is a
+thin binding that supplies its own root and re-exports the names its callers
+already used.
 
 This is not defensive theatre against the current authors. It is what makes the
 surface safe by construction if the content ever becomes editable, and it is the
@@ -161,9 +171,17 @@ link on — the drawer is the way in.
 ```python
 from theme.help import help_icon
 
-await help_icon('crew-status')                        # bare — "explain this page"
+await help_icon('crew-status')                         # bare — "explain this page"
 await help_icon('crew-withdraw', label='Withdrawing')  # labelled — a named topic
+await help_icon('player-room', user=viewer)            # pass a user you already have
 ```
+
+**An icon names a snippet, not a section.** It resolves against help first and
+then the community's [event handbook](event-information.md), so the room
+procedure that moved out of the player and proctor articles kept every icon it
+had — the popup now links to `/event-info/…`. Pass `user=` where the surface
+already resolved one: handbook articles can be role-gated, and without it the
+helper looks the viewer up once per icon.
 
 A tappable button with a `q-menu`, not a hover tooltip: a tooltip is unreachable
 on a touch screen, and this help is read on phones in loud rooms. The convention
@@ -187,6 +205,8 @@ data.
 
 The one worth knowing about: **`TestPagesAndArticlesAgree`** greps `pages/` and
 `theme/` for every `help_icon('x')` and `help_snippet='x'` and asserts the
-snippet exists. A renamed article silently turns its icons into nothing —
+snippet exists **in either section**, plus that the `default` dev handbook
+carries every one help does not own — otherwise the dev loop and the browser
+sweep quietly lose icons. A renamed article silently turns its icons into nothing —
 correct at runtime, useless for catching the rename. Nothing else catches it.
 Internal `/help/slug` and `#anchor` links are checked the same way.

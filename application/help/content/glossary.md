@@ -61,7 +61,8 @@ check-in, and it then shows next to your name on the schedule board.
 
 **Tournament room** — a room of stations where matches are played off-stream,
 run by a proctor. The counterpart to a stage, and the two run to different
-rules. See [Being a player at the event](/help/player#in-the-tournament-room).
+rules — which rules is the event's to set, so look under **Event Information**
+where your community publishes one.
 
 **Tracker** — crew who run the item and progress tracking viewers see alongside
 the game.

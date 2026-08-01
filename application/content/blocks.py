@@ -1,8 +1,10 @@
-"""The safe document model help articles are parsed into.
+"""The safe document model shipped prose articles are parsed into.
 
-Help articles are authored as Markdown, but they are **never** handed to
-``ui.markdown``. NiceGUI's markdown and html elements pass raw HTML straight
-through, so rendering a file's text through them is the same stored-XSS shape
+Shared by the two article sections — in-app help (``application/help``) and the
+per-community event handbook (``application/event_info``). Both are authored as
+Markdown, and neither is **ever** handed to ``ui.markdown``. NiceGUI's markdown
+and html elements pass raw HTML straight through, so rendering a file's text
+through them is the same stored-XSS shape
 ``check_markdown_xss`` exists to stop — the fact that these particular files are
 developer-authored and version-controlled is a property of today's workflow, not
 of the renderer. Parsing to a closed set of blocks and spans and rendering each
@@ -25,6 +27,7 @@ __all__ = [
     'Span',
     'parse_blocks',
     'parse_inline',
+    'plain_text',
     'slugify',
 ]
 

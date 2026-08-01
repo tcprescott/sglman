@@ -33,7 +33,8 @@ from application.help import (
     reload_articles,
     slugify,
 )
-from application.help.blocks import plain_text
+from application.content.blocks import plain_text
+from application.event_info import snippet_for_tenant, tenant_slugs
 from application.services.match.match_status import LEGACY_STATE_LABELS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -276,9 +277,36 @@ class TestPagesAndArticlesAgree:
     def test_every_help_icon_in_the_app_names_a_snippet_that_exists(self):
         """A renamed article silently turns its icons into nothing — the icon
         hides itself rather than raising, which is right at runtime and useless
-        for catching the rename."""
-        missing = {n for n in self._referenced_snippets() if get_snippet(n) is None}
+        for catching the rename.
+
+        Both sections count. ``help_icon`` resolves help first and then the
+        community's event handbook, so a snippet that moved between them is still
+        wired; one that exists in *neither* is the rename this catches.
+        """
+        def known(name: str) -> bool:
+            if get_snippet(name) is not None:
+                return True
+            return any(snippet_for_tenant(t, name) is not None for t in tenant_slugs())
+
+        missing = {n for n in self._referenced_snippets() if not known(n)}
         assert not missing, f'help_icon references no such snippet: {sorted(missing)}'
+
+    def test_the_dev_tenant_carries_every_snippet_the_app_wires(self):
+        """Otherwise the dev loop and the browser sweep silently lose icons.
+
+        Event-handbook snippets are per tenant, so an icon wired to one only
+        opens for a community that ships it. The ``default`` fixture is what the
+        dev run and ``/ui-validation`` exercise, so anything the app references
+        and help does not own has to exist there too.
+        """
+        missing = {
+            name for name in self._referenced_snippets()
+            if get_snippet(name) is None and snippet_for_tenant('default', name) is None
+        }
+        assert not missing, (
+            'the default dev handbook is missing snippets the app wires icons to: '
+            f'{sorted(missing)}'
+        )
 
     def test_the_app_actually_uses_help(self):
         assert len(self._referenced_snippets()) >= 8

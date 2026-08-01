@@ -45,7 +45,7 @@ async def _flag(tenant_id: int, flag: FeatureFlag, *, available: bool, enabled: 
 # --- registry ---------------------------------------------------------------
 
 def test_registry_covers_every_flag():
-    assert len(FEATURE_FLAG_REGISTRY) == 9
+    assert len(FEATURE_FLAG_REGISTRY) == 10
     assert set(FEATURE_FLAG_REGISTRY) == set(FeatureFlag)
 
 
@@ -62,6 +62,9 @@ def test_established_flags_are_the_in_use_features():
     assert FeatureFlag.RACETIME_ROOMS not in established_flags()
     # Native brackets ship dark — a brand-new, unreleased subsystem.
     assert FeatureFlag.BRACKETS not in established_flags()
+    # Event Information ships dark too: no community had one before the flag
+    # existed, so there is nothing to backfill and nothing to preserve.
+    assert FeatureFlag.EVENT_INFO not in established_flags()
 
 
 # --- effective state: available AND enabled ---------------------------------

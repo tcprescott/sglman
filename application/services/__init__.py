@@ -44,6 +44,7 @@ from .discord import (
     discord_queue,
 )
 from .equipment_service import EquipmentService
+from .event_info_service import EventInfoService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
 from .help_service import HelpService
@@ -123,6 +124,7 @@ __all__ = [
     'DiscordService',
     'DraftPolicy',
     'EquipmentService',
+    'EventInfoService',
     'FeatureFlagService',
     'FeedbackService',
     'HelpService',

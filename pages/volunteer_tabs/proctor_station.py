@@ -6,10 +6,12 @@ is for scheduling matches, this one is for running them. It therefore drops the
 crew, stage and scheduling columns and carries no create/edit controls.
 """
 
+from typing import Optional
+
 from nicegui import ui
 
 from application.tenant_context import require_tenant_id
-from models import Match
+from models import Match, User
 from theme.help import help_icon
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
@@ -50,17 +52,19 @@ def proctor_row_order(rows: list[dict]) -> list[dict]:
     return sorted(rows, key=key)
 
 
-async def proctor_station_tab() -> None:
+async def proctor_station_tab(user: Optional[User] = None) -> None:
     with ui.column().classes('page-container-wide') as page_container:
         with ui.row().classes('header-row items-center'):
             ui.label('Proctor Station').classes('page-title')
-            await help_icon('proctor-station')
-            await help_icon('proctor-run-match', label='Running a match')
+            await help_icon('proctor-station', user=user)
+            await help_icon('proctor-run-match', label='Running a match', user=user)
             # Third icon earns its place: what to do when a player is missing or
             # the hardware fails is the thing a proctor needs mid-incident, and
             # it is the one part of the job that is not theirs to decide.
-            await help_icon('proctor-escalation', label='When things go wrong')
-            await help_icon('proctor-handover', label='Shift change')
+            # These two now read from the event handbook and are role-gated, so
+            # the viewer is passed in rather than looked up per icon.
+            await help_icon('proctor-escalation', label='When things go wrong', user=user)
+            await help_icon('proctor-handover', label='Shift change', user=user)
             ui.space()
         ui.label(
             'Every match in this room. Check players in, seat them, roll the seed, '
