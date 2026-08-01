@@ -23,7 +23,6 @@ from pages import (
     challonge_oauth,
     equipment,
     equipment_labels,
-    help as help_pages,
     home,
     mcp_consent,
     platform,
@@ -33,6 +32,10 @@ from pages import (
     twitch_oauth,
     volunteer,
 )
+
+# Its own statement, and aliased: ruff's isort keeps an `as` import separate,
+# and the bare name would shadow the `help` builtin in this module.
+from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
 
 _ui_logger = logging.getLogger('wizzrobe.ui')

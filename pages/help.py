@@ -9,12 +9,11 @@ Presentation only — it reads through :class:`HelpService` and renders parsed
 blocks with :func:`theme.help.render_blocks`. Nothing here touches the ORM.
 """
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import AuthService, HelpService, get_user_from_discord_id
 from application.help import HelpArticle
+from application.services import AuthService, HelpService, get_user_from_discord_id
 from middleware.auth import public_page
-from nicegui import app
 from theme.base import BaseLayout
 from theme.help.render import render_blocks
 
