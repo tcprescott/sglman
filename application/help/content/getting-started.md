@@ -12,13 +12,18 @@ Everything is tied to your Discord account. There is no separate password. Tap
 **Login with Discord**, approve the request, and you land back where you started.
 
 If you cannot sign in, the usual cause is that you are not a member of the
-community's Discord server yet. Join it first, then try again.
+community's Discord server yet. Join it first, then try again. **If you still
+cannot get in, contact a staff member** — do not keep retrying.
 
-## Set your preferred name
+## Set your preferred name (optional)
 
 Go to **Profile** and set the name you want other people to see. That name is
 what appears next to your match on the schedule board, on stream, and in the
-crew lists — not your Discord handle.
+crew lists.
+
+This is optional. Leave it blank and your Discord username is used instead. Set
+it if you go by something else, or if your Discord handle is not what people
+call you.
 
 ## Opt into a tournament
 
@@ -40,6 +45,7 @@ dropdown, opting in is almost always what is missing.
 | Playing | [Being a player](/help/player) |
 | Commentating or tracking | [Signing up as crew](/help/crew) |
 | Working shifts | [Volunteering](/help/volunteering) |
+| Proctoring | [Running matches as a proctor](/help/proctor) |
 | Just watching | [Reading the schedule board](/help/schedule-board) |
 
 ## Turn on notifications

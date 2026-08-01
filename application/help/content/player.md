@@ -24,9 +24,11 @@ Schedule tab shows every match in the event; this one shows only yours.
 When you are scheduled into a match, the bot DMs you with an **Acknowledge**
 button. Pressing it tells staff you have seen the time and intend to be there.
 
-Acknowledging is not optional in practice. Staff use the unacknowledged list to
-work out who to chase, so a match you never acknowledged is a match someone has
-to come and find you about.
+It is not a requirement — nobody is stopped from playing for not acknowledging.
+It is, though, genuinely useful to the on-call admin and your proctor: it tells
+them you know about the match. They work from the unacknowledged list to decide
+who to chase, so acknowledging is the difference between being left alone and
+being tracked down.
 
 ## Getting a match scheduled
 
@@ -90,6 +92,10 @@ to {state:Checked In}.
 Your **station** is the physical seat you play at. The proctor assigns it, and
 once they have, the station number shows next to your name on the schedule
 board so you and anyone looking for you can see where you are.
+
+The proctor counts you down out loud and starts the match. If your opponent has
+not turned up by the time your match is due, the proctor fetches an admin — that
+call is not theirs to make, so give them a moment rather than pressing them.
 
 You do not check yourself in and you do not pick your own station.
 :::

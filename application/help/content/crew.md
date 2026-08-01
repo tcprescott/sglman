@@ -24,8 +24,9 @@ Commentators or Trackers cell.
 Signing up is a request, not a booking. It records that you are available for
 that slot; a staff member decides who actually gets it.
 
-Some tournaments do not use one of the roles at all. Where that is the case
-there is no **Sign up** to press for it — that is deliberate, not a fault.
+**Every streamed match has commentary.** The tracker role is the one some
+tournaments do not use — where that is the case there is no **Sign up** in the
+Trackers cell, which is deliberate rather than a fault.
 :::
 
 ## Getting approved

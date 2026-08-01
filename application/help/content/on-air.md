@@ -35,6 +35,21 @@ or approved crew, you are told anyway.
 See [Reading the schedule board](/help/schedule-board#watching-a-match) for how
 to turn it on and off.
 
+## Watching in the room
+
+You are welcome to watch matches in the tournament room, as long as you are not
+disruptive. Players are concentrating and several matches share the space, so
+keep it quiet.
+
+**Pick one player and stay with them.** If you are watching a match in the room,
+watch one side of it for the whole match — do not move across to watch their
+opponent part way through. Someone who has seen both screens knows things neither
+player does, and proctors will stop it.
+
+The proctor running the room can ask you to leave — if you are being disruptive,
+or simply because the room has filled up. Take it as a room-capacity call rather
+than a personal one.
+
 ## Spectating without an account
 
 The schedule board and the stage timeline need you to be signed in and to be a

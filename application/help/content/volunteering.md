@@ -7,22 +7,36 @@ feature: VOLUNTEERS
 summary: Setting your availability, how shifts reach you, and giving one back.
 ---
 
-Volunteering is the shift-based work that keeps the event running — running the
-floor, staffing a desk, setting up a stage. It is separate from
-[crew](/help/crew), which is per match rather than per shift.
+Volunteering is the shift-based work that keeps the event running. It is separate
+from [crew](/help/crew), which is per match rather than per shift.
 
 The **Volunteer** tab is where all of it lives. If you cannot see it, you have
 not been given a volunteer role yet — ask a coordinator.
 
+> Proctoring is its own job with its own tab and its own procedure. If you are
+> running a room, read [Running matches as a proctor](/help/proctor).
+
 ## Tell them when you are free
 
 :::snippet volunteer-availability
-**My Availability** on the Volunteer tab is where you add the windows you can
-work. Add a window for each block of time you are actually available; the
-coordinator builds the schedule from what everyone has entered.
+**My Availability** on the Volunteer tab is where you say when you can work. Each
+window you add carries one of three answers:
 
-Blank availability does not mean "any time" — it means the auto-scheduler has
-nothing to place you into.
+| Window | Means |
+|---|---|
+| **Preferred** | You would like this slot. The auto-scheduler reaches for these first. |
+| **Available** | You can work it. Taken after everyone's preferred windows. |
+| **Unavailable** | You cannot work it. The auto-scheduler will not place you here at all. |
+
+**A blank schedule is "no preference stated", not "unavailable"** — you are not
+refusing anything. But by default the auto-scheduler only places people who
+stated a window, so leaving it empty usually means it passes you over. A
+coordinator can turn that behaviour off and let it fill outside stated
+availability, in which case you are considered last, behind everyone who said
+something.
+
+The short version: an **Unavailable** window is the only way to rule a time out,
+and stating your windows is what gets you the shifts you actually want.
 :::
 
 > There are two availability editors and they hold different things. The one on
@@ -32,8 +46,17 @@ nothing to place you into.
 ## How shifts reach you
 
 A coordinator builds the schedule, either by hand or with the auto-scheduler,
-which fits people to shifts using the availability everyone entered. When you are
-assigned a shift you get a Discord DM, and a reminder DM before it starts.
+which fits people to shifts using the availability everyone entered. Whatever it
+drafts, **the coordinator decides** — the auto-scheduler proposes and they sign
+off.
+
+It also weighs more than availability: it will not put you on two shifts at once,
+and it respects a cap on how many hours anyone works. If a coordinator has
+recorded which positions you are qualified for, it keeps you to those and puts
+you ahead of unqualified people for them.
+
+When you are assigned a shift you get a Discord DM, and a reminder DM before it
+starts.
 
 ## My Shifts
 

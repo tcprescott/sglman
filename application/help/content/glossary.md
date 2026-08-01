@@ -36,8 +36,10 @@ signups, alongside staff and the tournament's admin.
 **Enrolled / opted in** — you have put your name forward for a tournament. You
 have to be opted in before you can be scheduled in it.
 
-**Proctor** — the volunteer running the floor. They check matches in, seat
-players at stations, and record results.
+**Proctor** — the volunteer running a room. They check matches in, seat players
+at stations, count them down, start them and record results. They do not confirm
+results, reschedule matches, or approve crew. See
+[Running matches as a proctor](/help/proctor).
 
 ## S–Z
 

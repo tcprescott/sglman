@@ -1,15 +1,21 @@
 # In-App Help
 
 A public `/help` section plus tappable help icons scattered through the
-player-, crew- and volunteer-facing surfaces. Written for the people who turn up
-to an on-site tournament — **not** for staff. Staff actions are explained from
-the outside ("staff approve your signup", "a proctor checks your match in") so a
-reader understands why they are waiting on something, without documenting an
-admin surface they cannot reach.
+player-, crew-, volunteer- and proctor-facing surfaces. Written for the people
+who turn up to an on-site tournament — **not** for staff. Staff actions are
+explained from the outside ("staff approve your signup", "a proctor fetches an
+admin") so a reader understands why they are waiting on something, without
+documenting an admin surface they cannot reach.
+
+The proctor article is the exception to "documentation of the app": it is also a
+**training aid**, so it carries room procedure the code does not encode — who
+runs the countdown, what to do about a missing player, and which decisions are
+not the proctor's to make. That content came from the community, not from
+reading the source, and it will go stale independently of the code.
 
 ## Where the content lives
 
-`application/help/content/*.md` — eight articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — nine articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -22,6 +28,7 @@ is runtime content, not project documentation.
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
 | `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, check-in and stations, results | — |
 | `on-air` | The stage timeline, finding a stream, spectating | — |
+| `proctor` | The Proctor Station, running a match start to finish, unclear finishes, when to fetch an admin | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
@@ -103,6 +110,16 @@ reader following a stale link should not learn which optional features their
 community has turned off. `help_icon` renders **nothing** when its snippet
 resolves to `None` — an icon that opens an empty popup is worse than no icon.
 
+**One known consequence.** `proctor-result` explains the *Flag for admin review*
+checkbox, and it lives in the `VOLUNTEERS`-gated proctor article. The dispute
+flag itself is ungated (it self-gates — a community that never ticks the box
+never sees it), and `can_run_match` admits staff and tournament admins as well as
+proctors. So in a community with volunteers switched off, a staff member
+recording a result gets the checkbox with no help icon beside it. That is
+consistent with the scope call above — the help is written for non-staff — and it
+degrades to *no icon* rather than to a broken one. Writing a staff track is what
+fixes it.
+
 ## The surfaces
 
 `/help` and `/help/{slug}` are `@public_page` (`pages/help.py`). Help has to
@@ -135,11 +152,13 @@ icons for specific topics — two bare `help_outline`s side by side are
 indistinguishable, and the reader has to open both to find which one answers
 their question.
 
-Wired at: Home → Schedule (columns + states), My Crew (statuses + withdrawing),
-Player (overview + check-in), My Availability, Profile → Notifications; the
-Submit Match dialog and its Suggest a time button; Volunteer → My Shifts and its
-release dialog; Home → On Air; and the shared availability editor, which takes
-`help_snippet=` because the two callers render identical UI over different data.
+Wired at: Home → Schedule (columns + states), My Crew (statuses + approval +
+withdrawing), Player (overview + check-in), My Availability, Profile →
+Notifications; the Submit Match dialog and its Suggest a time button; Volunteer →
+My Shifts and its release dialog; Volunteer → Proctor Station (the board, running
+a match, and when things go wrong) and the result dialog's review flag; Home → On
+Air; and the shared availability editor, which takes `help_snippet=` because the
+two callers render identical UI over different data.
 
 ## Tests
 
