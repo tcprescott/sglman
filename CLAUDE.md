@@ -84,6 +84,49 @@ await self.audit_service.write_and_publish(
 
 Use bare `event_bus.publish(Event.create(EventType.X, {...}, actor))` (`from application.events import Event, EventType, event_bus`) only where there is no audit row to pair with — a worker observation, or a publish that must fire on a path the audit deliberately skips. `EventType` names mirror `AuditActions` and are an **external contract** — add a member to `EventType` + `EventType.ALL` for a new event; treat renames as breaking. `publish` is synchronous, never raises, and never blocks. Lives at `application/events/` (a peer of `services/`, so it's exempt from the architecture hook). Its narrow sibling `application/events/match_live.py` is **not** the same thing: that one carries only `(match_id, change_type)` to nudge open UI views. Publish domain events on `event_bus`; use `match_live` only for UI refresh. Detail: [docs/features/event-system.md](docs/features/event-system.md).
 
+## Writing user-facing text
+
+Scope: prose a person reads — chat replies, UI copy (labels, `ui.notify` text,
+help and event-info articles), Discord notification copy, PR and issue comments.
+Not identifiers, log lines, or the reference docs in `docs/`, which keep their own
+table-and-bullet house style.
+
+Be direct and have opinions. State the point first, then support it with specific
+names and examples instead of vague claims. Trust the reader to recognise what
+matters without being told it is significant or important. Use contractions.
+Match tone to context: a casual question gets a casual answer.
+
+Never use these words: *delve, dive into, navigate* (figurative), *underscore,
+bolster, foster, harness, leverage, unpack, shed light on, pave the way, pivotal,
+groundbreaking, cutting-edge, transformative, game-changing, innovative, robust,
+comprehensive, seamless, intricate, nuanced* (as empty praise), *vibrant,
+multifaceted, holistic, testament, landscape* (figurative), *realm*.
+
+Never use these phrases: "In today's fast-paced/rapidly evolving/digital
+world…", "It's important/worth noting that…", "One of the most
+important/significant/crucial…", "When it comes to…", "At its core…", "At the end
+of the day…", "This is where X comes in", "Let's break it down", "plays a crucial
+role in…", "…cannot be overstated", "…underscoring the importance of…",
+"…highlighting the need for…", "…reflecting a broader trend toward…", "…marking a
+significant shift in…".
+
+Never use these structures, which mimic insight without providing any: "It's not
+just X — it's Y", "Not only X, but Y", "This isn't about X. It's about Y.", "No X.
+No Y. Just Z."
+
+Vary sentence and paragraph length rather than writing uniform blocks. Avoid the
+"**Bold term**: explanation sentence" list format entirely; it is the single most
+recognisable AI pattern. Don't signpost ("Let's explore", "Now let's turn to"),
+don't open with a sweeping statement about the state of the world, don't close
+with a summary or an inspirational wrap-up, and don't restate the question before
+answering it. Plain prose usually beats headers and bullets. Skip preamble
+("Great question!"), performative enthusiasm ("exciting", "incredible",
+"powerful"), and unsolicited caveats. One em dash per response, maximum — commas
+or parentheses otherwise.
+
+Before finishing, read it back. Any sentence that sounds like a press release gets
+rewritten, and any point made twice in different words gets made once.
+
 ## Timezone handling
 
 **All datetimes are stored in UTC; user-facing times render on a per-request local clock.** Never store localized datetimes; never display raw UTC. Every conversion goes through `application/utils/timezone.py` (`parse_local_datetime`, `combine_local`, `local_day_bounds`, `format_local_time`/`_date`/`_display`, `now_local`, `today_local`, `to_local`, `to_utc_aware`, `timezone_label`).
