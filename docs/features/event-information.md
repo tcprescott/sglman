@@ -42,11 +42,20 @@ context.
 
 | Tenant | Articles |
 |---|---|
-| `sgl` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) |
+| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) |
 | `default` | `attending` · `proctoring` — the **dev fixture**, see below |
 
 A tenant with no directory has **no articles**, not an error: a community that
 has just been granted the feature and written nothing renders an empty state.
+
+> **The directory name is the tenant's `slug`, exactly.** Slugs live in the
+> database and directories live in the repo, so nothing can check the two agree at
+> import time — a mismatch renders the empty state, which looks identical to
+> "nobody has written anything yet". This has already been hit once: the SGL
+> handbook was first filed under `sgl` for a tenant whose slug is `sgl26`.
+> `_root_for` logs a one-off warning naming the slug and the path it looked for,
+> which is the only signal you get. Check the slug with the Wizzrobe MCP
+> `list_tenants`, or `/platform`, before creating a directory.
 
 The SGL articles are written from
 [sglive.speedgaming.org](https://sglive.speedgaming.org) and its announcement

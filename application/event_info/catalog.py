@@ -15,14 +15,26 @@ need, so that half is done.
 A tenant with no directory has **no articles**, not an error — a community that
 has just been granted the feature and not yet written anything is an empty
 section, which is exactly what its readers should see.
+
+**The directory name is the tenant's `slug`, exactly.** Nothing checks that at
+import time, because the slugs live in the database and the directories live in
+the repo, so a mismatch cannot fail loudly — it renders the empty state, which is
+indistinguishable from "nobody has written anything yet". That is the sharpest
+edge of filing content this way, and it has already been hit once (a handbook
+filed under ``sgl`` for a tenant whose slug is ``sgl26``). The one-off warning
+below is the compensating control: a tenant that reaches this module and has no
+directory says so in the log.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
 from application.content import ContentArticle, ContentSnippet, catalog_for
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     'BASE_PATH',
@@ -46,11 +58,25 @@ BASE_PATH = '/event-info'
 _SAFE_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9-]*$')
 
 
+#: Slugs already warned about, so a misconfigured tenant logs once rather than on
+#: every page build. Process-wide and not per-user, like the parse caches.
+_warned: set[str] = set()
+
+
 def _root_for(slug: str) -> Path | None:
     if not slug or not _SAFE_SLUG_RE.match(slug):
         return None
     root = CONTENT_ROOT / slug
-    return root if root.is_dir() else None
+    if root.is_dir():
+        return root
+    if slug not in _warned:
+        _warned.add(slug)
+        logger.warning(
+            'event handbook is enabled for tenant %r but no content directory exists at %s; '
+            'the section will render empty. The directory name must equal the tenant slug.',
+            slug, root,
+        )
+    return None
 
 
 def articles_for_tenant(slug: str) -> list[ContentArticle]:

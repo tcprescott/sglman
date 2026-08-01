@@ -33,7 +33,7 @@ ALL_ARTICLES = [
 def test_some_handbooks_ship():
     """A guard on the fixtures themselves: an empty content tree would make
     every parametrized test below vacuously pass."""
-    assert 'sgl' in tenant_slugs()
+    assert 'sgl26' in tenant_slugs()
     assert 'default' in tenant_slugs(), 'the dev fixture handbook is what /ui-validation renders'
     assert len(ALL_ARTICLES) >= 4
 
@@ -143,7 +143,43 @@ class TestSnippets:
             'player-turnover', 'proctor-room', 'proctor-escalation',
             'proctor-handover',
         }
-        assert {n for n in moved if snippet_for_tenant('sgl', n) is None} == set()
+        assert {n for n in moved if snippet_for_tenant('sgl26', n) is None} == set()
+
+
+class TestTheSlugMismatchWarning:
+    """The compensating control for the one failure this design cannot check.
+
+    Directory names live in the repo and tenant slugs live in the database, so a
+    mismatch renders the empty state and looks exactly like "nobody has written
+    anything yet". The log line is the only signal.
+    """
+
+    def test_an_unknown_slug_warns_with_the_path_it_looked_for(self, caplog):
+        from application.event_info import catalog
+
+        catalog._warned.discard('no-such-community')
+        with caplog.at_level('WARNING', logger='application.event_info.catalog'):
+            assert articles_for_tenant('no-such-community') == []
+        assert 'no-such-community' in caplog.text
+        assert 'must equal the tenant slug' in caplog.text
+
+    def test_it_warns_once_rather_than_on_every_page_build(self, caplog):
+        from application.event_info import catalog
+
+        catalog._warned.discard('quiet-after-the-first')
+        with caplog.at_level('WARNING', logger='application.event_info.catalog'):
+            articles_for_tenant('quiet-after-the-first')
+            assert 'quiet-after-the-first' in caplog.text
+            # caplog accumulates across the whole test, so the second call's
+            # silence is only visible once the first call's record is dropped.
+            caplog.clear()
+            articles_for_tenant('quiet-after-the-first')
+        assert caplog.text == ''
+
+    def test_a_shipped_slug_does_not_warn(self, caplog):
+        with caplog.at_level('WARNING', logger='application.event_info.catalog'):
+            assert articles_for_tenant('sgl26')
+        assert caplog.text == ''
 
 
 def test_content_lives_inside_the_package():
