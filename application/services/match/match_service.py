@@ -244,7 +244,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         try:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
-            raise ValueError("That date or time doesn't look right — check the format and try again.") from e
+            raise ValueError("That date or time doesn't look right. Check the format and try again.") from e
 
         await self._assert_within_tournament_hours(scheduled_at, tournament_id)
 

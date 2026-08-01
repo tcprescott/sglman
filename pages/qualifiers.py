@@ -85,7 +85,7 @@ def create() -> None:
             ui.separator()
             qualifiers = await service.list_open_qualifiers()
             if not qualifiers:
-                ui.label('No qualifiers are open right now — check back soon.').classes('text-grey')
+                ui.label('No qualifiers are open right now. Check back soon.').classes('text-grey')
                 return
             for q in qualifiers:
                 with ui.card().classes('w-full'):
@@ -260,7 +260,7 @@ def create() -> None:
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
                         return
-                    ui.notify('Got it — this run is marked forfeited.', color='info')
+                    ui.notify('This run is marked forfeited.', color='info')
                     await render.refresh()
 
                 async def _confirm_forfeit() -> None:

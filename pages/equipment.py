@@ -78,7 +78,7 @@ def create() -> None:
         async def render_detail() -> None:
             asset = await service.get_asset(asset_id)
             if asset is None:
-                ui.label("Couldn't find that asset — it may have been removed.").classes('text-error')
+                ui.label("Couldn't find that asset. It may have been removed.").classes('text-error')
                 return
 
             open_loan = await service.current_loan(asset)
@@ -226,7 +226,7 @@ def create() -> None:
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             asset = await service.get_asset(asset_id)
             if asset is None:
-                ui.notify("Couldn't find that asset — it may have been removed.", color='warning')
+                ui.notify("Couldn't find that asset. It may have been removed.", color='warning')
                 return
             await EquipmentDialog(actor, equipment=asset, on_saved=render_detail.refresh).open()
 

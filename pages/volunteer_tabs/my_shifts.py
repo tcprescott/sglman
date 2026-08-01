@@ -159,7 +159,7 @@ async def my_shifts_tab() -> None:
                             async def ack(a_id=assignment.id) -> None:
                                 try:
                                     await service.acknowledge(a_id, user)
-                                    ui.notify('Thanks — shift acknowledged.', color='positive')
+                                    ui.notify('Shift acknowledged. Thanks!', color='positive')
                                 except (ValueError, PermissionError) as e:
                                     notify_error(e)
                                 shift_list.refresh()

@@ -69,8 +69,8 @@ class TriforceTextService:
             raise ValueError("This tournament is not accepting submissions.")
         if not (await AuthService.is_staff(user) or await AuthService.is_triforce_submitter(user)):
             raise ValueError(
-                "Triforce text submissions are a paid add-on for this event — "
-                "check the tournament page for how to unlock it."
+                "Triforce text submissions are a paid add-on for this event. "
+                "Check the tournament page for how to unlock it."
             )
 
         cleaned = self._validate_lines(lines)

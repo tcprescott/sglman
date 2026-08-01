@@ -39,7 +39,7 @@ class EquipmentService:
             return None
         owner = await User.get_or_none(id=owner_user_id)
         if owner is None:
-            raise ValueError("That owner doesn't exist — pick someone from the list.")
+            raise ValueError("That owner doesn't exist. Pick someone from the list.")
         return owner
 
     # --- Asset management (Equipment Manager / Staff) ---
@@ -198,7 +198,7 @@ class EquipmentService:
         if await AuthService.can_manage_equipment(actor) and borrower_id:
             borrower = await User.get_or_none(id=borrower_id)
             if borrower is None:
-                raise ValueError("That borrower doesn't exist — pick someone from the list.")
+                raise ValueError("That borrower doesn't exist. Pick someone from the list.")
             # The two hard rules, enforced here because this is the only place
             # every caller passes through — the dialog, the MCP surface, a future
             # REST router, a Discord handler. Deliberately *not* enforced: that

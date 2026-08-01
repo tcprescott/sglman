@@ -122,7 +122,7 @@ class TenantMembershipService:
             raise ValueError('You are already a member of this community.')
         text = (message or '').strip() or None
         if text and len(text) > 500:
-            raise ValueError("That message is a bit long — keep it under 500 characters.")
+            raise ValueError("That message is a bit long. Keep it under 500 characters.")
 
         request = await TenantJoinRequestRepository.upsert_pending(user, tenant_id, text)
         # The requester acts on their own behalf, and the row belongs to the

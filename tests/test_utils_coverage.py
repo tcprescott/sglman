@@ -222,7 +222,7 @@ class TestCancelledDmRelease:
 
     def test_an_ordinary_cancellation_is_unchanged(self):
         msg = dm.cancelled_dm('Cool Cup')
-        assert "You're all set — nothing else to do here." in msg
+        assert "You're all set. Nothing else to do here." in msg
 
 
 class TestSchedulingDms:
@@ -449,30 +449,29 @@ class TestDiscordEmbeds:
 class TestEphemeralReplies:
     def test_match_ack_with_players(self):
         assert dm.match_ack_confirmation('A vs B') == \
-            "Got it — you've acknowledged your match (A vs B). Thanks!"
+            "You've acknowledged your match (A vs B). Thanks!"
 
     def test_match_ack_without_players(self):
-        assert dm.match_ack_confirmation('') == \
-            "Got it — you've acknowledged your match. Thanks!"
+        assert dm.match_ack_confirmation('') == "You've acknowledged your match. Thanks!"
 
     def test_crew_ack_with_players(self):
         msg = dm.crew_ack_confirmation('Commentator', 'A vs B')
-        assert msg == "Got it — you're confirmed for Commentator (A vs B). Thanks!"
+        assert msg == "You're confirmed for Commentator (A vs B). Thanks!"
 
     def test_crew_ack_without_players(self):
         msg = dm.crew_ack_confirmation('Commentator', '')
-        assert msg == "Got it — you're confirmed for Commentator. Thanks!"
+        assert msg == "You're confirmed for Commentator. Thanks!"
 
     def test_crew_signup_with_players(self):
         msg = dm.crew_signup_confirmation('Tracker', 'A vs B')
         assert msg == (
-            "You're signed up as **Tracker** for the match (A vs B) — "
-            "an admin will confirm it shortly."
+            "You're signed up as **Tracker** for the match (A vs B). "
+            "An admin will confirm it shortly."
         )
 
     def test_crew_signup_without_players(self):
         msg = dm.crew_signup_confirmation('Tracker', '')
-        assert msg == "You're signed up as **Tracker** — an admin will confirm it shortly."
+        assert msg == "You're signed up as **Tracker**. An admin will confirm it shortly."
 
     def test_unwatch_was_watching(self):
         assert dm.unwatch_confirmation('A vs B', True) == \

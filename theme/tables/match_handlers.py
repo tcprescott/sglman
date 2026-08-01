@@ -36,7 +36,7 @@ class MatchTableHandlersMixin:
                 return
             user = await self.user_service.get_current_user_from_storage(discord_id)
             if not user:
-                ui.notify("We couldn't find your account — try logging in again.", color='warning')
+                ui.notify("We couldn't find your account. Try logging in again.", color='warning')
                 return
             match_id = row['id']
             try:
@@ -67,7 +67,7 @@ class MatchTableHandlersMixin:
         m = await match_query.filter(id=match_id).prefetch_related(*prefetch_map[role]).first()
         items = getattr(m, attr_map[role], []) if m else []
         if not m or idx >= len(items):
-            ui.notify(f'That {role} could not be found — the page may be out of date.', color='warning')
+            ui.notify(f'That {role} could not be found. The page may be out of date.', color='warning')
             return
 
         user = items[idx].user
@@ -96,7 +96,7 @@ class MatchTableHandlersMixin:
         m = await match_query.filter(id=match_id).prefetch_related(*prefetch_map[role]).first()
         items = getattr(m, attr_map[role], []) if m else []
         if not m or idx >= len(items):
-            ui.notify(f'That {role} could not be found — the page may be out of date.', color='warning')
+            ui.notify(f'That {role} could not be found. The page may be out of date.', color='warning')
             return
 
         crew_member = items[idx]
@@ -165,7 +165,7 @@ class MatchTableHandlersMixin:
         # Get user via service layer
         user = await self.user_service.get_current_user_from_storage(discord_id)
         if not user:
-            ui.notify("We couldn't find your account — try logging in again.", color='warning')
+            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
             return
 
         match_id = row['id']
@@ -253,7 +253,7 @@ class MatchTableHandlersMixin:
                 return
             user = await self.user_service.get_current_user_from_storage(discord_id)
             if not user:
-                ui.notify("We couldn't find your account — try logging in again.", color='warning')
+                ui.notify("We couldn't find your account. Try logging in again.", color='warning')
                 return
             try:
                 await CrewService().acknowledge_crew_assignment(crew_id, role, user)
@@ -340,7 +340,7 @@ class MatchTableHandlersMixin:
 
         user = await self.user_service.get_current_user_from_storage(discord_id)
         if not user:
-            ui.notify("We couldn't find your account — try logging in again.", color='warning')
+            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
             return
 
         currently_watching = bool(row.get('_watching'))

@@ -57,7 +57,7 @@ async def schedule():
                 return
             match = await match_service.get_by_id(match_id)
             if not match:
-                ui.notify("Couldn't find that match — try refreshing the page.", color='warning')
+                ui.notify("Couldn't find that match. Try refreshing the page.", color='warning')
                 return
             dialog = UserMatchDialog(
                 discord_id=discord_id,

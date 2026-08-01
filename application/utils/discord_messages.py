@@ -19,8 +19,8 @@ from application.utils.match_labels import players_label
 # ---------------------------------------------------------------------------
 
 MSG_NO_ACCOUNT = (
-    "Looks like you don't have a Wizzrobe account yet — log in at the website "
-    "first and this will work."
+    "You don't have a Wizzrobe account yet. Log in at the website first and "
+    "this will work."
 )
 
 
@@ -31,7 +31,7 @@ def msg_unexpected_error(action: str = 'finish this') -> str:
     "acknowledge", "sign up" — falling back to a generic phrase for
     interactions with no single verb (e.g. unwatch).
     """
-    return f"Something went wrong — try again in a moment, or {action} on the website."
+    return f"Something went wrong. Try again in a moment, or {action} on the website."
 
 
 MSG_UNEXPECTED_ERROR = msg_unexpected_error()
@@ -118,7 +118,7 @@ def rescheduled_dm(
     )
     body = "\n".join(info)
     return (
-        f"Your match in **{tournament_name}** got moved — here's the new time.\n\n"
+        f"Your match in **{tournament_name}** got moved. Here's the new time.\n\n"
         f"{body}\n\n"
         f"Make sure it's on your calendar."
     )
@@ -200,7 +200,7 @@ def cancelled_dm(
     # the opposite of the default "nothing further is needed".
     closing = (
         "This game has been released — the matchup is open to reschedule."
-        if released else "You're all set — nothing else to do here."
+        if released else "You're all set. Nothing else to do here."
     )
     return (
         f"Your match in **{tournament_name}** has been cancelled.\n\n"
@@ -510,7 +510,7 @@ def volunteer_shift_changed_dm(
     unverifiable against what they remember agreeing to.
     """
     details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
-    blocks = ["Heads up — a shift you're on has moved."]
+    blocks = ["A shift you're on has moved."]
     if old_starts_display or old_ends_display:
         was = " → ".join(p for p in (old_starts_display, old_ends_display) if p)
         blocks.append(f"**Was:** {was}")
@@ -651,8 +651,8 @@ def qualifier_reattempt_granted_dm(
 def match_ack_confirmation(player_names: str) -> str:
     """Ephemeral success reply after a user clicks the match Acknowledge button."""
     if player_names:
-        return f"Got it — you've acknowledged your match ({player_names}). Thanks!"
-    return "Got it — you've acknowledged your match. Thanks!"
+        return f"You've acknowledged your match ({player_names}). Thanks!"
+    return "You've acknowledged your match. Thanks!"
 
 
 # ---------------------------------------------------------------------------
@@ -663,10 +663,10 @@ def crew_ack_confirmation(crew_type: str, player_names: str) -> str:
     """Ephemeral success reply after a user clicks the crew Acknowledge button."""
     if player_names:
         return (
-            f"Got it — you're confirmed for {crew_type} "
+            f"You're confirmed for {crew_type} "
             f'({player_names}). Thanks!'
         )
-    return f"Got it — you're confirmed for {crew_type}. Thanks!"
+    return f"You're confirmed for {crew_type}. Thanks!"
 
 
 # ---------------------------------------------------------------------------
@@ -677,7 +677,7 @@ def crew_signup_confirmation(role: str, player_names: str) -> str:
     """Ephemeral success reply after a user signs up for crew via a DM button."""
     match_ref = f' for the match ({player_names})' if player_names else ''
     return (
-        f"You're signed up as **{role}**{match_ref} — an admin will confirm it "
+        f"You're signed up as **{role}**{match_ref}. An admin will confirm it "
         f'shortly.'
     )
 

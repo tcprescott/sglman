@@ -619,7 +619,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
                     async def do_reset() -> None:
                         if confirm_input.value.strip().lower() != CONFIRM_PHRASE:
-                            ui.notify("That doesn't match — type the phrase exactly to confirm.", color='warning')
+                            ui.notify("That doesn't match. Type the phrase exactly to confirm.", color='warning')
                             return
                         dialog.close()
                         try:

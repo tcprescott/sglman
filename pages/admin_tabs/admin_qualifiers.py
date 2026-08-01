@@ -150,7 +150,7 @@ async def admin_qualifiers_page() -> None:
             ui.button(icon='refresh',
                       on_click=load_list).props('flat color=primary').tooltip('Refresh')
         if not state['qualifiers']:
-            ui.label('No qualifiers yet — create one to get started.').classes('text-grey')
+            ui.label('No qualifiers yet. Create one to get started.').classes('text-grey')
         for q in state['qualifiers']:
             with ui.card().classes('w-full'):
                 with ui.row().classes('items-center full-width'):
@@ -417,7 +417,7 @@ async def admin_qualifiers_page() -> None:
             ui.label('Add a pool first, then schedule a live race for it.').classes('text-grey')
             return
         if not detail['live_races']:
-            ui.label("No live races scheduled — start one when you're ready.").classes('text-grey')
+            ui.label("No live races scheduled. Start one when you're ready.").classes('text-grey')
         for lr in detail['live_races']:
             with ui.card().classes('w-full'):
                 with ui.row().classes('items-center full-width'):
@@ -571,7 +571,7 @@ async def admin_qualifiers_page() -> None:
         only place a reviewer can find a mis-clicked one and grant a reattempt.
         """
         if not runs:
-            ui.label('No runs yet — check back once qualifiers start.').classes('text-grey')
+            ui.label('No runs yet. Check back once qualifiers start.').classes('text-grey')
             return
         columns: list[dict] = [
             {'name': 'player', 'label': 'Player', 'field': 'player', 'align': 'left',

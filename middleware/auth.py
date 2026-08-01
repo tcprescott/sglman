@@ -216,7 +216,7 @@ def _tenant_page(
                 render_error_page(
                     status_code=404,
                     headline='Not Found',
-                    message="This page only exists inside a specific community — try getting there from your community's link.",
+                    message="This page only exists inside a specific community. Try getting there from your community's link.",
                     user=None,
                 )
                 return
