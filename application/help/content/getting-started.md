@@ -3,7 +3,7 @@ title: Getting started
 slug: getting-started
 icon: flag
 order: 10
-summary: What to do on your first visit — sign in, find your matches, and tell us when you are free.
+summary: What to do on your first visit, sign in, find your matches, and tell us when you are free.
 ---
 
 ## Sign in with Discord
@@ -13,7 +13,7 @@ Everything is tied to your Discord account. There is no separate password. Tap
 
 If you cannot sign in, the usual cause is that you are not a member of the
 community's Discord server yet. Join it first, then try again. **If you still
-cannot get in, contact a staff member** — do not keep retrying.
+cannot get in, contact a staff member** rather than keep retrying.
 
 ## Set your preferred name (optional)
 
@@ -47,7 +47,7 @@ opting in is almost always what is missing.
 ## Turn on notifications
 
 Wizzrobe sends you a Discord DM when something happens to a match you are in.
-Those DMs are how you find out you have been scheduled, approved, or moved — so
+Those DMs are how you find out you have been scheduled, approved, or moved, so
 make sure the bot can reach you. See [Notifications](/help/notifications).
 
 > Not sure what a word means? The [glossary](/help/glossary) defines every term

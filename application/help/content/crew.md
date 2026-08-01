@@ -3,14 +3,14 @@ title: Signing up as crew
 slug: crew
 icon: record_voice_over
 order: 30
-summary: Commentating or tracking a match — signing up, getting approved, confirming, and withdrawing.
+summary: Commentating or tracking a match, from signing up and getting approved through confirming and withdrawing.
 ---
 
 Crew is the collective word for the two jobs that support a streamed match.
 
 - A **commentator** talks over the match on stream.
 - A **tracker** runs the item and progress tracking that viewers see alongside
-  the game — the overlay showing what each player has found and where they are up
+  the game: the overlay showing what each player has found and where they are up
   to.
 
 Both sign up the same way and follow the same path.
@@ -25,8 +25,8 @@ Signing up is a request, not a booking. It records that you are available for
 that slot; a staff member decides who actually gets it.
 
 **Every streamed match has commentary.** The tracker role is the one some
-tournaments do not use — where that is the case there is no **Sign up** in the
-Trackers cell, which is deliberate rather than a fault.
+tournaments do not use. Where that is the case there is no **Sign up** in the
+Trackers cell, and that is deliberate rather than a fault.
 :::
 
 ## Getting approved
@@ -37,11 +37,11 @@ tournament's admin, or its crew coordinator decides who covers each slot. Signin
 up puts you forward; it does not reserve anything.
 
 Approval is not automatic and not first-come-first-served. Staff also see what
-else you are committed to at that time — including matches you are playing in —
-so a clash is usually why a signup is passed over.
+else you are committed to at that time, including matches you are playing in, so
+a clash is usually why a signup is passed over.
 
 They can also **withdraw an approval they already gave**, up to and including the
-day of the match — if the shape of the stream changes, or someone better suited
+day of the match, if the shape of the stream changes or someone better suited
 becomes free. You get a DM when that happens, your confirmation is cleared, and
 the slot goes back to {chip:pending:Awaiting approval} in My Crew. It is not a
 judgement on you.
@@ -64,7 +64,7 @@ You can confirm from three places, and they all do the same thing:
 
 ## My Crew
 
-The **My Crew** tab on Home is your own list — every slot you have signed up
+The **My Crew** tab on Home is your own list of every slot you have signed up
 for, soonest first. Each one carries a status chip:
 
 :::snippet crew-status
@@ -86,7 +86,7 @@ schedule board, before or after approval.
 
 The two are not the same act. Withdrawing from a slot nobody has approved yet
 costs no one anything. Withdrawing from one you were approved for means staff
-have to find cover, so they are told straight away — the app says so before you
+have to find cover, so they are told straight away. The app says so before you
 confirm.
 
 Withdrawing after you had already confirmed also clears your confirmation. Do it
@@ -98,5 +98,5 @@ as early as you can.
 Signups sit in {chip:pending:Awaiting approval} until staff work through them,
 which at a busy event may not be until shortly before the match. If a match you
 signed up for has started and you never heard back, the slot went to someone
-else. You can withdraw the stale signup, or leave it — it becomes
+else. You can withdraw the stale signup or leave it; it becomes
 {chip:neutral:Played} once the match ends either way.

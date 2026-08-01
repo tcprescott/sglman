@@ -3,12 +3,12 @@ title: Attending the event
 slug: attending
 icon: how_to_reg
 order: 20
-summary: Getting there, tickets and badges, then the floor — check-in and stations, the tournament room, stage matches, and what to do when something goes wrong.
+summary: Getting there, tickets and badges, then the floor: check-in and stations, the tournament room, stage matches, and what to do when something goes wrong.
 ---
 
 Where the event is, what a ticket gets you, and what happens once you sit down to
-play. How the *app* works — your schedule, acknowledging a match, requesting one
-— is in Help.
+play. How the *app* works, meaning your schedule, acknowledging a match, and
+requesting one, is covered in Help instead.
 
 ## Getting there
 
@@ -42,9 +42,9 @@ Tickets are sold through [Matcherino](https://matcherino.com/t/sglive26).
 | VIP | $110 | Badge, lanyard, pin, and your name on stream |
 | Super VIP | $160 | The above, plus a t-shirt |
 
-**Everyone needs a badge, for every event space.** Not just players — spectators
-too. There is no part of the event you can be in without one, so collecting yours
-is the first thing to do when you arrive.
+**Everyone needs a badge, for every event space,** and that includes spectators,
+not just players. There is no part of the event you can be in without one, so
+collecting yours is the first thing to do when you arrive.
 
 **The check-in desk opens on Wednesday**, the day before play starts, so you can
 collect your badge the evening before rather than queueing on Thursday morning.
@@ -61,16 +61,16 @@ back at twelve and sixteen-plus. See [Who to ask](/event-info/who-to-ask).
 ## Check-in and stations
 
 :::snippet check-in
-Turn up at the tournament room in good time. A **proctor** — the volunteer
-running that room — checks your match in once both players are seated, and the
-board flips to {state:Checked In}.
+Turn up at the tournament room in good time. A **proctor**, the volunteer running
+that room, checks your match in once both players are seated, and the board
+flips to {state:Checked In}.
 
 Your **station** is the physical seat you play at. The proctor assigns it, and
 once they have, the station number shows next to your name on the schedule
 board so you and anyone looking for you can see where you are.
 
 The proctor counts you down out loud and starts the match. If your opponent has
-not turned up by the time your match is due, the proctor fetches an admin —
+not turned up by the time your match is due, the proctor fetches an admin, and
 whether to wait, reschedule or forfeit is the admin's call rather than the
 proctor's.
 
@@ -83,58 +83,55 @@ The proctor runs the room. Most of what follows is the other side of what they
 have been asked to do.
 
 :::snippet player-room
-**Bring your console and your controller.** The venue provides the display, the
-seat and the power; the machine you play on is yours to bring and yours to set
-up. Pack accordingly — including whatever you need to get a seed onto it.
+Bring your console and your controller. The venue provides the display, the
+seat and the power, but the machine you play on is yours to bring and yours to
+set up, so pack accordingly, including whatever you need to get a seed onto it.
 
-**Getting set up.** The proctor will help if you need it. The one worth checking
-yourself, before the countdown rather than after, is **audio: make sure the TV is
-actually sending sound out of its headphone jack**. Discovering that mid-race
-costs you time nobody can give back.
+The proctor will help you get set up if you need it. The one thing worth
+checking yourself, before the countdown rather than after, is **audio: make sure
+the TV is actually sending sound out of its headphone jack**. Discovering that
+mid-race costs you time nobody can give back.
 
-**Copying seed data.** There is a PC in the room for getting seed data onto an SD
-card or another device. Ask the proctor where it is rather than hunting for a
-spare laptop.
+There is a PC in the room for getting seed data onto an SD card or another
+device. Ask the proctor where it is rather than hunting for a spare laptop.
 
-**Beware of power.** Unplugging your *own* equipment is fine, but it is worth
-being careful — to the same standard the proctors hold themselves to. Cables in a
-tournament room are not always plugged in where you would expect, and the plug
-you pull may be powering a station that is mid-match. Trace it to the thing it
-actually powers, check twice that it is yours, and only then unplug it. If you
-are not sure, ask the proctor — it is a much better question to ask than to find
-out the hard way.
+Unplugging your *own* equipment is fine, but be as careful about it as the
+proctors are with their own gear. Cables in a tournament room are not always
+plugged in where you would expect, and the plug you pull may be powering a
+station that is mid-match, so trace it to the thing it actually powers, check
+twice that it is yours, and only then unplug it. If you are not sure, ask the
+proctor: that is a much better question to ask than to find out the hard way.
 
-**What you can have at your station.** Your phone, notes, trackers, your own
-headphones or earbuds in the TV's jack, and a capture of your own POV if you
-want to stream yourself — all fine. Nothing on this list needs clearing with
-anyone first.
+Your phone, notes, trackers, your own headphones or earbuds in the TV's jack,
+and a capture of your own POV if you want to stream yourself are all fine.
+Nothing on this list needs clearing with anyone first.
 
-**Keep it quiet.** Several matches share the room and everyone in it is
-concentrating. That applies to you between your own matches as much as to
-anyone watching, and to whatever you are streaming or talking into.
+Several matches share the room and everyone in it is concentrating, so keep it
+quiet. That applies to you between your own matches as much as to anyone
+watching, and to whatever you are streaming or talking into.
 
-**People may watch you play.** Spectators are welcome in the room, and one of
-them may stand behind you for the whole match — that is allowed. What is not
-allowed is a spectator moving between your screen and your opponent's part way
-through; someone who has seen both knows things neither of you does. If you see
-it happening, or anyone in the room is disrupting your match, tell the proctor.
-Asking someone to leave is their call, not yours.
+Spectators are welcome in the room, and one of them may stand behind you for
+the whole match, which is allowed. What is not allowed is a spectator moving
+between your screen and your opponent's part way through, because someone who
+has seen both knows things neither of you does. If you see it happening, or
+anyone in the room is disrupting your match, tell the proctor. Asking someone
+to leave is their call, not yours.
 :::
 
 ## If your match is on a stage
 
 :::snippet player-stage
-**You will know in advance.** The bot's match DM carries a **Stage** field when
-your match has one, and the same thing shows in the *Stage* column on the
-schedule board. So a stage match is not a surprise on the day — it is on the
-notification you already have.
+You will know in advance. The bot's match DM carries a **Stage** field when your
+match has one, and the same thing shows in the *Stage* column on the schedule
+board, so a stage match is not a surprise on the day. It is on the notification
+you already have.
 
-**Bring earbuds.** Any game that requires player isolation — randomizers, for
-instance — is played on stage with white-noise headphones over the top of your
-own earbuds. The headphones are the isolation; the earbuds underneath are how
-you hear your game, and they are yours to bring. Pack a pair for the event, and
-once you have seen a Stage on a match of yours, keep them on you rather than in
-a bag in another room.
+Bring earbuds. Any game that requires player isolation, randomizers for
+instance, is played on stage with white-noise headphones over the top of your
+own earbuds. The headphones are the isolation, and the earbuds underneath are
+how you hear your game, and they are yours to bring. Pack a pair for the event,
+and once you have seen a Stage on a match of yours, keep them on you rather than
+in a bag in another room.
 
 A stage or streaming room belongs to the **broadcast techs**: they handle the
 setup, the capture and the stream, and they will tell you where to sit and when
@@ -150,12 +147,13 @@ ask the tech rather than assuming either way.
 
 :::snippet player-trouble
 Tell the proctor. Almost none of these are decisions you or they get to make on
-the spot — an admin does — so raising it early is the fastest route.
+the spot, since an admin makes the call, so raising it early is the fastest
+route.
 
 | What has happened | What you do |
 |---|---|
-| **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit — the proctor cannot make that call for you. |
-| **Hardware or the game fails mid-match** | Tell the proctor either way. If it is your own equipment, go ahead and troubleshoot it yourself if you are comfortable doing so — the proctor is there to help too, if you would rather. Whether the match resumes, restarts or moves once things are working again is the tournament's call, depending on its rules and what actually broke — that part waits for the proctor and an admin. |
+| **Your opponent has not turned up** and the match is due | Tell the proctor. They fetch an admin, who decides whether to wait, reschedule or forfeit; the proctor cannot make that call for you. |
+| **Hardware or the game fails mid-match** | Tell the proctor either way. If it is your own equipment, go ahead and troubleshoot it yourself if you are comfortable doing so, though the proctor is there to help too if you would rather. Whether the match resumes, restarts or moves once things are working again is the tournament's call, depending on its rules and what actually broke, and that part waits for the proctor and an admin. |
 | **You think something is not right** about how the match is being played | Tell the proctor or an admin, quietly, rather than raising it with your opponent. Describe what you saw and let them take it from there. |
 | **The two of you disagree on the result** | Tell the proctor before you leave. They record their best call and flag it for a staff member, who settles it when they confirm the result. |
 
@@ -170,17 +168,17 @@ anything at the time.
 Seats are the scarce thing at an on-site event, and the next pair are usually
 waiting.
 
-**If you have lost, stop playing.** Put the controller down once the match is
-decided rather than playing on — unless you are close enough to your own finish
+If you have lost, stop playing. Put the controller down once the match is
+decided rather than playing on, unless you are close enough to your own finish
 that it is worth seeing out, which is a reasonable thing to ask the proctor.
 
-**Take the post-match conversation outside.** If the two of you want to talk it
-over, do it out of the room; the proctor can ask you to move it, and they are
+Take the post-match conversation outside. If the two of you want to talk it
+over, do it out of the room. The proctor can ask you to move it, and they are
 not being unfriendly when they do.
 
-**Clear the station.** Collect your things and leave the seat genuinely free.
-You do not need to do anything in the app — the station releases itself once the
-proctor records the result.
+Clear the station when you're done: collect your things and leave the seat
+genuinely free. You do not need to do anything in the app, since the station
+releases itself once the proctor records the result.
 :::
 
 ## Conduct
@@ -194,5 +192,5 @@ proctor records the result.
 
 The [event Discord](https://discord.com/invite/T6qzxNJ) is where the community answers
 what this page does not. If you need staff and cannot find anyone in person,
-**@Staff** there reaches someone — see [Who to ask](/event-info/who-to-ask).
+**@Staff** there reaches someone. See [Who to ask](/event-info/who-to-ask).
 

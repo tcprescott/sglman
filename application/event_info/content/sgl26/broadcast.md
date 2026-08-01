@@ -4,7 +4,7 @@ slug: broadcast
 icon: videocam
 order: 50
 roles: STREAM_MANAGER, STAFF
-summary: What broadcast techs need to know at SpeedGaming Live — room boundaries, stream/stage assignment, technical requirements, and who to contact.
+summary: What broadcast techs need to know at SpeedGaming Live, room boundaries, stream/stage assignment, technical requirements, and who to contact.
 ---
 
 The event-specific reference for anyone producing a stream room or stage at
@@ -19,18 +19,18 @@ stays true whatever event you are working.
 :::snippet broadcast-boundary
 **You are responsible for the stream room or stage you are producing, and
 nothing outside it.** A match being run in a proctored tournament room is not
-yours — the only part that may still come your way is if a proctor asks you to
+yours. The only part that may still come your way is if a proctor asks you to
 roll a seed for a stream. The rules a proctor runs their room by are theirs to
 set; yours are set by what you are producing.
 
 The same boundary runs the other way: a proctor's authority stops at the door
-of your room. If something about the broadcast itself needs a call — audio,
-delay, what's on screen — that is yours to make, not theirs.
+of your room. If something about the broadcast itself needs a call, whether
+that's audio, delay, or what's on screen, that is yours to make, not theirs.
 :::
 
 ## Stream and stage assignments
 
-Matches are assigned to a stream room from the schedule side of the app —
+Matches are assigned to a stream room from the schedule side of the app.
 [On Air and watching](/help/on-air#the-on-air-tab) covers how that assignment
 shows up and how to find which room a match is in. What that page does not
 cover, because it is true only for this event, is which physical stages exist,
@@ -51,7 +51,7 @@ which are on-site versus online-only, and what each is wired for.
 :::snippet broadcast-checklist
 **Confirm the match with the proctor or admin before you roll anything.**
 Audio, camera and capture should be checked working *before* a match is
-called in — a player discovering a dead mic or missing capture mid-race has
+called in. A player discovering a dead mic or missing capture mid-race has
 lost time nobody can give back.
 
 **Know who to hand off to.** If your shift ends mid-match, the same rule
@@ -76,4 +76,4 @@ when nobody is reachable, not the normal route.
 - **Confirm a match result.** Staff do that.
 - **Reschedule or cancel a match.** Admin.
 - **Rule on a match dispute.** That's the on-call admin's call, the same as
-  for a proctored room — see [Game integrity](/event-info/proctoring#game-integrity).
+  for a proctored room. See [Game integrity](/event-info/proctoring#game-integrity).

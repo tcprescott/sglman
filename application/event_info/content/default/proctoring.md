@@ -4,12 +4,12 @@ slug: proctoring
 icon: sports_esports
 order: 40
 roles: VOLUNTEER, PROCTOR, STAFF
-summary: Dev fixture — a role-gated article, so the role filter is exercised in a local run.
+summary: Dev fixture, a role-gated article, so the role filter is exercised in a local run.
 ---
 
 Development fixture content for the `default` tenant. Its purpose is to be
 **invisible** to a signed-out visitor and to a signed-in user holding none of
-`VOLUNTEER`, `PROCTOR` or `STAFF` — if you can see this without one of those
+`VOLUNTEER`, `PROCTOR` or `STAFF`. If you can see this without one of those
 roles, the role filter is broken.
 
 It also carries the two snippets the Proctor Station wires icons to, so those
