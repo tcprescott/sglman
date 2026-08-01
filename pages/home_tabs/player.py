@@ -49,6 +49,7 @@ async def render_player_dashboard():
             ui.label('Your Schedule').classes('page-title')
             await help_icon('player-schedule')
             await help_icon('check-in', label='Check-in')
+            await help_icon('player-room', label='In the room')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
