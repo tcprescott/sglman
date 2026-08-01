@@ -107,6 +107,10 @@ have been asked to do — see [Running matches as a proctor](/help/proctor) if y
 want to know why they are asking.
 
 :::snippet player-room
+**Bring your console and your controller.** The venue provides the display, the
+seat and the power; the machine you play on is yours to bring and yours to set
+up. Pack accordingly — including whatever you need to get a seed onto it.
+
 **Getting set up.** The proctor will help if you need it. The one worth checking
 yourself, before the countdown rather than after, is **audio: make sure the TV is
 actually sending sound out of its headphone jack**. Discovering that mid-race
@@ -123,9 +127,14 @@ you pull may be powering a station that is mid-match. Trace it to the thing it
 actually powers, check twice that it is yours, and only then unplug it. If you
 are not certain, ask the proctor rather than finding out.
 
+**What you can have at your station.** Your phone, notes, trackers, your own
+headphones or earbuds in the TV's jack, and a capture of your own POV if you
+want to stream yourself — all fine. Nothing on this list needs clearing with
+anyone first.
+
 **Keep it quiet.** Several matches share the room and everyone in it is
 concentrating. That applies to you between your own matches as much as to
-anyone watching.
+anyone watching, and to whatever you are streaming or talking into.
 
 **People may watch you play.** Spectators are welcome in the room, and one of
 them may stand behind you for the whole match — that is allowed. What is not
@@ -138,11 +147,17 @@ Asking someone to leave is their call, not yours.
 ## If your match is on a stage
 
 :::snippet player-stage
+**You will know in advance.** The bot's match DM carries a **Stage** field when
+your match has one, and the same thing shows in the *Stage* column on the
+schedule board. So a stage match is not a surprise on the day — it is on the
+notification you already have.
+
 **Bring earbuds.** Any game that requires player isolation — randomizers, for
 instance — is played on stage with white-noise headphones over the top of your
 own earbuds. The headphones are the isolation; the earbuds underneath are how
-you hear your game, and they are yours to bring. Pack a pair for the event and
-have them on you, not in a bag in another room, when you are called to a stage.
+you hear your game, and they are yours to bring. Pack a pair for the event, and
+once you have seen a Stage on a match of yours, keep them on you rather than in
+a bag in another room.
 
 A stage or streaming room is not a proctor's room. The **broadcast techs** run
 it: they handle the setup, the capture and the stream, and they will tell you

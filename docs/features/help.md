@@ -173,12 +173,13 @@ indistinguishable, and the reader has to open both to find which one answers
 their question.
 
 Wired at: Home → Schedule (columns + states), My Crew (statuses + approval +
-withdrawing), Player (overview + check-in + the room), My Availability, Profile →
-Notifications; the Submit Match dialog and its Suggest a time button; Volunteer →
-My Shifts and its release dialog; Volunteer → Proctor Station (the board, running
-a match, and when things go wrong) and the result dialog's review flag; Home → On
-Air; and the shared availability editor, which takes `help_snippet=` because the
-two callers render identical UI over different data.
+withdrawing), Player (overview + check-in + the room + stages), My Availability,
+Profile → Notifications; the Submit Match dialog and its Suggest a time button;
+Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
+board, running a match, when things go wrong, and shift change) and the result
+dialog's review flag; Home → On Air; and the shared availability editor, which
+takes `help_snippet=` because the two callers render identical UI over different
+data.
 
 ## Tests
 

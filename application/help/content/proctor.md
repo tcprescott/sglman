@@ -135,7 +135,9 @@ the useful thing.
 ## When things go wrong
 
 :::snippet proctor-escalation
-**Fetch the on-call admin in person.** They are on the floor; go and find them.
+**Fetch the on-call admin in person.** They are on the floor, and staff are
+marked so you can pick one out on sight — you are looking around for a person,
+not sending a message and waiting for a reply.
 
 Four situations. Only the last one is yours to decide:
 
@@ -169,6 +171,32 @@ collected, seat free.
 
 You do **not** need to release the station in the app. A station frees itself the
 moment its match is recorded as finished.
+:::
+
+## Handing over your shift
+
+:::snippet proctor-handover
+**You do not have to see every match out.** A match still in play at the end of
+your shift transfers to the proctor taking over — they pick it up mid-flight.
+Nothing is expected to pause and nothing waits for a gap in the schedule.
+
+What makes that work is the brief. Before you go, walk the incoming proctor
+through:
+
+- **Every live match** — who is playing, at which stations, and roughly how far
+  in. The board shows that a match is running; it does not show what you have
+  been watching.
+- **Anything flagged or unresolved** — a dispute you have already recorded, an
+  admin you have already fetched, a decision still outstanding. If someone is
+  waiting on an answer, the next proctor needs to know it is coming.
+- **Hardware trouble at any station** — a display that has been dropping out, a
+  flaky seat, anything you have been working around. This is the one that never
+  reaches the app, so if you do not say it, nobody knows.
+- **Who is due next** — the matches about to check in, and any player already
+  known to be late or missing.
+
+Hand over out loud, in the room, rather than by message. Then the room is
+theirs.
 :::
 
 ## What you cannot do
