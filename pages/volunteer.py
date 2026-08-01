@@ -36,8 +36,11 @@ def create() -> None:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})
         if is_proctor or is_staff:
+            # Bound to the viewer: the tab's help icons read role-gated snippets
+            # from the event handbook, and the page has already resolved who is
+            # looking.
             tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
-                         'content': proctor_station_tab})
+                         'content': (proctor_station_tab, (user,))})
         show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
         await BaseLayout(

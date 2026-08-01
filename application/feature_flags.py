@@ -172,6 +172,14 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             established=True,
             service_modules=('application/services/feedback_service.py',),
         ),
+        FeatureFlagSpec(
+            FeatureFlag.EVENT_INFO,
+            'Event Information',
+            "A public handbook for this community's own event — what's on, "
+            'attending, and who to ask — separate from the app-mechanics help.',
+            'Community',
+            service_modules=('application/services/event_info_service.py',),
+        ),
     )
 }
 

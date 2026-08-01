@@ -385,6 +385,31 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 
 Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipment detail pages render QR codes via [`qrcode_util.py`](#qrcode_utilpy).
 
+### help_service.py — HelpService
+
+Feature-aware, read-only access to the shipped help articles (`application/help/content/*.md`). Stateless, no repository — there is no stored help. An article documenting an optional subsystem is withheld from a community that has it off, and a gated article gives the **same** answer as a missing one so a stale link reveals nothing. See [help.md](../features/help.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_articles()` | `list[HelpArticle]` | Every article whose `feature:` (if any) is live here, in catalogue order. |
+| `get_article(slug)` | `HelpArticle \| None` | One article; `None` when missing *or* gated. |
+| `get_snippet(name)` | `HelpSnippet \| None` | One popup region; `None` when its article is not live here, so `help_icon` renders nothing. |
+| `search(query)` | `list[HelpArticle]` | AND over whitespace-separated terms against title + summary + flattened body. Respects the gate — search must not route around it. |
+
+Collaborators: `application.help` (catalogue), `FeatureFlagService`.
+
+### event_info_service.py — EventInfoService
+
+Feature- **and role**-aware access to the current community's event handbook (`application/event_info/content/<tenant-slug>/*.md`) — the per-community counterpart to help. Stateless; the only data access is the tenant lookup that resolves the slug. The whole section is behind `EVENT_INFO` (`@requires_feature` on every public method), an article may carry its own `feature:`, and an article may carry `roles:` — an OR, empty meaning public. All three withholdings give the same answer as "no such article". See [event-information.md](../features/event-information.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_articles(user=None)` | `list[ContentArticle]` | This community's articles minus any gated off or not this reader's role. `user=None` is a signed-out reader: public articles only. |
+| `get_article(slug, user=None)` | `ContentArticle \| None` | One article; `None` when missing, gated, or role-restricted. |
+| `get_snippet(name, user=None)` | `ContentSnippet \| None` | One popup region, gated by its **owning article** — a snippet can never be more readable than the article it was cut from. |
+
+Collaborators: `application.event_info` (per-tenant catalogue), `TenantRepository`, `FeatureFlagService`, `AuthService`.
+
 ### feedback_service.py — FeedbackService
 
 Records in-app feedback from logged-in attendees and lets admins review it. The submitted category is coerced to a valid `FeedbackCategory` (defaulting to `OTHER`); the page URL is truncated to `PAGE_URL_MAX_LENGTH = 512`. Audited under `feedback.*`.

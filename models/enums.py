@@ -50,6 +50,7 @@ class FeatureFlag(str, Enum):
     TRIFORCE_TEXTS = 'triforce_texts'
     BRACKETS = 'brackets'
     FEEDBACK = 'feedback'
+    EVENT_INFO = 'event_info'
 
 
 class BracketFormat(str, Enum):

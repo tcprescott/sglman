@@ -85,6 +85,7 @@ the key is set, and rolling without one raises. See
 | `volunteers` | Community | **yes** | `/volunteer` + its nav link, admin Vol. Roster/Schedule, `/volunteers` API | `volunteer/` (reminder worker skips) |
 | `triforce_texts` | Community | **yes** | home + admin Triforce tabs, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
 | `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card (no REST router exists) | `feedback_service.py` |
+| `event_info` | Community | no (ships dark) | `/event-info*`, the drawer's Event Information item (`theme/base.py`); `help_icon` resolves the flag itself before reading a handbook snippet (no REST router exists) | `event_info_service.py` |
 
 `established=True` marks a feature that was **already in live use** when its flag
 was added. [Migration 30](../../migrations/models/30_20260715000000_feature_flags.py)

@@ -209,7 +209,27 @@ async def test_speedgaming_service_refuses_when_feature_off(bare_tenant):
             await SpeedGamingSyncService().list_links(actor)
 
 
+async def test_event_info_service_refuses_when_feature_off(bare_tenant):
+    from application.services.event_info_service import EventInfoService
+
+    with tenant_scope(bare_tenant.id):
+        with pytest.raises(FeatureDisabledError):
+            await EventInfoService.list_articles()
+
+
 # --- soft integration points must NOT raise --------------------------------
+
+async def test_a_help_icon_over_handbook_content_is_skipped_not_raised(bare_tenant):
+    """``help_icon`` is called from surfaces that are not themselves gated on
+    EVENT_INFO — the Player tab, the Proctor Station. It resolves the flag itself
+    and renders nothing, because an ungated surface must not inherit a raise from
+    a feature its community does not have."""
+    from application.services import FeatureFlagService
+
+    with tenant_scope(bare_tenant.id):
+        assert FeatureFlag.EVENT_INFO not in await FeatureFlagService().enabled_flags()
+
+
 
 async def test_challonge_result_push_is_skipped_not_raised(bare_tenant):
     """The confirm flow calls this for *every* match. Raising here would break

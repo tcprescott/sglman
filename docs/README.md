@@ -58,6 +58,7 @@ How each shipped subsystem behaves.
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
 | [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |
+| [features/event-information.md](features/event-information.md) | Public `/event-info` — a per-community event handbook; role-gated articles, shared prose loader |
 
 Some subsystems have no dedicated feature doc and are covered at the reference level
 instead — **volunteering**, **equipment lending**, **Challonge**, **API tokens** and
