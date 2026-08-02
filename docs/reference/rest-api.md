@@ -160,7 +160,7 @@ Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
 
 ### Discord role mappings (`/api/discord-role-mappings`) · `discord_role_mappings.py`
-- `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
+- `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → grant mappings (Staff). A `POST` body sets **either** `app_role` (community-wide) **or** `tournament_grant` + `tournament_id` (Tournament Admin / Crew Coordinator on one event); both or neither is a 400.
 
 ## Feature-flag gating
 

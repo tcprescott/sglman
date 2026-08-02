@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import Role, RoleSource
+from .enums import Role, RoleSource, TournamentGrant
 
 
 class User(Model):
@@ -176,6 +176,15 @@ class UserRole(Model):
 
 
 class DiscordRoleMapping(Model):
+    """One guild role → one grant. Exactly one of ``app_role`` (tenant-wide) or
+    ``tournament_grant`` + ``tournament`` (scoped to one event) is set.
+
+    The two shapes share a table because they answer the same question — where
+    does this person's authority come from — and staff manage them on one screen.
+    ``DiscordRoleMappingService`` enforces the either/or; the database cannot,
+    since the constraint spans columns.
+    """
+
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='discord_role_mappings', on_delete=fields.CASCADE)
     # The Discord guild these mappings apply to. A guild may be shared by several
@@ -184,13 +193,54 @@ class DiscordRoleMapping(Model):
     guild_id = fields.BigIntField()
     discord_role_id = fields.BigIntField()
     discord_role_name = fields.CharField(max_length=100)
-    app_role = fields.CharEnumField(Role, max_length=32)
+    app_role = fields.CharEnumField(Role, max_length=32, null=True)
+    tournament_grant = fields.CharEnumField(TournamentGrant, max_length=32, null=True)
+    # CASCADE: a mapping onto a deleted tournament grants nothing, so it goes with it.
+    tournament = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tournament', related_name='discord_role_mappings',
+        null=True, on_delete=fields.CASCADE,
+    )
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('tenant', 'discord_role_id', 'app_role')
+        # Two keys, one per shape. Postgres treats NULLs as distinct, so each
+        # constraint only bites on the rows whose columns are all populated —
+        # the role key ignores tournament rows and vice versa.
+        unique_together = (
+            ('tenant', 'discord_role_id', 'app_role'),
+            ('tenant', 'discord_role_id', 'tournament_grant', 'tournament'),
+        )
         table = 'discordrolemapping'
+
+
+class DiscordTournamentGrant(Model):
+    """Provenance for a per-tournament grant the guild-role sync made.
+
+    The grant itself lives on ``Tournament.admins`` / ``.crew_coordinators``,
+    which are bare join tables with nowhere to record who made the row. This is
+    the ``UserRole.source`` equivalent for them: the sync only ever revokes
+    grants recorded here, so a hand-made Tournament Admin survives a re-sync.
+    A staff member granting the same thing by hand deletes the row, which pins
+    the grant as manual exactly the way ``RoleSource.MANUAL`` does.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tenant', related_name='discord_tournament_grants', on_delete=fields.CASCADE
+    )
+    tournament = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tournament', related_name='discord_tournament_grants', on_delete=fields.CASCADE
+    )
+    user = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='discord_tournament_grants', on_delete=fields.CASCADE
+    )
+    grant = fields.CharEnumField(TournamentGrant, max_length=32)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('tournament', 'user', 'grant')
+        table = 'discordtournamentgrant'
 
 
 class WebPushSubscription(Model):

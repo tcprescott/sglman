@@ -11,18 +11,35 @@ from application.services import (
     DiscordRoleMappingService,
     DiscordService,
     TenantService,
+    TournamentService,
     get_user_from_discord_id,
 )
 from application.services.discord.discord_link_service import connect_redirect_uri
 from application.tenant_context import get_current_tenant_id, is_host_mode
 from application.utils.mocks.mock_discord import is_mock_discord
-from models import Role
+from models import Role, TournamentGrant
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
 _ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
+_GRANT_OPTIONS = {g.value: g.value.replace('_', ' ').title() for g in TournamentGrant}
+
+# The picker mixes two kinds of grant, so each option carries its kind. Without
+# the prefix "tournament_admin" and a future Role of the same name would be
+# indistinguishable once the value came back off the select.
+_ROLE_PREFIX = 'role:'
+_GRANT_PREFIX = 'grant:'
+
+
+def _mapping_labels(mapping) -> tuple[str, str]:
+    """(what it grants, where it applies) for one mapping row."""
+    if mapping.app_role is not None:
+        return _ROLE_OPTIONS.get(mapping.app_role.value, mapping.app_role.value), 'Community-wide'
+    grant = _GRANT_OPTIONS.get(mapping.tournament_grant.value, mapping.tournament_grant.value)
+    tournament = mapping.tournament.name if mapping.tournament else f'#{mapping.tournament_id}'
+    return grant, tournament
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="delete" color="negative"
@@ -137,11 +154,19 @@ async def admin_discord_roles_page() -> None:
             'When a user signs in, app roles are granted or revoked to match their '
             'Discord roles against these mappings. Manually-granted roles are preserved.'
         ).classes('text-caption text-grey')
+        ui.label(
+            'A mapping can grant a community-wide role, or Tournament Admin / Crew '
+            'Coordinator on one tournament. A tournament grant stops applying once '
+            'that tournament is no longer active.'
+        ).classes('text-caption text-grey')
 
+        # 'app_role' keeps its name so stored column preferences survive; it now
+        # carries a tournament grant as readily as a role, hence the label.
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'discord_role_name', 'label': 'Discord Role', 'field': 'discord_role_name', 'sortable': True},
-            {'name': 'app_role', 'label': 'App Role', 'field': 'app_role', 'sortable': True},
+            {'name': 'app_role', 'label': 'Grants', 'field': 'app_role', 'sortable': True},
+            {'name': 'target', 'label': 'Applies To', 'field': 'target', 'sortable': True},
             {'name': 'actions', 'label': '', 'field': 'actions'},
         ]
 
@@ -149,14 +174,16 @@ async def admin_discord_roles_page() -> None:
 
         async def refresh_table():
             mappings = await service.list_mappings(guild_id)
-            table.rows = [
-                {
+            rows = []
+            for m in mappings:
+                grant_label, target_label = _mapping_labels(m)
+                rows.append({
                     'id': m.id,
                     'discord_role_name': m.discord_role_name,
-                    'app_role': _ROLE_OPTIONS.get(m.app_role.value, m.app_role.value),
-                }
-                for m in mappings
-            ]
+                    'app_role': grant_label,
+                    'target': target_label,
+                })
+            table.rows = rows
             table.update()
 
         async def delete_mapping(row, client):
@@ -201,6 +228,16 @@ async def admin_discord_roles_page() -> None:
                 ui.notify(str(roles_payload), color='warning')
                 return
             role_options = {int(r['id']): str(r['name']) for r in roles_payload}
+            tournaments = await TournamentService().get_all_tournaments(active_only=True)
+            tournament_options = {t.id: t.name for t in tournaments}
+
+            grant_options = {
+                **{f'{_ROLE_PREFIX}{value}': label for value, label in _ROLE_OPTIONS.items()},
+                **{
+                    f'{_GRANT_PREFIX}{value}': f'{label} (one tournament)'
+                    for value, label in _GRANT_OPTIONS.items()
+                },
+            }
 
             with table_container:
                 with ui.dialog() as dialog, ui.card().classes('w-96'):
@@ -209,12 +246,31 @@ async def admin_discord_roles_page() -> None:
                         options=role_options, label='Discord Role', with_input=True,
                     ).classes('w-full')
                     app_select = ui.select(
-                        options=_ROLE_OPTIONS, label='Application Role',
+                        options=grant_options, label='Grants',
                     ).classes('w-full')
+                    tournament_select = ui.select(
+                        options=tournament_options, label='Tournament', with_input=True,
+                    ).classes('w-full')
+                    tournament_select.bind_visibility_from(
+                        app_select, 'value',
+                        backward=lambda v: str(v or '').startswith(_GRANT_PREFIX),
+                    )
+                    if not tournament_options:
+                        ui.label(
+                            'No active tournaments to grant on — create one first.'
+                        ).classes('text-caption text-warning').bind_visibility_from(
+                            app_select, 'value',
+                            backward=lambda v: str(v or '').startswith(_GRANT_PREFIX),
+                        )
 
                     async def submit():
-                        if discord_select.value is None or not app_select.value:
-                            ui.notify('Select both a Discord role and an application role.', color='warning')
+                        selection = str(app_select.value or '')
+                        if discord_select.value is None or not selection:
+                            ui.notify('Select both a Discord role and what it grants.', color='warning')
+                            return
+                        is_tournament_grant = selection.startswith(_GRANT_PREFIX)
+                        if is_tournament_grant and tournament_select.value is None:
+                            ui.notify('Pick the tournament this grant applies to.', color='warning')
                             return
                         try:
                             current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -222,7 +278,17 @@ async def admin_discord_roles_page() -> None:
                                 guild_id=guild_id,
                                 discord_role_id=int(discord_select.value),
                                 discord_role_name=role_options[int(discord_select.value)],
-                                app_role=Role(app_select.value),
+                                app_role=(
+                                    None if is_tournament_grant
+                                    else Role(selection[len(_ROLE_PREFIX):])
+                                ),
+                                tournament_grant=(
+                                    TournamentGrant(selection[len(_GRANT_PREFIX):])
+                                    if is_tournament_grant else None
+                                ),
+                                tournament_id=(
+                                    int(tournament_select.value) if is_tournament_grant else None
+                                ),
                                 actor=current,
                             )
                         except (ValueError, PermissionError) as e:

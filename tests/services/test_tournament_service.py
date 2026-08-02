@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.tournament_service import TournamentService
+from models import TournamentGrant
 from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -23,8 +24,11 @@ def service():
     svc.repository.update = AsyncMock(side_effect=lambda t, **f: t)
     svc.repository.get_all = AsyncMock(return_value=[])
     svc.repository.get_by_id = AsyncMock()
+    svc.repository.set_tournament_grant = AsyncMock()
     svc.preset_repository = MagicMock()
     svc.preset_repository.get_by_id = AsyncMock()
+    svc.discord_grant_repository = MagicMock()
+    svc.discord_grant_repository.remove = AsyncMock()
     svc.audit_service = make_audit_double()
     return svc
 
@@ -460,7 +464,9 @@ class TestAdminAndCoordinator:
         t = make_tournament(tournament_id=5)
         target = make_user(user_id=99)
         await service.add_admin(t, target, actor=make_user(user_id=1))
-        t.admins.add.assert_awaited_once_with(target)
+        service.repository.set_tournament_grant.assert_awaited_once_with(
+            t, target, TournamentGrant.TOURNAMENT_ADMIN, granted=True,
+        )
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'tournament.admin_granted'
 
@@ -468,7 +474,9 @@ class TestAdminAndCoordinator:
         t = make_tournament(tournament_id=5)
         target = make_user(user_id=99)
         await service.remove_admin(t, target, actor=make_user(user_id=1))
-        t.admins.remove.assert_awaited_once_with(target)
+        service.repository.set_tournament_grant.assert_awaited_once_with(
+            t, target, TournamentGrant.TOURNAMENT_ADMIN, granted=False,
+        )
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'tournament.admin_revoked'
 
@@ -479,13 +487,33 @@ class TestAdminAndCoordinator:
         target = make_user()
         await service.add_admin(t, target, actor=make_user())
         await service.add_admin(t, target, actor=make_user())
-        assert t.admins.add.await_count == 2
+        assert service.repository.set_tournament_grant.await_count == 2
+
+    async def test_manual_grant_clears_discord_provenance(self, service):
+        # A hand-made grant is the staff member's, so the guild-role sync must
+        # stop counting it as one of its own to revoke.
+        t = make_tournament(tournament_id=5)
+        target = make_user(user_id=99)
+        await service.add_admin(t, target, actor=make_user(user_id=1))
+        service.discord_grant_repository.remove.assert_awaited_once_with(
+            target, 5, TournamentGrant.TOURNAMENT_ADMIN,
+        )
+
+    async def test_manual_revoke_clears_discord_provenance(self, service):
+        t = make_tournament(tournament_id=5)
+        target = make_user(user_id=99)
+        await service.remove_crew_coordinator(t, target, actor=make_user(user_id=1))
+        service.discord_grant_repository.remove.assert_awaited_once_with(
+            target, 5, TournamentGrant.CREW_COORDINATOR,
+        )
 
     async def test_add_crew_coordinator_calls_m2m_and_audits(self, service):
         t = make_tournament(tournament_id=5)
         target = make_user(user_id=99)
         await service.add_crew_coordinator(t, target, actor=make_user(user_id=1))
-        t.crew_coordinators.add.assert_awaited_once_with(target)
+        service.repository.set_tournament_grant.assert_awaited_once_with(
+            t, target, TournamentGrant.CREW_COORDINATOR, granted=True,
+        )
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'tournament.crew_coordinator_granted'
 
@@ -493,7 +521,9 @@ class TestAdminAndCoordinator:
         t = make_tournament(tournament_id=5)
         target = make_user(user_id=99)
         await service.remove_crew_coordinator(t, target, actor=make_user(user_id=1))
-        t.crew_coordinators.remove.assert_awaited_once_with(target)
+        service.repository.set_tournament_grant.assert_awaited_once_with(
+            t, target, TournamentGrant.CREW_COORDINATOR, granted=False,
+        )
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'tournament.crew_coordinator_revoked'
 

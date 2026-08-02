@@ -20,6 +20,7 @@ from .challonge_repository import ChallongeRepository
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
+from .discord_tournament_grant_repository import DiscordTournamentGrantRepository
 from .equipment_repository import EquipmentRepository
 from .feature_flag_group_repository import FeatureFlagGroupRepository
 from .feature_flag_repository import TenantFeatureFlagRepository
@@ -73,6 +74,7 @@ __all__ = [
     'CommentatorRepository',
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
+    'DiscordTournamentGrantRepository',
     'EquipmentRepository',
     'FeatureFlagGroupRepository',
     'FeedbackRepository',
