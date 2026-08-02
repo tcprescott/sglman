@@ -45,6 +45,10 @@ class AuditActions:
     MATCH_REVIEW_CLEARED = 'match.review_cleared'
     MATCH_WATCHER_ADDED = 'match.watcher_added'
     MATCH_WATCHER_REMOVED = 'match.watcher_removed'
+    # A player offering their own match for stream, and taking the offer back.
+    # Advisory: neither one touches is_stream_candidate.
+    MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
+    MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
 
     # Crew
     CREW_SIGNUP_CREATED = 'crew.signup_created'

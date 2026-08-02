@@ -2,7 +2,13 @@ from datetime import timedelta
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
+from application.services import (
+    MatchDisplayService,
+    MatchService,
+    MatchStreamVolunteerService,
+    MatchWatcherService,
+    UserService,
+)
 from application.tenant_context import get_current_tenant_id
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import local_day_bounds, today_local
@@ -164,6 +170,7 @@ class MatchTableView(MatchTableHandlersMixin):
         self.display_service = MatchDisplayService()
         self.user_service = UserService()
         self.watcher_service = MatchWatcherService()
+        self.stream_volunteer_service = MatchStreamVolunteerService()
         self._setup_ui()
 
     def _bg(self, coro) -> None:
@@ -476,6 +483,11 @@ class MatchTableView(MatchTableHandlersMixin):
 
         if discord_id:
             self.table.on('toggle_watch', self._handle_toggle_watch)
+            # Registered directly, exactly like toggle_watch beside it: both are
+            # socket events handled inside the client's own context, where
+            # ``ui.notify`` reaches the browser. ``_bg`` would rebind the tenant
+            # but drop the client, so the confirmation would go nowhere.
+            self.table.on('toggle_stream_volunteer', self._handle_toggle_stream_volunteer)
 
         # Bracket link: navigation only, so it needs no tenant rebind — and it
         # goes through ui.navigate.to precisely to pick up the tenant root_path.
@@ -578,9 +590,11 @@ class MatchTableView(MatchTableHandlersMixin):
             ]
 
         watched_ids = await self._fetch_watched_ids()
+        volunteered_ids = await self._fetch_stream_volunteered_ids()
         stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
+            row['_stream_volunteer'] = row.get('id') in volunteered_ids
             if stage_options is not None:
                 row['stage_options'] = stage_options
 
@@ -641,6 +655,20 @@ class MatchTableView(MatchTableHandlersMixin):
             return set()
         return set(await self.watcher_service.list_watched_match_ids(user))
 
+    async def _fetch_stream_volunteered_ids(self) -> set:
+        """Matches this viewer has offered for stream — the toggle's own state.
+
+        Separate from the row's ``stream_volunteers`` names, which are everyone's
+        and are what staff read.
+        """
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            return set()
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            return set()
+        return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
+
     async def update_row_by_id(self, match_id, flash=False):
         """
         Update a single row in the table by its match ID, only if the row is currently visible.
@@ -664,6 +692,7 @@ class MatchTableView(MatchTableHandlersMixin):
             return
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
+        match_data['_stream_volunteer'] = self.table.rows[idx].get('_stream_volunteer', False)
         stage_options = self._stage_options()
         if stage_options is not None:
             match_data['stage_options'] = stage_options

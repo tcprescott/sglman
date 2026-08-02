@@ -363,3 +363,54 @@ class MatchTableHandlersMixin:
         if idx is not None:
             self.table.rows[idx]['_watching'] = not currently_watching
             self.table.update()
+
+    async def _handle_toggle_stream_volunteer(self, event):
+        """A player offering their own match for stream, or taking it back.
+
+        The success notice is where the advisory part lands: the button sits in
+        the same row as the Stage column, and without it the toggle reads as
+        booking a slot.
+        """
+        row = event.args if isinstance(event.args, dict) else {}
+        match_id = row.get('id')
+        if match_id is None:
+            return
+
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            ui.notify('You must be logged in to offer a match for stream.', color='warning')
+            return
+
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            return
+
+        volunteered = bool(row.get('_stream_volunteer'))
+        label = match_row_label(row, with_context=False)
+        try:
+            if volunteered:
+                await self.stream_volunteer_service.withdraw(match_id, user)
+                ui.notify(f'{label} is no longer offered for stream.', color='positive')
+            else:
+                await self.stream_volunteer_service.volunteer(match_id, user)
+                ui.notify(
+                    f'{label} is offered for stream. Staff see this when they plan '
+                    'coverage — it does not guarantee the match goes out.',
+                    color='positive',
+                )
+        except ValueError as e:
+            ui.notify(str(e), color='warning')
+            return
+
+        idx = next((i for i, r in enumerate(self.table.rows) if r.get('id') == match_id), None)
+        if idx is not None:
+            self.table.rows[idx]['_stream_volunteer'] = not volunteered
+            names = list(self.table.rows[idx].get('stream_volunteers') or [])
+            name = user.preferred_name
+            if volunteered:
+                names = [n for n in names if n != name]
+            elif name not in names:
+                names.append(name)
+            self.table.rows[idx]['stream_volunteers'] = names
+            self.table.update()

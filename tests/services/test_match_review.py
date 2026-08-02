@@ -72,7 +72,7 @@ class TestConfirmingResolvesTheReviewFlag:
     extra to resolve it.
     """
 
-    async def _flagged_match(self, service, proctor, note="Timer was still running."):
+    async def _flagged_match(self, service, proctor):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
         await MatchPlayers.create(match=m, user=await make_user(1, name="p1"))
@@ -81,7 +81,7 @@ class TestConfirmingResolvesTheReviewFlag:
         await service.start_match(m, proctor)
         await service.finish_match(m, proctor)
         await record_winner(await MatchPlayers.filter(match_id=m.id).first())
-        await MatchService().flag_for_review(m.id, note, proctor)
+        await MatchService().flag_for_review(m.id, proctor)
         await m.refresh_from_db()
         return m
 
@@ -117,18 +117,8 @@ class TestConfirmingResolvesTheReviewFlag:
         assert m.confirmed_at is not None
         assert m.needs_review is False
 
-    async def test_confirming_keeps_the_note(self, service, db):
-        """The note is the record of *why*; resolving the dispute doesn't erase it."""
-        proctor = await make_proctor()
-        staff = await make_staff()
-        m = await self._flagged_match(service, proctor)
-
-        await service.confirm_match(m, staff)
-
-        await m.refresh_from_db()
-        assert m.review_note == "Timer was still running."
-
-    async def test_confirming_audits_the_resolution_with_the_note(self, service, db):
+    async def test_confirming_audits_the_resolution(self, service, db):
+        """The audit row is the record of the dispute — confirming resolved it."""
         proctor = await make_proctor()
         staff = await make_staff()
         m = await self._flagged_match(service, proctor)
@@ -137,7 +127,7 @@ class TestConfirmingResolvesTheReviewFlag:
 
         cleared = await AuditLog.filter(action='match.review_cleared').all()
         assert len(cleared) == 1
-        assert "Timer was still running." in (cleared[0].details or '')
+        assert "confirmation" in (cleared[0].details or '')
 
     async def test_confirming_an_unflagged_match_writes_no_clear_row(self, service, db):
         """The common case stays a single confirm row — no phantom resolution."""

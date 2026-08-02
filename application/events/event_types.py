@@ -35,6 +35,11 @@ class EventType:
     # unlike the tenant-internal station/venue actions.
     MATCH_FLAGGED_FOR_REVIEW = 'match.flagged_for_review'
     MATCH_REVIEW_CLEARED = 'match.review_cleared'
+    # A player putting their own match forward for stream. Advisory — it says
+    # nothing about whether the match will be streamed, only that its players
+    # are willing. MATCH_STREAM_CANDIDATE_SET is still the decision.
+    MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
+    MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
 
     # Crew
     CREW_SIGNUP_CREATED = 'crew.signup_created'
@@ -148,6 +153,7 @@ class EventType:
         MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED, MATCH_STATIONS_ASSIGNED,
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         MATCH_FLAGGED_FOR_REVIEW, MATCH_REVIEW_CLEARED,
+        MATCH_STREAM_VOLUNTEERED, MATCH_STREAM_VOLUNTEER_WITHDRAWN,
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,

@@ -66,7 +66,7 @@ class MockMatch:
     def __init__(self, *, seated_at=None, started_at=None, finished_at=None,
                  confirmed_at=None, id=1, stage_id=None, tournament_id=1,
                  scheduled_at=None, players=None, stage=None,
-                 is_racetime_enabled=False, needs_review=False, review_note=None):
+                 is_racetime_enabled=False, needs_review=False):
         self.id = id
         self.seated_at = seated_at
         self.started_at = started_at
@@ -79,9 +79,8 @@ class MockMatch:
         self.players = players if players is not None else []
         self.stage = stage
         # The dispute flag: confirm_match clears it (and audits the clear), so a
-        # stand-in without these attributes would hide that half of confirming.
+        # stand-in without this attribute would hide that half of confirming.
         self.needs_review = needs_review
-        self.review_note = review_note
         self.save = AsyncMock()
         self.fetch_related = AsyncMock()
 

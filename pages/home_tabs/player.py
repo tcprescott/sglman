@@ -7,6 +7,7 @@ from application.services import (
     ChallongeService,
     FeatureFlagService,
     MatchService,
+    TournamentService,
     get_user_from_discord_id,
 )
 from models import FeatureFlag
@@ -78,6 +79,7 @@ async def render_player_dashboard(schedule: int | None = None):
         with ui.row().classes('header-row'):
             ui.label('Your Schedule').classes('page-title')
             await help_icon('player-schedule', user=viewer)
+            await help_icon('stream-volunteer', label='Stream', user=viewer)
             await help_icon('check-in', label='Check-in', user=viewer)
             await help_icon('player-room', label='In the room', user=viewer)
             await help_icon('player-stage', label='On a stage', user=viewer)
@@ -245,6 +247,10 @@ async def render_player_dashboard(schedule: int | None = None):
             {'name': 'stage', 'label': 'Stage', 'field': 'stage',
              'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+            # Beside Watch, because both are this viewer acting on their own
+            # behalf rather than reading the match. Offering is advisory — the
+            # cell's tooltip and the confirmation both say so.
+            {'name': 'stream_volunteer', 'label': 'Stream', 'field': 'stream_volunteer'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
@@ -256,16 +262,26 @@ async def render_player_dashboard(schedule: int | None = None):
         async def submit_match():
             dialog = UserMatchDialog(discord_id=discord_id)
             await dialog.open()
-        
+
         async def get_query():
             return await match_service.get_matches_for_player(discord_id)
-        
+
+        # Request Match only where a request can actually be made. The dialog's
+        # own dead end — "your tournaments are scheduled from their bracket" —
+        # is the right message once you are in it, but a button that exists only
+        # to explain that it does nothing is a button that should not be there.
+        # Same list the dialog offers, so the two cannot disagree.
+        can_request = bool(
+            viewer is not None
+            and await TournamentService().list_player_requestable(viewer)
+        )
+
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
             admin_controls=False,
             table_key=TableKeys.HOME_PLAYER_MATCHES,
-            submit_match_callback=submit_match,
+            submit_match_callback=submit_match if can_request else None,
             extra_slots=extra_slots,
             player_discord_id=discord_id,
             storage_key='player_dashboard',

@@ -27,6 +27,9 @@ from application.services.match.match_station_draw import (
 )
 from application.services.match.match_stations import StationAssignmentMixin
 from application.services.match.match_status import MatchStatus, resolve_matchup
+from application.services.match.match_stream_volunteer_service import (
+    MatchStreamVolunteerService,
+)
 from application.services.match.match_suggestion_service import MatchSuggestionService
 from application.services.match.match_watcher_service import MatchWatcherService
 
@@ -39,6 +42,7 @@ __all__ = [
     'MatchScheduleService',
     'MatchService',
     'MatchStatus',
+    'MatchStreamVolunteerService',
     'MatchSuggestionService',
     'MatchWatcherService',
     'StationAssignmentMixin',

@@ -38,10 +38,8 @@ def confirm_result_message(match: Match) -> str:
     Names the winner rather than just listing both players: this is the step that
     settles the match and advances the bracket, and an admin working a queue of
     them needs to check the name against what they were told without closing the
-    dialog to read the row behind it. A flagged result repeats the proctor's note
-    for the same reason — on the desktop board that note lives in a hover
-    tooltip, which is the wrong place for the one fact that explains why this
-    match is in front of them.
+    dialog to read the row behind it. A flagged result says so for the same
+    reason: it is why this match is in front of them.
     """
     winner = next((p for p in match.players if p.finish_rank == 1), None)
     # Only a head-to-head has a single loser to name; with three or more the
@@ -63,12 +61,7 @@ def confirm_result_message(match: Match) -> str:
         lines = [f'No winner is recorded for {match_model_label(match)}.',
                  'Record one before confirming.']
     if match.needs_review:
-        lines.append(
-            f'Flagged for review by the proctor: {match.review_note}'
-            if match.review_note
-            else 'Flagged for review by the proctor, with no note.'
-        )
-        lines.append('Confirming clears the flag.')
+        lines.append('Flagged for review by the proctor. Confirming clears the flag.')
     return '\n\n'.join(lines)
 
 

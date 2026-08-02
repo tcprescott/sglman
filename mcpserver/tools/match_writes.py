@@ -308,17 +308,17 @@ async def set_match_review(
     match_id: int,
     needs_review: bool,
     tenant: TenantArg = None,
-    note: Optional[str] = None,
 ) -> MatchResponse:
     """Flag a recorded result as contested, or clear the flag.
 
-    Raising the flag is the proctor's call and takes a `note` saying what is
-    disputed; clearing it is an admin's, and keeps the note as the record.
+    Raising the flag is the proctor's call, clearing it an admin's. The flag
+    carries no note — it says "an admin should look at this", and the
+    conversation about what happened lives outside Wizzrobe.
     """
     actor = current_actor().user
     service = MatchService()
     if needs_review:
-        await service.flag_for_review(match_id, note, actor=actor)
+        await service.flag_for_review(match_id, actor=actor)
     else:
         await service.clear_review(match_id, actor=actor)
     return await _match_response(match_id)

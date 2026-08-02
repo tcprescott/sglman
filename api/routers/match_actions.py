@@ -179,7 +179,7 @@ async def set_review(match_id: int, body: SetReviewRequest, actor: User = Depend
     """
     service = MatchService()
     if body.needs_review:
-        await service.flag_for_review(match_id, body.note, actor=actor)
+        await service.flag_for_review(match_id, actor=actor)
     else:
         await service.clear_review(match_id, actor=actor)
     return await load_match_response(match_id)

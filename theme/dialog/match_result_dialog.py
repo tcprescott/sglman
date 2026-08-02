@@ -46,7 +46,6 @@ class MatchResultDialog:
         self.winner_select = None
         # The dispute flag, built only in 'record' mode — see open().
         self.review_flag = None
-        self.review_note = None
         # Two-player path only: the winner picked but not yet recorded, and the
         # refresh hook that swaps the picker between its two steps.
         self._pending_winner_id = None
@@ -201,10 +200,6 @@ class MatchResultDialog:
                         with ui.row().classes('items-center gap-1 no-wrap'):
                             self.review_flag = ui.checkbox('Flag for admin review')
                             await help_icon('proctor-result')
-                        self.review_note = ui.textarea(
-                            label='What happened?',
-                        ).props('outlined dense autogrow').classes('full-width')
-                        self.review_note.bind_visibility_from(self.review_flag, 'value')
 
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
@@ -285,9 +280,8 @@ class MatchResultDialog:
         """
         if self.review_flag is None or not self.review_flag.value:
             return
-        note = self.review_note.value if self.review_note is not None else None
         try:
-            await self.match_service.flag_for_review(self.match.id, note, actor)
+            await self.match_service.flag_for_review(self.match.id, actor)
         except (ValueError, PermissionError) as e:
             notify_error(e)
             return

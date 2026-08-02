@@ -15,6 +15,9 @@ import pytest
 from application.repositories.equipment_repository import EquipmentRepository
 from application.repositories.feedback_repository import FeedbackRepository
 from application.repositories.match_repository import MatchRepository
+from application.repositories.match_stream_volunteer_repository import (
+    MatchStreamVolunteerRepository,
+)
 from application.repositories.match_watcher_repository import MatchWatcherRepository
 from application.repositories.preset_repository import PresetRepository
 from application.repositories.stage_repository import StageRepository
@@ -26,6 +29,7 @@ from models import (
     Equipment,
     Feedback,
     Match,
+    MatchStreamVolunteer,
     MatchWatcher,
     Preset,
     Stage,
@@ -191,6 +195,30 @@ async def test_match_watcher_by_user_does_not_leak(tenants):
     with tenant_scope(b.id):
         rows = await MatchWatcherRepository.get_by_user(user)
         assert [w.match_id for w in rows] == [mb.id]
+
+
+async def test_match_stream_volunteer_does_not_leak(tenants):
+    a, b = tenants
+    user = await User.create(discord_id=904, username='offerer')
+    with tenant_scope(a.id):
+        ta = await Tournament.create(name='A Cup')
+        ma = await Match.create(tournament=ta)
+        await MatchStreamVolunteer.create(match=ma, user=user)
+    with tenant_scope(b.id):
+        tb = await Tournament.create(name='B Cup')
+        mb = await Match.create(tournament=tb)
+        await MatchStreamVolunteer.create(match=mb, user=user)
+
+    with tenant_scope(a.id):
+        assert await MatchStreamVolunteerRepository.get_match_ids_for_user(user) == [ma.id]
+        assert await MatchStreamVolunteerRepository.names_by_match([ma.id, mb.id]) == {
+            ma.id: ['offerer'],
+        }
+    with tenant_scope(b.id):
+        assert await MatchStreamVolunteerRepository.get_match_ids_for_user(user) == [mb.id]
+        assert await MatchStreamVolunteerRepository.names_by_match([ma.id, mb.id]) == {
+            mb.id: ['offerer'],
+        }
 
 
 async def test_challonge_connection_is_per_tenant(tenants):

@@ -643,7 +643,7 @@ async def seed_for_tenant(
               "preset": None, "seed_url": seed.seed_url}),
             (staff, AuditActions.MATCH_FINISHED, {"match_id": finished_match.id}),
             (staff, AuditActions.MATCH_FLAGGED_FOR_REVIEW,
-             {"match_id": disputed_match.id, "note": disputed_match.review_note}),
+             {"match_id": disputed_match.id}),
             (staff, AuditActions.USER_ROLE_GRANTED,
              {"user_id": proctor.id, "role": Role.PROCTOR.value}),
             (staff, AuditActions.EQUIPMENT_CHECKED_OUT,

@@ -33,13 +33,12 @@ class Match(Model):
     speedgaming_episode = fields.OneToOneField(
         'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL
     )
-    # Proctor-set "an admin should look at this before confirming" flag, with the
-    # proctor's own words. Cleared when the admin confirms — confirming *is* the
-    # resolution. Deliberately not a state: the match is still Finished.
+    # Proctor-set "an admin should look at this before confirming" flag. Cleared
+    # when the admin confirms — confirming *is* the resolution. Deliberately not
+    # a state: the match is still Finished, and deliberately just a flag: the
+    # proctor raising it is standing in the room, and typing up what happened is
+    # the admin's conversation to have, not a textarea to fill in mid-event.
     needs_review = fields.BooleanField(default=False)
-    # Survives the flag being cleared: the note is the record of *why* it was
-    # contested, and a confirmed match keeps it.
-    review_note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -214,4 +213,38 @@ class MatchWatcher(Model):
     class Meta:
         unique_together = ('user', 'match')
         table = 'matchwatcher'
+        indexes = (('match',),)  # composite is user-first; match-only fan-out lookup uncovered
+
+
+class MatchStreamVolunteer(Model):
+    """A player putting their own match forward to be streamed.
+
+    Advisory only. It is a row saying "we're happy to be on stream", nothing
+    more: it does not set ``Match.is_stream_candidate``, does not assign a
+    stage, and does not oblige anyone. Staff read it while they build the stream
+    schedule, and ``is_stream_candidate`` remains the answer they write.
+
+    One row per player, not a flag on the match, so the board can say whether
+    one player asked or both did.
+    """
+
+    id = fields.IntField(pk=True)
+    # Untyped FKs like every other model here; the three annotations keep the
+    # mypy ratchet flat for a new file (the ORM builds these descriptors at
+    # runtime, so mypy cannot infer them).
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='match_stream_volunteers', on_delete=fields.CASCADE
+    )
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='stream_volunteered_matches', on_delete=fields.CASCADE
+    )
+    match: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Match', related_name='stream_volunteers', on_delete=fields.CASCADE
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'match')
+        table = 'matchstreamvolunteer'
         indexes = (('match',),)  # composite is user-first; match-only fan-out lookup uncovered

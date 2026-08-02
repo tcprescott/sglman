@@ -72,6 +72,7 @@ from .match import (
     Match,
     MatchAcknowledgment,
     MatchPlayers,
+    MatchStreamVolunteer,
     MatchWatcher,
     Stage,
     Station,
@@ -180,6 +181,7 @@ __all__ = [
     'MatchAcknowledgment',
     'MatchNotificationLevel',
     'MatchPlayers',
+    'MatchStreamVolunteer',
     'MatchWatcher',
     # mcp oauth
     'McpAuthorizationCode',

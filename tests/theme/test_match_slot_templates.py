@@ -171,16 +171,16 @@ def test_both_layouts_show_the_dispute_flag():
         assert 'Needs review' in template
 
 
-def test_the_review_note_is_text_on_mobile_and_a_tooltip_on_desktop():
+def test_what_the_flag_means_is_text_on_mobile_and_a_tooltip_on_desktop():
     """A tooltip needs a hover, and a phone has no pointer to hover with."""
     state_cell, card = _state_and_grid_slots()
 
     note_cell = state_cell[state_cell.index('needs_review'):]
-    assert '<q-tooltip v-if="props.row.review_note">' in note_cell
+    assert '<q-tooltip>The proctor flagged this result.' in note_cell
 
     review_block = card[card.index('needs_review'):]
     review_block = review_block[:review_block.index('</div>')]
-    assert '{{ props.row.review_note }}' in review_block
+    assert 'The proctor flagged this result.' in review_block
     assert 'q-tooltip' not in review_block
 
 
@@ -456,3 +456,117 @@ class TestTheStageCell:
         view = object.__new__(MatchTableView)
         view.on_set_stage = None
         assert view._stage_options() is None
+
+
+class TestStreamVolunteering:
+    """A player's offer is advisory, and every surface has to say so.
+
+    The toggle sits in the same row as the Stage column, so a bare icon reads as
+    claiming a stage. These pin the copy that stops it reading that way.
+    """
+
+    def _volunteer_cell(self, discord_id='12345'):
+        table = FakeTable()
+        register_body_slots(
+            table, admin_controls=False, access=MatchBoardAccess(),
+            discord_id=discord_id,
+        )
+        return table.slots.get('body-cell-stream_volunteer')
+
+    def test_the_cell_exists_only_for_a_logged_in_viewer(self):
+        assert self._volunteer_cell() is not None
+        assert self._volunteer_cell(discord_id=None) is None
+
+    def test_only_a_player_in_the_match_gets_the_toggle(self):
+        """The service refuses anyone else, so offering it teaches a refusal."""
+        cell = self._volunteer_cell()
+        guard = _guard_on(cell, "$parent.$emit('toggle_stream_volunteer'")
+        assert "props.row.players.some(p => p.discord_id == '12345')" in guard
+
+    def test_the_toggle_says_it_does_not_book_a_stage(self):
+        assert "doesn't book a stage" in self._volunteer_cell()
+
+    def test_a_non_player_reads_the_count_instead(self):
+        cell = self._volunteer_cell()
+        assert 'props.row.stream_volunteers.length' in cell
+        assert 'Advisory only.' in cell
+
+    def test_the_mobile_card_names_the_offer_as_advisory(self):
+        table = FakeTable()
+        render_grid_slot(
+            table, [*ADMIN_COLUMNS,
+                    {'name': 'stream_volunteer', 'label': 'Stream',
+                     'field': 'stream_volunteer'}],
+            admin_controls=False, access=MatchBoardAccess(), discord_id='12345',
+            has_edit=False,
+        )
+        tpl = table.slots['item']
+        assert 'advisory, not a booking' in tpl
+        assert "$parent.$emit('toggle_stream_volunteer'" in tpl
+
+    def test_a_board_without_the_column_gets_no_mobile_toggle(self):
+        table = FakeTable()
+        render_grid_slot(
+            table, ADMIN_COLUMNS, admin_controls=False,
+            access=MatchBoardAccess(), discord_id='12345', has_edit=False,
+        )
+        guard = _guard_on(
+            table.slots['item'], "$parent.$emit('toggle_stream_volunteer'",
+        )
+        assert guard.startswith('false')
+
+    def test_offering_never_writes_the_stream_candidate_flag(self):
+        """Staff's decision stays staff's — the two live in different places."""
+        import inspect
+
+        from theme.tables import match_handlers
+
+        src = inspect.getsource(match_handlers.MatchTableHandlersMixin._handle_toggle_stream_volunteer)
+        assert 'is_stream_candidate' not in src
+        assert 'does not guarantee' in src
+
+
+def test_request_match_is_offered_only_where_a_request_can_be_made():
+    """A bracket-run community has nothing to request, and the dialog's own dead
+    end ("schedule your matchup from Your Schedule instead") is the wrong place
+    to learn that — the button should not have been there.
+
+    Pinned at the source, because the decision is a page-build-time argument to
+    ``MatchTableView`` and the button lives behind ``if self.submit_match_callback``.
+    """
+    src = pathlib.Path('pages/home_tabs/player.py').read_text()
+    assert 'list_player_requestable(viewer)' in src
+    assert 'submit_match_callback=submit_match if can_request else None' in src
+
+    table_src = pathlib.Path('theme/tables/match.py').read_text()
+    assert 'if self.submit_match_callback:' in table_src
+
+
+def test_the_offer_disappears_once_the_match_is_under_way():
+    """Offering is refused after the start, so a board that keeps offering it
+    only teaches a refusal. Withdrawing stays available — a player who changes
+    their mind must not be stuck with a request they cannot unsay."""
+    from theme.tables.match_slots import STREAM_VOLUNTEER_ACTIONABLE
+
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+    )
+    guard = _guard_on(
+        table.slots['body-cell-stream_volunteer'],
+        "$parent.$emit('toggle_stream_volunteer'",
+    )
+    assert STREAM_VOLUNTEER_ACTIONABLE in guard
+    assert 'props.row._stream_volunteer' in STREAM_VOLUNTEER_ACTIONABLE
+    assert "['Scheduled', 'Checked In'].includes(props.row.state)" in STREAM_VOLUNTEER_ACTIONABLE
+
+    # And the mobile card reads the same expression rather than a second copy.
+    grid = FakeTable()
+    render_grid_slot(
+        grid, [*ADMIN_COLUMNS,
+               {'name': 'stream_volunteer', 'label': 'Stream',
+                'field': 'stream_volunteer'}],
+        admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+        has_edit=False,
+    )
+    assert STREAM_VOLUNTEER_ACTIONABLE in grid.slots['item']

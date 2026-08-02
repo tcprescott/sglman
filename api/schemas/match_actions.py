@@ -79,9 +79,6 @@ class SetReviewRequest(BaseModel):
     needs_review: bool = Field(
         ..., description="True to flag the recorded result for admin review, false to clear it"
     )
-    note: Optional[str] = Field(
-        None, description="Why the result is contested; ignored when clearing"
-    )
 
 
 class CrewSignupRequest(BaseModel):

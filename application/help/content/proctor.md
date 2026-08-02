@@ -72,9 +72,9 @@ moment its match is recorded as finished.
 :::snippet proctor-result
 Ask both players. Record what they agree on.
 
-If they **disagree**, record your best call, tick **Flag for admin review**, and
-type what happened. The note is the whole point: an admin settles it when they
-confirm the result, and your note is what they settle it from.
+If they **disagree**, record your best call and tick **Flag for admin review**.
+Then tell an admin what happened — the flag is a marker, not a report, and the
+conversation is what settles it.
 
 Flagging does not hold the match up or change its state. It marks it as needing a
 decision so it does not get confirmed on autopilot.

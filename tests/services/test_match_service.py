@@ -595,56 +595,41 @@ class TestFlagForReview:
         match, _ = await _make_onsite_match(seated=True)
 
         with pytest.raises(ValueError, match='Only a finished match'):
-            await MatchService().flag_for_review(match.id, 'they disagree', actor)
+            await MatchService().flag_for_review(match.id, actor)
 
         await match.refresh_from_db()
         assert match.needs_review is False
 
-    async def test_flag_for_review_stores_the_note(self, db, actor):
+    async def test_flag_for_review_raises_the_flag(self, db, actor):
         match, _ = await _make_onsite_match(finished=True)
 
-        await MatchService().flag_for_review(
-            match.id, '  Timer was still running.  ', actor,
-        )
+        await MatchService().flag_for_review(match.id, actor)
 
         await match.refresh_from_db()
         assert match.needs_review is True
-        assert match.review_note == 'Timer was still running.'
-
-    async def test_flag_for_review_without_a_note_stores_none(self, db, actor):
-        """An empty box is no note, not an empty one — the chip renders bare."""
-        match, _ = await _make_onsite_match(finished=True)
-
-        await MatchService().flag_for_review(match.id, '   ', actor)
-
-        await match.refresh_from_db()
-        assert match.needs_review is True
-        assert match.review_note is None
 
     async def test_flagging_publishes_the_event(self, db, actor, captured_events):
         from application.events import EventType
 
         match, _ = await _make_onsite_match(finished=True)
 
-        await MatchService().flag_for_review(match.id, 'contested', actor)
+        await MatchService().flag_for_review(match.id, actor)
 
         flagged = [e for e in captured_events
                    if e.event_type == EventType.MATCH_FLAGGED_FOR_REVIEW]
         assert len(flagged) == 1
         assert flagged[0].payload['match_id'] == match.id
-        assert flagged[0].payload['note'] == 'contested'
         assert flagged[0].payload['tournament_id'] == match.tournament_id
 
-    async def test_clear_review_keeps_the_note(self, db, actor):
+    async def test_clear_review_drops_the_flag(self, db, actor):
         match, _ = await _make_onsite_match(finished=True)
         service = MatchService()
-        await service.flag_for_review(match.id, 'Timer was still running.', actor)
+        await service.flag_for_review(match.id, actor)
 
         await service.clear_review(match.id, actor)
 
         await match.refresh_from_db()
         assert match.needs_review is False
-        assert match.review_note == 'Timer was still running.'
 
 
 class TestStationAssignmentValidation:

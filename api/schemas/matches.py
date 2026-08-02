@@ -87,10 +87,8 @@ class MatchResponse(BaseModel):
     seated_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     comment: Optional[str] = None
-    # The proctor's dispute flag and their note. Confirming clears the flag and
-    # keeps the note, so a confirmed match can carry a note with the flag off.
+    # The proctor's dispute flag. Confirming clears it.
     needs_review: bool = False
-    review_note: Optional[str] = None
     players: List[PlayerInfo] = Field(default_factory=list)
     commentators: List[CommentatorInfo] = Field(default_factory=list)
     trackers: List[TrackerInfo] = Field(default_factory=list)

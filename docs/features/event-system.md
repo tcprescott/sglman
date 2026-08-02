@@ -41,7 +41,7 @@ between "called off" and "shouldn't have existed".
 
 | Family | Published by |
 |---|---|
-| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py` |
+| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py`, `match_review.py`, `match_stream_volunteer_service.py` |
 | `crew.*` | `crew_service.py` |
 | `volunteer.*` | `volunteer/volunteer_schedule_service.py` |
 | `bracket.*` | the `_bracket/` mixins (generation, advancement, completion, multistage, scheduling, series) |

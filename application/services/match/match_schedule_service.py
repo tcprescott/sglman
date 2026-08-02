@@ -262,8 +262,7 @@ class MatchScheduleService(MatchNotificationMixin):
         )
 
         # Confirming a flagged result *is* the resolution — the admin has now
-        # looked at it, which is all the flag ever asked for. The note stays:
-        # it is the record of why the result was contested. A separate
+        # looked at it, which is all the flag ever asked for. A separate
         # MATCH_REVIEW_CLEARED row (rather than extra keys on the confirm audit)
         # keeps ``_transition``'s shared detail shape untouched and makes the
         # trail read record → flag → clear → confirm.
@@ -275,7 +274,6 @@ class MatchScheduleService(MatchNotificationMixin):
                 AuditActions.MATCH_REVIEW_CLEARED,
                 {
                     'match_id': match.id,
-                    'note': match.review_note,
                     'resolved_by': 'confirmation',
                 },
                 EventType.MATCH_REVIEW_CLEARED,
