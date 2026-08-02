@@ -15,7 +15,17 @@ from application.repositories.match_repository import MatchRepository
 from application.repositories.station_repository import StationRepository
 from application.services.match.match_service import MatchService
 from application.tenant_context import tenant_scope
-from models import Match, MatchPlayers, Role, Station, Tenant, Tournament, User, UserRole
+from models import (
+    Match,
+    MatchPlayers,
+    Role,
+    Station,
+    StationSide,
+    Tenant,
+    Tournament,
+    User,
+    UserRole,
+)
 from tests.factories import make_user, utc
 
 
@@ -65,6 +75,28 @@ async def test_occupied_stations_are_isolated(two_tenants):
         assert await MatchRepository.occupied_stations() == {}
     with tenant_scope(b.id):
         assert await MatchRepository.occupied_stations() == {'1': b_match.id}
+
+
+async def test_the_seating_draw_never_reaches_another_tenants_pool(two_tenants):
+    """The draw picks from ``get_active()``, so an unscoped read would seat a
+    player at a station standing in someone else's venue."""
+    a, b = two_tenants
+    with tenant_scope(b.id):
+        await Station.create(name='B-LEFT', side=StationSide.LEFT, position=1)
+        await Station.create(name='B-RIGHT', side=StationSide.RIGHT, position=1)
+
+    with tenant_scope(a.id):
+        await Station.create(name='A-LEFT', side=StationSide.LEFT, position=1)
+        await Station.create(name='A-RIGHT', side=StationSide.RIGHT, position=1)
+        actor = await _staff(a, 4244)
+        tournament = await Tournament.create(name='A Cup')
+        match = await Match.create(tournament=tournament)
+        for n in (4245, 4246):
+            user = await make_user(discord_id=n, username=f'a-{n}')
+            await MatchPlayers.create(match=match, user=user)
+
+        suggestion = await MatchService().suggest_stations(match.id, actor=actor)
+        assert sorted(suggestion.assignments.values()) == ['A-LEFT', 'A-RIGHT']
 
 
 async def test_another_tenants_live_match_does_not_block_an_assignment(two_tenants):

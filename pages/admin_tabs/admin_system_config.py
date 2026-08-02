@@ -20,7 +20,7 @@ from application.services.system_config_service import (
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
 from application.utils.timezone import timezone_label
-from models import StationFormat
+from models import StationFormat, StationSide
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
 
@@ -50,10 +50,60 @@ async def _station_pool_section(can_edit: bool) -> None:
                 'stations here to pick from a list and block double-booking.'
             ).classes('text-caption text-grey')
             return
+        unsided = [s for s in stations if s.is_active and s.side is None]
+        if unsided:
+            ui.label(
+                f'{len(unsided)} active station(s) have no side set, so check-in '
+                'cannot draw seats across the room for them: '
+                + ', '.join(s.name for s in unsided)
+            ).classes('text-caption text-warning')
+
         for station in stations:
             with ui.row().classes('items-center gap-3 q-mb-xs full-width'):
                 ui.label(station.name).classes('w-16 text-weight-medium')
                 ui.label(station.section or '—').classes('col text-caption text-grey')
+                # Editable in place rather than through a dialog: describing a
+                # room's layout means touching every row once, and a pool built
+                # before these fields existed would otherwise have to be
+                # deleted and retyped to gain a side.
+                async def set_side(e, s=station) -> None:
+                    try:
+                        await service.update_station(
+                            s.id,
+                            await _actor(),
+                            side=StationSide(e.value) if e.value else None,
+                            clear_side=not e.value,
+                        )
+                    except (ValueError, PermissionError) as err:
+                        notify_error(err)
+                    station_list.refresh()
+
+                async def set_position(e, s=station) -> None:
+                    try:
+                        await service.update_station(
+                            s.id,
+                            await _actor(),
+                            position=int(e.value) if e.value else None,
+                            clear_position=not e.value,
+                        )
+                    except (ValueError, PermissionError) as err:
+                        notify_error(err)
+
+                ui.select(
+                    options={sd.value: sd.value.title() for sd in StationSide},
+                    value=station.side.value if station.side else None,
+                    label='Side',
+                    clearable=True,
+                    on_change=set_side,
+                ).props('outlined dense').classes('w-32').set_enabled(can_edit)
+                # Debounced: without it every keystroke in the seat number is a
+                # write and an audit row.
+                ui.number(
+                    'Seat #',
+                    value=station.position,
+                    format='%d',
+                    on_change=set_position,
+                ).props('outlined dense debounce=800').classes('w-20').set_enabled(can_edit)
 
                 async def toggle(_e, s=station) -> None:
                     try:
@@ -85,6 +135,11 @@ async def _station_pool_section(can_edit: bool) -> None:
         'pick from this list and a station in use by a live match cannot be '
         'assigned again. Deactivate rather than delete to keep past matches readable.'
     ).classes('text-caption text-grey')
+    ui.label(
+        'Side and seat number are what check-in draws on: it puts a match\'s two '
+        'players on opposite sides, and prefers a seat whose neighbours (same '
+        'side and section, seat number one apart) are empty. Both are optional.'
+    ).classes('text-caption text-grey')
 
     with ui.column().classes('gap-1 full-width q-mt-sm'):
         await station_list()
@@ -95,6 +150,12 @@ async def _station_pool_section(can_edit: bool) -> None:
     with ui.row().classes('items-center gap-3 q-mt-sm'):
         name_input = ui.input('Name').props('outlined dense maxlength=50').classes('w-32')
         section_input = ui.input('Section').props('outlined dense maxlength=50').classes('w-40')
+        side_input = ui.select(
+            options={s.value: s.value.title() for s in StationSide},
+            label='Side',
+            clearable=True,
+        ).props('outlined dense').classes('w-32')
+        position_input = ui.number('Seat #', format='%d').props('outlined dense').classes('w-24')
         order_input = ui.number('Order', value=0, format='%d').props('outlined dense').classes('w-24')
 
         async def add() -> None:
@@ -103,6 +164,8 @@ async def _station_pool_section(can_edit: bool) -> None:
                     name_input.value or '',
                     await _actor(),
                     section=section_input.value or None,
+                    side=StationSide(side_input.value) if side_input.value else None,
+                    position=int(position_input.value) if position_input.value else None,
                     sort_order=int(order_input.value or 0),
                 )
             except (ValueError, PermissionError) as e:
@@ -110,6 +173,7 @@ async def _station_pool_section(can_edit: bool) -> None:
                 return
             name_input.value = ''
             section_input.value = ''
+            position_input.value = None
             station_list.refresh()
 
         ui.button('Add Station', icon='add', on_click=add).props('color=primary')

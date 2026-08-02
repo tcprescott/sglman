@@ -1,6 +1,8 @@
 from tortoise import fields
 from tortoise.models import Model
 
+from .enums import StationSide
+
 
 class Match(Model):
     id = fields.IntField(pk=True)
@@ -134,6 +136,10 @@ class Station(Model):
     *label*, not an FK: the pool is a picker and a validation source, and a
     community that has defined no stations keeps the historical free-text
     behaviour.
+
+    ``side`` and ``position`` are the layout half, and both are optional: they
+    feed ``MatchService.suggest_stations`` and nothing else, so a pool that
+    leaves them null behaves exactly as it did before they existed.
     """
 
     id = fields.IntField(pk=True)
@@ -142,6 +148,13 @@ class Station(Model):
     # Free-text grouping ("North wall", "Row A") shown beside the name in the
     # picker. Purely a label — it carries no pairing semantics.
     section = fields.CharField(max_length=50, null=True)
+    # Which half of the room. The seating suggestion puts a match's two players
+    # on different sides; a null side can still be assigned by hand but can
+    # never satisfy that rule, so the suggestion draws from it last.
+    side = fields.CharEnumField(StationSide, max_length=10, null=True)
+    # Seat index along a row, used only to tell whether two stations are
+    # neighbours: same side and same section, positions one apart.
+    position = fields.IntField(null=True)
     sort_order = fields.IntField(default=0)
     is_active = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)

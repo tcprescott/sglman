@@ -5,7 +5,16 @@ actor, inheriting its permission checks (Staff/TA gates, read-only rejection).
 """
 
 
-from models import Commentator, Match, MatchPlayers, Role, Tournament, User
+from models import (
+    Commentator,
+    Match,
+    MatchPlayers,
+    Role,
+    Station,
+    StationSide,
+    Tournament,
+    User,
+)
 from tests.api_helpers import client_for, create_user_token
 
 
@@ -198,6 +207,50 @@ class TestProctorLifecycleBoundary:
             assert result.status_code == 200
             ranks = {p['id']: p['finish_rank'] for p in result.json()['players']}
             assert ranks[players[0].id] == 1
+
+    async def test_proctor_token_can_draw_a_seating(self, db, app):
+        _, raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        match = await _seeded_match()
+        players = await MatchPlayers.filter(match_id=match.id).order_by('id')
+        await Station.create(name='1', side=StationSide.LEFT, position=1)
+        await Station.create(name='2', side=StationSide.RIGHT, position=1)
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/matches/{match.id}/stations/suggest')
+            assert resp.status_code == 200
+            body = resp.json()
+            assert sorted(body['assignments'].values()) == ['1', '2']
+            assert set(body['assignments']) == {str(p.id) for p in players}
+            assert body['relaxations'] == []
+
+    async def test_a_seating_draw_without_a_pool_is_a_400(self, db, app):
+        _, raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        match = await _seeded_match()
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/matches/{match.id}/stations/suggest')
+            assert resp.status_code == 400
+
+    async def test_a_seating_draw_for_a_missing_match_is_a_404(self, db, app):
+        _, raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        async with client_for(app, raw) as c:
+            assert (await c.post('/api/matches/9999/stations/suggest')).status_code == 404
+
+    async def test_a_read_only_token_cannot_draw_a_seating(self, db, app):
+        _, raw = await create_user_token(
+            username='proc', roles=[Role.PROCTOR], read_only=True,
+        )
+        match = await _seeded_match()
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/matches/{match.id}/stations/suggest')
+            assert resp.status_code == 403
+
+    async def test_a_role_less_token_cannot_draw_a_seating(self, db, app):
+        _, raw = await create_user_token(username='nobody')
+        match = await _seeded_match()
+        await Station.create(name='1', side=StationSide.LEFT, position=1)
+        await Station.create(name='2', side=StationSide.RIGHT, position=1)
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/matches/{match.id}/stations/suggest')
+            assert resp.status_code == 403
 
     async def test_proctor_token_passes_the_seed_gate(self, db, app):
         """The tournament has no generator, so /seed 400s on configuration — the

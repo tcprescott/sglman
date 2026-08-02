@@ -59,6 +59,7 @@ from .enums import (
     Role,
     RoleSource,
     StationFormat,
+    StationSide,
     SyncStatus,
     VolunteerAvailabilityStatus,
 )
@@ -192,6 +193,7 @@ __all__ = [
     'Stage',
     'Station',
     'StationFormat',
+    'StationSide',
     'SyncStatus',
     # system
     'SystemConfiguration',

@@ -76,6 +76,7 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - `POST /matches` — create (Staff/TA). `POST /matches/request` — player-initiated request.
 - `PATCH /matches/{id}` · `DELETE /matches/{id}`.
 - `POST /matches/{id}/stream-candidate` · `/stage` · `/stations`.
+- `POST /matches/{id}/stations/suggest` — draw a random seating (opposite sides, spread out) without applying it. Returns `{assignments, relaxations}`. Takes the **write** actor even though it writes nothing: it is a preview of `POST /stations`, and a read-only token has no business drawing seats it cannot then take.
 - Lifecycle: `POST /matches/{id}/seat` · `/start` · `/finish` · `/confirm` · `/result` · `/seed`. `/confirm` returns `400` unless the match is finished **and** a winner has been recorded.
 - `POST /matches/{id}/review` — `{needs_review, note?}`. Raises or drops the dispute flag on a recorded result, returning the updated match. The two directions gate differently: flagging is `can_run_match` (the proctor's own call, and `400` unless the match is finished), clearing is `can_confirm_match` (`403` for a proctor). Clearing never touches `review_note`, and `/confirm` clears the flag on its own — see [match-participation.md](../features/match-participation.md#disputed-results).
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.

@@ -19,6 +19,7 @@ from api.schemas.match_actions import (
     RecordResultRequest,
     SeedResultResponse,
     SetReviewRequest,
+    StationSuggestionResponse,
     StreamCandidateRequest,
 )
 from api.schemas.matches import MatchResponse
@@ -113,6 +114,26 @@ async def assign_stage(match_id: int, body: AssignStageRequest, actor: User = De
 async def assign_stations(match_id: int, body: AssignStationsRequest, actor: User = Depends(require_write_actor)):
     await MatchService().assign_stations(match_id, body.assignments, actor=actor)
     return await load_match_response(match_id)
+
+
+@router.post(
+    "/{match_id}/stations/suggest",
+    response_model=StationSuggestionResponse,
+    summary="Draw a random station for each player, on opposite sides",
+)
+async def suggest_stations(match_id: int, actor: User = Depends(require_write_actor)):
+    """Propose a seating without applying it.
+
+    A preview of a write rather than a read, which is why it takes the write
+    actor: the caller's next move is ``POST /matches/{id}/stations`` with the
+    assignments it returns, and a read-only token has no business drawing seats
+    it cannot then take.
+    """
+    suggestion = await MatchService().suggest_stations(match_id, actor=actor)
+    return StationSuggestionResponse(
+        assignments=suggestion.assignments,
+        relaxations=suggestion.relaxations,
+    )
 
 
 @router.post("/{match_id}/seat", response_model=MatchResponse, summary="Check in (seat) a match")

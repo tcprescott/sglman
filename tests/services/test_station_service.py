@@ -13,6 +13,7 @@ import pytest
 from application.errors import NotFoundError
 from application.services.audit_service import AuditActions
 from application.services.station_service import StationService
+from models import StationSide
 from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -43,9 +44,9 @@ def _actor():
     return SimpleNamespace(id=1, username='staff')
 
 
-def _station(station_id=7, name='1', is_active=True):
+def _station(station_id=7, name='1', is_active=True, side=None, position=None):
     return SimpleNamespace(id=station_id, name=name, section=None, sort_order=0,
-                           is_active=is_active)
+                           is_active=is_active, side=side, position=position)
 
 
 class TestCreateStation:
@@ -135,6 +136,54 @@ class TestDeleteStation:
         _, action, details = service.audit_service.write_log.call_args.args
         assert action == AuditActions.STATION_DELETED
         assert details == {'station_id': 7, 'name': '4'}
+
+
+class TestLayoutFields:
+    async def test_side_and_position_are_stored(self, service):
+        station = await service.create_station(
+            '3', _actor(), side=StationSide.LEFT, position=2,
+        )
+        assert station.side is StationSide.LEFT
+        assert station.position == 2
+
+    async def test_layout_defaults_to_unknown(self, service):
+        station = await service.create_station('3', _actor())
+        assert station.side is None
+        assert station.position is None
+
+    async def test_position_must_be_a_counting_number(self, service):
+        with pytest.raises(ValueError, match='1 or greater'):
+            await service.create_station('3', _actor(), position=0)
+
+    async def test_update_rejects_a_zero_position(self, service):
+        service.repository.get_by_id = AsyncMock(return_value=_station())
+        with pytest.raises(ValueError, match='1 or greater'):
+            await service.update_station(7, _actor(), position=-1)
+
+    async def test_update_sets_the_layout(self, service):
+        station = _station()
+        service.repository.get_by_id = AsyncMock(return_value=station)
+        await service.update_station(
+            7, _actor(), side=StationSide.RIGHT, position=4,
+        )
+        assert station.side is StationSide.RIGHT
+        assert station.position == 4
+
+    async def test_omitting_the_layout_leaves_it_alone(self, service):
+        station = _station(side=StationSide.LEFT, position=3)
+        service.repository.get_by_id = AsyncMock(return_value=station)
+        await service.update_station(7, _actor(), is_active=False)
+        assert station.side is StationSide.LEFT
+        assert station.position == 3
+
+    async def test_clearing_is_distinct_from_omitting(self, service):
+        station = _station(side=StationSide.LEFT, position=3)
+        service.repository.get_by_id = AsyncMock(return_value=station)
+        await service.update_station(
+            7, _actor(), clear_side=True, clear_position=True,
+        )
+        assert station.side is None
+        assert station.position is None
 
 
 class TestListStations:

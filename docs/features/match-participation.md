@@ -152,8 +152,34 @@ being edited, so re-assigning a match to the station it already occupies is
 allowed, and it is tenant-scoped, so two communities that both call a station "1"
 never block each other.
 
-There is **no pairing rule**: which two stations a proctor picks is their
-judgment, and the app neither computes nor suggests opposite-side pairs.
+### Randomizing the seating
+
+The check-in dialog's **Randomize** button draws a station for each player
+instead of the proctor picking two by hand. It calls
+`MatchService.suggest_stations`, which **proposes and never writes** — the
+values land in the pickers, the proctor can override any of them, and the
+commit is still the same `assign_stations` call with its full validation ladder.
+
+Two rules, both soft:
+
+1. **Opposite sides.** The two players are drawn from different `Station.side`
+   values, so they end up in different halves of the room.
+2. **Spread out.** Within a side, a station whose neighbours are free is
+   preferred over one beside a match already in play. Neighbours are same
+   `side`, same `section`, `position` one apart.
+
+Anything the draw could not honour comes back as a sentence and is shown as a
+warning toast: one side full, no sides recorded on the pool at all, or a room
+busy enough that somebody had to sit next to a live match. The draw refuses
+outright only when it has nothing to work with — a match that does not have
+exactly two players, a community with no station pool, or fewer than two free
+stations. Which specific seat a player gets is deliberately arbitrary;
+`secrets.choice` picks within whichever tier survived the rules above.
+
+The button appears only for a two-player match on a community that has defined
+a pool. `Station.side` and `Station.position` are set under Admin → Settings →
+Station Pool and are both optional — a community that leaves them null gets a
+plain random draw with a note explaining why the players were not split.
 
 ## Disputed results
 

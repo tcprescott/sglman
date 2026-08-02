@@ -98,8 +98,23 @@ class StationAssignmentDialog:
                 if not self.match.players:
                     ui.label('No players assigned to this match').classes('text-grey-7')
                 else:
-                    ui.label(copy['lead']).classes('text-subtitle2')
-                    
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(copy['lead']).classes('text-subtitle2')
+                        ui.space()
+                        # Only offered for a head-to-head: the draw's whole job
+                        # is putting two players on opposite sides, and it
+                        # refuses any other player count.
+                        if len(self.match.players) == 2 and stations:
+                            ui.button(
+                                'Randomize',
+                                icon='casino',
+                                on_click=self._handle_randomize,
+                            ).props('flat dense color=primary').tooltip(
+                                'Draw a free station for each player, on opposite '
+                                'sides of the room'
+                            )
+
+
                     for player in self.match.players:
                         with ui.column().classes('q-gutter-xs full-width'):
                             # Player name
@@ -156,6 +171,37 @@ class StationAssignmentDialog:
         
         self.dialog.open()
     
+    async def _handle_randomize(self):
+        """Fill the pickers with a drawn seating, without committing it.
+
+        The proctor still submits, so a draw they dislike costs them a second
+        click rather than a correction.
+        """
+        try:
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            suggestion = await self.match_service.suggest_stations(
+                self.match.id, actor=actor,
+            )
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+
+        for player_id, station in suggestion.assignments.items():
+            station_input = self.station_inputs.get(player_id)
+            if station_input is None:
+                continue
+            # A drawn station is guaranteed to be in the active pool, but the
+            # select only offers the options built when the dialog opened.
+            if hasattr(station_input, 'options') and station not in station_input.options:
+                station_input.options[station] = station
+                station_input.update()
+            station_input.value = station
+
+        for note in suggestion.relaxations:
+            ui.notify(note, color='warning')
+        if not suggestion.relaxations:
+            ui.notify('Seats drawn — opposite sides, nobody crowded.', color='positive')
+
     async def _handle_submit(self):
         """Handle station assignment submission."""
         try:
