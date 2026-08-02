@@ -52,7 +52,10 @@ def render_standings(
     """
     tb_cols = [tb for tb in tiebreakers if tb in _TB_LABEL]
 
-    with ui.element('div').classes('bracket-standings'):
+    # The wrapper is the size container the table's columns respond to — the box
+    # it sits in, not the viewport (see .bracket-standings-wrap in brackets.css).
+    with ui.element('div').classes('bracket-standings-wrap'), \
+            ui.element('div').classes('bracket-standings'):
         with ui.element('div').classes('bracket-strow is-head'):
             ui.label('#').classes('c-rank')
             ui.label('Entrant').classes('c-name')
@@ -78,11 +81,14 @@ def render_standings(
                 with ui.element('div').classes('c-name bracket-entrant-cell'):
                     seed = entry_seed.get(s.ref)
                     if seed is not None:
-                        ui.label(str(seed)).classes('bracket-seed')
+                        # Two bare numbers in a row ("2  9  Xelna") read as two
+                        # ranks; the chip and the tooltip say which is which.
+                        ui.label(str(seed)).classes('bracket-seed') \
+                            .tooltip(f'Seed {seed}')
                     _avatar(name)
                     ui.label(name).classes('nm').tooltip(name)
                 rec = f'{s.wins}-{s.losses}-{s.draws}' + (f' · {s.byes}B' if s.byes else '')
-                ui.label(rec).classes('c-rec')
+                ui.label(rec).classes('c-rec').tooltip(rec)
                 ui.label(f'{s.points:g}').classes('c-pts')
                 for tb in tb_cols:
                     v = s.tiebreakers.get(tb)
