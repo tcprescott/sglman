@@ -91,6 +91,28 @@ class TournamentSummary(BaseModel):
     event_end_date: Optional[datetime] = None
 
 
+class TournamentSignupInfo(BaseModel):
+    """One tournament as a prospective entrant sees it.
+
+    ``can_sign_up`` / ``can_withdraw`` are the service's own answer, not a
+    guess from the window: a model that reasons from ``window`` alone would
+    offer a signup the tournament's Challonge link or the caller's existing
+    enrolment already rules out.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    window: str
+    enrolled: bool
+    entrant_count: int
+    can_sign_up: bool
+    can_withdraw: bool
+    signups_open_at: Optional[datetime] = None
+    signups_close_at: Optional[datetime] = None
+
+
 class StageInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

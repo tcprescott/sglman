@@ -54,6 +54,7 @@ READ_TOOLS = {
     'list_speedgaming_links',
     'list_stages',
     'list_tenants',
+    'list_tournament_signups',
     'list_tournaments',
     'list_triforce_texts',
     'list_users',
@@ -92,18 +93,20 @@ WRITE_TOOLS = {
     'set_match_stream_candidate',
     'signup_as_crew',
     'start_match',
+    'sign_up_for_tournament',
     'submit_match_request',
     'unwatch_match',
     'update_match',
     'watch_match',
     'withdraw_crew_signup',
+    'withdraw_from_tournament',
 }
 
 EXPECTED_TOOLS = READ_TOOLS | WRITE_TOOLS
 
 # Writes that remove something rather than adding or amending it. Clients use
 # the distinction to decide how hard to ask before proceeding.
-DESTRUCTIVE_TOOLS = {'delete_match', 'withdraw_crew_signup'}
+DESTRUCTIVE_TOOLS = {'delete_match', 'withdraw_crew_signup', 'withdraw_from_tournament'}
 
 
 class TestCatalogue:

@@ -26,6 +26,7 @@ USERS = 'users'
 HOME_PLAYER = 'player'
 HOME_SCHEDULE = 'schedule'
 HOME_MY_CREW = 'my-crew'
+HOME_TOURNAMENTS = 'tournaments'
 
 
 def _query(params: dict) -> str:

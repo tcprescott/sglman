@@ -153,6 +153,14 @@ class EventType:
     TENANT_JOIN_APPROVED = 'tenant.join_approved'
     TENANT_JOIN_DENIED = 'tenant.join_denied'
 
+    # Tournament rosters. Split by direction because a subscriber mirroring a
+    # roster — a Discord role bot, an external bracket tool — needs to know which
+    # way it moved; the audit trail keeps one action for both, since there it is
+    # one fact reached from four screens. Payload carries ``tournament_id`` and
+    # ``user_id`` as routing keys.
+    TOURNAMENT_ENROLLED = 'tournament.enrolled'
+    TOURNAMENT_WITHDRAWN = 'tournament.withdrawn'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
@@ -185,6 +193,7 @@ class EventType:
         BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED, BRACKET_GAME_RELEASED,
         TENANT_MEMBER_ADDED, TENANT_MEMBER_REMOVED,
         TENANT_JOIN_REQUESTED, TENANT_JOIN_APPROVED, TENANT_JOIN_DENIED,
+        TOURNAMENT_ENROLLED, TOURNAMENT_WITHDRAWN,
     })
 
     # Wildcard a subscriber can register to receive every event.

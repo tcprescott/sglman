@@ -72,6 +72,17 @@ class Tournament(Model):
     event_start_date = fields.DateField(null=True)
     event_end_date = fields.DateField(null=True)
     tournament_hours = fields.JSONField(null=True)
+    # The player signup window, read by the Tournaments tab and enforced by
+    # ``TournamentService.self_enroll`` / ``self_withdraw``. Both nullable and
+    # deliberately permissive: an unset open date means signups are open now, an
+    # unset close date means they stay open, so every tournament that predates
+    # these columns keeps behaving exactly as it did. Distinct from
+    # ``event_start_date`` / ``event_end_date`` above, which bound *match
+    # scheduling*, not registration. Staff enrolment ignores the window
+    # entirely — a closed window stops players signing themselves up, not staff
+    # fixing a roster.
+    signups_open_at = fields.DatetimeField(null=True)
+    signups_close_at = fields.DatetimeField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',

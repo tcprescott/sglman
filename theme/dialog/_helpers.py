@@ -1,9 +1,43 @@
 from contextlib import contextmanager
-from typing import Callable
+from datetime import datetime, timezone
+from typing import Callable, Optional
 
 from nicegui import ui
 
-from application.utils.timezone import format_local_date, format_local_time, timezone_label
+from application.utils.timezone import (
+    format_local_date,
+    format_local_time,
+    parse_local_datetime,
+    timezone_label,
+    to_local,
+)
+
+
+def datetime_to_local_input(value: Optional[datetime]) -> str:
+    """A stored UTC instant → the ``datetime-local`` string that prefills it.
+
+    Paired with :func:`local_input_to_datetime` so a value survives a round trip
+    through the form on the display clock rather than drifting by the offset.
+    """
+    if value is None:
+        return ''
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    local = to_local(value)
+    return local.strftime('%Y-%m-%dT%H:%M') if local else ''
+
+
+def local_input_to_datetime(value: Optional[str]) -> Optional[datetime]:
+    """A ``datetime-local`` form value on the display clock → stored UTC, or None.
+
+    Raises ``ValueError`` on a wall clock the zone skips, the same way
+    :func:`application.utils.timezone.parse_local_datetime` does — callers show
+    it rather than storing a time an hour from the one that was typed.
+    """
+    if not value or 'T' not in value:
+        return None
+    date_str, time_str = value.split('T', 1)
+    return parse_local_datetime(date_str, time_str[:5])
 
 
 @contextmanager

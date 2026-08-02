@@ -25,13 +25,16 @@ This is optional. Leave it blank and your Discord username is used instead. Set
 it if you go by something else, or if your Discord handle is not what people
 call you.
 
-## Opt into a tournament
+## Sign up for a tournament
 
 :::snippet getting-started-optin
-You have to opt into a tournament before anyone can schedule you in it, and
-before you can request a match yourself. Opt in from the tournament's page and
-you become selectable as a player. If a tournament is missing from a dropdown,
-opting in is almost always what is missing.
+You have to sign up for a tournament before anyone can schedule you in it, and
+before you can request a match yourself. The **Tournaments** tab lists what is
+open and takes one click. If a tournament is missing from a dropdown, not being
+signed up is almost always what is missing.
+
+More on windows, withdrawing and Challonge rosters:
+[Signing up for a tournament](/help/tournament-signup).
 :::
 
 ## Then, depending on why you are here

@@ -49,6 +49,7 @@ between "called off" and "shouldn't have existed".
 | `sg_sync.*` | `speedgaming_etl_service.py` |
 | `discord_event.*` | `discord/discord_event_reconciler_service.py` |
 | `async_qualifier.*` | `async_qualifier/` (run submitted/reviewed, live race recorded) |
+| `tournament.enrolled`, `tournament.withdrawn` | `_tournament_signup.py` (mixed into `TournamentService`) — every enrolment change, whoever made it: the player's own signup, the admin roster dialog, the per-user dialog, and the match dialog's auto-enrol. Split by direction because a roster mirror needs to know which way it moved, while the audit trail keeps one action for both. Payload carries `tournament_id` and `user_id` as routing keys |
 | `service_health.alert` | `service_health_service.py` — platform-level (no tenant), so tenant-scoped webhooks never receive it |
 | `tenant.member_*`, `tenant.join_*` | `tenant_membership_service.py` — who belongs to a community and who is asking to, which is what an external roster subscriber mirrors (and what routes "someone wants in" to a staff channel). The rest of `tenant.*` stays audit-only: it is platform-level super-admin work a tenant's own subscriber cannot see |
 

@@ -56,7 +56,13 @@ class BaseUserDialog:
 
 
 class UserDialog(BaseUserDialog):
-    """Self-edit dialog: profile fields + tournament enrollments. No role editing."""
+    """Self-edit dialog: display name and pronouns. No roles, no enrolments.
+
+    It used to carry a Tournaments multiselect, reachable only by clicking your
+    own name in a match table — a second, even less findable route to the same
+    opt-in the Profile checkbox offered. Signing up lives on the Tournaments tab
+    now, where it can show the window, the entrants and the rules.
+    """
 
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -73,14 +79,6 @@ class UserDialog(BaseUserDialog):
                 pronouns_input = ui.input(
                     'Pronouns', value=self.user.pronouns if self.user else ''
                 ).classes('input-full-width')
-
-                tournaments, user_tournaments, selected_tournament_ids, tournament_options = await self._get_tournament_data()
-                tournament_multiselect = ui.select(
-                    label='Tournaments',
-                    options=tournament_options,
-                    value=[str(tid) for tid in selected_tournament_ids],
-                    multiple=True,
-                ).props('use-chips').classes('input-full-width')
 
             async def submit():
                 if not self.user:
@@ -101,9 +99,6 @@ class UserDialog(BaseUserDialog):
                             check_concurrency=True,
                             initial_updated_at=self._initial_updated_at,
                             actor=actor,
-                        )
-                        await self._update_tournament_enrollments(
-                            user_tournaments, tournament_multiselect, actor,
                         )
                         ui.notify('User updated.', color='positive')
                         dialog.close()

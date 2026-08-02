@@ -49,6 +49,10 @@ async def admin_tournaments_page() -> None:
              'field': 'staff_administered', 'sortable': True},
             {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count',
              'sortable': True},
+            # Whether players can currently sign themselves up. Staff setting a
+            # window on the Tournaments tab need to see it took effect without
+            # reopening the dialog.
+            {'name': 'signups', 'label': 'Signups', 'field': 'signups', 'sortable': True},
         ]
 
         async def add_tournament():

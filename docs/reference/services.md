@@ -924,17 +924,39 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `list_schedulable(keep_id=None)` | `(tournaments, {id: entrants})` | The admin match dialog's Tournament options: active only (`keep_id` spares the one an edited match already points at, so editing does not blank its own chip) plus each tournament's entrant count, so an option whose player menu will open empty says so *before* the choice. |
 | `enroll_player(tournament, target, actor)` / `unenroll_player(tournament, target, actor)` | `None` | Entrant management from the tournament's own screen (`can_grant_roles` gated). `enroll_player` refuses a non-member of the community and a duplicate — the picker being member-scoped is a convenience, not the gate. |
 
-**Enrolment has three entry points** — the per-user edit dialog
+| `list_signup_cards(user=None, now=None)` | `list[TournamentSignupCard]` | Every active tournament with this viewer's signup state on each: window, enrolment, entrant count and list, Challonge-managed flag, and the derived `can_sign_up` / `can_withdraw`. The one shape the Tournaments tab, the REST payload and the MCP tool all read, so none of them can offer a signup the others would refuse. |
+| `self_enroll(tournament_id, user)` | `Tournament` | Player signs *themselves* up. Refuses outside the window, for a non-member, for a Challonge-synced roster, and on a duplicate. Audits, publishes `tournament.enrolled`, and DMs a confirmation with a link button to the tab. |
+| `self_withdraw(tournament_id, user)` | `Tournament` | Player withdraws themselves, **while the window is open**. Once it closes it is staff's call — a roster a bracket was seeded from should not lose an entrant silently. |
+
+**Enrolment has four entry points** — the Tournaments tab's self-service signup
+(`self_enroll` / `self_withdraw`, above), the per-user admin dialog
 (`UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`),
-the tournament's own entrants dialog (above), and the match dialog's create path
-(`MatchService.ensure_players_enrolled`, which returns the users it enrolled so
-the UI can report the side effect instead of hiding it). All three write the
-**same** audit action, `user.tournament_enrollment_updated`: one fact reached
-from three screens, and a parallel action per screen is how an audit log stops
-being answerable. All three write through `TournamentRepository`, which is what
+the tournament's own entrants dialog (`enroll_player` / `unenroll_player`), and
+the match dialog's create path (`MatchService.ensure_players_enrolled`, which
+returns the users it enrolled so the UI can report the side effect instead of
+hiding it). All four write the **same** audit action,
+`user.tournament_enrollment_updated`: one fact reached from four screens, and a
+parallel action per screen is how an audit log stops being answerable. The
+**event** does split by direction — `tournament.enrolled` /
+`tournament.withdrawn` — because a subscriber mirroring a roster needs to know
+which way it moved. All four write through `TournamentRepository`, which is what
 stamps the non-null tenant FK.
 
-Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`.
+**Only the self-service pair honours the signup window.** Staff enrolment
+deliberately ignores it: closing signups stops players adding themselves, not
+staff fixing a roster. Where the window stands is decided by the pure
+`application/utils/tournament_signup.py` (`SignupWindow`, `signup_window_state`),
+which both bounds read permissively — no open date means open now, no close date
+means it stays open — so every tournament predating those columns behaves as it
+always did.
+
+Player self-service signup lives in the `TournamentSignupMixin`
+(`application/services/_tournament_signup.py`), composed into `TournamentService`
+so neither file exceeds the length budget. The split is an implementation
+detail — importers still use `from application.services import TournamentService`.
+
+Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`,
+`FeatureFlagService` (the Challonge carve-out), `DiscordService`.
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 

@@ -397,6 +397,12 @@ async def seed_for_tenant(
         # to a hard-coded 90 when it is NULL, so dev could never tell the two
         # apart), and the format/rules links are what the player-facing header
         # renders.
+        # The Tournaments tab reads three signup states off these columns, so the
+        # seed has to produce all three: this one is **open** (window running
+        # now), Wizzrobe Cup is **closed** (see seed_onsite), and the qualifier
+        # below has not opened yet. Its description is markdown because the card
+        # renders it through the safe-markdown renderer, and a plain sentence
+        # would never exercise that path.
         dev_tournament_meta = {
             "tournament_format": "Double elimination, best of 3",
             "bracket_url": f"https://challonge.com/wizzrobe_{tenant.slug}",
@@ -408,10 +414,18 @@ async def seed_for_tenant(
                 "approved texts go into the seeds we roll for finals."
             ),
         }
+        dev_tournament_meta["signups_open_at"] = now_local() - timedelta(days=3)
+        dev_tournament_meta["signups_close_at"] = now_local() + timedelta(days=14)
         tournament, _ = await Tournament.get_or_create(
             name="Wizzrobe Dev Tournament", tenant=tenant,
             defaults={
-                "description": "Fixture tournament for local dev",
+                "description": (
+                    "Fixture tournament for local dev.\n\n"
+                    "## Format\n\n"
+                    "Double elimination, best of 3. Finals are best of 5.\n\n"
+                    "- Sign up before the window closes\n"
+                    "- Staff schedule your matches from the player pool\n"
+                ),
                 "seed_generator": "alttpr",
                 "is_active": True,
                 "players_per_match": 2,

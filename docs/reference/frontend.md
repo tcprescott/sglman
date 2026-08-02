@@ -187,11 +187,20 @@ The public event schedule with crew signup.
 - **Identity header:** avatar, `preferred_name`, `@username`, a pronouns badge, and outline badges for the user's roles **in this tenant** (`AuthService.get_roles`, so no global `SUPER_ADMIN`).
 - **Personal information:** Display name and Pronouns. Each carries its caption as its own Quasar label with `stack-label` plus a persistent `hint`, *not* a preceding `ui.label` — an empty `label` prop sets `q-field--labeled`, which suppresses the placeholder and blanks the input's accessible name.
 - **Notifications:** a **Delivery** master checkbox ("Send me notifications about match updates" → `User.dm_notifications`), which governs *both* channels — device push is a mirror of the DM send path and every call site gates on `dm_notifications` first. A refreshable warning line appears while it is off, and the device subsection ([`web_push_section.py`](../../pages/home_tabs/web_push_section.py)) states the dependency. Below that, a **Match alerts by tournament** expansion holds one level select per active tournament (`TournamentNotificationService`), badged "Enrolled" where applicable — an alert is a *follow* and does not require enrollment.
-- **Tournament enrollment:** one checkbox per active tournament, split into "Staff-administered" and "Community" (on `tournament.staff_administered`) and ordered by name to match the alerts list above. The blurb names the distinction from the alerts list explicitly.
-- Challonge-linked tournaments don't use the manual opt-in: their checkbox is disabled — carrying a lock glyph and an "Automatic" badge, since Quasar's disabled state alone is only an opacity change — and reflects bracket membership from `ChallongeService.participant_tournament_ids`, with the explanation and `challonge_tournament_url` link indented beneath. An unlinked player sees a "Link Challonge account" call to action instead. These tournaments are excluded from `tournament_checkboxes`; any existing manual enrollment is carried through unchanged on save so the registration sync never drops it.
+- Signing up for a tournament is **not** here. It used to be a checkbox card at the bottom of this tab; it now lives on [Tournaments](#tournaments-pageshome_tabstournamentspy), which can show the signup window, the entrants and the rules the checkbox could not.
 - **Your feedback** ([`my_feedback_section.py`](../../pages/home_tabs/my_feedback_section.py)) — the submitter's half of the feedback loop: what they sent through the sidebar form and whether staff have read it (*Read by staff* / *Not read yet*). Read-only by design; it is the acknowledgement, not a reply thread. Renders **nothing** when the person has sent none (an empty card is noise for the majority who never use the form) or when the community has `FeatureFlag.FEEDBACK` off — it catches the service's `FeatureDisabledError` rather than flag-checking itself.
-- Saves go through `UserService.update_user_personal_info`, `manage_tournament_enrollments`, and `TournamentNotificationService.upsert_preference`, with the user as their own audit actor.
+- Saves go through `UserService.update_user_personal_info` and `TournamentNotificationService.upsert_preference`, with the user as their own audit actor.
 - UX audit of this tab, with what was and wasn't changed: [../reviews/profile-page-ux-audit.md](../reviews/profile-page-ux-audit.md).
+
+### Tournaments (`pages/home_tabs/tournaments.py`)
+
+`tournaments_tab()` — where a player signs up to compete. Signed-in only; sits after Player in the tab order.
+
+- One card per active tournament, grouped into four sections and drawn in this order: **Open for signup**, **My tournaments**, **Opening soon**, **Signups closed**. A section with no cards is not drawn, so the usual view is the first two.
+- Each card carries the name, a signup-state chip, the event-date range, the tournament's `description` rendered through the **safe-markdown** pipeline (`application.content.parse_blocks` → `theme.help.render.render_blocks` — the same closed-vocabulary renderer `/help` and `/event-info` use, never `ui.markdown`), a `rules_url` link, an expansion listing the entrants, and one button.
+- The button is **Sign up** or **Withdraw**, driven by `TournamentSignupCard.can_sign_up` / `can_withdraw` — never by re-reading the window on the page. Where neither applies the card says why in a caption rather than showing nothing: a Challonge-synced roster, or an enrolment whose window has since closed (dropping out is then staff's call).
+- Everything the card claims comes from `TournamentService.list_signup_cards`, the same shape the REST payload and the MCP `list_tournament_signups` tool return, so the three surfaces cannot disagree about who may sign up.
+- Both handlers run through `background_tasks.create(...)` with `context.client` captured at the call site, then `await cards.refresh()`.
 
 ### Player (`pages/home_tabs/player.py`)
 
@@ -604,9 +613,9 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 
 ### User dialogs (`theme/dialog/user_edit_dialog.py`)
 
-**`BaseUserDialog`** captures `user.updated_at` for concurrency checks and provides tournament-enrollment helpers built on `TournamentRepository` and `UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`.
+**`BaseUserDialog`** captures `user.updated_at` for concurrency checks and provides tournament-enrollment helpers built on `TournamentRepository` and `UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`. Only `AdminUserDialog` uses them now.
 
-**`UserDialog`** — self-edit: read-only Username, Display Name, Pronouns, and a tournament multi-select; saves via `UserService.update_user_profile` (with `check_concurrency=True` and the captured `initial_updated_at`) plus the enrollment sync. No role editing.
+**`UserDialog`** — self-edit: read-only Username, Display Name, Pronouns; saves via `UserService.update_user_profile` (with `check_concurrency=True` and the captured `initial_updated_at`). No role editing, and no tournament multi-select — that was a second, even less findable route to the opt-in the Profile checkbox offered, reachable only by clicking your own name in a match table. Signing up lives on the Tournaments tab.
 
 **`AdminUserDialog`** — verifies `AuthService.is_staff(actor)` on open and refuses otherwise.
 

@@ -18,10 +18,13 @@ from application.services.tournament_service import DELETE_CONFIRMATION_PHRASE
 from application.tenant_context import require_tenant_id
 from models import FeatureFlag
 from theme.dialog._helpers import (
+    datetime_to_local_input,
     dialog_actions,
     dialog_header,
+    local_input_to_datetime,
     mobile_sheet,
     native_date_input,
+    native_datetime_input,
     native_time_input,
     submit_on_enter,
 )
@@ -116,6 +119,30 @@ class TournamentDialog:
                             value=self.tournament.team_size if self.tournament else 1,
                             min=1, max=100,
                         ).props('inputmode=numeric')
+
+                    # --- Player signups ---
+                    ui.separator()
+                    ui.label('Player signups').classes('text-bold')
+                    ui.label(
+                        'When players can sign themselves up on the Tournaments tab. '
+                        'Leave both blank to keep signups open indefinitely. Staff can '
+                        'always add or remove entrants, window or no window.'
+                    ).classes('text-caption text-grey')
+                    with ui.row().classes('gap-2'):
+                        signups_open_input = native_datetime_input(
+                            'Signups open',
+                            datetime_to_local_input(
+                                self.tournament.signups_open_at if self.tournament else None
+                            ),
+                            dense=True,
+                        )
+                        signups_close_input = native_datetime_input(
+                            'Signups close',
+                            datetime_to_local_input(
+                                self.tournament.signups_close_at if self.tournament else None
+                            ),
+                            dense=True,
+                        )
 
                     # --- Tournament Days (per-tournament override of the tenant setting) ---
                     ui.separator()
@@ -437,6 +464,16 @@ class TournamentDialog:
                     tournament_hours=hours_mapping or None,
                 )
 
+                try:
+                    signup_kwargs = dict(
+                        signups_open_at=local_input_to_datetime(signups_open_input.value),
+                        signups_close_at=local_input_to_datetime(signups_close_input.value),
+                    )
+                except ValueError as e:
+                    with self.dialog:
+                        notify_error(e)
+                    return
+
                 rt_kwargs = {}
                 if can_sync:
                     rt_kwargs = dict(
@@ -472,6 +509,7 @@ class TournamentDialog:
                                 preset_id=(preset_input.value or None),
                                 actor=actor,
                                 **days_kwargs,
+                                **signup_kwargs,
                                 **rt_kwargs,
                             )
                             ui.notify('Tournament updated.', color='positive')
@@ -499,6 +537,7 @@ class TournamentDialog:
                             preset_id=(preset_input.value or None),
                             actor=actor,
                             **days_kwargs,
+                            **signup_kwargs,
                             **rt_kwargs,
                         )
                         with self.dialog:

@@ -175,10 +175,17 @@ hold a writing grant in one client and a reading one in another.
 | Tool | Gate | Flag |
 |---|---|---|
 | `list_tournaments`, `get_tournament` | ACTOR | — |
+| `list_tournament_signups` | ACTOR | — |
 | `list_stages`, `get_stage` | ACTOR | — |
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
 | `suggest_match_time` | ACTOR | — |
 | `match_operations_report` | ADMIN | — |
+
+`list_tournament_signups` reports the caller's own signup state per tournament,
+including `can_sign_up` / `can_withdraw`. Those two booleans are the service's
+own answer rather than something to re-derive from the window: a model reasoning
+from the dates alone would offer a signup that the tournament's Challonge link or
+the caller's existing enrolment already rules out.
 
 `suggest_match_time` mirrors `GET /tournaments/{id}/match-suggestion`. It reads
 rather than writes — it books nothing — but it is what makes the scheduling
@@ -307,7 +314,7 @@ here belongs in the REST router too, and the reverse.
 | Scheduling | `create_match`, `submit_match_request`, `update_match`, `delete_match` |
 | Stream and stations | `set_match_stream_candidate`, `assign_match_stage`, `assign_match_stations` |
 | Lifecycle | `seat_match`, `start_match`, `finish_match`, `confirm_match`, `record_match_result`, `set_match_review`, `generate_match_seed` |
-| Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match` |
+| Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match`, `sign_up_for_tournament`, `withdraw_from_tournament` |
 
 Every one is registered at **ACTOR**, mirroring `require_write_actor`: holding a
 live token approved for writing is the bar at this layer, and the real check is
