@@ -25,10 +25,13 @@ so instead of quietly seating two players elbow to elbow.
 
 import secrets
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
 from application.services.auth_service import AuthService
-from models import Station, StationSide, User
+from models import Match, Station, StationSide, User
+
+if TYPE_CHECKING:
+    from application.repositories import MatchRepository, StationRepository
 
 
 @dataclass
@@ -59,6 +62,12 @@ def _are_neighbours(a: Station, b: Station) -> bool:
 
 
 class StationDrawMixin:
+    # Supplied by the class this is mixed into (``MatchService``). Annotations
+    # only — they declare the contract without creating attributes at runtime.
+    repository: 'MatchRepository'
+    station_repository: 'StationRepository'
+    _require_match: Callable[[int], Awaitable[Match]]
+
     async def suggest_stations(
         self,
         match_id: int,
@@ -83,7 +92,7 @@ class StationDrawMixin:
                 "players race remotely, so there are no on-site stations to assign."
             )
 
-        players = list(match.players)
+        players = list(match.players)  # type: ignore[attr-defined]
         if len(players) != 2:
             raise ValueError(
                 "Random seating needs a match with exactly two players; this one "
@@ -123,7 +132,7 @@ class StationDrawMixin:
         free: Sequence[Station],
         taken: Sequence[Station],
         relaxations: List[str],
-    ) -> tuple:
+    ) -> Tuple[Station, Station]:
         """Two free stations, on opposite sides and spread out where possible."""
         by_side = {
             side: [s for s in free if s.side == side] for side in StationSide
