@@ -269,6 +269,92 @@ checkbox — the offer read where the decision is made.
 
 No feature flag: a community whose players never offer a match never sees it.
 
+## Reschedule requests
+
+Players never move or cancel their own matches. They **ask**, and someone who
+could already have made the change decides — which is the whole point, because
+the alternative players had was finding a staff member.
+
+Two rules hold it together.
+
+**Approving performs the change.** `approve` calls the existing
+`MatchService.update_match` / `cancel_match` rather than writing `scheduled_at`
+itself, so there is one implementation of "move a match" and the reschedule DM
+fan-out, acknowledgment reseeding, racetime-room handling and
+`match.rescheduled` event all come with it. A request that were merely *blessed*
+would leave staff to go and do the work anyway.
+
+**No new authority.** Deciding gates on `can_crud_match`, the same check
+guarding `update_match`. Nobody can answer a request who could not already have
+made the change by hand — the request is a route to staff, not a new power.
+
+```python
+from application.services import MatchRescheduleService
+
+await MatchRescheduleService().submit(match_id, actor, reason='work clash', proposed_at=when)
+await MatchRescheduleService().record_opponent_agreement(request_id, opponent)
+await MatchRescheduleService().approve(request_id, staff, scheduled_at=None, note=None)
+await MatchRescheduleService().decline(request_id, staff, 'the restream slot is locked in')
+await MatchRescheduleService().withdraw(request_id, requester)
+```
+
+**Refusals happen at submission**, not in the queue. A match already under way
+(talk to a proctor), a match with no time, a tournament with
+`Tournament.allow_reschedule_requests` off, and a **SpeedGaming-sourced match**
+— whose time belongs to the next sync, so nobody here could ever approve it —
+are all turned away when asked. A request that can never be actioned is worse
+than no button.
+
+The same rules hide the control (`list_requestable_match_ids`, two bulk queries
+for a whole board), and the service re-checks every one of them because the REST
+route and a forwarded link both reach past whatever the UI rendered.
+
+### The opponent's agreement
+
+The match's other player gets a DM with an **Agree** button. It stamps
+`opponent_agreed_at`, shows on the decision dialog, and **gates nothing**: a
+request with no agreement is still decidable and one with agreement can still be
+declined. It exists so staff are not the ones chasing the other player.
+
+One column, so it only means "the other player". A match with more than two
+players skips the signal entirely rather than recording one person's yes as if
+it were everyone's.
+
+### Each side's surface
+
+| Who | Where | What it carries |
+|---|---|---|
+| The player | Home → Player, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
+| Staff | Admin → Schedule, the reschedule strip | *"2 reschedule requests waiting"* plus the first few named individually, each opening the decision dialog |
+
+The decision dialog carries everything needed to decide — both times, the
+reason, whether the opponent agreed, and either player having marked themselves
+unavailable for the proposed window — because the alternative is closing it to
+go and look. Staff can approve at the proposed time or counter with a different
+one; the requester is told which they got either way.
+
+### What is recorded, and what is told
+
+Statuses distinguish three ways to stop being pending without being refused:
+`WITHDRAWN` (the requester took it back), `SUPERSEDED` (another request settled
+the match, so staff decided nothing), and `DECLINED` (someone looked and said
+no). Only a decline needs a note, and it is **required** — a refusal with no
+reason is what this replaces.
+
+Only a decline and an approved **cancellation** DM the requester. An approved
+reschedule already reached both players through `update_match`'s own
+notification, and a second "your request was approved" would be the same news
+twice. The decline DM's button opens the request form again for that match,
+because asking with a different time is the real next step after a refusal.
+
+Approving a cancellation **deletes the match**, and the request cascades with
+it; the `match.reschedule_approved` audit row is the durable record, which is
+why it is written for both kinds.
+
+Like the station pool and the dispute flag, this has **no per-tenant feature
+flag** — it self-gates through `Tournament.allow_reschedule_requests`, which a
+community sets per tournament.
+
 ## Models
 
 | Model | Holds |
@@ -277,5 +363,6 @@ No feature flag: a community whose players never offer a match never sees it.
 | `MatchAcknowledgment` | per-player acknowledgment state per match |
 | `MatchWatcher` | user × match watch subscriptions |
 | `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
+| `MatchRescheduleRequest` | a player's ask to move or cancel a match; kind, proposed time, reason, status, and staff's decision |
 
 Field-level detail: [reference/data-model.md](../reference/data-model.md).

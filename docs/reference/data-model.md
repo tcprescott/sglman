@@ -101,6 +101,8 @@ erDiagram
     User ||--o{ MatchWatcher : "user"
     Match ||--o{ MatchStreamVolunteer : "match"
     User ||--o{ MatchStreamVolunteer : "user"
+    Match ||--o{ MatchRescheduleRequest : "match"
+    User ||--o{ MatchRescheduleRequest : "requested_by"
 
     Match ||--o{ Commentator : "match"
     User ||--o{ Commentator : "user"
@@ -218,6 +220,12 @@ Used by `TournamentNotificationPreference.match_notifications` (`max_length=30`,
 ### `VolunteerAvailabilityStatus`
 
 Used by both `VolunteerAvailability.status` and `PlayerAvailability.status` (`max_length=20`, default `AVAILABLE`). Drives the availability picker and the effective-availability overlap calculations in the volunteer/player availability services: `AVAILABLE` = `'available'`, `UNAVAILABLE` = `'unavailable'` (explicitly blocked out), `PREFERRED` = `'preferred'` (available and would prefer to be scheduled then).
+
+### `RescheduleRequestKind` / `RescheduleRequestStatus`
+
+`RescheduleRequestKind` — `RESCHEDULE` | `CANCEL`. Two kinds rather than two models: both travel the same queue, carry the same reason, and are decided by the same person with the same authority. Only the approval branches, into `update_match` or `cancel_match`.
+
+`RescheduleRequestStatus` — `PENDING` | `APPROVED` | `DECLINED` | `WITHDRAWN` | `SUPERSEDED`. Three ways to stop being pending without being refused, kept apart on purpose: `WITHDRAWN` is the requester taking it back, `SUPERSEDED` is another request on the same match having settled it (staff decided nothing), and `DECLINED` is the only one meaning someone looked at this ask and said no.
 
 ### `FeedbackCategory` / `FeedbackStatus`
 
@@ -730,6 +738,28 @@ A player putting their **own** match forward to be streamed. Advisory: it does n
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='stream_volunteers'` |
 
 Constraint: `unique_together ('user', 'match')`. Index on `match` (the composite is user-first, so the per-board fan-out lookup is otherwise uncovered).
+
+#### `MatchRescheduleRequest`
+
+A player asking staff to move or call off a match they are playing in. Players never change their own match; approving a request runs the *existing* `MatchService.update_match` / `cancel_match`, so there is one implementation of "move a match" and no authority here that `can_crud_match` did not already grant. Unlike `MatchStreamVolunteer`, which is advisory and needs no answer, this exists to be decided. See [match-participation.md](../features/match-participation.md#reschedule-requests).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='reschedule_requests'` |
+| `requested_by` | FK → `User` | not null, `CASCADE` | `related_name='reschedule_requests'` |
+| `kind` | `RescheduleRequestKind` | `RESCHEDULE` | `CANCEL` proposes no time by definition |
+| `proposed_at` | `DatetimeField` | null | The time asked for. Null means "I can't make this slot, you pick" |
+| `reason` | `TextField` | not null | Required; staff decide on it and nothing else |
+| `original_scheduled_at` | `DatetimeField` | null | Snapshotted at submission — approving overwrites `Match.scheduled_at`, so without it a decided request no longer records what it moved *from* |
+| `opponent_agreed_at` | `DatetimeField` | null | The other player agreeing. A signal shown to staff, never a gate |
+| `status` | `RescheduleRequestStatus` | `PENDING` | |
+| `decided_by` | FK → `User` | null, `SET_NULL` | Deleting a staff account must not delete a player's request |
+| `decided_at` | `DatetimeField` | null | Also set on withdrawal and supersession |
+| `decision_note` | `TextField` | null | Staff's words back to the player; required on a decline |
+
+Indexes on `(match, status)` and `(status)`. **No unique constraint**: "one open request per player per match" is a rule about `PENDING` rows only, which `unique_together` cannot express — and encoding `status` into one would forbid the second request a decline explicitly invites. The service enforces it; the composite index makes the check cheap.
+
+An approved **cancellation deletes the match**, and the request cascades with it. The audit row (`match.reschedule_approved`) is the durable record of that decision, which is why it is written for both kinds.
 
 #### `GeneratedSeeds`
 
@@ -1554,6 +1584,7 @@ Consult the source for full signatures.
 | `MatchAcknowledgmentRepository` | [`match_acknowledgment_repository.py`](../../application/repositories/match_acknowledgment_repository.py) | `MatchAcknowledgment` | `list_for_match`, `list_for_matches` (one query for many matches, grouped by id; every requested id gets a possibly-empty list), `get`, `upsert`, `delete_for_match`, `delete_for_user` |
 | `MatchRepository` | [`match_repository.py`](../../application/repositories/match_repository.py) | `Match`, `MatchPlayers` | `get_by_id`, `get_all` (filters by tournaments, stages, upcoming-only = `finished_at IS NULL`, or the matches one user plays in; ordered by `scheduled_at`), `create`, `update`, `delete`, `add_player`, `remove_player`, `get_players`. Both getters prefetch `tournament`, `players(+user)`, `stage`, `generated_seed`, `commentators(+user)`, `trackers(+user)` unless asked not to |
 | `MatchWatcherRepository` | [`match_watcher_repository.py`](../../application/repositories/match_watcher_repository.py) | `MatchWatcher` | `get_by_id`, `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_watching`, `get_or_create` (idempotent watch), `delete`, `delete_by_match_and_user` |
+| `RescheduleRequestRepository` | [`reschedule_request_repository.py`](../../application/repositories/reschedule_request_repository.py) | `MatchRescheduleRequest` | `get_by_id` (prefetching), `list_pending` (the staff queue, oldest first), `list_for_match`, `list_for_user`, `get_pending_for`, `list_pending_for_match`, `pending_count`, `pending_match_ids`, `pending_match_ids_for_user`, `pending_by_match` (whole board in one query) |
 | `MatchStreamVolunteerRepository` | [`match_stream_volunteer_repository.py`](../../application/repositories/match_stream_volunteer_repository.py) | `MatchStreamVolunteer` | `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_volunteer`, `names_by_match` (whole board in one query), `get_or_create`, `delete_by_match_and_user` |
 | `StationRepository` | [`station_repository.py`](../../application/repositories/station_repository.py) | `Station` | `get_all`, `get_active`, `active_names` (the assignable labels; empty = no pool defined), plus the `TenantScopedRepository` CRUD quartet |
 | `StageRepository` | [`stage_repository.py`](../../application/repositories/stage_repository.py) | `Stage` | `get_by_id`, `get_all`, `get_all_as_dict` (id → name for select options), `create`, `update`, `delete` |
