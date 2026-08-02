@@ -158,9 +158,9 @@ __all__ = [
     'Commentator',
     'DiscordEventSource',
     'DiscordRoleMapping',
-    'DiscordTournamentGrant',
     # discord events
     'DiscordScheduledEvent',
+    'DiscordTournamentGrant',
     # equipment
     'Equipment',
     'EquipmentLoan',
