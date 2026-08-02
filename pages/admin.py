@@ -80,6 +80,7 @@ def build_admin_tabs(
     *,
     match_id: int | None = None,
     day: str | None = None,
+    reschedule_request: int | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -113,6 +114,10 @@ def build_admin_tabs(
         'access': board_access,
         'match_id': match_id,
         'tournament_ids': board_tournament_ids,
+        # A request id from the "Reschedule request" DM's button: the board
+        # opens that request's decision dialog on arrival, so the ask lands on
+        # the control that answers it rather than on a row to go and find.
+        'reschedule_request': reschedule_request,
     }
 
     tabs = []
@@ -203,6 +208,7 @@ def create() -> None:
         page: int | None = None,
         match_id: int | None = None,
         day: str | None = None,
+        reschedule_request: int | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -277,7 +283,7 @@ def create() -> None:
         base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
         tabs = build_admin_tabs(
             access, live, reports_kwargs, setup_steps, base_path,
-            match_id=match_id, day=day,
+            match_id=match_id, day=day, reschedule_request=reschedule_request,
         )
 
         base_layout = BaseLayout(

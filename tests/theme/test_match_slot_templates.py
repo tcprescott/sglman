@@ -570,3 +570,56 @@ def test_the_offer_disappears_once_the_match_is_under_way():
         has_edit=False,
     )
     assert STREAM_VOLUNTEER_ACTIONABLE in grid.slots['item']
+
+
+def test_the_reschedule_ask_is_only_offered_to_a_player_in_the_match():
+    """Staff move matches directly; the service refuses anyone but a player, so
+    offering the control more widely only teaches a refusal."""
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+    )
+    guard = _guard_on(
+        table.slots['body-cell-reschedule'],
+        "$parent.$emit('request_reschedule'",
+    )
+    assert "props.row.players.some(p => p.discord_id == '7')" in guard
+    # Scheduled only: once seated the answer is the proctor, not a queue entry.
+    assert "props.row.state === 'Scheduled'" in guard
+    # And the server-side gate, which carries the tournament toggle, the
+    # SpeedGaming refusal and "you already asked".
+    assert 'props.row._can_reschedule' in guard
+
+
+def test_a_signed_out_viewer_gets_no_reschedule_cell():
+    """The ask acts on behalf of a person, so it needs one."""
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id=None,
+    )
+    assert 'body-cell-reschedule' not in table.slots
+
+
+def test_the_asked_chip_replaces_the_button_rather_than_joining_it():
+    """A player who already asked sees the state of their ask, not a second
+    button that would refuse."""
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+    )
+    cell = table.slots['body-cell-reschedule']
+    assert 'v-else-if="props.row._reschedule_pending"' in cell
+
+
+def test_the_mobile_card_carries_the_reschedule_ask_too():
+    """A phone is where players stand, and a desktop-only control is invisible
+    to exactly the people this feature is for."""
+    grid = FakeTable()
+    render_grid_slot(
+        grid, [*ADMIN_COLUMNS,
+               {'name': 'reschedule', 'label': 'Change', 'field': 'reschedule'}],
+        admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+        has_edit=False,
+    )
+    assert "$parent.$emit('request_reschedule'" in grid.slots['item']
+    assert 'props.row._reschedule_pending' in grid.slots['item']

@@ -55,6 +55,20 @@ REASON_MAX_LENGTH = 500
 _OPEN_STATES = ('seated_at', 'started_at', 'finished_at', 'confirmed_at')
 
 
+def _is_override(chosen: Optional[datetime], proposed: Optional[datetime]) -> bool:
+    """Did staff approve a *different* time than the one asked for?
+
+    Compared to the minute, the same tolerance ``assert_sg_fields_unchanged``
+    uses, because the decision dialog always submits its pickers — which carry
+    only ``HH:MM``. Without the tolerance every plain approval would be recorded
+    as staff having overridden the player, which is the opposite of what
+    happened.
+    """
+    if chosen is None or proposed is None:
+        return False
+    return abs((chosen - proposed).total_seconds()) >= 60
+
+
 class MatchRescheduleService:
     """Player-submitted requests to move or call off a match."""
 
@@ -88,6 +102,10 @@ class MatchRescheduleService:
 
     async def pending_match_ids(self) -> List[int]:
         return await self.repository.pending_match_ids()
+
+    async def pending_match_ids_for_user(self, user: User) -> List[int]:
+        """Matches where this player already has a request waiting."""
+        return await self.repository.pending_match_ids_for_user(user.id)
 
     async def list_for_match(self, match_id: int) -> List[MatchRescheduleRequest]:
         """Every request raised against one match, newest first.
@@ -148,6 +166,30 @@ class MatchRescheduleService:
         ):
             return False
         return not await self.repository.get_pending_for(match.id, user.id)
+
+    async def list_requestable_match_ids(self, user: Optional[User]) -> set:
+        """Every match ``user`` could raise a request against right now.
+
+        The board's own gate, resolved in three queries rather than
+        :meth:`can_request` per row — a schedule with thirty rows would
+        otherwise run ninety. Same rules, same order; the per-row method stays
+        for the single-match callers (the dialog, the tests).
+
+        The player and match-state clauses are left to the row template, which
+        already carries the roster and the state and can decide without a query.
+        """
+        if user is None:
+            return set()
+        mine = await self.match_repository.get_upcoming_for_user(user.id)
+        already_asked = set(
+            await self.repository.pending_match_ids_for_user(user.id)
+        )
+        return {
+            match.id for match in mine
+            if match.id not in already_asked
+            and getattr(match, 'speedgaming_episode_id', None) is None
+            and getattr(match.tournament, 'allow_reschedule_requests', True)
+        }
 
     # ---- the ask -------------------------------------------------------
 
@@ -390,9 +432,7 @@ class MatchRescheduleService:
                 'match_id': match_id,
                 'kind': request.kind.value,
                 'scheduled_at': final_at.isoformat() if final_at else None,
-                'overrode_proposal': bool(
-                    scheduled_at and scheduled_at != request.proposed_at
-                ),
+                'overrode_proposal': _is_override(scheduled_at, request.proposed_at),
             },
             EventType.MATCH_RESCHEDULE_APPROVED,
             event_extra={'tournament_id': tournament_id},

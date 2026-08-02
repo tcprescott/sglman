@@ -100,6 +100,7 @@ def create() -> None:
         section: str | None = None,
         request: Request = None,
         schedule: int | None = None,
+        reschedule: int | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
@@ -154,8 +155,11 @@ def create() -> None:
             # `schedule` is a bracket matchup id: the Player tab opens its
             # schedule dialog on arrival, so the "matchup ready" DM's button
             # lands on the date/time picker rather than on a page about it.
+            # `reschedule` is a match id doing the same job for the declined
+            # reschedule DM, whose next step is asking again with a new time.
             {'label': 'Player', 'icon': 'videogame_asset',
-             'content': (render_player_dashboard, (), {'schedule': schedule})},
+             'content': (render_player_dashboard, (),
+                         {'schedule': schedule, 'reschedule': reschedule})},
         ]
         if FeatureFlag.BRACKETS in live:
             # Spectator-facing, so it sits with the other read-only tabs and is

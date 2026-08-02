@@ -72,6 +72,21 @@ class RescheduleRequestRepository(TenantScopedRepository[MatchRescheduleRequest]
         ).prefetch_related('requested_by')
 
     @staticmethod
+    async def pending_match_ids_for_user(user_id: int) -> List[int]:
+        """Matches where this player already has an open request.
+
+        The set the board subtracts, so a viewer never sees "Ask to reschedule"
+        on a match they have already asked about.
+        """
+        rows = await scoped(
+            MatchRescheduleRequest.filter(
+                requested_by_id=user_id, status=RescheduleRequestStatus.PENDING,
+            )
+        ).values_list('match_id', flat=True)
+        # flat=True yields scalars; the stub types values_list as tuples.
+        return list(rows)  # type: ignore[arg-type]
+
+    @staticmethod
     async def pending_count() -> int:
         """How many are waiting — the number on the admin queue strip."""
         return await scoped(

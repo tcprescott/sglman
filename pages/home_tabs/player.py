@@ -6,14 +6,17 @@ from application.services import (
     BracketService,
     ChallongeService,
     FeatureFlagService,
+    MatchRescheduleService,
     MatchService,
     TournamentService,
     get_user_from_discord_id,
 )
-from models import FeatureFlag
+from application.utils.timezone import format_local_display
+from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
+from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.help import help_icon
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
@@ -50,6 +53,67 @@ def _report_stale_deep_link(deep_link: dict) -> None:
         _notify_stale_schedule_link()
 
 
+def _notify_stale_reschedule_link() -> None:
+    """Say why an "Ask again" button did nothing.
+
+    A DM outlives the match it points at: staff may have moved it anyway, it may
+    have been played, or the tournament may have stopped taking requests. Landing
+    on a page with no dialog reads as a broken link, so the reason is said aloud.
+    """
+    ui.notify(
+        "That match can't be changed any more.", color='warning',
+    )
+
+
+# What each status means to the person who asked, rather than the machine key.
+_REQUEST_STATUS = {
+    RescheduleRequestStatus.PENDING: ('Waiting on staff', 'warning'),
+    RescheduleRequestStatus.APPROVED: ('Approved', 'positive'),
+    RescheduleRequestStatus.DECLINED: ('Declined', 'negative'),
+    RescheduleRequestStatus.WITHDRAWN: ('You withdrew this', 'grey'),
+    # Named from the reader's side: "superseded" is our word, not theirs.
+    RescheduleRequestStatus.SUPERSEDED: ('Settled by another request', 'grey'),
+}
+
+
+def _render_request_card(row, *, on_withdraw) -> None:
+    """One request, its status, and staff's reply if they left one."""
+    label, colour = _REQUEST_STATUS.get(row.status, (row.status, 'grey'))
+    cancel = row.kind is RescheduleRequestKind.CANCEL
+    with ui.column().classes('full-width gap-1 q-my-sm'):
+        with ui.row().classes('items-center gap-2 full-width'):
+            ui.label(row.match.tournament.name).classes('text-bold')
+            ui.badge(label, color=colour)
+        ui.label(
+            'Asked to call it off' if cancel
+            else f'Asked to move it to {format_local_display(row.proposed_at)}'
+            if row.proposed_at else 'Asked to move it, staff to pick a time'
+        ).classes('text-caption text-grey-7')
+        ui.label(f'Your reason: {row.reason}').classes('text-caption text-grey-7')
+        if row.decision_note:
+            ui.label(f'Staff said: {row.decision_note}')
+        if row.status is RescheduleRequestStatus.PENDING:
+            if row.opponent_agreed_at:
+                ui.label('Your opponent agreed.').classes('text-caption text-positive')
+
+            async def withdraw(_=None, request_id=row.id):
+                from application.services import MatchRescheduleService
+                from application.services import get_user_from_discord_id as _get
+
+                actor = await _get(app.storage.user.get('discord_id'))
+                try:
+                    await MatchRescheduleService().withdraw(request_id, actor)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify('Withdrawn.', color='positive')
+                on_withdraw()
+
+            ui.button('Withdraw', icon='undo', on_click=withdraw) \
+                .props('flat dense color=grey size=sm')
+    ui.separator()
+
+
 def _round_label(bracket_match, best_of: int, number: int) -> str:
     """'Round 2' / 'Losers round 1', plus the series position for a best-of-N."""
     rnd = bracket_match.round
@@ -57,13 +121,19 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
     return f'{base} — game {number} of {best_of}' if best_of > 1 else base
 
 
-async def render_player_dashboard(schedule: int | None = None):
+async def render_player_dashboard(
+    schedule: int | None = None, reschedule: int | None = None,
+):
     """The player's own schedule.
 
     ``schedule`` is a bracket matchup id arriving from the "matchup ready to
     schedule" DM's button (``?schedule=<id>`` on ``/home/player``). Its dialog is
     opened once the tab has rendered, so the notification's call to action ends
     at the date/time picker instead of at a page the reader then has to search.
+
+    ``reschedule`` is a match id doing the same for the declined-request DM:
+    its "Ask again" button lands on the request form for that match, because
+    asking again with a different time is the actual next step after a refusal.
     """
     discord_id = app.storage.user.get('discord_id', None)
     # Resolved once for the help icons below: three of them read from the event
@@ -71,6 +141,7 @@ async def render_player_dashboard(schedule: int | None = None):
     # up for itself.
     viewer = await get_user_from_discord_id(discord_id)
     match_service = MatchService()
+    reschedule_service = MatchRescheduleService()
     challonge_service = ChallongeService()
     bracket_service = BracketService()
     
@@ -251,6 +322,9 @@ async def render_player_dashboard(schedule: int | None = None):
             # behalf rather than reading the match. Offering is advisory — the
             # cell's tooltip and the confirmation both say so.
             {'name': 'stream_volunteer', 'label': 'Stream', 'field': 'stream_volunteer'},
+            # Beside Stream for the same reason: this viewer acting on their own
+            # behalf rather than reading the match.
+            {'name': 'reschedule', 'label': 'Change', 'field': 'reschedule'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
@@ -286,8 +360,48 @@ async def render_player_dashboard(schedule: int | None = None):
             player_discord_id=discord_id,
             storage_key='player_dashboard',
         )
+        @ui.refreshable
+        async def requests_section():
+            """This viewer's own reschedule requests, and what became of them.
+
+            Cards rather than a table: three or four rows of prose, one of which
+            is staff's reply, read badly in cells and would drag the column
+            preferences machinery along for no gain.
+
+            Without this a player who asked has no way to learn whether anyone
+            answered — the same loop ``FeedbackService.list_mine`` closes.
+            """
+            if viewer is None:
+                return
+            rows = await reschedule_service.list_mine(viewer)
+            if not rows:
+                return
+            with ui.card().classes('card-full-width'):
+                ui.label('Your change requests').classes('section-title')
+                for row in rows:
+                    _render_request_card(row, on_withdraw=requests_section.refresh)
+
+        async def _open_reschedule(match_id: int) -> None:
+            """Open the request form for one match, from the declined DM's button."""
+            match = await match_service.get_by_id(match_id)
+            if match is None or viewer is None:
+                _notify_stale_reschedule_link()
+                return
+            if not await reschedule_service.can_request(match, viewer):
+                _notify_stale_reschedule_link()
+                return
+
+            async def after():
+                requests_section.refresh()
+                await table_view.refresh()
+
+            await RescheduleRequestDialog(match, viewer, on_submit=after).open()
+
         await challonge_section()
         await bracket_section()
+        await requests_section()
+        if reschedule is not None:
+            await _open_reschedule(int(reschedule))
         # No initial refresh here: MatchTableView._initial_load owns it, and runs
         # after the stored filters are restored rather than racing them.
 

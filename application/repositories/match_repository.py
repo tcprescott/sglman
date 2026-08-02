@@ -396,3 +396,19 @@ class MatchRepository:
             List of matches where the player is participating
         """
         return await scoped(Match.filter(players__user__discord_id=discord_id))
+
+    @staticmethod
+    async def get_upcoming_for_user(user_id: int) -> List[Match]:
+        """This player's matches that have a time and have not begun.
+
+        Scheduled but not seated, started or finished — the set a player can
+        still act on. ``tournament`` is prefetched because every caller so far
+        branches on one of its per-tournament toggles.
+        """
+        return await scoped(Match.filter(
+            players__user_id=user_id,
+            scheduled_at__isnull=False,
+            seated_at__isnull=True,
+            started_at__isnull=True,
+            finished_at__isnull=True,
+        )).prefetch_related('tournament')

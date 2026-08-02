@@ -142,6 +142,30 @@ STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-
     '__ACTIONABLE__', STREAM_VOLUNTEER_ACTIONABLE,
 )
 
+# The player's "ask staff to change this" control. Rendered only for a player
+# *in* the match, on a match that has not begun, and only when the service says
+# a request is actually possible (``_can_reschedule``) — the tournament may have
+# them turned off, the match may be SpeedGaming-sourced, or this viewer may
+# already have one waiting. A control that exists to explain it does nothing
+# should not be there.
+RESCHEDULE_TOOLTIP = (
+    "Ask staff to move this match or call it off. It's a request — nothing "
+    "changes until they answer."
+)
+
+RESCHEDULE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <q-btn v-if="props.row._can_reschedule && props.row.state === 'Scheduled'
+                 && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
+           icon="edit_calendar" color="grey" size="sm" flat round
+           @click="$parent.$emit('request_reschedule', props.row)">
+        <q-tooltip>__ASK__</q-tooltip>
+    </q-btn>
+    <span v-else-if="props.row._reschedule_pending" class="wiz-chip wiz-chip--pending">
+        <q-icon name="edit_calendar" size="12px" />Asked
+        <q-tooltip>A reschedule request is waiting on staff.</q-tooltip>
+    </span>
+</q-td>'''.replace('__ASK__', RESCHEDULE_TOOLTIP)
+
 # The Generate button's own gate, shared with the mobile grid's seed detail.
 # A seed can only be rolled once, so offering the button where it cannot help is
 # not merely noise: on a bracket row with no players yet it burns the one roll on
@@ -567,6 +591,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
     if discord_id:
         table.add_slot('body-cell-watch', WATCH_SLOT)
         table.add_slot('body-cell-stream_volunteer', STREAM_VOLUNTEER_SLOT.replace(
+            '__DID__', discord_id_js,
+        ))
+        table.add_slot('body-cell-reschedule', RESCHEDULE_SLOT.replace(
             '__DID__', discord_id_js,
         ))
 

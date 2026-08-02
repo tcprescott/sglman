@@ -428,3 +428,28 @@ class TestReads:
         m, _, _ = await _match()
 
         assert await MatchRescheduleService().can_request(m, None) is False
+
+
+class TestOverrideRecording:
+    """Whether the audit says staff changed the player's proposed time."""
+
+    def test_approving_the_proposed_minute_is_not_an_override(self):
+        """The decision dialog always resubmits its pickers, which carry only
+        HH:MM. Without a tolerance every plain approval would be recorded as
+        staff having overridden the player."""
+        from application.services.match_reschedule_service import _is_override
+
+        proposed = utc(2026, 6, 1, 19, 30).replace(second=41)
+        chosen = utc(2026, 6, 1, 19, 30)
+
+        assert _is_override(chosen, proposed) is False
+
+    def test_a_different_time_is_an_override(self):
+        from application.services.match_reschedule_service import _is_override
+
+        assert _is_override(utc(2026, 6, 1, 21, 0), utc(2026, 6, 1, 19, 30)) is True
+
+    def test_no_chosen_time_is_not_an_override(self):
+        from application.services.match_reschedule_service import _is_override
+
+        assert _is_override(None, utc(2026, 6, 1, 19, 30)) is False
