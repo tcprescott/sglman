@@ -203,7 +203,6 @@ async def admin_equipment_page() -> None:
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
                     async def do_delete():
-                        confirm.dialog.close()
                         try:
                             await service.delete_asset(actor, row['id'])
                         except (ValueError, PermissionError) as e:

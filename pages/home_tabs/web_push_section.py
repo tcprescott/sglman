@@ -79,7 +79,6 @@ async def render_web_push_section(user: User) -> None:
 
     def remove(subscription_id: int) -> None:
         async def do_remove() -> None:
-            confirm.dialog.close()
             try:
                 await service.remove_subscription(user, subscription_id)
                 ui.notify('Device removed.', color='positive', icon='check_circle')
