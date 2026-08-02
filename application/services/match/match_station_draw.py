@@ -147,7 +147,7 @@ class StationDrawMixin:
                 )
             first = self._pick_spread(list(free), taken, relaxations)
             rest = [s for s in free if s.name != first.name]
-            second = self._pick_spread(rest, list(taken) + [first], relaxations)
+            second = self._pick_spread(rest, [*taken, first], relaxations)
             return first, second
 
         # Which player gets which side is itself a coin flip, so the first
@@ -157,7 +157,7 @@ class StationDrawMixin:
             near, far = far, near
 
         first = self._pick_spread(near, taken, relaxations)
-        second = self._pick_spread(far, list(taken) + [first], relaxations)
+        second = self._pick_spread(far, [*taken, first], relaxations)
         return first, second
 
     def _pick_spread(
