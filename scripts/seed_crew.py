@@ -11,10 +11,10 @@ that renders the Acknowledge control and the "Approved, awaiting acknowledgment"
 marker, and while the seed lacked it neither was reachable in a dev database
 (docs/reviews/crew-signup-ux.md F9).
 
-These rows now feed three surfaces, not one: the board's crew cells, the admin
-board's pending-crew strip (the unapproved rows), and **My Crew** on Home (the
-volunteer's own view — ``players[0]``'s approved-but-unacknowledged tracker slot
-on ``future`` is the fixture that renders its Confirm button).
+These rows now feed three surfaces, not one: the board's crew cells, Reports →
+Crew Activity with its Pending-only filter (the unapproved rows), and **My Crew**
+on Home (the volunteer's own view — ``players[0]``'s approved-but-unacknowledged
+tracker slot on ``future`` is the fixture that renders its Confirm button).
 """
 
 from datetime import datetime, timedelta
