@@ -210,8 +210,15 @@ class TestMatchupReadyDm:
         assert '[Pick a new time]' in msg
 
     def test_without_a_link_it_still_says_what_to_do(self):
+        """And names the surface an *entrant* can act on.
+
+        The bracket page's Schedule button is staff-only, so the old fallback —
+        "Pick a time on the bracket." — sent the two people this DM addresses
+        somewhere they could not book anything.
+        """
         msg = dm.matchup_ready_dm('Cool Cup', 'Final', 'Bob')
-        assert 'Pick a time on the bracket.' in msg
+        assert 'Pick a time on the Player tab' in msg
+        assert 'bracket' not in msg.rsplit('\n\n', 1)[-1]
 
 
 class TestCancelledDmRelease:

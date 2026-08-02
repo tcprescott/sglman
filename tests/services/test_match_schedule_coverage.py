@@ -9,7 +9,7 @@ opt-out, DM-failure, and exception paths against the real in-memory ORM.
 
 import asyncio
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
@@ -530,7 +530,11 @@ class TestNotifySubscriberFailurePaths:
 
         await service.notify_tournament_subscribers_scheduled(m, "msg", [])
 
-        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(555, "msg", m.id, embed=None)
+        # ANY for the link: this test is about the failure being swallowed,
+        # not about where the button points.
+        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(
+            555, "msg", m.id, embed=None, link=ANY,
+        )
 
     async def test_stream_candidate_subscriber_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")

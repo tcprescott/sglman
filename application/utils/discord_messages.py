@@ -10,9 +10,27 @@ recipients. A match is identified by the players involved, the scheduled
 time, and the stage (when assigned).
 """
 
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from application.utils.match_labels import players_label
+
+
+class DMLink(NamedTuple):
+    """A one-click route out of a notification: a button label and where it goes.
+
+    Every DM that asks the recipient to *do* something carries one. ``send_dm``
+    renders it as a Discord link button and hands the same URL to the web-push
+    mirror as its tap target, so the ask is one press away on either surface —
+    rather than a sentence naming a page the reader then has to go find.
+
+    ``url`` must be absolute: a DM is read outside any request context, so a bare
+    ``/home/player`` would resolve against nothing. Build them with
+    :mod:`application.services.notification_links`.
+    """
+
+    label: str
+    url: str
+
 
 # ---------------------------------------------------------------------------
 # Shared error constants (used in multiple handlers)
@@ -243,13 +261,17 @@ def matchup_ready_dm(
 
     A DM is sent when it asks the recipient to *do* something, and this is the
     only thing in a bracket that nobody else can do for them —
-    ``allow_player_match_requests`` is off for bracket-run tournaments, so the
-    bracket is their sole route to booking a time. Advancing and being eliminated
-    get no DM: the bracket shows those.
+    ``allow_player_match_requests`` is off for bracket-run tournaments, so this is
+    their sole route to booking a time. Advancing and being eliminated get no DM:
+    the bracket shows those.
 
     ``rebook`` is the released-game variant (D3): the matchup was booked, the
     game was called off, and its slot is open again. It says so explicitly rather
     than reading as a duplicate of the first invitation.
+
+    ``schedule_url`` opens the picker itself (``/home/player?schedule=<id>``), not
+    the bracket page: the bracket's Schedule button is staff-only, so the two
+    people this DM addresses could never have used it.
     """
     opponent = f"{opponent_name} (#{opponent_seed})" if opponent_seed else opponent_name
     lines = [f"Opponent: {opponent}", f"Round: {round_name}"]
@@ -268,7 +290,10 @@ def matchup_ready_dm(
             f"schedule."
         )
         action = "Pick a time"
-    call = f"[{action}]({schedule_url})" if schedule_url else f"{action} on the bracket."
+    call = (
+        f"[{action}]({schedule_url})" if schedule_url
+        else f"{action} on the Player tab of your community's site."
+    )
     return f"{intro}\n\n{body}\n\n{call}"
 
 

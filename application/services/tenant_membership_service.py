@@ -198,11 +198,17 @@ class TenantMembershipService:
             community_name=community,
             description=body,
         )
+        # "Approve or deny it on the Users tab" was the whole call to action and
+        # named a page without linking it; the button is now the tab itself.
+        from application.services import notification_links
+        link = await notification_links.admin_users()
         service = DiscordService()
         for member in staff:
             if member.discord_id:
                 discord_queue.enqueue(
-                    service.send_dm(int(member.discord_id), body, embed=embed)
+                    service.send_dm(
+                        int(member.discord_id), body, embed=embed, link=link,
+                    )
                 )
 
     async def _notify_requester(self, requester: User, *, approved: bool) -> None:
@@ -219,8 +225,14 @@ class TenantMembershipService:
             community_name=community,
             description=body,
         )
+        # Only the approval gets a button: "you can open the community now" is an
+        # invitation, while a decline has nowhere useful to send anyone.
+        from application.services import notification_links
+        link = await notification_links.community_home() if approved else None
         discord_queue.enqueue(
-            DiscordService().send_dm(int(requester.discord_id), body, embed=embed)
+            DiscordService().send_dm(
+                int(requester.discord_id), body, embed=embed, link=link,
+            )
         )
 
     async def _decidable(self, actor: User, request_id: int) -> TenantJoinRequest:

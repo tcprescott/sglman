@@ -22,12 +22,63 @@ DMs fire on match lifecycle transitions:
 
 That last one is the only bracket-specific message — there are deliberately no
 advancement or elimination DMs. See
-[brackets.md → Notifications](brackets.md#notifications).
+[brackets.md → Notifications](brackets.md#notifications). Its button opens the
+schedule dialog directly; see [Calls to action](#calls-to-action).
 
 **Series context.** A match that is one game of a bracket matchup leads its info
 block with `Round: Semifinals · Game 2 of 3 · Series 1-0`, resolved once by
 `BracketService.match_dm_context` and threaded through `_match_descriptor`. Empty
 for the vast majority of matches, which no bracket scheduled.
+
+## Calls to action
+
+Every DM that asks the recipient to do something carries a **link button** to the
+control that does it. `DMLink(label, url)` goes to `send_dm(..., link=...)`, which
+appends a Discord link button to whatever buttons the DM already has — a player
+gets **Acknowledge** and **View your matches** side by side — and hands the same
+URL to the web-push mirror as its `navigate` target, so the phone notification
+opens the same place.
+
+Build the URL with `application/services/notification_links.py`. It resolves the
+tenant in scope and returns an absolute, tenant-qualified link (a custom domain
+wins over the platform's `/t/<slug>` prefix). It **never raises**: an unresolvable
+tenant costs the button, not the DM.
+
+| DM | Button | Lands on |
+|---|---|---|
+| Matchup ready to schedule | Pick a time | `/home/player?schedule=<matchup id>` — the picker, open |
+| …its rebook variant | Pick a new time | the same |
+| Match scheduled / rescheduled (players) | View your matches | `/home/player`, beside Acknowledge |
+| Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
+| Seed ready | Open your seed | the randomizer — the one deliberately off-site link |
+| Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
+| Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
+| Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
+| Join request (to staff) | Review the request | `/admin/users` |
+| Join approved (to requester) | Open the community | the tenant home |
+| Qualifier reviewed / expiring / expired / reattempt | Submit or forfeit · View the leaderboard · Start your next run | `/qualifiers/<id>` |
+
+A DM with no ask gets no button — checked in, cancelled, state changed, volunteer
+unassigned. A button there is noise, not help.
+
+Two things that are easy to get wrong:
+
+**The embed suppresses the text.** `send_dm` sends the embed *instead of* the
+content, so a markdown link written into the message string never renders on
+Discord. It still reaches the web-push mirror (which strips the markdown), so a
+text link is a fallback, never the route.
+
+**Link the surface the recipient can use.** The matchup-ready DM pointed at
+`/brackets/<id>` for a long time. That page's Schedule button is `is_staff`-gated,
+so the two entrants it addressed arrived at a dialog whose only control was Close.
+Check the role gate on a target before linking it.
+
+The `?schedule=` param is honoured by `pages/home_tabs/player.py`, which opens the
+dialog from the same handler the on-page button uses and matches the id against
+that viewer's *own* open matchups — a forwarded link cannot open somebody else's.
+A matchup that has since been booked, cancelled, or finished gets
+"That matchup is no longer waiting to be scheduled." rather than a silent no-op:
+a DM outlives what it points at, and a dead button reads as a broken app.
 
 ### Fan-out and dedup
 

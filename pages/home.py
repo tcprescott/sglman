@@ -16,7 +16,11 @@ from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.player import render_player_dashboard
 from pages.home_tabs.player_edit_info import render_edit_info_tab
-from pages.home_tabs.schedule import schedule
+
+# Aliased: the page function below takes a `schedule` query param (the bracket
+# matchup to open), which would otherwise shadow this tab and leave the Schedule
+# tab building `None`.
+from pages.home_tabs.schedule import schedule as schedule_tab
 from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.base import BaseLayout
@@ -91,7 +95,11 @@ async def _render_platform_landing() -> None:
 
 
 def create() -> None:
-    async def home(section: str | None = None, request: Request = None):
+    async def home(
+        section: str | None = None,
+        request: Request = None,
+        schedule: int | None = None,
+    ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
         if tid is None:
@@ -139,10 +147,14 @@ def create() -> None:
         live = await FeatureFlagService().enabled_flags()
         tabs = [
             # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
-            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
+            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule_tab},
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
             {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
-            {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
+            # `schedule` is a bracket matchup id: the Player tab opens its
+            # schedule dialog on arrival, so the "matchup ready" DM's button
+            # lands on the date/time picker rather than on a page about it.
+            {'label': 'Player', 'icon': 'videogame_asset',
+             'content': (render_player_dashboard, (), {'schedule': schedule})},
         ]
         if FeatureFlag.BRACKETS in live:
             # Spectator-facing, so it sits with the other read-only tabs and is

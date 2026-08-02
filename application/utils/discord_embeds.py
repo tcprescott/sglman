@@ -160,8 +160,8 @@ def matchup_ready_embed(
         color=COLOR_RESCHEDULED if rebook else COLOR_SCHEDULED,
         community_name=community_name,
         description=(
-            'This game was called off — pick a new time on the bracket.'
-            if rebook else 'Agree a time with your opponent and book it on the bracket.'
+            'This game was called off — pick a new time below.'
+            if rebook else 'Agree a time with your opponent, then book it below.'
         ),
         fields=fields,
         url=schedule_url,

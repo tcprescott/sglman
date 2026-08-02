@@ -16,6 +16,7 @@ from typing import Optional
 
 import discord
 
+from application.services import notification_links
 from application.services.discord import discord_queue
 from application.services.match._dm_context import _community_name, bracket_line_for
 from application.services.match._match_recipients import collect_match_recipients
@@ -191,6 +192,10 @@ class MatchNotificationMixin:
                 stream_room_name=match.stream_room.name if match.stream_room else None,
             )
 
+            # Beside the Acknowledge button, not instead of it: someone who
+            # cannot make the time needs the schedule, and "reply to an admin"
+            # is not a route.
+            link = await notification_links.player_matches()
             acks = await self.acknowledgment_repository.list_for_match(match)
             for ack in acks:
                 if ack.acknowledged_at is not None:
@@ -198,7 +203,7 @@ class MatchNotificationMixin:
                 if not ack.user.dm_notifications or not ack.user.discord_id:
                     continue
                 success, err = await self.discord_service.send_dm_with_acknowledgment_button(
-                    ack.user.discord_id, message, match.id, embed=embed,
+                    ack.user.discord_id, message, match.id, embed=embed, link=link,
                 )
                 if not success:
                     logger.warning(
@@ -227,10 +232,11 @@ class MatchNotificationMixin:
             subscribers = await TournamentNotificationRepository().get_match_notification_subscribers(
                 match.tournament_id, has_stream_room=has_stream_room
             )
+            link = await notification_links.community_schedule()
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:
                     success, err = await self.discord_service.send_dm_with_crew_buttons(
-                        user.discord_id, message, match.id, embed=embed,
+                        user.discord_id, message, match.id, embed=embed, link=link,
                     )
                     if not success:
                         logger.warning(
@@ -280,10 +286,14 @@ class MatchNotificationMixin:
                 tournament=match.tournament.name, community_name=community,
                 player_names=player_names, when=match.scheduled_at,
             )
+            # The signup buttons cover commentator and tracker; the link covers
+            # everything else the reader might want to decide first — who is
+            # playing, what else is on that day.
+            link = await notification_links.community_schedule()
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:
                     success, err = await self.discord_service.send_dm_with_crew_buttons(
-                        user.discord_id, msg, match.id, embed=embed,
+                        user.discord_id, msg, match.id, embed=embed, link=link,
                     )
                     if not success:
                         logger.warning(

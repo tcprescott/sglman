@@ -3,9 +3,13 @@
 One new player-facing message and one existing set made richer (D7). The rule is
 narrow on purpose: **a DM is sent when it asks the recipient to act.** Scheduling
 is the one thing in a bracket only the entrants can do — bracket-run tournaments
-run with ``allow_player_match_requests`` off, so the bracket dialog is their sole
-route to a booking — and it is therefore the only thing that earns its own DM.
-Advancing and being eliminated earn none; the bracket shows those.
+run with ``allow_player_match_requests`` off, so the Player tab's schedule dialog
+is their sole route to a booking — and it is therefore the only thing that earns
+its own DM. Advancing and being eliminated earn none; the bracket shows those.
+
+That DM's button opens the dialog itself. It used to open the public bracket
+page, whose Schedule button is staff-only: the message asked two players to book
+a time and then sent them somewhere they could not.
 
 That rule also removes a carve-out. A losers-bracket drop needs no special
 handling: a winners-bracket loser simply gets the ready DM when their losers
@@ -21,11 +25,11 @@ advancement that triggered it.
 import logging
 from typing import Any, Dict, Optional, Tuple
 
+from application.services import notification_links
 from application.services.bracket_engines.round_names import RoundNode, round_names
 from application.services.discord import discord_queue
 from application.utils.discord_embeds import matchup_ready_embed
-from application.utils.discord_messages import matchup_ready_dm
-from application.utils.tenant_urls import tenant_url
+from application.utils.discord_messages import DMLink, matchup_ready_dm
 from models import (
     Bracket,
     BracketFormat,
@@ -202,7 +206,7 @@ class BracketNotificationMixin:
             tournament = bracket.tournament
             round_name = await self.round_name_for_match(bracket, resolved)
             best_of = self.resolve_best_of(bracket, resolved)
-            schedule_url = await self._schedule_url(bracket.id)
+            schedule_link = await self._schedule_link(resolved.id, rebook=rebook)
 
             for entry, opponent in (
                 (resolved.entry1, resolved.entry2),
@@ -215,7 +219,7 @@ class BracketNotificationMixin:
                     tournament_name=tournament.name,
                     round_name=round_name,
                     best_of=best_of,
-                    schedule_url=schedule_url,
+                    schedule_link=schedule_link,
                     rebook=rebook,
                 ))
         except Exception:
@@ -252,23 +256,23 @@ class BracketNotificationMixin:
             await self.notify_matchup_ready(bracket_match)
 
     @staticmethod
-    async def _schedule_url(bracket_id: int) -> str:
-        """Absolute deep link to the bracket view, or '' if the tenant is unknown.
+    async def _schedule_link(
+        bracket_match_id: int, *, rebook: bool = False,
+    ) -> Optional[DMLink]:
+        """The **Pick a time** button: this matchup's schedule dialog, already open.
 
-        Absolute and tenant-qualified because the DM is read outside any request
-        context: a bare ``/brackets/12`` would be meaningless in Discord, and the
-        platform-host path prefix (or a tenant's own domain) is exactly what
-        :func:`tenant_url` resolves. Best-effort — the message degrades to "on the
-        bracket" rather than losing the DM.
+        Previously this pointed at ``/brackets/<id>``, which was wrong in the way
+        that matters most — the bracket page gates its Schedule button behind
+        ``is_staff``, so the two people the DM was addressed to arrived at a
+        dialog they could only close. The entrant's real route has always been
+        the Player tab, and ``?schedule=<matchup id>`` opens the picker on
+        arrival.
+
+        Best-effort: a tenant that will not resolve costs the button, not the DM.
         """
-        from application.services.tenant_service import TenantService
-        from application.tenant_context import get_current_tenant_id
-
-        tenant_id = get_current_tenant_id()
-        if tenant_id is None:
-            return ''
-        tenant = await TenantService.get_by_id(tenant_id)
-        return tenant_url(tenant, f'/brackets/{bracket_id}') if tenant else ''
+        return await notification_links.player_schedule(
+            bracket_match_id, label='Pick a new time' if rebook else 'Pick a time',
+        )
 
     @staticmethod
     async def _send_matchup_ready(
@@ -279,7 +283,7 @@ class BracketNotificationMixin:
         tournament_name: str,
         round_name: str,
         best_of: int,
-        schedule_url: str,
+        schedule_link: Optional[DMLink],
         rebook: bool,
     ) -> None:
         """One entrant's DM. Honours the ``dm_notifications`` opt-out."""
@@ -291,6 +295,7 @@ class BracketNotificationMixin:
 
         if not _dm_opt_ok(user, require_opt_in=True):
             return
+        schedule_url = schedule_link.url if schedule_link else ''
         message = matchup_ready_dm(
             tournament_name, round_name, opponent_name,
             opponent_seed=opponent_seed, best_of=best_of,
@@ -308,7 +313,7 @@ class BracketNotificationMixin:
             rebook=rebook,
         )
         success, err = await DiscordService().send_dm(
-            user.discord_id, message, embed=embed,
+            user.discord_id, message, embed=embed, link=schedule_link,
         )
         if not success:
             logger.warning(

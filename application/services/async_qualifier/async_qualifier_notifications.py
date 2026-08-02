@@ -13,9 +13,12 @@ the Discord service.
 
 import logging
 from datetime import datetime
+from typing import Optional
 
+from application.services import notification_links
 from application.utils.discord_embeds import time_field
 from application.utils.discord_messages import (
+    DMLink,
     qualifier_reattempt_granted_dm,
     qualifier_run_expired_dm,
     qualifier_run_expiring_dm,
@@ -41,6 +44,7 @@ async def notify_run_reviewed(run: AsyncQualifierRun, approved: bool, reason: st
                 run.qualifier.name, approved=approved, reason=reason,
                 qualifier_url=_qualifier_url(run),
             ),
+            link=_qualifier_link(run, 'View the leaderboard'),
         )
     except Exception:
         logger.debug("Failed to DM run-reviewed notification", exc_info=True)
@@ -60,6 +64,7 @@ async def notify_reattempt_granted(run: AsyncQualifierRun, reason: str) -> None:
             qualifier_reattempt_granted_dm(
                 run.qualifier.name, pool, reason=reason, qualifier_url=_qualifier_url(run),
             ),
+            link=_qualifier_link(run, 'Start your next run'),
         )
     except Exception:
         logger.debug("Failed to DM reattempt-granted notification", exc_info=True)
@@ -82,6 +87,7 @@ async def notify_run_expiring(run: AsyncQualifierRun, deadline: datetime) -> Non
                 deadline_display=time_field(deadline),
                 qualifier_url=_qualifier_url(run),
             ),
+            link=_qualifier_link(run, 'Submit or forfeit'),
         )
     except Exception:
         logger.debug("Failed to DM run-expiring notification", exc_info=True)
@@ -100,6 +106,7 @@ async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
             qualifier_run_expired_dm(
                 run.qualifier.name, hours=limit_hours, qualifier_url=_qualifier_url(run),
             ),
+            link=_qualifier_link(run, 'View the leaderboard'),
         )
     except Exception:
         logger.debug("Failed to DM run-expired notification", exc_info=True)
@@ -109,3 +116,15 @@ def _qualifier_url(run: AsyncQualifierRun) -> str:
     # Always a string: ``tenant_url`` returns one, and a run with no tenant gets
     # '' so the message builders simply omit the link.
     return tenant_url(run.tenant, f'/qualifiers/{run.qualifier_id}') if run.tenant else ''  # type: ignore[attr-defined]
+
+
+def _qualifier_link(run: AsyncQualifierRun, label: str) -> Optional[DMLink]:
+    """The button on a qualifier DM: the qualifier's own page.
+
+    Built from the loaded ``run.tenant`` rather than the ambient scope — these
+    fire from the expiry worker as well as from a review, and the worker holds
+    the row already.
+    """
+    return notification_links.link_for_tenant(
+        run.tenant, label, f'/qualifiers/{run.qualifier_id}',  # type: ignore[attr-defined]
+    )

@@ -42,6 +42,7 @@ from application.utils.discord_embeds import (
     time_field,
 )
 from application.utils.discord_messages import (
+    DMLink,
     checked_in_dm,
     seed_dm,
     state_changed_dm,
@@ -403,6 +404,12 @@ class MatchScheduleService(MatchNotificationMixin):
                     url=seed_url,
                 )
 
+                # The seed URL is the whole point of this DM, so it gets a button
+                # rather than only a hyperlink buried in the embed description.
+                # It points at the randomizer, not at Wizzrobe — the one link
+                # here that is deliberately off-site.
+                seed_link = DMLink('Open your seed', seed_url)
+
                 async def _send_seed_dms() -> None:
                     for player in match.players:
                         if player.user.discord_id and player.user.dm_notifications:
@@ -413,7 +420,8 @@ class MatchScheduleService(MatchNotificationMixin):
                                 **descriptor,
                             )
                             success, err = await self.discord_service.send_dm(
-                                player.user.discord_id, dm_message, embed=seed_embed,
+                                player.user.discord_id, dm_message,
+                                embed=seed_embed, link=seed_link,
                             )
                             if not success:
                                 logger.warning(

@@ -13,6 +13,7 @@ from tortoise.transactions import in_transaction
 from application.errors import require_found
 from application.events import Event, EventType, event_bus, match_live
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
+from application.services import notification_links
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
@@ -471,6 +472,9 @@ class CrewService:
         discord_queue.enqueue(
             self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id, embed=embed,
+                # Acknowledging is one button; the other is for the crew member
+                # who wants to see what they just agreed to cover.
+                link=await notification_links.community_schedule(),
             )
         )
 
@@ -562,11 +566,18 @@ class CrewService:
                         f'as {crew_type}. The slot is open again.',
             fields=fields,
         )
+        # The ask is "find someone else", so the button opens the board already
+        # filtered to this match rather than the whole schedule.
+        link = await notification_links.admin_match(
+            match.id, label='Fill the slot',
+        )
 
         for recipient in recipients.values():
             discord_id = getattr(recipient, 'discord_id', None)
             if not discord_id or not getattr(recipient, 'dm_notifications', True):
                 continue
             discord_queue.enqueue(
-                self.discord_service.send_dm(int(discord_id), message, embed=embed)
+                self.discord_service.send_dm(
+                    int(discord_id), message, embed=embed, link=link,
+                )
             )

@@ -402,6 +402,45 @@ class TestMatchupReadyNotification:
         assert {s['opponent_name'] for s in sent} == {'P1', 'P2'}
         assert all(s['rebook'] is False for s in sent)
 
+    async def test_the_invitation_links_to_a_dialog_the_entrant_can_use(
+        self, service, monkeypatch,
+    ):
+        """The DM's button opens the schedule dialog, not the bracket page.
+
+        The bracket's own Schedule button is ``is_staff``-gated, so the surface
+        this DM used to link to was one neither recipient could act on.
+        """
+        import asyncio
+
+        sent = self._capture(monkeypatch)
+        actor = await _staff()
+        await _series(service, actor, best_of=1)
+        await asyncio.sleep(0)
+
+        links = [s['schedule_link'] for s in sent]
+        assert all(link is not None for link in links), 'the invitation had no button'
+        assert all('/home/player?schedule=' in link.url for link in links)
+        assert all('/brackets/' not in link.url for link in links)
+        # Both entrants are pointed at the same matchup.
+        assert len({link.url for link in links}) == 1
+
+    async def test_a_rebook_invitation_says_new_time_on_its_button(
+        self, service, monkeypatch,
+    ):
+        """A released game must not read as a duplicate of the first invitation —
+        including on the button, which is the part people actually press."""
+        import asyncio
+
+        sent = self._capture(monkeypatch)
+        actor = await _staff()
+        _, _, _, bmatch = await _series(service, actor, best_of=1)
+        sent.clear()
+        await service.notify_matchup_reopened(bmatch)
+        await asyncio.sleep(0)
+
+        assert sent, 'the reopened matchup announced nothing'
+        assert all(s['schedule_link'].label == 'Pick a new time' for s in sent)
+
     async def test_advancing_invites_the_next_matchup_once_not_twice(
         self, service, monkeypatch,
     ):

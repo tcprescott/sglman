@@ -297,12 +297,18 @@ class WebPushService:
 
     # ------------------------------------------------------------ delivery
 
-    async def mirror_dm(self, discord_id: int, message: str) -> None:
+    async def mirror_dm(
+        self, discord_id: int, message: str, navigate: Optional[str] = None,
+    ) -> None:
         """Mirror a Discord DM to the recipient's subscribed devices.
 
         Enqueued fire-and-forget from the DM chokepoint onto the event
         dispatch worker; must never raise and must stay cheap when the user
         has no subscriptions (one indexed query).
+
+        ``navigate`` is the DM's call-to-action URL, so a notification that asks
+        for something opens the control that does it. Without it the reader lands
+        on whatever page the app happened to leave them on.
         """
         try:
             if not self.is_configured():
@@ -314,6 +320,7 @@ class WebPushService:
                 subscriptions,
                 title='Wizzrobe',
                 body=self._plain_text(message),
+                navigate=navigate,
             )
         except Exception:
             logger.exception('web push DM mirror failed for discord id %s', discord_id)
