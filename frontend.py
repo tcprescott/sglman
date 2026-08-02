@@ -39,6 +39,7 @@ from pages import (
 # and the bare name would shadow the `help` builtin in this module.
 from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
+from theme.assets import cache_control
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
 
@@ -68,30 +69,42 @@ def _handle_unhandled_ui_exception(exc: Exception) -> None:
         pass
 
 
-class NoCacheStaticFiles(StaticFiles):
-    """StaticFiles subclass that disables caching in development mode."""
-    
+class VersionedStaticFiles(StaticFiles):
+    """StaticFiles that states its cache policy instead of leaving it to chance.
+
+    Development sends ``no-store`` so an edit shows up on reload. Production
+    answers on the version stamp :func:`theme.assets.asset_url` puts in the URL:
+
+    * stamped (``?v=<mtime>``) — ``immutable``, cached for a year. The URL
+      changes when the file does, so a client never has to be told to re-fetch.
+    * unstamped — ``must-revalidate`` against the ETag every time.
+
+    The policy itself lives in :func:`theme.assets.cache_control`, beside the
+    function that writes the stamp.
+    """
+
     def __init__(self, *args, **kwargs):
         self.is_dev = os.environ.get('ENVIRONMENT', 'development') == 'development'
         super().__init__(*args, **kwargs)
-    
+
     async def __call__(self, scope, receive, send):
-        if self.is_dev and scope['type'] == 'http':
-            # Wrap the send function to add no-cache headers
-            async def send_wrapper(message):
-                if message['type'] == 'http.response.start':
-                    headers = list(message.get('headers', []))
-                    # Remove any existing cache-control headers
-                    headers = [h for h in headers if h[0].lower() != b'cache-control']
-                    # Add no-cache headers
-                    headers.append((b'cache-control', b'no-cache, no-store, must-revalidate'))
-                    headers.append((b'pragma', b'no-cache'))
-                    headers.append((b'expires', b'0'))
-                    message['headers'] = headers
-                await send(message)
-            await super().__call__(scope, receive, send_wrapper)
-        else:
+        if scope['type'] != 'http':
             await super().__call__(scope, receive, send)
+            return
+
+        policy = cache_control(scope.get('query_string', b''), is_dev=self.is_dev)
+
+        async def send_wrapper(message):
+            if message['type'] == 'http.response.start':
+                headers = [
+                    h for h in message.get('headers', [])
+                    if h[0].lower() not in (b'cache-control', b'pragma', b'expires')
+                ]
+                headers.append((b'cache-control', policy))
+                message['headers'] = headers
+            await send(message)
+
+        await super().__call__(scope, receive, send_wrapper)
 
 
 ROBOTS_TXT = 'User-agent: *\nDisallow: /\n'
@@ -122,9 +135,9 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
     # control of the app's start_url ('/'). Root scope is required for install.
     @fastapi_app.get('/sw.js', include_in_schema=False)
     async def _service_worker() -> FileResponse:
-        # no-cache so an updated worker is always revalidated — matches the
-        # NoCacheStaticFiles treatment of /static and avoids a stale SW pinning
-        # old behavior (a fresh worker is what re-fetches everything else).
+        # no-cache so an updated worker is always revalidated — the worker is
+        # registered with updateViaCache:'none' (theme/base.py) for the same
+        # reason, and a stale SW would pin old behavior for everything it serves.
         return FileResponse(
             'static/sw.js',
             media_type='text/javascript',
@@ -150,8 +163,8 @@ def init(fastapi_app: FastAPI) -> None:
         get_platform_host(),
     )
 
-    # Mount static files directory with no-cache in development
-    fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
+    # Cache policy lives on the class: no-store in dev, stamp-aware in production.
+    fastapi_app.mount("/static", VersionedStaticFiles(directory="static"), name="static")
 
     _register_root_routes(fastapi_app)
 

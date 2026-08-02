@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 
 from application.utils.timezone import format_local_display, to_local
 from models import Bracket, BracketEntry, BracketFormat, BracketMatch, BracketState
+from theme.assets import asset_url
 
 from ..labels import config_summary, format_label, stage_label, state_label
 from ..render import build_context
@@ -142,8 +143,8 @@ def _document(
         f'{refresh}'
         f'<title>{_esc(title)}</title>'
         '<link rel="icon" href="/static/icons/icon-192.png">'
-        '<link rel="stylesheet" href="/static/css/styles.css">'
-        '<link rel="stylesheet" href="/static/css/brackets.css">'
+        f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">'
+        f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">'
         f'<style>{_SHELL_CSS}</style>{palette}'
         '</head><body>'
         f'{body}'

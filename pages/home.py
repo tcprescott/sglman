@@ -23,6 +23,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.schedule import schedule as schedule_tab
 from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.triforce_texts import triforce_texts_tab
+from theme.assets import asset_url
 from theme.base import BaseLayout
 
 
@@ -39,7 +40,7 @@ async def _render_platform_landing() -> None:
     # no tenant), so it can't reuse the tenant BaseLayout drawer; apply the same
     # stylesheet + palette + header so first impression reads as the product.
     ui.dark_mode(app.storage.user.get('dark_mode'))
-    ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+    ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">')
     # This page builds its own chrome rather than BaseLayout's, so it repeats
     # the site-wide noindex (see theme/base.py).
     ui.add_head_html('<meta name="robots" content="noindex, nofollow">')

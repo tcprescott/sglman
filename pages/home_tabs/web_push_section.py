@@ -16,6 +16,7 @@ from nicegui import ui
 from application.services import WebPushService
 from application.utils.timezone import format_local_date
 from models import User
+from theme.assets import asset_url
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -55,8 +56,8 @@ async def render_web_push_section(user: User) -> None:
 
     # Order matters: web-push.js uses the helpers this defines, and both are
     # plain (non-deferred) head scripts, so they execute in source order.
-    ui.add_head_html('<script src="/static/js/web-push-common.js"></script>')
-    ui.add_head_html('<script src="/static/js/web-push.js"></script>')
+    ui.add_head_html(f'<script src="{asset_url("js/web-push-common.js")}"></script>')
+    ui.add_head_html(f'<script src="{asset_url("js/web-push.js")}"></script>')
 
     @ui.refreshable
     async def device_list() -> None:

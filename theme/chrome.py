@@ -18,6 +18,8 @@ from typing import Callable, Optional
 
 from nicegui import app, ui
 
+from theme.assets import asset_url
+
 # Above-the-fold weights; the rest of the family loads on demand from styles.css.
 _PRELOAD_FONTS = (
     'atkinson-hyperlegible-latin-400-normal',
@@ -112,7 +114,7 @@ def render_platform_chrome(
             f'<link rel="preload" href="/static/fonts/{font_file}.woff2" '
             'as="font" type="font/woff2" crossorigin>'
         )
-    ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+    ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">')
     ui.add_head_html('<meta name="robots" content="noindex, nofollow">')
     ui.add_head_html('<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">')
     install_timezone_detection()
