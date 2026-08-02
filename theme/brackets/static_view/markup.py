@@ -34,6 +34,7 @@ from ..layout import (
     Placement,
     SectionLayout,
     avatar_hue,
+    avatar_img_html,
     avatar_initial,
     layout_section,
     round_label,
@@ -56,9 +57,15 @@ def _tag(tag: str, classes: str, inner: str = '', *, style: str = '', attrs: str
 # ---------------------------------------------------------------------------
 
 
-def _avatar_html(name: str) -> str:
+def _avatar_html(name: str, url: Optional[str] = None) -> str:
+    """The entrant disc: the initial, with a Discord avatar layered over it.
+
+    ``avatar_img_html`` accepts only plain https CDN URLs, so the one attribute
+    here that isn't run through :func:`_esc` cannot carry markup.
+    """
     return _tag(
-        'div', 'bracket-avatar', _esc(avatar_initial(name)),
+        'div', 'bracket-avatar',
+        _esc(avatar_initial(name)) + (avatar_img_html(url) if url else ''),
         style=f'--bracket-avatar-hue: {avatar_hue(name)}',
     )
 
@@ -99,7 +106,7 @@ def _slot_html(match: BracketMatch, slot: int, ctx: BracketContext) -> str:
 
     if entry_id is not None:
         name = ctx.entry_name.get(entry_id, 'Unknown')
-        parts.append(_avatar_html(name))
+        parts.append(_avatar_html(name, ctx.entry_avatar.get(entry_id)))
         parts.append(_tag('div', 'bracket-name', _esc(name), attrs=f'title="{_esc(name)}"'))
     else:
         parts.append(_tag('div', 'bracket-avatar is-empty'))

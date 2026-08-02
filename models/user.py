@@ -17,6 +17,12 @@ class User(Model):
     updated_at = fields.DatetimeField(auto_now=True)
     username = fields.CharField(max_length=150)
     display_name = fields.CharField(max_length=150, null=True)
+    # Discord avatar *hash*, not a URL: the CDN path is derived from it and the
+    # discord id (``application/utils/discord_avatar.py``), so a stale row costs
+    # one broken image rather than a wrong link. Refreshed at every web login and
+    # whenever the bot sees the member change it. NULL means "no custom avatar" —
+    # surfaces fall back to their own placeholder.
+    discord_avatar = fields.CharField(max_length=64, null=True)
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
     # Marks the single reserved automation actor (sentinel ``discord_id`` =

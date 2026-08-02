@@ -17,7 +17,7 @@ from nicegui import ui
 
 from models import BracketMatch, BracketMatchState
 
-from .layout import avatar_hue, avatar_initial
+from .cards import render_avatar
 
 # Tiebreakers the standings pass exposes as per-entrant scalars (head_to_head is
 # relational — reflected in rank/ties, not shown as a column).
@@ -26,12 +26,6 @@ _TB_TITLE = {
     'buchholz': "Buchholz — sum of opponents' match points",
     'omw': 'Opponent match-win %',
 }
-
-
-def _avatar(name: str) -> None:
-    ui.label(avatar_initial(name)).classes('bracket-avatar').style(
-        f'--bracket-avatar-hue: {avatar_hue(name)}'
-    )
 
 
 def render_standings(
@@ -43,6 +37,7 @@ def render_standings(
     advancing: Optional[int] = None,
     show_elim: bool = False,
     dropped_ids=frozenset(),
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> None:
     """Standings table with tiebreaker columns, advancement tint, and a cut line.
 
@@ -50,6 +45,7 @@ def render_standings(
     cut line after the Nth; ``show_elim`` additionally tints the rest red once the
     stage is locked; ``dropped_ids`` strikes dropped entrants through.
     """
+    entry_avatar = entry_avatar or {}
     tb_cols = [tb for tb in tiebreakers if tb in _TB_LABEL]
 
     # The wrapper is the size container the table's columns respond to — the box
@@ -85,7 +81,7 @@ def render_standings(
                         # ranks; the chip and the tooltip say which is which.
                         ui.label(str(seed)).classes('bracket-seed') \
                             .tooltip(f'Seed {seed}')
-                    _avatar(name)
+                    render_avatar(name, entry_avatar.get(s.ref))
                     ui.label(name).classes('nm').tooltip(name)
                 rec = f'{s.wins}-{s.losses}-{s.draws}' + (f' · {s.byes}B' if s.byes else '')
                 ui.label(rec).classes('c-rec').tooltip(rec)

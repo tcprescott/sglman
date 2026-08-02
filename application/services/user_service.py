@@ -120,17 +120,23 @@ class UserService:
         self,
         discord_id: int,
         username: str,
+        avatar: Optional[str] = None,
     ) -> tuple[User, bool]:
         """Get-or-create the ``User`` row for a Discord OAuth login and keep the
-        username in sync. Returns ``(user, created)``. An inactive account is
-        returned without a username update so the caller can reject the login.
+        username and avatar hash in sync. Returns ``(user, created)``. An inactive
+        account is returned without an identity update so the caller can reject
+        the login.
+
+        ``avatar`` is Discord's avatar hash. ``None`` means the caller knows
+        nothing about it and the stored hash is left alone; an empty string means
+        the account has no custom avatar and clears it.
 
         A freshly provisioned account writes a ``user.provisioned`` audit entry
         (self-attributed to the new user) so login-time account creation is no
         longer invisible to the audit trail.
         """
         user, created = await self.repository.get_or_create_by_discord_id(
-            discord_id, username,
+            discord_id, username, avatar,
         )
         if created:
             await self.audit_service.write_log(
@@ -144,8 +150,26 @@ class UserService:
                 },
             )
         elif user.is_active:
-            await self.repository.update(user, username=username)
+            fields: dict = {'username': username}
+            if avatar is not None:
+                fields['discord_avatar'] = avatar or None
+            await self.repository.update(user, **fields)
         return user, created
+
+    async def sync_discord_avatar(
+        self, discord_id: int, avatar: Optional[str],
+    ) -> bool:
+        """Record what Discord currently says a user's avatar hash is.
+
+        The bot's ``on_member_update`` path: a person who never signs in still
+        gets a current avatar as long as they share a guild with us. Returns
+        ``True`` when the stored hash actually changed. Unknown users are a
+        no-op — we do not provision an account off a presence event.
+        """
+        user = await self.repository.get_by_discord_id(discord_id)
+        if user is None:
+            return False
+        return await self.repository.set_discord_avatar(user, avatar)
 
     async def create_mock_login_user(
         self,

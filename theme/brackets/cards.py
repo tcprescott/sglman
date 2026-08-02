@@ -60,6 +60,9 @@ class BracketContext:
     """
 
     entry_name: Dict[int, str]
+    # entry_id -> Discord avatar URL, for the entrants whose entrant row is
+    # linked to an account that has one. Absent = the initial-letter disc.
+    entry_avatar: Dict[int, str] = field(default_factory=dict)
     entry_seed: Dict[int, Optional[int]] = field(default_factory=dict)
     match_number: Dict[int, int] = field(default_factory=dict)
     slot_sources: Dict = field(default_factory=dict)  # (match_id, slot) -> SlotSource
@@ -121,7 +124,7 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
 
         if entry_id is not None:
             name = ctx.entry_name.get(entry_id, 'Unknown')
-            _avatar(name)
+            render_avatar(name, ctx.entry_avatar.get(entry_id))
             ui.label(name).classes('bracket-name').tooltip(name)
         else:
             ui.element('div').classes('bracket-avatar is-empty')
@@ -144,10 +147,21 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
         ui.label(score_txt).classes('bracket-score')
 
 
-def _avatar(name: str) -> None:
-    ui.label(avatar_initial(name)).classes('bracket-avatar').style(
+def render_avatar(name: str, url: Optional[str] = None) -> None:
+    """An entrant's disc: their Discord avatar when we have one, else the initial.
+
+    Shared with :mod:`theme.brackets.tables` so the standings and the cards paint
+    the same disc.
+    """
+    with ui.element('div').classes('bracket-avatar').style(
         f'--bracket-avatar-hue: {avatar_hue(name)}'
-    )
+    ):
+        # The initial always renders; the avatar sits on top of it. A hash that
+        # went stale 404s, ``q-img`` paints nothing, and the letter shows through
+        # — no broken-image glyph, no blank disc.
+        ui.label(avatar_initial(name))
+        if url:
+            ui.image(url).classes('bracket-avatar-img').props('no-spinner')
 
 
 def card_state_class(match: BracketMatch, ctx: BracketContext) -> str:

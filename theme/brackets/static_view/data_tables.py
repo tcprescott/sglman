@@ -36,7 +36,9 @@ def _standings_html(
     advancing: Optional[int] = None,
     show_elim: bool = False,
     dropped_ids: Iterable[int] = frozenset(),
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> str:
+    entry_avatar = entry_avatar or {}
     dropped = set(dropped_ids)
     tb_cols = [tb for tb in tiebreakers if tb in _TB_LABEL]
 
@@ -71,7 +73,7 @@ def _standings_html(
                 _tag('div', 'bracket-seed', _esc(seed), attrs=f'title="Seed {_esc(seed)}"')
                 if seed is not None else ''
             )
-            + _avatar_html(name)
+            + _avatar_html(name, entry_avatar.get(s.ref))
             + _tag('div', 'nm', _esc(name), attrs=f'title="{_esc(name)}"'),
         )
         rec = f'{s.wins}-{s.losses}-{s.draws}' + (f' · {s.byes}B' if s.byes else '')
@@ -233,6 +235,7 @@ def _round_robin_html(
     *,
     advancement: Optional[dict],
     complete: bool,
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> str:
     entry_seed = {e.id: e.seed for e in entries}
     tiebreakers = standings_config_from(config).tiebreakers
@@ -266,7 +269,7 @@ def _round_robin_html(
         )
         body = _standings_html(
             standings, entry_name, entry_seed, tiebreakers,
-            advancing=per_group_cut, show_elim=complete,
+            advancing=per_group_cut, show_elim=complete, entry_avatar=entry_avatar,
         )
         if 2 <= len(group_entry_ids) <= 10:
             body += (
@@ -292,6 +295,7 @@ def _swiss_html(
     *,
     advancement: Optional[dict],
     complete: bool,
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> str:
     entry_seed = {e.id: e.seed for e in entries}
     dropped = {e.id for e in entries if e.status == BracketEntryStatus.DROPPED}
@@ -307,7 +311,7 @@ def _swiss_html(
     out += _standings_html(
         standings, entry_name, entry_seed, tiebreakers,
         advancing=advancement.get('count') if advancement else None,
-        show_elim=complete, dropped_ids=dropped,
+        show_elim=complete, dropped_ids=dropped, entry_avatar=entry_avatar,
     )
     if 'head_to_head' in tiebreakers:
         out += _tag(

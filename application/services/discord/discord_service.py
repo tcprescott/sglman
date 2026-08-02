@@ -12,6 +12,10 @@ import discord
 from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
+from application.services.discord.discord_member_events import (
+    sync_member_avatar,
+    sync_member_roles,
+)
 from application.services.web_push_service import WebPushService
 from application.utils.discord_messages import DMLink
 from application.utils.mocks import mock_discord_data
@@ -122,35 +126,6 @@ def register_view_factory(kind: str, factory: ViewFactory) -> None:
     _view_factories[kind] = factory
 
 
-async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
-    """Re-sync a member's app roles when their Discord roles change.
-
-    Runs in the bot event loop on ``GUILD_MEMBER_UPDATE`` / member-remove
-    events. Lazily imports services to avoid a circular import with
-    ``discord_role_mapping_service``. Best-effort: logs and swallows so a bad
-    event can never crash the gateway connection.
-    """
-    try:
-        from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
-        from application.services.tenant_service import TenantService
-        from models import User
-
-        # A guild may back several tenants (a shared server), so sync every one.
-        # Unknown guild (linked to no tenant) -> empty list -> nothing to do. Each
-        # per-tenant sync wraps its own tenant_scope and never raises.
-        tenants = await TenantService.list_tenants_for_guild(guild_id)
-        if not tenants:
-            return
-        user = await User.get_or_none(discord_id=discord_user_id)
-        if user is None:
-            return
-        service = DiscordRoleMappingService()
-        for tenant in tenants:
-            await service.sync_user_roles_for_tenant(user, tenant)
-    except Exception:
-        logger.exception('Live role sync failed for discord_id=%s', discord_user_id)
-
-
 def get_discord_bot() -> commands.Bot:
     """
     Get or create the shared Discord bot instance.
@@ -183,16 +158,17 @@ def get_discord_bot() -> commands.Bot:
 
         @_bot_instance.event
         async def on_member_update(before: discord.Member, after: discord.Member) -> None:
-            # Only act when role membership actually changed (the event also
-            # fires for nick/avatar/timeout updates).
-            if {r.id for r in before.roles} == {r.id for r in after.roles}:
-                return
-            await _sync_member_roles(after.guild.id, after.id)
+            # The event fires for nick/avatar/timeout/role changes alike, so each
+            # sync decides for itself whether anything it cares about moved.
+            if before.avatar != after.avatar:
+                await sync_member_avatar(after)
+            if {r.id for r in before.roles} != {r.id for r in after.roles}:
+                await sync_member_roles(after.guild.id, after.id)
 
         @_bot_instance.event
         async def on_member_remove(member: discord.Member) -> None:
             # Left/kicked/banned: re-sync strips their Discord-sourced roles.
-            await _sync_member_roles(member.guild.id, member.id)
+            await sync_member_roles(member.guild.id, member.id)
 
     return _bot_instance
 

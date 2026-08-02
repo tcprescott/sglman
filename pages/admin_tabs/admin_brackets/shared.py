@@ -5,12 +5,12 @@ and the entry-id → display-name map the results and advance dialogs both need.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from application.services.bracket_engines.round_names import round_label
 from application.utils.timezone import parse_local_datetime, to_local
 from models import BracketFormat, BracketMatch
-from theme.brackets import detect_finals
+from theme.brackets import detect_finals, entry_avatars
 
 ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
 
@@ -97,10 +97,23 @@ def match_label(match: BracketMatch, round_names: Dict[int, str]) -> str:
     return f'{name} · Match {match.position}'
 
 
+async def entry_display_maps(
+    service, bracket_id: int, tournament_id: int
+) -> Tuple[Dict[int, str], Dict[int, str]]:
+    """``(names, avatar_urls)`` per entry, off one entrant load.
+
+    The caller supplies the tenant scope. Paired because every surface that shows
+    a name shows the disc beside it, and loading the roster twice to build them
+    separately is the only way to get that wrong.
+    """
+    entrants = await service.list_entrants(tournament_id)
+    entries = await service.list_entries(bracket_id)
+    by_entrant = {en.id: en.display_name for en in entrants}
+    names = {e.id: by_entrant.get(e.entrant_id, f'Entry {e.id}') for e in entries}
+    return names, entry_avatars(entrants, entries)
+
+
 async def entry_name_map(service, bracket_id: int, tournament_id: int) -> Dict[int, str]:
     """entry_id → entrant display name (the caller supplies the tenant scope)."""
-    entrants = {
-        en.id: en.display_name for en in await service.list_entrants(tournament_id)
-    }
-    entries = await service.list_entries(bracket_id)
-    return {e.id: entrants.get(e.entrant_id, f'Entry {e.id}') for e in entries}
+    names, _ = await entry_display_maps(service, bracket_id, tournament_id)
+    return names

@@ -28,7 +28,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor
 
-from .shared import ELIM_FORMATS, entry_name_map, match_label, round_display_names
+from .shared import ELIM_FORMATS, entry_display_maps, match_label, round_display_names
 
 
 class _StandingView:
@@ -78,7 +78,7 @@ async def open_results(row, client, *, service, tenant_id, tournament_id, on_cha
                     bracket = await service.get_bracket(bracket_id)
                     matches = await service.list_matches(bracket_id)
                     entries = await service.list_entries(bracket_id)
-                    names = await entry_name_map(service, bracket_id, tid)
+                    names, avatars = await entry_display_maps(service, bracket_id, tid)
                     live_state = await service.matchup_live_state(matches)
                     standings = (
                         await service.standings(bracket_id)
@@ -122,6 +122,7 @@ async def open_results(row, client, *, service, tenant_id, tournament_id, on_cha
                 if embedded:
                     ctx = build_context(
                         bracket.config, entries, matches, names,
+                        entry_avatar=avatars,
                         on_card_click=open_match, live_state=live_state,
                     )
                     ui.label('Bracket — click a match to report a result') \

@@ -42,6 +42,7 @@ from .live import register_bracket_view
 from .render import (
     build_context,
     detect_finals,
+    entry_avatars,
     entry_records,
     match_nodes,
     render_elimination,
@@ -68,6 +69,7 @@ __all__ = [
     'build_match_dialog',
     'config_summary',
     'detect_finals',
+    'entry_avatars',
     'entry_records',
     'format_label',
     'is_visible',

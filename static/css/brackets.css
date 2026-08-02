@@ -328,6 +328,24 @@ body {
   background: var(--bracket-seed-bg);
 }
 
+/* The Discord avatar covers the initial disc. Both are in the DOM: a hash we
+   cached before the person changed their avatar 404s, the image paints nothing,
+   and the letter underneath shows through. */
+.bracket-avatar {
+  position: relative;
+  overflow: hidden;
+}
+
+.bracket-avatar-img,
+.bracket-avatar > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .bracket-name {
   flex: 1 1 auto;
   min-width: 0;

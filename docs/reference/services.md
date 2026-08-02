@@ -1401,6 +1401,15 @@ Sentry error-monitoring initialization ([sentry.py](../../application/utils/sent
 |---|---|---|
 | `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment` from `get_environment()`, `send_default_pii=False`, an optional `SENTRY_TRACES_SAMPLE_RATE`, and a `before_send` hook that scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies from every outgoing event. |
 
+### discord_avatar.py
+
+Discord CDN avatar URLs built from the hash on `User.discord_avatar`. Nothing is proxied or re-hosted — the browser fetches straight from `cdn.discordapp.com`, and a stale hash 404s, so every caller keeps its own placeholder as the fallback ([discord_avatar.py](../../application/utils/discord_avatar.py)).
+
+| Function | Returns | Description |
+|---|---|---|
+| `avatar_url(discord_id, avatar_hash, size=64)` | `str \| None` | CDN URL, GIF for an `a_`-prefixed (animated) hash and PNG otherwise. `None` when either argument is missing. |
+| `user_avatar_url(user, size=64)` | `str \| None` | The same for a `User` row; `None` for a placeholder or an account with no custom avatar. |
+
 ### timezone.py
 
 Canonical UTC-storage / local-display utilities. Every builder takes an optional `tz`; `tz=None` means the viewer's resolved zone (see [`timezone_context.py`](../../application/timezone_context.py) and `TimezoneService` above). Pass an explicit `tz` for output that is **not** for the current viewer — a cached page, a notification for someone else. Full rules and rationale: [timezone-handling.md](../timezone-handling.md) ([timezone.py](../../application/utils/timezone.py)).

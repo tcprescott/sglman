@@ -51,6 +51,7 @@ from theme.brackets import (
     build_context,
     build_match_dialog,
     config_summary,
+    entry_avatars,
     entry_records,
     format_label,
     is_visible,
@@ -197,6 +198,7 @@ def _render_round_robin(
     *,
     advancement: Optional[dict] = None,
     complete: bool = False,
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> None:
     entry_seed = {e.id: e.seed for e in entries}
     tiebreakers = standings_config_from(config).tiebreakers
@@ -235,6 +237,7 @@ def _render_round_robin(
                 render_standings(
                     standings, entry_name, entry_seed, tiebreakers,
                     advancing=per_group_cut, show_elim=complete,
+                    entry_avatar=entry_avatar,
                 )
                 order_ids = [s.ref for s in standings]
                 if 2 <= len(group_entry_ids) <= 10:
@@ -252,6 +255,7 @@ def _render_swiss(
     *,
     advancement: Optional[dict] = None,
     complete: bool = False,
+    entry_avatar: Optional[Dict[int, str]] = None,
 ) -> None:
     entry_seed = {e.id: e.seed for e in entries}
     dropped = {e.id for e in entries if e.status == BracketEntryStatus.DROPPED}
@@ -268,6 +272,7 @@ def _render_swiss(
     render_standings(
         standings, entry_name, entry_seed, tiebreakers,
         advancing=swiss_cut, show_elim=complete, dropped_ids=dropped,
+        entry_avatar=entry_avatar,
     )
     if 'head_to_head' in tiebreakers:
         ui.label('Remaining ties are broken by head-to-head result.') \
@@ -464,6 +469,7 @@ def create() -> None:
             entry_name = {
                 e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
             }
+            entry_avatar = entry_avatars(entrants, entries)
 
             with ui.card().classes('page-container w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('items-center justify-between w-full'):
@@ -506,6 +512,7 @@ def create() -> None:
                     double = bracket.format == BracketFormat.DOUBLE_ELIM
                     ctx = build_context(
                         bracket.config, entries, matches, entry_name,
+                        entry_avatar=entry_avatar,
                         on_card_click=on_card_click, live_state=live_state,
                     )
                     # 2-D connector bracket (>= md); a per-round accordion (< md),
@@ -533,11 +540,13 @@ def create() -> None:
                         _render_round_robin(
                             entries, matches, entry_name, bracket.config,
                             advancement=advancement, complete=complete,
+                            entry_avatar=entry_avatar,
                         )
                     else:
                         _render_swiss(
                             entries, matches, entry_name, bracket.config,
                             advancement=advancement, complete=complete,
+                            entry_avatar=entry_avatar,
                         )
 
         await render_body()

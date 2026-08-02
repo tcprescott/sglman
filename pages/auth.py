@@ -345,6 +345,9 @@ def create() -> None:
 
             user, _created = await UserService().provision_from_discord_login(
                 current_user.id, current_user.username,
+                # '' (not None) when the account has no custom avatar, so the
+                # login clears a stale hash instead of leaving it behind.
+                avatar=current_user.avatar_hash or '',
             )
 
             # Deactivated accounts cannot log in (mirrors the REST API's

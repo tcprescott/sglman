@@ -160,10 +160,11 @@ class UserRepository(TenantScopedRepository[User]):
     async def get_or_create_by_discord_id(
         discord_id: int,
         username: str,
+        avatar: Optional[str] = None,
     ) -> tuple[User, bool]:
         return await User.get_or_create(
             discord_id=discord_id,
-            defaults={'username': username},
+            defaults={'username': username, 'discord_avatar': avatar or None},
         )
 
     @staticmethod
@@ -248,12 +249,31 @@ class UserRepository(TenantScopedRepository[User]):
         await user.save()
 
     @staticmethod
-    async def update_discord_info(user: User, username: str) -> None:
-        """Refresh the Discord-sourced identity we actually persist.
+    async def update_discord_info(
+        user: User, username: str, avatar: Optional[str] = None,
+    ) -> None:
+        """Refresh the Discord-sourced identity we persist: username and avatar.
 
-        ``username`` is the only one: Discord retired discriminators, and the
-        avatar is a per-session CDN URL that lives in ``app.storage.user``
-        rather than on the row.
+        ``avatar`` is Discord's avatar *hash*; ``None`` means the caller has
+        nothing to say about it and the stored hash is left alone. Clearing a
+        removed avatar goes through :meth:`set_discord_avatar`, which can write
+        ``NULL``.
         """
         user.username = username
+        if avatar is not None:
+            user.discord_avatar = avatar
         await user.save()
+
+    @staticmethod
+    async def set_discord_avatar(user: User, avatar: Optional[str]) -> bool:
+        """Store (or clear) a user's Discord avatar hash. ``True`` if it changed.
+
+        Separate from :meth:`update_discord_info` because this one is called on
+        every ``on_member_update`` the bot sees, most of which change nothing —
+        the no-op short-circuit is what keeps that from being a write per event.
+        """
+        if user.discord_avatar == avatar:
+            return False
+        user.discord_avatar = avatar
+        await user.save(update_fields=['discord_avatar', 'updated_at'])
+        return True

@@ -11,6 +11,7 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | File | Contents |
 |---|---|
 | [`application/services/discord/discord_service.py`](../../application/services/discord/discord_service.py) | `get_discord_bot()` singleton factory, the handler/view-factory registries, `DiscordService`, `MockDiscordService`, mock selection |
+| [`application/services/discord/discord_member_events.py`](../../application/services/discord/discord_member_events.py) | The `GUILD_MEMBER_*` listeners' bodies: `sync_member_roles` and `sync_member_avatar` |
 | [`application/services/discord/discord_queue.py`](../../application/services/discord/discord_queue.py) | Outbound send queue: `start()`, `stop()`, `enqueue()` over the shared `CoroutineQueue` |
 | [`application/utils/coroutine_queue.py`](../../application/utils/coroutine_queue.py) | `CoroutineQueue` + `bind_module_state` — the serial-worker primitive `discord_queue` is one instance of |
 | [`application/services/discord/discord_link_service.py`](../../application/services/discord/discord_link_service.py) | Verified tenant ↔ guild linking (bot-auth flow + server-side Manage Server re-check) |
@@ -97,10 +98,14 @@ Four gateway events are registered:
 |---|---|
 | `on_ready` | Logs `Discord bot ready. Logged in as <user>` |
 | `on_interaction` | The single dispatch point for buttons: handles `InteractionType.component` only, reads `interaction.data['custom_id']`, and looks the prefix (text before the first `:`) up in `_interaction_handlers` |
-| `on_member_update` | Fires `_sync_member_roles` **only when role membership actually changed** (the event also fires for nick/avatar/timeout edits) |
-| `on_member_remove` | Left/kicked/banned — the same re-sync, which strips their Discord-sourced roles |
+| `on_member_update` | Fires `sync_member_avatar` when the member's global avatar changed, and `sync_member_roles` when role membership changed (the event also fires for nick/timeout edits, which are ignored) |
+| `on_member_remove` | Left/kicked/banned — the same role re-sync, which strips their Discord-sourced roles |
 
-`_sync_member_roles(guild_id, discord_user_id)` fans out across **every tenant sharing that guild** (`TenantService.list_tenants_for_guild`), each inside its own `tenant_scope`; an unknown guild or unknown user is a no-op. It logs and swallows everything, so a bad event can never crash the gateway connection. Behavior: [discord.md § Guild-role → app-role sync](../features/discord.md#guild-role--app-role-sync).
+Both live in [`discord_member_events.py`](../../application/services/discord/discord_member_events.py).
+
+`sync_member_avatar(member)` stores `Member.avatar.key` (the **global** hash, matching what the OAuth login records) on `User.discord_avatar`, or `NULL` when the avatar was removed. Unknown users are a no-op — a presence event never provisions an account — and an unchanged hash writes nothing. This is the only avatar refresh someone who never signs in will get.
+
+`sync_member_roles(guild_id, discord_user_id)` fans out across **every tenant sharing that guild** (`TenantService.list_tenants_for_guild`), each inside its own `tenant_scope`; an unknown guild or unknown user is a no-op. It logs and swallows everything, so a bad event can never crash the gateway connection. Behavior: [discord.md § Guild-role → app-role sync](../features/discord.md#guild-role--app-role-sync).
 
 Registered handler prefixes:
 
