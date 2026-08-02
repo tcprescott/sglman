@@ -11,6 +11,7 @@ from models import FeatureFlag, User
 from theme.chrome import dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
+from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
 
@@ -586,17 +587,18 @@ class BaseLayout:
         contextvar is unset and only the client stash would answer — the same
         hazard, and the same fix, as ``admin_crud.wire_tab_refresh``.
 
-        ``deferred`` distinguishes a post-load build (gets a spinner, because the
-        user is waiting on it) from the initial in-page build of the visible tab.
+        ``deferred`` distinguishes a post-load build (gets a waiting panel,
+        because the user is sitting in front of it) from the initial in-page
+        build of the visible tab.
         """
         tab = self._pending_tabs.pop(label, None)
         if tab is None:
             return False
         container = self._tab_containers[label]
-        spinner = None
+        panel = None
         if deferred:
             with container:
-                spinner = ui.spinner(size='lg').classes('q-ma-md')
+                panel = waiting_panel('Loading…')
         try:
             with container:
                 with tenant_scope(self._tenant_id), table_prefs_scope(self._table_prefs):
@@ -607,8 +609,8 @@ class BaseLayout:
                 ui.label('This section failed to load. Try switching tabs again.') \
                     .classes('text-negative q-ma-md')
         finally:
-            if spinner is not None:
-                container.remove(spinner)
+            if panel is not None:
+                container.remove(panel)
         return True
 
     async def _render_tab_panels(self) -> None:

@@ -44,6 +44,7 @@ from application.utils.tenant_urls import (
 from models import Role, Tenant, User
 from theme.notice import drain_notice, stash_notice
 from theme.tables.mobile_grid import enable_mobile_grid
+from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,10 @@ def create() -> None:
     @ui.page('/oauth/callback')
     async def oauth_callback(client: Client):
         await client.connected()
+        # The code-for-token exchange and the role sync below are two network
+        # round trips the visitor stares at a blank page through. Say what is
+        # happening; the page navigates away before anyone finishes the fact.
+        waiting_panel('Signing you in…')
         url = await ui.run_javascript('window.location.href')
         expected_state = app.storage.user.pop('oauth_state', None)
         try:
@@ -437,6 +442,7 @@ def create() -> None:
     async def session_claim(client: Client) -> None:
         """Design B claim (custom domain): validate the handoff and set the session."""
         await client.connected()
+        waiting_panel('Finishing your login…')
         url = await ui.run_javascript('window.location.href')
         parsed = urlparse(url)
         token = (parse_qs(parsed.query).get('token') or [None])[0]

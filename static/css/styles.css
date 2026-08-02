@@ -1132,8 +1132,11 @@ body.body--dark {
 
 .wiz-report-busy__box {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.75em;
+    gap: 0.25em;
+    max-width: min(28rem, calc(100vw - 2rem));
+    text-align: center;
     padding: 1em 1.5em;
     border-radius: 8px;
     background: #fff;
@@ -1261,6 +1264,49 @@ body.body--dark {
 .wiz-empty-icon {
     color: var(--status-neutral);
     opacity: 0.5;
+}
+
+/* theme/waiting.waiting_panel — spinner + message + cat fact, for a wait the
+   app cannot make shorter (OAuth round trip, deferred tab build). Centered in
+   whatever container owns the wait; the fact reuses .empty-state-fact. */
+.wiz-waiting {
+    width: 100%;
+    padding: 2em 1em;
+    gap: 0.5em;
+    color: var(--status-neutral);
+    text-align: center;
+}
+
+.wiz-waiting-message {
+    font-size: 0.95em;
+}
+
+/* The /cat-facts page (pages/cat_facts.py). */
+.wiz-cat-featured {
+    gap: 0.75em;
+    padding: 1.5em;
+    text-align: center;
+}
+
+.wiz-cat-featured-fact {
+    font-size: 1.15em;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+.wiz-cat-list {
+    gap: 0.6em;
+}
+
+.wiz-cat-list-row {
+    gap: 0.6em;
+}
+
+.wiz-cat-list-icon {
+    margin-top: 0.35em;
+    color: var(--status-neutral);
+    opacity: 0.6;
+    flex-shrink: 0;
 }
 
 /* User/Avatar Styles */
