@@ -411,11 +411,14 @@ def captured_dms(monkeypatch):
     The notification module imports ``DiscordService`` lazily inside each
     function, so patching the class where it lives covers both call sites.
     """
-    sent: list[tuple[int, str]] = []
+    sent: list[tuple[int, str, object]] = []
 
     class _Fake:
-        async def send_dm(self, discord_id, message):
-            sent.append((discord_id, message))
+        # Mirrors the real signature: a fake narrower than the thing it stands
+        # in for turns an added argument into "no DM was sent at all", which is
+        # exactly how the link button first went missing here.
+        async def send_dm(self, discord_id, message, view_factory=None, embed=None, link=None):
+            sent.append((discord_id, message, link))
             return True, 'ok'
 
     monkeypatch.setattr(
@@ -518,6 +521,7 @@ async def test_grant_reattempt_ignores_the_runners_allowance(db, captured_dms):
     allowance = await service.get_reattempt_allowance(player, q.id)
     assert (allowance.spent, allowance.remaining) == (0, 0)
     assert captured_dms and 'granted you another attempt' in captured_dms[0][1]
+    assert captured_dms[0][2].label == 'Start your next run'
 
 
 async def test_grant_reattempt_frees_the_slot_after_a_forfeit(db):
@@ -603,10 +607,13 @@ async def test_rejection_dm_includes_the_reason(db, captured_dms):
 
     await service.review_run(staff, run.id, approved=False, note='The VoD cuts off early.')
     assert captured_dms, 'the runner was told nothing'
-    _, message = captured_dms[-1]
+    _, message, link = captured_dms[-1]
     assert 'rejected' in message
     assert 'Reason: The VoD cuts off early.' in message
     assert f'/qualifiers/{run.qualifier_id}' in message
+    # The button, not only the markdown link: an embed suppresses the DM's text
+    # content entirely, so a link that lives only in `message` can go unseen.
+    assert link is not None and link.url.endswith(f'/qualifiers/{run.qualifier_id}')
 
 
 async def test_review_queue_carries_existing_notes(db):

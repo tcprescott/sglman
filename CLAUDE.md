@@ -127,6 +127,38 @@ or parentheses otherwise.
 Before finishing, read it back. Any sentence that sounds like a press release gets
 rewritten, and any point made twice in different words gets made once.
 
+## Calls to action must land on the control that performs them
+
+**A notification that asks for something carries the route that does it — opening
+the exact dialog, filter, or form, not a page from which the reader can go find
+it.** This applies to every outbound surface: Discord DMs, web-push
+notifications, and any in-app copy that names somewhere else to go.
+
+Three failures to check for, in order of how often they happen:
+
+- **Naming a destination instead of linking it.** "Approve it on the Users tab"
+  makes the reader open the app, find the community, find the tab. Link the tab.
+- **Linking a page rather than the control.** A bracket matchup DM that lands on
+  the bracket leaves the reader hunting for their own row among thirty.
+  `/home/player?schedule=<id>` opens the picker itself.
+- **Linking a surface the recipient cannot act on.** The worst of the three,
+  because it looks correct. Before choosing a target, check the role gate on
+  what you are linking to: the bracket page's Schedule button is `is_staff`, so
+  the matchup-ready DM used to send two players somewhere neither could book
+  anything.
+
+Build the link with `application/services/notification_links.py` (never a bare
+path — a DM is read outside any request context, so it must be absolute and
+tenant-qualified) and pass it as `send_dm(..., link=DMLink(...))`. That renders a
+Discord **link button** beside any Acknowledge/signup buttons and becomes the
+web-push notification's tap target in the same call. A markdown link in the
+message text is **not** a substitute: `send_dm` omits the Discord content
+entirely whenever an embed is present, so text-only links go unseen.
+
+Deep-link params are the page's job to honour, and a stale one must say so — a
+DM outlives the thing it points at, and a button that silently does nothing reads
+as a broken app. Detail: [docs/features/discord.md](docs/features/discord.md#calls-to-action).
+
 ## Timezone handling
 
 **All datetimes are stored in UTC; user-facing times render on a per-request local clock.** Never store localized datetimes; never display raw UTC. Every conversion goes through `application/utils/timezone.py` (`parse_local_datetime`, `combine_local`, `local_day_bounds`, `format_local_time`/`_date`/`_display`, `now_local`, `today_local`, `to_local`, `to_utc_aware`, `timezone_label`).

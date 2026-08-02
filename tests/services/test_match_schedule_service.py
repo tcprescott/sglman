@@ -355,7 +355,12 @@ class TestNotifyTournamentSubscribersScheduled:
         with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
             await service.notify_tournament_subscribers_scheduled(match, "msg", [])
 
-        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(999, "msg", match.id, embed=None)
+        # link=None here only because no tenant resolves in this unit fixture;
+        # the kwarg must still be passed, since it is what carries the DM's way
+        # back into the app.
+        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(
+            999, "msg", match.id, embed=None, link=None,
+        )
 
     async def test_excludes_already_notified_discord_ids(self, service):
         match = MockMatch()

@@ -91,7 +91,11 @@ async def _render_platform_landing() -> None:
 
 
 def create() -> None:
-    async def home(section: str | None = None, request: Request = None):
+    async def home(
+        section: str | None = None,
+        request: Request = None,
+        schedule: int | None = None,
+    ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
         if tid is None:
@@ -142,7 +146,11 @@ def create() -> None:
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
             {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
-            {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
+            # `schedule` is a bracket matchup id: the Player tab opens its
+            # schedule dialog on arrival, so the "matchup ready" DM's button
+            # lands on the date/time picker rather than on a page about it.
+            {'label': 'Player', 'icon': 'videogame_asset',
+             'content': (render_player_dashboard, (), {'schedule': schedule})},
         ]
         if FeatureFlag.BRACKETS in live:
             # Spectator-facing, so it sits with the other read-only tabs and is

@@ -203,6 +203,26 @@ Cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): OAuth 
 
 The claim routes are `/session/claim` (login, in `pages/auth.py`) and `/oauth/link/claim` (provider links, in `pages/_oauth_link.py`). Detail: [multitenancy.md](../features/multitenancy.md).
 
+### notification_links.py — module functions
+
+Where each notification's call to action goes ([notification_links.py](../../application/services/notification_links.py)). Every DM that asks the recipient to *do* something gets a `DMLink` from here; `send_dm(..., link=...)` renders it as a Discord link button and hands the URL to the web-push mirror as its tap target.
+
+One module rather than a private `_url` helper per service, because three mistakes kept recurring: a **relative** path (meaningless in a DM, which has no request context), a link to a page that merely *mentions* the thing, and a link to a surface the recipient **cannot act on** — the matchup-ready DM pointed entrants at `/brackets/<id>`, whose Schedule button is `is_staff`-gated.
+
+| Function | Returns | Description |
+|---|---|---|
+| `link_for(label, path)` | `DMLink \| None` | `label` → the tenant-absolute form of `path`, resolving the tenant in scope. **Never raises** — callers are best-effort notifiers, so a failed lookup costs the button, not the DM. |
+| `link_for_tenant(tenant, label, path)` | `DMLink \| None` | The same for a caller holding the tenant row already (the qualifier worker). Synchronous. |
+| `player_schedule(bracket_match_id, *, label='Pick a time')` | `DMLink \| None` | `/home/player?schedule=<id>` — the schedule dialog, open. The entrant's only route to booking a bracket game. |
+| `player_matches()` | `DMLink \| None` | `/home/player` — the reader's own fixtures. |
+| `community_schedule(*, label='View the schedule')` | `DMLink \| None` | `/home/schedule`, for a DM about somebody *else's* match. |
+| `community_home()` | `DMLink \| None` | The tenant home, for someone just admitted to it. |
+| `admin_match(match_id, *, label='Open the match')` | `DMLink \| None` | `/admin/schedule?match_id=<id>` — where crew gets refilled. |
+| `admin_volunteer_schedule(day=None, *, label='Open the shift')` | `DMLink \| None` | The volunteer roster on the shift's day (the community's clock, not the reader's). |
+| `admin_users(*, label='Review the request')` | `DMLink \| None` | `/admin/users`, where join requests are decided. |
+
+Paths come from the pure [`app_links.py`](#utility-modules), shared with the pages that render the same routes. Detail: [discord.md → Calls to action](../features/discord.md#calls-to-action).
+
 ### challonge_service.py — ChallongeService
 
 Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock-switches).
@@ -1332,6 +1352,7 @@ Notable members:
 - **Crew DMs** (`CrewService`): `crew_assignment_dm`, `crew_approval_withdrawn_dm`.
 - **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_unassigned_dm`, `volunteer_shift_changed_dm`, `volunteer_released_dm` (to the coordinators), `volunteer_ack_confirmation`.
 - **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `crew_ack_confirmation`, `crew_signup_confirmation`, `unwatch_confirmation`.
+- **`DMLink(label, url)`** — a DM's call-to-action route, rendered by `send_dm` as a Discord link button and used as the web-push mirror's tap target. Built by [`notification_links.py`](#notification_linkspy), never inline: the URL must be absolute, since a DM is read outside any request context.
 
 All builders are pure functions returning `str`; optional fields passed as `None`/`''` are omitted from the rendered message.
 
@@ -1431,6 +1452,7 @@ Shared primitives and clients used across the service layer; each is a thin, foc
 | `mock_discord_data.py` | Canned mock Discord data used by `DiscordService` under `MOCK_DISCORD`. |
 | `tenant_session.py` | Per-tenant namespacing of `app.storage.user` UI state (`tenant_session_get`/`set`). |
 | `tenant_urls.py` | Tenant-qualified URL building/validation + post-login return-path guards. |
+| `app_links.py` | Pure in-app route builders (`admin_url`, `home_url`, `player_schedule_url`) + the tab slugs. Shared by `pages/` and the notification layer so a DM's button and the page's own link address the identical route. `pages/admin_tabs/links.py` re-exports the admin half. |
 | `color_contrast.py` | WCAG contrast helpers (used by `TenantThemeService`). |
 | `http_headers.py` | Reduce arbitrary text to a latin-1-safe response-header value, so one non-encodable character in a header set on every response cannot take the response down. |
 | `serialization.py` | JSON-safe coercion shared across entry surfaces — notably `decode_json_details`, which falls back to the raw string rather than losing a whole audit row to a malformed `details` blob. |

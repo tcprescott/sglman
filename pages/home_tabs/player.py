@@ -30,6 +30,25 @@ def _next_game_number(bracket_match, best_of: int) -> int:
     return next((n for n in range(1, best_of + 1) if n not in taken), best_of)
 
 
+def _notify_stale_schedule_link() -> None:
+    """Say why a "Pick a time" button did nothing.
+
+    A DM outlives the matchup it points at — the opponent may have booked it,
+    staff may have scheduled it, the stage may have finished. Landing on a page
+    where the row simply is not there reads as a broken link, so the reason is
+    said out loud.
+    """
+    ui.notify(
+        'That matchup is no longer waiting to be scheduled.', color='warning',
+    )
+
+
+def _report_stale_deep_link(deep_link: dict) -> None:
+    """The same notice for the case where the viewer has no open matchups at all."""
+    if deep_link.pop('matchup_id', None) is not None:
+        _notify_stale_schedule_link()
+
+
 def _round_label(bracket_match, best_of: int, number: int) -> str:
     """'Round 2' / 'Losers round 1', plus the series position for a best-of-N."""
     rnd = bracket_match.round
@@ -37,7 +56,14 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
     return f'{base} — game {number} of {best_of}' if best_of > 1 else base
 
 
-async def render_player_dashboard():
+async def render_player_dashboard(schedule: int | None = None):
+    """The player's own schedule.
+
+    ``schedule`` is a bracket matchup id arriving from the "matchup ready to
+    schedule" DM's button (``?schedule=<id>`` on ``/home/player``). Its dialog is
+    opened once the tab has rendered, so the notification's call to action ends
+    at the date/time picker instead of at a page the reader then has to search.
+    """
     discord_id = app.storage.user.get('discord_id', None)
     # Resolved once for the help icons below: three of them read from the event
     # handbook, which filters by role, and each would otherwise look the viewer
@@ -120,6 +146,12 @@ async def render_player_dashboard():
                             disabled_btn.disable()
                             disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
 
+        # The deep-linked matchup's opener, captured during the render below so
+        # `?schedule=<id>` can fire the same handler the button does. Per-client
+        # (a local, never module level) and cleared once used, so a later refresh
+        # of the section does not re-open the dialog under the reader.
+        deep_link = {'matchup_id': schedule}
+
         # Native brackets: the *only* scheduling route in a bracket-run
         # tournament, since those turn off manual match requests.
         @ui.refreshable
@@ -131,7 +163,9 @@ async def render_player_dashboard():
                 return
             matchups = await bracket_service.list_open_matches_for_user(user.id)
             if not matchups:
+                _report_stale_deep_link(deep_link)
                 return
+            openers: dict = {}
             with ui.card().classes('card-full-width'):
                 ui.label('Upcoming matches to schedule').classes('section-title')
                 ui.label('From your bracket. Pick a time and your opponent confirms.').classes(
@@ -183,10 +217,22 @@ async def render_player_dashboard():
                                 on_submit=after,
                             ).open()
 
+                        openers[bm.id] = do_schedule
                         ui.button(
                             f'Schedule game {number}' if best_of > 1 else 'Schedule',
                             icon='event', on_click=do_schedule,
                         ).props('color=primary flat')
+
+            # `openers` only holds this viewer's own open matchups — the listing
+            # is already scoped to them — so an id from a forwarded link cannot
+            # open someone else's dialog; it falls through to the stale notice.
+            matchup_id = deep_link.pop('matchup_id', None)
+            if matchup_id is not None:
+                opener = openers.get(int(matchup_id))
+                if opener is not None:
+                    await opener()
+                else:
+                    _notify_stale_schedule_link()
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament',

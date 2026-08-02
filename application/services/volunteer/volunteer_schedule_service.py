@@ -652,10 +652,26 @@ class VolunteerScheduleService:
             description=f'**{volunteer.preferred_name}** can no longer cover this. '
                         'The slot is open again.',
         )
+        # The ask is "find cover", so the button opens the roster on the day of
+        # the shift rather than on whatever day the schedule defaults to. The
+        # community's own clock, not any reader's: the roster day is a property
+        # of the schedule, and a coordinator abroad must not be sent to
+        # yesterday's board.
+        from application.services import notification_links
+        from application.services.timezone_service import TimezoneService
+        from application.utils.timezone import to_local
+
+        day = None
+        if shift.starts_at:
+            local = to_local(shift.starts_at, await TimezoneService.tenant_timezone_name())
+            day = local.date() if local else None
+        link = await notification_links.admin_volunteer_schedule(day, label='Find cover')
         for coordinator in recipients.values():
             discord_id = getattr(coordinator, 'discord_id', None)
             if not discord_id or not getattr(coordinator, 'dm_notifications', True):
                 continue
             discord_queue.enqueue(
-                self.discord_service.send_dm(int(discord_id), message, embed=embed)
+                self.discord_service.send_dm(
+                    int(discord_id), message, embed=embed, link=link,
+                )
             )
