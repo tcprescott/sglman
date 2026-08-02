@@ -99,6 +99,7 @@ VIEW_MATCH_ACK = 'match_ack'
 VIEW_CREW_ACK = 'crew_ack'
 VIEW_VOLUNTEER_ACK = 'volunteer_ack'
 VIEW_UNWATCH = 'match_watch'
+VIEW_RESCHEDULE_AGREE = 'reschedule_agree'
 
 InteractionHandler = Callable[[discord.Interaction], Awaitable[None]]
 ViewFactory = Callable[..., discord.ui.View]
@@ -260,6 +261,20 @@ class DiscordService:
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         """Send a DM with a match Acknowledge button."""
         return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_MATCH_ACK](match_id), embed=embed, link=link)
+
+    async def send_dm_with_reschedule_agree_button(
+        self,
+        user_id: int,
+        message: str,
+        request_id: int,
+        embed: Optional[discord.Embed] = None,
+        link: Optional[DMLink] = None,
+    ) -> Tuple[bool, str]:
+        """Send a DM with the opponent's Agree button for a reschedule request."""
+        return await self.send_dm(
+            user_id, message, lambda: _view_factories[VIEW_RESCHEDULE_AGREE](request_id),
+            embed=embed, link=link,
+        )
 
     async def send_dm_with_crew_acknowledgment_button(
         self,
@@ -694,6 +709,9 @@ class MockDiscordService:
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed, link=link)
+
+    async def send_dm_with_reschedule_agree_button(self, user_id: int, message: str, request_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:

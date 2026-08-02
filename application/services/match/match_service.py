@@ -230,7 +230,7 @@ class MatchService(
         """
         # Scoped read, so a foreign tournament id raises here rather than
         # producing a match that points across the tenant boundary: is_staff
-        # short-circuits the check below, and _assert_within_tournament_hours
+        # short-circuits the check below, and assert_within_tournament_hours
         # falls through for a tournament it cannot see. submit_match_request
         # already does this.
         require_found(
@@ -259,7 +259,7 @@ class MatchService(
         except ValueError as e:
             raise ValueError("That date or time doesn't look right. Check the format and try again.") from e
 
-        await self._assert_within_tournament_hours(scheduled_at, tournament_id)
+        await self.assert_within_tournament_hours(scheduled_at, tournament_id)
 
         # Resolve every referenced user up-front (one query per role list) so a
         # missing ID doesn't leave an orphan Match row behind.
@@ -331,6 +331,7 @@ class MatchService(
         tournament_id: Optional[int] = None,
         scheduled_date: Optional[str] = None,
         scheduled_time: Optional[str] = None,
+        scheduled_at: Optional[datetime] = None,
         player_ids: Optional[List[int]] = None,
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
@@ -350,6 +351,13 @@ class MatchService(
             tournament_id: New tournament ID
             scheduled_date: New date
             scheduled_time: New time
+            scheduled_at: New time as a resolved UTC instant, for a service-to-
+                service caller that already holds one (an approved reschedule
+                request). Takes precedence over the date/time strings, which
+                exist for form input. Passing an instant avoids a
+                UTC → wall-clock → UTC round trip that would resolve an
+                ambiguous DST hour on whichever clock the *decider* happens to
+                be reading, not the clock the request was made on.
             player_ids: New player list
             commentator_ids: New commentator list
             tracker_ids: New tracker list
@@ -401,6 +409,7 @@ class MatchService(
             tournament_id=tournament_id,
             scheduled_date=scheduled_date,
             scheduled_time=scheduled_time,
+            scheduled_at=scheduled_at,
             players_changed=players_changed,
         )
 
@@ -423,11 +432,12 @@ class MatchService(
             )
             update_fields['tournament_id'] = tournament_id
 
-        if scheduled_date and scheduled_time:
+        if scheduled_at is None and scheduled_date and scheduled_time:
             # Parse datetime - input is on the caller's display clock, stored UTC
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
+        if scheduled_at is not None:
             # Validate against the target tournament (new one on reassignment).
-            await self._assert_within_tournament_hours(
+            await self.assert_within_tournament_hours(
                 scheduled_at, tournament_id if tournament_id is not None else match.tournament_id,
             )
             update_fields['scheduled_at'] = scheduled_at
@@ -689,7 +699,7 @@ class MatchService(
     ) -> None:
         await self.participants.seed_acknowledgments(match, player_ids, actor)
 
-    async def _assert_within_tournament_hours(
+    async def assert_within_tournament_hours(
         self, scheduled_at: datetime, tournament_id: Optional[int],
     ) -> None:
         """Reject scheduled_at (UTC) outside the window for its date.

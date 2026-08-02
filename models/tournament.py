@@ -101,6 +101,13 @@ class Tournament(Model):
     # tournament schedules only the matchups the bracket produced. Staff can turn
     # it back on per tournament.
     allow_player_match_requests = fields.BooleanField(default=True)
+    # Whether a player may ask staff to move or call off one of their matches
+    # (``MatchRescheduleService``). Independent of the toggle above: a
+    # bracket-run tournament schedules only what the bracket produced, but the
+    # players in it still need a way to say "we can't make Saturday" without
+    # finding a staff member. Off means the control is hidden *and* the service
+    # refuses, since the REST route reaches past the hidden control.
+    allow_reschedule_requests = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

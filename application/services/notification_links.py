@@ -33,8 +33,10 @@ from application.utils.app_links import (
     SCHEDULE,
     USERS,
     VOL_SCHEDULE,
+    admin_reschedule_request_url,
     admin_url,
     home_url,
+    player_reschedule_url,
     player_schedule_url,
 )
 from application.utils.discord_messages import DMLink
@@ -101,6 +103,17 @@ async def player_schedule(
     return await link_for(label, player_schedule_url(bracket_match_id))
 
 
+async def player_reschedule(
+    match_id: int, *, label: str = 'Ask again',
+) -> Optional[DMLink]:
+    """"Ask again" — the Player tab with this match's request form open.
+
+    A decline is only a dead end if the DM makes it one. The requester's next
+    move is a different time, so the button opens the form that takes one.
+    """
+    return await link_for(label, player_reschedule_url(match_id))
+
+
 async def player_matches() -> Optional[DMLink]:
     """"View your matches" — the Player tab, the reader's own schedule."""
     return await link_for('View your matches', home_url(HOME_PLAYER))
@@ -129,6 +142,18 @@ async def community_home() -> Optional[DMLink]:
 async def admin_match(match_id: int, *, label: str = 'Open the match') -> Optional[DMLink]:
     """The admin Schedule board filtered to one match — where crew gets refilled."""
     return await link_for(label, admin_url(SCHEDULE, match_id=match_id))
+
+
+async def admin_reschedule_request(
+    request_id: int, *, label: str = 'Review the request',
+) -> Optional[DMLink]:
+    """The decision dialog for one reschedule request, open on arrival.
+
+    ``admin_match`` would land staff on the board filtered to the match, which
+    shows the schedule but not the ask: the proposed time and the player's
+    reason are the whole point and live in the dialog.
+    """
+    return await link_for(label, admin_reschedule_request_url(request_id))
 
 
 async def admin_volunteer_schedule(

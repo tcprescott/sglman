@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import StationSide
+from .enums import RescheduleRequestKind, RescheduleRequestStatus, StationSide
 
 
 class Match(Model):
@@ -248,3 +248,72 @@ class MatchStreamVolunteer(Model):
         unique_together = ('user', 'match')
         table = 'matchstreamvolunteer'
         indexes = (('match',),)  # composite is user-first; match-only fan-out lookup uncovered
+
+
+class MatchRescheduleRequest(Model):
+    """A player asking staff to move or call off a match they are playing in.
+
+    Players never reschedule or cancel their own matches. They ask, and someone
+    who could already have done it decides — ``approve`` runs the *existing*
+    ``MatchService.update_match`` / ``cancel_match``, so there is no second way
+    to change a match and no authority here that ``can_crud_match`` did not
+    already grant.
+
+    Unlike :class:`MatchStreamVolunteer`, which is advisory and needs no answer,
+    this exists to be decided, hence ``status`` and the decision columns.
+
+    The free text is load-bearing, which is worth saying because the proctor's
+    review note was just removed for being a textarea to fill in mid-event. That
+    reasoning does not carry over: a proctor raising a dispute is standing in the
+    room with the admin, while this request exists precisely so a player does not
+    have to find anyone. The ask and the answer travel as words or not at all.
+    """
+
+    id = fields.IntField(pk=True)
+    # Untyped FKs elsewhere in this module predate the mypy ratchet; annotating
+    # the ones on a new model keeps its baseline at zero.
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='reschedule_requests', on_delete=fields.CASCADE
+    )
+    match: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Match', related_name='reschedule_requests', on_delete=fields.CASCADE
+    )
+    requested_by: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='reschedule_requests', on_delete=fields.CASCADE
+    )
+    kind = fields.CharEnumField(
+        RescheduleRequestKind, default=RescheduleRequestKind.RESCHEDULE, max_length=20
+    )
+    # Null means "I can't make this slot, you pick" — a player who knows only
+    # that they are unavailable still has something worth saying. Always null on
+    # a CANCEL, which proposes no time by definition.
+    proposed_at = fields.DatetimeField(null=True)
+    reason = fields.TextField()
+    # Snapshotted at submission because approving overwrites ``Match.scheduled_at``:
+    # without this, a decided request no longer records what it moved away from.
+    original_scheduled_at = fields.DatetimeField(null=True)
+    # Set when the match's *other* player agrees, and read as a signal, never a
+    # gate — staff decide either way. Only meaningful on a two-player match; see
+    # ``MatchRescheduleService`` for why a third player skips this entirely.
+    opponent_agreed_at = fields.DatetimeField(null=True)
+    status = fields.CharEnumField(
+        RescheduleRequestStatus, default=RescheduleRequestStatus.PENDING, max_length=20
+    )
+    # SET_NULL: deleting a staff account must not delete a player's request.
+    decided_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.User', related_name='decided_reschedule_requests', null=True,
+        on_delete=fields.SET_NULL,
+    )
+    decided_at = fields.DatetimeField(null=True)
+    decision_note = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'matchreschedulerequest'
+        # No unique constraint: "one open request per player per match" is a
+        # rule about PENDING rows only, which a composite unique cannot express
+        # (and encoding ``status`` into one would forbid a second request after
+        # a decline — exactly the retry the decline DM invites). The service
+        # enforces it; the index below is what makes that check cheap.
+        indexes = (('match', 'status'), ('status',))

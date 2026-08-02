@@ -225,6 +225,35 @@ class MatchNotificationLevel(str, Enum):
     ALL = 'all'
 
 
+class RescheduleRequestKind(str, Enum):
+    """What a player is asking staff to do with their match.
+
+    Two kinds rather than two models: both travel the same queue, carry the same
+    reason, and are decided by the same person with the same authority. Only the
+    approval branches, into ``update_match`` or ``cancel_match``.
+    """
+
+    RESCHEDULE = 'reschedule'
+    CANCEL = 'cancel'
+
+
+class RescheduleRequestStatus(str, Enum):
+    """Where a request has got to.
+
+    Three ways to stop being pending without being refused, and they are kept
+    apart on purpose. ``WITHDRAWN`` is the requester taking it back;
+    ``SUPERSEDED`` is another request on the same match having settled it, which
+    staff did not decide at all; ``DECLINED`` is the only one that means someone
+    looked at this ask and said no.
+    """
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    DECLINED = 'declined'
+    WITHDRAWN = 'withdrawn'
+    SUPERSEDED = 'superseded'
+
+
 class ChallongeMatchState(str, Enum):
     """Mirrors Challonge's match states relevant to scheduling."""
 

@@ -61,3 +61,22 @@ def player_schedule_url(bracket_match_id: int) -> str:
     there left them at a dialog whose sole button was Close.
     """
     return home_url(HOME_PLAYER, schedule=bracket_match_id)
+
+
+def player_reschedule_url(match_id: int) -> str:
+    """The Player tab with the reschedule-request dialog for one match open.
+
+    Where a declined request ends: "ask again with a different time" is a real
+    next step, so the DM's button opens the form rather than the tab.
+    """
+    return home_url(HOME_PLAYER, reschedule=match_id)
+
+
+def admin_reschedule_request_url(request_id: int) -> str:
+    """The admin Schedule board with one request's decision dialog open.
+
+    Not the board filtered to the match: staff opening this have been asked to
+    decide, and the reason and proposed time live in the dialog. Landing them on
+    a row they must then find and click is the failure the link rules name.
+    """
+    return admin_url(SCHEDULE, reschedule_request=request_id)

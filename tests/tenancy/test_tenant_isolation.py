@@ -20,6 +20,9 @@ from application.repositories.match_stream_volunteer_repository import (
 )
 from application.repositories.match_watcher_repository import MatchWatcherRepository
 from application.repositories.preset_repository import PresetRepository
+from application.repositories.reschedule_request_repository import (
+    RescheduleRequestRepository,
+)
 from application.repositories.stage_repository import StageRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.volunteer_position_repository import VolunteerPositionRepository
@@ -29,6 +32,7 @@ from models import (
     Equipment,
     Feedback,
     Match,
+    MatchRescheduleRequest,
     MatchStreamVolunteer,
     MatchWatcher,
     Preset,
@@ -219,6 +223,40 @@ async def test_match_stream_volunteer_does_not_leak(tenants):
         assert await MatchStreamVolunteerRepository.names_by_match([ma.id, mb.id]) == {
             mb.id: ['offerer'],
         }
+
+
+async def test_reschedule_request_does_not_leak(tenants):
+    a, b = tenants
+    user = await User.create(discord_id=905, username='asker')
+    with tenant_scope(a.id):
+        ta = await Tournament.create(name='A Cup')
+        ma = await Match.create(tournament=ta)
+        ra = await MatchRescheduleRequest.create(
+            match=ma, requested_by=user, reason='clash',
+        )
+    with tenant_scope(b.id):
+        tb = await Tournament.create(name='B Cup')
+        mb = await Match.create(tournament=tb)
+        rb = await MatchRescheduleRequest.create(
+            match=mb, requested_by=user, reason='clash',
+        )
+
+    with tenant_scope(a.id):
+        assert [r.id for r in await RescheduleRequestRepository.list_pending()] == [ra.id]
+        assert [r.id for r in await RescheduleRequestRepository.list_for_user(user)] == [ra.id]
+        assert await RescheduleRequestRepository.pending_count() == 1
+        assert await RescheduleRequestRepository.pending_match_ids() == [ma.id]
+        # The other tenant's match id must not resolve a count, even when named.
+        assert await RescheduleRequestRepository.pending_by_match([ma.id, mb.id]) == {ma.id: 1}
+        # get_by_id is the sharpest leak point: a forwarded request id.
+        assert await RescheduleRequestRepository.get_by_id(rb.id) is None
+        assert await RescheduleRequestRepository.get_pending_for(mb.id, user.id) is None
+
+    with tenant_scope(b.id):
+        assert [r.id for r in await RescheduleRequestRepository.list_pending()] == [rb.id]
+        assert [r.id for r in await RescheduleRequestRepository.list_for_user(user)] == [rb.id]
+        assert await RescheduleRequestRepository.pending_by_match([ma.id, mb.id]) == {mb.id: 1}
+        assert await RescheduleRequestRepository.get_by_id(ra.id) is None
 
 
 async def test_challonge_connection_is_per_tenant(tenants):

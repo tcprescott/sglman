@@ -25,8 +25,11 @@ from models import (
     MatchAcknowledgment,
     MatchNotificationLevel,
     MatchPlayers,
+    MatchRescheduleRequest,
     MatchStreamVolunteer,
     MatchWatcher,
+    RescheduleRequestKind,
+    RescheduleRequestStatus,
     Stage,
     Tenant,
     Tournament,
@@ -227,6 +230,58 @@ async def seed_matches_for_tenant(
     ):
         for volunteer in volunteers:
             await MatchStreamVolunteer.get_or_create(user=volunteer, match=m, tenant=tenant)
+
+    # Reschedule requests — every state, because each one renders differently
+    # and three of them only ever appear in a player's own history. The two live
+    # ones sit on upcoming matches (that is the only place staff can act); the
+    # decided ones sit on matches that have since been played, which is what the
+    # history actually looks like a week into an event.
+    reschedule_specs = [
+        # Waiting on staff, opponent already agreed — the queue's happy path.
+        (scheduled_match, players[0], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.PENDING, now + timedelta(hours=6),
+         "Work shifted my evening — could we push this back a few hours?",
+         None, True),
+        # The other kind, also waiting: a call-off nobody has answered yet.
+        (stage3_match, players[1], RescheduleRequestKind.CANCEL,
+         RescheduleRequestStatus.PENDING, None,
+         "My opponent and I both forfeited this bracket — it doesn't need playing.",
+         None, False),
+        # Granted, with staff's own words on it.
+        (future_match, players[3], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.APPROVED, now + timedelta(days=1, hours=2),
+         "Flight lands too late for the original slot.",
+         "Moved you to the later slot — stage 1 is free then.", True),
+        # Same match, the losing half of a race: settled by the row above rather
+        # than refused by anyone.
+        (future_match, players[1], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.SUPERSEDED, now + timedelta(days=2),
+         "Can we move this to Sunday instead?", None, False),
+        # Refused, which is the one outcome that must carry an explanation.
+        (finished_match, players[0], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.DECLINED, now - timedelta(days=2),
+         "Could we start an hour later?",
+         "Sorry — the restream slot is locked in with the broadcast team.", False),
+        # Taken back by the person who asked; staff never had to decide.
+        (in_progress_match, players[2], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.WITHDRAWN, now - timedelta(hours=20),
+         "Might have a conflict — will confirm.", None, False),
+    ]
+    for match_row, asker, kind, status, proposed, reason, note, agreed in reschedule_specs:
+        decided = status is not RescheduleRequestStatus.PENDING
+        await MatchRescheduleRequest.get_or_create(
+            match=match_row, requested_by=asker, status=status, tenant=tenant,
+            defaults={
+                "kind": kind,
+                "proposed_at": proposed,
+                "reason": reason,
+                "original_scheduled_at": match_row.scheduled_at,
+                "opponent_agreed_at": now - timedelta(hours=1) if agreed else None,
+                "decision_note": note,
+                "decided_by": staff if decided and note else None,
+                "decided_at": now - timedelta(hours=2) if decided else None,
+            },
+        )
 
     # Notification preferences — one person per level, because the level is what
     # the fan-out reads: a fixture set where everyone is on ALL cannot show that
