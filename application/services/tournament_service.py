@@ -9,6 +9,7 @@ from datetime import date
 from typing import Any, Dict, Optional, Tuple
 
 from application.repositories import (
+    DiscordTournamentGrantRepository,
     PresetRepository,
     RaceRoomProfileRepository,
     RacetimeBotRepository,
@@ -20,7 +21,7 @@ from application.services.system_config_service import SystemConfigService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tournament_config import validate_tournament_config
 from application.tenant_context import require_tenant_id
-from models import Tournament, User
+from models import Tournament, TournamentGrant, User
 
 # Sentinel distinguishing "caller did not supply preset_id" (leave as-is) from an
 # explicit None (detach the preset). Update-only; create defaults to no preset.
@@ -35,6 +36,7 @@ class TournamentService:
         self.preset_repository = PresetRepository()
         self.racetime_bot_repository = RacetimeBotRepository()
         self.race_room_profile_repository = RaceRoomProfileRepository()
+        self.discord_grant_repository = DiscordTournamentGrantRepository()
         self.audit_service = AuditService()
 
     async def _resolve_preset_id(self, preset_id: Optional[int]) -> Optional[int]:
@@ -395,12 +397,28 @@ class TournamentService:
             {'tournament_id': tournament_id},
         )
 
+    async def _clear_discord_provenance(
+        self, tournament: Tournament, target: User, grant: TournamentGrant
+    ) -> None:
+        """Drop any record that the guild-role sync made this grant.
+
+        A staff member touching the grant by hand makes it theirs, so the sync
+        must stop treating it as its own to revoke — the same pinning
+        ``UserRoleRepository.add`` does by promoting a row to ``RoleSource.MANUAL``.
+        """
+        await self.discord_grant_repository.remove(target, tournament.id, grant)
+
     async def add_admin(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
             "Only Staff can grant Tournament Admin",
         )
-        await tournament.admins.add(target)
+        await self.repository.set_tournament_grant(
+            tournament, target, TournamentGrant.TOURNAMENT_ADMIN, granted=True
+        )
+        await self._clear_discord_provenance(
+            tournament, target, TournamentGrant.TOURNAMENT_ADMIN
+        )
         await self.audit_service.write_log(
             actor,
             AuditActions.TOURNAMENT_ADMIN_GRANTED,
@@ -412,7 +430,12 @@ class TournamentService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can revoke Tournament Admin",
         )
-        await tournament.admins.remove(target)
+        await self.repository.set_tournament_grant(
+            tournament, target, TournamentGrant.TOURNAMENT_ADMIN, granted=False
+        )
+        await self._clear_discord_provenance(
+            tournament, target, TournamentGrant.TOURNAMENT_ADMIN
+        )
         await self.audit_service.write_log(
             actor,
             AuditActions.TOURNAMENT_ADMIN_REVOKED,
@@ -424,7 +447,12 @@ class TournamentService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can grant Crew Coordinator",
         )
-        await tournament.crew_coordinators.add(target)
+        await self.repository.set_tournament_grant(
+            tournament, target, TournamentGrant.CREW_COORDINATOR, granted=True
+        )
+        await self._clear_discord_provenance(
+            tournament, target, TournamentGrant.CREW_COORDINATOR
+        )
         await self.audit_service.write_log(
             actor,
             AuditActions.TOURNAMENT_CREW_COORDINATOR_GRANTED,
@@ -436,7 +464,12 @@ class TournamentService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can revoke Crew Coordinator",
         )
-        await tournament.crew_coordinators.remove(target)
+        await self.repository.set_tournament_grant(
+            tournament, target, TournamentGrant.CREW_COORDINATOR, granted=False
+        )
+        await self._clear_discord_provenance(
+            tournament, target, TournamentGrant.CREW_COORDINATOR
+        )
         await self.audit_service.write_log(
             actor,
             AuditActions.TOURNAMENT_CREW_COORDINATOR_REVOKED,

@@ -21,6 +21,20 @@ class Role(str, Enum):
     SUPER_ADMIN = 'super_admin'
 
 
+class TournamentGrant(str, Enum):
+    """Per-tournament authority a Discord role can confer.
+
+    Deliberately **not** ``Role`` members: these grant a row on
+    ``Tournament.admins`` / ``Tournament.crew_coordinators`` for one tournament,
+    where a ``Role`` grants tenant-wide authority through ``UserRole``. A guild
+    role is guild-wide, so a mapping that names one of these must also name the
+    tournament it lands on.
+    """
+
+    TOURNAMENT_ADMIN = 'tournament_admin'
+    CREW_COORDINATOR = 'crew_coordinator'
+
+
 # Sentinel ``discord_id`` for the reserved system :class:`User` that automation
 # (workers, racetime/Discord bot handlers, ETL, qualifier scoring) acts as. A
 # real snowflake is always a large positive integer, so ``0`` can never collide

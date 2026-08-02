@@ -12,7 +12,7 @@ import pytest
 
 from application.services.discord import discord_role_mapping_service as drms
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
-from models import Role, RoleSource
+from models import Role, RoleSource, TournamentGrant
 from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -30,6 +30,14 @@ def make_service():
     svc.role_repository.add = AsyncMock()
     svc.role_repository.remove = AsyncMock()
     svc.role_repository.list_for_user_by_source = AsyncMock(return_value=[])
+    svc.grant_repository = MagicMock()
+    svc.grant_repository.list_for_user = AsyncMock(return_value=[])
+    svc.grant_repository.add = AsyncMock()
+    svc.grant_repository.remove = AsyncMock()
+    svc.tournament_repository = MagicMock()
+    svc.tournament_repository.get_by_id = AsyncMock(return_value=None)
+    svc.tournament_repository.has_tournament_grant = AsyncMock(return_value=False)
+    svc.tournament_repository.set_tournament_grant = AsyncMock()
     svc.audit_service = make_audit_double()
     return svc
 
@@ -39,7 +47,18 @@ def make_user(user_id=1, discord_id=123):
 
 
 def mapping(discord_role_id, app_role):
-    return SimpleNamespace(discord_role_id=discord_role_id, app_role=app_role)
+    return SimpleNamespace(
+        discord_role_id=discord_role_id, app_role=app_role,
+        tournament_grant=None, tournament_id=None, tournament=None,
+    )
+
+
+def tournament_mapping(discord_role_id, grant, tournament_id=7, is_active=True):
+    return SimpleNamespace(
+        discord_role_id=discord_role_id, app_role=None,
+        tournament_grant=grant, tournament_id=tournament_id,
+        tournament=SimpleNamespace(id=tournament_id, is_active=is_active),
+    )
 
 
 @pytest.fixture
@@ -181,7 +200,117 @@ class TestSyncUserRoles:
 
         svc.role_repository.add.assert_not_awaited()
         svc.role_repository.remove.assert_not_awaited()
-        assert summary == {'granted': [], 'revoked': [], 'skipped': None}
+        assert summary == {
+            'granted': [], 'revoked': [],
+            'tournament_granted': [], 'tournament_revoked': [],
+            'skipped': None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# per-tournament grants (Tournament.admins / .crew_coordinators)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncTournamentGrants:
+    async def test_grants_mapped_tournament_admin(self, patch_deps):
+        membership = patch_deps(member_result=(True, {222}))
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(
+            return_value=[tournament_mapping(222, TournamentGrant.TOURNAMENT_ADMIN)]
+        )
+        tournament = SimpleNamespace(id=7, is_active=True)
+        svc.tournament_repository.get_by_id = AsyncMock(return_value=tournament)
+        user = make_user()
+
+        summary = await svc.sync_user_roles(user)
+
+        svc.tournament_repository.set_tournament_grant.assert_awaited_once_with(
+            tournament, user, TournamentGrant.TOURNAMENT_ADMIN, granted=True,
+        )
+        svc.grant_repository.add.assert_awaited_once_with(
+            user, tournament, TournamentGrant.TOURNAMENT_ADMIN,
+        )
+        membership.assert_awaited_once_with(user)
+        assert summary['tournament_granted'] == ['tournament_admin:7']
+        action = svc.audit_service.write_log.await_args.args[1]
+        assert action == 'tournament.admin_granted'
+
+    async def test_hand_made_grant_is_not_claimed_by_the_sync(self, patch_deps):
+        # Already a Tournament Admin with no provenance row: staff granted it.
+        # Recording provenance now would let a later sync revoke their grant.
+        patch_deps(member_result=(True, {222}))
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(
+            return_value=[tournament_mapping(222, TournamentGrant.TOURNAMENT_ADMIN)]
+        )
+        svc.tournament_repository.has_tournament_grant = AsyncMock(return_value=True)
+
+        summary = await svc.sync_user_roles(make_user())
+
+        svc.grant_repository.add.assert_not_awaited()
+        svc.tournament_repository.set_tournament_grant.assert_not_awaited()
+        assert summary['tournament_granted'] == []
+
+    async def test_revokes_when_the_discord_role_is_gone(self, patch_deps):
+        patch_deps(member_result=(True, set()))
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(
+            return_value=[tournament_mapping(222, TournamentGrant.CREW_COORDINATOR)]
+        )
+        tournament = SimpleNamespace(id=7, is_active=True)
+        svc.tournament_repository.get_by_id = AsyncMock(return_value=tournament)
+        svc.grant_repository.list_for_user = AsyncMock(return_value=[
+            SimpleNamespace(tournament_id=7, grant=TournamentGrant.CREW_COORDINATOR),
+        ])
+        user = make_user()
+
+        summary = await svc.sync_user_roles(user)
+
+        svc.tournament_repository.set_tournament_grant.assert_awaited_once_with(
+            tournament, user, TournamentGrant.CREW_COORDINATOR, granted=False,
+        )
+        svc.grant_repository.remove.assert_awaited_once_with(
+            user, 7, TournamentGrant.CREW_COORDINATOR,
+        )
+        assert summary['tournament_revoked'] == ['crew_coordinator:7']
+        action = svc.audit_service.write_log.await_args.args[1]
+        assert action == 'tournament.crew_coordinator_revoked'
+
+    async def test_inactive_tournament_revokes_rather_than_grants(self, patch_deps):
+        # The guild role is still held; the event is over. Authority ends with it.
+        patch_deps(member_result=(True, {222}))
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(
+            return_value=[
+                tournament_mapping(222, TournamentGrant.TOURNAMENT_ADMIN, is_active=False)
+            ]
+        )
+        svc.tournament_repository.get_by_id = AsyncMock(
+            return_value=SimpleNamespace(id=7, is_active=False)
+        )
+        svc.grant_repository.list_for_user = AsyncMock(return_value=[
+            SimpleNamespace(tournament_id=7, grant=TournamentGrant.TOURNAMENT_ADMIN),
+        ])
+
+        summary = await svc.sync_user_roles(make_user())
+
+        assert summary['tournament_granted'] == []
+        assert summary['tournament_revoked'] == ['tournament_admin:7']
+
+    async def test_role_mappings_do_not_touch_tournament_grants(self, patch_deps):
+        patch_deps(member_result=(True, {111}))
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(
+            return_value=[mapping(111, Role.PROCTOR)]
+        )
+
+        summary = await svc.sync_user_roles(make_user())
+
+        svc.grant_repository.add.assert_not_awaited()
+        svc.tournament_repository.set_tournament_grant.assert_not_awaited()
+        assert summary['granted'] == ['proctor']
+        assert summary['tournament_granted'] == []
 
 
 # ---------------------------------------------------------------------------
@@ -199,9 +328,82 @@ class TestMappingCrud:
             app_role=Role.PROCTOR, actor=actor,
         )
 
-        svc.mapping_repository.create.assert_awaited_once_with(42, 111, 'Mods', Role.PROCTOR)
+        svc.mapping_repository.create.assert_awaited_once_with(
+            42, 111, 'Mods', app_role=Role.PROCTOR, tournament_grant=None, tournament_id=None,
+        )
         action = svc.audit_service.write_log.await_args.args[1]
         assert action == 'discord_role.mapping_added'
+
+    async def test_add_tournament_mapping_creates_and_audits(self):
+        svc = make_service()
+        svc.tournament_repository.get_by_id = AsyncMock(
+            return_value=SimpleNamespace(id=7, is_active=True)
+        )
+        svc.mapping_repository.get_tournament_match = AsyncMock(return_value=None)
+
+        await svc.add_mapping(
+            guild_id=42, discord_role_id=222, discord_role_name='Event Admins',
+            tournament_grant=TournamentGrant.TOURNAMENT_ADMIN, tournament_id=7,
+            actor=make_user(),
+        )
+
+        svc.mapping_repository.create.assert_awaited_once_with(
+            42, 222, 'Event Admins', app_role=None,
+            tournament_grant=TournamentGrant.TOURNAMENT_ADMIN, tournament_id=7,
+        )
+        details = svc.audit_service.write_log.await_args.args[2]
+        assert details['tournament_id'] == 7
+
+    async def test_add_mapping_rejects_both_kinds_at_once(self):
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mapping(
+                guild_id=42, discord_role_id=222, discord_role_name='Mods',
+                app_role=Role.PROCTOR,
+                tournament_grant=TournamentGrant.TOURNAMENT_ADMIN, tournament_id=7,
+                actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_add_mapping_rejects_neither_kind(self):
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mapping(
+                guild_id=42, discord_role_id=222, discord_role_name='Mods',
+                actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_tournament_grant_requires_a_tournament(self):
+        # A guild role is guild-wide, so there is nothing to scope it to without one.
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mapping(
+                guild_id=42, discord_role_id=222, discord_role_name='Event Admins',
+                tournament_grant=TournamentGrant.CREW_COORDINATOR,
+                actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_app_role_rejects_a_tournament(self):
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mapping(
+                guild_id=42, discord_role_id=111, discord_role_name='Mods',
+                app_role=Role.PROCTOR, tournament_id=7, actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_tournament_from_another_tenant_is_not_found(self):
+        svc = make_service()
+        svc.tournament_repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError):
+            await svc.add_mapping(
+                guild_id=42, discord_role_id=222, discord_role_name='Event Admins',
+                tournament_grant=TournamentGrant.TOURNAMENT_ADMIN, tournament_id=999,
+                actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
 
     async def test_add_mapping_rejects_duplicate(self):
         svc = make_service()

@@ -53,6 +53,8 @@ async def add_mapping(
         discord_role_id=body.discord_role_id,
         discord_role_name=body.discord_role_name,
         app_role=body.app_role,
+        tournament_grant=body.tournament_grant,
+        tournament_id=body.tournament_id,
         actor=actor,
     )
 

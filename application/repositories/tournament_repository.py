@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Tournament, TournamentPlayers
+from models import Tournament, TournamentGrant, TournamentPlayers
 
 
 class TournamentRepository(TenantScopedRepository[Tournament]):
@@ -273,6 +273,33 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         """
         return await scoped(TournamentPlayers.filter(tournament=tournament)).prefetch_related('user')
     
+    @staticmethod
+    async def set_tournament_grant(
+        tournament: Tournament, user, grant: TournamentGrant, granted: bool
+    ) -> None:
+        """Add or remove one ``admins`` / ``crew_coordinators`` row.
+
+        The relation is chosen by ``grant`` so callers reconciling a set of
+        grants (the Discord role sync) don't branch on it themselves. Both
+        Tortoise operations are idempotent.
+        """
+        relation = (
+            tournament.admins if grant == TournamentGrant.TOURNAMENT_ADMIN
+            else tournament.crew_coordinators
+        )
+        await (relation.add(user) if granted else relation.remove(user))
+
+    @staticmethod
+    async def has_tournament_grant(
+        tournament_id: int, user, grant: TournamentGrant
+    ) -> bool:
+        """Whether ``user`` currently holds ``grant`` on this tenant's tournament."""
+        field = (
+            'admins__id' if grant == TournamentGrant.TOURNAMENT_ADMIN
+            else 'crew_coordinators__id'
+        )
+        return await scoped(Tournament.filter(id=tournament_id, **{field: user.id})).exists()
+
     @staticmethod
     async def get_crew_owners(tournament_id: int) -> List:
         """The people responsible for a tournament's crew: its admins and its

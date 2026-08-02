@@ -61,6 +61,7 @@ from .enums import (
     StationFormat,
     StationSide,
     SyncStatus,
+    TournamentGrant,
     VolunteerAvailabilityStatus,
 )
 from .equipment import Equipment, EquipmentLoan
@@ -91,7 +92,14 @@ from .tournament import (
     TournamentPlayers,
     TriforceText,
 )
-from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
+from .user import (
+    ApiToken,
+    DiscordRoleMapping,
+    DiscordTournamentGrant,
+    User,
+    UserRole,
+    WebPushSubscription,
+)
 from .volunteer import (
     PlayerAvailability,
     VolunteerAssignment,
@@ -150,6 +158,7 @@ __all__ = [
     'Commentator',
     'DiscordEventSource',
     'DiscordRoleMapping',
+    'DiscordTournamentGrant',
     # discord events
     'DiscordScheduledEvent',
     # equipment
@@ -204,6 +213,7 @@ __all__ = [
     'TenantJoinRequest',
     'TenantMembership',
     'Tournament',
+    'TournamentGrant',
     'TournamentNotificationPreference',
     'TournamentPlayers',
     'Tracker',

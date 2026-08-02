@@ -325,14 +325,23 @@ Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (
 
 ### discord_role_mapping_service.py — DiscordRoleMappingService
 
-CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discord guild roles onto application roles. Feature doc: [discord.md](../features/discord.md).
+CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discord guild roles onto application roles **and** onto per-tournament grants. Feature doc: [discord.md](../features/discord.md).
 
 | Method | Returns | Description |
 |---|---|---|
 | `list_all_mappings()` / `list_mappings(guild_id)` | `List[DiscordRoleMapping]` | All mappings, or those scoped to one guild. |
-| `add_mapping(guild_id, discord_role_id, discord_role_name, app_role, actor)` | `DiscordRoleMapping` | Staff-only; rejects exact duplicates (`ValueError`); audits `discord_role.mapping_added`. |
+| `add_mapping(guild_id, discord_role_id, discord_role_name, actor, app_role=None, tournament_grant=None, tournament_id=None)` | `DiscordRoleMapping` | Staff-only. Exactly one of `app_role` / `tournament_grant` — the latter requires a `tournament_id` in this tenant, the former forbids one. Rejects exact duplicates; every violation is a `ValueError`. Audits `discord_role.mapping_added`. |
 | `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
-| `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'skipped'}` summary. |
+| `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles **and** tournament grants. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'tournament_granted', 'tournament_revoked', 'skipped'}` summary. |
+
+The tournament half reconciles `Tournament.admins` / `.crew_coordinators` against
+`DiscordTournamentGrant` provenance rows rather than the join tables, which is what
+keeps a hand-made Tournament Admin safe: no provenance row, no revocation. A grant
+the user already holds by hand is left unclaimed, and a mapping onto an **inactive**
+tournament counts as absent, so ending an event takes back the authority its guild
+role conferred. `TournamentService.add_admin` / `add_crew_coordinator` (and their
+removes) delete the provenance row, pinning the grant as manual the way
+`UserRoleRepository.add` promotes a row to `RoleSource.MANUAL`.
 
 Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `TenantService.list_tenants` (the per-tenant `discord_guild_id` is the routing key), `AuthService`, `AuditService`.
 

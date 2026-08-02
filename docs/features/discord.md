@@ -110,6 +110,19 @@ latency stays at roughly one Discord round-trip instead of scaling with tenant
 count. Per-tenant mappings are `DiscordRoleMapping` rows managed on the admin
 **Discord Roles** tab.
 
+### Two kinds of mapping
+
+A mapping grants **either** a community-wide `Role` **or** a `TournamentGrant`
+(Tournament Admin / Crew Coordinator) on one named tournament. Both shapes live in
+`DiscordRoleMapping` and appear together on the admin tab; `add_mapping` enforces
+the either/or, since a cross-column rule is not something the database can express.
+
+A tournament grant must name its tournament — a guild role is guild-wide, so there
+is otherwise nothing to scope the authority to. Once the tournament is no longer
+`is_active` the mapping counts as absent: authority ends with the event, and
+re-activating the tournament hands it back on the next sync. What each grant
+actually permits: [authentication.md](../reference/authentication.md#roles).
+
 ### Source tracking is the safety guard
 
 `UserRole.source` (`RoleSource`: `manual` | `discord`) is what makes full-sync safe:
@@ -117,6 +130,14 @@ count. Per-tenant mappings are `DiscordRoleMapping` rows managed on the admin
 - Roles granted by a staff member are `manual` and are **never** auto-revoked.
 - Roles granted by the sync are `discord` and are revoked when the Discord role goes away.
 - A manual grant over a previously-synced role upgrades the row to `manual`, pinning it against future revocation.
+
+Tournament grants get the same guarantee from a different mechanism.
+`Tournament.admins` and `.crew_coordinators` are bare join tables with no column to
+record who made a row, so the sync writes a `DiscordTournamentGrant` alongside each
+grant it creates and revokes only what it finds there. A grant the user already
+holds is left unclaimed, and `TournamentService.add_admin` /
+`add_crew_coordinator` (and their removes) delete the provenance row, which pins
+the grant as manual.
 
 ### Fail-open
 

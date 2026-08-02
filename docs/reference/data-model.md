@@ -44,7 +44,10 @@ community owns or produces is tenant-scoped.**
 `ChallongeApiUsage.period` → `(tenant, period)`; `VolunteerProfile` →
 `(tenant, user)` (opt-in is per tenant, so `User.volunteer_profiles` is a plural
 reverse relation, not a one-to-one); `DiscordRoleMapping` →
-`(tenant, discord_role_id, app_role)`; `UserRole` → `(user, role, tenant)`. The
+`(tenant, discord_role_id, app_role)` and
+`(tenant, discord_role_id, tournament_grant, tournament)`;
+`DiscordTournamentGrant` → `(tournament, user, grant)`;
+`UserRole` → `(user, role, tenant)`. The
 `RacetimeBotTenant` grant is unique on `(bot, tenant)`; `RacetimeRoom.slug` stays
 **globally** unique — it is the tenant-routing key for inbound racetime events.
 
@@ -168,6 +171,15 @@ Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Aut
 | `SYNC_ADMIN` = `'sync_admin'` | Manages upstream sync config: SpeedGaming links, Discord events, racetime bot/room config |
 | `QUALIFIER_ADMIN` = `'qualifier_admin'` | Administers async qualifiers (also grantable per-qualifier via its `admins` M2M) |
 | `SUPER_ADMIN` = `'super_admin'` | Global platform role (manages tenants on `/platform`). Its `UserRole` rows carry `tenant=NULL` and stay visible inside any tenant request; the only role that may be tenant-less. |
+
+### `TournamentGrant`
+
+Used by `DiscordRoleMapping.tournament_grant` and `DiscordTournamentGrant.grant`
+(`max_length=32`): `TOURNAMENT_ADMIN` = `'tournament_admin'`, `CREW_COORDINATOR` =
+`'crew_coordinator'`. Deliberately **not** `Role` members — each names a row on
+`Tournament.admins` / `.crew_coordinators`, which is authority over one event
+rather than the whole community, so a mapping that names one must also name its
+tournament. Capabilities: [authentication.md](authentication.md#roles).
 
 ### `FeatureFlag`
 
@@ -465,16 +477,44 @@ Constraints: `unique_together ('user', 'role', 'tenant')`; index on `role` (the 
 
 #### `DiscordRoleMapping`
 
-Maps a Discord guild role to an application `Role`. Consulted at login by the Discord role sync; managed by Staff on the admin **Discord Roles** tab — see [discord.md](../features/discord.md).
+Maps a Discord guild role to either an application `Role` (community-wide) or a
+`TournamentGrant` on one tournament. Consulted at login by the Discord role sync;
+managed by Staff on the admin **Discord Roles** tab — see [discord.md](../features/discord.md).
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `guild_id` | `BigIntField` | not null | Discord guild snowflake. A guild may be shared by several tenants, so this alone does not isolate a tenant — reads combine it with the tenant scope |
 | `discord_role_id` | `BigIntField` | not null | Discord role snowflake |
 | `discord_role_name` | `CharField(100)` | not null | Cached label for the admin table |
-| `app_role` | `CharEnumField(Role)` | not null | `max_length=32` |
+| `app_role` | `CharEnumField(Role)` | **null** | `max_length=32`. Set for a community-wide grant |
+| `tournament_grant` | `CharEnumField(TournamentGrant)` | **null** | `max_length=32`. Set for a per-tournament grant |
+| `tournament` | FK → `Tournament` | **null**, `CASCADE` | Required with `tournament_grant`, forbidden with `app_role`. `related_name='discord_role_mappings'` |
 
-Constraints: `unique_together ('tenant', 'discord_role_id', 'app_role')`. A Discord role may map to several app roles and vice-versa.
+Constraints: `unique_together ('tenant', 'discord_role_id', 'app_role')` and
+`('tenant', 'discord_role_id', 'tournament_grant', 'tournament')`. Postgres treats
+NULLs as distinct, so each key only bites on rows of its own shape. A Discord role
+may map to several grants and vice-versa.
+
+**Exactly one of `app_role` / `tournament_grant` is set** — a cross-column rule the
+database cannot express, so `DiscordRoleMappingService.add_mapping` is the only
+sanctioned writer and raises `ValueError` on either violation.
+
+#### `DiscordTournamentGrant`
+
+Provenance for a per-tournament grant the guild-role sync made. `Tournament.admins`
+and `.crew_coordinators` are bare join tables with nowhere to record who created a
+row, so this is their `UserRole.source` equivalent: the sync only revokes grants
+recorded here, leaving a staff member's hand-made Tournament Admin alone. A manual
+grant or revoke through `TournamentService` deletes the row, pinning the grant as
+manual.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='discord_tournament_grants'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='discord_tournament_grants'` |
+| `grant` | `CharEnumField(TournamentGrant)` | not null | `max_length=32` |
+
+Constraints: `unique_together ('tournament', 'user', 'grant')`.
 
 #### `ApiToken`
 
