@@ -242,7 +242,7 @@ async def render_player_dashboard(schedule: int | None = None):
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             # Not sortable: a joined roster of names.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
-            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room',
+            {'name': 'stage', 'label': 'Stage', 'field': 'stage',
              'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},

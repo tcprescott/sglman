@@ -36,7 +36,7 @@ class MatchRepository:
                 'tournament',
                 'players',
                 'players__user',
-                'stream_room',
+                'stage',
                 'generated_seed',
                 'commentators',
                 'commentators__user',
@@ -102,7 +102,7 @@ class MatchRepository:
     async def get_all(
         *,
         tournament_ids: Optional[List[int]] = None,
-        stream_room_ids: Optional[List[int]] = None,
+        stage_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
         exclude_racetime: bool = False,
@@ -114,7 +114,7 @@ class MatchRepository:
 
         Args:
             tournament_ids: Filter by tournament IDs
-            stream_room_ids: Filter by stream room IDs
+            stage_ids: Filter by stage IDs
             only_upcoming: Only return matches that haven't finished
             user_discord_id: Filter matches where user is a player
             exclude_racetime: Drop matches whose tournament runs on racetime.gg
@@ -142,8 +142,8 @@ class MatchRepository:
         if tournament_ids:
             query = query.filter(tournament_id__in=tournament_ids)
         
-        if stream_room_ids:
-            query = query.filter(stream_room_id__in=stream_room_ids)
+        if stage_ids:
+            query = query.filter(stage_id__in=stage_ids)
         
         if user_discord_id:
             query = query.filter(players__user__discord_id=user_discord_id)
@@ -153,7 +153,7 @@ class MatchRepository:
                 'tournament',
                 'players',
                 'players__user',
-                'stream_room',
+                'stage',
                 'generated_seed',
                 'commentators',
                 'commentators__user',
@@ -176,7 +176,7 @@ class MatchRepository:
         tournament_id: int,
         scheduled_at: datetime,
         comment: Optional[str] = None,
-        stream_room_id: Optional[int] = None,
+        stage_id: Optional[int] = None,
         is_stream_candidate: bool = False,
         title: Optional[str] = None,
     ) -> Match:
@@ -187,7 +187,7 @@ class MatchRepository:
             tournament_id: Tournament ID
             scheduled_at: When the match is scheduled
             comment: Optional comment
-            stream_room_id: Optional stream room ID
+            stage_id: Optional stage ID
             is_stream_candidate: Whether this match is a stream candidate
             title: Optional display label (names the Discord event and race room)
 
@@ -199,7 +199,7 @@ class MatchRepository:
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
-            stream_room_id=stream_room_id,
+            stage_id=stage_id,
             is_stream_candidate=is_stream_candidate,
             title=title,
         )
@@ -314,10 +314,10 @@ class MatchRepository:
         Get all matches for the public schedule view, ordered by scheduled time.
 
         Returns:
-            List of matches with tournament/players/stream_room/seed prefetched
+            List of matches with tournament/players/stage/seed prefetched
         """
         return await scoped(Match.all()).prefetch_related(
-            'tournament', 'players', 'stream_room', 'generated_seed'
+            'tournament', 'players', 'stage', 'generated_seed'
         ).order_by('scheduled_at')
 
     @staticmethod
@@ -325,7 +325,7 @@ class MatchRepository:
         start: datetime,
         end: datetime,
         exclude_finished: bool = True,
-        require_stream_room: bool = True,
+        require_stage: bool = True,
     ) -> List[Match]:
         """
         Get matches scheduled in the half-open window ``[start, end)``.
@@ -337,7 +337,7 @@ class MatchRepository:
             start: Inclusive lower bound (aware UTC)
             end: Exclusive upper bound (aware UTC)
             exclude_finished: If True, exclude matches that are finished
-            require_stream_room: If True, only include matches with a stream room
+            require_stage: If True, only include matches with a stage
 
         Returns:
             List of matches with all related data prefetched
@@ -350,11 +350,11 @@ class MatchRepository:
         if exclude_finished:
             query = query.filter(finished_at=None)
 
-        if require_stream_room:
-            query = query.exclude(stream_room=None)
+        if require_stage:
+            query = query.exclude(stage=None)
 
         return await query.prefetch_related(
-            'tournament', 'stream_room', 'players', 'players__user',
+            'tournament', 'stage', 'players', 'players__user',
             'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).order_by('scheduled_at')
 

@@ -1,7 +1,7 @@
 """Unit tests for SystemConfigService.
 
 These tests patch the model-layer methods (SystemConfiguration.get_or_none,
-Match.all, StreamRoom.filter) so the typed accessors and the
+Match.all, Stage.filter) so the typed accessors and the
 ``get_event_window`` fallback chain are exercised without a database.
 """
 
@@ -302,14 +302,14 @@ class TestGetMaxConcurrentPlayers:
 class TestGetMaxConcurrentStages:
     async def test_returns_configured_value(self, stub_storage, monkeypatch):
         stub_storage['max_concurrent_stages'] = '3'
-        # StreamRoom.filter shouldn't be called when config has a positive value.
+        # Stage.filter shouldn't be called when config has a positive value.
         assert await SystemConfigService.get_max_concurrent_stages() == 3
 
     async def test_falls_back_to_default(self, stub_storage):
         assert await SystemConfigService.get_max_concurrent_stages(default=4) == 4
 
-    async def test_falls_back_to_active_streamroom_count(self, stub_storage, monkeypatch):
-        # No config, no default -> count of active stream rooms.
+    async def test_falls_back_to_active_stage_count(self, stub_storage, monkeypatch):
+        # No config, no default -> count of active stages.
         class FakeFilter:
             def __init__(self, count):
                 self._count = count
@@ -318,7 +318,7 @@ class TestGetMaxConcurrentStages:
                 return self._count
 
         monkeypatch.setattr(
-            'application.services.system_config_service.StreamRoom.filter',
+            'application.services.system_config_service.Stage.filter',
             lambda **_kw: FakeFilter(5),
         )
         assert await SystemConfigService.get_max_concurrent_stages() == 5

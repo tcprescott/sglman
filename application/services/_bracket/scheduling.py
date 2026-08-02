@@ -68,7 +68,7 @@ class SchedulingMixin:
     def _player_schedule_kwargs(match_kwargs: dict) -> dict:
         """Narrow a schedule call to what a player is allowed to set.
 
-        ``ScheduleGameRequest`` carries ``stream_room_id``, so a player can put one
+        ``ScheduleGameRequest`` carries ``stage_id``, so a player can put one
         on the wire. Rejecting is deliberate rather than dropping it silently: a
         request that quietly did less than it said would look like the stage
         assignment had been lost.
@@ -390,7 +390,7 @@ class SchedulingMixin:
         lookup would be an N+1 across a 64-match bracket on a page that repaints
         on every match event.
 
-        ``watch_url`` is public on purpose (D4): the stream room's URL when the
+        ``watch_url`` is public on purpose (D4): the stage's URL when the
         game has one, else the racetime room — both already anonymous on the
         schedule, so the public bracket exposes nothing new.
         """
@@ -451,8 +451,8 @@ class SchedulingMixin:
     @staticmethod
     def _watch_url(match: Optional[Match], room: Optional[Any]) -> str:
         """Where a viewer watches a live game: the stream, else the race room."""
-        stream_room = getattr(match, 'stream_room', None) if match else None
-        url = getattr(stream_room, 'stream_url', None)
+        stage = getattr(match, 'stage', None) if match else None
+        url = getattr(stage, 'stream_url', None)
         if url and url.lower().startswith(('http://', 'https://')):
             return url
         return getattr(room, 'url', '') or ''

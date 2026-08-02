@@ -2,7 +2,7 @@
 
 Four ``MatchTableView`` instances (home schedule, player dashboard, admin
 schedule, proctor board) live in one browser session. They used to persist
-``state_filter`` / ``tournament_filter`` / ``stream_room_filter`` under those
+``state_filter`` / ``tournament_filter`` / ``stage_filter`` under those
 bare names, so changing the State filter on the admin Schedule tab silently
 retargeted the proctor station and both home boards — and whichever board was
 visited last overwrote every per-board default. ``_skey`` namespaces the keys
@@ -36,7 +36,7 @@ def _view(storage_key='match', default_state_filter=None):
     view.default_state_filter = default_state_filter
     # The badge reads every filter widget; an unbuilt view has none.
     view.tournament_filter = None
-    view.stream_room_filter = None
+    view.stage_filter = None
     view.state_filter = None
     view.day_filter = None
     return view
@@ -50,7 +50,7 @@ def test_two_views_do_not_share_a_filter_key():
 
 def test_every_filter_key_is_namespaced_by_the_view():
     view = _view('proctor')
-    for name in ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter'):
+    for name in ('state_filter', 'tournament_filter', 'stage_filter', 'day_filter'):
         assert view._skey(name).startswith('proctor:')
         assert view._skey(name) != name
 
@@ -58,14 +58,14 @@ def test_every_filter_key_is_namespaced_by_the_view():
 def test_skey_keeps_the_filter_names_distinct_within_a_view():
     view = _view('admin_schedule')
     keys = {view._skey(n) for n in
-            ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter')}
+            ('state_filter', 'tournament_filter', 'stage_filter', 'day_filter')}
     assert len(keys) == 4
 
 
 def test_no_bare_session_key_survives_in_the_view():
     """The whole bug was un-namespaced ``tenant_session_*`` calls."""
     src = inspect.getsource(MatchTableView)
-    for name in ('state_filter', 'tournament_filter', 'stream_room_filter', 'day_filter'):
+    for name in ('state_filter', 'tournament_filter', 'stage_filter', 'day_filter'):
         for call in ('tenant_session_get', 'tenant_session_set'):
             assert f"{call}('{name}'" not in src, (
                 f"{call}('{name}') is not namespaced — every board would share it; "
@@ -145,7 +145,7 @@ class _FakeSelect:
 def test_badge_does_not_count_a_boards_own_default_as_a_custom_filter():
     view = _view('admin_schedule', ['Scheduled', 'Checked In', 'Started', 'Finished'])
     view.tournament_filter = None
-    view.stream_room_filter = None
+    view.stage_filter = None
     view.state_filter = _FakeSelect(['Finished', 'Started', 'Checked In', 'Scheduled'])
     assert view._active_filter_count() == 0
 
@@ -153,7 +153,7 @@ def test_badge_does_not_count_a_boards_own_default_as_a_custom_filter():
 def test_badge_counts_a_state_filter_moved_off_the_boards_default():
     view = _view('admin_schedule', ['Scheduled', 'Checked In', 'Started', 'Finished'])
     view.tournament_filter = None
-    view.stream_room_filter = None
+    view.stage_filter = None
     view.state_filter = _FakeSelect(['Finished'])
     assert view._active_filter_count() == 1
 

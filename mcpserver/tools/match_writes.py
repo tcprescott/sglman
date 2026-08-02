@@ -90,7 +90,7 @@ async def create_match(
     player_ids: List[int],
     tenant: TenantArg = None,
     comment: Optional[str] = None,
-    stream_room_id: Optional[int] = None,
+    stage_id: Optional[int] = None,
     commentator_ids: Optional[List[int]] = None,
     tracker_ids: Optional[List[int]] = None,
     is_stream_candidate: bool = False,
@@ -108,7 +108,7 @@ async def create_match(
         scheduled_time=scheduled_time,
         player_ids=player_ids,
         comment=comment,
-        stream_room_id=stream_room_id,
+        stage_id=stage_id,
         commentator_ids=commentator_ids,
         tracker_ids=tracker_ids,
         is_stream_candidate=is_stream_candidate,
@@ -212,17 +212,17 @@ async def set_match_stream_candidate(
     return await _match_response(match_id)
 
 
-async def assign_match_stream_room(
+async def assign_match_stage(
     match_id: int,
     tenant: TenantArg = None,
-    stream_room_id: Optional[int] = None,
+    stage_id: Optional[int] = None,
 ) -> MatchResponse:
-    """Put a match in a stream room, or take it out.
+    """Put a match in a stage, or take it out.
 
-    `stream_room_id` comes from `list_stream_rooms`; omit it to clear the room.
+    `stage_id` comes from `list_stages`; omit it to clear the stage.
     """
     actor = current_actor().user
-    await MatchService().assign_stage(match_id, stream_room_id, actor=actor)
+    await MatchService().assign_stage(match_id, stage_id, actor=actor)
     return await _match_response(match_id)
 
 
@@ -433,7 +433,7 @@ def register_tools(mcp: FastMCP) -> None:
     write_tool(update_match, 'Update match')
     write_tool(delete_match, 'Delete match', destructive=True)
     write_tool(set_match_stream_candidate, 'Set stream candidate')
-    write_tool(assign_match_stream_room, 'Assign stream room')
+    write_tool(assign_match_stage, 'Assign stage')
     write_tool(assign_match_stations, 'Assign stations')
     write_tool(seat_match, 'Check in match')
     write_tool(start_match, 'Start match')

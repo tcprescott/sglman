@@ -39,7 +39,7 @@ def service():
     svc.repository.occupied_stations = AsyncMock(return_value={})
     svc.station_repository = MagicMock()
     svc.station_repository.active_names = AsyncMock(return_value=set())
-    svc.stream_room_repository = MagicMock()
+    svc.stage_repository = MagicMock()
     svc.tournament_repository = MagicMock()
     # create_match resolves the tournament through the scoped repository before
     # anything else, so the default has to be "it exists in this community".
@@ -74,8 +74,8 @@ def make_match(**overrides):
         scheduled_at=datetime(2025, 1, 15, 19, 30),
         comment=None,
         tournament=SimpleNamespace(name="Test Tournament", seed_generator=None, is_racetime_enabled=False),
-        stream_room=None,
-        stream_room_id=None,
+        stage=None,
+        stage_id=None,
         generated_seed=None,
         is_stream_candidate=False,
         players=[],
@@ -335,16 +335,16 @@ class TestAssignStage:
         service.repository.update = AsyncMock()
         # The tenant guard hits the DB; this suite is pure-mock.
         mocker.patch(
-            'application.services.match.match_service.StreamRoomService'
+            'application.services.match.match_service.StageService'
             '.require_in_tenant',
             AsyncMock(),
         )
 
-        await service.assign_stage(match_id=1, stream_room_id=4)
+        await service.assign_stage(match_id=1, stage_id=4)
 
         assert [e.event_type for e in captured_events] == [EventType.MATCH_STAGE_ASSIGNED]
         assert captured_events[0].payload == {
-            'match_id': 1, 'tournament_id': 9, 'stream_room_id': 4,
+            'match_id': 1, 'tournament_id': 9, 'stage_id': 4,
         }
 
     async def test_publishes_stage_cleared_event_when_unassigned(self, service, captured_events):
@@ -354,10 +354,10 @@ class TestAssignStage:
         service.repository.get_by_id = AsyncMock(return_value=match)
         service.repository.update = AsyncMock()
 
-        await service.assign_stage(match_id=1, stream_room_id=None)
+        await service.assign_stage(match_id=1, stage_id=None)
 
         assert [e.event_type for e in captured_events] == [EventType.MATCH_STAGE_CLEARED]
-        assert captured_events[0].payload['stream_room_id'] is None
+        assert captured_events[0].payload['stage_id'] is None
 
 
 # ---------------------------------------------------------------------------

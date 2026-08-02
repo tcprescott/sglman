@@ -21,7 +21,7 @@ from application.tenant_context import require_tenant_id
 from application.utils.timezone import combine_local
 from models import (
     Match,
-    StreamRoom,
+    Stage,
     User,
 )
 
@@ -85,7 +85,7 @@ class ReportsService:
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
-        matches = await query.prefetch_related('tournament', 'players', 'stream_room')
+        matches = await query.prefetch_related('tournament', 'players', 'stage')
 
         windows: List[Tuple[datetime, datetime, int, Match]] = []
         for match in matches:
@@ -113,7 +113,7 @@ class ReportsService:
             for ws, we, count, match in windows:
                 if ws <= current <= we:
                     active += count
-                    if match.stream_room_id:
+                    if match.stage_id:
                         on_stream += count
                     ids.append(match.id)
             intervals.append(current)
@@ -156,7 +156,7 @@ class ReportsService:
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
-        matches = await query.prefetch_related('tournament', 'players', 'players__user', 'stream_room')
+        matches = await query.prefetch_related('tournament', 'players', 'players__user', 'stage')
         out: List[Match] = []
         for match in matches:
             window = self._match_window(match)
@@ -184,7 +184,7 @@ class ReportsService:
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
-        matches = await query.prefetch_related('tournament', 'stream_room', 'players')
+        matches = await query.prefetch_related('tournament', 'stage', 'players')
 
         rows: List[Dict] = []
         per_tournament: Dict[int, Dict] = {}
@@ -210,7 +210,7 @@ class ReportsService:
                 'tournament_name': match.tournament.name if match.tournament else '',
                 'scheduled_at': scheduled,
                 'state': match.current_state,
-                'stream_room': match.stream_room.name if match.stream_room else '',
+                'stage': match.stage.name if match.stage else '',
                 'start_delay_min': start_delay,
                 'duration_min': duration,
                 'confirmation_lag_min': confirmation_lag,
@@ -283,7 +283,7 @@ class ReportsService:
         if tournament_id:
             match_query = match_query.filter(tournament_id=tournament_id)
         matches = await match_query.prefetch_related(
-            'tournament', 'stream_room',
+            'tournament', 'stage',
             'commentators', 'commentators__user',
             'trackers', 'trackers__user',
         )
@@ -308,7 +308,7 @@ class ReportsService:
                     'match_id': match.id,
                     'tournament_name': match.tournament.name if match.tournament else '',
                     'scheduled_at': self._local(match.scheduled_at),
-                    'stream_room': match.stream_room.name if match.stream_room else '',
+                    'stage': match.stage.name if match.stage else '',
                     'is_stream_candidate': match.is_stream_candidate,
                     'commentators_approved': comm_approved,
                     'commentators_total': comm_total,
@@ -367,21 +367,21 @@ class ReportsService:
             'contribution_rows': contribution_rows,
         }
 
-    # --- Stream Room Utilization ------------------------------------------
+    # --- Stage Utilization ------------------------------------------
 
-    async def stream_room_utilization(
+    async def stage_utilization(
         self,
         start: datetime,
         end: datetime,
         tournament_id: Optional[int] = None,
-        stream_room_id: Optional[int] = None,
+        stage_id: Optional[int] = None,
     ) -> Dict:
         start = self._local(start)
         end = self._local(end)
 
-        rooms = await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
-        if stream_room_id:
-            rooms = [r for r in rooms if r.id == stream_room_id]
+        stages = await Stage.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
+        if stage_id:
+            stages = [r for r in stages if r.id == stage_id]
 
         match_query = Match.all().filter(
             scheduled_at__gte=start,
@@ -390,18 +390,18 @@ class ReportsService:
         )
         if tournament_id:
             match_query = match_query.filter(tournament_id=tournament_id)
-        matches = await match_query.prefetch_related('tournament', 'stream_room')
+        matches = await match_query.prefetch_related('tournament', 'stage')
 
         unplaced_candidates = [
             m for m in matches
-            if m.is_stream_candidate and m.stream_room_id is None
+            if m.is_stream_candidate and m.stage_id is None
         ]
 
-        per_room: Dict[int, Dict] = {}
-        for room in rooms:
-            per_room[room.id] = {
-                'stream_room_id': room.id,
-                'stream_room_name': room.name,
+        per_stage: Dict[int, Dict] = {}
+        for stage in stages:
+            per_stage[stage.id] = {
+                'stage_id': stage.id,
+                'stage_name': stage.name,
                 'scheduled_hours': 0.0,
                 'back_to_back_count': 0,
                 'gap_hours': 0.0,
@@ -409,7 +409,7 @@ class ReportsService:
             }
 
         for match in matches:
-            if match.stream_room_id is None or match.stream_room_id not in per_room:
+            if match.stage_id is None or match.stage_id not in per_stage:
                 continue
             window = self._match_window(match)
             if not window:
@@ -419,7 +419,7 @@ class ReportsService:
             we = min(we, end)
             if we <= ws:
                 continue
-            block = per_room[match.stream_room_id]
+            block = per_stage[match.stage_id]
             block['scheduled_hours'] += (we - ws).total_seconds() / 3600.0
             block['matches'].append({
                 'match_id': match.id,
@@ -429,7 +429,7 @@ class ReportsService:
                 'scheduled_at': self._local(match.scheduled_at),
             })
 
-        for block in per_room.values():
+        for block in per_stage.values():
             block['matches'].sort(key=lambda m: m['start'])
             prev_end = None
             gap_total = 0.0
@@ -445,7 +445,7 @@ class ReportsService:
             block['scheduled_hours'] = round(block['scheduled_hours'], 1)
 
         return {
-            'rooms': list(per_room.values()),
+            'stages': list(per_stage.values()),
             'unplaced_candidate_count': len(unplaced_candidates),
             'unplaced_candidates': unplaced_candidates,
         }

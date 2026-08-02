@@ -147,7 +147,7 @@ class AdminMatchDialog(BaseMatchDialog):
         # construction, and a synced match's roster already contains it — leaving
         # it out of the options would blank an existing player's chip.
         users = await self.user_service.get_community_people(include_inactive=True)
-        stream_rooms = await self.stream_room_service.get_all_stream_rooms()
+        stages = await self.stage_service.get_all_stages()
         tournaments, entrant_counts = await self.tournament_service.list_schedulable(
             keep_id=self.match.tournament_id if self.match else None,
         )
@@ -203,12 +203,12 @@ class AdminMatchDialog(BaseMatchDialog):
                     tournaments, defaults['tournament'], _ADMIN_NO_TOURNAMENTS_HINT,
                     entrant_counts=entrant_counts)
 
-                stream_room_options = {None: '(None)'}
-                stream_room_options.update({s.id: s.name for s in stream_rooms})
-                selected_stream_room = ui.select(
+                stage_options = {None: '(None)'}
+                stage_options.update({s.id: s.name for s in stages})
+                selected_stage = ui.select(
                     label='Stage',
-                    options=stream_room_options,
-                    value=defaults['stream_room'],
+                    options=stage_options,
+                    value=defaults['stage'],
                     with_input=True,
                 ).classes('input-full-width')
 
@@ -395,7 +395,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
             async def submit():
                 tournament_id = selected_tournament.value
-                stream_room_id = selected_stream_room.value
+                stage_id = selected_stage.value
                 date_value = date.value
                 time_value = time.value
                 comment_value = comment_input.value
@@ -421,9 +421,9 @@ class AdminMatchDialog(BaseMatchDialog):
                         clear_seed=self._clear_seed,
                         actor=actor,
                     )
-                    if (stream_room_id or None) != self.match.stream_room_id:
+                    if (stage_id or None) != self.match.stage_id:
                         await self.match_service.assign_stage(
-                            self.match.id, stream_room_id or None, actor=actor,
+                            self.match.id, stage_id or None, actor=actor,
                         )
                     if stream_candidate_checkbox.value != self.match.is_stream_candidate:
                         await self.match_service.set_stream_candidate(
@@ -447,8 +447,8 @@ class AdminMatchDialog(BaseMatchDialog):
                         is_stream_candidate=stream_candidate_checkbox.value,
                         actor=actor,
                     )
-                    if stream_room_id:
-                        await self.match_service.assign_stage(new_match.id, stream_room_id, actor=actor)
+                    if stage_id:
+                        await self.match_service.assign_stage(new_match.id, stage_id, actor=actor)
                     await bracket_link.apply_link(
                         self.bracket_service, selected_bracket_match, new_match.id, None,
                     )

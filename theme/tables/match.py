@@ -141,8 +141,8 @@ class MatchTableView(MatchTableHandlersMixin):
         self.table = None
         self.tournament_filter = None
         self.tournaments_list = []  # Will be populated in _setup_ui
-        self.stream_room_filter = None
-        self.stream_rooms_list = []  # Will be populated in _setup_ui
+        self.stage_filter = None
+        self.stages_list = []  # Will be populated in _setup_ui
         self.state_filter = None
         self.day_filter = None
         # Mobile collapsible-filter state (CSS gates the toggle/card to <1024px)
@@ -221,9 +221,9 @@ class MatchTableView(MatchTableHandlersMixin):
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
-    def _on_stream_room_filter_change(self, *_args, **_kwargs):
-        # Store the stream room ID value (namespaced by tenant — ids are global).
-        tenant_session_set(self._skey('stream_room_filter'), self.stream_room_filter.value)
+    def _on_stage_filter_change(self, *_args, **_kwargs):
+        # Store the stage ID value (namespaced by tenant — ids are global).
+        tenant_session_set(self._skey('stage_filter'), self.stage_filter.value)
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
@@ -237,7 +237,7 @@ class MatchTableView(MatchTableHandlersMixin):
         """
         try:
             await self._load_tournaments()
-            await self._load_stream_rooms()
+            await self._load_stages()
         finally:
             self._initializing = False
         await self.refresh()
@@ -260,7 +260,7 @@ class MatchTableView(MatchTableHandlersMixin):
         count = 0
         if self.tournament_filter and self.tournament_filter.value:
             count += 1
-        if self.stream_room_filter and self.stream_room_filter.value:
+        if self.stage_filter and self.stage_filter.value:
             count += 1
         default_states = set(self.default_state_filter or DEFAULT_STATE_FILTER)
         if self.state_filter and set(self.state_filter.value or []) != default_states:
@@ -296,15 +296,15 @@ class MatchTableView(MatchTableHandlersMixin):
             self.tournament_filter.update()
         self._update_filter_badge()
 
-    async def _load_stream_rooms(self):
-        """Load all stream room names for the filter using service layer."""
-        self.stream_rooms_list = await self.display_service.get_stream_rooms_for_filter()
+    async def _load_stages(self):
+        """Load all stage names for the filter using service layer."""
+        self.stages_list = await self.display_service.get_stages_for_filter()
         # Set initial value from storage or default to None (All Stages)
-        default_stream_room_id = tenant_session_get(self._skey('stream_room_filter'), None)
-        if self.stream_room_filter:
-            self.stream_room_filter.options = self.stream_rooms_list
-            self.stream_room_filter.value = default_stream_room_id
-            self.stream_room_filter.update()
+        default_stage_id = tenant_session_get(self._skey('stage_filter'), None)
+        if self.stage_filter:
+            self.stage_filter.options = self.stages_list
+            self.stage_filter.value = default_stage_id
+            self.stage_filter.update()
         self._update_filter_badge()
 
     def _setup_ui(self):
@@ -350,14 +350,14 @@ class MatchTableView(MatchTableHandlersMixin):
                         on_change=self._on_tournament_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
 
-                # Stream room filter
+                # Stage filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('Stage').classes('match-filter-label')
-                    self.stream_room_filter = ui.select(
+                    self.stage_filter = ui.select(
                         options=[],
                         value=None,
                         multiple=True,
-                        on_change=self._on_stream_room_filter_change
+                        on_change=self._on_stage_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
 
                 # State filter
@@ -404,7 +404,7 @@ class MatchTableView(MatchTableHandlersMixin):
         discord_id = app.storage.user.get('discord_id', None)
 
         # Register the column slot templates (see match_slots). The want_* flags
-        # mirror the callback availability so the seed/state/stream-room slots
+        # mirror the callback availability so the seed/state/stage slots
         # register exactly as before.
         register_body_slots(
             self.table,
@@ -419,8 +419,8 @@ class MatchTableView(MatchTableHandlersMixin):
             # viewer can run nothing: it carries the chips and timestamps, and
             # the capability flags inside it decide which buttons appear.
             want_state_slot=self.admin_controls,
-            want_stream_room_admin=self.admin_controls and self.on_set_stage is not None,
-            want_stream_room_readonly=self.on_set_stage is None,
+            want_stage_admin=self.admin_controls and self.on_set_stage is not None,
+            want_stage_readonly=self.on_set_stage is None,
         )
 
         # Register the mobile grid slot (see match_grid).
@@ -536,9 +536,9 @@ class MatchTableView(MatchTableHandlersMixin):
             if not tournament_ids:
                 tournament_ids = _MATCHES_NOTHING
 
-        stream_room_ids = None
-        if self.stream_room_filter and self.stream_room_filter.value:
-            stream_room_ids = self.stream_room_filter.value
+        stage_ids = None
+        if self.stage_filter and self.stage_filter.value:
+            stage_ids = self.stage_filter.value
 
         # When the active state filter shows only pre-finish states, exclude
         # finished/confirmed matches at the DB layer instead of hydrating the
@@ -554,7 +554,7 @@ class MatchTableView(MatchTableHandlersMixin):
 
         rows = await self.display_service.get_matches_for_display(
             tournament_ids=tournament_ids,
-            stream_room_ids=stream_room_ids,
+            stage_ids=stage_ids,
             only_upcoming=only_upcoming,
             user_discord_id=self.player_discord_id,
             exclude_racetime=self.exclude_racetime,
@@ -594,7 +594,7 @@ class MatchTableView(MatchTableHandlersMixin):
     def _stage_options(self):
         """The Stage select's choices, or ``None`` for a board that cannot set one.
 
-        Carried on every row rather than baked into the slot template: the rooms
+        Carried on every row rather than baked into the slot template: the stages
         load in a background task *after* the templates are registered, so a
         template built at registration time would offer an empty list forever.
         One shared list object per refresh, not a copy per row.
@@ -603,7 +603,7 @@ class MatchTableView(MatchTableHandlersMixin):
         absence of one — it is what the cell shows when nothing is assigned, and
         it has to be selectable to be reversible. ``Candidate`` follows: the
         answer before a stage is decided, writing ``is_stream_candidate`` rather
-        than a room (see ``match_slots.CANDIDATE_STAGE``).
+        than a stage (see ``match_slots.CANDIDATE_STAGE``).
         """
         if self.on_set_stage is None:
             return None
@@ -611,8 +611,8 @@ class MatchTableView(MatchTableHandlersMixin):
             {'label': 'No Stage', 'value': None},
             {'label': 'Candidate', 'value': CANDIDATE_STAGE},
         ] + [
-            {'label': name, 'value': room_id}
-            for room_id, name in (self.stream_rooms_list or {}).items()
+            {'label': name, 'value': stage_id}
+            for stage_id, name in (self.stages_list or {}).items()
         ]
 
     async def focus_matches(self, match_ids) -> None:

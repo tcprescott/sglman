@@ -6,10 +6,10 @@ class Match(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='matches', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
-    # SET_NULL: deleting a stream room (or seed) detaches its matches instead of
+    # SET_NULL: deleting a stage (or seed) detaches its matches instead of
     # cascade-deleting the entire match and its players/crew/acknowledgments.
-    stream_room = fields.ForeignKeyField(
-        'models.StreamRoom', related_name='matches', null=True, on_delete=fields.SET_NULL
+    stage = fields.ForeignKeyField(
+        'models.Stage', related_name='matches', null=True, on_delete=fields.SET_NULL
     )
     scheduled_at = fields.DatetimeField(null=True, index=True)
     seated_at = fields.DatetimeField(null=True) # now known as "Checked In"
@@ -74,8 +74,8 @@ class Match(Model):
 
     class Meta:
         # scheduled_at / finished_at are indexed at the field level; these FK
-        # columns drive the tournament- and room-scoped schedule/report filters.
-        indexes = (('tournament',), ('stream_room',))
+        # columns drive the tournament- and stage-scoped schedule/report filters.
+        indexes = (('tournament',), ('stage',))
 
 
 class MatchPlayers(Model):
@@ -113,9 +113,9 @@ class MatchAcknowledgment(Model):
         table = 'matchacknowledgment'
 
 
-class StreamRoom(Model):
+class Stage(Model):
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='stream_rooms', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='stages', on_delete=fields.CASCADE)
     name = fields.CharField(max_length=255)
     stream_url = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
@@ -123,7 +123,7 @@ class StreamRoom(Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
     class Meta:
-        table = 'streamroom'
+        table = 'stage'
         unique_together = (('tenant', 'name'),)
 
 

@@ -138,7 +138,7 @@ A leading "Home" tab backed by an `announcements_page` is present but commented 
 | Module | Tab | Responsibility |
 |---|---|---|
 | [`schedule.py`](../../pages/home_tabs/schedule.py) | Schedule | Public event schedule with crew signup, watch toggles |
-| [`stage_timeline.py`](../../pages/home_tabs/stage_timeline.py) | On Air | Per-day timeline of streamed matches grouped by stream room |
+| [`stage_timeline.py`](../../pages/home_tabs/stage_timeline.py) | On Air | Per-day timeline of streamed matches grouped by stage |
 | [`brackets.py`](../../pages/home_tabs/brackets.py) | Brackets | Anonymous browse path into the public bracket pages: one card per tournament with stages. `group_by_tournament` is pure (unit-tested); the single read is `BracketService.list_all_brackets` |
 | [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile, notification delivery, tournament opt-in; hosts the device-notification, identity-link and API-token sections |
 | [`player.py`](../../pages/home_tabs/player.py) | Player | The logged-in player's own match list and match requests; bracket matches to schedule |
@@ -172,11 +172,11 @@ The public event schedule with crew signup.
 
 ### On Air (`pages/home_tabs/stage_timeline.py`)
 
-`stage_timeline_tab()` — a per-day timeline of streamed matches grouped by stream room.
+`stage_timeline_tab()` — a per-day timeline of streamed matches grouped by stage.
 
 - Header: previous/next-day arrows, a Today button, a date input with calendar popup and Go button, plus a floating refresh button (`.refresh-button`). All handlers dispatch through `background_tasks.create`.
-- Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)`, grouped via `MatchService.group_matches_by_stream_room(matches)`; rooms sorted by name. The current date is the viewer's local today (see [../timezone-handling.md](../timezone-handling.md)).
-- Each room renders a card (name, optional "Watch Stream" link, match count) and one `match-card` per match: local time, status badge, tournament, players, approved commentators/trackers. Card borders are colour-coded by state (`.border-left-*`).
+- Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stage=True)`, grouped via `MatchService.group_matches_by_stage(matches)`; stages sorted by name. The current date is the viewer's local today (see [../timezone-handling.md](../timezone-handling.md)).
+- Each stage renders a card (name, optional "Watch Stream" link, match count) and one `match-card` per match: local time, status badge, tournament, players, approved commentators/trackers. Card borders are colour-coded by state (`.border-left-*`).
 - Match IDs link to `/admin/schedule` when `AuthService.can_view_admin(user)`; otherwise they are plain labels.
 
 ### Profile (`pages/home_tabs/player_edit_info.py`)
@@ -253,7 +253,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Schedule | Operations | Staff, Tournament Admin (any), Crew Coordinator (any) | — |
 | Users | Operations | Staff | — |
 | Tournaments | Operations | Staff, Tournament Admin (any) | — |
-| Stream Rooms | Operations | Staff, Stream Manager | — |
+| Stages | Operations | Staff, Stream Manager | — |
 | Presets | Online play | Staff, Preset Manager | — |
 | Randomizer Keys | Online play | Staff, Preset Manager | — |
 | Qualifiers | Online play | Staff, Qualifier Admin, qualifier admin (any) | `ASYNC_QUALIFIERS` |
@@ -283,7 +283,7 @@ A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `Auth
 
 | Tab | Params |
 |---|---|
-| Reports | `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, `category`, `page` |
+| Reports | `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stage_id`, `state`, `approval`, `action`, `focus`, `category`, `page` |
 | Schedule | `match_id` — focuses the board on one match (suspending its State filter) with a chip back to the full board |
 | Vol. Schedule | `day` — opens on that event day, ignored unless it is one of them |
 
@@ -297,7 +297,7 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 |---|---|---|
 | [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py) | Schedule | Match CRUD and the full lifecycle (seed / seat / start / finish / confirm) |
 | [`admin_users.py`](../../pages/admin_tabs/admin_users.py) | Users | User management with role filtering |
-| [`admin_settings.py`](../../pages/admin_tabs/admin_settings.py) | Tournaments, Stream Rooms | Tournament CRUD; stream room CRUD |
+| [`admin_settings.py`](../../pages/admin_tabs/admin_settings.py) | Tournaments, Stages | Tournament CRUD; stage CRUD |
 | [`triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py) | Triforce Texts | Moderation queue for triforce-text submissions |
 | [`admin_volunteer_roster.py`](../../pages/admin_tabs/admin_volunteer_roster.py) | Vol. Roster | Coordinator volunteer roster |
 | [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Vol. Schedule | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
@@ -338,7 +338,7 @@ Two strips sit above the board, each shown only to whoever can act on what it co
 | Set stage | Stage-column select, in the row (`access.assign_stream`) | none — writes on change | `MatchService.assign_stage`, or `set_stream_candidate` for the `Candidate` pseudo-stage |
 | Assign stations | Button next to players | `StationAssignmentDialog` | `MatchService.assign_stations` (via dialog) |
 
-**The Stage cell is one select, written in place.** Its options are the tenant's stream rooms plus a hardcoded **Candidate** pseudo-stage that stands for `Match.is_stream_candidate` — "this is going out, the stage is not decided yet". Choosing a room assigns it; choosing Candidate clears the room and sets the flag; clearing the select clears both. A match on a stage stops *showing* as a candidate (the stage is the more specific answer) but keeps the flag, because the crew-coverage reports count candidates. The options ride on each row (`stage_options`, attached by `MatchTableView._stage_options`) rather than being baked into the slot template, since the rooms load after the templates are registered.
+**The Stage cell is one select, written in place.** Its options are the tenant's stages plus a hardcoded **Candidate** pseudo-stage that stands for `Match.is_stream_candidate` — "this is going out, the stage is not decided yet". Choosing a stage assigns it; choosing Candidate clears the stage and sets the flag; clearing the select clears both. A match on a stage stops *showing* as a candidate (the stage is the more specific answer) but keeps the flag, because the crew-coverage reports count candidates. The options ride on each row (`stage_options`, attached by `MatchTableView._stage_options`) rather than being baked into the slot template, since the stages load after the templates are registered.
 
 On-site-only controls are hidden for racetime.gg tournaments (`Tournament.is_racetime_enabled`): the display row carries an `is_racetime` flag, and the slot templates replace **Check In** with a muted "racetime.gg" note and drop **Assign stations** — the race room drives the lifecycle. The services enforce the same rule (`seat_match` / `assign_stations` raise `ValueError`), so the guard holds for API callers too.
 
@@ -359,7 +359,7 @@ Two tab functions live in this module.
 
 **`admin_tournaments_page()`** — `TournamentTableView` over `Tournament.all()`. Columns: Name, Description, Seed Generator, Active, Players/Match, Avg Match Duration, Max Match Duration, Staff Administered, Player Count (the ID column is hidden). **Add Tournament** renders only when `AuthService.is_staff(actor)` and opens `TournamentDialog`; name clicks edit, player-count clicks open `TournamentPlayersDialog`. Listens for `selected_tab == 'Tournaments'` to refresh.
 
-**`admin_stream_rooms_page()`** — a hand-rolled `ui.table` (not a shared table view). Rows from `StreamRoomRepository.get_all()`: ID, Name, Stream URL (as a link), Active (icon). **Add Stream Room** renders only when `AuthService.can_manage_stream_rooms(actor)`; ID links and the mobile-card edit button emit an `edit` event opening `StreamRoomEditDialog`. Mobile grid mode via `:grid="Quasar.Screen.lt.md"` with a custom `item` card slot.
+**`admin_stages_page()`** — a hand-rolled `ui.table` (not a shared table view). Rows from `StageRepository.get_all()`: ID, Name, Stream URL (as a link), Active (icon). **Add Stage** renders only when `AuthService.can_manage_stages(actor)`; ID links and the mobile-card edit button emit an `edit` event opening `StageEditDialog`. Mobile grid mode via `:grid="Quasar.Screen.lt.md"` with a custom `item` card slot.
 
 ### Admin triforce texts (`pages/admin_tabs/triforce_texts.py`)
 
@@ -510,9 +510,9 @@ Behavior doc: [../features/admin-reports.md](../features/admin-reports.md). Data
 | _(none)_ | `dashboard.dashboard_page` | — | Four KPI cards (peak players vs capacity, peak stages vs max, match counts, stream-candidate crew coverage) + one clickable card per `REPORT_CARDS` entry |
 | `insights` | `insights.insights_page` | `start`, `end`, `bucket`, `tournament_id` | KPI strip + crew / volunteer-hours / tournament-health / admin-activity sections, each bucketed by week or month |
 | `capacity` | `capacity.capacity_page` | `start`, `end`, `tournament_id`, `focus` | ECharts line chart (active + on-stream players, dashed capacity line, dataZoom); "Top 5 peak times" with **Inspect** links; matches-active-at table when focused; raw per-interval forecast table |
-| `match_ops` | `match_ops.match_ops_page` | `start`, `end`, `tournament_id`, `state` | Per-tournament aggregates (matches, started, finished, avg start delay, avg/expected duration, on-time %) + per-match detail (start delay, duration, confirmation lag, room, player count) |
+| `match_ops` | `match_ops.match_ops_page` | `start`, `end`, `tournament_id`, `state` | Per-tournament aggregates (matches, started, finished, avg start delay, avg/expected duration, on-time %) + per-match detail (start delay, duration, confirmation lag, stage, player count) |
 | `crew` | `crew.crew_page` | `start`, `end`, `tournament_id`, `user_id`, `approval` | Coverage by match (approved/total commentators + trackers, stream-candidate flag, GAP marker) + contribution by person (signups, approvals, percentages, hours); a row click filters both tables by `user_id` |
-| `stream_rooms` | `stream_rooms.stream_rooms_page` | `start`, `end`, `tournament_id`, `stream_room_id` | Stacked horizontal bar of scheduled vs gap hours + per-room summary (matches, hours, back-to-back <15 min); a row click drills into that room's match list |
+| `stages` | `stages.stages_page` | `start`, `end`, `tournament_id`, `stage_id` | Stacked horizontal bar of scheduled vs gap hours + per-stage summary (matches, hours, back-to-back <15 min); a row click drills into that stage's match list |
 | `volunteers` | `volunteers.volunteers_page` | `start`, `end` | Understaffed-shift summary card + all-shifts table (position, label, start, filled/needed, status) |
 | `audit` | `audit.audit_page` | `start`, `end`, `user_id`, `action`, `page` | Server-side paginated log viewer over `AuditService.count_logs` / `list_logs`; an "Action contains" filter and a row-click user filter |
 | `telemetry` | `telemetry.telemetry_page` | `start`, `end`, `user_id`, `action`, `category`, `page` | Staff-only engagement view over `TelemetryService`: leaderboards plus the same paginated event log |
@@ -565,7 +565,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`confirmation_dialog.py`](../../theme/dialog/confirmation_dialog.py) | `ConfirmationDialog` | Generic confirm/cancel; the negative-styled confirm button runs the caller's `on_confirm`. `title=` names what is being confirmed (default `'Confirm'`), and the body renders `white-space: pre-line`, so `'\n\n'`-separated paragraphs survive | Start/Confirm actions, crew signup/undo, crew approve/un-approve, match/triforce-text/equipment/shift deletes |
 | [`match_result_dialog.py`](../../theme/dialog/match_result_dialog.py) | `MatchResultDialog` | Pick a winner → `MatchService.record_match_result`; the Finish callback then calls `MatchScheduleService.finish_match`. Two players (the common case) get one big button each, then a **second step** naming the pick before it commits — recording a winner settles the match and a proctor cannot undo it; three or more get a required Winner select and a Submit button | Admin schedule & proctor board Finish button |
 | [`station_assignment_dialog.py`](../../theme/dialog/station_assignment_dialog.py) | `StationAssignmentDialog` | One Station input per player (≤50 chars, blank clears); submits the full `{player_id: station}` map to `MatchService.assign_stations` | Admin schedule Check In flow & players-column button |
-| [`stream_room_edit_dialog.py`](../../theme/dialog/stream_room_edit_dialog.py) | `StreamRoomEditDialog` | Create/edit a `StreamRoom` | Admin Stream Rooms tab |
+| [`stage_edit_dialog.py`](../../theme/dialog/stage_edit_dialog.py) | `StageEditDialog` | Create/edit a `Stage` | Admin Stages tab |
 | [`tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | `TournamentDialog` | Create/edit a tournament. Name, description and Active are always visible; everything else lives in four `ui.expansion` sections — **Scheduling**, **Entry & administration**, **Seeds & randomizer**, **Integrations** — collapsed on create and expanded on edit, because exactly one field is required and the rest are defaulted. Seed-generator options come from `SeedGenerationService.AVAILABLE_RANDOMIZERS` ([seed-generation.md](seed-generation.md)); the **Racetime** block inside Integrations appears only when the actor passes `AuthService.can_manage_sync`, and its bot select offers only categories the tenant is authorized for | Admin Tournaments tab |
 | [`tournament_players_dialog.py`](../../theme/dialog/tournament_players_dialog.py) | `TournamentPlayersDialog` | The tournament's entrants, **read-write**: Remove per row and an Enrol select over `UserService.get_community_people()`. The service refuses a non-member, so the member-scoped picker is a convenience rather than the gate | Player-count link in tournament table |
 | [`send_message_dialog.py`](../../theme/dialog/send_message_dialog.py) | `SendMessageDialog` | Send a Discord DM (required textarea; default callback is `DiscordService.send_dm`) | `AdminUserDialog` "Send Message" |
@@ -634,11 +634,11 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 
 **Constructor flags**: `admin_controls` (this is an operator's board — station chips, no self-signup), `access` (a `MatchBoardAccess`; see below), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_set_stage`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Four **board-shaping** options exist for surfaces that need a different frame around the same rows (only the Proctor Station board uses them today): `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players).
 
-**Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button; options load asynchronously from `MatchDisplayService.get_tournaments_for_filter` / `get_stream_rooms_for_filter`. Values persist **per user per tenant** through `tenant_session_get` / `tenant_session_set` ([`application/utils/tenant_session.py`](../../application/utils/tenant_session.py)), which key under `app.storage.user['by_tenant'][<tenant_id>]` — a filter is meaningful only within its own community. State defaults to `DEFAULT_STATE_FILTER` (Scheduled + Checked In + Started). Below 1024px the filter card collapses behind a toggle with an active-filter count badge.
+**Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button; options load asynchronously from `MatchDisplayService.get_tournaments_for_filter` / `get_stages_for_filter`. Values persist **per user per tenant** through `tenant_session_get` / `tenant_session_set` ([`application/utils/tenant_session.py`](../../application/utils/tenant_session.py)), which key under `app.storage.user['by_tenant'][<tenant_id>]` — a filter is meaningful only within its own community. State defaults to `DEFAULT_STATE_FILTER` (Scheduled + Checked In + Started). Below 1024px the filter card collapses behind a toggle with an active-filter count badge.
 
 **Live updates are push, not polled.** `register_view(self._on_remote_change)` subscribes the view through [`theme/realtime.py`](../../theme/realtime.py): a remote `'changed'` / `'deleted'` updates that one row (with a flash), `CREATED` refreshes the table, since a new match has no row yet.
 
-**Data flow** — `refresh()` calls `MatchDisplayService.get_matches_for_display(tournament_ids, stream_room_ids, only_upcoming=False, user_discord_id, exclude_racetime)`, applies the state filter client-side, merges per-row `_watching` flags from `MatchWatcherService.list_watched_match_ids`, then applies `row_sort` (if given) and notifies `on_rows_changed`. `update_row_by_id(match_id)` re-fetches one row via `get_match_for_display` (deleting the row if the match is gone, preserving `_watching`); `delete_row_by_id` removes a row from the UI only.
+**Data flow** — `refresh()` calls `MatchDisplayService.get_matches_for_display(tournament_ids, stage_ids, only_upcoming=False, user_discord_id, exclude_racetime)`, applies the state filter client-side, merges per-row `_watching` flags from `MatchWatcherService.list_watched_match_ids`, then applies `row_sort` (if given) and notifies `on_rows_changed`. `update_row_by_id(match_id)` re-fetches one row via `get_match_for_display` (deleting the row if the match is gone, preserving `_watching`); `delete_row_by_id` removes a row from the UI only.
 
 **Cell rendering** — the players cell shows acknowledgment icons (green check / orange clock with timestamp tooltips, `(auto)` markers) and bolds the winner; admin mode also shows each player's station in italics. Commentator/tracker cells colour names by approval. The admin Seed column shows a Generate button (with client-side `_generating_seed` spinner state) when the tournament has a seed generator and no seed exists; existing seeds render as truncated links. The admin State column renders the next lifecycle action per state — Scheduled → Check In, Checked In → Start, Started → Finish, Finished → Confirm — each with the previous transition's timestamp; Confirmed renders an icon + timestamp. The Stage column shows an Assign button for unassigned matches and an amber "candidate" badge for stream candidates.
 
@@ -649,7 +649,7 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 | `edit_match` | Match-ID link | `on_edit(match_id)` callback |
 | `roll` | Generate button (Seed column) | `on_generate_seed(match_id)` |
 | `seat` / `start` / `finish` / `confirm` | State-column lifecycle buttons | matching `on_*(match_id)` callback |
-| `set_stage` | Stage-column select | `on_set_stage(match_id, stage)` — `stage` is a `StreamRoom` id, `'candidate'`, or `None` |
+| `set_stage` | Stage-column select | `on_set_stage(match_id, stage)` — `stage` is a `Stage` id, `'candidate'`, or `None` |
 | `assign_stations` | Players-column button (admin + crud) | `on_assign_stations(match_id)` |
 | `edit_player` | Player name link | opens `UserDialog` for that player |
 | `view_commentator` / `view_tracker` | Crew name link (admin + crud) | opens `UserDialog` for that crew member |

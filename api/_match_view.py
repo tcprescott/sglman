@@ -11,7 +11,7 @@ from models import Match
 
 MATCH_PREFETCH = (
     'tournament',
-    'stream_room',
+    'stage',
     'generated_seed',
     'players__user',
     'commentators__user',

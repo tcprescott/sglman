@@ -29,7 +29,7 @@ from models import (
     RacetimeBot,
     RacetimeRoom,
     Role,
-    StreamRoom,
+    Stage,
     Tournament,
     User,
     UserRole,
@@ -275,12 +275,12 @@ class TestMatchupLiveState:
     async def test_a_started_game_reads_live_with_a_watch_link(self, service):
         actor = await _staff()
         tournament, bracket, _, bmatch = await _series(service, actor, best_of=1)
-        room = await StreamRoom.create(
+        stage = await Stage.create(
             name='Main Stage', stream_url='https://twitch.tv/wizzrobe',
         )
         match = await service.schedule_bracket_match(
             actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
-            stream_room_id=room.id,
+            stage_id=stage.id,
         )
         await Match.filter(id=match.id).update(started_at='2026-06-12 18:30:00')
 

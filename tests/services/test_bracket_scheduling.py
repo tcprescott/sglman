@@ -23,7 +23,7 @@ from models import (
     Match,
     MatchPlayers,
     Role,
-    StreamRoom,
+    Stage,
     Tournament,
     User,
     UserRole,
@@ -191,12 +191,12 @@ class TestScheduleBracketMatch:
     async def test_entrant_cannot_set_staff_only_fields(self, service):
         actor = await _staff()
         _, _, users, bmatch = await _linked_bracket(service, actor)
-        room = await StreamRoom.create(name='Stage 1')
-        with pytest.raises(ValueError, match='Only staff can set stream_room_id'):
+        room = await Stage.create(name='Stage 1')
+        with pytest.raises(ValueError, match='Only staff can set stage_id'):
             await service.schedule_bracket_match(
                 users[0], bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',
-                stream_room_id=room.id,
+                stage_id=room.id,
             )
 
     async def test_tournament_admin_can_schedule(self, service):

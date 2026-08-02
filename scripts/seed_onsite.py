@@ -18,7 +18,7 @@ from models import (
     Commentator,
     Match,
     MatchPlayers,
-    StreamRoom,
+    Stage,
     Tenant,
     Tournament,
     TournamentPlayers,
@@ -45,8 +45,8 @@ async def seed_onsite_for_tenant(
     players: list[User],
     today: date,
     now: datetime,
-    stage1: StreamRoom,
-    stage3: StreamRoom,
+    stage1: Stage,
+    stage3: Stage,
 ) -> Tournament:
     """Seed the on-site tournament and its matches. Idempotent."""
     onsite, _ = await Tournament.get_or_create(
@@ -97,15 +97,15 @@ async def seed_onsite_for_tenant(
         finished: bool = False,
         winner_rank: bool = True,
         stations: tuple[str, str] | None = None,
-        room: StreamRoom | None = None,
+        stage: Stage | None = None,
     ) -> Match:
         scheduled_at = now + timedelta(hours=offset_hours)
         match, created = await Match.get_or_create(
             title=title, tournament=onsite, tenant=tenant,
             defaults={
                 "scheduled_at": scheduled_at,
-                "stream_room": room,
-                "is_stream_candidate": room is not None,
+                "stage": stage,
+                "is_stream_candidate": stage is not None,
             },
         )
         if not created:
@@ -131,7 +131,7 @@ async def seed_onsite_for_tenant(
     await make_match("On-Site Scheduled", 2)
     await make_match("On-Site Overdue", -0.5)
     checked_in = await make_match(
-        "On-Site Checked In", 0.25, seated=True, stations=('3', '7'), room=stage1,
+        "On-Site Checked In", 0.25, seated=True, stations=('3', '7'), stage=stage1,
     )
     # Two approved commentators and **no tracker**: a fully staffed restream for
     # a tournament that does not use trackers, and this tournament's crew
@@ -145,11 +145,11 @@ async def seed_onsite_for_tenant(
             match=checked_in, user=commentator, tenant=tenant,
             defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
         )
-    await make_match("On-Site In Progress", -1, seated=True, started=True, stations=('4', '8'), room=stage3)
+    await make_match("On-Site In Progress", -1, seated=True, started=True, stations=('4', '8'), stage=stage3)
     # Recorded but not yet confirmed — the admin's review queue.
     await make_match(
         "On-Site Awaiting Review", -2,
-        seated=True, started=True, finished=True, stations=('1', '5'), room=stage1,
+        seated=True, started=True, finished=True, stations=('1', '5'), stage=stage1,
     )
     # Finished with *no* winner recorded: confirming this must be refused.
     await make_match(

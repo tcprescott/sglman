@@ -52,8 +52,8 @@ REPORT_CARDS = [
         'description': 'Commentator and tracker coverage per match and per person.',
     },
     {
-        'key': 'stream_rooms',
-        'title': 'Stream Room Utilization',
+        'key': 'stages',
+        'title': 'Stage Utilization',
         'icon': 'tv',
         'description': 'Hours scheduled per stage, gaps, and unplaced candidates.',
     },
@@ -125,7 +125,7 @@ async def dashboard_page(
             reports_service.generate_capacity_forecast(bounds_start, bounds_end),
             reports_service.match_operations(bounds_start, bounds_end),
             reports_service.crew_coverage(bounds_start, bounds_end),
-            reports_service.stream_room_utilization(bounds_start, bounds_end),
+            reports_service.stage_utilization(bounds_start, bounds_end),
             SystemConfigService.get_max_concurrent_stages(),
         )
 
@@ -142,8 +142,8 @@ async def dashboard_page(
             stage_counts = []
             for t in forecast['intervals']:
                 used = sum(
-                    1 for room in utilization['rooms']
-                    if any(m['start'] <= t <= m['end'] for m in room['matches'])
+                    1 for stage in utilization['stages']
+                    if any(m['start'] <= t <= m['end'] for m in stage['matches'])
                 )
                 stage_counts.append(used)
             peak_stages = max(stage_counts) if stage_counts else 0
@@ -174,8 +174,8 @@ async def dashboard_page(
                 f'{peak_stages} / {max_stages}',
                 'across the window',
                 color='primary' if peak_stages <= max_stages else 'negative',
-                href=reports_url('stream_rooms', start=start_d, end=end_d),
-                href_label='Stream room utilization →',
+                href=reports_url('stages', start=start_d, end=end_d),
+                href_label='Stage utilization →',
             )
             kpi_card(
                 'Matches',

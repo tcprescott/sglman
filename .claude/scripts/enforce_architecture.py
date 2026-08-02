@@ -41,8 +41,8 @@ NICEGUI_ALLOWLIST = {"auth_service.py"}
 
 # CLAUDE.md forbids presentation reaching *through* a service to its repository
 # (`service.repository.foo(...)`); the same shape also catches a page holding a
-# repository attribute directly (`self.stream_room_repository.get_all()` — the
-# exact bug class of the stream-room dialog AttributeError, audit §1.1). The
+# repository attribute directly (`self.stage_repository.get_all()` — the
+# exact bug class of the stage dialog AttributeError, audit §1.1). The
 # attribute must END in `repository`, so names like `repository_url` never match.
 REACHTHROUGH_RE = re.compile(r"\.\s*(\w*repository)\s*\.\s*\w+\s*\(")
 

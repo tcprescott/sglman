@@ -29,7 +29,7 @@ def make_match(
     finished_at=None,
     avg_duration: Optional[int] = None,
     players_per_match: int = 2,
-    stream_room_id=None,
+    stage_id=None,
 ):
     tournament = SimpleNamespace(
         average_match_duration=avg_duration,
@@ -44,7 +44,7 @@ def make_match(
         seated_at=seated_at,
         started_at=started_at,
         finished_at=finished_at,
-        stream_room_id=stream_room_id,
+        stage_id=stage_id,
         is_stream_candidate=False,
         players=[],
     )

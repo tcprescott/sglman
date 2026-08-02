@@ -8,7 +8,7 @@ Built with FastAPI + NiceGUI, backed by PostgreSQL, integrated with Discord for 
 
 ## Features
 
-- **On-site event management** — match scheduling and lifecycle, stream-room assignment, a player dashboard, crew signup and approval, volunteer scheduling, equipment lending, player availability, triforce-text submissions, and operational reports.
+- **On-site event management** — match scheduling and lifecycle, stage assignment, a player dashboard, crew signup and approval, volunteer scheduling, equipment lending, player availability, triforce-text submissions, and operational reports.
 - **Online tournaments** — tenant-authored seed presets across multiple randomizers, racetime.gg room lifecycle, async qualifiers, SpeedGaming schedule ETL, and Discord Scheduled Events sync.
 - **Platform & integrations** — multitenancy with a `/platform` super-admin surface, per-tenant feature flags, role-based access control, Discord (OAuth, one bot for many guilds, role sync, DMs), web push, a token-authenticated REST API, a remote MCP server, an event bus with outbound webhooks, telemetry, audit logging, and Challonge / Twitch / racetime.gg identity linking.
 

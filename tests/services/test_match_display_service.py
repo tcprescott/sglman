@@ -31,8 +31,8 @@ def make_match(**overrides):
             name="Test Tournament", seed_generator=None, is_racetime_enabled=False,
             required_commentators=1, required_trackers=1,
         ),
-        stream_room=None,
-        stream_room_id=None,
+        stage=None,
+        stage_id=None,
         generated_seed=None,
         is_stream_candidate=False,
         needs_review=False,
@@ -150,24 +150,24 @@ class TestFormatMatchForDisplay:
             datetime(2025, 1, 1, 12, 0)
         )
 
-    def test_stream_room_empty_when_none(self, display_service):
-        result = display_service._format_match_for_display(make_match(stream_room=None))
-        assert result["stream_room"] == ""
+    def test_stage_empty_when_none(self, display_service):
+        result = display_service._format_match_for_display(make_match(stage=None))
+        assert result["stage"] == ""
 
-    def test_stream_room_name_when_set(self, display_service):
-        match = make_match(stream_room=SimpleNamespace(name="Stage 1", stream_url="https://twitch.tv/sglive1"))
+    def test_stage_name_when_set(self, display_service):
+        match = make_match(stage=SimpleNamespace(name="Stage 1", stream_url="https://twitch.tv/sglive1"))
         result = display_service._format_match_for_display(match)
-        assert result["stream_room"] == "Stage 1"
-        assert result["stream_room_url"] == "https://twitch.tv/sglive1"
+        assert result["stage"] == "Stage 1"
+        assert result["stage_url"] == "https://twitch.tv/sglive1"
 
-    def test_stream_room_url_empty_when_none(self, display_service):
-        result = display_service._format_match_for_display(make_match(stream_room=None))
-        assert result["stream_room_url"] == ""
+    def test_stage_url_empty_when_none(self, display_service):
+        result = display_service._format_match_for_display(make_match(stage=None))
+        assert result["stage_url"] == ""
 
-    def test_stream_room_url_empty_for_invalid_scheme(self, display_service):
-        match = make_match(stream_room=SimpleNamespace(name="Stage 1", stream_url="javascript:alert(1)"))
+    def test_stage_url_empty_for_invalid_scheme(self, display_service):
+        match = make_match(stage=SimpleNamespace(name="Stage 1", stream_url="javascript:alert(1)"))
         result = display_service._format_match_for_display(match)
-        assert result["stream_room_url"] == ""
+        assert result["stage_url"] == ""
 
     def test_seed_empty_when_none(self, display_service):
         result = display_service._format_match_for_display(make_match(generated_seed=None))

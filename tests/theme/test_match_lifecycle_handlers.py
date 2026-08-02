@@ -115,8 +115,8 @@ class _Recorder:
         self.stages = []
         self.candidates = []
 
-    async def assign_stage(self, match_id, stream_room_id, actor=None):
-        self.stages.append((match_id, stream_room_id))
+    async def assign_stage(self, match_id, stage_id, actor=None):
+        self.stages.append((match_id, stage_id))
 
     async def set_stream_candidate(self, match_id, flag, actor=None):
         self.candidates.append((match_id, flag))
@@ -130,10 +130,10 @@ class _Rows:
         self.refreshed.append(match_id)
 
 
-def _stage_handlers(monkeypatch, *, stream_room_id=None, is_stream_candidate=False):
+def _stage_handlers(monkeypatch, *, stage_id=None, is_stream_candidate=False):
     """Handlers whose one match is in the given stage/candidate state."""
     row = SimpleNamespace(
-        id=7, stream_room_id=stream_room_id, is_stream_candidate=is_stream_candidate,
+        id=7, stage_id=stage_id, is_stream_candidate=is_stream_candidate,
     )
 
     class _Model:
@@ -175,14 +175,14 @@ async def test_picking_a_stage_assigns_it_and_leaves_the_flag_alone(monkeypatch)
 
 async def test_picking_candidate_flags_the_match_and_takes_it_off_its_stage(monkeypatch):
     """``Candidate`` is the answer *before* a stage is picked, so it cannot keep one."""
-    handlers = _stage_handlers(monkeypatch, stream_room_id=3)
+    handlers = _stage_handlers(monkeypatch, stage_id=3)
     await handlers.on_set_stage(7, 'candidate')
     assert handlers.match_service.stages == [(7, None)]
     assert handlers.match_service.candidates == [(7, True)]
 
 
 async def test_clearing_the_select_clears_both_the_stage_and_the_flag(monkeypatch):
-    handlers = _stage_handlers(monkeypatch, stream_room_id=3, is_stream_candidate=True)
+    handlers = _stage_handlers(monkeypatch, stage_id=3, is_stream_candidate=True)
     await handlers.on_set_stage(7, None)
     assert handlers.match_service.stages == [(7, None)]
     assert handlers.match_service.candidates == [(7, False)]
@@ -194,7 +194,7 @@ async def test_re_picking_what_is_already_set_writes_nothing(monkeypatch):
     A ``q-select`` re-emits on reselection, and the row refresh after a failed
     write reselects the stored value.
     """
-    handlers = _stage_handlers(monkeypatch, stream_room_id=3)
+    handlers = _stage_handlers(monkeypatch, stage_id=3)
     await handlers.on_set_stage(7, 3)
     assert handlers.match_service.stages == []
     assert handlers.match_service.candidates == []

@@ -24,19 +24,19 @@ stamps `tenant_id` — see [`_tenant.py`](../application/repositories/_tenant.py
 ```python
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import StreamRoom
+from models import Stage
 
 
-class StreamRoomRepository(TenantScopedRepository[StreamRoom]):
-    model = StreamRoom
-
-    @staticmethod
-    async def get_all() -> list[StreamRoom]:
-        return await scoped(StreamRoom.all()).order_by('name')
+class StageRepository(TenantScopedRepository[Stage]):
+    model = Stage
 
     @staticmethod
-    async def create(name: str, stream_url: str | None = None) -> StreamRoom:
-        return await StreamRoom.create(
+    async def get_all() -> list[Stage]:
+        return await scoped(Stage.all()).order_by('name')
+
+    @staticmethod
+    async def create(name: str, stream_url: str | None = None) -> Stage:
+        return await Stage.create(
             tenant_id=current_tenant_id(), name=name, stream_url=stream_url,
         )
 ```
@@ -53,26 +53,26 @@ notifications. Raises `ValueError` for anything the user should see. Never impor
 NiceGUI. Stateless — a fresh instance per request, or static methods.
 
 ```python
-class StreamRoomService:
-    async def create_stream_room(
+class StageService:
+    async def create_stage(
         self, name: str, stream_url: str | None = None, actor: User | None = None,
-    ) -> StreamRoom:
+    ) -> Stage:
         await AuthService.ensure(
-            await AuthService.can_manage_stream_rooms(actor),
-            "User cannot manage stream rooms",
+            await AuthService.can_manage_stages(actor),
+            "User cannot manage stages",
         )
 
         if not name or not name.strip():
-            raise ValueError("Room name is required")
+            raise ValueError("Stage name is required")
 
-        room = await self.repository.create(name=name.strip(), stream_url=stream_url)
+        stage = await self.repository.create(name=name.strip(), stream_url=stream_url)
 
         await self.audit_service.write_log(
             actor,
-            AuditActions.STREAM_ROOM_CREATED,
-            {'stream_room_id': room.id, 'name': room.name},
+            AuditActions.STAGE_CREATED,
+            {'stage_id': stage.id, 'name': stage.name},
         )
-        return room
+        return stage
 ```
 
 Note the shape of the audit call: an `AuditActions` constant (never a free-form

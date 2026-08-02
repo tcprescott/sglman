@@ -18,7 +18,7 @@ from .dashboard import dashboard_page
 from .insights import insights_page
 from .match_ops import match_ops_page
 from .shared import bind_report_refresh
-from .stream_rooms import stream_rooms_page
+from .stages import stages_page
 from .telemetry import telemetry_page
 from .volunteers import volunteers_page
 
@@ -27,7 +27,7 @@ _REPORT_HANDLERS = {
     'capacity': capacity_page,
     'match_ops': match_ops_page,
     'crew': crew_page,
-    'stream_rooms': stream_rooms_page,
+    'stages': stages_page,
     'volunteers': volunteers_page,
     'audit': audit_page,
     'telemetry': telemetry_page,

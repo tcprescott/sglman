@@ -245,18 +245,18 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
 </q-td>'''
 
 # The value the Stage select carries for "streamed, stage not decided yet".
-# ``Candidate`` is not a StreamRoom — it is the ``is_stream_candidate`` flag
+# ``Candidate`` is not a Stage — it is the ``is_stream_candidate`` flag
 # wearing a stage's clothes, so that the one question the cell asks ("where is
 # this being streamed?") has one control instead of a button, a dialog and a
 # checkbox. ``on_set_stage`` maps it back to the flag.
 CANDIDATE_STAGE = 'candidate'
 
-# Vue expression for the select's current value: the assigned room wins, the
+# Vue expression for the select's current value: the assigned stage wins, the
 # candidate flag stands in when there is none. A staged match stops reading as a
 # candidate — the stage is the more specific answer — while the flag itself
 # survives underneath, because the coverage reports still count it.
 STAGE_VALUE_JS = (
-    f"props.row.stream_room_id || (props.row.is_stream_candidate ? '{CANDIDATE_STAGE}' : null)"
+    f"props.row.stage_id || (props.row.is_stream_candidate ? '{CANDIDATE_STAGE}' : null)"
 )
 
 # Reads as plain text and becomes a dropdown on click: a bordered select in
@@ -267,13 +267,13 @@ STAGE_VALUE_JS = (
 # rather than a clear button — "none" is one of the answers, not the absence of
 # one, and a clear affordance that only appears once something is chosen cannot
 # be found by someone looking for it.
-STREAM_ROOM_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div style="display: flex; align-items: center; gap: 4px;">
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
                   dense options-dense borderless emit-value map-options
                   class="wiz-stage-select" style="min-width: 110px;" />
-        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url"
+        <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url"
            target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);">
             <q-icon name="open_in_new" size="18px" />
             <q-tooltip>Open the stream</q-tooltip>
@@ -281,8 +281,8 @@ STREAM_ROOM_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wi
     </div>
 </q-td>'''
 
-STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
+STAGE_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
     <span v-else-if="props.value">{{ props.value }}</span>
     <span v-else>-</span>
 </q-td>'''
@@ -487,20 +487,20 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
                         want_seed_slot: bool = False,
                         want_seed_readonly: bool = False,
                         want_state_slot: bool = False,
-                        want_stream_room_admin: bool = False,
-                        want_stream_room_readonly: bool = False) -> None:
+                        want_stage_admin: bool = False,
+                        want_stage_readonly: bool = False) -> None:
     """Register every body-cell slot on ``table``.
 
     ``discord_id`` is the current user's id (or None); the watch slot is only
     added for a logged-in user. ``access`` supplies the capability flags the
     templates branch on. The ``want_*`` flags mirror the caller's callback
-    availability so the seed/state/stream-room slots register as the board needs
+    availability so the seed/state/stage slots register as the board needs
     them; ``has_edit`` does the same for the id cell's edit link.
 
     Two different first cells, because two boards want different things. A board
     that can edit declares an ``edit`` column and gets the pencil; the proctor's
     board declares ``id`` and gets the number read-only, because a proctor calls
-    a match out by its number across a room and that is the one place the id is
+    a match out by its number across a stage and that is the one place the id is
     doing a job for a human. Registering both slots is harmless — Quasar only
     uses the ones whose columns exist.
 
@@ -540,7 +540,7 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             STATE_SLOT, admin_controls=admin_controls, access=access,
             discord_id_js=discord_id_js,
         ))
-    if want_stream_room_admin:
-        table.add_slot('body-cell-stream_room', STREAM_ROOM_ADMIN_SLOT)
-    if want_stream_room_readonly:
-        table.add_slot('body-cell-stream_room', STREAM_ROOM_READONLY_SLOT)
+    if want_stage_admin:
+        table.add_slot('body-cell-stage', STAGE_ADMIN_SLOT)
+    if want_stage_readonly:
+        table.add_slot('body-cell-stage', STAGE_READONLY_SLOT)

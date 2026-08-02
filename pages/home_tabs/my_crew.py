@@ -149,10 +149,10 @@ async def my_crew_tab() -> None:
                             ui.label(status)
                         ui.label(row['role'].capitalize()).classes('text-weight-medium')
                         ui.space()
-                        if row['stream_room']:
+                        if row['stage']:
                             with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
                                 ui.icon('tv', size='14px')
-                                ui.label(row['stream_room'])
+                                ui.label(row['stage'])
                     ui.label(commitment_title(row)).classes('text-body2')
                     with ui.row().classes('items-center gap-2'):
                         # Acknowledging from here is the same act the approval

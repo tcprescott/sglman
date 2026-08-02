@@ -18,7 +18,7 @@ board for everyone: players, crew and spectators all see it.
 | **Scheduled At** | When it starts, in your local time. |
 | **State** | How far along the match is, see below. |
 | **Players** | Who is playing. |
-| **Stage** | Which stage (stream room) it is on. If it is being streamed, the name links to the stream. |
+| **Stage** | Which stage (stage) it is on. If it is being streamed, the name links to the stream. |
 | **Generated Seed** | The seed for the match, once one exists. |
 | **Commentators** / **Trackers** | Who is signed up as crew, and whether they have been approved. |
 | **Watch** | Subscribe to updates on this match. |

@@ -34,7 +34,7 @@ import pytest
 from tortoise import connections
 
 from application.services.match.match_display_service import MatchDisplayService
-from models import Match, MatchPlayers, StreamRoom, Tournament, User
+from models import Match, MatchPlayers, Stage, Tournament, User
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -76,10 +76,10 @@ async def seed_matches(count: int, *, offset: int = 0) -> None:
     base = datetime(2026, 3, 1, 18, 0, tzinfo=timezone.utc)
     for i in range(offset, offset + count):
         tournament = await Tournament.create(name=f"Tournament {i}")
-        room = await StreamRoom.create(name=f"Stage {i}")
+        stage = await Stage.create(name=f"Stage {i}")
         match = await Match.create(
             tournament=tournament,
-            stream_room=room,
+            stage=stage,
             scheduled_at=base + timedelta(hours=i),
         )
         for p in range(2):

@@ -89,8 +89,8 @@
 
     --wiz-link: var(--wiz-gold-deep);
     --wiz-section-title: var(--wiz-gold-deep);
-    --wiz-room-header-bg: var(--wiz-charcoal);
-    --wiz-room-header-text: var(--wiz-gold);
+    --wiz-stage-header-bg: var(--wiz-charcoal);
+    --wiz-stage-header-text: var(--wiz-gold);
     --wiz-header-bg: var(--wiz-gold-deep);  /* light mode: amber bar (white header text stays AA-legible) */
 
     /* Warm phoenix-tinted dark-mode surface scale — one coherent elevation ramp
@@ -1175,29 +1175,29 @@ body.body--dark {
     gap: var(--space-1);
 }
 
-.room-header {
+.stage-header {
     width: 100%;
     align-items: center;
-    background-color: var(--wiz-room-header-bg);
-    color: var(--wiz-room-header-text);
+    background-color: var(--wiz-stage-header-bg);
+    color: var(--wiz-stage-header-text);
     padding: 0.5em;
     border-radius: var(--radius-sm);
 }
 
-.room-name {
+.stage-name {
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 1.3em;
     letter-spacing: 0.01em;
 }
 
-.room-link {
+.stage-link {
     margin-left: auto;
     color: white;
     text-decoration: underline;
 }
 
-.room-match-count {
+.stage-match-count {
     font-size: 0.9em;
     opacity: 0.9;
 }

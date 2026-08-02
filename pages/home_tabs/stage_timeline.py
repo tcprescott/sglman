@@ -1,4 +1,4 @@
-"""Stage Timeline page - displays a daily calendar view of matches per stream room."""
+"""Stage Timeline page - displays a daily calendar view of matches per stage."""
 
 import asyncio
 from datetime import datetime, timedelta
@@ -15,7 +15,7 @@ from theme.realtime import register_view
 
 
 async def stage_timeline_tab():
-    """Display a daily calendar view of matches organized by stream room."""
+    """Display a daily calendar view of matches organized by stage."""
     discord_id = app.storage.user.get('discord_id', None)
     user = await get_user_from_discord_id(discord_id) if discord_id else None
     show_admin_link = await AuthService.can_view_admin(user)
@@ -82,7 +82,7 @@ async def stage_timeline_tab():
             matches = await match_service.get_matches_for_date(
                 target_date=current_date['value'],
                 exclude_finished=True,
-                require_stream_room=True
+                require_stage=True
             )
 
             if not matches:
@@ -90,26 +90,26 @@ async def stage_timeline_tab():
                     empty_state('No matches scheduled for this date.')
                 return
 
-            # Group matches by stream room using service
-            matches_by_room = await match_service.group_matches_by_stream_room(matches)
+            # Group matches by stage using service
+            matches_by_stage = await match_service.group_matches_by_stage(matches)
 
-            # Sort rooms by name
-            sorted_rooms = sorted(matches_by_room.items(), key=lambda x: x[1][0].name)
+            # Sort stages by name
+            sorted_stages = sorted(matches_by_stage.items(), key=lambda x: x[1][0].name)
 
             with timeline_container:
-                # Display each stream room and its matches
-                for _room_id, (room, room_matches) in sorted_rooms:
+                # Display each stage and its matches
+                for _stage_id, (stage, stage_matches) in sorted_stages:
                     with ui.card().classes('card-full-width'):
-                        # Stream room header
-                        with ui.row().classes('room-header'):
-                            ui.label(room.name).classes('room-name')
-                            if room.stream_url:
-                                ui.link('Watch Stream', room.stream_url, new_tab=True).classes('room-link')
-                            ui.label(f'{len(room_matches)} match{"es" if len(room_matches) != 1 else ""}').classes('room-match-count')
+                        # Stage header
+                        with ui.row().classes('stage-header'):
+                            ui.label(stage.name).classes('stage-name')
+                            if stage.stream_url:
+                                ui.link('Watch Stream', stage.stream_url, new_tab=True).classes('stage-link')
+                            ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
 
                         # Matches timeline
                         with ui.column().classes('column-spacing'):
-                            for match in room_matches:
+                            for match in stage_matches:
                                 render_match_card(match, user)
 
         def render_match_card(match: Match, user: User = None):

@@ -139,7 +139,7 @@ async def match_ops_page(
                     {'name': 'start_delay_min', 'label': 'Start delay (min)', 'field': 'start_delay_min', 'sortable': True},
                     {'name': 'duration_min', 'label': 'Duration (min)', 'field': 'duration_min', 'sortable': True},
                     {'name': 'confirmation_lag_min', 'label': 'Confirm lag (min)', 'field': 'confirmation_lag_min', 'sortable': True},
-                    {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room', 'sortable': True},
+                    {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
                     {'name': 'player_count', 'label': 'Players', 'field': 'player_count', 'sortable': True},
                 ]
                 csv_export_button(

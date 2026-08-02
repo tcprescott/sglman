@@ -72,7 +72,7 @@ room, so keeping it quiet is your responsibility. That includes players between
 matches and conversations drifting in from the door.
 
 **Spectators do not watch from the tournament room.** Point anyone who wants to
-watch at the stream room, which is what it is for. That is the answer by default,
+watch at the stage, which is what it is for. That is the answer by default,
 and it does not depend on how quiet they are being or how full the room is: the
 room is for the people playing in it and the people running it.
 
