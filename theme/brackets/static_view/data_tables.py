@@ -67,7 +67,10 @@ def _standings_html(
         seed = entry_seed.get(s.ref)
         name_cell = _tag(
             'div', 'c-name bracket-entrant-cell',
-            (_tag('div', 'bracket-seed', _esc(seed)) if seed is not None else '')
+            (
+                _tag('div', 'bracket-seed', _esc(seed), attrs=f'title="Seed {_esc(seed)}"')
+                if seed is not None else ''
+            )
             + _avatar_html(name)
             + _tag('div', 'nm', _esc(name), attrs=f'title="{_esc(name)}"'),
         )
@@ -75,7 +78,7 @@ def _standings_html(
         cells = [
             _tag('div', 'c-rank', _esc(s.rank)),
             name_cell,
-            _tag('div', 'c-rec', _esc(rec)),
+            _tag('div', 'c-rec', _esc(rec), attrs=f'title="{_esc(rec)}"'),
             _tag('div', 'c-pts', _esc(f'{s.points:g}')),
         ]
         for tb in tb_cols:
@@ -84,7 +87,12 @@ def _standings_html(
             cells.append(_tag('div', 'c-tb', _esc(txt)))
         rows.append(_tag('div', classes, ''.join(cells)))
 
-    return _tag('div', 'bracket-standings', ''.join(rows))
+    # The wrapper is the size container the columns respond to — see
+    # .bracket-standings-wrap in brackets.css and the interactive twin.
+    return _tag(
+        'div', 'bracket-standings-wrap',
+        _tag('div', 'bracket-standings', ''.join(rows)),
+    )
 
 
 def _record_chip_html(entry_id: Optional[int], records: Dict[int, tuple]) -> str:

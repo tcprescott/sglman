@@ -377,11 +377,17 @@ body {
 
 .bracket-groups-grid {
   display: grid;
-  /* auto-fit (not auto-fill) collapses empty tracks so a few groups stretch to
-     use the width and show all standings columns without an in-card scroll.
-     min() caps the track floor at the container width — a bare 320px floor
-     overflowed the page on a 320px-wide phone, clipping the header bar. */
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  /* The floor is what one standings row costs at full detail: 24px of card
+     padding + rank 24 + name 140 + W-L-D 76 + Pts 42 + two tiebreakers 108 +
+     five 8px gaps. A 320px floor packed three or four cards across a desktop
+     and every one of them was too narrow for its own row — the fixed numeric
+     cells held their widths and the entrant name, the column a reader is
+     actually looking for, collapsed to "Xel…". auto-fit (not auto-fill) still
+     collapses empty tracks so two groups stretch across the width; min() caps
+     the floor at the container so a 320px phone doesn't overflow the page.
+     Below the floor the standings shed columns instead — see the @container
+     rules under .bracket-standings-wrap. */
+  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
   gap: 12px;
   width: 100%;
 }
@@ -392,6 +398,22 @@ body {
      standings rows, spilling the tiebreaker columns past the card edge; 0 lets
      the card hold its track width so .bracket-standings' overflow-x scrolls. */
   min-width: 0;
+}
+
+/* The standings size themselves against this box, not the viewport: the same
+   table renders full-page (Swiss), two-up in a group card, and inside a narrow
+   admin Results dialog, and only the first of those tracks the viewport. A
+   viewport media query left the group cards showing four numeric columns and a
+   three-character name on a 1280px desktop. */
+.bracket-standings-wrap {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  /* Comfortably above the ~455px a full row needs, so the cap never triggers a
+     shed — it only stops a full-page Swiss table (or a lone group card on a
+     laptop) from stretching the name column to 600px and stranding the numbers
+     against the far edge. */
+  max-width: 620px;
 }
 
 /* Standings (flex rows so a row can be tinted by fate + carry a cut line). */
@@ -438,38 +460,50 @@ body {
 
 .bracket-strow .c-name {
   flex: 1 1 auto;
-  /* A real floor, not 0: with several groups per row (.bracket-groups-grid can
-     pack cards down near its 320px track minimum) and both tiebreaker columns
-     shown, 0 let the fixed cells' leftover space win and the name shrank to a
-     sliver — unreadable rather than merely tight. This floor makes the row's
-     min-content wider than a squeezed card, so .bracket-standings' overflow-x
-     scrolls instead of crushing the name to nothing. Phones override back to 0
-     below, where the row is already full viewport width and the tiebreaker/seed/
-     avatar columns are dropped to make room instead. */
-  min-width: 64px;
+  /* A real floor, not 0: 0 let the fixed cells' leftover space win and the name
+     shrank to a sliver — unreadable rather than merely tight. The floor makes
+     the row's min-content wider than a squeezed box, so .bracket-standings'
+     overflow-x scrolls as a last resort; the @container rules below shed the
+     optional columns first so it rarely comes to that. */
+  min-width: 120px;
+}
+
+/* The numeric cells are fixed-width and inherit nowrap from the row, so a value
+   wider than its box (a long "12-10-0 · 2B" record) would paint over the cells
+   either side of it. Clip instead — a column that overlaps its neighbour is
+   worse than a truncated one. */
+.bracket-strow .c-rec,
+.bracket-strow .c-pts,
+.bracket-strow .c-tb {
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
 .bracket-strow .c-rec {
   width: 76px;
-  flex: 0 0 auto;
   text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 .bracket-strow .c-pts {
   width: 42px;
-  flex: 0 0 auto;
   text-align: right;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .bracket-strow .c-tb {
   width: 54px;
-  flex: 0 0 auto;
   text-align: right;
   color: var(--bracket-muted);
-  font-variant-numeric: tabular-nums;
+}
+
+/* In the standings the seed sits immediately right of the rank column, where
+   two bare grey numbers read as two ranks. The chip separates them. */
+.bracket-standings .bracket-seed {
+  background: var(--bracket-seed-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
 }
 
 .bracket-entrant-cell {
@@ -705,17 +739,40 @@ body {
   }
 }
 
-/* Phones (Quasar xs): drop the tiebreaker columns from standings so the core
-   rank/name/record/points fit without a sideways scroll — dropped uniformly
-   from the header and every row, so the remaining columns stay aligned. */
-@media (max-width: 599px) {
+/* Below the width one full row needs, shed columns rather than squeeze the
+   name — keyed to the standings box (.bracket-standings-wrap), so a group card
+   two-up on a desktop sheds exactly like a phone. Each column drops uniformly
+   from the header and every row, so what remains stays aligned.
+   455px is the .bracket-groups-grid floor minus a hair: at the floor itself the
+   full row fits, so the shed starts only once the box is genuinely narrower. */
+@container (max-width: 455px) {
   .bracket-standings .c-tb {
     display: none;
   }
 
-  /* Tighten the fixed cells so the name keeps a usable share of a 320px row. */
   .bracket-strow {
     gap: 6px;
+  }
+
+  .bracket-strow .c-rec {
+    width: 66px;
+  }
+
+  .bracket-strow .c-pts {
+    width: 34px;
+  }
+}
+
+/* Phone-width, and the narrow admin Results dialog. Avatars hide at compact
+   density (plan decision 7), and the per-row seed is redundant beside the rank
+   column — together they buy the name ~45px, which is the difference between
+   "Gro…" and a readable handle. The name floor goes too: at this width the row
+   already spans its whole box, so letting the name give up its last few px
+   keeps the fixed cells on-row instead of forcing a sideways scroll. */
+@container (max-width: 340px) {
+  .bracket-standings .bracket-avatar,
+  .bracket-standings .c-name .bracket-seed {
+    display: none;
   }
 
   .bracket-strow .c-rec {
@@ -726,20 +783,8 @@ body {
     width: 28px;
   }
 
-  /* Restore the shrink-to-nothing behavior the desktop floor above disables:
-     at this width the row already spans the full (single-column) viewport, so
-     letting the name give up its last few px keeps the fixed cells on-row
-     instead of forcing a sideways scroll on a phone. */
   .bracket-strow .c-name {
     min-width: 0;
-  }
-
-  /* Avatars hide at compact density (plan decision 7), and the per-row seed is
-     redundant beside the rank column — together they buy the name ~45px, which
-     is the difference between "Gro…" and a readable handle. */
-  .bracket-standings .bracket-avatar,
-  .bracket-standings .c-name .bracket-seed {
-    display: none;
   }
 }
 
