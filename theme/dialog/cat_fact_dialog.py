@@ -13,7 +13,12 @@ class CatFactDialog:
 
     def _reroll(self) -> None:
         if self._fact_label is not None:
-            self._fact_label.set_text(random_cat_fact())
+            self._fact_label.set_text(random_cat_fact(exclude=self._fact_label.text))
+
+    def _see_all(self) -> None:
+        if self.dialog is not None:
+            self.dialog.close()
+        ui.navigate.to('/cat-facts')
 
     def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -23,6 +28,7 @@ class CatFactDialog:
                 ui.icon('pets').props('size=lg')
                 self._fact_label = ui.label(random_cat_fact()).classes('text-center')
             with dialog_actions().classes('justify-end'):
+                ui.button('See them all', icon='pets', on_click=self._see_all).props('flat')
                 ui.button('Meow another', icon='refresh', on_click=self._reroll).props('flat')
                 ui.button('Close', on_click=dialog.close).props('color=primary')
         dialog.open()

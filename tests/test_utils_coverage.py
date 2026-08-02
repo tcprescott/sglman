@@ -513,6 +513,19 @@ class TestEasterEggs:
         fact = easter_eggs.random_cat_fact()
         assert fact in easter_eggs.CAT_FACTS
 
+    def test_random_cat_fact_honours_exclude(self):
+        """A re-roll that returns the same fact reads as a broken button."""
+        for fact in easter_eggs.CAT_FACTS:
+            for _ in range(20):
+                assert easter_eggs.random_cat_fact(exclude=fact) != fact
+
+    def test_random_cat_fact_exclude_unknown_still_returns_a_fact(self):
+        assert easter_eggs.random_cat_fact(exclude='not a cat fact') in easter_eggs.CAT_FACTS
+
+    def test_cat_facts_are_unique(self):
+        """The /cat-facts page lists the pool verbatim, so a dupe is visible."""
+        assert len(set(easter_eggs.CAT_FACTS)) == len(easter_eggs.CAT_FACTS)
+
     def test_random_fact_deterministic_with_seed(self):
         import random
         state = random.getstate()

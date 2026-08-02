@@ -175,5 +175,7 @@ def random_fact() -> str:
     )
 
 
-def random_cat_fact() -> str:
-    return random.choice(CAT_FACTS)
+def random_cat_fact(exclude: str | None = None) -> str:
+    """A random cat fact, avoiding ``exclude`` so a re-roll always visibly changes."""
+    pool = [fact for fact in CAT_FACTS if fact != exclude] or CAT_FACTS
+    return random.choice(pool)

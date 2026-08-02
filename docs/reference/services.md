@@ -1358,7 +1358,7 @@ All builders are pure functions returning `str`; optional fields passed as `None
 
 ### easter_eggs.py
 
-A small bank of trivia strings surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `random_fact() -> str` returns a uniformly-random fact drawn from the combined topic lists (roller coasters, cats, Balatro, Diablo, WoW, Hamilton, Cloverpit). No external dependencies or side effects.
+A small bank of trivia strings surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `random_fact() -> str` returns a uniformly-random fact drawn from the combined topic lists (roller coasters, cats, Balatro, Diablo, WoW, Hamilton, Cloverpit) — this is what the `X-Fun-Fact` response header carries. `random_cat_fact(exclude=None) -> str` draws from `CAT_FACTS` alone, which is what every UI surface uses: empty states and table `no-data` slots, the 404 page, `theme.waiting.waiting_panel`, the report busy overlay, `CatFactDialog`, and the `/cat-facts` page. Passing `exclude` drops that one fact from the pool so a re-roll always visibly changes. No external dependencies or side effects.
 
 ### environment.py
 
