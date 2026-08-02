@@ -55,7 +55,6 @@ async def render_api_tokens_section(user: User) -> None:
 
     def revoke(token_id: int, is_oauth: bool = False) -> None:
         async def do_revoke() -> None:
-            confirm.dialog.close()
             try:
                 await service.revoke_token(user, token_id)
                 ui.notify('Token revoked.', color='positive', icon='check_circle')

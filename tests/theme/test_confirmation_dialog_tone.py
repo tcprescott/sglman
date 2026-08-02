@@ -11,7 +11,31 @@ state that ``open()`` reads.
 
 import inspect
 
+import pytest
+from nicegui import ui
+from nicegui.client import Client
+from nicegui.events import ClickEventArguments
+from nicegui.page import page
+
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+
+
+@pytest.fixture
+def slot():
+    """A client to build into.
+
+    ``ui.dialog()`` needs one, and NiceGUI's implicit fallback client only
+    appears when no other test has created one first.
+    """
+    with Client(page('/')):
+        yield
+
+
+def _click_confirm(dialog: ConfirmationDialog) -> None:
+    button = [e for e in dialog.dialog.descendants() if isinstance(e, ui.button)][-1]
+    for listener in button._event_listeners.values():
+        if listener.type == 'click':
+            listener.handler(ClickEventArguments(sender=button, client=button.client))
 
 
 class TestConfirmationDialogTone:
@@ -59,3 +83,40 @@ class TestConfirmationDialogBody:
     def test_open_renders_the_message_with_preserved_line_breaks(self):
         source = inspect.getsource(ConfirmationDialog.open)
         assert 'white-space: pre-line' in source
+
+
+class TestConfirmationDialogCloses:
+    """Confirming closes the dialog, whatever the caller's handler does.
+
+    It used to be each caller's job, and the ones that forgot left the question
+    on screen over work that had already happened — "Cancel this match?" still
+    up after the match was cancelled.
+    """
+
+    def test_confirming_closes_the_dialog(self, slot):
+        dialog = ConfirmationDialog(message='Cancel this match?', on_confirm=lambda: None)
+        dialog.open()
+        _click_confirm(dialog)
+        assert dialog.dialog.value is False
+
+    def test_confirming_still_runs_the_handler(self, slot):
+        calls = []
+        dialog = ConfirmationDialog(message='Cancel this match?', on_confirm=lambda: calls.append(1))
+        dialog.open()
+        _click_confirm(dialog)
+        assert calls == [1]
+
+    def test_the_dialog_is_already_closed_when_the_handler_runs(self, slot):
+        """Handlers notify and refresh; none of that should race the close."""
+        seen = []
+        dialog = ConfirmationDialog(message='Delete this?')
+        dialog.on_confirm = lambda: seen.append(dialog.dialog.value)
+        dialog.open()
+        _click_confirm(dialog)
+        assert seen == [False]
+
+    def test_a_dialog_without_a_handler_still_closes(self, slot):
+        dialog = ConfirmationDialog(message='Nothing to do')
+        dialog.open()
+        _click_confirm(dialog)
+        assert dialog.dialog.value is False

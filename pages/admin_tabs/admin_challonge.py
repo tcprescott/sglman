@@ -119,7 +119,6 @@ async def admin_challonge_page() -> None:
             duplicate.
             """
             async def do_unlink() -> None:
-                confirm.dialog.close()
                 try:
                     await service.unlink_tournament(tournament.id, actor)
                     ui.notify(

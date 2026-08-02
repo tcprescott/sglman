@@ -7,12 +7,12 @@ from nicegui import background_tasks, context, ui
 
 from application.services import MatchRescheduleService
 from application.tenant_context import require_tenant_id
-from application.utils.crew_queue import pending_crew_summary
 from application.utils.timezone import format_local_display
 from models import Match, RescheduleRequestKind, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.realtime import register_view
 from theme.tables.admin_crud import current_actor
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
@@ -192,36 +192,6 @@ def admin_schedule_page(
                     'Show only these', icon='filter_alt', on_click=lambda: _only_finished(),
                 ).props('flat dense color=primary')
 
-        # The crew half of the same idea. A pending signup was communicated to
-        # staff by text colour and nothing else: the words "pending", "awaiting
-        # approval" and "to approve" appeared nowhere on this page, and
-        # `.st-pending` is the same class the overdue-timestamp cell uses, so
-        # most elements carrying it on a given board were not crew at all.
-        @ui.refreshable
-        def crew_queue() -> None:
-            if not access.approve_crew:
-                return
-            rows: list = table_view.table.rows if table_view else []
-            pending = pending_crew_summary(rows)
-            if not pending.total:
-                return
-            with ui.row().classes('items-center gap-2 q-mb-sm'):
-                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
-                    ui.icon('assignment_ind', size='14px')
-                    ui.label(pending.label)
-                ui.button(
-                    'Show only these', icon='filter_alt',
-                    on_click=lambda: table_view._bg(
-                        table_view.focus_matches(pending.match_ids)),
-                ).props('flat dense color=primary')
-                if table_view is not None and table_view.match_ids:
-                    ui.button(
-                        'Show all matches', icon='clear',
-                        on_click=lambda: table_view._bg(table_view.focus_matches(None)),
-                    ).props('flat dense color=primary')
-
-        crew_queue()
-
         # An empty anchor claiming this strip's place in the layout, filled by a
         # background task once the table exists. Without it the strip renders
         # wherever the task happens to run — which is the end of the page, below
@@ -320,7 +290,7 @@ def admin_schedule_page(
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
             match_ids=[match_id] if match_id else None,
             scope_tournament_ids=tournament_ids,
-            on_rows_changed=lambda _rows: (review_queue.refresh(), crew_queue.refresh()),
+            on_rows_changed=lambda _rows: review_queue.refresh(),
             **handlers.callbacks(),
         )
         handlers.table_view = table_view
@@ -331,6 +301,26 @@ def admin_schedule_page(
             reschedule_queue, reschedule_anchor, reschedule_request,
             _open_decision, context.client, may_decide=access.edit,
         ))
+
+        async def _on_live_change(_match_id, _change_type) -> None:
+            """Re-read the queue when anything about a match changes elsewhere.
+
+            Its own subscription rather than the table's ``on_rows_changed``,
+            which the other two strips use: those summarise the *visible rows*,
+            while this one summarises requests. A request can land on a match the
+            board's day or state filter is hiding, and ``update_row_by_id``
+            returns early for a row that is not on screen — so riding the table
+            would leave staff looking at a stale count precisely when a filter
+            is narrowing their view.
+
+            ``register_view`` re-enters the captured client, which is what makes
+            the tenant resolvable (it falls back to the client stash) and the
+            refresh land in the right browser.
+            """
+            if access.edit:
+                reschedule_queue.refresh()
+
+        register_view(_on_live_change)
 
         # Route through the view's _bg so the tab-switch refresh rebinds the
         # tenant (the selected_tab handler runs in a detached task that lost it).

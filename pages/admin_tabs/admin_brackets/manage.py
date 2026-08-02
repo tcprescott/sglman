@@ -152,7 +152,6 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
                         )
 
                     async def confirmed() -> None:
-                        confirm.dialog.close()
                         await do_start()
 
                     confirm = ConfirmationDialog(

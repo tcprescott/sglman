@@ -537,7 +537,6 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                            'Deleting it removes those assignments. Continue?')
 
             async def on_confirm() -> None:
-                confirm.dialog.close()
                 try:
                     await schedule_service.delete_shift(actor, shift)
                 except (ValueError, PermissionError) as e:
@@ -582,7 +581,6 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         async def confirm_publish(pending: int) -> None:
             async def on_confirm() -> None:
-                confirm.dialog.close()
                 win_start, win_end = _day_window(state['day'])
                 try:
                     result = await autoschedule_service.publish_draft(actor, win_start, win_end)

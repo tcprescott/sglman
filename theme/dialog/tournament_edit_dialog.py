@@ -384,21 +384,23 @@ class TournamentDialog:
                     if count
                 ) or '• nothing else — this tournament has no matches or entrants'
 
-                async def do_delete(typed: str) -> None:
+                async def do_delete() -> None:
+                    # The confirmation has already closed itself by now, so both
+                    # notices belong to the edit dialog still standing behind it.
                     try:
                         actor = await get_user_from_discord_id(
                             app.storage.user.get('discord_id')
                         )
                         await self.tournament_service.delete_tournament(
-                            self.tournament, actor=actor, confirmation=typed,
+                            self.tournament, actor=actor,
+                            confirmation=confirm.typed_phrase,
                         )
                     except (ValueError, PermissionError) as e:
-                        with confirm.dialog:
+                        with self.dialog:
                             notify_error(e)
                         return
-                    with confirm.dialog:
+                    with self.dialog:
                         ui.notify(f'Deleted “{self.tournament.name}”.', color='positive')
-                        confirm.dialog.close()
                         dialog.close()
                     if self.on_delete:
                         await self.on_delete()

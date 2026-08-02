@@ -19,7 +19,7 @@ Each side has a surface of its own for the work it owns:
 
 | Who | Where | What it carries |
 |---|---|---|
-| Staff / TA / crew coordinator | Admin → Schedule, the crew strip | *"3 commentators and 1 tracker awaiting approval"* with a one-click filter to exactly those matches |
+| Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
 | The volunteer | Home → **My Crew** (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
 
 My Crew is on Home rather than the Volunteer hub deliberately: crew signup is
@@ -326,6 +326,15 @@ it were everyone's.
 |---|---|---|
 | The player | Home → Player, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
 | Staff | Admin → Schedule, the reschedule strip | *"2 reschedule requests waiting"* plus the first few named individually, each opening the decision dialog |
+
+The strip is **live**. Submitting, withdrawing, agreeing and declining all
+publish on `match_live`, and the strip subscribes through
+`theme/realtime.register_view`, so a staff member already sitting on the board
+watches the count grow rather than discovering the request on their next page
+load. It subscribes for itself rather than riding the table's
+`on_rows_changed` the way the review and crew strips do: those two summarise the
+*visible rows*, while this one summarises requests, and a request can land on a
+match the board's day or state filter is hiding.
 
 The decision dialog carries everything needed to decide — both times, the
 reason, whether the opponent agreed, and either player having marked themselves

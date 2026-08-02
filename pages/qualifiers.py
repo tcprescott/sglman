@@ -222,7 +222,6 @@ def create() -> None:
 
                 def _ask_about_drift(seconds: int, measured: int) -> None:
                     async def _confirmed() -> None:
-                        confirm.dialog.close()
                         await _do_submit(seconds)
 
                     confirm = ConfirmationDialog(
@@ -264,12 +263,6 @@ def create() -> None:
                     await render.refresh()
 
                 async def _confirm_forfeit() -> None:
-                    # ConfirmationDialog does not close itself once on_confirm is
-                    # supplied, so the handler closes it before refreshing.
-                    async def _confirmed() -> None:
-                        confirm.dialog.close()
-                        await _forfeit()
-
                     allowance = await service.get_reattempt_allowance(user, qualifier_id)
                     remedy = ''
                     if allowance.remaining:
@@ -285,7 +278,7 @@ def create() -> None:
                                  'cannot be undone.' + remedy),
                         confirm_text='Forfeit run',
                         tone='negative',
-                        on_confirm=_confirmed,
+                        on_confirm=_forfeit,
                     )
                     confirm.open()
 

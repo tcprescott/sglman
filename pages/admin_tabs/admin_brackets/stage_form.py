@@ -316,7 +316,6 @@ async def confirm_delete_stage(row, client, *, service, tenant_id, on_change) ->
     """Delete a DRAFT or CANCELLED stage, after asking."""
     with client:
         async def do_delete() -> None:
-            confirm.dialog.close()
             actor = await current_actor()
             with tenant_scope(tenant_id):
                 try:
@@ -341,7 +340,6 @@ async def confirm_cancel_stage(row, client, *, service, tenant_id, on_change) ->
     """Abandon a started stage."""
     with client:
         async def do_cancel() -> None:
-            confirm.dialog.close()
             actor = await current_actor()
             with tenant_scope(tenant_id):
                 try:

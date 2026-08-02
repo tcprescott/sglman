@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 from nicegui import ui
+from nicegui.events import ClickEventArguments, handle_event
 
 from theme.dialog._helpers import dialog_actions, dialog_header
 
@@ -16,10 +17,10 @@ class ConfirmationDialog:
         #
         # ``require_phrase`` adds a second gate for the irreversible ones: the
         # confirm button stays disabled until the reader types the phrase back.
-        # ``on_confirm`` is then called with what they typed, so the service —
-        # which enforces the same phrase and is the only thing that actually
-        # gates the write — sees the real input rather than a constant the UI
-        # supplied on its behalf.
+        # What they actually typed is on ``typed_phrase`` by the time
+        # ``on_confirm`` runs, so the service — which enforces the same phrase and
+        # is the only thing that really gates the write — can be handed the real
+        # input rather than a constant the UI supplied on its behalf.
         self.message = message
         self.on_confirm = on_confirm
         self.confirm_text = confirm_text
@@ -27,6 +28,7 @@ class ConfirmationDialog:
         self.tone = tone
         self.title = title
         self.require_phrase = require_phrase
+        self.typed_phrase = ''
         # Any: bound to the ui.dialog in open(); callers reach through it to close.
         self.dialog: Any = None
 
@@ -45,30 +47,28 @@ class ConfirmationDialog:
                         f'Type “{self.require_phrase}” to confirm',
                     ).classes('input-full-width').props('autocomplete=off')
 
-            def _typed() -> str:
-                return (phrase_input.value or '') if phrase_input else ''
-
             required = (self.require_phrase or '').lower()
 
-            def _matches(value) -> bool:
+            def matches(value) -> bool:
                 return (value or '').strip().lower() == required
+
+            # The question has been answered either way, so the dialog closes
+            # before the handler runs. Leaving it to each caller left several
+            # confirmations sitting open over work that had already happened —
+            # a cancelled match still showing "Cancel this match?".
+            def confirm(e: ClickEventArguments) -> None:
+                if phrase_input is not None:
+                    self.typed_phrase = phrase_input.value or ''
+                dialog.close()
+                handle_event(self.on_confirm, e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button(self.cancel_text, on_click=dialog.close).props('flat')
-                if self.on_confirm:
-                    confirm_button = ui.button(
-                        self.confirm_text,
-                        on_click=(
-                            (lambda: self.on_confirm(_typed())) if self.require_phrase
-                            else self.on_confirm
-                        ),
-                    ).props(f'color={self.tone}')
-                else:
-                    confirm_button = ui.button(
-                        self.confirm_text, on_click=dialog.close,
-                    ).props(f'color={self.tone}')
+                confirm_button = ui.button(
+                    self.confirm_text, on_click=confirm,
+                ).props(f'color={self.tone}')
                 if phrase_input is not None:
                     confirm_button.bind_enabled_from(
-                        phrase_input, 'value', backward=_matches,
+                        phrase_input, 'value', backward=matches,
                     )
         dialog.open()
