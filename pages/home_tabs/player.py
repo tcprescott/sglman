@@ -151,6 +151,7 @@ async def render_player_dashboard(
             ui.label('Your Schedule').classes('page-title')
             await help_icon('player-schedule', user=viewer)
             await help_icon('stream-volunteer', label='Stream', user=viewer)
+            await help_icon('reschedule-request', label='Change', user=viewer)
             await help_icon('check-in', label='Check-in', user=viewer)
             await help_icon('player-room', label='In the room', user=viewer)
             await help_icon('player-stage', label='On a stage', user=viewer)

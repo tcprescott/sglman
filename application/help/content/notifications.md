@@ -12,7 +12,8 @@ Wizzrobe tells you things by Discord DM. There is no email and no SMS.
 
 | You are | You hear about |
 |---|---|
-| A player | Being scheduled, rescheduled or cancelled; your match being confirmed |
+| A player | Being scheduled, rescheduled or cancelled; your match being confirmed; the answer to a change request you sent |
+| A player whose opponent asked to change a match | Their request, with an **Agree** button |
 | Crew | Your signup being approved, and approval being withdrawn |
 | A volunteer | Being assigned a shift, and a reminder before it starts |
 | Watching a match | Every state change on it |
@@ -26,6 +27,7 @@ DMs carry buttons so you can answer without opening the site.
 |---|---|
 | **Acknowledge** | On a match DM: tells staff you have seen the time. On a crew approval DM: confirms you can cover the slot. |
 | **Unwatch** | Stops the updates for that match. |
+| **Agree** | On a reschedule-request DM: tells staff the change works for you too. It is a signal, not a decision — staff still answer the request. |
 
 Pressing a button in Discord does exactly what the equivalent control on the site
 does, same record, same result. Use whichever is in front of you.

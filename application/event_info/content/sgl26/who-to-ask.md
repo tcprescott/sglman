@@ -28,6 +28,13 @@ left with nobody to ask.
 [event Discord](https://discord.com/invite/T6qzxNJ). That is the backstop, not the
 first move: someone in the room will almost always be quicker.
 
+**Before the day, you do not have to find anyone at all.** Moving or calling off
+a match is an admin's decision, but asking for one is a button: the **Change**
+column on your Player tab sends the request and the reason to staff, and the
+answer comes back as a DM. Use it for anything with days or hours of notice.
+Once you are in the building and the match is imminent, the room beats the
+queue — see [If your match time does not work](/event-info/schedule).
+
 ## Volunteering
 
 Volunteering is working a shift: proctoring a room, and whatever else the event
