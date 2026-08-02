@@ -53,9 +53,8 @@ stage. See
 *Generated Seed* column once it exists.
 
 **Stage**: the place a match is played and streamed from, run by the broadcast
-techs rather than by a proctor. Staff call the same thing a **stream room**; the
-board's *Stage* column and the admin *Stream Rooms* list are the same set of
-places.
+techs rather than by a proctor. The board's *Stage* column and the admin
+*Stages* list are the same set of places.
 
 **Station**: the numbered physical seat you play at. It is assigned to you at
 check-in, and it then shows next to your name on the schedule board.

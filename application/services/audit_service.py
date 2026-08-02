@@ -97,10 +97,10 @@ class AuditActions:
     STATION_UPDATED = 'station.updated'
     STATION_DELETED = 'station.deleted'
 
-    # Stream room
-    STREAM_ROOM_CREATED = 'stream_room.created'
-    STREAM_ROOM_UPDATED = 'stream_room.updated'
-    STREAM_ROOM_DELETED = 'stream_room.deleted'
+    # Stage
+    STAGE_CREATED = 'stage.created'
+    STAGE_UPDATED = 'stage.updated'
+    STAGE_DELETED = 'stage.deleted'
 
     # System
     SYSTEM_CONFIG_UPDATED = 'system_config.updated'

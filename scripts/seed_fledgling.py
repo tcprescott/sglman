@@ -24,7 +24,7 @@ async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
     The other two are fully provisioned, so the setup checklist is complete in
     both and the panel would be invisible in dev. This one has a staff member
     and one **empty tournament**: ``staff`` and ``tournament`` done, ``enrolment``
-    and ``stream_room`` outstanding — the mixed state the checklist,
+    and ``stage`` outstanding — the mixed state the checklist,
     ``/platform``'s readiness column and the empty entrants dialog all need in
     one login.
     """

@@ -20,7 +20,7 @@ from models import (
     MatchAcknowledgment,
     MatchPlayers,
     PlayerAvailability,
-    StreamRoom,
+    Stage,
     SystemConfiguration,
     Tournament,
     Tracker,
@@ -55,14 +55,14 @@ class TestGetMatchForDisplay:
 
     async def test_returns_formatted_dict_with_all_relations(self, db):
         t = await Tournament.create(name="Champs", seed_generator="alttpr")
-        room = await StreamRoom.create(name="Stage A", stream_url="https://twitch.tv/sgl")
+        stage = await Stage.create(name="Stage A", stream_url="https://twitch.tv/sgl")
         seed = await GeneratedSeeds.create(seed_url="https://alttpr.com/h/abc")
         p1 = await _user(2001, "Alice")
         p2 = await _user(2002, "Bob")
         comm = await _user(2003, "Cara")
         trk = await _user(2004, "Dan")
         match = await Match.create(
-            tournament=t, stream_room=room, generated_seed=seed,
+            tournament=t, stage=stage, generated_seed=seed,
             scheduled_at=utc(2025, 1, 15, 20, 0), is_stream_candidate=True,
         )
         await MatchPlayers.create(match=match, user=p1, finish_rank=1, assigned_station="A")
@@ -79,8 +79,8 @@ class TestGetMatchForDisplay:
         assert result["id"] == match.id
         assert result["tournament"] == "Champs"
         assert result["is_stream_candidate"] is True
-        assert result["stream_room"] == "Stage A"
-        assert result["stream_room_url"] == "https://twitch.tv/sgl"
+        assert result["stage"] == "Stage A"
+        assert result["stage_url"] == "https://twitch.tv/sgl"
         assert result["seed"] == "https://alttpr.com/h/abc"
         assert result["tournament_seed_generator"] == "alttpr"
         assert {p["name"] for p in result["players"]} == {"Alice", "Bob"}
@@ -153,14 +153,14 @@ class TestGetMatchesForDisplay:
         rows = await svc.get_matches_for_display(tournament_ids=[t1.id])
         assert len(rows) == 1 and rows[0]["tournament"] == "T1"
 
-    async def test_filters_by_stream_room(self, db):
+    async def test_filters_by_stage(self, db):
         t = await Tournament.create(name="T")
-        room = await StreamRoom.create(name="Stage A")
-        await Match.create(tournament=t, stream_room=room, scheduled_at=utc(2025, 1, 15, 20, 0))
+        stage = await Stage.create(name="Stage A")
+        await Match.create(tournament=t, stage=stage, scheduled_at=utc(2025, 1, 15, 20, 0))
         await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 20, 0))
         svc = MatchDisplayService()
-        rows = await svc.get_matches_for_display(stream_room_ids=[room.id])
-        assert len(rows) == 1 and rows[0]["stream_room"] == "Stage A"
+        rows = await svc.get_matches_for_display(stage_ids=[stage.id])
+        assert len(rows) == 1 and rows[0]["stage"] == "Stage A"
 
     async def test_only_upcoming_excludes_finished(self, db):
         t = await Tournament.create(name="T")
@@ -200,11 +200,11 @@ class TestFilterDropdowns:
         result = await svc.get_tournaments_for_filter()
         assert result.get(t.id) == "T1"
 
-    async def test_stream_rooms_for_filter(self, db):
-        room = await StreamRoom.create(name="Stage A")
+    async def test_stages_for_filter(self, db):
+        stage = await Stage.create(name="Stage A")
         svc = MatchDisplayService()
-        result = await svc.get_stream_rooms_for_filter()
-        assert result.get(room.id) == "Stage A"
+        result = await svc.get_stages_for_filter()
+        assert result.get(stage.id) == "Stage A"
 
 
 # ===========================================================================

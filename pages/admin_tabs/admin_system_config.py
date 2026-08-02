@@ -216,7 +216,7 @@ async def admin_system_config_page() -> None:
             stages_input = ui.number(
                 'Max Concurrent Stages', value=max_stages, min=1, format='%d',
             ).classes('w-full')
-            ui.label('Blank defaults to the number of active stream rooms.').classes('text-caption text-grey')
+            ui.label('Blank defaults to the number of active stages.').classes('text-caption text-grey')
 
             reminder_lead_input = ui.number(
                 'Volunteer Reminder Lead (minutes)', value=reminder_lead, min=1, format='%d',

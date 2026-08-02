@@ -209,7 +209,7 @@ async def capacity_page(
                             'tournament': m.tournament.name if m.tournament else '',
                             'scheduled_at': format_local_display(m.scheduled_at),
                             'players': len(m.players),
-                            'stream_room': m.stream_room.name if m.stream_room else '',
+                            'stage': m.stage.name if m.stage else '',
                             'state': m.current_state,
                         }
                         for m in focused_matches
@@ -220,7 +220,7 @@ async def capacity_page(
                         {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
                         # Not sortable: a joined roster sorts on whoever is listed first.
                         {'name': 'players', 'label': 'Players', 'field': 'players'},
-                        {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
+                        {'name': 'stage', 'label': 'Stage', 'field': 'stage'},
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]
                     focus_table = ui.table(columns=columns, rows=rows, row_key='match_id', pagination=25).classes('full-width')

@@ -157,7 +157,7 @@ class ScheduleGameRequest(BaseModel):
 
     scheduled_date: str
     scheduled_time: str
-    stream_room_id: Optional[int] = None
+    stage_id: Optional[int] = None
     comment: Optional[str] = None
 
 

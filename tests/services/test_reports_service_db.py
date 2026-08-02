@@ -4,7 +4,7 @@ The pure helpers (_local, _match_window, _auto_interval_minutes, peak_times,
 event_day_bounds) are covered in ``test_reports_service.py``. This module
 exercises the five async methods that query the ``db`` fixture:
 ``generate_capacity_forecast``, ``matches_active_at``, ``match_operations``,
-``crew_coverage`` and ``stream_room_utilization``.
+``crew_coverage`` and ``stage_utilization``.
 """
 
 from datetime import datetime, timezone
@@ -15,7 +15,7 @@ from models import (
     Commentator,
     Match,
     MatchPlayers,
-    StreamRoom,
+    Stage,
     SystemConfiguration,
     Tournament,
     Tracker,
@@ -55,16 +55,16 @@ class TestGenerateCapacityForecast:
         """Two overlapping matches: one placed on stream with explicit players,
         one unplaced relying on the players_per_match fallback."""
         t = await Tournament.create(name='Cup', players_per_match=2, average_match_duration=90)
-        room = await StreamRoom.create(name='Alpha')
+        stage = await Stage.create(name='Alpha')
         u1 = await _user(1, 'Alice')
         u2 = await _user(2, 'Bob')
 
         # Match A: 14:00 ET scheduled, window [13:00, 15:30], on stream, 2 players.
-        m_a = await Match.create(tournament=t, stream_room=room, scheduled_at=utc(2025, 10, 23, 18, 0))
+        m_a = await Match.create(tournament=t, stage=stage, scheduled_at=utc(2025, 10, 23, 18, 0))
         await MatchPlayers.create(match=m_a, user=u1)
         await MatchPlayers.create(match=m_a, user=u2)
 
-        # Match B: 15:00 ET scheduled, window [14:00, 16:30], no room, no players
+        # Match B: 15:00 ET scheduled, window [14:00, 16:30], no stage, no players
         # -> player_count falls back to tournament.players_per_match == 2.
         m_b = await Match.create(tournament=t, scheduled_at=utc(2025, 10, 23, 19, 0))
 
@@ -178,12 +178,12 @@ class TestMatchesActiveAt:
 class TestMatchOperations:
     async def _seed(self):
         t = await Tournament.create(name='Cup', average_match_duration=90)
-        room = await StreamRoom.create(name='Alpha')
+        stage = await Stage.create(name='Alpha')
         u1 = await _user(1, 'Alice')
 
         # M1: 3 min late (on time), 90 min long, confirmed 7 min after finish, on stream.
         m1 = await Match.create(
-            tournament=t, stream_room=room,
+            tournament=t, stage=stage,
             scheduled_at=utc(2025, 10, 23, 18, 0),
             started_at=utc(2025, 10, 23, 18, 3),
             finished_at=utc(2025, 10, 23, 19, 33),
@@ -205,10 +205,10 @@ class TestMatchOperations:
         # M4 in a second tournament, never started -> exercises the None aggregate branch.
         t2 = await Tournament.create(name='Other', average_match_duration=None)
         m4 = await Match.create(tournament=t2, scheduled_at=utc(2025, 10, 23, 16, 0))
-        return t, t2, room, m1, m2, m3, m4
+        return t, t2, stage, m1, m2, m3, m4
 
     async def test_rows_capture_delay_duration_and_lag(self, db):
-        t, t2, room, m1, m2, m3, m4 = await self._seed()
+        t, t2, stage, m1, m2, m3, m4 = await self._seed()
         out = await ReportsService().match_operations(DAY_START, DAY_END)
         rows = {r['match_id']: r for r in out['rows']}
         assert len(rows) == 4
@@ -218,7 +218,7 @@ class TestMatchOperations:
         assert r1['duration_min'] == 90
         assert r1['confirmation_lag_min'] == 7
         assert r1['state'] == 'Finished'
-        assert r1['stream_room'] == room.name
+        assert r1['stage'] == stage.name
         assert r1['tournament_name'] == t.name
         assert r1['player_count'] == 1
 
@@ -231,7 +231,7 @@ class TestMatchOperations:
         assert r3['start_delay_min'] is None
         assert r3['duration_min'] is None
         assert r3['state'] == 'Scheduled'
-        assert r3['stream_room'] == ''
+        assert r3['stage'] == ''
 
     async def test_per_tournament_aggregates(self, db):
         t, t2, *_ = await self._seed()
@@ -439,26 +439,26 @@ def contrib_hours(out, user_id):
 
 
 # ---------------------------------------------------------------------------
-# stream_room_utilization
+# stage_utilization
 # ---------------------------------------------------------------------------
 
 
-class TestStreamRoomUtilization:
+class TestStageUtilization:
     async def _seed(self):
         t = await Tournament.create(name='Cup', average_match_duration=60)
-        alpha = await StreamRoom.create(name='Alpha')
-        beta = await StreamRoom.create(name='Beta')
-        inactive = await StreamRoom.create(name='Zulu', is_active=False)
+        alpha = await Stage.create(name='Alpha')
+        beta = await Stage.create(name='Beta')
+        inactive = await Stage.create(name='Zulu', is_active=False)
 
         # Alpha: two back-to-back matches with a 5-minute gap.
         await Match.create(
-            tournament=t, stream_room=alpha,
+            tournament=t, stage=alpha,
             scheduled_at=utc(2025, 10, 23, 18, 0),
             seated_at=utc(2025, 10, 23, 18, 0),   # 14:00 ET
             finished_at=utc(2025, 10, 23, 19, 0),  # 15:00 ET  -> 1.0h
         )
         await Match.create(
-            tournament=t, stream_room=alpha,
+            tournament=t, stage=alpha,
             scheduled_at=utc(2025, 10, 23, 19, 5),
             seated_at=utc(2025, 10, 23, 19, 5),    # 15:05 ET (5 min after prev end)
             finished_at=utc(2025, 10, 23, 20, 5),  # 16:05 ET -> 1.0h
@@ -466,7 +466,7 @@ class TestStreamRoomUtilization:
 
         # Alpha: a match whose window collapses inside the clamp -> skipped.
         await Match.create(
-            tournament=t, stream_room=alpha,
+            tournament=t, stage=alpha,
             scheduled_at=utc(2025, 10, 23, 4, 0),   # exactly the window start
             seated_at=utc(2025, 10, 23, 3, 0),      # before the window start
             finished_at=utc(2025, 10, 23, 3, 30),   # still before the window start
@@ -474,37 +474,37 @@ class TestStreamRoomUtilization:
 
         # Beta: a single 2-hour match, no neighbour.
         await Match.create(
-            tournament=t, stream_room=beta,
+            tournament=t, stage=beta,
             scheduled_at=utc(2025, 10, 23, 18, 0),
             seated_at=utc(2025, 10, 23, 18, 0),     # 14:00 ET
             finished_at=utc(2025, 10, 23, 20, 0),   # 16:00 ET -> 2.0h
         )
 
-        # Unplaced stream candidate (no room).
+        # Unplaced stream candidate (no stage).
         await Match.create(
             tournament=t, scheduled_at=utc(2025, 10, 23, 18, 0), is_stream_candidate=True,
         )
-        # Match in the inactive room -> excluded from the room set entirely.
+        # Match in the inactive stage -> excluded from the stage set entirely.
         await Match.create(
-            tournament=t, stream_room=inactive, scheduled_at=utc(2025, 10, 23, 18, 0),
+            tournament=t, stage=inactive, scheduled_at=utc(2025, 10, 23, 18, 0),
         )
         return t, alpha, beta, inactive
 
-    async def test_per_room_hours_gaps_and_unplaced(self, db):
+    async def test_per_stage_hours_gaps_and_unplaced(self, db):
         t, alpha, beta, inactive = await self._seed()
-        out = await ReportsService().stream_room_utilization(DAY_START, DAY_END)
+        out = await ReportsService().stage_utilization(DAY_START, DAY_END)
 
-        rooms = {r['stream_room_id']: r for r in out['rooms']}
-        # Only active rooms appear; the inactive room is absent.
-        assert set(rooms) == {alpha.id, beta.id}
+        stages = {r['stage_id']: r for r in out['stages']}
+        # Only active stages appear; the inactive stage is absent.
+        assert set(stages) == {alpha.id, beta.id}
 
-        a = rooms[alpha.id]
+        a = stages[alpha.id]
         assert a['scheduled_hours'] == 2.0
         assert a['back_to_back_count'] == 1   # 5-minute gap < 15
         assert a['gap_hours'] == 0.1          # round(5/60, 1)
         assert len(a['matches']) == 2         # collapsed match was skipped
 
-        b = rooms[beta.id]
+        b = stages[beta.id]
         assert b['scheduled_hours'] == 2.0
         assert b['back_to_back_count'] == 0
         assert b['gap_hours'] == 0.0
@@ -513,38 +513,38 @@ class TestStreamRoomUtilization:
         assert out['unplaced_candidate_count'] == 1
         assert len(out['unplaced_candidates']) == 1
 
-    async def test_rooms_sorted_by_name(self, db):
+    async def test_stages_sorted_by_name(self, db):
         await self._seed()
-        out = await ReportsService().stream_room_utilization(DAY_START, DAY_END)
-        assert [r['stream_room_name'] for r in out['rooms']] == ['Alpha', 'Beta']
+        out = await ReportsService().stage_utilization(DAY_START, DAY_END)
+        assert [r['stage_name'] for r in out['stages']] == ['Alpha', 'Beta']
 
-    async def test_stream_room_id_filter(self, db):
+    async def test_stage_id_filter(self, db):
         t, alpha, beta, inactive = await self._seed()
-        out = await ReportsService().stream_room_utilization(
-            DAY_START, DAY_END, stream_room_id=alpha.id,
+        out = await ReportsService().stage_utilization(
+            DAY_START, DAY_END, stage_id=alpha.id,
         )
-        assert [r['stream_room_id'] for r in out['rooms']] == [alpha.id]
+        assert [r['stage_id'] for r in out['stages']] == [alpha.id]
 
     async def test_tournament_filter(self, db):
         t1 = await Tournament.create(name='A', average_match_duration=60)
         t2 = await Tournament.create(name='B', average_match_duration=60)
-        alpha = await StreamRoom.create(name='Alpha')
+        alpha = await Stage.create(name='Alpha')
         await Match.create(
-            tournament=t1, stream_room=alpha,
+            tournament=t1, stage=alpha,
             scheduled_at=utc(2025, 10, 23, 18, 0),
             seated_at=utc(2025, 10, 23, 18, 0),
             finished_at=utc(2025, 10, 23, 20, 0),
         )
         await Match.create(
-            tournament=t2, stream_room=alpha,
+            tournament=t2, stage=alpha,
             scheduled_at=utc(2025, 10, 23, 21, 0),
             seated_at=utc(2025, 10, 23, 21, 0),
             finished_at=utc(2025, 10, 23, 23, 0),
         )
-        out = await ReportsService().stream_room_utilization(
+        out = await ReportsService().stage_utilization(
             DAY_START, DAY_END, tournament_id=t1.id,
         )
-        rooms = {r['stream_room_id']: r for r in out['rooms']}
+        stages = {r['stage_id']: r for r in out['stages']}
         # Only t1's 2-hour block is counted.
-        assert rooms[alpha.id]['scheduled_hours'] == 2.0
-        assert len(rooms[alpha.id]['matches']) == 1
+        assert stages[alpha.id]['scheduled_hours'] == 2.0
+        assert len(stages[alpha.id]['matches']) == 1

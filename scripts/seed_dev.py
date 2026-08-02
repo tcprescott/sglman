@@ -44,9 +44,9 @@ from models import (
     RacetimeBot,
     Role,
     RoleSource,
+    Stage,
     Station,
     StationSide,
-    StreamRoom,
     SystemConfiguration,
     Tenant,
     TenantFeatureFlag,
@@ -324,17 +324,17 @@ async def seed_for_tenant(
                if tenant.slug == "default" else " (local_only holds nothing here)")
         )
 
-        # Stream rooms
+        # Stages
         for name, url in [
             ("Stage 1", "https://twitch.tv/wizzrobe"),
             ("Stage 2", "https://twitch.tv/wizzrobe2"),
             ("Stage 3", "https://twitch.tv/wizzrobe3"),
         ]:
-            await StreamRoom.get_or_create(
+            await Stage.get_or_create(
                 name=name, tenant=tenant,
                 defaults={"stream_url": url, "is_active": True},
             )
-        print(f"    [{tenant.slug}] stream rooms ok")
+        print(f"    [{tenant.slug}] stages ok")
 
         # Venue station pool — two banks facing into the middle of the room.
         # Only tenant A defines one: a community with no stations keeps the
@@ -445,9 +445,9 @@ async def seed_for_tenant(
         print(f"    [{tenant.slug}] tournament ok")
 
         # Matches — one per lifecycle state, plus extra fixtures for variety
-        stage1 = await StreamRoom.get(name="Stage 1", tenant=tenant)
-        stage2 = await StreamRoom.get(name="Stage 2", tenant=tenant)
-        stage3 = await StreamRoom.get(name="Stage 3", tenant=tenant)
+        stage1 = await Stage.get(name="Stage 1", tenant=tenant)
+        stage2 = await Stage.get(name="Stage 2", tenant=tenant)
+        stage3 = await Stage.get(name="Stage 3", tenant=tenant)
         now = now_local()
 
         fixtures = await seed_matches_for_tenant(

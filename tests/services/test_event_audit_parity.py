@@ -48,16 +48,16 @@ _EVENT_CANDIDATES = frozenset({
     # subscriber cares about is the one BRACKET_STARTED announces. (Retiring an
     # entry mid-stage *is* emitted — it changes a running field.)
     AuditActions.BRACKET_ENTRY_REMOVED,
-    # The venue's station pool — the same reasoning as the stream rooms below:
+    # The venue's station pool — the same reasoning as the stages below:
     # community-owned venue configuration, with no subscriber interest in the
     # seats themselves (the assignment of a player to one already emits
     # MATCH_STATIONS_ASSIGNED).
     AuditActions.STATION_CREATED,
     AuditActions.STATION_UPDATED,
     AuditActions.STATION_DELETED,
-    AuditActions.STREAM_ROOM_CREATED,
-    AuditActions.STREAM_ROOM_UPDATED,
-    AuditActions.STREAM_ROOM_DELETED,
+    AuditActions.STAGE_CREATED,
+    AuditActions.STAGE_UPDATED,
+    AuditActions.STAGE_DELETED,
     AuditActions.TRIFORCE_TEXT_SUBMITTED,
     AuditActions.TRIFORCE_TEXT_APPROVED,
     AuditActions.TRIFORCE_TEXT_REJECTED,

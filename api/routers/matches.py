@@ -27,14 +27,14 @@ router = APIRouter(
     response_model=List[MatchResponse],
     summary="List matches",
     description=(
-        "Retrieve matches with optional filtering by match, stream room, or "
+        "Retrieve matches with optional filtering by match, stage, or "
         "tournament id and a scheduled-time range. Includes tournament, stream "
-        "room, generated seed, players, and approved commentators/trackers."
+        "stage, generated seed, players, and approved commentators/trackers."
     ),
 )
 async def get_matches(
     match_id: Optional[List[int]] = Query(None, description="Filter by specific match IDs."),
-    stream_room_id: Optional[List[int]] = Query(None, description="Filter by specific stream room IDs."),
+    stage_id: Optional[List[int]] = Query(None, description="Filter by specific stage IDs."),
     start_date: Optional[datetime] = Query(None, description="Matches scheduled on or after this time."),
     end_date: Optional[datetime] = Query(None, description="Matches scheduled on or before this time."),
     tournament_id: Optional[List[int]] = Query(None, description="Filter by specific tournament IDs."),
@@ -44,8 +44,8 @@ async def get_matches(
 
     if match_id:
         query = query.filter(id__in=match_id)
-    if stream_room_id:
-        query = query.filter(stream_room_id__in=stream_room_id)
+    if stage_id:
+        query = query.filter(stage_id__in=stage_id)
     if tournament_id:
         query = query.filter(tournament_id__in=tournament_id)
     if start_date is not None:

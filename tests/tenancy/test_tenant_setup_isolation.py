@@ -13,7 +13,7 @@ from application.services.system_config_service import (
 )
 from application.services.tenant_setup_service import TenantSetupService
 from application.tenant_context import tenant_scope
-from models import Role, StreamRoom, Tournament, TournamentPlayers, User
+from models import Role, Stage, Tournament, TournamentPlayers, User
 
 
 async def test_a_full_tenant_does_not_complete_an_empty_tenants_checklist(two_tenants):
@@ -24,7 +24,7 @@ async def test_a_full_tenant_does_not_complete_an_empty_tenants_checklist(two_te
         await UserRoleRepository.add(user, Role.STAFF)
         tournament = await Tournament.create(name='A')
         await TournamentPlayers.create(tournament=tournament, user=user)
-        await StreamRoom.create(name='Stage 1')
+        await Stage.create(name='Stage 1')
         await SystemConfigService.set_raw(KEY_EVENT_START_DATE, '2026-01-01', user)
         await SystemConfigService.set_raw(KEY_EVENT_END_DATE, '2026-01-03', user)
         assert TenantSetupService.is_ready(await TenantSetupService().status()) is True

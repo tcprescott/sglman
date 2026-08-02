@@ -13,7 +13,7 @@ validation branches without touching existing test cases.
 
 from tortoise import connections
 
-from models import AuditLog, Match, MatchPlayers, Role, StreamRoom, Tournament, User
+from models import AuditLog, Match, MatchPlayers, Role, Stage, Tournament, User
 from tests.api_helpers import client_for, create_user_token
 
 
@@ -187,28 +187,28 @@ class TestUserRead:
 
 
 # ---------------------------------------------------------------------------
-# Stream room detail
+# Stage detail
 # ---------------------------------------------------------------------------
 
 
-class TestStreamRoomDetail:
-    async def test_get_stream_room_by_id(self, db, app):
+class TestStageDetail:
+    async def test_get_stage_by_id(self, db, app):
         _, raw = await create_user_token(username='viewer')
-        room = await StreamRoom.create(name='Stage One')
+        stage = await Stage.create(name='Stage One')
         async with client_for(app, raw) as c:
-            resp = await c.get(f'/api/stream-rooms/{room.id}')
+            resp = await c.get(f'/api/stages/{stage.id}')
             assert resp.status_code == 200
             assert resp.json()['name'] == 'Stage One'
 
-    async def test_get_missing_stream_room_is_404(self, db, app):
+    async def test_get_missing_stage_is_404(self, db, app):
         _, raw = await create_user_token(username='viewer')
         async with client_for(app, raw) as c:
-            assert (await c.get('/api/stream-rooms/999')).status_code == 404
+            assert (await c.get('/api/stages/999')).status_code == 404
 
-    async def test_stream_room_requires_auth(self, db, app):
+    async def test_stage_requires_auth(self, db, app):
         # No bearer token -> the router-level require_api_actor rejects with 401.
         async with client_for(app) as c:
-            assert (await c.get('/api/stream-rooms/1')).status_code == 401
+            assert (await c.get('/api/stages/1')).status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -367,12 +367,12 @@ class TestStreamAssignments:
     async def test_assign_and_clear_stage(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
         t, p1, p2 = await _tournament_and_players()
-        room = await StreamRoom.create(name='Stage A')
+        stage = await Stage.create(name='Stage A')
         async with client_for(app, raw) as c:
             mid = (await _create_match(c, t, p1, p2)).json()['id']
-            assigned = await c.post(f'/api/matches/{mid}/stage', json={'stream_room_id': room.id})
+            assigned = await c.post(f'/api/matches/{mid}/stage', json={'stage_id': stage.id})
             assert assigned.status_code == 200
-            cleared = await c.post(f'/api/matches/{mid}/stage', json={'stream_room_id': None})
+            cleared = await c.post(f'/api/matches/{mid}/stage', json={'stage_id': None})
             assert cleared.status_code == 200
 
     async def test_assign_stations(self, db, app):

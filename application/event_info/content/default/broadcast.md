@@ -14,10 +14,10 @@ the role filter is broken. Unlike `proctoring`, this article does not grant
 `VOLUNTEER` or `PROCTOR`, so it exercises a viewer who holds one gated role but
 not the other.
 
-## Your room, and where it ends
+## Your stage, and where it ends
 
 :::snippet broadcast-boundary
-You are responsible for the stream room or stage you are producing, and
+You are responsible for the stage you are producing, and
 nothing outside it. A proctored tournament room is not yours to run.
 :::
 

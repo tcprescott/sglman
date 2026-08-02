@@ -91,7 +91,7 @@ class TournamentSummary(BaseModel):
     event_end_date: Optional[datetime] = None
 
 
-class StreamRoomInfo(BaseModel):
+class StageInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -168,10 +168,10 @@ class MatchCrew(BaseModel):
     trackers: List[CrewMemberInfo] = Field(default_factory=list)
 
 
-class StreamRoomBlock(BaseModel):
-    """One stream room's slice of a day's schedule."""
+class StageBlock(BaseModel):
+    """One stage's slice of a day's schedule."""
 
-    stream_room: Optional[str] = None
+    stage: Optional[str] = None
     matches: List['MatchSummary'] = Field(default_factory=list)
 
 
@@ -210,7 +210,7 @@ class MatchSummary(BaseModel):
     scheduled_at: Optional[datetime] = None
     status: str
     players: List[str] = Field(default_factory=list)
-    stream_room: Optional[str] = None
+    stage: Optional[str] = None
     restream_url: Optional[str] = None
 
 
@@ -468,5 +468,5 @@ class FeedbackEntry(BaseModel):
     created_at: datetime
 
 
-# StreamRoomBlock forward-references MatchSummary, which is declared after it.
-StreamRoomBlock.model_rebuild()
+# StageBlock forward-references MatchSummary, which is declared after it.
+StageBlock.model_rebuild()

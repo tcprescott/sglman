@@ -76,8 +76,8 @@ def admin_schedule_page(
             {'name': 'players', 'label': 'Players', 'field': 'players'},
             {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
             {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
-            {'name': 'stream_room', 'label': 'Stage',
-                'field': 'stream_room', 'sortable': True},
+            {'name': 'stage', 'label': 'Stage',
+                'field': 'stage', 'sortable': True},
             # Sorts present-vs-absent, which is the question actually asked of it.
             {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed', 'sortable': True},
         ]

@@ -30,17 +30,17 @@ class CapacityForecastResponse(BaseModel):
     busiest: List[CapacityPeak] = Field(default_factory=list)
 
 
-class StreamRoomUtilizationRow(BaseModel):
-    stream_room_id: Optional[int] = None
-    stream_room_name: Optional[str] = None
+class StageUtilizationRow(BaseModel):
+    stage_id: Optional[int] = None
+    stage_name: Optional[str] = None
     scheduled_hours: float
     match_count: int
     gap_hours: float
     back_to_back_count: int
 
 
-class StreamRoomUtilizationResponse(BaseModel):
-    rooms: List[StreamRoomUtilizationRow] = Field(default_factory=list)
+class StageUtilizationResponse(BaseModel):
+    stages: List[StageUtilizationRow] = Field(default_factory=list)
     unplaced_candidate_count: int = 0
 
 
@@ -49,7 +49,7 @@ class ActiveMatchRow(BaseModel):
     tournament: Optional[str] = None
     scheduled_at: Optional[datetime] = None
     players: List[str] = Field(default_factory=list)
-    stream_room: Optional[str] = None
+    stage: Optional[str] = None
 
 
 ReportPayload = Dict[str, Any]

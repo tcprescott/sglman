@@ -115,7 +115,7 @@ out in its commit message.
 **NiceGUI.** `background_tasks.create`, never `asyncio.create_task`. A table
 event handler that touches tenant-scoped data must be scheduled through
 `MatchTableView._bg` — `tests/theme/test_match_table_tenant_binding.py` enforces
-it, and names events by their *registered* string (note `'edit-stream-room'`
+it, and names events by their *registered* string (note `'edit-stage'`
 uses hyphens).
 
 **Vue templates** are Python strings with server-injected placeholders

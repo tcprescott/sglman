@@ -233,7 +233,7 @@ class CrewService:
                     'match_id': match.id,
                     'scheduled_at': match.scheduled_at,
                     'tournament': match.tournament.name if match.tournament else '',
-                    'stream_room': match.stream_room.name if match.stream_room else '',
+                    'stage': match.stage.name if match.stage else '',
                     'players': [p.user.preferred_name for p in match.players],
                     'approved': bool(entry.approved),
                     'acknowledged': entry.acknowledged_at is not None,
@@ -308,7 +308,7 @@ class CrewService:
         if crew_type not in ('commentator', 'tracker'):
             raise ValueError(f"Invalid crew_type: {crew_type}. Must be 'commentator' or 'tracker'")
 
-        await crew_member.fetch_related('match', 'user', 'match__stream_room')
+        await crew_member.fetch_related('match', 'user', 'match__stage')
         await AuthService.ensure(
             await AuthService.can_approve_crew(actor, crew_member.match),
             f"User cannot approve {crew_type} signups for match {crew_member.match.id}",
@@ -431,7 +431,7 @@ class CrewService:
         message_kwargs = {
             'match_title': match.title or None,
             'scheduled_at_display': time_field(match.scheduled_at),
-            'stream_room_name': match.stream_room.name if match.stream_room else None,
+            'stage_name': match.stage.name if match.stage else None,
             'player_names': player_names or None,
         }
 
@@ -440,8 +440,8 @@ class CrewService:
         if match.title and players_str:
             fields.append(('Players', players_str, True))
         fields.append(('Time', time_field(match.scheduled_at), False))
-        if match.stream_room:
-            fields.append(('Stage', match.stream_room.name, True))
+        if match.stage:
+            fields.append(('Stage', match.stage.name, True))
         return message_kwargs, fields
 
     async def _request_crew_acknowledgment(

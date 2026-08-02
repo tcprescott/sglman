@@ -68,7 +68,7 @@ def _match_info_lines(
     *,
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
-    stream_room_name: str = '',
+    stage_name: str = '',
     time_label: str = 'Scheduled for',
     bracket_line: str = '',
 ) -> list[str]:
@@ -88,8 +88,8 @@ def _match_info_lines(
         lines.append(f"Players: {players}")
     if scheduled_at_display:
         lines.append(f"{time_label}: {scheduled_at_display}")
-    if stream_room_name:
-        lines.append(f"Stage: {stream_room_name}")
+    if stage_name:
+        lines.append(f"Stage: {stage_name}")
     return lines
 
 
@@ -102,13 +102,13 @@ def scheduled_dm(
     scheduled_at_display: str,
     *,
     player_names: Optional[list[str]] = None,
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         bracket_line=bracket_line,
     )
     body = "\n".join(info)
@@ -124,13 +124,13 @@ def rescheduled_dm(
     new_scheduled_at_display: str,
     *,
     player_names: Optional[list[str]] = None,
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=new_scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         time_label='New time',
         bracket_line=bracket_line,
     )
@@ -147,7 +147,7 @@ def acknowledgment_request_dm(
     scheduled_at_display: str,
     *,
     rescheduled: bool,
-    stream_room_name: str = '',
+    stage_name: str = '',
     player_names: Optional[list[str]] = None,
     bracket_line: str = '',
 ) -> str:
@@ -160,7 +160,7 @@ def acknowledgment_request_dm(
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         time_label=time_label,
         bracket_line=bracket_line,
     )
@@ -177,13 +177,13 @@ def checked_in_dm(
     *,
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
@@ -200,14 +200,14 @@ def cancelled_dm(
     reason: str = '',
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
     released: bool = False,
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         time_label='Was scheduled for',
         bracket_line=bracket_line,
     )
@@ -234,13 +234,13 @@ def state_changed_dm(
     *,
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         bracket_line=bracket_line,
     )
     block = ("\n\n" + "\n".join(info)) if info else ''
@@ -322,13 +322,13 @@ def seed_dm(
     *,
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
-    stream_room_name: str = '',
+    stage_name: str = '',
     bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
-        stream_room_name=stream_room_name,
+        stage_name=stage_name,
         bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
@@ -348,7 +348,7 @@ def seed_dm(
 def _crew_match_lines(
     match_title: Optional[str],
     scheduled_at_display: str,
-    stream_room_name: Optional[str],
+    stage_name: Optional[str],
     player_names: Optional[list[str]],
 ) -> list[str]:
     """Identifying block shared by every crew DM.
@@ -368,8 +368,8 @@ def _crew_match_lines(
         details.append(f"**Players:** {players}")
     if scheduled_at_display:
         details.append(f"**Scheduled:** {scheduled_at_display}")
-    if stream_room_name:
-        details.append(f"**Stage:** {stream_room_name}")
+    if stage_name:
+        details.append(f"**Stage:** {stage_name}")
     return details
 
 
@@ -387,13 +387,13 @@ def crew_assignment_dm(
     crew_type: str,
     match_title: Optional[str],
     scheduled_at_display: str,
-    stream_room_name: Optional[str],
+    stage_name: Optional[str],
     player_names: Optional[list[str]],
 ) -> str:
     """DM with crew-acknowledgment button sent when a crew member is approved."""
     return _crew_dm(
         f"You're confirmed as {crew_type} for this match!",
-        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        _crew_match_lines(match_title, scheduled_at_display, stage_name, player_names),
         "Please click below to acknowledge your assignment.",
     )
 
@@ -402,13 +402,13 @@ def crew_approval_withdrawn_dm(
     crew_type: str,
     match_title: Optional[str],
     scheduled_at_display: str,
-    stream_room_name: Optional[str],
+    stage_name: Optional[str],
     player_names: Optional[list[str]],
 ) -> str:
     """DM sent when an admin withdraws a crew member's approval."""
     return _crew_dm(
         f"You've been taken off the {crew_type} slot for this match.",
-        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        _crew_match_lines(match_title, scheduled_at_display, stage_name, player_names),
         "Check with an admin if this looks wrong.",
     )
 
@@ -418,7 +418,7 @@ def crew_withdrawn_dm(
     volunteer_name: str,
     match_title: Optional[str],
     scheduled_at_display: str,
-    stream_room_name: Optional[str],
+    stage_name: Optional[str],
     player_names: Optional[list[str]],
     hours_notice: Optional[float] = None,
 ) -> str:
@@ -441,7 +441,7 @@ def crew_withdrawn_dm(
         notice = f" — in about {hours} hour{'' if hours == 1 else 's'}"
     return _crew_dm(
         f"**{volunteer_name}** has withdrawn as {crew_type}{notice}.",
-        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        _crew_match_lines(match_title, scheduled_at_display, stage_name, player_names),
         "The slot is open again — the match needs someone else on it.",
     )
 

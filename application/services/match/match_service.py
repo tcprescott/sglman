@@ -14,8 +14,8 @@ from application.repositories import (
     CommentatorRepository,
     MatchAcknowledgmentRepository,
     MatchRepository,
+    StageRepository,
     StationRepository,
-    StreamRoomRepository,
     TournamentRepository,
     TrackerRepository,
     UserRepository,
@@ -34,7 +34,7 @@ from application.services.match.match_schedule_service import MatchScheduleServi
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
 from application.services.match.match_station_draw import StationDrawMixin
 from application.services.match.match_stations import StationAssignmentMixin
-from application.services.stream_room_service import StreamRoomService
+from application.services.stage_service import StageService
 from application.services.system_config_service import SystemConfigService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
@@ -48,7 +48,7 @@ from models import (
     Match,
     MatchAcknowledgment,
     MatchPlayers,
-    StreamRoom,
+    Stage,
     Tournament,
     User,
 )
@@ -63,7 +63,7 @@ class MatchService(
     def __init__(self) -> None:
         self.repository = MatchRepository()
         self.station_repository = StationRepository()
-        self.stream_room_repository = StreamRoomRepository()
+        self.stage_repository = StageRepository()
         self.tournament_repository = TournamentRepository()
         self.user_repository = UserRepository()
         self.commentator_repository = CommentatorRepository()
@@ -133,7 +133,7 @@ class MatchService(
         self,
         target_date: date,
         exclude_finished: bool = True,
-        require_stream_room: bool = True
+        require_stage: bool = True
     ) -> List[Match]:
         """
         Get all matches for a specific date with optional filters.
@@ -145,37 +145,37 @@ class MatchService(
         Args:
             target_date: The date to fetch matches for
             exclude_finished: If True, exclude matches that are finished
-            require_stream_room: If True, only include matches with a stream room
+            require_stage: If True, only include matches with a stage
 
         Returns:
             List of matches with all related data prefetched
         """
         start, end = local_day_bounds(target_date, target_date)
         return await self.repository.scheduled_between(
-            start, end, exclude_finished, require_stream_room
+            start, end, exclude_finished, require_stage
         )
 
-    async def group_matches_by_stream_room(
+    async def group_matches_by_stage(
         self,
         matches: List[Match]
-    ) -> Dict[int, Tuple[StreamRoom, List[Match]]]:
+    ) -> Dict[int, Tuple[Stage, List[Match]]]:
         """
-        Group matches by their stream room.
+        Group matches by their stage.
 
         Args:
-            matches: List of matches to group (must have stream_room prefetched)
+            matches: List of matches to group (must have stage prefetched)
 
         Returns:
-            Dict mapping stream_room_id to tuple of (StreamRoom, list of matches)
+            Dict mapping stage_id to tuple of (Stage, list of matches)
         """
-        matches_by_room: Dict[int, Tuple[StreamRoom, List[Match]]] = {}
+        matches_by_stage: Dict[int, Tuple[Stage, List[Match]]] = {}
 
         for match in matches:
-            if match.stream_room_id not in matches_by_room:
-                matches_by_room[match.stream_room_id] = (match.stream_room, [])
-            matches_by_room[match.stream_room_id][1].append(match)
+            if match.stage_id not in matches_by_stage:
+                matches_by_stage[match.stage_id] = (match.stage, [])
+            matches_by_stage[match.stage_id][1].append(match)
 
-        return matches_by_room
+        return matches_by_stage
 
     async def get_matches_for_player(self, discord_id: str) -> List[Match]:
         """
@@ -196,7 +196,7 @@ class MatchService(
         scheduled_time: str,
         player_ids: List[int],
         comment: Optional[str] = None,
-        stream_room_id: Optional[int] = None,
+        stage_id: Optional[int] = None,
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
         is_stream_candidate: bool = False,
@@ -212,7 +212,7 @@ class MatchService(
             scheduled_time: Time string (HH:MM)
             player_ids: List of user IDs to add as players
             comment: Optional comment
-            stream_room_id: Optional stream room ID
+            stage_id: Optional stage ID
             commentator_ids: Optional list of commentator user IDs
             tracker_ids: Optional list of tracker user IDs
             title: Optional display label. It **replaces** the Discord scheduled
@@ -251,7 +251,7 @@ class MatchService(
         if not player_ids:
             raise ValueError("Add at least one player before creating the match.")
 
-        await StreamRoomService().require_in_tenant(stream_room_id)
+        await StageService().require_in_tenant(stage_id)
 
         # Parse datetime - input is on the caller's display clock, stored UTC
         try:
@@ -278,7 +278,7 @@ class MatchService(
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
-            stream_room_id=stream_room_id,
+            stage_id=stage_id,
             is_stream_candidate=is_stream_candidate,
             title=title,
         )
@@ -354,13 +354,13 @@ class MatchService(
             commentator_ids: New commentator list
             tracker_ids: New tracker list
             comment: New comment
-            stream_room_id: New stream room ID
+            stage_id: New stage ID
             clear_seated: Clear seated_at timestamp
             clear_started: Clear started_at timestamp
             clear_finished: Clear finished_at timestamp
             clear_confirmed: Clear confirmed_at timestamp
             clear_seed: Clear generated seed
-            clear_stream_room: Clear stream room assignment
+            clear_stage: Clear stage assignment
             admin_user: User making the update
 
         Returns:
@@ -546,25 +546,25 @@ class MatchService(
     async def assign_stage(
         self,
         match_id: int,
-        stream_room_id: Optional[int],
+        stage_id: Optional[int],
         actor: Optional[User] = None,
     ) -> Match:
-        """Assign or clear the StreamRoom for a match. Stream Managers globally; TAs within their tournaments."""
+        """Assign or clear the Stage for a match. Stream Managers globally; TAs within their tournaments."""
         match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_assign_match_stream(actor, match),
             "User cannot assign stages for this match",
         )
-        await StreamRoomService().require_in_tenant(stream_room_id)
+        await StageService().require_in_tenant(stage_id)
 
-        await self.repository.update(match, stream_room_id=stream_room_id)
+        await self.repository.update(match, stage_id=stage_id)
 
         await self.audit_service.write_and_publish(
             actor,
-            AuditActions.MATCH_STAGE_ASSIGNED if stream_room_id is not None else AuditActions.MATCH_STAGE_CLEARED,
-            {'match_id': match.id, 'stream_room_id': stream_room_id},
-            EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
+            AuditActions.MATCH_STAGE_ASSIGNED if stage_id is not None else AuditActions.MATCH_STAGE_CLEARED,
+            {'match_id': match.id, 'stage_id': stage_id},
+            EventType.MATCH_STAGE_ASSIGNED if stage_id is not None else EventType.MATCH_STAGE_CLEARED,
             event_extra={'tournament_id': match.tournament_id},
         )
 

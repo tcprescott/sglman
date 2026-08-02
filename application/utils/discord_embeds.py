@@ -94,7 +94,7 @@ def match_embed(
     community_name: Optional[str] = None,
     player_names: Optional[Sequence[str]] = None,
     when: Optional[datetime] = None,
-    stream_room_name: Optional[str] = None,
+    stage_name: Optional[str] = None,
     description: Optional[str] = None,
     url: Optional[str] = None,
 ) -> discord.Embed:
@@ -105,8 +105,8 @@ def match_embed(
         fields.append(('Players', players, True))
     if when is not None:
         fields.append(('Time', time_field(when), False))
-    if stream_room_name:
-        fields.append(('Stage', stream_room_name, True))
+    if stage_name:
+        fields.append(('Stage', stage_name, True))
     return notification_embed(
         title=title, color=color, community_name=community_name,
         description=description, fields=fields, url=url,
@@ -120,7 +120,7 @@ def state_changed_embed(
     community_name: Optional[str] = None,
     player_names: Optional[Sequence[str]] = None,
     when: Optional[datetime] = None,
-    stream_room_name: Optional[str] = None,
+    stage_name: Optional[str] = None,
 ) -> discord.Embed:
     """Started / Finished / Confirmed transition card."""
     emoji = {'Started': '🔴', 'Finished': '🏁', 'Confirmed': '☑️'}.get(new_state, '•')
@@ -128,7 +128,7 @@ def state_changed_embed(
         title=f"{emoji} Match {new_state.lower()}",
         color=_STATE_COLORS.get(new_state, COLOR_SCHEDULED),
         tournament=tournament, community_name=community_name,
-        player_names=player_names, when=when, stream_room_name=stream_room_name,
+        player_names=player_names, when=when, stage_name=stage_name,
     )
 
 

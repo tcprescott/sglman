@@ -13,7 +13,7 @@ from application.services import (
     CrewService,
     MatchService,
     MatchWatcherService,
-    StreamRoomService,
+    StageService,
     TournamentService,
     UserService,
     get_user_from_discord_id,
@@ -110,7 +110,7 @@ class BaseMatchDialog:
         self.user_service = UserService()
         self.crew_service = CrewService()
         self.tournament_service = TournamentService()
-        self.stream_room_service = StreamRoomService()
+        self.stage_service = StageService()
         self.bracket_service = BracketService()
 
     def _get_default_values(self):
@@ -121,7 +121,7 @@ class BaseMatchDialog:
                 'date': format_local_date(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%Y-%m-%d'),
                 'time': format_local_time(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%H:%M'),
                 'comment': self.match.comment or '',
-                'stream_room': self.match.stream_room_id if self.match.stream_room_id else None,
+                'stage': self.match.stage_id if self.match.stage_id else None,
             }
         else:
             return {
@@ -129,7 +129,7 @@ class BaseMatchDialog:
                 'date': now.strftime('%Y-%m-%d'),
                 'time': now.strftime('%H:%M'),
                 'comment': '',
-                'stream_room': None,
+                'stage': None,
             }
 
     def _render_tournament_select(

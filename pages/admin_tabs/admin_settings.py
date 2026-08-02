@@ -3,11 +3,11 @@
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import AuthService, StreamRoomService, get_user_from_discord_id
+from application.services import AuthService, StageService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog import TournamentDialog
-from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
+from theme.dialog.stage_edit_dialog import StageEditDialog
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import refresh_button
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
@@ -73,14 +73,14 @@ async def admin_tournaments_page() -> None:
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Tournaments' else None)
 
 
-async def admin_stream_rooms_page() -> None:
+async def admin_stages_page() -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-    can_manage = await AuthService.can_manage_stream_rooms(actor)
+    can_manage = await AuthService.can_manage_stages(actor)
 
     with ui.column().classes('page-container-narrow'):
         # Header section
         with ui.row().classes('header-row'):
-            ui.label('Stream Room Management').classes('page-title')
+            ui.label('Stage Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
 
@@ -100,49 +100,49 @@ async def admin_stream_rooms_page() -> None:
 
         table_container = ui.column().classes('w-full')
 
-        async def load_stream_rooms():
-            rooms = await StreamRoomService().get_all_stream_rooms()
+        async def load_stages():
+            stages = await StageService().get_all_stages()
             rows = [
                 {
-                    'id': room.id,
-                    'name': room.name,
-                    'stream_url': room.stream_url or '',
-                    'is_active': room.is_active,
+                    'id': stage.id,
+                    'name': stage.name,
+                    'stream_url': stage.stream_url or '',
+                    'is_active': stage.is_active,
                 }
-                for room in rooms
+                for stage in stages
             ]
             return rows
 
         async def refresh_table():
-            rows = await load_stream_rooms()
+            rows = await load_stages()
             table.rows = rows
             table.update()
 
-        async def add_stream_room():
+        async def add_stage():
             async def after_submit(_):
                 await refresh_table()
             with table_container:
-                dialog = StreamRoomEditDialog(on_submit=after_submit)
+                dialog = StageEditDialog(on_submit=after_submit)
                 await dialog.open()
 
-        async def edit_stream_room(row, client):
+        async def edit_stage(row, client):
             # Runs in a background task (table 'edit' event → background_tasks.create),
             # where the slot stack is empty; restore the captured client so ui.notify
             # and the dialog have a slot context.
             with client:
-                room = await StreamRoomService().get_stream_room_by_id(row['id'])
-                if not room:
-                    ui.notify("Couldn't find that stream room.", color='warning')
+                stage = await StageService().get_stage_by_id(row['id'])
+                if not stage:
+                    ui.notify("Couldn't find that stage.", color='warning')
                     return
                 async def after_submit(_):
                     await refresh_table()
-                dialog = StreamRoomEditDialog(stream_room=room, on_submit=after_submit)
+                dialog = StageEditDialog(stage=stage, on_submit=after_submit)
                 await dialog.open()
 
         with table_container:
             with ui.row().classes('full-width'):
                 if can_manage:
-                    ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
+                    ui.button('Add Stage', icon='add', on_click=add_stage).props('color=primary')
                 ui.space()
                 # Filled after the table exists; the toolbar is drawn first.
                 gear_slot = ui.row().classes('items-center')
@@ -200,7 +200,7 @@ async def admin_stream_rooms_page() -> None:
             ''')
 
             table.add_slot('no-data', no_data_slot(
-                'No stream rooms yet — add one for each stage or capture station '
+                'No stages yet — add one for each stage or capture station '
                 'you run matches on.', icon='tv'))
             
             # Add grid item slot for mobile/card view
@@ -235,10 +235,10 @@ async def admin_stream_rooms_page() -> None:
                 </div>
             ''')
             
-            customize_table(table, columns, key=TableKeys.ADMIN_STREAM_ROOMS)
+            customize_table(table, columns, key=TableKeys.ADMIN_STAGES)
             with gear_slot:
                 preferences_button(table)
 
-            table.on('edit', lambda e: background_tasks.create(edit_stream_room(e.args, context.client)))
+            table.on('edit', lambda e: background_tasks.create(edit_stage(e.args, context.client)))
 
         background_tasks.create(refresh_table())

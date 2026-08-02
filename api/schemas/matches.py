@@ -22,7 +22,7 @@ class TournamentBase(BaseModel):
     max_match_duration: Optional[int] = None  # in minutes
 
 
-class StreamRoomBase(BaseModel):
+class StageBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -81,7 +81,7 @@ class MatchResponse(BaseModel):
     id: int
     tournament: TournamentBase
     title: Optional[str] = None
-    stream_room: Optional[StreamRoomBase] = None
+    stage: Optional[StageBase] = None
     generated_seed: Optional[GeneratedSeedBase] = None
     scheduled_at: Optional[datetime] = None
     seated_at: Optional[datetime] = None

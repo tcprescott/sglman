@@ -22,7 +22,7 @@
     { "name": "admin-schedule",        "path": "/admin/schedule" },
     { "name": "admin-users",           "path": "/admin/users" },
     { "name": "admin-tournaments",     "path": "/admin/tournaments" },
-    { "name": "admin-stream-rooms",    "path": "/admin/stream-rooms" },
+    { "name": "admin-stages",    "path": "/admin/stages" },
     { "name": "admin-presets",         "path": "/admin/presets" },
     { "name": "admin-randomizer-keys", "path": "/admin/randomizer-keys" },
     { "name": "admin-feedback",        "path": "/admin/feedback" },

@@ -77,8 +77,8 @@ def test_listed_events_are_actually_registered():
 
     ``test_tenant_bound_events_are_scheduled_through_bg`` scans registration
     lines for each listed event; an event that is never registered has no line
-    to offend, so it passes for the wrong reason. ``'edit_stream_room'`` sat in
-    the list for exactly that reason — the emitted name was ``'edit-stream-room'``
+    to offend, so it passes for the wrong reason. ``'edit_stage'`` sat in
+    the list for exactly that reason — the emitted name was ``'edit-stage'``
     — until this check caught it.
     """
     src = _setup_source()

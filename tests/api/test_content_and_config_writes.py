@@ -1,4 +1,4 @@
-"""Tests for Phase 5 writes: stream rooms, triforce, notifications, config."""
+"""Tests for Phase 5 writes: stages, triforce, notifications, config."""
 
 
 from typing import ClassVar
@@ -7,24 +7,24 @@ from models import Role, Tournament
 from tests.api_helpers import client_for, create_user_token
 
 
-class TestStreamRooms:
+class TestStages:
     async def test_stream_manager_crud(self, db, app):
         _, raw = await create_user_token(username='sm', roles=[Role.STREAM_MANAGER])
         async with client_for(app, raw) as c:
-            created = await c.post('/api/stream-rooms', json={'name': 'Stage X'})
+            created = await c.post('/api/stages', json={'name': 'Stage X'})
             assert created.status_code == 201
             rid = created.json()['id']
 
-            updated = await c.patch(f'/api/stream-rooms/{rid}', json={'name': 'Stage Y'})
+            updated = await c.patch(f'/api/stages/{rid}', json={'name': 'Stage Y'})
             assert updated.status_code == 200
             assert updated.json()['name'] == 'Stage Y'
 
-            assert (await c.delete(f'/api/stream-rooms/{rid}')).status_code == 204
+            assert (await c.delete(f'/api/stages/{rid}')).status_code == 204
 
     async def test_plain_user_forbidden(self, db, app):
         _, raw = await create_user_token(username='plain')
         async with client_for(app, raw) as c:
-            assert (await c.post('/api/stream-rooms', json={'name': 'Z'})).status_code == 403
+            assert (await c.post('/api/stages', json={'name': 'Z'})).status_code == 403
 
 
 class TestTriforce:

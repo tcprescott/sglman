@@ -28,7 +28,7 @@ from models import (
     MatchAcknowledgment,
     MatchPlayers,
     Role,
-    StreamRoom,
+    Stage,
     SystemConfiguration,
     Tournament,
     TournamentPlayers,
@@ -129,18 +129,18 @@ class TestReadMethods:
 
     async def test_get_matches_for_date_and_grouping(self, service, db):
         t = await make_tournament()
-        room = await StreamRoom.create(name="Stage 1")
-        await Match.create(tournament=t, stream_room=room, scheduled_at=utc(2025, 1, 15, 18))
-        # excluded: no stream room
+        stage = await Stage.create(name="Stage 1")
+        await Match.create(tournament=t, stage=stage, scheduled_at=utc(2025, 1, 15, 18))
+        # excluded: no stage
         await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19))
 
         matches = await service.get_matches_for_date(datetime(2025, 1, 15).date())
         assert len(matches) == 1
 
-        grouped = await service.group_matches_by_stream_room(matches)
-        assert room.id in grouped
-        stored_room, room_matches = grouped[room.id]
-        assert stored_room.id == room.id and len(room_matches) == 1
+        grouped = await service.group_matches_by_stage(matches)
+        assert stage.id in grouped
+        stored_stage, stage_matches = grouped[stage.id]
+        assert stored_stage.id == stage.id and len(stage_matches) == 1
 
     async def test_get_matches_for_player(self, service, db):
         t = await make_tournament()
@@ -160,7 +160,7 @@ class TestCreateMatch:
     async def test_full_create_with_crew_and_stream_candidate(self, service, db, captured_events):
         actor = await make_staff()
         t = await make_tournament()
-        room = await StreamRoom.create(name="Stage A")
+        stage = await Stage.create(name="Stage A")
         alice = await make_user("alice", "Alice")
         bob = await make_user("bob", "Bob")
         commentator = await make_user("carl", "Carl")
@@ -172,7 +172,7 @@ class TestCreateMatch:
             scheduled_time="14:30",
             player_ids=[alice.id, bob.id],
             comment="gogo",
-            stream_room_id=room.id,
+            stage_id=stage.id,
             commentator_ids=[commentator.id],
             tracker_ids=[tracker.id],
             is_stream_candidate=True,
@@ -181,7 +181,7 @@ class TestCreateMatch:
 
         assert match.is_stream_candidate is True
         assert match.comment == "gogo"
-        assert match.stream_room_id == room.id
+        assert match.stage_id == stage.id
 
         player_ids = {p.user_id for p in await MatchPlayers.filter(match=match)}
         assert player_ids == {alice.id, bob.id}
@@ -547,19 +547,19 @@ class TestAssignStage:
     async def test_not_found_raises(self, service, db):
         actor = await make_staff()
         with pytest.raises(ValueError, match="Match 999999 not found"):
-            await service.assign_stage(match_id=999999, stream_room_id=1, actor=actor)
+            await service.assign_stage(match_id=999999, stage_id=1, actor=actor)
 
     async def test_assign_then_clear_persists(self, service, db):
         actor = await make_staff()
         t = await make_tournament()
-        room = await StreamRoom.create(name="Stage Z")
+        stage = await Stage.create(name="Stage Z")
         match = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 18))
 
-        await service.assign_stage(match_id=match.id, stream_room_id=room.id, actor=actor)
-        assert (await Match.get(id=match.id)).stream_room_id == room.id
+        await service.assign_stage(match_id=match.id, stage_id=stage.id, actor=actor)
+        assert (await Match.get(id=match.id)).stage_id == stage.id
 
-        await service.assign_stage(match_id=match.id, stream_room_id=None, actor=actor)
-        assert (await Match.get(id=match.id)).stream_room_id is None
+        await service.assign_stage(match_id=match.id, stage_id=None, actor=actor)
+        assert (await Match.get(id=match.id)).stage_id is None
 
 
 # ---------------------------------------------------------------------------

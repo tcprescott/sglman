@@ -14,7 +14,7 @@ date-range/tournament filters, the export button and the URL-param navigation.
 | Capacity Forecast | `capacity.py` | Concurrent player count over a date range vs. configured capacity |
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person. A stream candidate is short only against its own tournament's `required_commentators`/`required_trackers` (see [What "covered" means](#what-covered-means)) |
-| Stream Room Utilization | `stream_rooms.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
+| Stage Utilization | `stages.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
 | Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts. Behind `FeatureFlag.VOLUNTEERS` — card, handler and `VolunteerScheduleService.coverage` all gate on it |
 | Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
 | Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
@@ -48,7 +48,7 @@ to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
 | Staff / Crew Activity | the match on the Schedule board (its crew cell approves the pending signup) |
 | Match Operations | the match on the board; per-tournament aggregates re-filter this report |
 | Capacity Forecast | the matches making a peak instant, on the board |
-| Stream Room Utilization | a room's matches, on the board |
+| Stage Utilization | a stage's matches, on the board |
 | Volunteer Coverage | Vol. Schedule at the understaffed shift's local day |
 | Dashboard KPIs | the one report each number is computed from, over the same window |
 

@@ -71,7 +71,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
-| `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
+| `StageService` | [stage_service.py](../../application/services/stage_service.py) | Stage (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
@@ -173,7 +173,7 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_run_match(user, match)` | `bool` | Staff, Proctor, or TA — gates running a match on the floor: seat/start/finish, recording the result, seed rolls, station assignment. |
 | `can_confirm_match(user, match)` | `bool` | Staff, or TA of the match's tournament. Excludes Proctor by design — confirming advances the bracket and pushes to Challonge, so it is the admin's verification step. |
 | `can_approve_crew(user, match)` | `bool` | Staff, TA, or CC of the match's tournament. |
-| `can_manage_stream_rooms(user)` | `bool` | Staff or Stream Manager — gates StreamRoom CRUD. |
+| `can_manage_stages(user)` | `bool` | Staff or Stream Manager — gates Stage CRUD. |
 | `can_manage_volunteers(user)` | `bool` | Staff or Volunteer Coordinator — gates volunteer position/shift/assignment management and the auto-scheduler. |
 | `can_manage_equipment(user)` | `bool` | Staff or Equipment Manager — gates asset CRUD and check-in. |
 | `can_checkout_equipment(user)` | `bool` | Manager (any borrower) or Volunteer (self-checkout only). |
@@ -288,7 +288,7 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | `advance_stage(actor, tournament_id, from_stage_order)` | `Bracket` | Seed the next stage from the source's `final_rank` per its `advancement` rule (top `count`, per-group or overall; snake/preserve seeding), enrolling fresh entries on the same entrants. Audits/events `BRACKET_STAGE_ADVANCED`. |
 | `get_advancing_preview(tournament_id, from_stage_order)` | `List[BracketEntry]` | Dry-run of the same selection for the confirm dialog. |
 | `list_open_matches_for_user(user_id, tournament_id=None)` | `List[BracketMatch]` | OPEN, unscheduled matches whose both entrants are linked users — schedulable ones (peer of `ChallongeService.list_unscheduled_matches_for_user`). |
-| `schedule_bracket_match(actor, bracket_match_id, **match_kwargs)` | `Match` | Schedule the next game of an OPEN matchup into a real `Match` and record it as a `BracketMatchGame` (peer of `schedule_challonge_match`). Gates for itself and routes by actor: Staff / tournament admin → `MatchService.create_match`; the matchup's own two entrants → `submit_match_request` with `from_bracket=True`. A non-privileged caller passing staff-only kwargs (`stream_room_id`, crew) raises `ValueError`. |
+| `schedule_bracket_match(actor, bracket_match_id, **match_kwargs)` | `Match` | Schedule the next game of an OPEN matchup into a real `Match` and record it as a `BracketMatchGame` (peer of `schedule_challonge_match`). Gates for itself and routes by actor: Staff / tournament admin → `MatchService.create_match`; the matchup's own two entrants → `submit_match_request` with `from_bracket=True`. A non-privileged caller passing staff-only kwargs (`stage_id`, crew) raises `ValueError`. |
 | `list_linkable_matches(tournament_id)` | `List[BracketMatch]` | OPEN matchups across the tournament's stages that a `Match` could still be linked to — the whole-tournament peer of `list_open_matches_for_user`. Backs the admin editor's picker. |
 | `get_bracket_match_for_match(match_id)` | `BracketMatch \| None` | Read-only: the matchup a scheduled `Match` belongs to, so presentation never reaches through `service.repository`. |
 | `link_match_to_bracket_match(actor, bracket_match_id, match_id)` | `BracketMatchGame` | Staff/TA: record an already-created `Match` as the matchup's next game. Validates same tournament, not already linked, a free slot, and that the match's **player set equals the two entrants' users** (a mismatch would leave `_winner_from_ranks` unable to resolve a winner). Audits/events `BRACKET_GAME_LINKED`. |
@@ -468,14 +468,14 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | Method | Returns | Description |
 |---|---|---|
 | `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, local-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls — plus `scheduled_ts`, an epoch sort key, and `is_overdue`, true when the aware-UTC scheduled time has passed with no check-in and no finish). |
-| `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None, exclude_racetime=False)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. `exclude_racetime` drops matches in racetime.gg tournaments at the query (the proctor board's rows are the ones an on-site proctor can act on). |
+| `get_matches_for_display(*, tournament_ids=None, stage_ids=None, only_upcoming=False, user_discord_id=None, exclude_racetime=False)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. `exclude_racetime` drops matches in racetime.gg tournaments at the query (the proctor board's rows are the ones an on-site proctor can act on). |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
-| `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
+| `get_stages_for_filter()` | `dict[int, str]` | Stage id → name for filter dropdowns. |
 | `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
 **`crew_wanted`** sits on every row: whether the tournament uses the role at all (`required_* > 0`), which is what lets the board stop offering **Sign up** for a role nobody is needed in.
 
-Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`.
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StageRepository`.
 
 ### match_schedule_service.py — MatchScheduleService
 
@@ -492,8 +492,8 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 | `notify_match_crew(match, message)` | `None` | DM approved crew and watchers, excluding players (players get the acknowledgment DM instead). Never raises. |
 | `notify_match_cancelled(match, reason)` | `None` | DM players, approved crew, and watchers that the match is off, with the stated reason. Never raises. |
 | `notify_acknowledgment_request(match, *, rescheduled)` | `None` | DM each player whose acknowledgment is still pending with an Acknowledge button; message wording switches on `rescheduled`. Never raises. |
-| `notify_tournament_subscribers_scheduled(match, message, exclude_discord_ids)` | `None` | DM tournament-notification subscribers (filtered by whether the match has a stream room) with crew signup buttons, skipping already-notified ids. Never raises. |
-| `notify_stream_candidate_subscribers(match, exclude_discord_ids)` | `None` | DM stream-candidate subscribers with crew signup buttons. Skipped entirely when the match already has a stream room (those subscribers were already notified). Never raises. |
+| `notify_tournament_subscribers_scheduled(match, message, exclude_discord_ids)` | `None` | DM tournament-notification subscribers (filtered by whether the match has a stage) with crew signup buttons, skipping already-notified ids. Never raises. |
+| `notify_stream_candidate_subscribers(match, exclude_discord_ids)` | `None` | DM stream-candidate subscribers with crew signup buttons. Skipped entirely when the match already has a stage (those subscribers were already notified). Never raises. |
 | `notify_match_scheduled(match, *, rescheduled=False, is_stream_candidate=False)` | `None` | The collapsed scheduled/rescheduled fan-out shared by `create_match`/`update_match`/`submit_match_request`: loads relations, computes the exclude list, then enqueues the ack request + crew DM + tournament-subscriber DMs (+ stream-candidate DMs when flagged). Awaited by the caller; the individual sub-notifications run on the queue. |
 | `notify_stream_candidate(match)` | `None` | Standalone stream-candidate fan-out for `set_stream_candidate` (fetch + collect exclude + enqueue the subscriber DMs). |
 
@@ -508,14 +508,14 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | Method | Returns | Description |
 |---|---|---|
 | `get_all_matches_for_schedule()` | `list[Match]` | Every match with relations prefetched, ordered by `scheduled_at` (public schedule tab). Delegates to `MatchRepository.get_all_for_schedule`. |
-| `get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)` | `list[Match]` | A day's matches with players/crew prefetched (stage timeline). Delegates to `MatchRepository.get_for_date`. |
-| `group_matches_by_stream_room(matches)` | `dict[int, (StreamRoom, list[Match])]` | Group prefetched matches by stream room. |
+| `get_matches_for_date(target_date, exclude_finished=True, require_stage=True)` | `list[Match]` | A day's matches with players/crew prefetched (stage timeline). Delegates to `MatchRepository.get_for_date`. |
+| `group_matches_by_stage(matches)` | `dict[int, (Stage, list[Match])]` | Group prefetched matches by stage. |
 | `get_matches_for_player(discord_id)` | `list[Match]` | Matches where the Discord user is a player. Delegates to `MatchRepository.get_for_player`. |
-| `create_match(tournament_id, scheduled_date, scheduled_time, player_ids, comment=None, stream_room_id=None, commentator_ids=None, tracker_ids=None, is_stream_candidate=False, actor=None)` | `Match` | Admin match creation — see flow below. Staff or TA of the target tournament. |
+| `create_match(tournament_id, scheduled_date, scheduled_time, player_ids, comment=None, stage_id=None, commentator_ids=None, tracker_ids=None, is_stream_candidate=False, actor=None)` | `Match` | Admin match creation — see flow below. Staff or TA of the target tournament. |
 | `update_match(match_id, *, tournament_id=None, scheduled_date=None, scheduled_time=None, player_ids=None, commentator_ids=None, tracker_ids=None, comment=None, clear_seated/clear_started/clear_finished/clear_confirmed/clear_seed=False, actor=None)` | `Match` | Partial update; syncs player/crew lists; can clear lifecycle timestamps and the seed; audits `match.updated`; re-runs acknowledgment + notification fan-out when the time or player set changed. Gated by `can_crud_match`. |
 | `submit_match_request(tournament_id, scheduled_date, scheduled_time, player_ids, actor, comment=None, *, title=None, from_bracket=False)` | `Match` | Player-initiated creation: the actor must be one of the players (`PermissionError` otherwise) — bypasses the TA/Staff gate without granting other powers. Refuses a tournament whose `allow_player_match_requests` is off (`assert_player_requests_allowed`), since a bracket-run tournament schedules only its own matchups; `from_bracket=True` skips that check and is set **only** by `BracketService.schedule_bracket_match` / `ChallongeService.schedule_challonge_match`, never from a request body. Audits `match.requested` and runs the same acknowledgment/notification fan-out as `create_match`. Lives in `match/match_request.py` (`MatchRequestMixin`). |
 | `set_stream_candidate(match_id, flag, actor=None)` | `Match` | Toggle `is_stream_candidate`; gated by `can_assign_match_stream`; notifies stream-candidate subscribers on a false→true transition. |
-| `assign_stage(match_id, stream_room_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stream room; gated by `can_assign_match_stream`; audits assigned/cleared variants. |
+| `assign_stage(match_id, stage_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stage; gated by `can_assign_match_stream`; audits assigned/cleared variants. |
 | `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_run_match`; rejected for racetime.gg tournaments (on-site-only — players race remotely). Validation ladder, most specific first: **(1)** the same station twice in one match, **(2)** the `StationFormat` regex, **(3)** a label outside the tenant's `Station` pool *once that pool is non-empty*, **(4)** a station already in use by another seated-and-unfinished match, and **(5)** a key that is not one of this match's player-row ids — the near-miss is a `User` id, and applying only the keys that happened to match would report success for a write that changed nothing. Each raises `ValueError`. Lives in [match_stations.py](../../application/services/match/match_stations.py) (`StationAssignmentMixin`). |
 | `suggest_stations(match_id, actor=None)` | `StationSuggestion` | Draw a free station for each of the match's two players — different `Station.side` where possible, preferring a station whose neighbours (same `side`+`section`, `position` ±1) are not in use, `secrets.choice` within the surviving tier. **Reads only**: the caller applies the result via `assign_stations`, so there is no audit row or event here. Returns `assignments` (`{match_player_id: label}`) plus `relaxations`, a list of user-facing sentences naming each rule it could not honour (one side full, no sides recorded, room too busy to avoid a neighbour). Raises `ValueError` for a match that does not have exactly two players, an empty station pool, fewer than two free stations, or a racetime.gg tournament. Gated by `can_run_match`. Lives in [match_station_draw.py](../../application/services/match/match_station_draw.py) (`StationDrawMixin`). |
 | `occupied_stations_for_dialog(match_id)` | `dict[str, int]` | `{station label: match id}` for stations in play, excluding this match — the read-through the station picker uses so presentation never touches `MatchRepository`. Lives in `match_stations.py` alongside `assign_stations`. |
@@ -594,11 +594,11 @@ Aggregation queries behind the admin Reports tabs. Day boundaries resolve on the
 | `matches_active_at(instant, tournament_id=None)` | `list[Match]` | Matches whose estimated window covers the instant (drill-down for forecast points). |
 | `match_operations(start, end, tournament_id=None)` | `dict` | Per-match rows (start delay, duration, confirmation lag) and per-tournament aggregates (averages, on-time % within ±5 min). |
 | `crew_coverage(start, end, tournament_id=None, user_id=None, approved_only=False)` | `dict` | Per-match crew slot coverage (flagging stream candidates whose approved crew falls short of the tournament's `required_commentators`/`required_trackers`, via `reporting_shared.is_crew_covered`) and per-user contribution rows with covered hours. |
-| `stream_room_utilization(start, end, tournament_id=None, stream_room_id=None)` | `dict` | Per-room scheduled hours, back-to-back counts (<15 min gaps), idle gap hours, plus unplaced stream-candidate matches. |
+| `stage_utilization(start, end, tournament_id=None, stage_id=None)` | `dict` | Per-stage scheduled hours, back-to-back counts (<15 min gaps), idle gap hours, plus unplaced stream-candidate matches. |
 
 **Module-level helper:** `event_day_bounds(d) -> (datetime, datetime)` — midnight-to-next-midnight UTC bounds for a date on the display clock.
 
-Collaborators: `SystemConfigService` (capacity limit); queries `Match`/`StreamRoom` ORM directly (read-only aggregation).
+Collaborators: `SystemConfigService` (capacity limit); queries `Match`/`Stage` ORM directly (read-only aggregation).
 
 ### analytics_service.py — AnalyticsService
 
@@ -681,19 +681,19 @@ player *to* a station is `MatchService.assign_stations`, not here; it validates
 against this pool and against live occupancy
 (`MatchService.occupied_stations_for_dialog` is the picker's read-through).
 
-### stream_room_service.py — StreamRoomService
+### stage_service.py — StageService
 
-CRUD for `StreamRoom` (stage) records. All mutations are gated by `AuthService.can_manage_stream_rooms` (Staff or Stream Manager) and audited under `stream_room.*`.
+CRUD for `Stage` (stage) records. All mutations are gated by `AuthService.can_manage_stages` (Staff or Stream Manager) and audited under `stage.*`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `create_stream_room(name, stream_url=None, is_active=True, actor=None)` | `StreamRoom` | Create; trims inputs; non-empty name required (`ValueError`). |
-| `update_stream_room(stream_room, name=None, stream_url=None, is_active=None, actor=None)` | `StreamRoom` | Partial update; rejects blanking the name. |
-| `delete_stream_room(stream_room, actor=None)` | `None` | Delete and audit. |
-| `get_all_stream_rooms(active_only=False)` / `get_stream_room_by_id(id)` | reads | All rooms (optionally only active); one room by id. |
-| `require_in_tenant(stream_room_id)` | `None` | Raise unless the room belongs to the in-scope tenant — the guard callers use before assigning a room id that arrived from a request body. |
+| `create_stage(name, stream_url=None, is_active=True, actor=None)` | `Stage` | Create; trims inputs; non-empty name required (`ValueError`). |
+| `update_stage(stage, name=None, stream_url=None, is_active=None, actor=None)` | `Stage` | Partial update; rejects blanking the name. |
+| `delete_stage(stage, actor=None)` | `None` | Delete and audit. |
+| `get_all_stages(active_only=False)` / `get_stage_by_id(id)` | reads | All stages (optionally only active); one stage by id. |
+| `require_in_tenant(stage_id)` | `None` | Raise unless the stage belongs to the in-scope tenant — the guard callers use before assigning a stage id that arrived from a request body. |
 
-Collaborators: `StreamRoomRepository`, `AuditService`. Match↔room assignment lives on `MatchService.assign_stage`, not here.
+Collaborators: `StageRepository`, `AuditService`. Match↔stage assignment lives on `MatchService.assign_stage`, not here.
 
 ### system_config_service.py — SystemConfigService
 
@@ -705,7 +705,7 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `set_raw(key, value, actor)` | `SystemConfiguration` | Upsert; Staff-only (`ensure`); audits `system_config.updated` with old/new values. |
 | `get_event_window()` | `(date, date)` | Event start/end. Falls back to min/max `Match.scheduled_at`, then to today; clamps end ≥ start. |
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
-| `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stream rooms. |
+| `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stages. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
 | `get_tournament_hours()` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). |
 | `get_tournament_window_for_date(d)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
@@ -770,7 +770,7 @@ Who belongs to a community, and who may change that. Membership is the **wider s
 
 ### tenant_setup_service.py — TenantSetupService
 
-Whether a community has what it needs to run, **derived on every read** — there is no `setup_complete` column, no dismissal flag and no per-step state, so a tenant that deletes its last tournament becomes un-set-up again and the checklist says so. Read-only: it takes no `actor` and writes no audit row. Five `.exists()` calls against `UserRoleRepository`, `TournamentRepository` and `StreamRoomRepository` plus the event-window config keys. Feature doc: [multitenancy.md § Provisioning a community](../features/multitenancy.md#provisioning-a-community).
+Whether a community has what it needs to run, **derived on every read** — there is no `setup_complete` column, no dismissal flag and no per-step state, so a tenant that deletes its last tournament becomes un-set-up again and the checklist says so. Read-only: it takes no `actor` and writes no audit row. Five `.exists()` calls against `UserRoleRepository`, `TournamentRepository` and `StageRepository` plus the event-window config keys. Feature doc: [multitenancy.md § Provisioning a community](../features/multitenancy.md#provisioning-a-community).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -779,7 +779,7 @@ Whether a community has what it needs to run, **derived on every read** — ther
 | `is_ready(steps)` | `bool` | Every **required** step done. The advisory ones never block. |
 | `outstanding(steps)` | `list[SetupStep]` | The required steps still undone (the `/platform` tooltip). |
 
-`SetupStep` is a frozen dataclass: `key`, `label`, `done`, `hint`, `tab` (which admin tab completes it) and `required`. Required: `staff`, `tournament`, `enrolment`. Advisory: `stream_room`, `event_window` — a match schedules without a stream room, and Settings' own copy says the window is derivable from match times, so marking either required would put the UI at odds with the service.
+`SetupStep` is a frozen dataclass: `key`, `label`, `done`, `hint`, `tab` (which admin tab completes it) and `required`. Required: `staff`, `tournament`, `enrolment`. Advisory: `stage`, `event_window` — a match schedules without a stage, and Settings' own copy says the window is derivable from match times, so marking either required would put the UI at odds with the service.
 
 Rendered by `theme/setup_checklist.py` (the `Setup` admin tab) and `pages/platform.py`'s Setup column.
 

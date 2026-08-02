@@ -25,7 +25,7 @@ from application.services.match.match_status import resolve as resolve_status
 from application.tenant_context import require_tenant_id
 from mcpserver.auth import Gate
 from mcpserver.registry import register
-from mcpserver.schemas import MatchSummary, StreamRoomBlock, TenantArg
+from mcpserver.schemas import MatchSummary, StageBlock, TenantArg
 
 # One page of matches. The cap is not politeness: an unbounded list is how a
 # tool call silently becomes 200k tokens and the model loses the thread.
@@ -39,20 +39,20 @@ def _summarize(match) -> MatchSummary:
         scheduled_at=match.scheduled_at,
         status=resolve_status(match=match).value,
         players=[p.user.preferred_name for p in match.players if p.user],
-        stream_room=match.stream_room.name if match.stream_room else None,
-        restream_url=match.stream_room.stream_url if match.stream_room else None,
+        stage=match.stage.name if match.stage else None,
+        restream_url=match.stage.stream_url if match.stage else None,
     )
 
 
 async def list_matches(
     tenant: TenantArg = None,
     tournament_id: Optional[List[int]] = None,
-    stream_room_id: Optional[List[int]] = None,
+    stage_id: Optional[List[int]] = None,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     limit: int = 50,
 ) -> List[MatchSummary]:
-    """List matches, filtered by tournament, stream room, and scheduled window.
+    """List matches, filtered by tournament, stage, and scheduled window.
 
     Returns a compact summary per match, ordered by scheduled time. Use
     `get_match` for full detail on one. Times are UTC.
@@ -63,8 +63,8 @@ async def list_matches(
     query = Match.filter(tenant_id=require_tenant_id())
     if tournament_id:
         query = query.filter(tournament_id__in=tournament_id)
-    if stream_room_id:
-        query = query.filter(stream_room_id__in=stream_room_id)
+    if stage_id:
+        query = query.filter(stage_id__in=stage_id)
     if start is not None:
         query = query.filter(scheduled_at__gte=start)
     if end is not None:
@@ -79,7 +79,7 @@ async def get_match(
     match_id: int,
     tenant: TenantArg = None,
 ) -> MatchResponse:
-    """Get full detail for one match: players, seed, stream room, and crew.
+    """Get full detail for one match: players, seed, stage, and crew.
 
     Only approved crew are listed. Use `list_match_crew` (admin) to see pending
     signups as well.
@@ -98,8 +98,8 @@ async def get_match(
 async def get_schedule(
     date: str,
     tenant: TenantArg = None,
-) -> List[StreamRoomBlock]:
-    """Get one day's schedule, grouped by stream room.
+) -> List[StageBlock]:
+    """Get one day's schedule, grouped by stage.
 
     `date` is YYYY-MM-DD, interpreted in the community's own timezone.
     """
@@ -110,13 +110,13 @@ async def get_schedule(
 
     service = MatchService()
     matches = await service.get_matches_for_date(parsed)
-    grouped = await service.group_matches_by_stream_room(matches)
+    grouped = await service.group_matches_by_stage(matches)
     return [
-        StreamRoomBlock(
-            stream_room=room.name if room else None,
-            matches=[_summarize(m) for m in room_matches],
+        StageBlock(
+            stage=stage.name if stage else None,
+            matches=[_summarize(m) for m in stage_matches],
         )
-        for room, room_matches in grouped.values()
+        for stage, stage_matches in grouped.values()
     ]
 
 

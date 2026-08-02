@@ -26,7 +26,7 @@ from models import (
     MatchNotificationLevel,
     MatchPlayers,
     MatchWatcher,
-    StreamRoom,
+    Stage,
     Tenant,
     Tournament,
     TournamentNotificationPreference,
@@ -39,11 +39,11 @@ async def seed_matches_for_tenant(
     tournament: Tournament,
     staff: User,
     players: list[User],
-    rooms: dict[str, StreamRoom],
+    stages: dict[str, Stage],
     now: datetime,
 ) -> dict[str, Match | GeneratedSeeds]:
     """Seed the lifecycle matches and their extras; return them by key."""
-    stage1, stage2, stage3 = rooms["stage1"], rooms["stage2"], rooms["stage3"]
+    stage1, stage2, stage3 = stages["stage1"], stages["stage2"], stages["stage3"]
 
     async def make_match(
         title: str,
@@ -55,7 +55,7 @@ async def seed_matches_for_tenant(
         confirmed: bool = True,
         p1: User | None = None,
         p2: User | None = None,
-        room: StreamRoom | None = None,
+        stage: Stage | None = None,
         stream_candidate: bool = True,
         comment: str | None = None,
     ) -> Match:
@@ -66,7 +66,7 @@ async def seed_matches_for_tenant(
             tenant=tenant,
             defaults={
                 "scheduled_at": scheduled_at,
-                "stream_room": room,
+                "stage": stage,
                 "is_stream_candidate": stream_candidate,
                 "comment": comment,
             },
@@ -94,23 +94,23 @@ async def seed_matches_for_tenant(
         return match
 
     scheduled_match = await make_match("Scheduled Match",   2,   p1=players[0], p2=players[1])
-    checked_in_match = await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], room=stage1)
-    in_progress_match = await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], room=stage2)
-    finished_match = await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], room=stage1)
+    checked_in_match = await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], stage=stage1)
+    in_progress_match = await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], stage=stage2)
+    finished_match = await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], stage=stage1)
     stage3_match = await make_match(
-        "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], room=stage3,
+        "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], stage=stage3,
         comment="Requested a rematch after a disconnect last round.",
     )
     await make_match(
         "Off-Stream Match", 4, p1=players[2], p2=players[0], stream_candidate=False,
     )
     future_match = await make_match(
-        "Grand Finals", 30, p1=players[3], p2=players[1], room=stage1,
+        "Grand Finals", 30, p1=players[3], p2=players[1], stage=stage1,
         comment="Best of 3, winner takes the trophy.",
     )
     disputed_match = await make_match(
         "Disputed Match", -5, seated=True, started=True, finished=True, confirmed=False,
-        p1=players[1], p2=players[2], room=stage2,
+        p1=players[1], p2=players[2], stage=stage2,
         comment="Result under review — desync reported by both players.",
     )
     await make_match(
@@ -119,10 +119,10 @@ async def seed_matches_for_tenant(
     # Exactly one match with **no title**. Most matches carry a round label, but a
     # blank one happens, and when it does every surface falls back to the roster
     # (``match.title or players_str`` in the crew service, the reconciler's own
-    # label, the race-room name). One fixture, because one is how often it occurs
+    # label, the race-stage name). One fixture, because one is how often it occurs
     # — and because ``title=None`` is only a usable natural key while it is unique
     # within the tournament.
-    await make_match(None, 6, p1=players[1], p2=players[2], room=stage2)
+    await make_match(None, 6, p1=players[1], p2=players[2], stage=stage2)
     # Seat the two matches that are checked in but not finished at real
     # stations, so the schedule shows stations out of the box and the
     # occupancy check has something to trip on: 1/2/5/6 read as in use when

@@ -55,7 +55,7 @@ def make_signup_match(**overrides):
         started_at=None,
         finished_at=None,
         scheduled_at=None,
-        stream_room=None,
+        stage=None,
         title=None,
         commentators=[],
         trackers=[],
@@ -89,10 +89,10 @@ def make_user(user_id=1, discord_id='12345'):
 def make_match(match_id=42):
     match = MagicMock()
     match.id = match_id
-    # Keep the DM message builder on a simple path: no title/schedule/stream room.
+    # Keep the DM message builder on a simple path: no title/schedule/stage.
     match.title = None
     match.scheduled_at = None
-    match.stream_room = None
+    match.stage = None
     match.players.all.return_value.prefetch_related = AsyncMock(return_value=[])
     return match
 

@@ -177,23 +177,23 @@ _CREW_DETAIL = '''
             </span>
         </div>'''
 
-# Stage / stream room. Shows when assigned, a candidate, or an admin who can
+# Stage / stage. Shows when assigned, a candidate, or an admin who can
 # assign; otherwise nothing. The admin's copy is the desktop cell's select —
 # stages plus the ``Candidate`` pseudo-stage — emitting
-# { key: props.row.id, stage: <room id | 'candidate' | null> }; everyone else
+# { key: props.row.id, stage: <stage id | 'candidate' | null> }; everyone else
 # reads the name, or the candidate chip while no stage is set.
 _STREAM_DETAIL = '''
-        <div class="mgc-detail" v-if="props.row.stream_room || props.row.is_stream_candidate || __STREAM__">
+        <div class="mgc-detail" v-if="props.row.stage || props.row.is_stream_candidate || __STREAM__">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <q-select v-if="__STREAM__" :model-value="__STAGEVAL__" :options="props.row.stage_options || []"
                           @update:model-value="val => $parent.$emit('set_stage', { key: props.row.id, stage: val })"
                           dense options-dense outlined emit-value map-options
                           style="min-width: 140px;" />
-                <a v-else-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
-                <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
-                <span v-if="!__STREAM__ && props.row.is_stream_candidate && !props.row.stream_room" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
-                <a v-if="__STREAM__ && props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url"
+                <a v-else-if="props.row.stage && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stage }}</a>
+                <span v-else-if="props.row.stage">{{ props.row.stage }}</span>
+                <span v-if="!__STREAM__ && props.row.is_stream_candidate && !props.row.stage" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
+                <a v-if="__STREAM__ && props.row.stage && props.row.stage_url" :href="props.row.stage_url"
                    target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);" class="q-ml-xs">
                     <q-icon name="open_in_new" size="18px" />
                 </a>
@@ -373,8 +373,8 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
                 .replace('__SING__', role[:-1])
                 .replace('__LABEL__', labels.get(role, role))
             )
-    if 'stream_room' in present:
-        details += _STREAM_DETAIL.replace('__LABEL__', labels.get('stream_room', 'Stage'))
+    if 'stage' in present:
+        details += _STREAM_DETAIL.replace('__LABEL__', labels.get('stage', 'Stage'))
     if 'generated_seed' in present:
         # Mobile label column is narrow; "Generated Seed" (the desktop column label) doesn't fit.
         details += _SEED_DETAIL.replace('__LABEL__', 'Seed')

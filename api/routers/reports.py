@@ -6,10 +6,10 @@ works throughout.
 
 Two reports are **reshaped rather than passed through**. ``ReportsService``
 builds its payloads for a chart that is about to draw them, so they carry
-per-interval and per-match detail — ``stream_room_utilization``'s even contains
+per-interval and per-match detail — ``stage_utilization``'s even contains
 ORM ``Match`` rows, which have no serializable form. ``capacity_forecast``
 returns peaks and headroom instead of the full series, and
-``stream_room_utilization`` per-room totals instead of every booking. The MCP
+``stage_utilization`` per-stage totals instead of every booking. The MCP
 tools in ``mcpserver/tools/analytics.py`` make the same call for the same
 reason; the two surfaces answer identically on purpose.
 
@@ -31,8 +31,8 @@ from api.schemas.reports import (
     CapacityPeak,
     ReportPayload,
     ReportRows,
-    StreamRoomUtilizationResponse,
-    StreamRoomUtilizationRow,
+    StageUtilizationResponse,
+    StageUtilizationRow,
 )
 from application.services import AnalyticsService, ReportsService
 from models import FeatureFlag
@@ -95,32 +95,32 @@ async def capacity_forecast(
 
 
 @router.get(
-    "/stream-room-utilization",
-    response_model=StreamRoomUtilizationResponse,
-    summary="How hard each stream room is worked over a window",
+    "/stage-utilization",
+    response_model=StageUtilizationResponse,
+    summary="How hard each stage is worked over a window",
 )
-async def stream_room_utilization(
+async def stage_utilization(
     start: datetime = StartQuery,
     end: datetime = EndQuery,
     tournament_id: Optional[int] = Query(None, description="Limit to one tournament."),
-    stream_room_id: Optional[int] = Query(None, description="Limit to one stream room."),
+    stage_id: Optional[int] = Query(None, description="Limit to one stage."),
 ):
     start, end = _window(start, end)
-    raw = await ReportsService().stream_room_utilization(
+    raw = await ReportsService().stage_utilization(
         start=start, end=end,
-        tournament_id=tournament_id, stream_room_id=stream_room_id,
+        tournament_id=tournament_id, stage_id=stage_id,
     )
-    return StreamRoomUtilizationResponse(
-        rooms=[
-            StreamRoomUtilizationRow(
-                stream_room_id=room['stream_room_id'],
-                stream_room_name=room['stream_room_name'],
-                scheduled_hours=room['scheduled_hours'],
-                match_count=len(room['matches']),
-                gap_hours=room['gap_hours'],
-                back_to_back_count=room['back_to_back_count'],
+    return StageUtilizationResponse(
+        stages=[
+            StageUtilizationRow(
+                stage_id=stage['stage_id'],
+                stage_name=stage['stage_name'],
+                scheduled_hours=stage['scheduled_hours'],
+                match_count=len(stage['matches']),
+                gap_hours=stage['gap_hours'],
+                back_to_back_count=stage['back_to_back_count'],
             )
-            for room in raw['rooms']
+            for stage in raw['stages']
         ],
         unplaced_candidate_count=raw['unplaced_candidate_count'],
     )
@@ -182,7 +182,7 @@ async def matches_active_at(
             tournament=match.tournament.name if match.tournament else None,
             scheduled_at=match.scheduled_at,
             players=[p.user.preferred_name for p in match.players if p.user],  # type: ignore[attr-defined]
-            stream_room=match.stream_room.name if match.stream_room else None,
+            stage=match.stage.name if match.stage else None,
         )
         for match in matches[:limit]
     ]

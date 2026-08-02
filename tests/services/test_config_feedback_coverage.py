@@ -31,8 +31,8 @@ from models import (
     FeedbackStatus,
     Match,
     Role,
+    Stage,
     StationFormat,
-    StreamRoom,
     SystemConfiguration,
     Tournament,
     User,
@@ -209,10 +209,10 @@ class TestGetMaxConcurrentStages:
     async def test_explicit_default_when_unset(self, db):
         assert await SystemConfigService.get_max_concurrent_stages(default=4) == 4
 
-    async def test_falls_back_to_active_streamroom_count(self, db):
-        await StreamRoom.create(name='A', is_active=True)
-        await StreamRoom.create(name='B', is_active=True)
-        await StreamRoom.create(name='C', is_active=False)
+    async def test_falls_back_to_active_stage_count(self, db):
+        await Stage.create(name='A', is_active=True)
+        await Stage.create(name='B', is_active=True)
+        await Stage.create(name='C', is_active=False)
         assert await SystemConfigService.get_max_concurrent_stages() == 2
 
 

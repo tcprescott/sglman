@@ -20,7 +20,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — e
 |---|---|---|
 | `staff` | Tournament organizers | Full admin dashboard; all CRUD; grant/revoke roles |
 | `proctor` | Race monitors | Race/schedule workflow on `/volunteer`; seat/start/finish, record the result, roll seeds, assign stations (`can_run_match`) — **not** confirming a result, which is the admin's step (`can_confirm_match`). No Admin access |
-| `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream-candidate flag; CRUD on stream rooms |
+| `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream-candidate flag; CRUD on stages |
 | `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
 | `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
 | `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
@@ -262,8 +262,8 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | `can_view_schedule_board(user)` | Staff, `STREAM_MANAGER`, or TA/CC of any tournament here — the same predicates `pages/admin.py` appends the Schedule tab on, so a report's drill-out link is never offered to someone the board would refuse. What they may *do* once there is a separate question, answered per capability by `MatchBoardAccess` ([frontend](frontend.md#match-board-capabilities-themetablesmatch_accesspy)) |
 | `tournament_scope(user)` | Not a gate — returns `(admin_ids, coordinated_ids)` for this tenant. The *ids*, not just whether any exist, because a non-staff operator's board is scoped to them: a crew coordinator of one tournament has no business reading the whole community's schedule. Staff and the globally-scoped roles have no id set |
 | `can_submit_triforce_text(user, tournament)` | The tournament is active, its generator is in `SeedGenerationService.TRIFORCE_TEXT_RANDOMIZERS`, and the user is staff or `TRIFORCE_SUBMITTER` |
-| `can_manage_stream_rooms(user)` | Staff or stream manager — CRUD on `StreamRoom` records themselves |
-| `can_assign_match_stream(user, match)` | `can_manage_stream_rooms`, or TA of the match's tournament — sets `stream_room` / `is_stream_candidate` |
+| `can_manage_stages(user)` | Staff or stream manager — CRUD on `Stage` records themselves |
+| `can_assign_match_stream(user, match)` | `can_manage_stages`, or TA of the match's tournament — sets `stage` / `is_stream_candidate` |
 | `can_manage_volunteers(user)` | Staff or volunteer coordinator — positions, shifts, assignments (admin side) |
 | `can_manage_equipment(user)` | Staff or equipment manager — CRUD on lending assets, private notes/owner |
 | `can_checkout_equipment(user)` | `can_manage_equipment`, or a volunteer (who may only check out to themselves) |

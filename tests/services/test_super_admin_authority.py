@@ -64,7 +64,7 @@ async def test_get_roles_stays_literal_for_super_admin(super_admin, fresh_tenant
 
 @pytest.mark.parametrize('helper', [
     'can_manage_volunteers',
-    'can_manage_stream_rooms',
+    'can_manage_stages',
     'can_manage_equipment',
     'can_checkout_equipment',
     'can_checkin_equipment',

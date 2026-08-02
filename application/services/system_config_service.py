@@ -12,7 +12,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import to_local, today_local
-from models import Match, StationFormat, StreamRoom, SystemConfiguration, Tournament, User
+from models import Match, Stage, StationFormat, SystemConfiguration, Tournament, User
 
 KEY_EVENT_START_DATE = 'event_start_date'
 KEY_EVENT_END_DATE = 'event_end_date'
@@ -130,7 +130,7 @@ class SystemConfigService:
             return value
         if default is not None:
             return default
-        return await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id()).count()
+        return await Stage.filter(is_active=True, tenant_id=require_tenant_id()).count()
 
     @staticmethod
     async def get_volunteer_reminder_lead_minutes(default: int = 60) -> int:

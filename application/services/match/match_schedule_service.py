@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 def _match_descriptor(match: Match, bracket_line: str = '') -> dict:
     """Extract human-readable match fields from a match with ``players__user``,
-    ``stream_room`` (and ``scheduled_at``) loaded, for passing to message builders.
+    ``stage`` (and ``scheduled_at``) loaded, for passing to message builders.
 
     ``bracket_line`` is the caller-resolved series context ("Semifinals · Game 2
     of 3 · Series 1-0"); it is passed in rather than looked up here because this
@@ -66,19 +66,19 @@ def _match_descriptor(match: Match, bracket_line: str = '') -> dict:
     return {
         'player_names': [p.user.preferred_name for p in match.players],
         'scheduled_at_display': time_field(match.scheduled_at),
-        'stream_room_name': match.stream_room.name if match.stream_room else '',
+        'stage_name': match.stage.name if match.stage else '',
         'bracket_line': bracket_line,
     }
 
 
 def _match_embed_kwargs(match: Match, community: str) -> dict:
-    """Shared embed kwargs from a match with tournament/players/stream_room loaded."""
+    """Shared embed kwargs from a match with tournament/players/stage loaded."""
     return {
         'tournament': match.tournament.name,
         'community_name': community,
         'player_names': [p.user.preferred_name for p in match.players],
         'when': match.scheduled_at,
-        'stream_room_name': match.stream_room.name if match.stream_room else None,
+        'stage_name': match.stage.name if match.stage else None,
     }
 
 
@@ -109,7 +109,7 @@ def _state_notification(
             community_name=community,
             player_names=[p.user.preferred_name for p in match.players],
             when=match.scheduled_at,
-            stream_room_name=match.stream_room.name if match.stream_room else None,
+            stage_name=match.stage.name if match.stage else None,
         ),
     )
 
@@ -161,7 +161,7 @@ class MatchScheduleService(MatchNotificationMixin):
 
         setattr(match, timestamp_field, datetime.now(timezone.utc))
         await match.save()
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        await match.fetch_related('tournament', 'players__user', 'stage')
         await self.audit_service.write_and_publish(
             actor, audit_action, {'match_id': match.id}, event_type,
             event_extra={
@@ -335,7 +335,7 @@ class MatchScheduleService(MatchNotificationMixin):
             try:
                 # Fetch match with related data
                 match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related(
-                    'tournament', 'tournament__preset', 'players', 'players__user', 'stream_room'
+                    'tournament', 'tournament__preset', 'players', 'players__user', 'stage'
                 )
 
                 if not await AuthService.can_run_match(actor, match):
@@ -400,7 +400,7 @@ class MatchScheduleService(MatchNotificationMixin):
                     description=f'[Open your seed]({seed_url})',
                     tournament=match.tournament.name, community_name=community,
                     player_names=descriptor['player_names'], when=match.scheduled_at,
-                    stream_room_name=match.stream_room.name if match.stream_room else None,
+                    stage_name=match.stage.name if match.stage else None,
                     url=seed_url,
                 )
 

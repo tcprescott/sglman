@@ -27,7 +27,7 @@ from models import (
     MatchPlayers,
     MatchWatcher,
     Role,
-    StreamRoom,
+    Stage,
     Tournament,
     TournamentNotificationPreference,
     Tracker,
@@ -418,10 +418,10 @@ class TestNotifyMatchCrew:
 
 
 class TestNotifyAcknowledgmentRequest:
-    async def _setup_match(self, *, stream_room=True):
+    async def _setup_match(self, *, stage=True):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Stage 1") if stream_room else None
-        return await Match.create(tournament=t, stream_room=sr, scheduled_at=utc(2025, 1, 15, 19, 30))
+        sr = await Stage.create(name="Stage 1") if stage else None
+        return await Match.create(tournament=t, stage=sr, scheduled_at=utc(2025, 1, 15, 19, 30))
 
     async def test_sends_ack_button_to_pending_player(self, service, db):
         m = await self._setup_match()
@@ -436,7 +436,7 @@ class TestNotifyAcknowledgmentRequest:
         assert call.args[2] == m.id
 
     async def test_rescheduled_flag_still_sends(self, service, db):
-        m = await self._setup_match(stream_room=False)
+        m = await self._setup_match(stage=False)
         player = await make_user(112, name="bob")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
@@ -745,10 +745,10 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
 
 
 class TestNotifyStreamCandidateSubscribersExtra:
-    async def test_returns_early_when_match_has_stream_room(self, service, db):
+    async def test_returns_early_when_match_has_stage(self, service, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Stage 1")
-        m = await Match.create(tournament=t, stream_room=sr)
+        sr = await Stage.create(name="Stage 1")
+        m = await Match.create(tournament=t, stage=sr)
         sub = await make_user(700, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES,
@@ -786,8 +786,8 @@ class TestNotifyTournamentSubscribersScheduledExtra:
 class TestNotifyMatchScheduledFanOut:
     async def test_enqueues_ack_crew_and_subscribers(self, service, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Stage 1")
-        m = await Match.create(tournament=t, stream_room=sr, scheduled_at=utc(2025, 1, 15, 19, 30))
+        sr = await Stage.create(name="Stage 1")
+        m = await Match.create(tournament=t, stage=sr, scheduled_at=utc(2025, 1, 15, 19, 30))
         await MatchPlayers.create(match=m, user=await make_user(811, name="p"))
 
         captured = []

@@ -175,7 +175,7 @@ hold a writing grant in one client and a reading one in another.
 | Tool | Gate | Flag |
 |---|---|---|
 | `list_tournaments`, `get_tournament` | ACTOR | — |
-| `list_stream_rooms`, `get_stream_room` | ACTOR | — |
+| `list_stages`, `get_stage` | ACTOR | — |
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
 | `suggest_match_time` | ACTOR | — |
 | `match_operations_report` | ADMIN | — |
@@ -209,7 +209,7 @@ rule that unapproved crew are never disclosed.
 ### Reports
 | Tool | Gate |
 |---|---|
-| `capacity_forecast`, `stream_room_utilization` | ADMIN |
+| `capacity_forecast`, `stage_utilization` | ADMIN |
 | `tournament_health`, `crew_participation_trends`, `activity_trends` | ADMIN |
 | `matches_active_at` | ADMIN |
 
@@ -217,9 +217,9 @@ ADMIN mirrors the Admin → Reports tab (`is_staff or tournament-admin or
 crew-coordinator`, which is what `can_view_admin` answers).
 
 Two are **reshaped rather than passed through**, because `ReportsService` builds
-its payloads for a chart (per-interval and per-match detail; `stream_room_utilization`'s
+its payloads for a chart (per-interval and per-match detail; `stage_utilization`'s
 even contains ORM `Match` rows): `capacity_forecast` returns peaks and headroom
-instead of the full series, `stream_room_utilization` per-room totals instead of
+instead of the full series, `stage_utilization` per-stage totals instead of
 every booking.
 
 ### Equipment
@@ -305,7 +305,7 @@ here belongs in the REST router too, and the reverse.
 | Group | Tools |
 |---|---|
 | Scheduling | `create_match`, `submit_match_request`, `update_match`, `delete_match` |
-| Stream and stations | `set_match_stream_candidate`, `assign_match_stream_room`, `assign_match_stations` |
+| Stream and stations | `set_match_stream_candidate`, `assign_match_stage`, `assign_match_stations` |
 | Lifecycle | `seat_match`, `start_match`, `finish_match`, `confirm_match`, `record_match_result`, `set_match_review`, `generate_match_seed` |
 | Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match` |
 

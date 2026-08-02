@@ -117,7 +117,7 @@ quiet. That applies to you between your own matches as much as to anyone else,
 and to whatever you are streaming or talking into.
 
 The room is not open to spectators. Friends who want to watch you play should
-watch from the stream room instead, and a proctor will send them there. An
+watch from the stage instead, and a proctor will send them there. An
 on-site admin can make an exception for someone with a reason to be in the room,
 so that is who to ask; it is not the proctor's to grant. Anyone who is let in
 picks one player and stays with them for the whole match, because someone who

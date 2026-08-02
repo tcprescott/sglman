@@ -12,7 +12,7 @@ Read-only — it takes no ``actor`` and writes no audit row.
 from dataclasses import dataclass
 from typing import List
 
-from application.repositories.stream_room_repository import StreamRoomRepository
+from application.repositories.stage_repository import StageRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.system_config_service import (
@@ -44,7 +44,7 @@ class TenantSetupService:
         has_staff = await UserRoleRepository.any_with_role(Role.STAFF)
         has_tournament = await TournamentRepository.any_exists()
         has_enrolment = await TournamentRepository.any_enrolment()
-        has_stream_room = await StreamRoomRepository.any_exists()
+        has_stage = await StageRepository.any_exists()
         start = await SystemConfigService.get_date(KEY_EVENT_START_DATE)
         end = await SystemConfigService.get_date(KEY_EVENT_END_DATE)
 
@@ -76,12 +76,12 @@ class TenantSetupService:
                 required=True,
             ),
             SetupStep(
-                key='stream_room',
-                label='Add a stream room',
-                done=has_stream_room,
+                key='stage',
+                label='Add a stage',
+                done=has_stage,
                 hint='One per stage or capture station you run matches on. A '
                      'match schedules without one.',
-                tab='Stream Rooms',
+                tab='Stages',
                 required=False,
             ),
             SetupStep(

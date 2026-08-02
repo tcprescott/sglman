@@ -1,4 +1,4 @@
-"""Schemas for stream room endpoints."""
+"""Schemas for stage endpoints."""
 
 from datetime import datetime
 from typing import Optional
@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-class StreamRoomResponse(BaseModel):
+class StageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

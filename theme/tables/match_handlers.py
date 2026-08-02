@@ -320,7 +320,7 @@ class MatchTableHandlersMixin:
             await self.on_assign_stations(match_id)
 
     async def _handle_set_stage(self, event):
-        """The Stage select wrote a value: a room id, ``'candidate'``, or null."""
+        """The Stage select wrote a value: a stage id, ``'candidate'``, or null."""
         match_id = self._event_match_id(event)
         args = getattr(event, 'args', None)
         stage = args.get('stage') if isinstance(args, dict) else None

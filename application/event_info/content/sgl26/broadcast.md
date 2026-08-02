@@ -4,39 +4,39 @@ slug: broadcast
 icon: videocam
 order: 50
 roles: STREAM_MANAGER, STAFF
-summary: What broadcast techs need to know at SpeedGaming Live, room boundaries, stream/stage assignment, technical requirements, and who to contact.
+summary: What broadcast techs need to know at SpeedGaming Live, stage boundaries, stream/stage assignment, technical requirements, and who to contact.
 ---
 
-The event-specific reference for anyone producing a stream room or stage at
+The event-specific reference for anyone producing a stage at
 SpeedGaming Live. Read it before your first shift.
 
-This is the *event* side. How stream rooms are created and assigned to matches
+This is the *event* side. How stages are created and assigned to matches
 in the app is documented in [On Air and watching](/help/on-air) under Help, and
 stays true whatever event you are working.
 
-## Your room, and where it ends
+## Your stage, and where it ends
 
 :::snippet broadcast-boundary
-**You are responsible for the stream room or stage you are producing, and
+**You are responsible for the stage you are producing, and
 nothing outside it.** A match being run in a proctored tournament room is not
 yours. The only part that may still come your way is if a proctor asks you to
 roll a seed for a stream. The rules a proctor runs their room by are theirs to
 set; yours are set by what you are producing.
 
-The same boundary runs the other way: a proctor's authority stops at the door
-of your room. If something about the broadcast itself needs a call, whether
+The same boundary runs the other way: a proctor's authority stops at the edge
+of your stage. If something about the broadcast itself needs a call, whether
 that's audio, delay, or what's on screen, that is yours to make, not theirs.
 :::
 
 ## Stream and stage assignments
 
-Matches are assigned to a stream room from the schedule side of the app.
+Matches are assigned to a stage from the schedule side of the app.
 [On Air and watching](/help/on-air#the-on-air-tab) covers how that assignment
-shows up and how to find which room a match is in. What that page does not
+shows up and how to find which stage a match is on. What that page does not
 cover, because it is true only for this event, is which physical stages exist,
 which are on-site versus online-only, and what each is wired for.
 
-> **TODO:** the list of stages/rooms for this event (on-site and online),
+> **TODO:** the list of stages for this event (on-site and online),
 > which is which, and the production setup at each — capture hardware, audio
 > routing, and anything stage-specific.
 

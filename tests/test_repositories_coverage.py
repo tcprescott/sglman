@@ -21,7 +21,7 @@ from models import (
     MatchNotificationLevel,
     Role,
     RoleSource,
-    StreamRoom,
+    Stage,
     Tournament,
     TournamentNotificationPreference,
     TournamentPlayers,
@@ -332,7 +332,7 @@ class TestTournamentNotificationRepository:
         assert pref2.id == pref.id
         assert pref2.match_notifications == MatchNotificationLevel.ALL
 
-    async def test_match_subscribers_with_stream_room(self, db):
+    async def test_match_subscribers_with_stage(self, db):
         t = await Tournament.create(name="T")
         u_all = await make_user(1, "all_user")
         u_streamed = await make_user(2, "streamed_user")
@@ -354,13 +354,13 @@ class TestTournamentNotificationRepository:
         await TournamentNotificationPreference.create(
             user=u_no_dm, tournament=t, match_notifications=MatchNotificationLevel.ALL
         )
-        subs = await self.repo.get_match_notification_subscribers(t.id, has_stream_room=True)
+        subs = await self.repo.get_match_notification_subscribers(t.id, has_stage=True)
         ids = {u.id for u in subs}
-        # ALL/STREAMED/CANDIDATES qualify when there's a stream room; NONE and
+        # ALL/STREAMED/CANDIDATES qualify when there's a stage; NONE and
         # dm_notifications=False are excluded.
         assert ids == {u_all.id, u_streamed.id, u_candidates.id}
 
-    async def test_match_subscribers_without_stream_room(self, db):
+    async def test_match_subscribers_without_stage(self, db):
         t = await Tournament.create(name="T")
         u_all = await make_user(1, "all_user")
         u_streamed = await make_user(2, "streamed_user")
@@ -370,8 +370,8 @@ class TestTournamentNotificationRepository:
         await TournamentNotificationPreference.create(
             user=u_streamed, tournament=t, match_notifications=MatchNotificationLevel.STREAMED
         )
-        subs = await self.repo.get_match_notification_subscribers(t.id, has_stream_room=False)
-        # Only 'all' subscribers qualify with no stream room.
+        subs = await self.repo.get_match_notification_subscribers(t.id, has_stage=False)
+        # Only 'all' subscribers qualify with no stage.
         assert {u.id for u in subs} == {u_all.id}
 
     async def test_stream_candidate_subscribers(self, db):
@@ -572,12 +572,12 @@ class TestMatchRepository:
         result = await MatchRepository.get_all(tournament_ids=[t1.id], prefetch_relations=False)
         assert [m.id for m in result] == [m1.id]
 
-    async def test_get_all_filter_by_stream_room_ids(self, db):
+    async def test_get_all_filter_by_stage_ids(self, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
-        m1 = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 1, 12), stream_room=sr)
+        sr = await Stage.create(name="Stage 1")
+        m1 = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 1, 12), stage=sr)
         await Match.create(tournament=t, scheduled_at=utc(2025, 1, 2, 12))
-        result = await MatchRepository.get_all(stream_room_ids=[sr.id], prefetch_relations=False)
+        result = await MatchRepository.get_all(stage_ids=[sr.id], prefetch_relations=False)
         assert [m.id for m in result] == [m1.id]
 
     async def test_get_all_filter_by_user_discord_id(self, db):
@@ -591,17 +591,17 @@ class TestMatchRepository:
 
     async def test_create_sets_fields(self, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
+        sr = await Stage.create(name="Stage 1")
         m = await MatchRepository.create(
             tournament_id=t.id,
             scheduled_at=utc(2025, 1, 1, 12),
             comment="hi",
-            stream_room_id=sr.id,
+            stage_id=sr.id,
             is_stream_candidate=True,
         )
         assert m.tournament_id == t.id
         assert m.comment == "hi"
-        assert m.stream_room_id == sr.id
+        assert m.stage_id == sr.id
         assert m.is_stream_candidate is True
 
     async def test_update_persists(self, db):
@@ -656,33 +656,33 @@ class TestMatchRepository:
 
     async def test_get_for_date_default_filters(self, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
+        sr = await Stage.create(name="Stage 1")
         target = date(2025, 3, 10)
-        keep = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 15), stream_room=sr)
+        keep = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 15), stage=sr)
         # finished -> excluded by default
         await Match.create(
-            tournament=t, scheduled_at=utc(2025, 3, 10, 16), stream_room=sr, finished_at=utc(2025, 3, 10, 18)
+            tournament=t, scheduled_at=utc(2025, 3, 10, 16), stage=sr, finished_at=utc(2025, 3, 10, 18)
         )
-        # no stream room -> excluded by default
+        # no stage -> excluded by default
         await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
         # different day -> excluded
-        await Match.create(tournament=t, scheduled_at=utc(2025, 3, 11, 15), stream_room=sr)
+        await Match.create(tournament=t, scheduled_at=utc(2025, 3, 11, 15), stage=sr)
         result = await MatchRepository.scheduled_between(*_utc_day(target))
         assert [m.id for m in result] == [keep.id]
 
-    async def test_get_for_date_include_finished_and_no_stream_room(self, db):
+    async def test_get_for_date_include_finished_and_no_stage(self, db):
         t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
+        sr = await Stage.create(name="Stage 1")
         target = date(2025, 3, 10)
-        with_room = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 15), stream_room=sr)
+        with_stage = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 15), stage=sr)
         finished = await Match.create(
-            tournament=t, scheduled_at=utc(2025, 3, 10, 16), stream_room=sr, finished_at=utc(2025, 3, 10, 18)
+            tournament=t, scheduled_at=utc(2025, 3, 10, 16), stage=sr, finished_at=utc(2025, 3, 10, 18)
         )
-        no_room = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
+        no_stage = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
         result = await MatchRepository.scheduled_between(
-            *_utc_day(target), exclude_finished=False, require_stream_room=False
+            *_utc_day(target), exclude_finished=False, require_stage=False
         )
-        assert {m.id for m in result} == {with_room.id, finished.id, no_room.id}
+        assert {m.id for m in result} == {with_stage.id, finished.id, no_stage.id}
 
     async def test_get_for_player(self, db):
         t = await Tournament.create(name="T")

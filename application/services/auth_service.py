@@ -283,8 +283,8 @@ class AuthService:
         return await AuthService.is_crew_coordinator_of(user, match.tournament_id)
 
     @staticmethod
-    async def can_manage_stream_rooms(user: Optional[User]) -> bool:
-        """CRUD on StreamRoom records (the stages themselves)."""
+    async def can_manage_stages(user: Optional[User]) -> bool:
+        """CRUD on Stage records (the stages themselves)."""
         return await AuthService.is_staff(user) or await AuthService.is_stream_manager(user)
 
     @staticmethod
@@ -323,10 +323,10 @@ class AuthService:
 
     @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
-        """Set a match's stream_room or is_stream_candidate flag.
+        """Set a match's stage or is_stream_candidate flag.
         Stream Managers can do this globally; TAs can do it for their own tournaments.
         """
-        if await AuthService.can_manage_stream_rooms(user):
+        if await AuthService.can_manage_stages(user):
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
