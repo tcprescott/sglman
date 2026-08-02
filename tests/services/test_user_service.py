@@ -408,10 +408,20 @@ class TestUpdateUserTournamentRegistrations:
         assert create_mock.await_count == 2
         assert [c.args[0] for c in create_mock.await_args_list] == [tournament_5, tournament_6]
 
-        # Audit log records the deltas (sorted).
-        details = service.audit_service.write_log.await_args.args[2]
-        assert details['added_tournament_ids'] == [5, 6]
-        assert sorted(details['removed_tournament_ids']) == [2, 3]
+        # One audit-plus-event record per tournament, not one batched row for
+        # the whole edit: a roster subscriber has to see staff-made changes at
+        # the same granularity as a player's own signup.
+        # write_and_publish delegates to the (mocked) write_log, so its calls
+        # are what records the per-tournament rows.
+        calls = service.audit_service.write_log.await_args_list
+        added, removed = [], []
+        for call in calls:
+            details = call.args[2]
+            assert details['target_user_id'] == user.id
+            added.extend(details['added_tournament_ids'])
+            removed.extend(details['removed_tournament_ids'])
+        assert sorted(added) == [5, 6]
+        assert sorted(removed) == [2, 3]
 
     async def test_no_audit_when_no_changes(self, service):
         user = make_user()

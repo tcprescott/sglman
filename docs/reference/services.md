@@ -934,13 +934,17 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 the tournament's own entrants dialog (`enroll_player` / `unenroll_player`), and
 the match dialog's create path (`MatchService.ensure_players_enrolled`, which
 returns the users it enrolled so the UI can report the side effect instead of
-hiding it). All four write the **same** audit action,
-`user.tournament_enrollment_updated`: one fact reached from four screens, and a
-parallel action per screen is how an audit log stops being answerable. The
-**event** does split by direction — `tournament.enrolled` /
-`tournament.withdrawn` — because a subscriber mirroring a roster needs to know
-which way it moved. All four write through `TournamentRepository`, which is what
-stamps the non-null tenant FK.
+hiding it, and which takes a **required** `actor` because each row it creates is
+audited). All four go through `record_enrolment_change`
+(`application/services/_tournament_signup.py`), which writes the **same** audit
+action, `user.tournament_enrollment_updated` — one fact reached from four
+screens, and a parallel action per screen is how an audit log stops being
+answerable — and publishes `tournament.enrolled` / `tournament.withdrawn`. The
+event splits by direction because a subscriber mirroring a roster needs to know
+which way it moved, and it fires on **one call per tournament** rather than one
+batched call per screen: a staff roster edit is as much a roster change as a
+player's own signup, so both reach a subscriber at the same granularity. All
+four write through `TournamentRepository`, which stamps the non-null tenant FK.
 
 **Only the self-service pair honours the signup window.** Staff enrolment
 deliberately ignores it: closing signups stops players adding themselves, not
@@ -1167,7 +1171,6 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | `get_community_people(*, role=None, has_discord=False, include_user_ids=None, include_inactive=False)` | `list[User]` | **The people of the tenant in scope** — every per-community picker, the Users tab, `GET /users` and MCP `list_users`. `User` is global, so belonging is derived, and `TenantMembership` derives it: the same basis the access gate checks, so a picker cannot offer someone the app would turn away. (It used to union role-holders with tournament entrants, because membership was a frozen backfill nothing wrote to; the membership work closed that and the old union is a strict subset.) `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account by **both** its flag and its sentinel id, and deactivated accounts unless `include_inactive` — which the match dialog passes, since a SpeedGaming placeholder is inactive by construction. Raises with no tenant in scope. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
-| `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |
 | `get_user_tournament_registrations(user)` | `list[TournamentPlayers]` | The user's enrollment rows. |
 | `update_user_personal_info(user, actor, display_name=None, pronouns=None, dm_notifications=None)` | `User` | Self-profile edit (page-level auth assumed); blank strings become `None`; audits only when something changed. |
 | `update_user_tournament_registrations(user, actor, selected_tournament_ids, current_registrations)` | `None` | Diff-and-apply enrollment set; audits added/removed tournament ids. |

@@ -7,9 +7,11 @@ the point of moving signup out of the UI was that the UI is not the gate.
 """
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
+from application.errors import NotFoundError
 from application.events import EventType, event_bus
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.tenant_membership_service import TenantMembershipService
@@ -163,6 +165,65 @@ async def test_withdrawing_without_being_signed_up_is_refused(open_tournament, p
     with pytest.raises(ValueError) as exc:
         await TournamentService().self_withdraw(open_tournament.id, player)
     assert 'not signed up' in str(exc.value)
+
+
+async def test_withdrawing_before_the_window_opens_is_allowed(player, staff, db):
+    """Staff can enter someone before signups open, and there is no roster to
+    protect yet — locking them in would be a rule with nothing behind it."""
+    tournament = await Tournament.create(
+        name='Next Season',
+        signups_open_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    service = TournamentService()
+    await service.enroll_player(tournament, player, staff)
+
+    await service.self_withdraw(tournament.id, player)
+    assert await TournamentPlayers.filter(tournament=tournament, user=player).count() == 0
+
+
+async def test_a_missing_tournament_is_not_found_rather_than_refused(player, db):
+    """`not_found`, not "not accepting signups" — the latter confirms a
+    tournament exists when it does not."""
+    with pytest.raises(NotFoundError):
+        await TournamentService().self_enroll(999, player)
+    with pytest.raises(NotFoundError):
+        await TournamentService().self_withdraw(999, player)
+
+
+# --- The Challonge carve-out -------------------------------------------------
+
+
+async def test_a_challonge_linked_tournament_refuses_self_signup(player, db):
+    tournament = await Tournament.create(name='Bracket Cup', challonge_tournament_id='T1')
+    with pytest.raises(ValueError) as exc:
+        await TournamentService().self_enroll(tournament.id, player)
+    assert 'Challonge' in str(exc.value)
+
+
+async def test_a_challonge_card_offers_no_button(player, db):
+    tournament = await Tournament.create(name='Bracket Cup', challonge_tournament_id='T1')
+    card = next(
+        c for c in await TournamentService().list_signup_cards(player)
+        if c.tournament.id == tournament.id
+    )
+    assert card.challonge_managed is True
+    assert card.can_sign_up is False
+
+
+async def test_a_leftover_challonge_link_stops_mattering_with_the_feature_off(
+    player, db, monkeypatch,
+):
+    """A tenant that has since disabled Challonge must not be left with a
+    tournament nobody can sign up for."""
+    from application.services import feature_flag_service
+
+    monkeypatch.setattr(
+        feature_flag_service.FeatureFlagService, 'enabled_flags',
+        AsyncMock(return_value=set()),
+    )
+    tournament = await Tournament.create(name='Ex-Challonge Cup', challonge_tournament_id='T1')
+    await TournamentService().self_enroll(tournament.id, player)
+    assert await TournamentPlayers.filter(tournament=tournament, user=player).count() == 1
 
 
 # --- Staff enrolment ignores the window --------------------------------------

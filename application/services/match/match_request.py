@@ -6,17 +6,36 @@ repositories, ``participants``, and ``_seed_acknowledgments`` through that
 composed class, the same way :class:`CancellationMixin` does.
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from application.errors import require_found
 from application.events import EventType, match_live
-from application.services.audit_service import AuditActions
+from application.repositories import (
+    MatchRepository,
+    TournamentRepository,
+)
+from application.services._tournament_signup import record_enrolment_change
+from application.services.audit_service import AuditActions, AuditService
 from application.services.match.match_request_guard import assert_player_requests_allowed
 from application.utils.timezone import parse_local_datetime
 from models import Match, User
 
 
 class MatchRequestMixin:
+    """The player-initiated match request, mixed into :class:`MatchService`.
+
+    The collaborators below are set up by the host's ``__init__``; they are
+    annotated here so this module type-checks on its own rather than deferring
+    to whoever mixes it in. ``participants`` is deliberately absent: the host
+    exposes it as a read-only property, which a writable annotation here would
+    clash with.
+    """
+
+    audit_service: AuditService
+    repository: MatchRepository
+    tournament_repository: TournamentRepository
+    match_schedule_service: Any
+
     async def submit_match_request(
         self,
         tournament_id: int,
@@ -77,7 +96,10 @@ class MatchRequestMixin:
             comment=comment,
             title=title,
         )
-        await self.participants.ensure_enrolled(tournament_id, players)
+        for enrolled_user in await self.participants.ensure_enrolled(tournament_id, players):
+            await record_enrolment_change(
+                self.audit_service, actor, enrolled_user, tournament_id, added=True,
+            )
         for user in players:
             await self.repository.add_player(match, user)
 

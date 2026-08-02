@@ -20,6 +20,7 @@ from application.repositories import (
     TrackerRepository,
     UserRepository,
 )
+from application.services._tournament_signup import record_enrolment_change
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
@@ -283,7 +284,10 @@ class MatchService(
             title=title,
         )
 
-        await self.participants.ensure_enrolled(tournament_id, players)
+        await self._record_auto_enrolments(
+            await self.participants.ensure_enrolled(tournament_id, players),
+            tournament_id, actor,
+        )
         for user in players:
             await self.repository.add_player(match, user)
 
@@ -586,7 +590,8 @@ class MatchService(
     async def ensure_players_enrolled(
         self,
         tournament_id: int,
-        player_ids: List[int]
+        player_ids: List[int],
+        actor: User,
     ) -> List[User]:
         """
         Ensure all players are enrolled in the tournament.
@@ -594,6 +599,9 @@ class MatchService(
         Args:
             tournament_id: Tournament ID
             player_ids: List of user IDs to enroll
+            actor: Who is causing the enrolment. Required, not optional: each
+                row this creates is audited and announced, and an enrolment
+                nobody is named for is not answerable.
 
         Returns:
             The users this call enrolled (empty when all were already entrants),
@@ -603,7 +611,25 @@ class MatchService(
             ValueError: If any user is not found
         """
         users = await self.participants.resolve_users(player_ids)
-        return await self.participants.ensure_enrolled(tournament_id, users)
+        newly = await self.participants.ensure_enrolled(tournament_id, users)
+        await self._record_auto_enrolments(newly, tournament_id, actor)
+        return newly
+
+    async def _record_auto_enrolments(
+        self, newly: List[User], tournament_id: int, actor: Optional[User],
+    ) -> None:
+        """Audit and announce the entrants scheduling just added.
+
+        ``MatchParticipants`` deliberately writes no audit and publishes no
+        events, so the roster rows it creates as a side effect of scheduling used
+        to appear from nowhere: no audit line naming who caused them, and nothing
+        on the event bus, so a subscriber mirroring the roster silently drifted.
+        The users it enrolled are exactly what it returns.
+        """
+        for user in newly:
+            await record_enrolment_change(
+                self.audit_service, actor, user, tournament_id, added=True,
+            )
 
     # Match lifecycle transitions (seat / start / finish / confirm) live solely
     # in MatchScheduleService._transition, which enforces the ordering rules and

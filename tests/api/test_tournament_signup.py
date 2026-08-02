@@ -69,11 +69,15 @@ class TestSignup:
         async with client_for(app, raw) as c:
             assert (await c.post(f'/api/tournaments/{tournament.id}/signup')).status_code == 400
 
-    async def test_missing_tournament_is_refused(self, db, app):
+    async def test_missing_tournament_is_404_not_a_refusal(self, db, app):
+        """A tournament that does not exist — including another community's,
+        since the read is tenant-scoped — must not come back as "not accepting
+        signups", which would confirm it exists."""
         user, raw = await create_user_token(username='entrant2', discord_id=9503)
         await _admit(user)
         async with client_for(app, raw) as c:
-            assert (await c.post('/api/tournaments/999/signup')).status_code == 400
+            assert (await c.post('/api/tournaments/999/signup')).status_code == 404
+            assert (await c.delete('/api/tournaments/999/signup')).status_code == 404
 
     async def test_a_read_only_token_cannot_sign_up(self, db, app):
         user, raw = await create_user_token(

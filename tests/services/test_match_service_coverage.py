@@ -694,15 +694,17 @@ class TestEnrollmentAndSeedHelpers:
         fresh = await make_user("fresh")
         await TournamentPlayers.create(tournament=t, user=already)
 
-        await service.ensure_players_enrolled(t.id, [already.id, fresh.id])
+        actor = await make_user("scheduler")
+        await service.ensure_players_enrolled(t.id, [already.id, fresh.id], actor)
 
         assert await TournamentPlayers.filter(tournament=t, user=already).count() == 1
         assert await TournamentPlayers.filter(tournament=t, user=fresh).exists()
 
     async def test_ensure_players_enrolled_missing_user_raises(self, service, db):
         t = await make_tournament()
+        actor = await make_user("scheduler2")
         with pytest.raises(ValueError, match="User 424242 not found"):
-            await service.ensure_players_enrolled(t.id, [424242])
+            await service.ensure_players_enrolled(t.id, [424242], actor)
 
     async def test_seed_acknowledgments_skips_missing_user(self, service, db):
         t = await make_tournament()

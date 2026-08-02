@@ -32,21 +32,24 @@ from theme.notify import notify_error
 # order: what you can do something about, then what you are already in, then the
 # rest. A section with no cards is not drawn.
 _SECTIONS = (
-    (
-        'Open for signup',
-        'how_to_reg',
-        lambda c: not c.enrolled and c.window is SignupWindow.OPEN,
-    ),
+    # "Open for signup" is `can_sign_up`, not a re-derivation of it: reading the
+    # window alone put Challonge-synced tournaments under a heading whose whole
+    # promise is a button they will never show.
+    ('Open for signup', 'how_to_reg', lambda c: c.can_sign_up),
     ('My tournaments', 'emoji_events', lambda c: c.enrolled),
     (
         'Opening soon',
         'schedule',
-        lambda c: not c.enrolled and c.window is SignupWindow.UPCOMING,
+        lambda c: not c.enrolled and not c.can_sign_up
+        and c.window is SignupWindow.UPCOMING,
     ),
+    # Everything else you are not in: closed windows, and the Challonge-managed
+    # tournaments whose roster comes from the bracket instead.
     (
-        'Signups closed',
+        'Not taking signups',
         'lock',
-        lambda c: not c.enrolled and c.window is SignupWindow.CLOSED,
+        lambda c: not c.enrolled and not c.can_sign_up
+        and c.window is not SignupWindow.UPCOMING,
     ),
 )
 
@@ -192,8 +195,9 @@ async def tournaments_tab() -> None:
                             'Challonge account on your Profile.'
                         ).classes('text-caption text-grey-7')
                     elif card.enrolled:
-                        # Enrolled with the window shut. Saying nothing here reads
-                        # as a missing button, so the card says whose call it is.
+                        # Enrolled with the window shut — the only state that
+                        # leaves an entrant no button. Saying nothing reads as a
+                        # missing control, so the card says whose call it is.
                         ui.label(
                             'Signups have closed — ask staff if you need to drop out.'
                         ).classes('text-caption text-grey-7')
