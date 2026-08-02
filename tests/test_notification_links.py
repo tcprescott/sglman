@@ -179,6 +179,34 @@ class TestPushMirrorGetsTheSameTarget:
         assert captured['navigate'] == 'https://x/home/player?schedule=5'
 
 
+class TestTheDeepLinkParamDoesNotShadowATab:
+    """`home()` takes a `schedule` query param, and a tab named Schedule.
+
+    They collided once: the param shadowed the imported tab function, so the
+    Schedule tab built `None` and rendered "This section failed to load" for
+    every viewer — a page-wide regression from a notification change, and
+    invisible to a service test.
+    """
+
+    def test_the_schedule_tab_content_is_callable(self):
+        import inspect
+
+        import pages.home as home
+
+        assert callable(home.schedule_tab)
+        src = inspect.getsource(home.create)
+        assert "'content': schedule_tab" in src
+
+    def test_the_page_still_accepts_the_deep_link_param(self):
+        import inspect
+
+        import pages.home as home
+
+        # create() closes over `home`; find it among its locals via the source.
+        src = inspect.getsource(home.create)
+        assert 'schedule: int | None = None' in src
+
+
 @pytest.mark.parametrize('builder,expected_label', [
     (links.player_schedule, 'Pick a time'),
     (links.admin_match, 'Open the match'),

@@ -16,7 +16,11 @@ from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.player import render_player_dashboard
 from pages.home_tabs.player_edit_info import render_edit_info_tab
-from pages.home_tabs.schedule import schedule
+
+# Aliased: the page function below takes a `schedule` query param (the bracket
+# matchup to open), which would otherwise shadow this tab and leave the Schedule
+# tab building `None`.
+from pages.home_tabs.schedule import schedule as schedule_tab
 from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.base import BaseLayout
@@ -143,7 +147,7 @@ def create() -> None:
         live = await FeatureFlagService().enabled_flags()
         tabs = [
             # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
-            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
+            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule_tab},
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
             {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
             # `schedule` is a bracket matchup id: the Player tab opens its

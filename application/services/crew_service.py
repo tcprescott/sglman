@@ -13,9 +13,9 @@ from tortoise.transactions import in_transaction
 from application.errors import require_found
 from application.events import Event, EventType, event_bus, match_live
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
+from application.services import notification_links
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services import notification_links
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
