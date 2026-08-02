@@ -18,6 +18,7 @@ from application.services.discord.discord_service import (
     VIEW_CREW_ACK,
     VIEW_CREW_SIGNUP,
     VIEW_MATCH_ACK,
+    VIEW_RESCHEDULE_AGREE,
     VIEW_UNWATCH,
     VIEW_VOLUNTEER_ACK,
     register_interaction_handler,
@@ -44,6 +45,13 @@ from discordbot.match_acknowledgment import (
     handle_match_acknowledgment_interaction,
     make_match_acknowledgment_view,
 )
+from discordbot.reschedule_agreement import (
+    CUSTOM_ID_PREFIX as RESCHEDULE_AGREE_PREFIX,
+)
+from discordbot.reschedule_agreement import (
+    handle_reschedule_agree_interaction,
+    make_reschedule_agree_view,
+)
 from discordbot.volunteer_acknowledgment import (
     CUSTOM_ID_PREFIX as VOLUNTEER_ACK_PREFIX,
 )
@@ -66,6 +74,7 @@ register_interaction_handler(MATCH_ACK_PREFIX, handle_match_acknowledgment_inter
 register_interaction_handler(CREW_ACK_PREFIX, handle_crew_acknowledgment_interaction)
 register_interaction_handler(VOLUNTEER_ACK_PREFIX, handle_volunteer_acknowledgment_interaction)
 register_interaction_handler(WATCH_PREFIX, handle_unwatch_interaction)
+register_interaction_handler(RESCHEDULE_AGREE_PREFIX, handle_reschedule_agree_interaction)
 
 # DM view factories, keyed by the VIEW_* kinds the DM senders look up.
 register_view_factory(VIEW_CREW_SIGNUP, make_crew_signup_view)
@@ -73,3 +82,4 @@ register_view_factory(VIEW_MATCH_ACK, make_match_acknowledgment_view)
 register_view_factory(VIEW_CREW_ACK, make_crew_acknowledgment_view)
 register_view_factory(VIEW_VOLUNTEER_ACK, make_volunteer_acknowledgment_view)
 register_view_factory(VIEW_UNWATCH, make_unwatch_view)
+register_view_factory(VIEW_RESCHEDULE_AGREE, make_reschedule_agree_view)

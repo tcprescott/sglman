@@ -89,8 +89,13 @@ class MatchRescheduleService:
     async def pending_match_ids(self) -> List[int]:
         return await self.repository.pending_match_ids()
 
-    async def list_for_match(self, match: Match) -> List[MatchRescheduleRequest]:
-        return await self.repository.list_for_match(match)
+    async def list_for_match(self, match_id: int) -> List[MatchRescheduleRequest]:
+        """Every request raised against one match, newest first.
+
+        Takes an id rather than a ``Match`` so an entry surface never has to
+        load the row just to hand it straight back.
+        """
+        return await self.repository.list_for_match(match_id)
 
     # ---- eligibility ---------------------------------------------------
 

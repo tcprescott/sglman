@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Match, MatchRescheduleRequest, RescheduleRequestStatus, User
+from models import MatchRescheduleRequest, RescheduleRequestStatus, User
 
 # What every surface needs to render a request without a query per row: who
 # asked, which match, and the match's tournament and roster.
@@ -35,9 +35,9 @@ class RescheduleRequestRepository(TenantScopedRepository[MatchRescheduleRequest]
         ).prefetch_related(*_FULL).order_by('created_at')
 
     @staticmethod
-    async def list_for_match(match: Match) -> List[MatchRescheduleRequest]:
+    async def list_for_match(match_id: int) -> List[MatchRescheduleRequest]:
         return await scoped(
-            MatchRescheduleRequest.filter(match=match)
+            MatchRescheduleRequest.filter(match_id=match_id)
         ).prefetch_related(*_FULL).order_by('-created_at')
 
     @staticmethod
