@@ -172,6 +172,19 @@ class EquipmentStatus(str, Enum):
     RETIRED = 'retired'
 
 
+class StationSide(str, Enum):
+    """Which half of the tournament room a station sits in.
+
+    Exactly two, because the rule it exists for is "the two players of a match
+    do not sit on the same side". A venue that has not described its layout
+    leaves ``Station.side`` null and the seating suggestion simply has less to
+    work with.
+    """
+
+    LEFT = 'left'
+    RIGHT = 'right'
+
+
 class StationFormat(str, Enum):
     FREE = 'free'
     NUMERIC = 'numeric'

@@ -14,7 +14,18 @@ from application.errors import require_found
 from application.repositories import StationRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import Station, User
+from models import Station, StationSide, User
+
+
+def _validate_position(position: Optional[int]) -> None:
+    """A seat index is a counting number or nothing at all.
+
+    Zero and negatives would still compare correctly for adjacency, but they
+    read as a mistake in the admin table and there is no venue that numbers a
+    row from -3.
+    """
+    if position is not None and position < 1:
+        raise ValueError("Station position must be 1 or greater.")
 
 
 class StationService:
@@ -39,6 +50,8 @@ class StationService:
         actor: Optional[User] = None,
         *,
         section: Optional[str] = None,
+        side: Optional[StationSide] = None,
+        position: Optional[int] = None,
         sort_order: int = 0,
     ) -> Station:
         await AuthService.ensure(
@@ -49,10 +62,13 @@ class StationService:
             raise ValueError("Station name is required.")
         if await self._name_taken(name):
             raise ValueError(f"Station '{name}' already exists.")
+        _validate_position(position)
 
         station = await self.repository.create(
             name=name,
             section=(section or '').strip() or None,
+            side=side,
+            position=position,
             sort_order=sort_order,
         )
         await self.audit_service.write_log(
@@ -69,8 +85,12 @@ class StationService:
         *,
         name: Optional[str] = None,
         section: Optional[str] = None,
+        side: Optional[StationSide] = None,
+        position: Optional[int] = None,
         sort_order: Optional[int] = None,
         is_active: Optional[bool] = None,
+        clear_side: bool = False,
+        clear_position: bool = False,
     ) -> Station:
         await AuthService.ensure(
             await AuthService.is_staff(actor), "Only Staff can manage stations",
@@ -87,6 +107,17 @@ class StationService:
             fields['name'] = clean
         if section is not None:
             fields['section'] = section.strip() or None
+        # Both layout fields are nullable and both are set by a picker that can
+        # be emptied, so "leave alone" and "clear" need separate signals.
+        if side is not None:
+            fields['side'] = side
+        elif clear_side:
+            fields['side'] = None
+        if position is not None:
+            _validate_position(position)
+            fields['position'] = position
+        elif clear_position:
+            fields['position'] = None
         if sort_order is not None:
             fields['sort_order'] = sort_order
         if is_active is not None:

@@ -213,6 +213,10 @@ Used by both `VolunteerAvailability.status` and `PlayerAvailability.status` (`ma
 
 Used by `Equipment.status` (`max_length=20`, default `AVAILABLE`), kept in sync with open `EquipmentLoan` rows by `EquipmentService` (the single writer): `AVAILABLE` = `'available'` (on hand), `CHECKED_OUT` = `'checked_out'` (an open `EquipmentLoan` exists), `RETIRED` = `'retired'`.
 
+### `StationSide`
+
+Used by `Station.side` (`max_length=10`, nullable). Exactly two members, because the rule it exists for is "the two players of a match do not sit on the same side of the room": `LEFT` = `'left'`, `RIGHT` = `'right'`. A null side means the community has not described that station's position in the venue; `MatchService.suggest_stations` still seats there, it just cannot use it to split a matchup.
+
 ### `StationFormat`
 
 Stored in `SystemConfiguration` under key `station_format`. Controls the validation pattern applied to station assignment strings in the dialog and in `MatchService.assign_stations`. Default is `FREE` to preserve existing behaviour.
@@ -755,7 +759,9 @@ proctor picks from at check-in.
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `name` | `CharField(50)` | not null | The label ("1", "A3") |
-| `section` | `CharField(50)` | null | Free-text grouping ("North wall"); a display label only, it carries no pairing semantics |
+| `section` | `CharField(50)` | null | Free-text grouping ("North wall"); a display label, plus half of the adjacency test below |
+| `side` | `CharEnumField(StationSide)` | null | Which half of the room. The check-in draw puts a match's two players on different sides |
+| `position` | `IntField` | null | Seat index along a row. Two stations are **neighbours** when they share `side` and `section` and their positions differ by 1 |
 | `sort_order` | `IntField` | default `0` | Display order in the picker and the admin list |
 | `is_active` | `BooleanField` | default `True` | Retired stations stay for history but are not assignable |
 
@@ -768,6 +774,12 @@ zero `Station` rows keeps the historical free-text + `StationFormat` regex
 behaviour, so the feature ships without a per-tenant feature flag and without
 breaking communities that never define a pool. Once a community has any station,
 `MatchService.assign_stations` rejects a label outside the pool.
+
+**`side` and `position` are optional and feed one thing:**
+`MatchService.suggest_stations`, the random seating draw the check-in dialog's
+Randomize button calls. A pool that leaves them null behaves exactly as it did
+before they existed — the draw still works, it just reports that it could not
+split the players across the room. Neither field constrains a manual assignment.
 
 **Occupancy is derived, never stored**: a station is in use when some match that
 is *seated and not finished* has a player assigned to it

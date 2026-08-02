@@ -59,6 +59,7 @@ from .enums import (
     Role,
     RoleSource,
     StationFormat,
+    StationSide,
     SyncStatus,
     VolunteerAvailabilityStatus,
 )
@@ -191,6 +192,7 @@ __all__ = [
     'SpeedGamingEventLink',
     'Station',
     'StationFormat',
+    'StationSide',
     'StreamRoom',
     'SyncStatus',
     # system

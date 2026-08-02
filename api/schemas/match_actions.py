@@ -57,6 +57,20 @@ class AssignStationsRequest(BaseModel):
     )
 
 
+class StationSuggestionResponse(BaseModel):
+    assignments: Dict[int, str] = Field(
+        ..., description="Map of MatchPlayers id -> suggested station label"
+    )
+    relaxations: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Seating rules the suggestion could not honour, as sentences to show "
+            "the proctor. Empty when both players got opposite sides with no "
+            "occupied neighbour."
+        ),
+    )
+
+
 class RecordResultRequest(BaseModel):
     winner_id: int = Field(..., description="The MatchPlayers row id of the winner")
 

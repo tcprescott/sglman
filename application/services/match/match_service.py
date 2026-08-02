@@ -32,6 +32,7 @@ from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
+from application.services.match.match_station_draw import StationDrawMixin
 from application.services.match.match_stations import StationAssignmentMixin
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
@@ -55,6 +56,7 @@ from models import (
 
 class MatchService(
     CancellationMixin, MatchRequestMixin, MatchReviewMixin, StationAssignmentMixin,
+    StationDrawMixin,
 ):
     """Service for match-related business operations."""
 

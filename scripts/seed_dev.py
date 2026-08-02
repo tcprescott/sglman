@@ -45,6 +45,7 @@ from models import (
     Role,
     RoleSource,
     Station,
+    StationSide,
     StreamRoom,
     SystemConfiguration,
     Tenant,
@@ -337,16 +338,21 @@ async def seed_for_tenant(
 
         # Venue station pool — two banks facing into the middle of the room.
         # Only tenant A defines one: a community with no stations keeps the
-        # historical free-text station field, and tenant B is the fixture for
-        # that fallback path.
+        # historical free-text station field, and tenant B is that fixture.
         if tenant.slug == "default":
-            for idx, (station_name, section) in enumerate(
-                [(f"{n}", "North wall") for n in range(1, 5)]
-                + [(f"{n}", "South wall") for n in range(5, 9)]
-            ):
+            # Sided and numbered so the check-in draw has a room to work with:
+            # six a side, neighbours one apart, more than the live matches
+            # occupy. Station 13 has no layout — the "no side set" fixture.
+            layout = (
+                [(f"{n}", "North wall", StationSide.LEFT, n) for n in range(1, 7)]
+                + [(f"{n}", "South wall", StationSide.RIGHT, n - 6) for n in range(7, 13)]
+                + [("13", "Overflow", None, None)]
+            )
+            for idx, (nm, section, side, pos) in enumerate(layout):
                 await Station.get_or_create(
-                    name=station_name, tenant=tenant,
-                    defaults={"section": section, "sort_order": idx},
+                    name=nm, tenant=tenant,
+                    defaults={"section": section, "side": side,
+                              "position": pos, "sort_order": idx},
                 )
             print(f"    [{tenant.slug}] stations ok")
         else:
