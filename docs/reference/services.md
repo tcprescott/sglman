@@ -52,6 +52,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
 | `DiscordLinkService` | [discord_link_service.py](../../application/services/discord/discord_link_service.py) | Verified tenant↔Discord-server link (bot-authorization OAuth + authority re-check) | [multitenancy.md](../features/multitenancy.md) |
 | `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord.md](../features/discord.md) |
+| `discord_member_events` (module) | [discord_member_events.py](../../application/services/discord/discord_member_events.py) | The bot's `GUILD_MEMBER_*` listeners: app-role re-sync and the cached avatar hash | [discord-integration.md](discord-integration.md) |
 | `discord_queue` (module) | [discord_queue.py](../../application/services/discord/discord_queue.py) | Serialized background Discord sends | [discord-integration.md](discord-integration.md) |
 | `DiscordService` / `MockDiscordService` | [discord_service.py](../../application/services/discord/discord_service.py) | Bot DMs, button views, guild roles | [discord-integration.md](discord-integration.md) |
 | `EquipmentService` | [equipment_service.py](../../application/services/equipment_service.py) | Lending-asset CRUD and checkout/check-in workflow | — |
@@ -369,6 +370,15 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 | `member_can_manage_guild(guild_id, user_id)` | `(bool, bool \| str)` | Whether a user is owner / Administrator / has Manage Server. **Fails closed** (`ok=False`) if the bot can't determine it. The authority check behind `DiscordLinkService`. |
 
 **`MockDiscordService`** mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/discord.md#mock-mode) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
+
+### discord_member_events.py — module functions
+
+What the bot does with `GUILD_MEMBER_UPDATE` / `GUILD_MEMBER_REMOVE`, split out of `discord_service.py` so the bot singleton and the DM senders don't share a file with the listeners. Both log and swallow everything — an exception escaping a gateway listener takes the connection down with it.
+
+| Function | Returns | Description |
+|---|---|---|
+| `sync_member_roles(guild_id, discord_user_id)` | `None` | Re-syncs the member's app roles across **every tenant sharing the guild**, each in its own `tenant_scope`. Unknown guild or unknown user is a no-op. |
+| `sync_member_avatar(member)` | `None` | Stores `Member.avatar.key` — the **global** hash, matching what the OAuth login records — on `User.discord_avatar`, or `NULL` when the avatar was removed. Unknown users are a no-op; an unchanged hash writes nothing. The only avatar refresh someone who never signs in gets. |
 
 ### discord_link_service.py — DiscordLinkService
 
