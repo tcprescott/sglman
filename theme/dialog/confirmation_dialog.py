@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from nicegui import ui
 
@@ -27,7 +27,8 @@ class ConfirmationDialog:
         self.tone = tone
         self.title = title
         self.require_phrase = require_phrase
-        self.dialog = None
+        # Any: bound to the ui.dialog in open(); callers reach through it to close.
+        self.dialog: Any = None
 
     def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -47,8 +48,10 @@ class ConfirmationDialog:
             def _typed() -> str:
                 return (phrase_input.value or '') if phrase_input else ''
 
+            required = (self.require_phrase or '').lower()
+
             def _matches(value) -> bool:
-                return (value or '').strip().lower() == self.require_phrase.lower()
+                return (value or '').strip().lower() == required
 
             with dialog_actions().classes('justify-end'):
                 ui.button(self.cancel_text, on_click=dialog.close).props('flat')
