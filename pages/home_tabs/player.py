@@ -62,7 +62,7 @@ def _notify_stale_reschedule_link() -> None:
     on a page with no dialog reads as a broken link, so the reason is said aloud.
     """
     ui.notify(
-        "That match can't be changed any more.", color='warning',
+        'That match can no longer be changed.', color='warning',
     )
 
 

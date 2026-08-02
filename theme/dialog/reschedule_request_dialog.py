@@ -27,7 +27,7 @@ from theme.notify import notify_error
 
 KIND_OPTIONS = {
     RescheduleRequestKind.RESCHEDULE.value: 'Move it to another time',
-    RescheduleRequestKind.CANCEL.value: "Call it off — it doesn't need playing",
+    RescheduleRequestKind.CANCEL.value: 'Call it off — it does not need playing',
 }
 
 

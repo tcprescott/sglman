@@ -497,7 +497,7 @@ class MatchRescheduleService:
         request = await self._decidable(request_id, actor)
         note = (note or '').strip()
         if not note:
-            raise ValueError("Say why — a bare 'no' is what players are stuck with today.")
+            raise ValueError('Say why — the note is all the player sees.')
 
         await self.repository.update(
             request,
