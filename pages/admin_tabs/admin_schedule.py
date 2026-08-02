@@ -13,6 +13,7 @@ from models import Match, RescheduleRequestKind, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.realtime import register_view
 from theme.tables.admin_crud import current_actor
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
@@ -331,6 +332,26 @@ def admin_schedule_page(
             reschedule_queue, reschedule_anchor, reschedule_request,
             _open_decision, context.client, may_decide=access.edit,
         ))
+
+        async def _on_live_change(_match_id, _change_type) -> None:
+            """Re-read the queue when anything about a match changes elsewhere.
+
+            Its own subscription rather than the table's ``on_rows_changed``,
+            which the other two strips use: those summarise the *visible rows*,
+            while this one summarises requests. A request can land on a match the
+            board's day or state filter is hiding, and ``update_row_by_id``
+            returns early for a row that is not on screen — so riding the table
+            would leave staff looking at a stale count precisely when a filter
+            is narrowing their view.
+
+            ``register_view`` re-enters the captured client, which is what makes
+            the tenant resolvable (it falls back to the client stash) and the
+            refresh land in the right browser.
+            """
+            if access.edit:
+                reschedule_queue.refresh()
+
+        register_view(_on_live_change)
 
         # Route through the view's _bg so the tab-switch refresh rebinds the
         # tenant (the selected_tab handler runs in a detached task that lost it).

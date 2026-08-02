@@ -29,7 +29,7 @@ from typing import List, Optional, Sequence
 from tortoise.exceptions import NoValuesFetched
 
 from application.errors import require_found
-from application.events import EventType
+from application.events import EventType, match_live
 from application.repositories import (
     MatchRepository,
     RescheduleRequestRepository,
@@ -313,6 +313,11 @@ class MatchRescheduleService:
             event_extra={'tournament_id': match.tournament_id},  # type: ignore[attr-defined]
         )
 
+        # Nudge open views: a staff member already sitting on the schedule board
+        # should see the queue strip grow rather than discover the request on
+        # their next page load.
+        match_live.publish(match_id, match_live.CHANGED)
+
         await self._notify_submitted(request, match, tournament.name, actor)
         return request
 
@@ -361,6 +366,9 @@ class MatchRescheduleService:
                 EventType.MATCH_RESCHEDULE_AGREED,
                 event_extra={'tournament_id': request.match.tournament_id},
             )
+            # Agreement changes what staff read on the chip they are about to
+            # click, so it earns a nudge even though the queue length is the same.
+            match_live.publish(request.match_id, match_live.CHANGED)
         return request
 
     # ---- the requester taking it back ---------------------------------
@@ -391,6 +399,8 @@ class MatchRescheduleService:
             EventType.MATCH_RESCHEDULE_WITHDRAWN,
             event_extra={'tournament_id': request.match.tournament_id},
         )
+        # The strip shrinks for the same reason it grew.
+        match_live.publish(request.match_id, match_live.CHANGED)  # type: ignore[attr-defined]
         return request
 
     # ---- the decision --------------------------------------------------
@@ -513,6 +523,9 @@ class MatchRescheduleService:
             EventType.MATCH_RESCHEDULE_DECLINED,
             event_extra={'tournament_id': request.match.tournament_id},
         )
+        # Approving reaches ``match_live`` through ``update_match`` /
+        # ``cancel_match``; a decline touches no match, so it publishes its own.
+        match_live.publish(request.match_id, match_live.CHANGED)  # type: ignore[attr-defined]
         await self._notify_decided(request, approved=False, new_at=None, note=note)
         return request
 
