@@ -166,7 +166,7 @@ class UserService:
         ``True`` when the stored hash actually changed. Unknown users are a
         no-op — we do not provision an account off a presence event.
         """
-        user = await self.repository.get_by_discord_id(discord_id)
+        user = await self.repository.get_by_discord_id(str(discord_id))
         if user is None:
             return False
         return await self.repository.set_discord_avatar(user, avatar)

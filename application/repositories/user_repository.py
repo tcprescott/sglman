@@ -274,6 +274,7 @@ class UserRepository(TenantScopedRepository[User]):
         """
         if user.discord_avatar == avatar:
             return False
-        user.discord_avatar = avatar
+        # Nullable CharField: mypy reads the descriptor as ``str``, not ``str | None``.
+        user.discord_avatar = avatar  # type: ignore[assignment]
         await user.save(update_fields=['discord_avatar', 'updated_at'])
         return True
