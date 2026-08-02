@@ -214,7 +214,6 @@ def _render_standings(bracket, standings, *, service, actor, tenant_id, on_done)
                     ).props('dense inputmode=numeric').classes('w-28')
 
     async def do_complete() -> None:
-        confirm.dialog.close()
         tie_breaks = {
             entry_id: int(widget.value)
             for entry_id, widget in inputs.items()

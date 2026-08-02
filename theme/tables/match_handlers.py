@@ -120,8 +120,6 @@ class MatchTableHandlersMixin:
                 await self.update_row_by_id(match_id)
             except (ValueError, PermissionError) as e:
                 notify_error(e)
-            finally:
-                dialog.dialog.close()
 
         if approving:
             # The dialog used to show one line — the name — and a checkbox, for a
@@ -192,10 +190,8 @@ class MatchTableHandlersMixin:
                         color='positive',
                     )
                     await self.update_row_by_id(match_id)
-                    dialog.dialog.close()
                 except ValueError as e:
                     ui.notify(str(e), color='warning')
-                    dialog.dialog.close()
 
             message = f'Remove yourself as a {role} for {match_row_label(row)}?'
             if was_approved:
@@ -222,10 +218,8 @@ class MatchTableHandlersMixin:
                         color='positive',
                     )
                     await self.update_row_by_id(match_id)
-                    dialog.dialog.close()
                 except ValueError as e:
                     ui.notify(str(e), color='warning')
-                    dialog.dialog.close()
 
             dialog = ConfirmationDialog(
                 f'Sign up as a {role} for {match_row_label(row)}?',

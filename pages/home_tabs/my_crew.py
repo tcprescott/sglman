@@ -92,7 +92,6 @@ async def my_crew_tab() -> None:
                             f'You have been removed as a {row["role"]}.', color='positive')
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
-                    dialog.dialog.close()
                     await commitments.refresh()
 
             # The two withdrawals are not the same act: dropping a slot staff

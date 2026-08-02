@@ -169,7 +169,6 @@ class MatchLifecycleHandlers:
             [p.user.preferred_name for p in match.players])
 
         async def handle_confirm(_):
-            dialog.dialog.close()
             await self.confirm_starting(match)
         with self.page_container:
             dialog = ConfirmationDialog(
@@ -216,7 +215,6 @@ class MatchLifecycleHandlers:
         match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
-            dialog.dialog.close()
             await self.confirm_confirming(match)
         with self.page_container:
             dialog = ConfirmationDialog(

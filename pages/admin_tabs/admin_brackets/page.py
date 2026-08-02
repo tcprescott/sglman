@@ -294,7 +294,6 @@ async def admin_brackets_page() -> None:
             """
             with client:
                 async def do_complete() -> None:
-                    confirm.dialog.close()
                     actor = await current_actor()
                     with tenant_scope(tenant_id):
                         try:

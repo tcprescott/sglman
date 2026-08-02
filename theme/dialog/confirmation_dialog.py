@@ -1,4 +1,5 @@
 from nicegui import ui
+from nicegui.events import ClickEventArguments, handle_event
 
 from theme.dialog._helpers import dialog_actions, dialog_header
 
@@ -27,10 +28,15 @@ class ConfirmationDialog:
                 # paragraphs with '\n\n' and a plain label collapsed every one of
                 # them onto a single line.
                 ui.label(self.message).style('white-space: pre-line')
+            # The question has been answered either way, so the dialog closes
+            # before the handler runs. Leaving it to each caller left several
+            # confirmations sitting open over work that had already happened —
+            # a cancelled match still showing "Cancel this match?".
+            def confirm(e: ClickEventArguments) -> None:
+                dialog.close()
+                handle_event(self.on_confirm, e)
+
             with dialog_actions().classes('justify-end'):
                 ui.button(self.cancel_text, on_click=dialog.close).props('flat')
-                if self.on_confirm:
-                    ui.button(self.confirm_text, on_click=self.on_confirm).props(f'color={self.tone}')
-                else:
-                    ui.button(self.confirm_text, on_click=dialog.close).props(f'color={self.tone}')
+                ui.button(self.confirm_text, on_click=confirm).props(f'color={self.tone}')
         dialog.open()

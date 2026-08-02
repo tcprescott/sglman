@@ -120,7 +120,6 @@ def _render_provider_row(
             return
 
         async def go() -> None:
-            dialog.dialog.close()
             await unlink()
 
         dialog = ConfirmationDialog(
