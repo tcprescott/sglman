@@ -28,6 +28,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import BracketService
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import BracketMatchState, BracketState, Tournament
+from theme.assets import asset_url
 from theme.brackets import (
     config_summary,
     format_label,
@@ -159,7 +160,7 @@ async def admin_brackets_page() -> None:
     tenant_id = require_tenant_id()
     state: Dict[str, Optional[int]] = {'tournament_id': None}
     # The Results dialog embeds the shared bracket renderer for click-to-report.
-    ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
+    ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
 
     with ui.column().classes('page-container'):
         with ui.row().classes('header-row'):

@@ -10,6 +10,7 @@ from nicegui import app, background_tasks, ui
 
 from application.services import FeatureFlagService, TelemetryService
 from models import FeatureFlag
+from theme.assets import asset_url
 
 from .audit import audit_page
 from .capacity import capacity_page
@@ -90,7 +91,7 @@ async def reports_page(
     # acknowledges a drill-out click while they wait. Installed once here rather
     # than per report so the dashboard gets it too; the script keys off the
     # URL's ``report`` param and no-ops outside /admin/reports.
-    ui.add_head_html('<script src="/static/js/report-nav.js"></script>')
+    ui.add_head_html(f'<script src="{asset_url("js/report-nav.js")}"></script>')
 
     # One query for every report and every dashboard card, rather than an
     # is_enabled call in each module. Resolved outside the refreshable: flags do

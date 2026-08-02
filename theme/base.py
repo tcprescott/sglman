@@ -1,38 +1,19 @@
 import json
 import logging
 import re
-from pathlib import Path
 
 from nicegui import app, ui
 
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import FeatureFlag, User
+from theme.assets import asset_url
 from theme.chrome import dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
 from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
-
-_STATIC_ROOT = Path(__file__).resolve().parent.parent / 'static'
-
-
-def _asset(path: str) -> str:
-    """``/static/<path>`` with a build-stamp query so a deploy busts caches.
-
-    The app sends ``no-cache`` on its own static responses, but nothing between
-    it and the reader is obliged to: a proxy or a browser holding a previous
-    deploy's ``styles.css`` renders the current markup against stale rules, and
-    the failure mode is a page that silently loses every class added since. The
-    stamp is the file's mtime, so the URL changes exactly when the file does.
-    """
-    try:
-        stamp = int((_STATIC_ROOT / path).stat().st_mtime)
-    except OSError:
-        return f'/static/{path}'
-    return f'/static/{path}?v={stamp}'
-
 
 def tab_slug(label: str) -> str:
     """Derive a URL path segment from a tab's display label.
@@ -201,7 +182,7 @@ class BaseLayout:
                 f'<link rel="preload" href="/static/fonts/{font_file}.woff2" '
                 'as="font" type="font/woff2" crossorigin>'
             )
-        ui.add_head_html(f'<link rel="stylesheet" href="{_asset("css/styles.css")}">')
+        ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">')
         # Paired with the site-wide robots.txt (frontend.py): the signed-out
         # surfaces are shareable by link, not published to search engines, and
         # robots.txt alone does not deindex a URL a crawler already knows.
@@ -224,7 +205,11 @@ class BaseLayout:
         ui.add_head_html(
             '<script>'
             "if('serviceWorker' in navigator){"
-            "navigator.serviceWorker.register('/sw.js').catch(()=>{});"
+            # updateViaCache:'none' — the default ('imports') lets the HTTP cache
+            # answer for the worker's importScripts, which would pin an old
+            # web-push-common.js against a current worker.
+            "navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'})"
+            '.catch(()=>{});'
             '}'
             '</script>'
         )
@@ -263,7 +248,7 @@ class BaseLayout:
         # Drag-to-resize headers on any table carrying data-wiz-table-key. In the
         # head, not the body, for the same reason as install_connection_watch:
         # markup added from a lazy tab build never executes its <script>.
-        ui.add_head_html(f'<script src="{_asset("js/table-columns.js")}"></script>')
+        ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
         # colors stay fixed, warm-tuned to match the --status-* tokens in

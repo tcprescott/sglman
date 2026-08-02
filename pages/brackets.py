@@ -45,6 +45,7 @@ from models import (
     FeatureFlag,
     Tournament,
 )
+from theme.assets import asset_url
 from theme.base import BaseLayout
 from theme.brackets import (
     assign_match_numbers,
@@ -376,7 +377,7 @@ def create() -> None:
         await BaseLayout(
             user=user, show_admin=show_admin,
         ).render()
-        ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
+        ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
         _install_hover_run()
 
         # Captured while the request context is live; row-action/live-refresh
