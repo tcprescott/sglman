@@ -32,7 +32,7 @@ STAFF_TOOLS = {
 ACTOR_TOOLS = {
     'list_tournaments': {},
     'list_matches': {},
-    'list_stream_rooms': {},
+    'list_stages': {},
 }
 
 

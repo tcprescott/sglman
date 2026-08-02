@@ -236,7 +236,7 @@ Recipient selection helpers:
 - `notify_match_crew` — approved crew + watchers, **excluding players** (players get the ack-request DM instead); watchers again get the Unwatch variant.
 - `notify_acknowledgment_request` — players with a pending `MatchAcknowledgment` row only.
 - `notify_match_cancelled` — the recipient set collected *before* the delete, since the match row is gone by send time.
-- `notify_tournament_subscribers_scheduled` / `notify_stream_candidate_subscribers` — tournament subscribers by notification level ([discord.md § Tournament notification preferences](../features/discord.md#tournament-notification-preferences)), minus `MatchService._collect_notified_discord_ids` (players + approved crew already DMed). The stream-candidate fan-out returns early if the match already has a stream room.
+- `notify_tournament_subscribers_scheduled` / `notify_stream_candidate_subscribers` — tournament subscribers by notification level ([discord.md § Tournament notification preferences](../features/discord.md#tournament-notification-preferences)), minus `MatchService._collect_notified_discord_ids` (players + approved crew already DMed). The stream-candidate fan-out returns early if the match already has a stage.
 
 ### DM message builders
 
@@ -246,7 +246,7 @@ Message text comes from **public functions** in [`discord_messages.py`](../../ap
 |---|---|---|
 | `scheduled_dm` | New-match info DM (crew/subscribers) | Tournament name, players, scheduled time, stage |
 | `rescheduled_dm` | Reschedule info DM (crew/subscribers) | Tournament name, players, new time, stage |
-| `acknowledgment_request_dm` | Player ack request (scheduled/rescheduled variants via `rescheduled=`) | Match details plus optional stream room and player names; ends with `Click **Acknowledge** below to confirm you've seen this.` |
+| `acknowledgment_request_dm` | Player ack request (scheduled/rescheduled variants via `rescheduled=`) | Match details plus optional stage and player names; ends with `Click **Acknowledge** below to confirm you've seen this.` |
 | `checked_in_dm` | Seated transition | "checked in … about to begin" |
 | `cancelled_dm` | Match cancellation | Tournament, match descriptor, optional reason, and whether the bracket matchup is released to reschedule |
 | `state_changed_dm` | Started / Finished / Confirmed transitions | `Your match in **<tournament>** is now: **<state>**.` plus an optional info block |

@@ -12,7 +12,7 @@ class MatchCreateRequest(BaseModel):
     scheduled_time: str = Field(..., description="Time in the community's timezone, HH:MM")
     player_ids: List[int] = Field(..., min_length=1, description="User IDs of the players")
     comment: Optional[str] = None
-    stream_room_id: Optional[int] = None
+    stage_id: Optional[int] = None
     commentator_ids: Optional[List[int]] = None
     tracker_ids: Optional[List[int]] = None
     is_stream_candidate: bool = False
@@ -48,7 +48,7 @@ class StreamCandidateRequest(BaseModel):
 
 
 class AssignStageRequest(BaseModel):
-    stream_room_id: Optional[int] = Field(None, description="Stream room to assign, or null to clear")
+    stage_id: Optional[int] = Field(None, description="Stage to assign, or null to clear")
 
 
 class AssignStationsRequest(BaseModel):

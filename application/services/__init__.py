@@ -74,8 +74,8 @@ from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
+from .stage_service import StageService
 from .station_service import StationService
-from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .table_preference_service import TablePreferenceService
 from .telemetry_service import TelemetryService
@@ -155,8 +155,8 @@ __all__ = [
     'SetupStep',
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
+    'StageService',
     'StationService',
-    'StreamRoomService',
     'SystemConfigService',
     'TablePreferenceService',
     'TelemetryService',

@@ -36,8 +36,8 @@ from .racetime_room_repository import RacetimeRoomRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
+from .stage_repository import StageRepository
 from .station_repository import StationRepository
-from .stream_room_repository import StreamRoomRepository
 from .table_preference_repository import TablePreferenceRepository
 from .telemetry_repository import TelemetryRepository
 from .tenant_join_request_repository import TenantJoinRequestRepository
@@ -88,8 +88,8 @@ __all__ = [
     'RandomizerCredentialRepository',
     'SpeedGamingEpisodeRepository',
     'SpeedGamingEventLinkRepository',
+    'StageRepository',
     'StationRepository',
-    'StreamRoomRepository',
     'TablePreferenceRepository',
     'TelemetryRepository',
     'TenantFeatureFlagRepository',

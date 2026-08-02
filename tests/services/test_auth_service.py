@@ -191,7 +191,7 @@ class TestStaffOverride:
 
     async def test_staff_can_manage_streams(self, patch_roles):
         patch_roles({Role.STAFF})
-        assert await AuthService.can_manage_stream_rooms(make_user()) is True
+        assert await AuthService.can_manage_stages(make_user()) is True
 
     async def test_staff_can_grant_roles(self, patch_roles):
         patch_roles({Role.STAFF})

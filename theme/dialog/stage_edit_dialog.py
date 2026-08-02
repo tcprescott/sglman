@@ -1,38 +1,38 @@
-"""Dialog for editing StreamRoom details"""
+"""Dialog for editing Stage details"""
 
 from nicegui import app, ui
 
-from application.services import StreamRoomService, get_user_from_discord_id
-from models import StreamRoom
+from application.services import StageService, get_user_from_discord_id
+from models import Stage
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.notify import notify_error
 
 
-class StreamRoomEditDialog:
-    def __init__(self, stream_room: StreamRoom = None, on_submit=None):
-        self.stream_room = stream_room
+class StageEditDialog:
+    def __init__(self, stage: Stage = None, on_submit=None):
+        self.stage = stage
         self.on_submit = on_submit
         self.dialog = None
-        self.stream_room_service = StreamRoomService()
+        self.stage_service = StageService()
 
     async def open(self):
-        if self.stream_room:
-            default_name = self.stream_room.name
-            default_url = self.stream_room.stream_url or ''
-            default_is_active = self.stream_room.is_active
-            title = 'Edit Stream Room'
+        if self.stage:
+            default_name = self.stage.name
+            default_url = self.stage.stream_url or ''
+            default_is_active = self.stage.is_active
+            title = 'Edit Stage'
         else:
             default_name = ''
             default_url = ''
             default_is_active = True
-            title = 'Add Stream Room'
+            title = 'Add Stage'
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
-                name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
+                name_input = ui.input('Stage Name', value=default_name).classes('input-full-width')
                 url_input = ui.input('Stream URL', value=default_url).classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=default_is_active)
 
@@ -42,35 +42,35 @@ class StreamRoomEditDialog:
                 is_active = is_active_checkbox.value
                 try:
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                    if self.stream_room:
-                        result_room = await self.stream_room_service.update_stream_room(
-                            self.stream_room,
+                    if self.stage:
+                        result_stage = await self.stage_service.update_stage(
+                            self.stage,
                             name=name,
                             stream_url=url if url else None,
                             is_active=is_active,
                             actor=actor,
                         )
                         with self.dialog:
-                            ui.notify(f'Stream room "{name}" updated successfully.', color='positive')
+                            ui.notify(f'Stage "{name}" updated successfully.', color='positive')
                     else:
-                        result_room = await self.stream_room_service.create_stream_room(
+                        result_stage = await self.stage_service.create_stage(
                             name=name,
                             stream_url=url if url else None,
                             is_active=is_active,
                             actor=actor,
                         )
                         with self.dialog:
-                            ui.notify(f'Stream room "{name}" created successfully.', color='positive')
+                            ui.notify(f'Stage "{name}" created successfully.', color='positive')
                     dialog.close()
                     if self.on_submit:
-                        await self.on_submit(result_room)
+                        await self.on_submit(result_stage)
                 except (ValueError, PermissionError) as e:
                     with self.dialog:
                         notify_error(e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Save' if self.stream_room else 'Create', on_click=submit).props('color=primary')
+                ui.button('Save' if self.stage else 'Create', on_click=submit).props('color=primary')
 
             submit_on_enter(dialog, submit)
             dialog.open()

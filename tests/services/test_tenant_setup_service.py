@@ -15,7 +15,7 @@ from application.services.system_config_service import (
 )
 from application.services.tenant_setup_service import TenantSetupService
 from application.tenant_context import tenant_scope
-from models import Role, StreamRoom, Tenant, Tournament, TournamentPlayers, User
+from models import Role, Stage, Tenant, Tournament, TournamentPlayers, User
 
 
 def _by_key(steps):
@@ -61,8 +61,8 @@ async def test_is_ready_ignores_the_advisory_steps(db):
         await TournamentPlayers.create(tournament=tournament, user=user)
         steps = await TenantSetupService().status()
 
-    # No stream room and no event window, both advisory.
-    assert _by_key(steps)['stream_room'].done is False
+    # No stage and no event window, both advisory.
+    assert _by_key(steps)['stage'].done is False
     assert _by_key(steps)['event_window'].done is False
     assert TenantSetupService.is_ready(steps) is True
     assert TenantSetupService.outstanding(steps) == []
@@ -73,11 +73,11 @@ async def test_advisory_steps_still_complete_when_satisfied(db):
     staffer = await User.create(discord_id=9004, username='cfg')
     with tenant_scope(fresh.id):
         await UserRoleRepository.add(staffer, Role.STAFF)
-        await StreamRoom.create(name='Stage 1')
+        await Stage.create(name='Stage 1')
         await SystemConfigService.set_raw(KEY_EVENT_START_DATE, '2026-01-01', staffer)
         await SystemConfigService.set_raw(KEY_EVENT_END_DATE, '2026-01-03', staffer)
         steps = _by_key(await TenantSetupService().status())
-    assert steps['stream_room'].done is True
+    assert steps['stage'].done is True
     assert steps['event_window'].done is True
 
 
@@ -126,7 +126,7 @@ async def test_the_fledgling_seed_tenant_is_not_setup_complete(db):
     # A tournament with no entrants: the state the entrants dialog is for.
     assert steps['tournament'].done is True
     assert steps['enrolment'].done is False
-    assert steps['stream_room'].done is False
+    assert steps['stage'].done is False
     assert TenantSetupService.is_ready(list(steps.values())) is False
 
     # The fully-provisioned seed tenants are the contrast: the panel must be

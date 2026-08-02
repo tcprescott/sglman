@@ -53,7 +53,7 @@ class CrewRepository(Generic[T]):
         if since is not None:
             query = query.filter(match__scheduled_at__gte=since)
         return await query.prefetch_related(
-            'match', 'match__tournament', 'match__stream_room',
+            'match', 'match__tournament', 'match__stage',
             'match__players', 'match__players__user',
         ).order_by('match__scheduled_at')
 

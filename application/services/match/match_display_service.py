@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
-    StreamRoomRepository,
+    StageRepository,
     TournamentRepository,
 )
 from application.services.match.match_status import has_recorded_result, legacy_label, resolve
@@ -35,7 +35,7 @@ class MatchDisplayService:
         self.repository = MatchRepository()
         self.ack_repository = MatchAcknowledgmentRepository()
         self.tournament_repository = TournamentRepository()
-        self.stream_room_repository = StreamRoomRepository()
+        self.stage_repository = StageRepository()
 
     async def get_match_for_display(
         self,
@@ -61,7 +61,7 @@ class MatchDisplayService:
         self,
         *,
         tournament_ids: Optional[List[int]] = None,
-        stream_room_ids: Optional[List[int]] = None,
+        stage_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
         exclude_racetime: bool = False,
@@ -72,7 +72,7 @@ class MatchDisplayService:
 
         Args:
             tournament_ids: Filter by tournament IDs
-            stream_room_ids: Filter by stream room IDs
+            stage_ids: Filter by stage IDs
             only_upcoming: Only return unfinished matches
             user_discord_id: Filter by player discord ID
             exclude_racetime: Drop matches run by a racetime.gg tournament — the
@@ -84,7 +84,7 @@ class MatchDisplayService:
         """
         matches = await self.repository.get_all(
             tournament_ids=tournament_ids,
-            stream_room_ids=stream_room_ids,
+            stage_ids=stage_ids,
             only_upcoming=only_upcoming,
             user_discord_id=user_discord_id,
             exclude_racetime=exclude_racetime,
@@ -104,14 +104,14 @@ class MatchDisplayService:
         """
         return await self.tournament_repository.get_all_as_dict()
 
-    async def get_stream_rooms_for_filter(self) -> Dict[int, str]:
+    async def get_stages_for_filter(self) -> Dict[int, str]:
         """
-        Get all stream rooms formatted for filter dropdown.
+        Get all stages formatted for filter dropdown.
 
         Returns:
-            Dict mapping stream room ID to name
+            Dict mapping stage ID to name
         """
-        return await self.stream_room_repository.get_all_as_dict()
+        return await self.stage_repository.get_all_as_dict()
 
     def _get_match_state(self, match: Match) -> str:
         """The schedule table's state string for a match.
@@ -277,14 +277,14 @@ class MatchDisplayService:
                 for p in match.players
             ],
             'acknowledgments': acknowledgments_summary,
-            'stream_room': match.stream_room.name if match.stream_room else '',
+            'stage': match.stage.name if match.stage else '',
             # The id, not just the name: the board's Stage cell is a select whose
-            # value is the assigned room, so it needs what the service takes back.
-            'stream_room_id': match.stream_room_id,  # type: ignore[attr-defined]
-            'stream_room_url': (
-                match.stream_room.stream_url
-                if match.stream_room and match.stream_room.stream_url
-                and match.stream_room.stream_url.lower().startswith(('http://', 'https://'))
+            # value is the assigned stage, so it needs what the service takes back.
+            'stage_id': match.stage_id,  # type: ignore[attr-defined]
+            'stage_url': (
+                match.stage.stream_url
+                if match.stage and match.stage.stream_url
+                and match.stage.stream_url.lower().startswith(('http://', 'https://'))
                 else ''
             ),
             'is_stream_candidate': match.is_stream_candidate,

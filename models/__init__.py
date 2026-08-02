@@ -71,8 +71,8 @@ from .match import (
     MatchAcknowledgment,
     MatchPlayers,
     MatchWatcher,
+    Stage,
     Station,
-    StreamRoom,
     Tracker,
 )
 from .mcp import McpAuthorizationCode, McpOAuthClient
@@ -189,9 +189,9 @@ __all__ = [
     # speedgaming
     'SpeedGamingEpisode',
     'SpeedGamingEventLink',
+    'Stage',
     'Station',
     'StationFormat',
-    'StreamRoom',
     'SyncStatus',
     # system
     'SystemConfiguration',

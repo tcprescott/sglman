@@ -17,7 +17,7 @@ from models import (
     Match,
     MatchPlayers,
     Role,
-    StreamRoom,
+    Stage,
     Tournament,
     Tracker,
     User,
@@ -51,40 +51,40 @@ async def anon_client(db, app):
 
 
 async def _seed_basic_data() -> dict:
-    """Seed two tournaments, two stream rooms, four matches with varied times.
+    """Seed two tournaments, two stages, four matches with varied times.
 
     Returns a dict of created objects for use in assertions.
     """
     t1 = await Tournament.create(name='Cup A')
     t2 = await Tournament.create(name='Cup B')
 
-    room1 = await StreamRoom.create(name='Stage 1')
-    room2 = await StreamRoom.create(name='Stage 2')
+    stage1 = await Stage.create(name='Stage 1')
+    stage2 = await Stage.create(name='Stage 2')
 
-    # m1: T1 / room1, earliest
+    # m1: T1 / stage1, earliest
     m1 = await Match.create(
-        tournament=t1, stream_room=room1,
+        tournament=t1, stage=stage1,
         scheduled_at=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
     )
-    # m2: T1 / room2
+    # m2: T1 / stage2
     m2 = await Match.create(
-        tournament=t1, stream_room=room2,
+        tournament=t1, stage=stage2,
         scheduled_at=datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc),
     )
-    # m3: T2 / no room
+    # m3: T2 / no stage
     m3 = await Match.create(
         tournament=t2,
         scheduled_at=datetime(2025, 1, 3, 12, 0, tzinfo=timezone.utc),
     )
-    # m4: T2 / room1, latest
+    # m4: T2 / stage1, latest
     m4 = await Match.create(
-        tournament=t2, stream_room=room1,
+        tournament=t2, stage=stage1,
         scheduled_at=datetime(2025, 1, 4, 12, 0, tzinfo=timezone.utc),
     )
 
     return {
         't1': t1, 't2': t2,
-        'room1': room1, 'room2': room2,
+        'stage1': stage1, 'stage2': stage2,
         'm1': m1, 'm2': m2, 'm3': m3, 'm4': m4,
     }
 
@@ -134,14 +134,14 @@ class TestResultShape:
         assert first['tournament']['id'] == data['t1'].id
         assert first['tournament']['name'] == 'Cup A'
 
-    async def test_response_includes_stream_room_when_set(self, client):
+    async def test_response_includes_stage_when_set(self, client):
         data = await _seed_basic_data()
         response = await client.get('/api/matches')
         body = response.json()
-        # m1 has room1, m3 has no room.
+        # m1 has stage1, m3 has no stage.
         by_id = {m['id']: m for m in body}
-        assert by_id[data['m1'].id]['stream_room']['name'] == 'Stage 1'
-        assert by_id[data['m3'].id]['stream_room'] is None
+        assert by_id[data['m1'].id]['stage']['name'] == 'Stage 1'
+        assert by_id[data['m3'].id]['stage'] is None
 
 
 # ---------------------------------------------------------------------------
@@ -164,21 +164,21 @@ class TestFilters:
         body = response.json()
         assert sorted(m['id'] for m in body) == sorted([data['m1'].id, data['m4'].id])
 
-    async def test_filter_by_stream_room_id(self, client):
+    async def test_filter_by_stage_id(self, client):
         data = await _seed_basic_data()
-        response = await client.get(f'/api/matches?stream_room_id={data["room1"].id}')
+        response = await client.get(f'/api/matches?stage_id={data["stage1"].id}')
         body = response.json()
-        # m1 and m4 are in room1
+        # m1 and m4 are in stage1
         assert sorted(m['id'] for m in body) == sorted([data['m1'].id, data['m4'].id])
 
-    async def test_filter_by_multiple_stream_rooms(self, client):
+    async def test_filter_by_multiple_stages(self, client):
         data = await _seed_basic_data()
         response = await client.get(
-            f'/api/matches?stream_room_id={data["room1"].id}'
-            f'&stream_room_id={data["room2"].id}'
+            f'/api/matches?stage_id={data["stage1"].id}'
+            f'&stage_id={data["stage2"].id}'
         )
         body = response.json()
-        # m1, m2, m4 — m3 has no room
+        # m1, m2, m4 — m3 has no stage
         assert sorted(m['id'] for m in body) == sorted(
             [data['m1'].id, data['m2'].id, data['m4'].id]
         )
@@ -217,10 +217,10 @@ class TestFilters:
 
     async def test_filters_combine_with_and(self, client):
         data = await _seed_basic_data()
-        # Tournament 2 AND stream room 1 → only m4.
+        # Tournament 2 AND stage 1 → only m4.
         response = await client.get(
             f'/api/matches?tournament_id={data["t2"].id}'
-            f'&stream_room_id={data["room1"].id}'
+            f'&stage_id={data["stage1"].id}'
         )
         body = response.json()
         assert [m['id'] for m in body] == [data['m4'].id]

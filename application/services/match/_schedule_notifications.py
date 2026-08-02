@@ -172,14 +172,14 @@ class MatchNotificationMixin:
         Never raises; per-DM failures are logged and swallowed.
         """
         try:
-            await match.fetch_related('tournament', 'stream_room')
+            await match.fetch_related('tournament', 'stage')
             scheduled_display = time_field(match.scheduled_at)
             players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             player_names = [p.user.preferred_name for p in players]
             message = acknowledgment_request_dm(
                 match.tournament.name, scheduled_display,
                 rescheduled=rescheduled,
-                stream_room_name=match.stream_room.name if match.stream_room else '',
+                stage_name=match.stage.name if match.stage else '',
                 player_names=player_names,
                 bracket_line=bracket_line,
             )
@@ -189,7 +189,7 @@ class MatchNotificationMixin:
                 description='Tap **Acknowledge** below to confirm you have seen this.',
                 tournament=match.tournament.name, community_name=community,
                 player_names=player_names, when=match.scheduled_at,
-                stream_room_name=match.stream_room.name if match.stream_room else None,
+                stage_name=match.stage.name if match.stage else None,
             )
 
             # Beside the Acknowledge button, not instead of it: someone who
@@ -228,9 +228,9 @@ class MatchNotificationMixin:
         """
         try:
             from application.repositories import TournamentNotificationRepository
-            has_stream_room = match.stream_room_id is not None
+            has_stage = match.stage_id is not None
             subscribers = await TournamentNotificationRepository().get_match_notification_subscribers(
-                match.tournament_id, has_stream_room=has_stream_room
+                match.tournament_id, has_stage=has_stage
             )
             link = await notification_links.community_schedule()
             for user in subscribers:
@@ -257,7 +257,7 @@ class MatchNotificationMixin:
         """
         Send stream-candidate alert with crew signup buttons to opted-in subscribers.
 
-        Skipped entirely when the match already has a stream room — those subscribers
+        Skipped entirely when the match already has a stage — those subscribers
         were already notified via notify_tournament_subscribers_scheduled.
 
         ``community`` is the embed-footer community name, resolved by the caller in
@@ -265,7 +265,7 @@ class MatchNotificationMixin:
         the tenant is no longer in scope). Never raises; per-DM failures are logged
         and swallowed.
         """
-        if match.stream_room_id is not None:
+        if match.stage_id is not None:
             return
 
         try:
@@ -314,13 +314,13 @@ class MatchNotificationMixin:
     ) -> None:
         """Fan out the scheduled/rescheduled notifications for a match.
 
-        Loads the tournament/players/stream-room relations and computes the
+        Loads the tournament/players/stage relations and computes the
         already-notified exclude list inline, then enqueues (in order): the
         per-player acknowledgment request, the crew DM, the tournament-subscriber
         signup DMs, and — only for a brand-new stream candidate — the
         stream-candidate subscriber DMs. Shared by create/update/request flows.
         """
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        await match.fetch_related('tournament', 'players__user', 'stage')
         player_names = [p.user.preferred_name for p in match.players]
         build_message = rescheduled_dm if rescheduled else scheduled_dm
         bracket_line = await bracket_line_for(match.id)
@@ -328,7 +328,7 @@ class MatchNotificationMixin:
             match.tournament.name,
             time_field(match.scheduled_at),
             player_names=player_names,
-            stream_room_name=match.stream_room.name if match.stream_room else '',
+            stage_name=match.stage.name if match.stage else '',
             bracket_line=bracket_line,
         )
         community = await _community_name()
@@ -337,7 +337,7 @@ class MatchNotificationMixin:
             color=COLOR_RESCHEDULED if rescheduled else COLOR_SCHEDULED,
             tournament=match.tournament.name, community_name=community,
             player_names=player_names, when=match.scheduled_at,
-            stream_room_name=match.stream_room.name if match.stream_room else None,
+            stage_name=match.stage.name if match.stage else None,
         )
         discord_queue.enqueue(self.notify_acknowledgment_request(
             match, rescheduled=rescheduled, community=community,

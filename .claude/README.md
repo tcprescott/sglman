@@ -87,7 +87,7 @@ Enforces the three-layer boundary (Presentation → Service → Repository):
   its repository — the content regex catches `service.repository.foo(...)` and
   `self.x_repository.bar(...)` (the attribute must *end* in `repository`, so names
   like `repository_url` never match). The reach-through form is exactly the
-  stream-room-dialog `AttributeError` shape from the 2026-07 audit §1.1.
+  stage-dialog `AttributeError` shape from the 2026-07 audit §1.1.
 - `application/repositories/` **must not** import from `application.services`, any
   presentation surface (`pages`, `theme`, `api`, `discordbot`, `frontend`), or `nicegui`.
 - `application/services/` **must not** import `nicegui` — **except** files in

@@ -43,7 +43,7 @@ events keep the tournament room to players and crew and point everyone else at
 the stream. Where your community publishes its rules, they are under **Event
 Information** in the sidebar.
 
-A stage or stream room is separate again: it belongs to the broadcast techs, not
+A stage is separate again: it belongs to the broadcast techs, not
 to a proctor, and they set who can be where. Follow what the techs there tell
 you.
 

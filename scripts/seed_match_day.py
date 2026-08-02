@@ -19,7 +19,7 @@ rest are scheduled. That way the day reads correctly whenever the seed is run.
 from datetime import date, datetime, timedelta
 
 from application.utils.timezone import parse_local_datetime
-from models import Match, MatchPlayers, StreamRoom, Tenant, Tournament, User
+from models import Match, MatchPlayers, Stage, Tenant, Tournament, User
 
 #: Start of each slot on the day, and how long the stage is booked for. Five
 #: slots from the venue's opening hour, two hours apart.
@@ -39,12 +39,12 @@ async def seed_match_day_for_tenant(
     tenant: Tenant,
     tournament: Tournament,
     racers: list[User],
-    rooms: list[StreamRoom],
+    stages: list[Stage],
     day: date,
     now: datetime,
 ) -> None:
-    """Fill ``day`` with back-to-back matches across ``rooms``. Idempotent."""
-    if not rooms or len(racers) < 6:
+    """Fill ``day`` with back-to-back matches across ``stages``. Idempotent."""
+    if not stages or len(racers) < 6:
         return
 
     day_str = day.isoformat()
@@ -53,14 +53,14 @@ async def seed_match_day_for_tenant(
         starts_at = parse_local_datetime(day_str, start_hhmm)
         # Six racers per slot, taken in order so nobody is booked onto two stages
         # at the same time (the pool is twelve, so a slot never wraps onto itself).
-        offset = (slot_index * len(rooms) * 2) % len(racers)
-        for room_index, room in enumerate(rooms):
-            title = f"{round_label} — Match {room_index + 1}"
+        offset = (slot_index * len(stages) * 2) % len(racers)
+        for stage_index, stage in enumerate(stages):
+            title = f"{round_label} — Match {stage_index + 1}"
             match, was_created = await Match.get_or_create(
                 title=title, tournament=tournament, tenant=tenant,
                 defaults={
                     "scheduled_at": starts_at,
-                    "stream_room": room,
+                    "stage": stage,
                     "is_stream_candidate": True,
                 },
             )
@@ -68,7 +68,7 @@ async def seed_match_day_for_tenant(
                 continue
             created += 1
             pair = [
-                racers[(offset + room_index * 2 + n) % len(racers)]
+                racers[(offset + stage_index * 2 + n) % len(racers)]
                 for n in (0, 1)
             ]
             _apply_clock_state(match, starts_at, now)
@@ -81,7 +81,7 @@ async def seed_match_day_for_tenant(
                     },
                 )
 
-    print(f"    [{tenant.slug}] match day ok ({created} matches across {len(rooms)} stages)")
+    print(f"    [{tenant.slug}] match day ok ({created} matches across {len(stages)} stages)")
 
 
 def _apply_clock_state(match: Match, starts_at: datetime, now: datetime) -> None:

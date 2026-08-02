@@ -29,7 +29,7 @@ from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_service_health import admin_service_health_page
-from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
+from pages.admin_tabs.admin_settings import admin_stages_page, admin_tournaments_page
 from pages.admin_tabs.admin_setup import admin_setup_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
@@ -138,7 +138,7 @@ def build_admin_tabs(
     if is_staff or is_ta_any:
         tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
     if is_staff or access.is_stream_manager:
-        tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'group': 'Operations', 'content': admin_stream_rooms_page})
+        tabs.append({'label': 'Stages', 'icon': 'tv', 'group': 'Operations', 'content': admin_stages_page})
     if is_staff or access.is_preset_manager:
         tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
         tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
@@ -194,7 +194,7 @@ def create() -> None:
         bucket: str | None = None,
         tournament_id: int | None = None,
         user_id: int | None = None,
-        stream_room_id: int | None = None,
+        stage_id: int | None = None,
         state: str | None = None,
         approval: str | None = None,
         action: str | None = None,
@@ -265,7 +265,7 @@ def create() -> None:
             'bucket': bucket,
             'tournament_id': tournament_id,
             'user_id': user_id,
-            'stream_room_id': stream_room_id,
+            'stage_id': stage_id,
             'state': state,
             'approval': approval,
             'action': action,

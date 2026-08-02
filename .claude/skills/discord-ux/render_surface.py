@@ -40,26 +40,26 @@ SHIFT_END_UTC = datetime(2026, 7, 19, 16, 0, tzinfo=timezone.utc)
 # Buttons that ride each DM (see docs/reference/discord-integration.md flow table).
 NOTIFICATIONS = [
     ("Acknowledgment request (new match)", "[Acknowledge]",
-     m.acknowledgment_request_dm(T, WHEN, rescheduled=False, stream_room_name=STAGE, player_names=P)),
+     m.acknowledgment_request_dm(T, WHEN, rescheduled=False, stage_name=STAGE, player_names=P)),
     ("Acknowledgment request (rescheduled)", "[Acknowledge]",
-     m.acknowledgment_request_dm(T, WHEN, rescheduled=True, stream_room_name=STAGE, player_names=P)),
+     m.acknowledgment_request_dm(T, WHEN, rescheduled=True, stage_name=STAGE, player_names=P)),
     ("Scheduled — crew/subscriber info", "[Unwatch] (watchers only)",
-     m.scheduled_dm(T, WHEN, player_names=P, stream_room_name=STAGE)),
+     m.scheduled_dm(T, WHEN, player_names=P, stage_name=STAGE)),
     ("Rescheduled — crew/subscriber info", "[Unwatch] (watchers only)",
-     m.rescheduled_dm(T, WHEN, player_names=P, stream_room_name=STAGE)),
+     m.rescheduled_dm(T, WHEN, player_names=P, stage_name=STAGE)),
     ("Checked in", "[Unwatch] (watchers only)",
-     m.checked_in_dm(T, player_names=P, scheduled_at_display=WHEN, stream_room_name=STAGE)),
+     m.checked_in_dm(T, player_names=P, scheduled_at_display=WHEN, stage_name=STAGE)),
     ("State changed — Started (also Finished/Confirmed)", "[Unwatch] (watchers only)",
-     m.state_changed_dm(T, "Started", player_names=P, scheduled_at_display=WHEN, stream_room_name=STAGE)),
+     m.state_changed_dm(T, "Started", player_names=P, scheduled_at_display=WHEN, stage_name=STAGE)),
     ("Stream candidate alert", "[Sign up as Commentator] [Sign up as Tracker]",
      m.stream_candidate_dm(T, WHEN, player_names=P)),
     ("Crew signup invitation (subscribers)", "[Sign up as Commentator] [Sign up as Tracker]",
-     m.scheduled_dm(T, WHEN, player_names=P, stream_room_name=STAGE)),
+     m.scheduled_dm(T, WHEN, player_names=P, stage_name=STAGE)),
     ("Crew approved", "[Acknowledge]",
      m.crew_assignment_dm("commentator", "Player One vs Player Two", WHEN, STAGE, P)),
     ("Seed generated", "(no buttons)",
      m.seed_dm("Player One", T, "https://alttpr.com/en/h/abcd1234",
-               player_names=P, scheduled_at_display=WHEN, stream_room_name=STAGE)),
+               player_names=P, scheduled_at_display=WHEN, stage_name=STAGE)),
     ("Volunteer shift assigned", "[Acknowledge]",
      m.volunteer_assignment_dm(*SHIFT)),
     ("Volunteer shift reminder", "[Acknowledge]",
@@ -83,31 +83,31 @@ EPHEMERAL = [
 EMBEDS = [
     ("Match scheduled", e.match_embed(
         title="📣 Match scheduled", color=e.COLOR_SCHEDULED, tournament=T,
-        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE)),
+        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE)),
     ("Match rescheduled", e.match_embed(
         title="🔄 Match rescheduled", color=e.COLOR_RESCHEDULED, tournament=T,
-        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE)),
+        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE)),
     ("Acknowledgment request", e.match_embed(
         title="📣 Match scheduled", color=e.COLOR_SCHEDULED, tournament=T,
-        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE,
+        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE,
         description="Tap **Acknowledge** below to confirm you have seen this.")),
     ("Checked in", e.match_embed(
         title="✅ Match checked in", color=e.COLOR_CHECKED_IN, tournament=T,
-        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE,
+        community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE,
         description="The match is about to begin — good luck!")),
     ("State changed — Started", e.state_changed_embed(
-        T, "Started", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE)),
+        T, "Started", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE)),
     ("State changed — Finished", e.state_changed_embed(
-        T, "Finished", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE)),
+        T, "Finished", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE)),
     ("State changed — Confirmed", e.state_changed_embed(
-        T, "Confirmed", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stream_room_name=STAGE)),
+        T, "Confirmed", community_name=COMMUNITY, player_names=P, when=WHEN_UTC, stage_name=STAGE)),
     ("Stream candidate", e.match_embed(
         title="🎥 Stream candidate", color=e.COLOR_STREAM, tournament=T,
         community_name=COMMUNITY, player_names=P, when=WHEN_UTC,
         description="This match may be streamed — sign up to crew below.")),
     ("Seed ready", e.match_embed(
         title="🎲 Seed ready", color=e.COLOR_SEED, tournament=T, community_name=COMMUNITY,
-        player_names=P, when=WHEN_UTC, stream_room_name=STAGE,
+        player_names=P, when=WHEN_UTC, stage_name=STAGE,
         description="[Open your seed](https://alttpr.com/en/h/abcd1234)",
         url="https://alttpr.com/en/h/abcd1234")),
     ("Crew assignment", e.notification_embed(

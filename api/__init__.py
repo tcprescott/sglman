@@ -32,8 +32,8 @@ from api.routers import (
     seeds,
     service_health,
     speedgaming,
-    stream_room_actions,
-    stream_rooms,
+    stage_actions,
+    stages,
     system_config,
     telemetry,
     tokens,
@@ -55,8 +55,8 @@ router.include_router(match_actions.router)
 router.include_router(crew.router)
 router.include_router(tournaments.router)
 router.include_router(tournament_actions.router)
-router.include_router(stream_rooms.router)
-router.include_router(stream_room_actions.router)
+router.include_router(stages.router)
+router.include_router(stage_actions.router)
 router.include_router(users.router)
 # The literal ``/users/me/availability`` router must be included before the one
 # carrying ``/users/{user_id}/availability``, or ``me`` matches the int path

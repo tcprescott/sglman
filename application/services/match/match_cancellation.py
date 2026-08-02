@@ -128,7 +128,7 @@ class CancellationMixin:
         from application.utils.discord_embeds import COLOR_CANCELLED, match_embed
         from application.utils.discord_messages import cancelled_dm
 
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        await match.fetch_related('tournament', 'players__user', 'stage')
         recipients = await collect_match_recipients(match)
         community = await _community_name()
         # Both bracket facts are resolved here, before the delete, for the same

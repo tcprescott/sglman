@@ -35,7 +35,7 @@ async def schedule():
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             # Not sortable: joined rosters sort on whoever is listed first.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
-            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True},
+            {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed',
              'sortable': True},
             {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},

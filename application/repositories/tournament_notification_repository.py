@@ -28,15 +28,15 @@ class TournamentNotificationRepository:
         await pref.save()
         return pref
 
-    async def get_match_notification_subscribers(self, tournament_id: int, has_stream_room: bool) -> List[User]:
+    async def get_match_notification_subscribers(self, tournament_id: int, has_stage: bool) -> List[User]:
         """
         Return users who qualify for a match-scheduled notification.
 
         'all' subscribers always qualify.
         'streamed' and 'streamed_and_candidates' subscribers only qualify when the match
-        has a stream room assigned.
+        has a stage assigned.
         """
-        if has_stream_room:
+        if has_stage:
             qualifying_levels = [
                 MatchNotificationLevel.ALL,
                 MatchNotificationLevel.STREAMED,

@@ -34,7 +34,7 @@ from models import (
     Role,
     SpeedGamingEpisode,
     SpeedGamingEventLink,
-    StreamRoom,
+    Stage,
     Tournament,
     TriforceText,
     User,
@@ -411,9 +411,9 @@ class TestObservability:
 class TestAnalytics:
     async def _scheduled_match(self):
         tournament = await _tournament('Analytics Cup')
-        room = await StreamRoom.create(name='Main Channel', is_active=True)
+        stage = await Stage.create(name='Main Channel', is_active=True)
         await Match.create(
-            tournament=tournament, stream_room=room, scheduled_at=NOW,
+            tournament=tournament, stage=stage, scheduled_at=NOW,
         )
         return tournament
 
@@ -436,19 +436,19 @@ class TestAnalytics:
         assert forecast['interval_minutes'] > 0
         assert len(forecast['busiest']) <= 5
 
-    async def test_stream_room_utilization_reports_per_room_totals(self, db):
+    async def test_stage_utilization_reports_per_stage_totals(self, db):
         """Its raw payload carries ORM Match rows, which cannot be serialized."""
         _, raw = await _staff()
         await self._scheduled_match()
         async with mcp_session() as client:
             is_error, payload = await call_tool(
-                client, raw, 'stream_room_utilization', tenant=TENANT, **WINDOW,
+                client, raw, 'stage_utilization', tenant=TENANT, **WINDOW,
             )
         assert not is_error, payload
-        room = payload['result']['rooms'][0]
-        assert room['stream_room_name'] == 'Main Channel'
-        assert room['match_count'] == 1
-        assert 'matches' not in room
+        stage = payload['result']['stages'][0]
+        assert stage['stage_name'] == 'Main Channel'
+        assert stage['match_count'] == 1
+        assert 'matches' not in stage
 
     async def test_tournament_health_scores_the_window(self, db):
         _, raw = await _staff()
@@ -491,7 +491,7 @@ class TestAnalytics:
                 instant=(NOW + timedelta(minutes=30)).isoformat(),
             )
         assert not is_error, payload
-        assert payload['result'][0]['stream_room'] == 'Main Channel'
+        assert payload['result'][0]['stage'] == 'Main Channel'
 
 
 class TestPlayerAvailability:
@@ -555,24 +555,24 @@ class TestPlayerAvailability:
 
 
 class TestTournamentsAndScheduling:
-    async def test_a_stream_room_reads_back_by_id(self, db):
+    async def test_a_stage_reads_back_by_id(self, db):
         _, raw = await _staff()
-        room = await StreamRoom.create(
+        stage = await Stage.create(
             name='Main Channel', is_active=True, stream_url='https://twitch.tv/x',
         )
         async with mcp_session() as client:
             is_error, payload = await call_tool(
-                client, raw, 'get_stream_room', tenant=TENANT, stream_room_id=room.id,
+                client, raw, 'get_stage', tenant=TENANT, stage_id=stage.id,
             )
         assert not is_error, payload
         assert payload['name'] == 'Main Channel'
         assert payload['stream_url'] == 'https://twitch.tv/x'
 
-    async def test_an_unknown_stream_room_is_not_found(self, db):
+    async def test_an_unknown_stage_is_not_found(self, db):
         _, raw = await _staff()
         async with mcp_session() as client:
             is_error, payload = await call_tool(
-                client, raw, 'get_stream_room', tenant=TENANT, stream_room_id=9999,
+                client, raw, 'get_stage', tenant=TENANT, stage_id=9999,
             )
         assert is_error
         assert 'not_found:' in payload

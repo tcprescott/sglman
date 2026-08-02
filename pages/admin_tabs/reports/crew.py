@@ -124,7 +124,7 @@ async def crew_page(
                         'match_id': r['match_id'],
                         'tournament': r['tournament_name'],
                         'scheduled_at': format_local_display(r['scheduled_at']),
-                        'stream_room': r['stream_room'],
+                        'stage': r['stage'],
                         'stream_candidate': 'yes' if r['is_stream_candidate'] else '',
                         # The requirement is per-tournament, so "0/0" only means a
                         # gap when the tournament actually asks for the role.
@@ -144,7 +144,7 @@ async def crew_page(
                     {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
                     {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
                     {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
-                    {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room', 'sortable': True},
+                    {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
                     {'name': 'stream_candidate', 'label': 'Candidate', 'field': 'stream_candidate'},
                     {'name': 'commentators', 'label': 'Comms (apprv/total)', 'field': 'commentators'},
                     {'name': 'trackers', 'label': 'Trackers (apprv/total)', 'field': 'trackers'},

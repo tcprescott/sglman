@@ -139,13 +139,13 @@ class BracketRepository(TenantScopedRepository[Bracket]):
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         # ``games__match`` is prefetched so a whole round can render its series
         # state — including each game's scheduled time — without an N+1 across
-        # the bracket view. ``__stream_room`` rides along for the live "Watch"
+        # the bracket view. ``__stage`` rides along for the live "Watch"
         # link (U2): a fixed number of queries for the whole field, whatever its
         # size, which is the rule the bracket view is held to.
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id)
         ).prefetch_related(
-            'games__match__stream_room',
+            'games__match__stage',
         ).order_by('round', 'position')
 
     async def round_links(self, bracket_id: int) -> List[dict]:

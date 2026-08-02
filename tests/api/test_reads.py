@@ -6,7 +6,7 @@ from models import (
     AuditLog,
     Match,
     Role,
-    StreamRoom,
+    Stage,
     SystemConfiguration,
     Tournament,
     TriforceText,
@@ -15,11 +15,11 @@ from models import (
 from tests.api_helpers import client_for, create_user_token
 
 # ---------------------------------------------------------------------------
-# Tournaments / stream rooms — any authenticated user
+# Tournaments / stages — any authenticated user
 # ---------------------------------------------------------------------------
 
 
-class TestTournamentsAndRooms:
+class TestTournamentsAndStages:
     async def test_list_and_get_tournament(self, db, app):
         _, raw = await create_user_token()
         t = await Tournament.create(name='Cup A')
@@ -37,11 +37,11 @@ class TestTournamentsAndRooms:
         async with client_for(app, raw) as c:
             assert (await c.get('/api/tournaments/999')).status_code == 404
 
-    async def test_list_stream_rooms(self, db, app):
+    async def test_list_stages(self, db, app):
         _, raw = await create_user_token()
-        await StreamRoom.create(name='Stage 1')
+        await Stage.create(name='Stage 1')
         async with client_for(app, raw) as c:
-            resp = await c.get('/api/stream-rooms')
+            resp = await c.get('/api/stages')
             assert resp.status_code == 200
             assert resp.json()[0]['name'] == 'Stage 1'
 

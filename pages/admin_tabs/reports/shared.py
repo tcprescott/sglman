@@ -18,7 +18,7 @@ from pages.admin_tabs.links import REPORTS, admin_url
 from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
-REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stream_rooms', 'audit')
+REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stages', 'audit')
 
 # ECharts series palette. Canvas charts can't read CSS var() tokens and are
 # painted once server-side, so these are fixed mid-tone steps of the phoenix

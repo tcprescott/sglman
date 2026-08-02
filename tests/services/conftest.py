@@ -16,7 +16,7 @@ _ALLOW_GATES = (
     'can_confirm_match',
     'can_assign_match_stream',
     'can_approve_crew',
-    'can_manage_stream_rooms',
+    'can_manage_stages',
     'can_manage_volunteers',
     'can_grant_roles',
 )

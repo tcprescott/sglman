@@ -150,7 +150,7 @@ class TestMatchInfoLines:
         lines = dm._match_info_lines(
             player_names=['A', 'B'],
             scheduled_at_display='2025-01-01 10:00 EST',
-            stream_room_name='Main Stage',
+            stage_name='Main Stage',
         )
         assert lines == [
             'Players: A vs B',
@@ -236,7 +236,7 @@ class TestSchedulingDms:
     def test_scheduled_dm_contains_tournament_and_body(self):
         msg = dm.scheduled_dm(
             'Cool Cup', '2025-03-01 12:00 EST',
-            player_names=['A', 'B'], stream_room_name='Stage 1',
+            player_names=['A', 'B'], stage_name='Stage 1',
         )
         assert '**Cool Cup**' in msg
         assert 'Players: A vs B' in msg
@@ -255,7 +255,7 @@ class TestAcknowledgmentRequestDm:
     def test_rescheduled_branch(self):
         msg = dm.acknowledgment_request_dm(
             'Cup', 'later', rescheduled=True,
-            stream_room_name='Stage', player_names=['A', 'B'],
+            stage_name='Stage', player_names=['A', 'B'],
         )
         assert 'has been rescheduled' in msg
         assert 'New time: later' in msg
@@ -414,7 +414,7 @@ class TestDiscordEmbeds:
             title='🗓️ Match scheduled', color=de.COLOR_SCHEDULED,
             tournament='Wizzrobe Dev', community_name='Acme Community',
             player_names=['A', 'B'], when=datetime(2026, 7, 19, 22, 41, tzinfo=timezone.utc),
-            stream_room_name='Stage 2', description='Good luck!',
+            stage_name='Stage 2', description='Good luck!',
         )
         assert emb.title == '🗓️ Match scheduled'
         assert emb.colour.value == de.COLOR_SCHEDULED

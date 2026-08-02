@@ -33,7 +33,7 @@ ADMIN_COLUMNS = [
     {'name': 'players', 'label': 'Players', 'field': 'players'},
     {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
     {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
-    {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room'},
+    {'name': 'stage', 'label': 'Stage', 'field': 'stage'},
     {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
     {'name': 'watch', 'label': '', 'field': 'watch'},
 ]
@@ -63,8 +63,8 @@ def test_no_placeholder_survives_body_slot_registration(access, discord_id):
         table, admin_controls=True, access=access, discord_id=discord_id,
         has_edit=access.edit, want_seed_slot=access.run,
         want_seed_readonly=not access.run, want_state_slot=True,
-        want_stream_room_admin=access.assign_stream,
-        want_stream_room_readonly=not access.assign_stream,
+        want_stage_admin=access.assign_stream,
+        want_stage_readonly=not access.assign_stream,
     )
     assert table.slots, 'no slots registered — the guard would pass vacuously'
     assert _leaks(table.slots) == {}
@@ -425,18 +425,18 @@ class TestTheStageCell:
     """The Stage cell reads as text and becomes a dropdown on click."""
 
     def test_it_is_borderless_with_no_floating_label(self):
-        from theme.tables.match_slots import STREAM_ROOM_ADMIN_SLOT
-        assert 'borderless' in STREAM_ROOM_ADMIN_SLOT
-        assert 'outlined' not in STREAM_ROOM_ADMIN_SLOT
-        assert 'label="Stage"' not in STREAM_ROOM_ADMIN_SLOT
+        from theme.tables.match_slots import STAGE_ADMIN_SLOT
+        assert 'borderless' in STAGE_ADMIN_SLOT
+        assert 'outlined' not in STAGE_ADMIN_SLOT
+        assert 'label="Stage"' not in STAGE_ADMIN_SLOT
 
     def test_no_stage_is_an_option_rather_than_a_clear_button(self):
         # "None" is one of the answers, not the absence of one — and a clear
         # affordance that appears only once something is chosen cannot be found
         # by someone looking for it.
         from theme.tables.match_grid import _STREAM_DETAIL
-        from theme.tables.match_slots import STREAM_ROOM_ADMIN_SLOT
-        assert 'clearable' not in STREAM_ROOM_ADMIN_SLOT
+        from theme.tables.match_slots import STAGE_ADMIN_SLOT
+        assert 'clearable' not in STAGE_ADMIN_SLOT
         assert 'clearable' not in _STREAM_DETAIL
 
     def test_the_options_lead_with_no_stage_then_candidate(self):
@@ -444,7 +444,7 @@ class TestTheStageCell:
 
         view = object.__new__(MatchTableView)
         view.on_set_stage = lambda *_: None
-        view.stream_rooms_list = {7: 'Stage 1', 8: 'Stage 2'}
+        view.stages_list = {7: 'Stage 1', 8: 'Stage 2'}
         options = view._stage_options()
         assert options[0] == {'label': 'No Stage', 'value': None}
         assert options[1]['label'] == 'Candidate'

@@ -352,12 +352,12 @@ async def schedule_game(
     or the series is decided.
 
     Staff and the tournament's admins may book on anyone's behalf; the matchup's
-    two entrants may book their own. ``stream_room_id`` is staff-only, so it is
+    two entrants may book their own. ``stage_id`` is staff-only, so it is
     forwarded only when actually set — an entrant sending it explicitly gets a
     400 rather than having it silently dropped.
     """
     service = BracketService()
-    extra = {} if body.stream_room_id is None else {'stream_room_id': body.stream_room_id}
+    extra = {} if body.stage_id is None else {'stage_id': body.stage_id}
     await service.schedule_bracket_match(
         actor, match_id,
         scheduled_date=body.scheduled_date,

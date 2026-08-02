@@ -13,7 +13,7 @@ from models import (
     FeatureFlag,
     Match,
     Role,
-    StreamRoom,
+    Stage,
     TelemetryEvent,
     TenantFeatureFlag,
     Tournament,
@@ -24,9 +24,9 @@ NOW = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
 WINDOW = {'start': (NOW - timedelta(days=1)).isoformat(), 'end': (NOW + timedelta(days=1)).isoformat()}
 
 
-async def _scheduled_match(name='Cup', at=NOW, room=None):
+async def _scheduled_match(name='Cup', at=NOW, stage=None):
     tournament = await Tournament.create(name=name)
-    return await Match.create(tournament=tournament, scheduled_at=at, stream_room=room)
+    return await Match.create(tournament=tournament, scheduled_at=at, stage=stage)
 
 
 class TestGate:
@@ -65,14 +65,14 @@ class TestReshapedReports:
         }
         assert len(body['busiest']) <= 5
 
-    async def test_stream_room_utilization_reports_per_room_totals(self, db, app):
+    async def test_stage_utilization_reports_per_stage_totals(self, db, app):
         _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
-        room = await StreamRoom.create(name='Main')
-        await _scheduled_match(room=room)
+        stage = await Stage.create(name='Main')
+        await _scheduled_match(stage=stage)
         async with client_for(app, raw) as c:
-            body = (await c.get('/api/reports/stream-room-utilization', params=WINDOW)).json()
-        assert [r['stream_room_name'] for r in body['rooms']] == ['Main']
-        row = body['rooms'][0]
+            body = (await c.get('/api/reports/stage-utilization', params=WINDOW)).json()
+        assert [r['stage_name'] for r in body['stages']] == ['Main']
+        row = body['stages'][0]
         # The ORM Match rows the service returns are collapsed to a count.
         assert 'matches' not in row
         assert row['match_count'] == 1

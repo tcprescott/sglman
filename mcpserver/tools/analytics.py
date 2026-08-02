@@ -6,7 +6,7 @@ These mirror the Admin → Reports tab, whose own gate is
 
 Two of them are reshaped rather than passed through. ``ReportsService`` builds
 its payloads for a chart that is about to draw them, so they carry per-interval
-and per-match detail — ``stream_room_utilization`` even returns ORM ``Match``
+and per-match detail — ``stage_utilization`` even returns ORM ``Match``
 rows. Handing a model a few thousand interval entries buries the answer it was
 asked for, so the tools return the shape a question actually needs: totals,
 peaks, and where the pressure is.
@@ -66,35 +66,35 @@ async def capacity_forecast(
     }
 
 
-async def stream_room_utilization(
+async def stage_utilization(
     start: str,
     end: str,
     tenant: TenantArg = None,
     tournament_id: Optional[int] = None,
-    stream_room_id: Optional[int] = None,
+    stage_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """How hard each stream room is worked over a window, and what is unplaced.
+    """How hard each stage is worked over a window, and what is unplaced.
 
-    Requires admin access. Per room: scheduled hours, match count, idle gap
+    Requires admin access. Per stage: scheduled hours, match count, idle gap
     hours, and back-to-back transitions (under 15 minutes between matches).
-    `unplaced_candidate_count` is stream-worthy matches with no room assigned.
+    `unplaced_candidate_count` is stream-worthy matches with no stage assigned.
     """
     start_dt, end_dt = window(start, end)
-    raw = await ReportsService().stream_room_utilization(
+    raw = await ReportsService().stage_utilization(
         start=start_dt, end=end_dt,
-        tournament_id=tournament_id, stream_room_id=stream_room_id,
+        tournament_id=tournament_id, stage_id=stage_id,
     )
     return {
-        'rooms': [
+        'stages': [
             {
-                'stream_room_id': room['stream_room_id'],
-                'stream_room_name': room['stream_room_name'],
-                'scheduled_hours': room['scheduled_hours'],
-                'match_count': len(room['matches']),
-                'gap_hours': room['gap_hours'],
-                'back_to_back_count': room['back_to_back_count'],
+                'stage_id': stage['stage_id'],
+                'stage_name': stage['stage_name'],
+                'scheduled_hours': stage['scheduled_hours'],
+                'match_count': len(stage['matches']),
+                'gap_hours': stage['gap_hours'],
+                'back_to_back_count': stage['back_to_back_count'],
             }
-            for room in raw['rooms']
+            for stage in raw['stages']
         ],
         'unplaced_candidate_count': raw['unplaced_candidate_count'],
     }
@@ -176,7 +176,7 @@ async def matches_active_at(
             'tournament': match.tournament.name if match.tournament else None,
             'scheduled_at': match.scheduled_at,
             'players': [p.user.preferred_name for p in match.players if p.user],
-            'stream_room': match.stream_room.name if match.stream_room else None,
+            'stage': match.stage.name if match.stage else None,
         }
         for match in matches[:clamp(limit, low=1, high=200)]
     ]
@@ -185,8 +185,8 @@ async def matches_active_at(
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, capacity_forecast, gate=Gate.ADMIN, title='Capacity forecast')
     register(
-        mcp, stream_room_utilization, gate=Gate.ADMIN,
-        title='Stream room utilization',
+        mcp, stage_utilization, gate=Gate.ADMIN,
+        title='Stage utilization',
     )
     register(mcp, tournament_health, gate=Gate.ADMIN, title='Tournament health')
     register(

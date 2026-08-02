@@ -17,7 +17,7 @@ def _steps(*, ready: bool):
         SetupStep(key='tournament', label='Tournament', done=ready, hint='', tab='Tournaments', required=True),
         SetupStep(key='enrolment', label='Enrolment', done=ready, hint='', tab='Tournaments', required=True),
         # Advisory and never done, so it can never be what keeps Setup on screen.
-        SetupStep(key='stream_room', label='Stage', done=False, hint='', tab='Stream Rooms', required=False),
+        SetupStep(key='stage', label='Stage', done=False, hint='', tab='Stages', required=False),
     ]
 
 
@@ -61,8 +61,8 @@ def test_the_checklist_is_not_offered_to_a_non_admin_role():
     tabs = build_admin_tabs(AdminAccess(is_stream_manager=True), set(), {}, _steps(ready=False))
     assert 'Setup' not in _labels(tabs)
     # Schedule is theirs because assigning a stage is a match-board action and
-    # this is the only board that offers it; Stream Rooms manages the venues.
-    assert _labels(tabs) == ['Schedule', 'Stream Rooms']
+    # this is the only board that offers it; Stages manages the venues.
+    assert _labels(tabs) == ['Schedule', 'Stages']
 
 
 def test_the_stream_manager_reaches_the_board_with_only_the_stage_control():

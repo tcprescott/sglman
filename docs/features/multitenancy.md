@@ -266,7 +266,7 @@ room. What it needs next is a *first admin* and an order to work in:
 `TenantSetupService` derives the checklist on every read — five existence
 checks, nothing stored. Three steps are **required** (a staff member, a
 tournament, an enrolled player: a match cannot be scheduled without all three);
-a stream room and an event window are shown but advisory, because a match
+a stage and an event window are shown but advisory, because a match
 schedules without either. A community that deletes its last tournament becomes
 un-set-up again and the checklist says so.
 

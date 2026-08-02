@@ -29,7 +29,7 @@ class TestPlayersLabel:
 
 
 class TestMatchInfoBlock:
-    def test_stage_omitted_when_no_stream_room(self):
+    def test_stage_omitted_when_no_stage(self):
         msg = scheduled_dm(
             "Test", "2025-01-15 14:30 EST", player_names=["Alice", "Bob"]
         )
@@ -39,7 +39,7 @@ class TestMatchInfoBlock:
     def test_stage_included_when_assigned(self):
         msg = scheduled_dm(
             "Test", "2025-01-15 14:30 EST",
-            player_names=["Alice", "Bob"], stream_room_name="Stage 1",
+            player_names=["Alice", "Bob"], stage_name="Stage 1",
         )
         assert "Stage: Stage 1" in msg
 
@@ -64,20 +64,20 @@ class MockMatch:
     """Minimal stand-in for a Match ORM object."""
 
     def __init__(self, *, seated_at=None, started_at=None, finished_at=None,
-                 confirmed_at=None, id=1, stream_room_id=None, tournament_id=1,
-                 scheduled_at=None, players=None, stream_room=None,
+                 confirmed_at=None, id=1, stage_id=None, tournament_id=1,
+                 scheduled_at=None, players=None, stage=None,
                  is_racetime_enabled=False, needs_review=False, review_note=None):
         self.id = id
         self.seated_at = seated_at
         self.started_at = started_at
         self.finished_at = finished_at
         self.confirmed_at = confirmed_at
-        self.stream_room_id = stream_room_id
+        self.stage_id = stage_id
         self.tournament_id = tournament_id
         self.scheduled_at = scheduled_at or datetime(2025, 1, 15, 19, 30)
         self.tournament = MockTournament(is_racetime_enabled=is_racetime_enabled)
         self.players = players if players is not None else []
-        self.stream_room = stream_room
+        self.stage = stage
         # The dispute flag: confirm_match clears it (and audits the clear), so a
         # stand-in without these attributes would hide that half of confirming.
         self.needs_review = needs_review
@@ -374,8 +374,8 @@ class TestNotifyTournamentSubscribersScheduled:
 
         service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
 
-    async def test_passes_has_stream_room_true_when_set(self, service):
-        match = MockMatch(stream_room_id=5)
+    async def test_passes_has_stage_true_when_set(self, service):
+        match = MockMatch(stage_id=5)
         mock_repo = MagicMock()
         mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[])
         service.discord_service.send_dm_with_crew_buttons = AsyncMock()
@@ -384,11 +384,11 @@ class TestNotifyTournamentSubscribersScheduled:
             await service.notify_tournament_subscribers_scheduled(match, "msg", [])
 
         mock_repo.get_match_notification_subscribers.assert_awaited_once_with(
-            match.tournament_id, has_stream_room=True
+            match.tournament_id, has_stage=True
         )
 
-    async def test_passes_has_stream_room_false_when_not_set(self, service):
-        match = MockMatch(stream_room_id=None)
+    async def test_passes_has_stage_false_when_not_set(self, service):
+        match = MockMatch(stage_id=None)
         mock_repo = MagicMock()
         mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[])
         service.discord_service.send_dm_with_crew_buttons = AsyncMock()
@@ -397,7 +397,7 @@ class TestNotifyTournamentSubscribersScheduled:
             await service.notify_tournament_subscribers_scheduled(match, "msg", [])
 
         mock_repo.get_match_notification_subscribers.assert_awaited_once_with(
-            match.tournament_id, has_stream_room=False
+            match.tournament_id, has_stage=False
         )
 
     async def test_swallows_exception_without_raising(self, service):
@@ -408,8 +408,8 @@ class TestNotifyTournamentSubscribersScheduled:
 
 
 class TestNotifyStreamCandidateSubscribers:
-    async def test_skips_entirely_when_match_has_stream_room(self, service):
-        match = MockMatch(stream_room_id=3)
+    async def test_skips_entirely_when_match_has_stage(self, service):
+        match = MockMatch(stage_id=3)
         mock_repo = MagicMock()
         mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[])
         service.discord_service.send_dm_with_crew_buttons = AsyncMock()
@@ -420,8 +420,8 @@ class TestNotifyStreamCandidateSubscribers:
         mock_repo.get_stream_candidate_subscribers.assert_not_awaited()
         service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
 
-    async def test_sends_dm_to_subscriber_when_no_stream_room(self, service):
-        match = MockMatch(stream_room_id=None)
+    async def test_sends_dm_to_subscriber_when_no_stage(self, service):
+        match = MockMatch(stage_id=None)
         subscriber = SimpleNamespace(discord_id=777)
         mock_repo = MagicMock()
         mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[subscriber])
@@ -435,7 +435,7 @@ class TestNotifyStreamCandidateSubscribers:
         assert call_args.args[0] == 777
 
     async def test_excludes_already_notified_discord_ids(self, service):
-        match = MockMatch(stream_room_id=None)
+        match = MockMatch(stage_id=None)
         subscriber = SimpleNamespace(discord_id=777)
         mock_repo = MagicMock()
         mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[subscriber])
@@ -447,7 +447,7 @@ class TestNotifyStreamCandidateSubscribers:
         service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
 
     async def test_swallows_exception_without_raising(self, service):
-        match = MockMatch(stream_room_id=None)
+        match = MockMatch(stage_id=None)
         with patch('application.repositories.TournamentNotificationRepository', side_effect=Exception("db error")):
             await service.notify_stream_candidate_subscribers(match, [])
 

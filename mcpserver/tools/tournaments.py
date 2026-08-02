@@ -1,7 +1,7 @@
-"""Tournament and stream-room reads.
+"""Tournament and stage reads.
 
 Mirrors the gates on ``api/routers/tournaments.py`` and
-``api/routers/stream_rooms.py``: a live token is the bar, and the tenant binding
+``api/routers/stages.py``: a live token is the bar, and the tenant binding
 around the call does the rest.
 """
 
@@ -13,14 +13,14 @@ from api.schemas.tournaments import TournamentResponse
 from application.errors import require_found
 from application.services import (
     MatchSuggestionService,
-    StreamRoomService,
+    StageService,
     TournamentService,
 )
 from mcpserver.auth import Gate
 from mcpserver.registry import register
 from mcpserver.schemas import (
     MatchTimeSuggestion,
-    StreamRoomInfo,
+    StageInfo,
     TenantArg,
     TournamentSummary,
 )
@@ -50,24 +50,24 @@ async def get_tournament(
     return TournamentResponse.model_validate(tournament, from_attributes=True)
 
 
-async def list_stream_rooms(
+async def list_stages(
     tenant: TenantArg = None,
     active_only: bool = False,
-) -> List[StreamRoomInfo]:
-    """List the community's stream rooms (restream channels matches are assigned to)."""
-    rooms = await StreamRoomService().get_all_stream_rooms(active_only=active_only)
-    return [StreamRoomInfo.model_validate(r, from_attributes=True) for r in rooms]
+) -> List[StageInfo]:
+    """List the community's stages (restream channels matches are assigned to)."""
+    stages = await StageService().get_all_stages(active_only=active_only)
+    return [StageInfo.model_validate(r, from_attributes=True) for r in stages]
 
 
-async def get_stream_room(
-    stream_room_id: int,
+async def get_stage(
+    stage_id: int,
     tenant: TenantArg = None,
-) -> StreamRoomInfo:
-    """Get one stream room by id."""
-    room = require_found(
-        await StreamRoomService().get_stream_room_by_id(stream_room_id), 'Stream room'
+) -> StageInfo:
+    """Get one stage by id."""
+    stage = require_found(
+        await StageService().get_stage_by_id(stage_id), 'Stage'
     )
-    return StreamRoomInfo.model_validate(room, from_attributes=True)
+    return StageInfo.model_validate(stage, from_attributes=True)
 
 
 async def suggest_match_time(
@@ -93,6 +93,6 @@ async def suggest_match_time(
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, list_tournaments, gate=Gate.ACTOR, title='List tournaments')
     register(mcp, get_tournament, gate=Gate.ACTOR, title='Get tournament')
-    register(mcp, list_stream_rooms, gate=Gate.ACTOR, title='List stream rooms')
-    register(mcp, get_stream_room, gate=Gate.ACTOR, title='Get stream room')
+    register(mcp, list_stages, gate=Gate.ACTOR, title='List stages')
+    register(mcp, get_stage, gate=Gate.ACTOR, title='Get stage')
     register(mcp, suggest_match_time, gate=Gate.ACTOR, title='Suggest a match time')

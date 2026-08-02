@@ -17,7 +17,7 @@ from application.repositories.feedback_repository import FeedbackRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.match_watcher_repository import MatchWatcherRepository
 from application.repositories.preset_repository import PresetRepository
-from application.repositories.stream_room_repository import StreamRoomRepository
+from application.repositories.stage_repository import StageRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.volunteer_position_repository import VolunteerPositionRepository
 from application.repositories.volunteer_profile_repository import VolunteerProfileRepository
@@ -28,7 +28,7 @@ from models import (
     Match,
     MatchWatcher,
     Preset,
-    StreamRoom,
+    Stage,
     Tenant,
     Tournament,
     TournamentPlayers,
@@ -102,18 +102,18 @@ async def test_match_reads_are_isolated(tenants):
         assert await MatchRepository.get_all(match_ids=[mb.id]) == []
 
 
-async def test_stream_room_reads_are_isolated(tenants):
+async def test_stage_reads_are_isolated(tenants):
     a, b = tenants
     with tenant_scope(a.id):
-        ra = await StreamRoom.create(name='Room A')
+        ra = await Stage.create(name='Stage A')
     with tenant_scope(b.id):
         # Same name is allowed across tenants now (per-tenant unique).
-        rb = await StreamRoom.create(name='Room A')
+        rb = await Stage.create(name='Stage A')
 
     with tenant_scope(a.id):
-        assert [r.id for r in await StreamRoomRepository.get_all()] == [ra.id]
+        assert [r.id for r in await StageRepository.get_all()] == [ra.id]
     with tenant_scope(b.id):
-        assert [r.id for r in await StreamRoomRepository.get_all()] == [rb.id]
+        assert [r.id for r in await StageRepository.get_all()] == [rb.id]
 
 
 async def test_feedback_reads_are_isolated(tenants):
@@ -237,10 +237,10 @@ async def test_volunteer_profile_opt_in_is_per_tenant(tenants):
         assert got is not None and got.id == pb.id
 
 
-async def test_match_cannot_reference_another_tenants_stream_room(tenants):
-    """``stream_room_id`` arrives as a bare integer and the FK spans tenants.
+async def test_match_cannot_reference_another_tenants_stage(tenants):
+    """``stage_id`` arrives as a bare integer and the FK spans tenants.
 
-    Unguarded, a caller in tenant A could attach tenant B's room to their match
+    Unguarded, a caller in tenant A could attach tenant B's stage to their match
     and surface its name on their schedule, Discord embed and API responses.
     """
     from application.errors import NotFoundError
@@ -249,7 +249,7 @@ async def test_match_cannot_reference_another_tenants_stream_room(tenants):
 
     a, b = tenants
     with tenant_scope(b.id):
-        foreign = await StreamRoom.create(name='B-only room')
+        foreign = await Stage.create(name='B-only stage')
 
     staff = await User.create(discord_id=905, username='staff')
     with tenant_scope(a.id):
@@ -261,7 +261,7 @@ async def test_match_cannot_reference_another_tenants_stream_room(tenants):
                 scheduled_date='2030-01-01',
                 scheduled_time='12:00',
                 player_ids=[staff.id],
-                stream_room_id=foreign.id,
+                stage_id=foreign.id,
                 actor=staff,
             )
 

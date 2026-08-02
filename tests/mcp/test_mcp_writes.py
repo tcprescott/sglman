@@ -15,7 +15,7 @@ Three layers, and each catches something the others cannot:
 
 from datetime import datetime, timedelta, timezone
 
-from models import Match, MatchPlayers, Role, StreamRoom, Tournament, User
+from models import Match, MatchPlayers, Role, Stage, Tournament, User
 from tests.mcp.conftest import call_tool, create_oauth_token, mcp_session
 
 TENANT = 'default'
@@ -35,7 +35,7 @@ WRITE_CALLS = {
     'update_match': {'match_id': 1, 'comment': 'x'},
     'delete_match': {'match_id': 1},
     'set_match_stream_candidate': {'match_id': 1, 'flag': True},
-    'assign_match_stream_room': {'match_id': 1, 'stream_room_id': 1},
+    'assign_match_stage': {'match_id': 1, 'stage_id': 1},
     'assign_match_stations': {'match_id': 1, 'assignments': {}},
     'seat_match': {'match_id': 1},
     'start_match': {'match_id': 1},
@@ -158,26 +158,26 @@ class TestTheWritesLand:
         await match.refresh_from_db()
         assert match.comment == 'moved for the restream'
 
-    async def test_assign_stream_room_and_clear_it(self, db):
+    async def test_assign_stage_and_clear_it(self, db):
         _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
         match = await _match()
-        room = await StreamRoom.create(name='Main Stage', is_active=True)
+        stage = await Stage.create(name='Main Stage', is_active=True)
         async with mcp_session() as client:
             is_error, payload = await call_tool(
-                client, raw, 'assign_match_stream_room', tenant=TENANT,
-                match_id=match.id, stream_room_id=room.id,
+                client, raw, 'assign_match_stage', tenant=TENANT,
+                match_id=match.id, stage_id=stage.id,
             )
             assert not is_error, payload
-            assert payload['stream_room']['id'] == room.id
+            assert payload['stage']['id'] == stage.id
 
-            # Omitting the id clears the room rather than leaving it alone —
+            # Omitting the id clears the stage rather than leaving it alone —
             # the one argument whose absence means something.
             is_error, payload = await call_tool(
-                client, raw, 'assign_match_stream_room', tenant=TENANT,
+                client, raw, 'assign_match_stage', tenant=TENANT,
                 match_id=match.id,
             )
         assert not is_error, payload
-        assert payload['stream_room'] is None
+        assert payload['stage'] is None
 
     async def test_delete_match_removes_it(self, db):
         _, raw = await create_oauth_token(roles=[Role.STAFF], write=True)

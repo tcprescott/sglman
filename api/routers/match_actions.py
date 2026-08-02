@@ -44,7 +44,7 @@ async def create_match(body: MatchCreateRequest, actor: User = Depends(require_w
         scheduled_time=body.scheduled_time,
         player_ids=body.player_ids,
         comment=body.comment,
-        stream_room_id=body.stream_room_id,
+        stage_id=body.stage_id,
         commentator_ids=body.commentator_ids,
         tracker_ids=body.tracker_ids,
         is_stream_candidate=body.is_stream_candidate,
@@ -103,9 +103,9 @@ async def set_stream_candidate(match_id: int, body: StreamCandidateRequest, acto
     return await load_match_response(match_id)
 
 
-@router.post("/{match_id}/stage", response_model=MatchResponse, summary="Assign or clear the stream room")
+@router.post("/{match_id}/stage", response_model=MatchResponse, summary="Assign or clear the stage")
 async def assign_stage(match_id: int, body: AssignStageRequest, actor: User = Depends(require_write_actor)):
-    await MatchService().assign_stage(match_id, body.stream_room_id, actor=actor)
+    await MatchService().assign_stage(match_id, body.stage_id, actor=actor)
     return await load_match_response(match_id)
 
 

@@ -14,7 +14,7 @@ Everything listed is **stable in production** unless marked otherwise.
 
 | Area | Features | Docs |
 |---|---|---|
-| **Match operations** | scheduling and lifecycle, capability-shaped boards (`MatchBoardAccess`), stream-room assignment, player dashboard, acknowledgment, watching, crew signup + approval + coverage, the volunteer's own My Crew, per-tournament crew requirement, player availability, match suggestions | [match-participation](features/match-participation.md) |
+| **Match operations** | scheduling and lifecycle, capability-shaped boards (`MatchBoardAccess`), stage assignment, player dashboard, acknowledgment, watching, crew signup + approval + coverage, the volunteer's own My Crew, per-tournament crew requirement, player availability, match suggestions | [match-participation](features/match-participation.md) |
 | **Tournaments** | tournaments, enrollment, per-tournament admins and crew coordinators, triforce texts, notification preferences | [triforce-texts](features/triforce-texts.md) |
 | **Brackets** | single/double elimination, Swiss, round robin, multi-stage chains, best-of-N series, draw preview before start, standings + staff tie-breaks, stage cancellation, public bracket views + static cached spectator views (`/live/…`, no websocket). **Behind `FeatureFlag.BRACKETS` — ships dark** | [brackets](features/brackets.md) |
 | **Online tournaments** | user-managed seed presets, racetime.gg room lifecycle + bot runtime, async qualifiers (incl. live races), SpeedGaming schedule ETL, Discord Events sync, per-tenant randomizer credentials | [online-tournaments](features/online-tournaments.md), [seed-generation](reference/seed-generation.md) |

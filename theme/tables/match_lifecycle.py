@@ -268,7 +268,7 @@ class MatchLifecycleHandlers:
     async def on_set_stage(self, match_id: int, stage):
         """Write the row's Stage select: a stage, ``Candidate``, or neither.
 
-        ``Candidate`` is not a room — it is ``is_stream_candidate``, the answer
+        ``Candidate`` is not a stage — it is ``is_stream_candidate``, the answer
         for "this is going out, we have not picked a stage yet". Choosing a real
         stage leaves that flag alone: the cell stops *showing* candidate because
         the stage is the more specific answer, but the coverage reports still
@@ -279,12 +279,12 @@ class MatchLifecycleHandlers:
         """
         match = await Match.get(id=match_id, tenant_id=require_tenant_id())
         want_candidate = stage == CANDIDATE_STAGE
-        room_id = None if (stage is None or want_candidate) else int(stage)
+        stage_id = None if (stage is None or want_candidate) else int(stage)
         try:
             actor = await self._actor()
-            if match.stream_room_id != room_id:  # type: ignore[attr-defined]
-                await self.match_service.assign_stage(match_id, room_id, actor=actor)
-            if room_id is None and match.is_stream_candidate != want_candidate:
+            if match.stage_id != stage_id:  # type: ignore[attr-defined]
+                await self.match_service.assign_stage(match_id, stage_id, actor=actor)
+            if stage_id is None and match.is_stream_candidate != want_candidate:
                 await self.match_service.set_stream_candidate(match_id, want_candidate, actor=actor)
         except (PermissionError, ValueError) as e:
             with self.page_container:
