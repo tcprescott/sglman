@@ -18,6 +18,7 @@ from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.help import help_icon
+from theme.notify import notify_error
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 from theme.tables.preferences import TableKeys
@@ -104,7 +105,7 @@ def _render_request_card(row, *, on_withdraw) -> None:
                 try:
                     await MatchRescheduleService().withdraw(request_id, actor)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Withdrawn.', color='positive')
                 on_withdraw()

@@ -623,8 +623,13 @@ guards `update_match`. Feature doc:
 | `approve(request_id, actor, *, scheduled_at, note)` | `MatchRescheduleRequest` | Grant it by making the change. `scheduled_at` lets staff counter with a different time; required when the request named none. Perform-then-record, so a move that fails never leaves a request marked approved over a schedule that did not budge. Other open requests on the match become `SUPERSEDED`. |
 | `decline(request_id, actor, note)` | `MatchRescheduleRequest` | Refuse it. The note is **required** — a refusal with no reason is what this feature replaces. DMs the requester with an "Ask again" button. |
 | `can_request(match, user)` / `list_requestable_match_ids(user)` | `bool` / `set[int]` | The UI's gate, so the control is hidden rather than shown and refused. The bulk form resolves a whole board in two queries; `can_request` per row would run three each. |
-| `list_pending()` / `list_mine(actor)` / `list_for_match(match_id)` | `list[MatchRescheduleRequest]` | The staff queue, a player's own history, and one match's requests. |
+| `list_pending(actor, *, tournament_ids)` | `list[MatchRescheduleRequest]` | The staff queue. Gated on `can_view_admin` — the reason text is not schedule data — and narrowed by `tournament_ids` so a tournament admin is never shown a request they would be refused for deciding. |
+| `list_mine(actor)` / `list_for_match(match_id, actor)` | `list[MatchRescheduleRequest]` | A player's own history (no gate beyond being the actor), and one match's requests (whoever could decide them, or a player in the match). |
 | `pending_count()` / `pending_match_ids()` / `pending_match_ids_for_user(user)` | `int` / `list[int]` | The admin strip's count and filter, and the board's per-row "Asked" mark. |
+
+The submission DM goes to **STAFF ∪ the tournament's admins**, matching the
+`can_crud_match` set that will decide it — DMing only STAFF meant that in a
+community whose tournament is run by a TA, nobody who owned it was told.
 
 Only a **decline** and an approved **cancellation** DM the requester: an
 approved reschedule already reached both players through `update_match`'s own

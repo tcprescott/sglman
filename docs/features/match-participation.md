@@ -333,6 +333,15 @@ unavailable for the proposed window — because the alternative is closing it to
 go and look. Staff can approve at the proposed time or counter with a different
 one; the requester is told which they got either way.
 
+### Who can read one
+
+A request carries the player's own words about why they need the change, so the
+reads are gated the way the feedback queue's are: your own are yours
+(`list_mine`), a match's are readable by whoever could decide them or by a
+player in that match, and the community-wide queue needs `can_view_admin`. It is
+narrowed by tournament as well, so a tournament admin is never shown a request
+they would then be refused for deciding.
+
 ### What is recorded, and what is told
 
 Statuses distinguish three ways to stop being pending without being refused:
@@ -349,7 +358,10 @@ because asking with a different time is the real next step after a refusal.
 
 Approving a cancellation **deletes the match**, and the request cascades with
 it; the `match.reschedule_approved` audit row is the durable record, which is
-why it is written for both kinds.
+why it is written for both kinds and why it carries the player's `reason` and
+staff's `note` rather than only the ids. It also lists
+`superseded_request_ids`, so the trail answers "what did this approval close?"
+without a per-row audit entry for decisions nobody made.
 
 Like the station pool and the dispute flag, this has **no per-tenant feature
 flag** — it self-gates through `Tournament.allow_reschedule_requests`, which a

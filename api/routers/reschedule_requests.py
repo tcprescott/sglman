@@ -76,13 +76,13 @@ async def list_mine(
 @router.get(
     "/reschedule-requests",
     response_model=List[RescheduleRequestResponse],
-    summary="List reschedule requests waiting on a decision",
+    summary="List reschedule requests waiting on a decision (admin)",
 )
 async def list_pending(actor: User = Depends(require_api_actor)):
-    """The staff queue. Deliberately unfiltered by role at this layer: the rows
-    are this community's own and every one of them names a match the reader can
-    already see on the schedule."""
-    rows = await MatchRescheduleService().list_pending()
+    """The staff queue. Gated in the service on `can_view_admin` — a request
+    carries the player's own words about why they need the change, which is not
+    schedule data and is nobody else's to read."""
+    rows = await MatchRescheduleService().list_pending(actor)
     return [_serialize(row) for row in rows]
 
 
@@ -111,7 +111,8 @@ async def submit_request(
     summary="List the reschedule requests raised against a match",
 )
 async def list_for_match(match_id: int, actor: User = Depends(require_api_actor)):
-    rows = await MatchRescheduleService().list_for_match(match_id)
+    """Whoever could decide these, or a player in the match reading their own."""
+    rows = await MatchRescheduleService().list_for_match(match_id, actor)
     return [_serialize(row) for row in rows]
 
 
@@ -148,7 +149,7 @@ async def approve(
     actor: User = Depends(require_write_actor),
 ):
     service = MatchRescheduleService()
-    body = body or RescheduleApproveRequest()
+    body = body or RescheduleApproveRequest(scheduled_at=None, note=None)
     request = await service.approve(
         request_id, actor, scheduled_at=body.scheduled_at, note=body.note,
     )

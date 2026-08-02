@@ -30,4 +30,4 @@ async def assignment_tenant_id(assignment_id: int) -> Optional[int]:
 
 async def reschedule_request_tenant_id(request_id: int) -> Optional[int]:
     request = await MatchRescheduleRequest.get_or_none(id=request_id)
-    return request.tenant_id if request else None
+    return request.tenant_id if request else None  # type: ignore[attr-defined]

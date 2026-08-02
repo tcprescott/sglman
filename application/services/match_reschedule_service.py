@@ -84,9 +84,29 @@ class MatchRescheduleService:
         """Read-only load-or-None for presentation/bot callers."""
         return await self.repository.get_by_id(request_id)
 
-    async def list_pending(self) -> List[MatchRescheduleRequest]:
-        """The staff queue for this community."""
-        return await self.repository.list_pending()
+    async def list_pending(
+        self,
+        actor: Optional[User] = None,
+        *,
+        tournament_ids: Optional[List[int]] = None,
+    ) -> List[MatchRescheduleRequest]:
+        """The staff queue for this community.
+
+        Gated, unlike :meth:`list_mine`: a request carries the player's own words
+        about why they need the change, which is not schedule data and is nobody
+        else's to read. ``actor=None`` is accepted only so an internal caller can
+        skip the check deliberately; every entry surface passes one.
+
+        ``tournament_ids`` narrows it the way the admin board narrows itself, so
+        a tournament admin is never shown a request they would then be refused
+        for deciding.
+        """
+        if actor is not None:
+            await AuthService.ensure(
+                await AuthService.can_view_admin(actor),
+                "Only staff can read the reschedule queue.",
+            )
+        return await self.repository.list_pending(tournament_ids=tournament_ids)
 
     async def list_mine(self, actor: User, limit: int = 25) -> List[MatchRescheduleRequest]:
         """What ``actor`` has asked for, and what became of it.
@@ -107,12 +127,27 @@ class MatchRescheduleService:
         """Matches where this player already has a request waiting."""
         return await self.repository.pending_match_ids_for_user(user.id)
 
-    async def list_for_match(self, match_id: int) -> List[MatchRescheduleRequest]:
+    async def list_for_match(
+        self, match_id: int, actor: Optional[User] = None,
+    ) -> List[MatchRescheduleRequest]:
         """Every request raised against one match, newest first.
 
-        Takes an id rather than a ``Match`` so an entry surface never has to
-        load the row just to hand it straight back.
+        Takes an id rather than a ``Match`` so an entry surface never has to load
+        the row just to hand it straight back.
+
+        Readable by whoever could decide these, or by a player in the match
+        reading about their own. Gated here rather than at the router so every
+        surface inherits it.
         """
+        if actor is not None:
+            match = require_found(
+                await self.match_repository.get_by_id(match_id), f"Match {match_id}"
+            )
+            await AuthService.ensure(
+                await AuthService.can_crud_match(actor, match)
+                or await self._is_player(match, actor),
+                "You can't read the reschedule requests for this match.",
+            )
         return await self.repository.list_for_match(match_id)
 
     # ---- eligibility ---------------------------------------------------
@@ -134,7 +169,7 @@ class MatchRescheduleService:
             return any(p.user_id == user.id for p in players)
         except NoValuesFetched:
             rows = await self.match_repository.get_players(match.id)
-            return any(p.user_id == user.id for p in rows)
+            return any(p.user_id == user.id for p in rows)  # type: ignore[attr-defined]
 
     @staticmethod
     def _blocking_state(match: Match) -> Optional[str]:
@@ -160,7 +195,7 @@ class MatchRescheduleService:
             return False
         if getattr(match, 'speedgaming_episode_id', None) is not None:
             return False
-        tournament = await self.tournament_repository.get_by_id(match.tournament_id)
+        tournament = await self.tournament_repository.get_by_id(match.tournament_id)  # type: ignore[attr-defined]
         if tournament is None or not getattr(
             tournament, 'allow_reschedule_requests', True
         ):
@@ -225,8 +260,8 @@ class MatchRescheduleService:
             )
 
         tournament = require_found(
-            await self.tournament_repository.get_by_id(match.tournament_id),
-            f"Tournament {match.tournament_id}",
+            await self.tournament_repository.get_by_id(match.tournament_id),  # type: ignore[attr-defined]
+            f"Tournament {match.tournament_id}",  # type: ignore[attr-defined]
         )
         if not getattr(tournament, 'allow_reschedule_requests', True):
             raise PermissionError(
@@ -254,7 +289,7 @@ class MatchRescheduleService:
         elif proposed_at is not None:
             if proposed_at <= datetime.now(timezone.utc):
                 raise ValueError("Pick a time in the future.")
-            await self._assert_schedulable(proposed_at, match.tournament_id)
+            await self._assert_schedulable(proposed_at, match.tournament_id)  # type: ignore[attr-defined]
 
         request = await self.repository.create(
             match=match,
@@ -275,7 +310,7 @@ class MatchRescheduleService:
                 'proposed_at': proposed_at.isoformat() if proposed_at else None,
             },
             EventType.MATCH_RESCHEDULE_REQUESTED,
-            event_extra={'tournament_id': match.tournament_id},
+            event_extra={'tournament_id': match.tournament_id},  # type: ignore[attr-defined]
         )
 
         await self._notify_submitted(request, match, tournament.name, actor)
@@ -310,7 +345,7 @@ class MatchRescheduleService:
         )
         if request.status is not RescheduleRequestStatus.PENDING:
             raise ValueError("That request has already been decided.")
-        if request.requested_by_id == actor.id:
+        if request.requested_by_id == actor.id:  # type: ignore[attr-defined]
             raise PermissionError("You can't agree with your own request.")
         if not await self._is_player(request.match, actor):
             raise PermissionError("Only the other player in the match can agree to this.")
@@ -339,7 +374,7 @@ class MatchRescheduleService:
         request = require_found(
             await self.repository.get_by_id(request_id), "Reschedule request"
         )
-        if request.requested_by_id != actor.id:
+        if request.requested_by_id != actor.id:  # type: ignore[attr-defined]
             raise PermissionError("Only the person who asked can withdraw a request.")
         if request.status is not RescheduleRequestStatus.PENDING:
             raise ValueError("That request has already been decided.")
@@ -352,7 +387,7 @@ class MatchRescheduleService:
         await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_RESCHEDULE_WITHDRAWN,
-            {'request_id': request.id, 'match_id': request.match_id},
+            {'request_id': request.id, 'match_id': request.match_id},  # type: ignore[attr-defined]
             EventType.MATCH_RESCHEDULE_WITHDRAWN,
             event_extra={'tournament_id': request.match.tournament_id},
         )
@@ -397,10 +432,11 @@ class MatchRescheduleService:
         from application.services.match.match_service import MatchService
 
         request = await self._decidable(request_id, actor)
-        match_id = request.match_id
+        match_id = request.match_id  # type: ignore[attr-defined]
         tournament_id = request.match.tournament_id
         match_service = MatchService()
 
+        superseded: List[int] = []
         if request.kind is RescheduleRequestKind.CANCEL:
             await match_service.cancel_match(
                 match_id, actor=actor, reason=note or request.reason,
@@ -422,7 +458,7 @@ class MatchRescheduleService:
                 decided_at=datetime.now(timezone.utc),
                 decision_note=(note or '').strip() or None,
             )
-            await self._supersede_others(request, actor)
+            superseded = await self._supersede_others(request, actor)
 
         await self.audit_service.write_and_publish(
             actor,
@@ -433,6 +469,15 @@ class MatchRescheduleService:
                 'kind': request.kind.value,
                 'scheduled_at': final_at.isoformat() if final_at else None,
                 'overrode_proposal': _is_override(scheduled_at, request.proposed_at),
+                # The player's own words, and staff's. An approved cancellation
+                # deletes the match and the request cascades with it, so without
+                # these the audit row is the only record and it would hold
+                # neither side of the conversation. ``cancel_match`` records
+                # only one of the two, whichever was passed to it.
+                'reason': request.reason,
+                'note': (note or '').strip() or None,
+                # Requests this approval closed out without anyone deciding them.
+                'superseded_request_ids': superseded,
             },
             EventType.MATCH_RESCHEDULE_APPROVED,
             event_extra={'tournament_id': tournament_id},
@@ -464,7 +509,7 @@ class MatchRescheduleService:
         await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_RESCHEDULE_DECLINED,
-            {'request_id': request.id, 'match_id': request.match_id},
+            {'request_id': request.id, 'match_id': request.match_id},  # type: ignore[attr-defined]
             EventType.MATCH_RESCHEDULE_DECLINED,
             event_extra={'tournament_id': request.match.tournament_id},
         )
@@ -473,16 +518,17 @@ class MatchRescheduleService:
 
     async def _supersede_others(
         self, approved: MatchRescheduleRequest, actor: User,
-    ) -> None:
+    ) -> List[int]:
         """Close out the match's other open requests once one has settled it.
 
         Marked ``SUPERSEDED`` rather than declined: staff did not refuse them,
         and a queue entry pointing at a time that has already moved is worse
         than no entry. No DM — everyone involved is a player in the match and
-        has just had the reschedule notification.
+        has just had the reschedule notification. Returns the ids closed, which
+        the approval audit records.
         """
         others = [
-            r for r in await self.repository.list_pending_for_match(approved.match_id)
+            r for r in await self.repository.list_pending_for_match(approved.match_id)  # type: ignore[attr-defined]
             if r.id != approved.id
         ]
         for other in others:
@@ -492,6 +538,10 @@ class MatchRescheduleService:
                 decided_by=actor,
                 decided_at=datetime.now(timezone.utc),
             )
+        # Returned rather than audited per row: these are a consequence of the
+        # one decision, and the approval's own audit entry is where "what did
+        # this close?" is answered.
+        return [other.id for other in others]
 
     # ---- notification (best-effort; a DM failure never blocks a decision) --
 
@@ -515,7 +565,6 @@ class MatchRescheduleService:
         tournament_name: str,
         requester: User,
     ) -> None:
-        from application.repositories import UserRoleRepository
         from application.services import notification_links
         from application.services.discord import DiscordService, discord_queue
         from application.services.tenant_service import TenantService
@@ -528,7 +577,6 @@ class MatchRescheduleService:
             reschedule_opponent_dm,
             reschedule_requested_dm,
         )
-        from models import Role
 
         community = await TenantService.current_community_name()
         cancel = request.kind is RescheduleRequestKind.CANCEL
@@ -552,7 +600,7 @@ class MatchRescheduleService:
         # The decision dialog itself, not the board: the reason and the proposed
         # time are the whole message and they live in the dialog.
         staff_link = await notification_links.admin_reschedule_request(request.id)
-        for member in await UserRoleRepository.list_users_with_role(Role.STAFF):
+        for member in await self._deciders(match):
             if member.discord_id:
                 discord_queue.enqueue(service.send_dm(
                     int(member.discord_id), staff_body,
@@ -584,6 +632,28 @@ class MatchRescheduleService:
             embed=opponent_embed,
             link=await notification_links.player_matches(),
         ))
+
+    @staticmethod
+    async def _deciders(match: Match) -> Sequence[User]:
+        """Everyone who could actually answer this: STAFF ∪ the tournament's admins.
+
+        ``_decidable`` gates on ``can_crud_match``, which admits the tournament's
+        own admin as well as global staff. DMing only STAFF meant that in a
+        community where a tournament is run by a TA, nobody who owns it was told
+        a request existed — it surfaced only if someone happened to open the
+        board.
+        """
+        from application.repositories import UserRoleRepository
+        from models import Role
+
+        recipients = {
+            member.id: member
+            for member in await UserRoleRepository.list_users_with_role(Role.STAFF)
+        }
+        await match.fetch_related('tournament__admins')
+        for admin in match.tournament.admins:
+            recipients.setdefault(admin.id, admin)
+        return list(recipients.values())
 
     @staticmethod
     def _opponents(match: Match, requester: User) -> Sequence[User]:
@@ -655,7 +725,7 @@ class MatchRescheduleService:
         # real next step; an approval has nothing left for them to press.
         link = (
             None if approved
-            else await notification_links.player_reschedule(request.match_id)
+            else await notification_links.player_reschedule(request.match_id)  # type: ignore[attr-defined]
         )
         discord_queue.enqueue(
             DiscordService().send_dm(

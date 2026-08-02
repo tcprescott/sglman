@@ -401,9 +401,15 @@ class MatchRepository:
     async def get_upcoming_for_user(user_id: int) -> List[Match]:
         """This player's matches that have a time and have not begun.
 
-        Scheduled but not seated, started or finished — the set a player can
-        still act on. ``tournament`` is prefetched because every caller so far
-        branches on one of its per-tournament toggles.
+        Scheduled but not seated, started, finished or confirmed — the set a
+        player can still act on. ``tournament`` is prefetched because every
+        caller so far branches on one of its per-tournament toggles.
+
+        ``confirmed_at`` is filtered even though a confirmed match is always
+        finished too: the redundancy is what keeps this in step with
+        ``MatchRescheduleService._blocking_state``, which lists all four, rather
+        than agreeing with it only for as long as ``confirm_match`` keeps
+        requiring a finish first.
         """
         return await scoped(Match.filter(
             players__user_id=user_id,
@@ -411,4 +417,5 @@ class MatchRepository:
             seated_at__isnull=True,
             started_at__isnull=True,
             finished_at__isnull=True,
+            confirmed_at__isnull=True,
         )).prefetch_related('tournament')

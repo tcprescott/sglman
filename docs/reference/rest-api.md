@@ -87,13 +87,15 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 ### Reschedule requests · `reschedule_requests.py`
 Players asking staff to move or call off a match. Approving **performs** the change, so a `POST /approve` is a reschedule or a cancellation, not a status update.
 - `POST /matches/{id}/reschedule-requests` — raise one (`{kind, reason, proposed_at?}`). `403` for a non-player or a tournament with requests turned off; `400` for a match under way, a SpeedGaming-sourced match, a past proposal, or a second open request by the same player.
-- `GET /matches/{id}/reschedule-requests` · `GET /reschedule-requests` (the queue) · `GET /reschedule-requests/mine`.
+- `GET /reschedule-requests` — the queue. Gated in the service on `can_view_admin`: a request carries the player's own words about why they need the change, which is not schedule data and is nobody else's to read.
+- `GET /matches/{id}/reschedule-requests` — whoever could decide these, or a player in that match reading their own; `403` otherwise.
+- `GET /reschedule-requests/mine` — your own, any token.
 - `POST /reschedule-requests/{id}/agree` — the opponent's advisory agreement. `403` for the requester themselves or an outsider.
 - `POST /reschedule-requests/{id}/withdraw` — the requester's alone.
 - `POST /reschedule-requests/{id}/approve` — `{scheduled_at?, note?}`. Omitting `scheduled_at` takes the proposed time; supplying one counters with a different time. `400` when the request named no time and none is given.
 - `POST /reschedule-requests/{id}/decline` — `{note}`. The note is **required** (`422` without it).
 
-Raising, agreeing and withdrawing take any write token (the service checks the actor plays in the match); deciding is re-gated in the service on `can_crud_match`, which is wider than global STAFF. All timestamps are UTC, like the rest of the API — only Discord renders per-viewer.
+Raising, agreeing and withdrawing take any write token (the service checks the actor plays in the match); deciding is re-gated in the service on `can_crud_match`, which is wider than global STAFF. Every gate lives in the service rather than the router, so the web, Discord and MCP surfaces inherit it. All timestamps are UTC, like the rest of the API — only Discord renders per-viewer.
 
 ### Crew (`/api/crew`) · `crew.py`
 - `POST /crew/{crew_type}/{crew_id}/approval` — approve/reject (Staff/TA/Crew Coordinator).

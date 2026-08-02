@@ -3,9 +3,9 @@
 
 from typing import Any
 
-from nicegui import app, background_tasks, context, ui
+from nicegui import background_tasks, context, ui
 
-from application.services import MatchRescheduleService, get_user_from_discord_id
+from application.services import MatchRescheduleService
 from application.tenant_context import require_tenant_id
 from application.utils.crew_queue import pending_crew_summary
 from application.utils.timezone import format_local_display
@@ -13,6 +13,7 @@ from models import Match, RescheduleRequestKind, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.tables.admin_crud import current_actor
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
@@ -35,7 +36,7 @@ def _request_chip_label(request) -> str:
 
 
 async def _render_reschedule_queue(
-    section, anchor, request_id, open_decision, client,
+    section, anchor, request_id, open_decision, client, *, may_decide: bool,
 ) -> None:
     """Draw the strip into its anchor, then open a deep-linked request's dialog.
 
@@ -44,10 +45,15 @@ async def _render_reschedule_queue(
     explicit client — the strip's own ``ui.*`` calls need a slot too — and it
     renders inside ``anchor`` so the strip keeps its place above the board
     rather than landing wherever the task ran.
+
+    ``may_decide`` gates the deep link as well as the strip. A stream manager or
+    crew coordinator reaches this board with ``edit=False``; a forwarded
+    ``?reschedule_request=`` would otherwise show them the requester's reason
+    and two buttons the service then refuses.
     """
     with client, anchor:
         await section()
-    if request_id is not None:
+    if request_id is not None and may_decide:
         await open_decision(int(request_id), client)
 
 
@@ -230,7 +236,15 @@ def admin_schedule_page(
         async def reschedule_queue() -> None:
             if not access.edit:
                 return
-            pending = await MatchRescheduleService().list_pending()
+            actor = await current_actor()
+            if actor is None:
+                return
+            # Narrowed like the board below it: a tournament admin shown a
+            # request on somebody else's tournament gets a dialog whose Approve
+            # is refused by ``can_crud_match``.
+            pending = await MatchRescheduleService().list_pending(
+                actor, tournament_ids=tournament_ids,
+            )
             if not pending:
                 return
             with ui.row().classes('items-center gap-2 q-mb-sm'):
@@ -269,7 +283,13 @@ def admin_schedule_page(
                     # have answered it. Saying so beats a button that does nothing.
                     ui.notify('That request has already been dealt with.', color='warning')
                     return
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await current_actor()
+                if actor is None:
+                    # A session that outlived its account, or one deactivated
+                    # since the page loaded. Caught here rather than let through
+                    # to fail as a PermissionError from inside the decision.
+                    ui.notify('Log in again to decide this.', color='warning')
+                    return
 
                 async def after():
                     reschedule_queue.refresh()
@@ -309,7 +329,7 @@ def admin_schedule_page(
         # the deep-linked dialog opens over a rendered board.
         background_tasks.create(_render_reschedule_queue(
             reschedule_queue, reschedule_anchor, reschedule_request,
-            _open_decision, context.client,
+            _open_decision, context.client, may_decide=access.edit,
         ))
 
         # Route through the view's _bg so the tab-switch refresh rebinds the

@@ -683,7 +683,13 @@ class MatchTableView(MatchTableHandlersMixin):
         Two sets rather than one flag because they drive different marks: the
         first shows the Ask button, the second shows the "Asked" chip on a row
         where the button is gone precisely *because* they already asked.
+
+        Skipped entirely on a board with no ``reschedule`` column — the admin
+        schedule, the proctor station and the home schedule all render matches
+        and none of them offers the ask, so the two queries would buy nothing.
         """
+        if not any(c.get('name') == 'reschedule' for c in self.columns):
+            return set(), set()
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             return set(), set()

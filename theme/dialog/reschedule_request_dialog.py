@@ -23,6 +23,7 @@ from theme.dialog._helpers import (
     native_date_input,
     native_time_input,
 )
+from theme.notify import notify_error
 
 KIND_OPTIONS = {
     RescheduleRequestKind.RESCHEDULE.value: 'Move it to another time',
@@ -125,7 +126,7 @@ class RescheduleRequestDialog:
                         kind=kind, reason=reason, proposed_at=proposed_at,
                     )
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
 
                 ui.notify(

@@ -6,6 +6,7 @@ rather than blessing it, and deciding needs the same authority that editing the
 match needs.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -453,3 +454,156 @@ class TestOverrideRecording:
         from application.services.match_reschedule_service import _is_override
 
         assert _is_override(None, utc(2026, 6, 1, 19, 30)) is False
+
+
+class TestBulkGateMatchesTheSingleGate:
+    """`list_requestable_match_ids` is a second implementation of `can_request`
+    against a different query, and it is the one that decides whether the board
+    shows the button. Its docstring claims "same rules" — this asserts it."""
+
+    async def _matrix(self, player):
+        """One match per reason a request is or is not possible."""
+        from models import SpeedGamingEpisode
+
+        allowed = await Tournament.create(name='Open', allow_reschedule_requests=True)
+        refused = await Tournament.create(name='Closed', allow_reschedule_requests=False)
+
+        async def match(tournament, **kwargs):
+            m = await Match.create(tournament=tournament, **kwargs)
+            await MatchPlayers.create(match=m, user=player)
+            return m
+
+        ok = await match(allowed, scheduled_at=utc(2026, 6, 1, 19, 30))
+        unscheduled = await match(allowed, scheduled_at=None)
+        seated = await match(
+            allowed, scheduled_at=utc(2026, 6, 1, 19, 30),
+            seated_at=utc(2026, 6, 1, 19, 25),
+        )
+        confirmed = await match(
+            allowed, scheduled_at=utc(2026, 6, 1, 19, 30),
+            seated_at=utc(2026, 6, 1, 19, 25), started_at=utc(2026, 6, 1, 19, 35),
+            finished_at=utc(2026, 6, 1, 21, 0), confirmed_at=utc(2026, 6, 1, 21, 5),
+        )
+        toggled_off = await match(refused, scheduled_at=utc(2026, 6, 1, 19, 30))
+        episode = await SpeedGamingEpisode.create(sg_episode_id='ep-matrix')
+        sourced = await match(allowed, scheduled_at=utc(2026, 6, 1, 19, 30))
+        sourced.speedgaming_episode_id = episode.id
+        await sourced.save()
+        return ok, [unscheduled, seated, confirmed, toggled_off, sourced]
+
+    async def test_the_bulk_gate_agrees_with_can_request_on_every_case(self, db):
+        player = await make_user(discord_id=9500, username='matrix')
+        ok, blocked = await self._matrix(player)
+        service = MatchRescheduleService()
+
+        bulk = await service.list_requestable_match_ids(player)
+
+        for m in [ok, *blocked]:
+            # Reloaded so the prefetch state matches what a page would hand in.
+            fresh = await Match.get(id=m.id).prefetch_related('players')
+            assert (m.id in bulk) is await service.can_request(fresh, player), (
+                f'match {m.id} disagrees between the bulk gate and can_request'
+            )
+
+    async def test_the_bulk_gate_drops_a_match_once_asked_about(self, db):
+        player = await make_user(discord_id=9501, username='matrix2')
+        ok, _ = await self._matrix(player)
+        service = MatchRescheduleService()
+        assert ok.id in await service.list_requestable_match_ids(player)
+
+        await service.submit(ok.id, player, reason='clash', proposed_at=_soon())
+
+        assert ok.id not in await service.list_requestable_match_ids(player)
+
+    async def test_signed_out_gets_nothing(self, db):
+        assert await MatchRescheduleService().list_requestable_match_ids(None) == set()
+
+
+class TestReadAuthorization:
+    """A request carries the player's own words about why they need the change.
+    That is not schedule data, and it is nobody else's to read."""
+
+    async def test_the_queue_refuses_a_plain_member(self, db):
+        m, p1, p2 = await _match()
+        await _submit(m, p1, proposed_at=_soon())
+
+        with pytest.raises(PermissionError, match='Only staff'):
+            await MatchRescheduleService().list_pending(p2)
+
+    async def test_the_queue_admits_staff(self, db):
+        m, p1, _ = await _match()
+        boss = await _staff()
+        await _submit(m, p1, proposed_at=_soon())
+
+        assert len(await MatchRescheduleService().list_pending(boss)) == 1
+
+    async def test_the_queue_narrows_to_the_named_tournaments(self, db):
+        """A tournament admin shown someone else's request gets a dialog whose
+        Approve is refused."""
+        mine, p1, _ = await _match()
+        boss = await _staff()
+        await _submit(mine, p1, proposed_at=_soon())
+
+        service = MatchRescheduleService()
+        assert await service.list_pending(boss, tournament_ids=[mine.tournament_id]) != []
+        assert await service.list_pending(boss, tournament_ids=[]) == []
+
+    async def test_a_match_listing_admits_its_own_players(self, db):
+        m, p1, p2 = await _match()
+        await _submit(m, p1, proposed_at=_soon())
+
+        rows = await MatchRescheduleService().list_for_match(m.id, p2)
+
+        assert len(rows) == 1
+
+    async def test_a_match_listing_refuses_an_outsider(self, db):
+        m, p1, _ = await _match()
+        await _submit(m, p1, proposed_at=_soon())
+        outsider = await make_user(discord_id=9600, username='nosy')
+
+        with pytest.raises(PermissionError, match="can't read"):
+            await MatchRescheduleService().list_for_match(m.id, outsider)
+
+
+class TestSupersessionIsRecorded:
+    async def test_the_approval_audit_names_what_it_closed(self, db):
+        """Otherwise the trail shows one approval and silently-terminated
+        siblings, with no way to tell who closed the second player's request."""
+        from models import AuditLog
+
+        m, p1, p2 = await _match()
+        boss = await _staff()
+        mine = await _submit(m, p1, proposed_at=_soon())
+        theirs = await _submit(m, p2, proposed_at=_soon(9))
+
+        with patch(
+            'application.services.match.match_service.MatchService.update_match',
+            new_callable=AsyncMock,
+        ):
+            await MatchRescheduleService().approve(mine.id, boss)
+
+        row = await AuditLog.filter(action='match.reschedule_approved').first()
+        assert json.loads(row.details)['superseded_request_ids'] == [theirs.id]
+
+    async def test_the_approval_audit_keeps_the_players_words(self, db):
+        """An approved cancellation deletes the match and the request cascades
+        with it, so the audit row is the only surviving record."""
+        from models import AuditLog
+
+        m, p1, _ = await _match()
+        boss = await _staff()
+        request = await _submit(
+            m, p1, kind=RescheduleRequestKind.CANCEL, reason='both forfeited',
+        )
+
+        with patch(
+            'application.services.match.match_service.MatchService.cancel_match',
+            new_callable=AsyncMock,
+        ):
+            await MatchRescheduleService().approve(request.id, boss, note='agreed')
+
+        details = json.loads(
+            (await AuditLog.filter(action='match.reschedule_approved').first()).details
+        )
+        assert details['reason'] == 'both forfeited'
+        assert details['note'] == 'agreed'

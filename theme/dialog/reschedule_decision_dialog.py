@@ -26,6 +26,7 @@ from theme.dialog._helpers import (
     native_date_input,
     native_time_input,
 )
+from theme.notify import notify_error
 
 # How long either side of the proposed slot to check the players against. The
 # tournament's own average is used when it has one; this is the fallback the
@@ -52,7 +53,9 @@ class RescheduleDecisionDialog:
         request = self.request
         match = request.match
         cancel = request.kind is RescheduleRequestKind.CANCEL
-        players = list(match.players)  # type: ignore[attr-defined]
+        # ``request.match`` comes off an untyped FK relation, so mypy resolves
+        # this to Any and needs no ignore here (unlike a typed ``Match``).
+        players = list(match.players)
         names = ' vs '.join(p.user.preferred_name for p in players)
 
         conflicts = await self._conflicts(request, players)
@@ -143,7 +146,7 @@ class RescheduleDecisionDialog:
                         note=(note_input.value or '').strip() or None,
                     )
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify(
                     'Match cancelled and everyone told.' if cancel
@@ -162,7 +165,7 @@ class RescheduleDecisionDialog:
                 try:
                     await self.service.decline(request.id, self.actor, note)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Declined, and they have been told why.', color='positive')
                 await self._finish(dialog)

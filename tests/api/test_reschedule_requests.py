@@ -184,6 +184,35 @@ class TestReads:
         rows = resp.json()
         assert [r['match_id'] for r in rows] == [other_match.id]
 
+    async def test_the_queue_refuses_a_plain_member(self, db, app):
+        """The reason text is not schedule data and is nobody else's to read."""
+        player, player_token = await create_user_token(username='p1')
+        _, nosy_token = await create_user_token(username='nosy')
+        match = await _match_with(player)
+
+        api_app = build_api_app()
+        async with client_for(api_app, player_token) as client:
+            await _ask(client, match.id)
+        async with client_for(api_app, nosy_token) as client:
+            resp = await client.get('/api/reschedule-requests')
+
+        assert resp.status_code == 403
+
+    async def test_a_match_listing_refuses_an_outsider(self, db, app):
+        player, player_token = await create_user_token(username='p1')
+        _, nosy_token = await create_user_token(username='nosy')
+        match = await _match_with(player)
+
+        api_app = build_api_app()
+        async with client_for(api_app, player_token) as client:
+            await _ask(client, match.id)
+            own = await client.get(f'/api/matches/{match.id}/reschedule-requests')
+        async with client_for(api_app, nosy_token) as client:
+            resp = await client.get(f'/api/matches/{match.id}/reschedule-requests')
+
+        assert own.status_code == 200
+        assert resp.status_code == 403
+
     async def test_the_queue_lists_pending_requests(self, db, app):
         player, player_token = await create_user_token(username='p1')
         _, staff_token = await create_user_token(username='boss', roles=[Role.STAFF])
