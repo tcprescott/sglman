@@ -58,11 +58,24 @@ async def update_tournament(
 @router.delete(
     "/{tournament_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a tournament (Staff only)",
+    summary="Permanently delete an inactive tournament (Staff only)",
 )
-async def delete_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
+async def delete_tournament(
+    tournament_id: int,
+    confirmation: str = Query(
+        ...,
+        description=(
+            'Must be "permanently delete". The tournament must already be '
+            "inactive; deleting it also removes its matches, entrants, brackets "
+            "and triforce texts."
+        ),
+    ),
+    actor: User = Depends(require_write_actor),
+):
     tournament = await _load_tournament_or_404(tournament_id)
-    await TournamentService().delete_tournament(tournament, actor=actor)
+    await TournamentService().delete_tournament(
+        tournament, actor=actor, confirmation=confirmation,
+    )
 
 
 @router.get(

@@ -25,6 +25,9 @@ def service():
     svc.repository.get_all = AsyncMock(return_value=[])
     svc.repository.get_by_id = AsyncMock()
     svc.repository.set_tournament_grant = AsyncMock()
+    svc.repository.dependent_counts = AsyncMock(return_value={
+        'matches': 2, 'players': 3, 'brackets': 0, 'triforce_texts': 0,
+    })
     svc.preset_repository = MagicMock()
     svc.preset_repository.get_by_id = AsyncMock()
     svc.discord_grant_repository = MagicMock()
@@ -48,6 +51,7 @@ def make_tournament(tournament_id=1, **overrides):
     defaults = dict(
         id=tournament_id,
         name='Tournament',
+        is_active=True,
         admins=admins,
         crew_coordinators=coordinators,
         delete=AsyncMock(),
@@ -447,11 +451,66 @@ class TestUpdateTournament:
 
 class TestDeleteTournament:
     async def test_deletes_and_audits(self, service):
-        t = make_tournament(tournament_id=33)
-        await service.delete_tournament(t, actor=make_user())
+        t = make_tournament(tournament_id=33, is_active=False)
+        await service.delete_tournament(
+            t, actor=make_user(), confirmation='permanently delete',
+        )
         t.delete.assert_awaited_once()
         details = service.audit_service.write_log.await_args.args[2]
-        assert details == {'tournament_id': 33}
+        assert details == {
+            'tournament_id': 33,
+            'name': 'Tournament',
+            'deleted': {'matches': 2, 'players': 3, 'brackets': 0, 'triforce_texts': 0},
+        }
+
+    async def test_accepts_confirmation_with_stray_case_and_spacing(self, service):
+        t = make_tournament(is_active=False)
+        await service.delete_tournament(
+            t, actor=make_user(), confirmation='  Permanently Delete ',
+        )
+        t.delete.assert_awaited_once()
+
+    @pytest.mark.parametrize('confirmation', [None, '', 'delete', 'permanently  delete'])
+    async def test_rejects_wrong_confirmation(self, service, confirmation):
+        t = make_tournament(is_active=False)
+        with pytest.raises(ValueError, match='permanently delete'):
+            await service.delete_tournament(t, actor=make_user(), confirmation=confirmation)
+        t.delete.assert_not_awaited()
+        service.audit_service.write_log.assert_not_awaited()
+
+    async def test_refuses_while_active_even_with_the_phrase(self, service):
+        t = make_tournament(is_active=True)
+        with pytest.raises(ValueError, match='Deactivate'):
+            await service.delete_tournament(
+                t, actor=make_user(), confirmation='permanently delete',
+            )
+        t.delete.assert_not_awaited()
+        service.audit_service.write_log.assert_not_awaited()
+
+    async def test_requires_staff(self, service, monkeypatch):
+        from application.services import auth_service
+
+        async def deny(*_a, **_k):
+            return False
+
+        async def real_ensure(allowed, message=None):
+            if not allowed:
+                raise PermissionError(message or 'denied')
+
+        monkeypatch.setattr(auth_service.AuthService, 'is_staff', deny)
+        monkeypatch.setattr(auth_service.AuthService, 'ensure', real_ensure)
+
+        t = make_tournament(is_active=False)
+        with pytest.raises(PermissionError):
+            await service.delete_tournament(
+                t, actor=make_user(), confirmation='permanently delete',
+            )
+        t.delete.assert_not_awaited()
+
+    async def test_preview_reports_dependent_counts(self, service):
+        counts = await service.deletion_preview(make_tournament(tournament_id=7))
+        service.repository.dependent_counts.assert_awaited_once_with(7)
+        assert counts['matches'] == 2
 
 
 # ---------------------------------------------------------------------------

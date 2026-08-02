@@ -52,13 +52,19 @@ def test_only_the_name_field_is_required():
     assert 'Tournament Name *' in labels
 
 
-def test_the_optional_fields_live_in_named_sections():
-    titles = [
+def _expansion_titles() -> list[str]:
+    return [
         call.args[0].value for call in _calls('expansion')
         if call.args and isinstance(call.args[0], ast.Constant)
     ]
-    assert titles == [
+
+
+def test_the_optional_fields_live_in_named_sections():
+    assert _expansion_titles() == [
         'Scheduling', 'Entry & administration', 'Seeds & randomizer', 'Integrations',
+        # Not an optional-fields section: the permanent-delete control, last and
+        # always closed (see below).
+        'Danger zone',
     ]
 
 
@@ -66,8 +72,14 @@ def test_sections_are_collapsed_on_create_and_open_on_edit():
     """One switch drives all four, so they cannot drift apart."""
     assert 'sections_open = not is_create' in SOURCE
     for call in _calls('expansion'):
+        title = call.args[0].value if call.args else None
         values = [kw for kw in call.keywords if kw.arg == 'value']
         assert values, 'an expansion with no explicit value defaults to closed on edit too'
+        if title == 'Danger zone':
+            # Deliberately not `sections_open`: an irreversible delete does not
+            # get to be the thing already open when the dialog paints.
+            assert values[0].value.value is False
+            continue
         assert isinstance(values[0].value, ast.Name)
         assert values[0].value.id == 'sections_open'
 

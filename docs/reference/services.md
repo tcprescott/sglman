@@ -903,13 +903,14 @@ Collaborators: `TournamentNotificationRepository`, `TournamentRepository`.
 
 ### tournament_service.py — TournamentService
 
-Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only; updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`. The optional `config` blob is validated by `validate_tournament_config` (from [`tournament_config.py`](../../application/services/tournament_config.py)) before persistence — unknown keys raise `ValueError`.
+Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only (deletion is permanent and additionally requires the tournament to be inactive plus a typed `permanently delete`); updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`. The optional `config` blob is validated by `validate_tournament_config` (from [`tournament_config.py`](../../application/services/tournament_config.py)) before persistence — unknown keys raise `ValueError`.
 
 | Method | Returns | Description |
 |---|---|---|
 | `create_tournament(name, description=None, seed_generator=None, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, is_active=True, players_per_match=2, team_size=1, staff_administered=False, config=None, actor=None)` | `Tournament` | Create; trims strings; treats the literal string `"None"` as no seed generator; non-empty name required; validates `config`. |
 | `update_tournament(tournament, ...same optional fields..., config=None, actor=None)` | `Tournament` | Partial update of any subset of the same fields; validates `config` when provided; audits the changed-field list. |
-| `delete_tournament(tournament, actor=None)` | `None` | Staff-only delete. |
+| `delete_tournament(tournament, actor=None, confirmation=None)` | `None` | Staff-only **permanent** delete — the row and everything that cascades from it (matches, entrants, brackets, triforce texts). Two gates on top of the role check, both enforced here rather than in the dialog: `tournament.is_active` must already be `False`, and `confirmation` must equal `permanently delete` (stripped, case-insensitive). Either miss raises `ValueError` and writes nothing. Audits `tournament.deleted` with the name and the cascade counts. |
+| `deletion_preview(tournament)` | `dict[str, int]` | The cascade counts (`matches`, `players`, `brackets`, `triforce_texts`) the confirmation dialog states before anyone types the phrase. Read-only, ungated. |
 | `add_admin(tournament, target, actor=None)` | `None` | Grant Tournament Admin (M2M add). |
 | `remove_admin(tournament, target, actor=None)` | `None` | Revoke Tournament Admin. |
 | `add_crew_coordinator(tournament, target, actor=None)` | `None` | Grant Crew Coordinator. |

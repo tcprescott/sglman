@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Tournament, TournamentGrant, TournamentPlayers
+from models import Bracket, Match, Tournament, TournamentGrant, TournamentPlayers, TriforceText
 
 
 class TournamentRepository(TenantScopedRepository[Tournament]):
@@ -100,6 +100,21 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         for tournament_id in rows:
             counts[tournament_id] = counts.get(tournament_id, 0) + 1
         return counts
+
+    @staticmethod
+    async def dependent_counts(tournament_id: int) -> dict[str, int]:
+        """What a permanent delete would take with it, per related table.
+
+        Every one of these rows cascades from the tournament row, so the number
+        a staff member sees in the confirmation dialog is the number that
+        disappears.
+        """
+        return {
+            'matches': await scoped(Match.filter(tournament_id=tournament_id)).count(),
+            'players': await scoped(TournamentPlayers.filter(tournament_id=tournament_id)).count(),
+            'brackets': await scoped(Bracket.filter(tournament_id=tournament_id)).count(),
+            'triforce_texts': await scoped(TriforceText.filter(tournament_id=tournament_id)).count(),
+        }
 
     @staticmethod
     async def any_exists() -> bool:
