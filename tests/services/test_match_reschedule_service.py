@@ -607,3 +607,69 @@ class TestSupersessionIsRecorded:
         )
         assert details['reason'] == 'both forfeited'
         assert details['note'] == 'agreed'
+
+
+class TestLiveViewNudges:
+    """Staff already sitting on the schedule board should watch the queue strip
+    grow, not discover the request on their next page load."""
+
+    @staticmethod
+    def _capture(monkeypatch):
+        seen = []
+        from application.events import match_live
+        monkeypatch.setattr(
+            'application.services.match_reschedule_service.match_live.publish',
+            lambda match_id, change_type=match_live.CHANGED: seen.append(
+                (match_id, change_type)
+            ),
+        )
+        return seen
+
+    async def test_submitting_nudges_open_views(self, db, monkeypatch):
+        m, p1, _ = await _match()
+        seen = self._capture(monkeypatch)
+
+        await _submit(m, p1, proposed_at=_soon())
+
+        assert (m.id, 'changed') in seen
+
+    async def test_withdrawing_nudges_open_views(self, db, monkeypatch):
+        m, p1, _ = await _match()
+        request = await _submit(m, p1, proposed_at=_soon())
+        seen = self._capture(monkeypatch)
+
+        await MatchRescheduleService().withdraw(request.id, p1)
+
+        assert (m.id, 'changed') in seen
+
+    async def test_declining_nudges_open_views(self, db, monkeypatch):
+        """Approving reaches match_live through update_match / cancel_match; a
+        decline touches no match, so it has to publish its own."""
+        m, p1, _ = await _match()
+        boss = await _staff()
+        request = await _submit(m, p1, proposed_at=_soon())
+        seen = self._capture(monkeypatch)
+
+        await MatchRescheduleService().decline(request.id, boss, 'no room')
+
+        assert (m.id, 'changed') in seen
+
+    async def test_opponent_agreement_nudges_open_views(self, db, monkeypatch):
+        m, p1, p2 = await _match()
+        request = await _submit(m, p1, proposed_at=_soon())
+        seen = self._capture(monkeypatch)
+
+        await MatchRescheduleService().record_opponent_agreement(request.id, p2)
+
+        assert (m.id, 'changed') in seen
+
+    async def test_a_repeat_agreement_does_not_re_nudge(self, db, monkeypatch):
+        """The second press is a no-op on the row, so it is a no-op on screen."""
+        m, p1, p2 = await _match()
+        request = await _submit(m, p1, proposed_at=_soon())
+        await MatchRescheduleService().record_opponent_agreement(request.id, p2)
+        seen = self._capture(monkeypatch)
+
+        await MatchRescheduleService().record_opponent_agreement(request.id, p2)
+
+        assert seen == []

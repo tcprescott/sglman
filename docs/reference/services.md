@@ -627,6 +627,11 @@ guards `update_match`. Feature doc:
 | `list_mine(actor)` / `list_for_match(match_id, actor)` | `list[MatchRescheduleRequest]` | A player's own history (no gate beyond being the actor), and one match's requests (whoever could decide them, or a player in the match). |
 | `pending_count()` / `pending_match_ids()` / `pending_match_ids_for_user(user)` | `int` / `list[int]` | The admin strip's count and filter, and the board's per-row "Asked" mark. |
 
+Every mutation also publishes on `match_live` so open boards update in place —
+`approve` reaches it through `update_match` / `cancel_match`, the other three
+publish their own. That is the UI nudge channel, distinct from the `EventType`
+domain events these methods emit for webhooks.
+
 The submission DM goes to **STAFF ∪ the tournament's admins**, matching the
 `can_crud_match` set that will decide it — DMing only STAFF meant that in a
 community whose tournament is run by a TA, nobody who owned it was told.
