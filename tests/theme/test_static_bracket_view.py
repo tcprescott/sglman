@@ -126,6 +126,30 @@ class TestEscaping:
         assert '&lt;b&gt;Cup&lt;/b&gt;' in html
 
 
+class TestAvatars:
+    """Discord avatars layer over the initial disc; the letter is the fallback."""
+
+    def test_an_avatar_is_layered_over_the_initial(self):
+        html = render_bracket_document(_elim_view(
+            entry_avatar={1: 'https://cdn.discordapp.com/avatars/9/h.png?size=64'},
+        ))
+        assert 'class="bracket-avatar-img"' in html
+        assert 'src="https://cdn.discordapp.com/avatars/9/h.png?size=64"' in html
+        # The letter stays in the DOM so a stale hash degrades to it.
+        assert 'onerror="this.remove()"' in html
+
+    def test_entrants_without_one_render_only_the_letter(self):
+        html = render_bracket_document(_elim_view())
+        assert 'bracket-avatar-img' not in html
+
+    def test_a_url_that_is_not_a_plain_https_link_is_dropped(self):
+        html = render_bracket_document(_elim_view(
+            entry_avatar={1: 'javascript:alert(1)', 2: 'https://x/" onload="alert(1)'},
+        ))
+        assert 'javascript:' not in html
+        assert 'onload=' not in html
+
+
 class TestEliminationMarkup:
     def test_renders_both_the_2d_bracket_and_the_phone_list(self):
         """The stylesheet's media query picks one — so both must be in the DOM."""

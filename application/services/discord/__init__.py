@@ -5,10 +5,15 @@
 serializes those sends so request handlers never block on Discord. The
 ``discord_event_*`` trio mirrors tournament matches into Discord scheduled
 events, and the mapping/link services connect guild roles and accounts to app
-identity.
+identity. ``discord_member_events`` holds the gateway listeners' bodies (app-role
+re-sync, cached avatar hash).
 """
 
-from application.services.discord import discord_event_worker, discord_queue
+from application.services.discord import (
+    discord_event_worker,
+    discord_member_events,
+    discord_queue,
+)
 from application.services.discord.discord_event_reconciler_service import (
     DiscordEventReconcilerService,
 )
@@ -24,5 +29,6 @@ __all__ = [
     'DiscordRoleMappingService',
     'DiscordService',
     'discord_event_worker',
+    'discord_member_events',
     'discord_queue',
 ]

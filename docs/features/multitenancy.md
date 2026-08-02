@@ -287,7 +287,7 @@ resolves *every* tenant linked to an incoming guild and the callers fan out over
 them (an unknown guild resolves to an empty list and is ignored):
 
 - **Role sync** — `DiscordRoleMappingService.sync_user_roles` (at login) and the
-  live `GUILD_MEMBER_UPDATE` handler (`_sync_member_roles`) both fan over every
+  live `GUILD_MEMBER_UPDATE` handler (`sync_member_roles`) both fan over every
   tenant sharing the guild, wrapping each per-tenant sync in `tenant_scope`.
   Mappings are tenant-scoped (`DiscordRoleMapping.tenant`), so a shared server's
   mappings stay separated and the same Discord role can grant different app roles

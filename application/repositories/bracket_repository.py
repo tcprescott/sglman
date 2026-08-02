@@ -71,9 +71,12 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await self.update(entrant, **fields)
 
     async def list_entrants(self, tournament_id: int) -> List[BracketEntrant]:
+        # ``user`` is prefetched for the linked account's Discord avatar, which
+        # every bracket surface paints beside the name — one extra query for the
+        # whole field beats one per entrant at render time.
         return await scoped(
             BracketEntrant.filter(tournament_id=tournament_id)
-        ).order_by('display_name')
+        ).prefetch_related('user').order_by('display_name')
 
     # --- BracketEntry ----------------------------------------------------
     async def create_entry(self, **fields) -> BracketEntry:

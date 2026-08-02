@@ -42,6 +42,7 @@ __all__ = [
     'SlotSource',
     'assign_match_numbers',
     'avatar_hue',
+    'avatar_img_html',
     'avatar_initial',
     'layout_section',
     'round_label',
@@ -293,5 +294,25 @@ def avatar_initial(name: str) -> str:
         if ch.isalnum():
             return ch.upper()
     return '?'
+
+
+def avatar_img_html(url: str) -> str:
+    """The Discord-avatar ``<img>`` that overlays an entrant's initial disc.
+
+    The initial stays in the DOM underneath. A hash we cached before the person
+    changed their avatar 404s, and ``onerror`` drops the image so the disc shows
+    the letter again rather than a broken-image glyph — that fallback is the
+    whole reason the letter is still rendered.
+
+    Returns ``''`` for a URL that isn't a plain https CDN link: this is the one
+    piece of bracket markup built by hand for both the NiceGUI and static views,
+    so it refuses anything that could carry script instead of escaping it.
+    """
+    if not url.startswith('https://') or '"' in url or '<' in url:
+        return ''
+    return (
+        f'<img class="bracket-avatar-img" src="{url}" alt="" '
+        'loading="lazy" decoding="async" onerror="this.remove()">'
+    )
 
 

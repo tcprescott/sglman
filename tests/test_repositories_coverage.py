@@ -129,13 +129,32 @@ class TestUserRepository:
         await UserRepository.update_discord_info(u, username="alice_dc")
         assert (await User.get(id=u.id)).username == "alice_dc"
 
+    async def test_update_discord_info_persists_avatar_hash(self, db):
+        u = await make_user(1, "alice")
+        await UserRepository.update_discord_info(u, username="alice_dc", avatar="abc")
+        assert (await User.get(id=u.id)).discord_avatar == "abc"
+
+    async def test_update_discord_info_leaves_avatar_alone_when_not_given(self, db):
+        # None means "the caller knows nothing about the avatar", not "clear it".
+        u = await make_user(1, "alice")
+        await UserRepository.set_discord_avatar(u, "abc")
+        await UserRepository.update_discord_info(u, username="alice_dc")
+        assert (await User.get(id=u.id)).discord_avatar == "abc"
+
     async def test_update_discord_info_takes_no_non_field_arguments(self, db):
-        # The signature used to accept discriminator/avatar and assign them to
-        # the instance, where save() silently dropped them — a write that looked
-        # like it landed. Neither is a column, so neither is accepted.
+        # The signature used to accept a discriminator and assign it to the
+        # instance, where save() silently dropped it — a write that looked like
+        # it landed. It is not a column, so it is not accepted.
         u = await make_user(1, "alice")
         with pytest.raises(TypeError):
-            await UserRepository.update_discord_info(u, username="alice_dc", avatar="abc")
+            await UserRepository.update_discord_info(u, username="alice_dc", discriminator="0001")
+
+    async def test_set_discord_avatar_reports_whether_it_changed(self, db):
+        u = await make_user(1, "alice")
+        assert await UserRepository.set_discord_avatar(u, "abc") is True
+        assert await UserRepository.set_discord_avatar(u, "abc") is False
+        assert await UserRepository.set_discord_avatar(u, None) is True
+        assert (await User.get(id=u.id)).discord_avatar is None
 
 
 # ---------------------------------------------------------------------------

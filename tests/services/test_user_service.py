@@ -481,6 +481,26 @@ class TestProvisionFromDiscordLogin:
         service.repository.update.assert_awaited_once_with(existing, username='new_name')
         service.audit_service.write_log.assert_not_awaited()
 
+    async def test_login_stores_the_reported_avatar_hash(self, service):
+        existing = make_user(user_id=3, username='old_name', is_active=True)
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(existing, False))
+
+        await service.provision_from_discord_login(123, 'new_name', avatar='hash')
+
+        service.repository.update.assert_awaited_once_with(
+            existing, username='new_name', discord_avatar='hash',
+        )
+
+    async def test_an_account_with_no_custom_avatar_clears_the_stored_hash(self, service):
+        existing = make_user(user_id=3, username='old_name', is_active=True)
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(existing, False))
+
+        await service.provision_from_discord_login(123, 'new_name', avatar='')
+
+        service.repository.update.assert_awaited_once_with(
+            existing, username='new_name', discord_avatar=None,
+        )
+
     async def test_existing_inactive_user_not_synced_or_audited(self, service):
         inactive = make_user(user_id=4, is_active=False)
         service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(inactive, False))
@@ -494,6 +514,23 @@ class TestProvisionFromDiscordLogin:
 # ---------------------------------------------------------------------------
 # create_mock_login_user
 # ---------------------------------------------------------------------------
+
+
+class TestSyncDiscordAvatar:
+    async def test_writes_the_hash_for_a_known_user(self, service):
+        known = make_user(user_id=3)
+        service.repository.get_by_discord_id = AsyncMock(return_value=known)
+        service.repository.set_discord_avatar = AsyncMock(return_value=True)
+
+        assert await service.sync_discord_avatar(123, 'hash') is True
+        service.repository.set_discord_avatar.assert_awaited_once_with(known, 'hash')
+
+    async def test_an_unknown_discord_id_provisions_nothing(self, service):
+        service.repository.get_by_discord_id = AsyncMock(return_value=None)
+        service.repository.set_discord_avatar = AsyncMock()
+
+        assert await service.sync_discord_avatar(123, 'hash') is False
+        service.repository.set_discord_avatar.assert_not_awaited()
 
 
 class TestCreateMockLoginUser:

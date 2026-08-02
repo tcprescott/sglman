@@ -484,6 +484,14 @@ detail — the pure layout walker, the cards/tables/dialog/live modules, and the
 
 The bracket-domain rules that renderer enforces:
 
+- **Entrant discs show Discord avatars.** An entrant linked to an account with a
+  cached avatar hash (`User.discord_avatar`) gets their picture; everyone else
+  keeps the deterministic hue + initial-letter disc. Both are in the DOM — the
+  image sits over the letter, so a hash that went stale between renders 404s and
+  the letter shows through instead of a broken image. The map is built once per
+  bracket by `theme.brackets.entry_avatars(entrants, entries)` off the `user`
+  relation `BracketService.list_entrants` prefetches, and covers the 2-D cards,
+  the phone accordion, the standings tables and their static twins.
 - **Live match state on the cards.** Every card carries the *derived* status from
   [`match_status.py`](../../application/services/match/match_status.py) — the
   vocabulary the schedule table, REST payloads and Discord embeds share, so a card

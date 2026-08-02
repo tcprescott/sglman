@@ -31,6 +31,8 @@ class StaticBracketView:
     entries: List[BracketEntry]
     matches: List[BracketMatch]
     entry_name: Dict[int, str]
+    # entry_id -> Discord avatar URL (``theme.brackets.render.entry_avatars``).
+    entry_avatar: Dict[int, str] = field(default_factory=dict)
     live_state: Dict[int, dict] = field(default_factory=dict)
     advancement: Optional[dict] = None
     generated_at: Optional[datetime] = None
@@ -196,7 +198,8 @@ def render_bracket_document(view: StaticBracketView) -> str:
     elif bracket.format in (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM):
         double = bracket.format == BracketFormat.DOUBLE_ELIM
         ctx = build_context(
-            bracket.config, entries, matches, entry_name, live_state=view.live_state,
+            bracket.config, entries, matches, entry_name,
+            entry_avatar=view.entry_avatar, live_state=view.live_state,
         )
         body = header + _tag(
             'div', 'wizs-card',
@@ -212,11 +215,13 @@ def render_bracket_document(view: StaticBracketView) -> str:
             inner = _round_robin_html(
                 entries, matches, entry_name, bracket.config,
                 advancement=view.advancement, complete=complete,
+                entry_avatar=view.entry_avatar,
             )
         else:
             inner = _swiss_html(
                 entries, matches, entry_name, bracket.config,
                 advancement=view.advancement, complete=complete,
+                entry_avatar=view.entry_avatar,
             )
         body = header + _tag('div', 'wizs-card', inner)
 

@@ -20,6 +20,7 @@ from application.services.bracket_engines.round_names import (
     detect_finals_ids,
 )
 from application.services.bracket_engines.standings import ResultRow
+from application.utils.discord_avatar import avatar_url
 from application.utils.timezone import format_local_display
 from models import BracketMatch, BracketMatchState
 
@@ -31,6 +32,10 @@ from .layout import (
     round_label,
     slot_sources,
 )
+
+# The disc is 26px at its largest; 64 covers a 2x display without paying for a
+# 128px fetch per entrant.
+AVATAR_SIZE = 64
 
 
 def format_scheduled(iso: str) -> str:
@@ -77,12 +82,38 @@ def detect_finals(
     return by_id.get(gf_id), by_id.get(reset_id)
 
 
+def entry_avatars(entrants, entries) -> Dict[int, str]:
+    """``entry_id -> Discord avatar URL`` for the entrants who have one.
+
+    ``entrants`` must come from ``BracketService.list_entrants``, which prefetches
+    the linked account. An entrant with no account, no Discord avatar, or an
+    unfetched relation simply isn't in the map, and its surface falls back to the
+    initial-letter disc.
+    """
+    by_entrant = {}
+    for entrant in entrants:
+        user = getattr(entrant, 'user', None)
+        url = avatar_url(
+            getattr(user, 'discord_id', None),
+            getattr(user, 'discord_avatar', None),
+            AVATAR_SIZE,
+        )
+        if url:
+            by_entrant[entrant.id] = url
+    return {
+        entry.id: by_entrant[entry.entrant_id]
+        for entry in entries
+        if entry.entrant_id in by_entrant
+    }
+
+
 def build_context(
     config: Optional[dict],
     entries,
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
     *,
+    entry_avatar: Optional[Dict[int, str]] = None,
     on_card_click: Optional[Callable[[int], None]] = None,
     live_state: Optional[Dict[int, dict]] = None,
 ) -> BracketContext:
@@ -90,13 +121,15 @@ def build_context(
 
     ``live_state`` is ``BracketService.matchup_live_state``'s output — the
     derived status and watch link per matchup (U2). Optional: a caller that
-    doesn't pass it gets exactly the pre-U2 card.
+    doesn't pass it gets exactly the pre-U2 card. ``entry_avatar`` is
+    :func:`entry_avatars`' output; without it every slot draws the letter disc.
     """
     winner_links = [(m.id, m.winner_to_id, m.winner_to_slot) for m in matches]
     loser_links = [(m.id, m.loser_to_id, m.loser_to_slot) for m in matches]
     rounds_config = (config or {}).get('rounds') or {}
     return BracketContext(
         entry_name=entry_name,
+        entry_avatar=entry_avatar or {},
         entry_seed={e.id: e.seed for e in entries},
         match_number=assign_match_numbers(match_nodes(matches)),
         slot_sources=slot_sources(winner_links, loser_links),

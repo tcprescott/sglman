@@ -52,6 +52,7 @@ from application.tenant_context import get_current_tenant_id
 from application.timezone_context import tz_scope
 from application.utils.html_cache import HtmlPageCache
 from models import Bracket, BracketFormat, FeatureFlag, Tournament
+from theme.brackets import entry_avatars
 from theme.brackets.static_view import (
     StaticBracketView,
     StaticIndexView,
@@ -238,6 +239,7 @@ def create() -> None:
                 entry_name={
                     e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
                 },
+                entry_avatar=entry_avatars(entrants, entries),
                 live_state=live_state,
                 advancement=advancement,
                 generated_at=datetime.now(timezone.utc),
