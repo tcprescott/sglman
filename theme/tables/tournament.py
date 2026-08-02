@@ -219,9 +219,10 @@ class TournamentTableView:
         if not t:
             ui.notify("We couldn't find that tournament. It may have been removed.", color='warning')
             return
-        dialog = TournamentDialog(t)
+        # Both callbacks repaint the table: an edit can change any visible column,
+        # and a delete leaves a row pointing at a tournament that no longer exists.
+        dialog = TournamentDialog(t, on_submit=self.refresh, on_delete=self.refresh)
         await dialog.open()
-        # You may want to call self.refresh() or self.update_row_by_id(t.id) after editing
 
     async def handle_show_players(self, event):
         row = event.args['row'] if hasattr(event, 'args') and 'row' in event.args else event.args if hasattr(event, 'args') else event

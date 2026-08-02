@@ -14,6 +14,7 @@ from application.services import (
     TournamentService,
     get_user_from_discord_id,
 )
+from application.services.tournament_service import DELETE_CONFIRMATION_PHRASE
 from application.tenant_context import require_tenant_id
 from models import FeatureFlag
 from theme.dialog._helpers import (
@@ -24,13 +25,17 @@ from theme.dialog._helpers import (
     native_time_input,
     submit_on_enter,
 )
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 
 
 class TournamentDialog:
-    def __init__(self, tournament=None, on_submit=None):
+    def __init__(self, tournament=None, on_submit=None, on_delete=None):
         self.tournament = tournament
         self.on_submit = on_submit
+        # Called with no arguments after a permanent delete, so the surface that
+        # opened this dialog can drop the row it is still showing.
+        self.on_delete = on_delete
         self.dialog = None
         self.tournament_service = TournamentService()
         self.challonge_service = ChallongeService()
@@ -43,6 +48,7 @@ class TournamentDialog:
         title = 'Add Tournament' if is_create else 'Edit Tournament'
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         can_sync = await AuthService.can_manage_sync(actor)
+        can_delete = not is_create and await AuthService.is_staff(actor)
         # This dialog opens from the (ungated) Tournaments tab, so its Challonge
         # section has to check the flag itself — link_tournament refuses without it.
         challonge_live = (
@@ -343,6 +349,72 @@ class TournamentDialog:
                                 'Require racetime link',
                                 value=(t.require_racetime_link if t else False),
                             )
+
+                if can_delete:
+                    with ui.expansion(
+                        'Danger zone', icon='warning', value=False,
+                    ).classes('w-full').props('dense'):
+                        ui.label(
+                            'Deleting a tournament removes it and everything attached '
+                            'to it — matches, entrants, brackets and triforce texts — '
+                            'with no way to get it back. Deactivating it instead keeps '
+                            'the history and takes it out of every picker.'
+                        ).classes('text-caption text-grey')
+                        delete_button = ui.button(
+                            'Delete tournament', icon='delete_forever',
+                            on_click=lambda: confirm_delete(),
+                        ).props('flat color=negative')
+                        if self.tournament.is_active:
+                            delete_button.disable()
+                            ui.label(
+                                'Only an inactive tournament can be deleted. Uncheck '
+                                'Active above, save, then reopen this dialog.'
+                            ).classes('text-caption text-warning')
+
+            async def confirm_delete() -> None:
+                preview = await self.tournament_service.deletion_preview(self.tournament)
+                lines = '\n'.join(
+                    f'• {count} {one if count == 1 else many}'
+                    for one, many, count in (
+                        ('match', 'matches', preview['matches']),
+                        ('enrolled player', 'enrolled players', preview['players']),
+                        ('bracket stage', 'bracket stages', preview['brackets']),
+                        ('triforce text', 'triforce texts', preview['triforce_texts']),
+                    )
+                    if count
+                ) or '• nothing else — this tournament has no matches or entrants'
+
+                async def do_delete() -> None:
+                    # The confirmation has already closed itself by now, so both
+                    # notices belong to the edit dialog still standing behind it.
+                    try:
+                        actor = await get_user_from_discord_id(
+                            app.storage.user.get('discord_id')
+                        )
+                        await self.tournament_service.delete_tournament(
+                            self.tournament, actor=actor,
+                            confirmation=confirm.typed_phrase,
+                        )
+                    except (ValueError, PermissionError) as e:
+                        with self.dialog:
+                            notify_error(e)
+                        return
+                    with self.dialog:
+                        ui.notify(f'Deleted “{self.tournament.name}”.', color='positive')
+                        dialog.close()
+                    if self.on_delete:
+                        await self.on_delete()
+
+                confirm = ConfirmationDialog(
+                    f'Permanently delete “{self.tournament.name}”?\n\n'
+                    f'This also deletes:\n{lines}\n\n'
+                    'There is no undo.',
+                    on_confirm=do_delete,
+                    confirm_text='Delete forever',
+                    title='Delete tournament',
+                    require_phrase=DELETE_CONFIRMATION_PHRASE,
+                )
+                confirm.open()
 
             async def submit():
                 if not (name_input.value or '').strip():

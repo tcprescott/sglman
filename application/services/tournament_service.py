@@ -27,6 +27,11 @@ from models import Tournament, TournamentGrant, User
 # explicit None (detach the preset). Update-only; create defaults to no preset.
 _UNSET = object()
 
+# The phrase a caller must repeat to permanently delete a tournament. Compared
+# case-insensitively after stripping, but never inferred from anything else on
+# screen — a deletion has to be typed out.
+DELETE_CONFIRMATION_PHRASE = 'permanently delete'
+
 
 class TournamentService:
     """Service for tournament-related business operations."""
@@ -384,17 +389,51 @@ class TournamentService:
 
         return result
 
-    async def delete_tournament(self, tournament: Tournament, actor: Optional[User] = None) -> None:
+    async def deletion_preview(self, tournament: Tournament) -> Dict[str, int]:
+        """Counts of the rows a permanent delete would cascade through.
+
+        The confirmation dialog states them, so nobody types the phrase without
+        seeing the matches and results that go with the tournament.
+        """
+        return await self.repository.dependent_counts(tournament.id)
+
+    async def delete_tournament(
+        self,
+        tournament: Tournament,
+        actor: Optional[User] = None,
+        confirmation: Optional[str] = None,
+    ) -> None:
+        """Permanently delete a tournament and everything that cascades from it.
+
+        Two gates, both enforced here rather than in the dialog that draws them:
+        the tournament must already be inactive (so deletion is never the first
+        step, and an active event cannot be lost to a stray click), and the
+        caller must repeat ``permanently delete`` verbatim. Deactivating is
+        reversible; this is not.
+        """
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only Staff can delete tournaments",
         )
-        tournament_id = tournament.id
+        if tournament.is_active:
+            raise ValueError(
+                'Deactivate this tournament before deleting it — uncheck Active, '
+                'save, then delete.'
+            )
+        if (confirmation or '').strip().lower() != DELETE_CONFIRMATION_PHRASE:
+            raise ValueError(
+                f'Type “{DELETE_CONFIRMATION_PHRASE}” to confirm this deletion.'
+            )
+        details = {
+            'tournament_id': tournament.id,
+            'name': tournament.name,
+            'deleted': await self.repository.dependent_counts(tournament.id),
+        }
         await tournament.delete()
         await self.audit_service.write_log(
             actor,
             AuditActions.TOURNAMENT_DELETED,
-            {'tournament_id': tournament_id},
+            details,
         )
 
     async def _clear_discord_provenance(

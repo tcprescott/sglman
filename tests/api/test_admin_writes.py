@@ -61,7 +61,23 @@ class TestTournamentWrites:
             assert updated.status_code == 200
             assert updated.json()['name'] == 'Renamed Cup'
 
-            assert (await c.delete(f'/api/tournaments/{tid}')).status_code == 204
+            # Both delete gates apply to the API too: an active tournament is
+            # refused, and so is a wrong confirmation phrase.
+            active = await c.delete(
+                f'/api/tournaments/{tid}?confirmation=permanently+delete'
+            )
+            assert active.status_code == 400
+
+            await c.patch(f'/api/tournaments/{tid}', json={'is_active': False})
+            assert (await c.delete(f'/api/tournaments/{tid}')).status_code == 422
+            wrong = await c.delete(f'/api/tournaments/{tid}?confirmation=delete')
+            assert wrong.status_code == 400
+
+            deleted = await c.delete(
+                f'/api/tournaments/{tid}?confirmation=permanently+delete'
+            )
+            assert deleted.status_code == 204
+            assert (await c.get(f'/api/tournaments/{tid}')).status_code == 404
 
     async def test_non_staff_cannot_create_tournament(self, db, app):
         _, raw = await create_user_token(username='plain')
