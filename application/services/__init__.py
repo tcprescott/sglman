@@ -9,6 +9,7 @@ from application.errors import NotFoundError, require_found
 
 from . import (
     availability_windows,
+    notification_links,
     oauth_handoff_service,
     race_room_worker,
     reporting_shared,
@@ -186,6 +187,7 @@ __all__ = [
     'discord_event_worker',
     'discord_queue',
     'get_user_from_discord_id',
+    'notification_links',
     'oauth_handoff_service',
     'race_room_worker',
     'reporting_shared',
