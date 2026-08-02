@@ -4,6 +4,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     MatchDisplayService,
+    MatchRescheduleService,
     MatchService,
     MatchStreamVolunteerService,
     MatchWatcherService,
@@ -171,6 +172,7 @@ class MatchTableView(MatchTableHandlersMixin):
         self.user_service = UserService()
         self.watcher_service = MatchWatcherService()
         self.stream_volunteer_service = MatchStreamVolunteerService()
+        self.reschedule_service = MatchRescheduleService()
         self._setup_ui()
 
     def _bg(self, coro) -> None:
@@ -488,6 +490,9 @@ class MatchTableView(MatchTableHandlersMixin):
             # ``ui.notify`` reaches the browser. ``_bg`` would rebind the tenant
             # but drop the client, so the confirmation would go nowhere.
             self.table.on('toggle_stream_volunteer', self._handle_toggle_stream_volunteer)
+            # Same reasoning as the two above: the dialog it opens renders into
+            # this client's slot context.
+            self.table.on('request_reschedule', self._handle_request_reschedule)
 
         # Bracket link: navigation only, so it needs no tenant rebind — and it
         # goes through ui.navigate.to precisely to pick up the tenant root_path.
@@ -591,10 +596,13 @@ class MatchTableView(MatchTableHandlersMixin):
 
         watched_ids = await self._fetch_watched_ids()
         volunteered_ids = await self._fetch_stream_volunteered_ids()
+        requestable_ids, asked_ids = await self._fetch_reschedule_state()
         stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
             row['_stream_volunteer'] = row.get('id') in volunteered_ids
+            row['_can_reschedule'] = row.get('id') in requestable_ids
+            row['_reschedule_pending'] = row.get('id') in asked_ids
             if stage_options is not None:
                 row['stage_options'] = stage_options
 
@@ -668,6 +676,29 @@ class MatchTableView(MatchTableHandlersMixin):
         if not user:
             return set()
         return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
+
+    async def _fetch_reschedule_state(self) -> tuple:
+        """``(requestable ids, already-asked ids)`` for this viewer, in bulk.
+
+        Two sets rather than one flag because they drive different marks: the
+        first shows the Ask button, the second shows the "Asked" chip on a row
+        where the button is gone precisely *because* they already asked.
+
+        Skipped entirely on a board with no ``reschedule`` column — the admin
+        schedule, the proctor station and the home schedule all render matches
+        and none of them offers the ask, so the two queries would buy nothing.
+        """
+        if not any(c.get('name') == 'reschedule' for c in self.columns):
+            return set(), set()
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            return set(), set()
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            return set(), set()
+        requestable = await self.reschedule_service.list_requestable_match_ids(user)
+        asked = set(await self.reschedule_service.pending_match_ids_for_user(user))
+        return requestable, asked
 
     async def update_row_by_id(self, match_id, flash=False):
         """

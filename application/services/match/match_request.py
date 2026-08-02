@@ -65,7 +65,7 @@ class MatchRequestMixin:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
-        await self._assert_within_tournament_hours(scheduled_at, tournament_id)
+        await self.assert_within_tournament_hours(scheduled_at, tournament_id)
 
         # Resolve every player before touching the match row so a missing user
         # doesn't leave an orphan Match behind.

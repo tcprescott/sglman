@@ -40,6 +40,14 @@ class EventType:
     # are willing. MATCH_STREAM_CANDIDATE_SET is still the decision.
     MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
     MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
+    # A player asking staff to move or call off their match. Worth publishing
+    # separately from the match.rescheduled an approval also emits: a subscriber
+    # wants to hear that someone *asked*, not only that the schedule moved.
+    MATCH_RESCHEDULE_REQUESTED = 'match.reschedule_requested'
+    MATCH_RESCHEDULE_AGREED = 'match.reschedule_agreed'
+    MATCH_RESCHEDULE_APPROVED = 'match.reschedule_approved'
+    MATCH_RESCHEDULE_DECLINED = 'match.reschedule_declined'
+    MATCH_RESCHEDULE_WITHDRAWN = 'match.reschedule_withdrawn'
 
     # Crew
     CREW_SIGNUP_CREATED = 'crew.signup_created'
@@ -154,6 +162,9 @@ class EventType:
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         MATCH_FLAGGED_FOR_REVIEW, MATCH_REVIEW_CLEARED,
         MATCH_STREAM_VOLUNTEERED, MATCH_STREAM_VOLUNTEER_WITHDRAWN,
+        MATCH_RESCHEDULE_REQUESTED, MATCH_RESCHEDULE_AGREED,
+        MATCH_RESCHEDULE_APPROVED, MATCH_RESCHEDULE_DECLINED,
+        MATCH_RESCHEDULE_WITHDRAWN,
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,

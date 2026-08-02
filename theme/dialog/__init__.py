@@ -5,6 +5,8 @@ from theme.dialog.equipment_dialog import EquipmentDialog
 from theme.dialog.feedback_dialog import FeedbackDialog
 from theme.dialog.match_result_dialog import MatchResultDialog
 from theme.dialog.qr_label_dialog import QrLabelDialog
+from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.dialog.send_message_dialog import SendMessageDialog
 from theme.dialog.station_assignment_dialog import StationAssignmentDialog
 from theme.dialog.tournament_edit_dialog import TournamentDialog
@@ -19,6 +21,8 @@ __all__ = [
     'FeedbackDialog',
     'MatchResultDialog',
     'QrLabelDialog',
+    'RescheduleDecisionDialog',
+    'RescheduleRequestDialog',
     'SendMessageDialog',
     'StationAssignmentDialog',
     'TournamentDialog',

@@ -9,6 +9,7 @@ rejected. The UI also disables these fields, but this is the enforcement — a g
 here would be silently reverted on the next sync and look like a bug.
 """
 
+from datetime import datetime
 from typing import List, Optional
 
 from application.utils.timezone import parse_local_datetime
@@ -21,6 +22,7 @@ def assert_sg_fields_unchanged(
     scheduled_date: Optional[str],
     scheduled_time: Optional[str],
     players_changed: bool,
+    scheduled_at: Optional[datetime] = None,
 ) -> None:
     """Raise ``ValueError`` if a sourced match's ETL-owned fields are being edited.
 
@@ -34,8 +36,12 @@ def assert_sg_fields_unchanged(
     violations: List[str] = []
     if tournament_id is not None and tournament_id != match.tournament_id:
         violations.append('tournament')
-    if scheduled_date and scheduled_time:
+    # Either ingress for the new time: the edit dialog's form strings, or an
+    # instant a service already resolved (an approved reschedule request).
+    new_scheduled_at = scheduled_at
+    if new_scheduled_at is None and scheduled_date and scheduled_time:
         new_scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
+    if new_scheduled_at is not None:
         old = match.scheduled_at
         if old is None or abs((new_scheduled_at - old).total_seconds()) >= 60:
             violations.append('scheduled time')

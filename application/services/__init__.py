@@ -61,6 +61,7 @@ from .match import (
     MatchWatcherService,
     assert_sg_fields_unchanged,
 )
+from .match_reschedule_service import MatchRescheduleService
 from .mcp_auth_service import McpAuthService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
@@ -134,6 +135,7 @@ __all__ = [
     'IdentityLinkService',
     'MatchDisplayService',
     'MatchParticipants',
+    'MatchRescheduleService',
     'MatchScheduleService',
     'MatchService',
     'MatchStreamVolunteerService',

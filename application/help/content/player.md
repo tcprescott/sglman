@@ -119,3 +119,35 @@ result.
 
 Rescheduled and cancelled matches DM everyone involved. If your match moves,
 you will hear about it, so you do not need to keep refreshing the board.
+
+## Asking for a different time
+
+You cannot move or cancel your own match, but you can ask, and you do not have
+to find a staff member to do it.
+
+:::snippet reschedule-request
+The **Change** column on Your Schedule asks staff to move your match or call it
+off. It is a request, not a booking: nothing changes until staff answer, so keep
+playing to the current time until you hear back.
+
+Say why. Staff read the reason and nothing else, so it is what they decide on.
+You can name a time you would prefer, or leave it blank if all you know is that
+the current slot does not work — then staff pick one.
+
+Your opponent gets a DM with an **Agree** button. Their agreement is not a veto
+and not a requirement; it just saves staff asking whether you are both happy.
+
+You will hear the outcome either way. If staff approve, the match moves and
+everyone involved gets the usual reschedule notice. If they decline, you get
+their reason and can ask again with a different time.
+
+The column is not there when the tournament does not take requests, when the
+match is already checked in — at that point find your proctor instead — or when
+its schedule comes from SpeedGaming, which has to change at the source. Once you
+have a request in, the column shows **Asked** until it is answered; you can
+withdraw it from **Your change requests** lower down the page.
+:::
+
+**Your change requests**, below the board, is where your requests and their
+answers live: what you asked for, whether your opponent agreed, and what staff
+said.

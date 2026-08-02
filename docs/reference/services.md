@@ -63,6 +63,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchService` | [match_service.py](../../application/services/match/match_service.py) | Match CRUD, results, station/stage, acknowledgments, cancellation (`CancellationMixin`), the dispute flag (`MatchReviewMixin`) | [match-participation.md](../features/match-participation.md) |
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-participation.md](../features/match-participation.md) |
+| `MatchRescheduleService` | [match_reschedule_service.py](../../application/services/match_reschedule_service.py) | Players asking staff to move or call off their match; approving performs the change | [match-participation.md](../features/match-participation.md#reschedule-requests) |
 | `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
@@ -603,6 +604,40 @@ writes `Match.is_stream_candidate`, which stays the decision of whoever
 | `names_by_match(match_ids)` / `names_for_match(match)` | `dict[int, list[str]]` / `list[str]` | Who offered, for staff. The batched form is one query for a whole board — `MatchDisplayService` calls it once per refresh and puts `stream_volunteers` on each row. |
 
 Collaborators: `MatchStreamVolunteerRepository`, `MatchRepository`, `AuditService`.
+
+### match_reschedule_service.py — MatchRescheduleService
+
+Players asking staff to move or call off a match they are playing in. Two rules
+hold the design together: **approving performs the change** (it calls the
+existing `MatchService.update_match` / `cancel_match`, so the DM fan-out,
+acknowledgment reseeding and `match.rescheduled` event all come with it), and
+**no new authority** — deciding gates on `can_crud_match`, the same check that
+guards `update_match`. Feature doc:
+[match-participation.md](../features/match-participation.md#reschedule-requests).
+
+| Method | Returns | Description |
+|---|---|---|
+| `submit(match_id, actor, *, reason, kind, proposed_at)` | `MatchRescheduleRequest` | Raise a request. `PermissionError` for a non-player, or a tournament with `allow_reschedule_requests` off. `ValueError` for a match already under way, one with no time, a SpeedGaming-sourced match (its time belongs to the next sync, so nobody could approve it), a blank reason, a past proposal, or a second open request by the same player. Validates the proposal against tournament hours *now*, so the player is told rather than staff discovering it at Approve. Audits + emits `match.reschedule_requested`; DMs staff and the opponent. |
+| `record_opponent_agreement(request_id, actor)` | `MatchRescheduleRequest` | The match's *other* player agreeing. Advisory: stamped on the request, shown to staff, gates nothing. `PermissionError` for the requester themselves or an outsider. |
+| `withdraw(request_id, actor)` | `MatchRescheduleRequest` | The requester taking it back. Distinct from a decline so staff can tell a request they refused from one that stopped mattering. |
+| `approve(request_id, actor, *, scheduled_at, note)` | `MatchRescheduleRequest` | Grant it by making the change. `scheduled_at` lets staff counter with a different time; required when the request named none. Perform-then-record, so a move that fails never leaves a request marked approved over a schedule that did not budge. Other open requests on the match become `SUPERSEDED`. |
+| `decline(request_id, actor, note)` | `MatchRescheduleRequest` | Refuse it. The note is **required** — a refusal with no reason is what this feature replaces. DMs the requester with an "Ask again" button. |
+| `can_request(match, user)` / `list_requestable_match_ids(user)` | `bool` / `set[int]` | The UI's gate, so the control is hidden rather than shown and refused. The bulk form resolves a whole board in two queries; `can_request` per row would run three each. |
+| `list_pending(actor, *, tournament_ids)` | `list[MatchRescheduleRequest]` | The staff queue. Gated on `can_view_admin` — the reason text is not schedule data — and narrowed by `tournament_ids` so a tournament admin is never shown a request they would be refused for deciding. |
+| `list_mine(actor)` / `list_for_match(match_id, actor)` | `list[MatchRescheduleRequest]` | A player's own history (no gate beyond being the actor), and one match's requests (whoever could decide them, or a player in the match). |
+| `pending_count()` / `pending_match_ids()` / `pending_match_ids_for_user(user)` | `int` / `list[int]` | The admin strip's count and filter, and the board's per-row "Asked" mark. |
+
+The submission DM goes to **STAFF ∪ the tournament's admins**, matching the
+`can_crud_match` set that will decide it — DMing only STAFF meant that in a
+community whose tournament is run by a TA, nobody who owned it was told.
+
+Only a **decline** and an approved **cancellation** DM the requester: an
+approved reschedule already reached both players through `update_match`'s own
+notification, and a second "your request was approved" would be the same news
+twice.
+
+Collaborators: `RescheduleRequestRepository`, `MatchRepository`,
+`TournamentRepository`, `AuditService`, and `MatchService` service-to-service.
 
 ### player_availability_service.py — PlayerAvailabilityService
 

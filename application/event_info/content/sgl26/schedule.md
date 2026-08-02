@@ -83,6 +83,36 @@ A match you are in also reaches you as a Discord DM when it is scheduled, moved
 or cancelled, so you do not need to keep refreshing the board. See
 [Notifications and Discord DMs](/help/notifications) if nothing is arriving.
 
+## If your match time does not work
+
+Use the **Change** column on the Player tab. It asks staff to move the match or
+call it off, and it saves you tracking someone down in a hotel corridor. How it
+works is in [Help](/help/player#asking-for-a-different-time); what matters here
+is when to use it and what to expect at *this* event.
+
+**Ask as early as you can.** A slot that is only your two names is easy to move.
+The same slot once it has a stage, a commentator and a tracker attached is three
+more people's evening, and the answer is much more likely to be no. If you know
+in September that a Friday morning does not work, say so in September.
+
+**A stage match is the hardest thing to move.** The broadcast schedule is built
+in advance around restream crew who signed up for particular slots, so a stage
+match rarely moves for one player's preference. It is still worth asking; just
+expect the reason back rather than the change.
+
+**On the day, find an admin instead.** Once you are in the building and the
+match is close, a request sitting in a queue is slower than the person standing
+in the tournament room. The app refuses one anyway once your match is checked
+in. Use the request for "next Tuesday", not for "in twenty minutes".
+
+**Nothing changes until staff answer.** Turn up to the original time unless you
+have heard otherwise. An unanswered request is not permission, and your opponent
+pressing **Agree** on the DM is not permission either — it only tells staff you
+are both happy.
+
+Every outcome comes back to you as a DM. If staff decline, the reason comes with
+it, and you can ask again with a different time.
+
 ## Watching
 
 Matches on stage go out on [twitch.tv/SpeedGaming](https://twitch.tv/SpeedGaming)

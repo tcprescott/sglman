@@ -292,6 +292,13 @@ _ACTIONS = '''
                    size="md" flat dense no-caps
                    :label="props.row._stream_volunteer ? 'Offered for stream' : 'Offer for stream'"
                    @click="$parent.$emit('toggle_stream_volunteer', props.row)" />
+            <q-btn v-if="__VOL__ && props.row._can_reschedule && props.row.state === 'Scheduled'
+                         && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
+                   icon="edit_calendar" color="grey" size="md" flat dense no-caps
+                   label="Ask to change"
+                   @click="$parent.$emit('request_reschedule', props.row)" />
+            <span v-else-if="__VOL__ && props.row._reschedule_pending" class="wiz-chip wiz-chip--pending">
+                <q-icon name="edit_calendar" size="14px" />Change requested</span>
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
                    :color="props.row._watching ? 'primary' : 'grey'" size="md" flat round
                    @click="$parent.$emit('toggle_watch', props.row)">

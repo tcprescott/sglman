@@ -56,6 +56,8 @@ from .enums import (
     JoinRequestStatus,
     MatchNotificationLevel,
     RaceRoomStatus,
+    RescheduleRequestKind,
+    RescheduleRequestStatus,
     Role,
     RoleSource,
     StationFormat,
@@ -72,6 +74,7 @@ from .match import (
     Match,
     MatchAcknowledgment,
     MatchPlayers,
+    MatchRescheduleRequest,
     MatchStreamVolunteer,
     MatchWatcher,
     Stage,
@@ -181,6 +184,7 @@ __all__ = [
     'MatchAcknowledgment',
     'MatchNotificationLevel',
     'MatchPlayers',
+    'MatchRescheduleRequest',
     'MatchStreamVolunteer',
     'MatchWatcher',
     # mcp oauth
@@ -196,6 +200,8 @@ __all__ = [
     'RacetimeBotTenant',
     'RacetimeRoom',
     'RandomizerCredential',
+    'RescheduleRequestKind',
+    'RescheduleRequestStatus',
     'Role',
     'RoleSource',
     # speedgaming

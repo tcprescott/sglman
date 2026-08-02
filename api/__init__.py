@@ -29,6 +29,7 @@ from api.routers import (
     race_rooms,
     racetime_bots,
     reports,
+    reschedule_requests,
     seeds,
     service_health,
     speedgaming,
@@ -53,6 +54,9 @@ router.include_router(health.router)
 router.include_router(matches.router)
 router.include_router(match_actions.router)
 router.include_router(crew.router)
+# Literal ``/reschedule-requests/mine`` before the ``/{request_id}`` routes in
+# the same module, which FastAPI resolves in declaration order.
+router.include_router(reschedule_requests.router)
 router.include_router(tournaments.router)
 router.include_router(tournament_actions.router)
 router.include_router(stages.router)

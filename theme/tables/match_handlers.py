@@ -414,3 +414,44 @@ class MatchTableHandlersMixin:
                 names.append(name)
             self.table.rows[idx]['stream_volunteers'] = names
             self.table.update()
+
+    async def _handle_request_reschedule(self, event):
+        """A player asking staff to move or call off their own match.
+
+        Opens the request dialog rather than doing anything: the ask needs a
+        reason and possibly a time, and neither belongs in a row button.
+        """
+        row = event.args if isinstance(event.args, dict) else {}
+        match_id = row.get('id')
+        if match_id is None:
+            return
+
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            ui.notify('You must be logged in to ask for a change.', color='warning')
+            return
+
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            return
+
+        match = await self.service.get_by_id(match_id)
+        if match is None:
+            ui.notify('That match is no longer around.', color='warning')
+            return
+
+        async def after():
+            # The row's own gate flips as soon as the request exists, so the
+            # button gives way to the "Asked" chip without a page reload.
+            idx = next(
+                (i for i, r in enumerate(self.table.rows) if r.get('id') == match_id), None
+            )
+            if idx is not None:
+                self.table.rows[idx]['_can_reschedule'] = False
+                self.table.rows[idx]['_reschedule_pending'] = True
+                self.table.update()
+
+        from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
+
+        await RescheduleRequestDialog(match, user, on_submit=after).open()

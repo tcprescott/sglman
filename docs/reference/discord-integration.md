@@ -27,6 +27,7 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) | Crew Acknowledge button + handler (`crew_ack:`) |
 | [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) | Volunteer shift Acknowledge button + handler (`volunteer_ack:`) |
 | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) | Unwatch button + handler (`match_watch:`) |
+| [`discordbot/reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) | The opponent's Agree button + handler (`reschedule_agree:`) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, the `import discordbot` registration hook, queue and worker start/stop in the FastAPI lifespan |
 | [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | Notification fan-out coroutines |
@@ -116,6 +117,7 @@ Registered handler prefixes:
 | `crew_ack:` | [`crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) → `handle_crew_acknowledgment_interaction` |
 | `volunteer_ack:` | [`volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) → `handle_volunteer_acknowledgment_interaction` |
 | `match_watch:` | [`watch_buttons.py`](../../discordbot/watch_buttons.py) → `handle_unwatch_interaction` |
+| `reschedule_agree:` | [`reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) → `handle_reschedule_agree_interaction` |
 
 Because dispatch is raw-prefix routing rather than registered `discord.ui.View` callbacks, **buttons keep working across bot restarts**: all state is encoded in the `custom_id`, nothing is held in memory, and no `bot.add_view()` persistent-view registration is needed. All views are built with `timeout=None`.
 
@@ -131,6 +133,7 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int, embed=None)` | DM with the crew Acknowledge button (`VIEW_CREW_ACK`). `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
 | `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int, embed=None)` | DM with the volunteer shift Acknowledge button (`VIEW_VOLUNTEER_ACK`). |
 | `send_dm_with_unwatch_button` | `(user_id, message, match_id: int, embed=None)` | DM with the Unwatch button (`VIEW_UNWATCH`). |
+| `send_dm_with_reschedule_agree_button` | `(user_id, message, request_id: int, embed=None, link=None)` | DM with the opponent's Agree button (`VIEW_RESCHEDULE_AGREE`). |
 | `get_bot` | `()` (sync) | Returns the bot instance (or `None` in the mock). |
 | `list_guilds` | `()` | `(True, [{"id": int, "name": str}, ...])` from the bot's cached guild list. |
 | `list_guild_roles` | `(guild_id: int)` | Roles as `[{"id", "name"}]`. Resolves the guild via cache then `fetch_guild`; prefers `guild.fetch_roles()`, falls back to cached `guild.roles`. |
@@ -213,6 +216,7 @@ All views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s
 | `crew_ack:commentator:<crew_id>` / `crew_ack:tracker:<crew_id>` | `make_crew_acknowledgment_view(crew_type, crew_id)` (`crew_id` is the `Commentator`/`Tracker` row id, not a match id) | `CrewService.acknowledge_crew_assignment(crew_id, crew_type, user)` | Yes → `crew_ack:acknowledged` |
 | `volunteer_ack:<assignment_id>` | `make_volunteer_acknowledgment_view(assignment_id)` | `VolunteerScheduleService.acknowledge(assignment_id, user)` | Yes → `volunteer_ack:acknowledged` |
 | `match_watch:unwatch:<match_id>` | `make_unwatch_view(match_id)` | `MatchWatcherService.unwatch(match_id, user)` | No — the button stays live |
+| `reschedule_agree:agree:<request_id>` | `make_reschedule_agree_view(request_id)` | `MatchRescheduleService.record_opponent_agreement(request_id, user)` | No — agreement is advisory, and the confirmation says staff still decide |
 | `<prefix>:acknowledged` | `make_acknowledged_view(CUSTOM_ID_PREFIX)` — one shared factory in `_ack_common.py`, not redefined per module | — | Disabled placeholder; no handler action |
 
 ### The shared ladder (`_ack_common.py`)

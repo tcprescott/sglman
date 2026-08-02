@@ -54,12 +54,16 @@ tenant costs the button, not the DM.
 | Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
 | Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
+| Reschedule request (to staff) | Review the request | `/admin/schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
+| Reschedule request (to the opponent) | Agree · View your matches | the Agree button *is* the control; the link is their own schedule |
+| Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
 | Join approved (to requester) | Open the community | the tenant home |
 | Qualifier reviewed / expiring / expired / reattempt | Submit or forfeit · View the leaderboard · Start your next run | `/qualifiers/<id>` |
 
 A DM with no ask gets no button — checked in, cancelled, state changed, volunteer
-unassigned. A button there is noise, not help.
+unassigned, and an **approved** reschedule (the match moved, and the reschedule
+notice both players already got is the news). A button there is noise, not help.
 
 Two things that are easy to get wrong:
 

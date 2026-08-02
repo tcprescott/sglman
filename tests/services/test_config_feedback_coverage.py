@@ -456,10 +456,10 @@ class TestMatchSchedulingHonorsTournamentHours:
 
         outside = parse_local_datetime('2025-10-20', '10:00')
         with pytest.raises(ValueError, match='can only start between'):
-            await svc._assert_within_tournament_hours(outside, tournament.id)
+            await svc.assert_within_tournament_hours(outside, tournament.id)
 
         inside = parse_local_datetime('2025-10-20', '13:00')
-        await svc._assert_within_tournament_hours(inside, tournament.id)  # no raise
+        await svc.assert_within_tournament_hours(inside, tournament.id)  # no raise
 
     async def test_falls_back_to_tenant_hours_when_tournament_unset(self, db):
         from application.services.match.match_service import MatchService
@@ -473,7 +473,7 @@ class TestMatchSchedulingHonorsTournamentHours:
 
         outside = parse_local_datetime('2025-10-20', '10:00')
         with pytest.raises(ValueError, match='can only start between'):
-            await svc._assert_within_tournament_hours(outside, tournament.id)
+            await svc.assert_within_tournament_hours(outside, tournament.id)
 
 
 # ---------------------------------------------------------------------------
