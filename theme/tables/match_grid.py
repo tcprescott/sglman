@@ -7,11 +7,11 @@ and the current user's discord id the column slots use (``match_slots.py``).
 
 The card is deliberately bespoke (not a generic ``label: value`` loop): a
 headline row (scheduled time + compact state chip), a players line (ack icons,
-``(auto)`` markers, winner emphasis, stations, self-ack), the dispute flag
-with the proctor's note as text, a muted caption (tournament + ``#id`` edit
-link), ``v-if``-gated detail rows that render nothing when empty (commentators,
-trackers, stage, seed, comment), and a single top-bordered actions row
-(lifecycle button, Assign Stations, watch toggle).
+``(auto)`` markers, winner emphasis, stations, self-ack), the dispute flag as
+text, a muted caption (tournament + ``#id`` edit link), ``v-if``-gated detail
+rows that render nothing when empty (commentators, trackers, stage, seed,
+comment), and a single top-bordered actions row (lifecycle button, Assign
+Stations, stream-volunteer and watch toggles).
 
 Two orders exist. By default the actions row is last, below every detail —
 right for a board that is read more than it is acted on. With
@@ -23,9 +23,9 @@ Styling lives entirely in ``.match-grid-card`` / ``.mgc-*`` (``styles.css``) so
 light/dark parity is automatic — no inline colors here. The template is
 assembled from plain (non-f) string fragments; the server-side values are
 substituted via ``__IA__`` / ``__RUN__`` / ``__CONFIRM__`` / ``__CREW__`` /
-``__STREAM__`` / ``__DID__`` / ``__WATCH__`` / ``__ACTCLS__`` placeholders (the
-same technique ``match_slots.py`` uses), which keeps every literal Vue ``{{ }}``
-unescaped and the braces valid.
+``__STREAM__`` / ``__DID__`` / ``__WATCH__`` / ``__VOL__`` / ``__VOLACT__`` /
+``__ACTCLS__`` placeholders (the same technique ``match_slots.py`` uses), which
+keeps every literal Vue ``{{ }}`` unescaped and the braces valid.
 
 Frozen event contract (payload shapes the handlers in ``match_handlers.py``
 depend on — do not change):
@@ -39,12 +39,14 @@ depend on — do not change):
     set_stage                      -> { key: props.row.id, stage: <id|'candidate'|null> }
     assign_stations                -> { row: props.row }
     toggle_watch                   -> props.row
+    toggle_stream_volunteer        -> props.row
 """
 
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_slots import (
     SEED_ROLLABLE,
     STAGE_VALUE_JS,
+    STREAM_VOLUNTEER_ACTIONABLE,
     _bool_js,
     crew_wanted_js,
 )
@@ -101,18 +103,17 @@ _PLAYERS = '''
 
 # --- Dispute flag ----------------------------------------------------------
 
-# Mirrors the "Needs review" chip in the desktop State cell — but renders the
-# proctor's note as **text**. The desktop hangs it on a q-tooltip, and a tooltip
-# is unreachable on a touch screen, which is where most of this board is read.
-# Sits directly under the player names: "an admin should look at this" outranks
-# every other line on the card.
+# Mirrors the "Needs review" chip in the desktop State cell. Sits directly under
+# the player names: "an admin should look at this" outranks every other line on
+# the card. The desktop hangs the explanation on a q-tooltip, which is
+# unreachable on a touch screen, so here it renders as text.
 _REVIEW_DETAIL = '''
         <div class="mgc-detail" v-if="props.row.needs_review">
             <span class="mgc-label">Review</span>
             <span class="mgc-detail-value">
                 <span class="wiz-chip wiz-chip--pending">
                     <q-icon name="report_problem" size="14px" />Needs review</span>
-                <span v-if="props.row.review_note" class="st-pending" style="flex-basis: 100%;">{{ props.row.review_note }}</span>
+                <span class="st-pending" style="flex-basis: 100%;">The proctor flagged this result. Confirming clears the flag.</span>
             </span>
         </div>'''
 
@@ -183,7 +184,7 @@ _CREW_DETAIL = '''
 # { key: props.row.id, stage: <stage id | 'candidate' | null> }; everyone else
 # reads the name, or the candidate chip while no stage is set.
 _STREAM_DETAIL = '''
-        <div class="mgc-detail" v-if="props.row.stage || props.row.is_stream_candidate || __STREAM__">
+        <div class="mgc-detail" v-if="props.row.stage || props.row.is_stream_candidate || __STREAM__ || (props.row.stream_volunteers && props.row.stream_volunteers.length)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <q-select v-if="__STREAM__" :model-value="__STAGEVAL__" :options="props.row.stage_options || []"
@@ -197,6 +198,10 @@ _STREAM_DETAIL = '''
                    target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);" class="q-ml-xs">
                     <q-icon name="open_in_new" size="18px" />
                 </a>
+                <span v-if="props.row.stream_volunteers && props.row.stream_volunteers.length"
+                      class="st-neutral italic-note" style="flex-basis: 100%;">
+                    Offered for stream by {{ props.row.stream_volunteers.join(', ') }} — advisory, not a booking.
+                </span>
             </span>
         </div>'''
 
@@ -250,7 +255,7 @@ _ACTIONS_PRESENT = (
     "((__RUN__ || __CONFIRM__) && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state))"
     " || (__IA__ && props.row.state === 'Finished')"
     " || (__RUN__ && !props.row.is_racetime && props.row.players && props.row.players.length)"
-    " || __WATCH__"
+    " || __WATCH__ || __VOL__"
 )
 
 _ACTIONS = '''
@@ -281,6 +286,12 @@ _ACTIONS = '''
                    icon="chair" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
+            <q-btn v-if="__VOL__ && __VOLACT__ && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
+                   :icon="props.row._stream_volunteer ? 'videocam' : 'videocam_off'"
+                   :color="props.row._stream_volunteer ? 'primary' : 'grey'"
+                   size="md" flat dense no-caps
+                   :label="props.row._stream_volunteer ? 'Offered for stream' : 'Offer for stream'"
+                   @click="$parent.$emit('toggle_stream_volunteer', props.row)" />
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
                    :color="props.row._watching ? 'primary' : 'grey'" size="md" flat round
                    @click="$parent.$emit('toggle_watch', props.row)">
@@ -312,6 +323,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     ia = 'true' if admin_controls else 'false'
     did = f"'{discord_id}'" if discord_id else 'null'
     watch_js = 'true' if 'watch' in present else 'false'
+    volunteer_js = 'true' if 'stream_volunteer' in present else 'false'
 
     # Headline (scheduled time + optional state chip)
     headline = (
@@ -384,7 +396,8 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     # Hoisted above the caption/detail rows when the caller asked for it, with a
     # sibling class that flips the row's divider from top to bottom.
     actions = (_ACTIONS.replace('__PRESENT__', _ACTIONS_PRESENT)
-               if (admin_controls or 'watch' in present) else '')
+               if (admin_controls or 'watch' in present or 'stream_volunteer' in present)
+               else '')
     act_cls = ('mgc-actions mgc-actions--first row items-center' if actions_first
                else 'mgc-actions row items-center')
 
@@ -408,6 +421,10 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
         # keys for "which stage is this on" (match_slots.STAGE_VALUE_JS).
         .replace('__STAGEVAL__', STAGE_VALUE_JS)
         .replace('__WATCH__', watch_js)
+        .replace('__VOL__', volunteer_js)
+        # Shared with the desktop cell so both boards agree on when an offer can
+        # still be made (match_slots.STREAM_VOLUNTEER_ACTIONABLE).
+        .replace('__VOLACT__', STREAM_VOLUNTEER_ACTIONABLE)
         .replace('__DID__', did)
         .replace('__ACTCLS__', act_cls)
     )

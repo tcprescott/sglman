@@ -185,54 +185,89 @@ plain random draw with a note explaining why the players were not split.
 
 The agreed model is *the proctor records their best guess and the admin
 overrides during confirmation*. The dispute signal that makes that workable is
-**a flag plus a note, not a workflow** — there is no dispute state, no
-assignment, no thread, and no notification beyond the domain event.
+**a flag, not a workflow** — there is no dispute state, no assignment, no
+thread, no note, and no notification beyond the domain event.
 
-Two columns on `Match` carry it: `needs_review` (bool) and `review_note` (text).
-The match stays `Finished` throughout; nothing about the state machine changes.
+One column on `Match` carries it: `needs_review` (bool). The match stays
+`Finished` throughout; nothing about the state machine changes.
 
 **Raising it.** The proctor ticks *Flag for admin review* in the result dialog
-(`theme/dialog/match_result_dialog.py`) when they record the winner, and types
-what happened. The checkbox exists only in the dialog's `record` mode — the
-admin reaching the same dialog in `edit` mode to correct a winner *is* the
-review, so offering them the flag would let them raise a dispute with
-themselves. The dialog calls `MatchService.flag_for_review` **after** its
-`on_submit` finishes the match, because a match that is not finished yet cannot
-be flagged (`ValueError`). Gate: `can_run_match` — this is the proctor's own
-action, and they are the one in the room who saw the disagreement.
+(`theme/dialog/match_result_dialog.py`) when they record the winner. The
+checkbox exists only in the dialog's `record` mode — the admin reaching the same
+dialog in `edit` mode to correct a winner *is* the review, so offering them the
+flag would let them raise a dispute with themselves. The dialog calls
+`MatchService.flag_for_review` **after** its `on_submit` finishes the match,
+because a match that is not finished yet cannot be flagged (`ValueError`). Gate:
+`can_run_match` — this is the proctor's own action, and they are the one in the
+room who saw the disagreement.
 
-**Seeing it.** `MatchDisplayService` puts `needs_review` / `review_note` on
-every table row. The desktop State cell shows a "Needs review" chip above the
-Confirm button with the note on a tooltip; the mobile card renders the same chip
-**and the note as text**, because a tooltip is unreachable on a touch screen.
-The admin Schedule tab's review-queue strip counts flagged matches separately
-from merely-unconfirmed ones, since a contested result needs a decision and an
+There is deliberately **no note field**. A proctor raising the flag is standing
+in a room mid-event; what happened is a conversation with the admin, not a
+textarea to fill in between matches. The audit trail records that the dispute
+happened and who raised it.
+
+**Seeing it.** `MatchDisplayService` puts `needs_review` on every table row. The
+desktop State cell shows a "Needs review" chip above the Confirm button with
+what the flag means on a tooltip; the mobile card renders the same chip **and
+that sentence as text**, because a tooltip is unreachable on a touch screen. The
+admin Schedule tab's review-queue strip counts flagged matches separately from
+merely-unconfirmed ones, since a contested result needs a decision and an
 uncontested one needs a click.
 
 The **confirm dialog repeats it** rather than relying on the row behind it
 (`confirm_result_message` in `theme/tables/match_lifecycle.py` — pure, so its
 copy is unit-tested). That body names the winner (`Record <name> as the winner of
-match #N?`), says who beat whom, and for a flagged result quotes the proctor's
-note and warns that confirming clears the flag. The desktop row's note lives in a
-hover tooltip, which is the wrong place for the one fact that explains why the
-match is in front of the admin at all.
+match #N?`), says who beat whom, and for a flagged result says the proctor
+flagged it and warns that confirming clears the flag.
 
 **Resolving it.** *Confirming the match is the resolution* — an admin
 confirming has, by definition, looked at it, so `confirm_match` clears
-`needs_review` and writes a second `match.review_cleared` audit row carrying the
-note (`resolved_by: 'confirmation'`). `MatchService.clear_review` drops the flag
-without confirming, for "looked at it, nothing to fix, not confirming yet";
-it is gated on `can_confirm_match`, so a proctor cannot unflag their own
-dispute. **Neither clears `review_note`** — the note is the record of *why* the
-result was contested, and a resolved dispute still happened.
+`needs_review` and writes a second `match.review_cleared` audit row
+(`resolved_by: 'confirmation'`). `MatchService.clear_review` drops the flag
+without confirming, for "looked at it, nothing to fix, not confirming yet"; it
+is gated on `can_confirm_match`, so a proctor cannot unflag their own dispute.
 
 Both directions are also reachable over REST as `POST /matches/{id}/review`
-(`{needs_review, note?}`), with the same split gates. Both emit domain events
+(`{needs_review}`), with the same split gates. Both emit domain events
 (`match.flagged_for_review`, `match.review_cleared`): a contested result is
 exactly what an alerting webhook subscriber wants to hear about.
 
 The dispute flag has **no per-tenant feature flag** — like the station pool it
 self-gates, since a community that never ticks the box never sees it.
+
+## Stream volunteering
+
+Players can offer their own match for stream. It is a signal and nothing more:
+staff read it while they build the stream schedule, and `is_stream_candidate`
+— written by whoever `can_assign_match_stream` admits — remains the decision.
+Every surface that shows the control says so, because a toggle sitting beside a
+Stage column reads as booking one otherwise.
+
+`MatchStreamVolunteer` holds one row per player, not a flag on the match, so a
+board can say whether one player asked or both did. `MatchStreamVolunteerService`
+enforces the two rules that keep it advisory:
+
+- **Only the match's own players may offer it.** A non-player gets
+  `ValueError('Only the players in a match can offer it for stream.')`.
+- **Offering never writes `is_stream_candidate`.** A player's request must not
+  be able to write the decision it is asking about.
+
+Offering is refused once the match has started — there is nothing left for staff
+to schedule — but **withdrawing is not**, so a player who changes their mind is
+never stuck with a request they cannot unsay. Both directions audit
+(`match.stream_volunteered` / `match.stream_volunteer_withdrawn`) and publish the
+matching domain events.
+
+**Where it appears.** The player's own board (Home → Your Schedule) carries a
+`Stream` column beside `Watch`: a `videocam` toggle for a player in that match,
+and a count chip for anyone else. The mobile card carries a labelled *Offer for
+stream* button in its actions row and names the volunteers under the Stage line.
+The player match dialog has a switch with the full sentence under it. On the
+staff side, `MatchDisplayService` puts `stream_volunteers` (names) on every row,
+and the admin match dialog prints them directly under the *Stream candidate*
+checkbox — the offer read where the decision is made.
+
+No feature flag: a community whose players never offer a match never sees it.
 
 ## Models
 

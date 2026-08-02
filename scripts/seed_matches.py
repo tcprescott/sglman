@@ -9,7 +9,7 @@ This is the lifecycle fixture set — one match per state a proctor or admin can
 meet (scheduled / checked-in / in-progress / finished / disputed / off-stream /
 undated) — plus everything that hangs off those matches: station seating, the
 rolled seeds, the dispute flag, acknowledgments in each of their states,
-watchers, and the tournament notification preference.
+watchers, stream volunteers, and the tournament notification preference.
 
 Returns the matches by key because the rest of the seed builds on them: crew
 signs up for them, the Challonge mirror points at the finished one, the audit
@@ -25,6 +25,7 @@ from models import (
     MatchAcknowledgment,
     MatchNotificationLevel,
     MatchPlayers,
+    MatchStreamVolunteer,
     MatchWatcher,
     Stage,
     Tenant,
@@ -185,10 +186,6 @@ async def seed_matches_for_tenant(
     # first seed script and only now actually is.
     if not disputed_match.needs_review:
         disputed_match.needs_review = True
-        disputed_match.review_note = (
-            "Player Two says the timer was still running when Player Three "
-            "raised their hand. Needs an admin to look at the VOD."
-        )
         await disputed_match.save()
 
     # Match acknowledgments — the checked-in match's players have both confirmed.
@@ -219,6 +216,17 @@ async def seed_matches_for_tenant(
     # Match watchers — staff keeps an eye on the scheduled, in-progress, and disputed matches.
     for m in (scheduled_match, in_progress_match, disputed_match):
         await MatchWatcher.get_or_create(user=staff, match=m, tenant=tenant)
+
+    # Stream volunteers — both halves of the signal, because "one player asked"
+    # and "both players asked" read differently to whoever builds the stream
+    # schedule. The scheduled match has both; the future one has a single player
+    # waiting on their opponent.
+    for m, volunteers in (
+        (scheduled_match, (players[0], players[1])),
+        (future_match, (players[3],)),
+    ):
+        for volunteer in volunteers:
+            await MatchStreamVolunteer.get_or_create(user=volunteer, match=m, tenant=tenant)
 
     # Notification preferences — one person per level, because the level is what
     # the fan-out reads: a fixture set where everyone is on ALL cannot show that

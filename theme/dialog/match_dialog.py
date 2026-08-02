@@ -3,6 +3,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import (
     AuthService,
     FeatureFlagService,
+    MatchStreamVolunteerService,
     RaceRoomService,
     RacetimeRoomService,
     get_user_from_discord_id,
@@ -358,6 +359,17 @@ class AdminMatchDialog(BaseMatchDialog):
                     value=self.match.is_stream_candidate if self.match else False,
                 )
 
+                # The players' own offer, read right where the decision is made.
+                # Named as advisory: it is not a second checkbox and ticking the
+                # one above is still what puts the match on the stream list.
+                if self.match:
+                    volunteers = await MatchStreamVolunteerService().names_for_match(self.match)
+                    if volunteers:
+                        ui.label(
+                            f'Offered for stream by {", ".join(volunteers)} — '
+                            'advisory, tick the box above to make it a candidate.'
+                        ).classes('text-caption st-pending')
+
                 selected_bracket_match = await bracket_link.render_select(
                     self.bracket_service, selected_tournament,
                     brackets_live=brackets_live,
@@ -524,6 +536,7 @@ class UserMatchDialog(BaseMatchDialog):
 
                 if self.match:
                     await self._render_watch_switch(user)
+                    await self._render_stream_volunteer_switch(user)
 
                 ui.label('* required').classes('required-legend')
 

@@ -27,6 +27,7 @@ from .feature_flag_repository import TenantFeatureFlagRepository
 from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
+from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .mcp_auth_repository import McpAuthRepository
 from .player_availability_repository import PlayerAvailabilityRepository
@@ -80,6 +81,7 @@ __all__ = [
     'FeedbackRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',
+    'MatchStreamVolunteerRepository',
     'MatchWatcherRepository',
     'McpAuthRepository',
     'PlayerAvailabilityRepository',

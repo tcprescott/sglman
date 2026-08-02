@@ -42,7 +42,7 @@ WRITE_CALLS = {
     'finish_match': {'match_id': 1},
     'confirm_match': {'match_id': 1},
     'record_match_result': {'match_id': 1, 'winner_id': 1},
-    'set_match_review': {'match_id': 1, 'needs_review': True, 'note': 'x'},
+    'set_match_review': {'match_id': 1, 'needs_review': True},
     'generate_match_seed': {'match_id': 1},
     'signup_as_crew': {'match_id': 1, 'role': 'commentator'},
     'withdraw_crew_signup': {'match_id': 1, 'role': 'commentator'},

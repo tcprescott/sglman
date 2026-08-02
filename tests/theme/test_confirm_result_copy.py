@@ -21,14 +21,14 @@ def player(name: str, *, rank=None):
     return SimpleNamespace(finish_rank=rank, user=SimpleNamespace(preferred_name=name))
 
 
-def match(*players, needs_review=False, review_note=None, match_id=7,
+def match(*players, needs_review=False, match_id=7,
           tournament='Cup', scheduled_at=None):
     return SimpleNamespace(
         id=match_id, players=list(players),
         title=None,
         tournament=SimpleNamespace(name=tournament) if tournament else None,
         scheduled_at=scheduled_at,
-        needs_review=needs_review, review_note=review_note,
+        needs_review=needs_review,
     )
 
 
@@ -68,22 +68,15 @@ class TestDisputeFlag:
         body = confirm_result_message(match(player('Alice', rank=1), player('Bob')))
         assert 'review' not in body.lower()
 
-    def test_repeats_the_proctors_note(self):
-        body = confirm_result_message(match(
-            player('Alice', rank=1), player('Bob'),
-            needs_review=True, review_note='Both hit credits within a second.',
-        ))
-        assert 'Flagged for review by the proctor: Both hit credits within a second.' in body
-
-    def test_says_the_flag_is_bare_when_there_is_no_note(self):
+    def test_says_the_proctor_flagged_it(self):
         body = confirm_result_message(match(
             player('Alice', rank=1), player('Bob'), needs_review=True,
         ))
-        assert 'with no note' in body
+        assert 'Flagged for review by the proctor.' in body
 
     def test_warns_that_confirming_clears_the_flag(self):
         body = confirm_result_message(match(
-            player('Alice', rank=1), player('Bob'), needs_review=True, review_note='n',
+            player('Alice', rank=1), player('Bob'), needs_review=True,
         ))
         assert 'Confirming clears the flag.' in body
 
@@ -91,7 +84,7 @@ class TestDisputeFlag:
 def test_paragraphs_are_blank_line_separated():
     """``ConfirmationDialog`` renders the body with ``white-space: pre-line``."""
     body = confirm_result_message(match(
-        player('Alice', rank=1), player('Bob'), needs_review=True, review_note='n',
+        player('Alice', rank=1), player('Bob'), needs_review=True,
     ))
     assert '\n\n' in body
 

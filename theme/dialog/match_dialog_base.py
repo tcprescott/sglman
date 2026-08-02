@@ -12,6 +12,7 @@ from application.services import (
     BracketService,
     CrewService,
     MatchService,
+    MatchStreamVolunteerService,
     MatchWatcherService,
     StageService,
     TournamentService,
@@ -200,10 +201,9 @@ class BaseMatchDialog:
 
         The dialog used to read none of it: opening a Finished, disputed match
         with a winner already recorded showed a Comment field, five Clear
-        buttons and the sentence "No players assigned." The four facts that
+        buttons and the sentence "No players assigned." The three facts that
         explain why the match is in front of you — its state, the recorded
-        winner, the proctor's dispute flag and note — all lived on the board
-        behind it, and the dispute note lived in a hover tooltip at that.
+        winner, the proctor's dispute flag — all lived on the board behind it.
         """
         from application.services.match.match_status import (
             LEGACY_STATE_LABELS,
@@ -228,13 +228,9 @@ class BaseMatchDialog:
                 with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
                     ui.icon('report_problem', size='14px')
                     ui.label('Needs review')
-        # As text, not a tooltip: this is the one fact that explains why the
-        # match was flagged, and the board already hides it behind a hover.
         if getattr(self.match, 'needs_review', False):
-            note = getattr(self.match, 'review_note', None)
             ui.label(
-                f'Flagged by the proctor: {note}' if note
-                else 'Flagged by the proctor, with no note.'
+                'Flagged by the proctor. Confirming the result clears the flag.'
             ).classes('text-caption st-pending')
 
     def _render_clear_buttons(self):
@@ -347,6 +343,55 @@ class BaseMatchDialog:
             value=initial_watching,
             on_change=lambda e: background_tasks.create(on_change(e, context.client)),
         )
+
+    async def _render_stream_volunteer_switch(self, user):
+        """The players' "we'd be happy to be streamed" offer.
+
+        The caption under the switch is not decoration: this control sits in a
+        dialog full of things that *do* something, and without it the switch
+        reads as claiming a stage. Staff decide; this only tells them.
+        """
+        if not self.match:
+            return
+        service = MatchStreamVolunteerService()
+        try:
+            initial = await service.has_volunteered(self.match.id, user)
+        except ValueError:
+            return
+        match_id = self.match.id
+
+        switch_ref: dict = {}
+
+        async def on_change(event, client):
+            new_value = bool(event.value)
+            try:
+                if new_value:
+                    await service.volunteer(match_id, user)
+                    with client:
+                        ui.notify(
+                            'Offered for stream. Staff see this when they plan '
+                            'coverage — it does not guarantee the match goes out.',
+                            color='positive',
+                        )
+                else:
+                    await service.withdraw(match_id, user)
+                    with client:
+                        ui.notify('No longer offered for stream.', color='positive')
+            except ValueError as e:
+                switch_ref['widget'].value = not new_value
+                switch_ref['widget'].update()
+                with client:
+                    ui.notify(str(e), color='warning')
+
+        switch_ref['widget'] = ui.switch(
+            'Offer this match for stream',
+            value=initial,
+            on_change=lambda e: background_tasks.create(on_change(e, context.client)),
+        )
+        ui.label(
+            'Advisory only. Staff read it while they plan stream coverage; it '
+            'does not book a stage or guarantee anything.'
+        ).classes('text-caption text-grey-7')
 
     def _confirm_delete(self, dialog):
         async def on_confirm():

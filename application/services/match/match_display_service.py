@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
+    MatchStreamVolunteerRepository,
     StageRepository,
     TournamentRepository,
 )
@@ -34,6 +35,7 @@ class MatchDisplayService:
     def __init__(self) -> None:
         self.repository = MatchRepository()
         self.ack_repository = MatchAcknowledgmentRepository()
+        self.volunteer_repository = MatchStreamVolunteerRepository()
         self.tournament_repository = TournamentRepository()
         self.stage_repository = StageRepository()
 
@@ -55,7 +57,10 @@ class MatchDisplayService:
             return None
 
         acks = await self.ack_repository.list_for_match(match)
-        return self._format_match_for_display(match, acks)
+        volunteers = await self.volunteer_repository.names_by_match([match.id])
+        return self._format_match_for_display(
+            match, acks, volunteers.get(match.id, []),
+        )
 
     async def get_matches_for_display(
         self,
@@ -92,8 +97,15 @@ class MatchDisplayService:
             prefetch_relations=True
         )
 
-        ack_map = await self.ack_repository.list_for_matches([m.id for m in matches])
-        return [self._format_match_for_display(m, ack_map.get(m.id, [])) for m in matches]
+        match_ids_loaded = [m.id for m in matches]
+        ack_map = await self.ack_repository.list_for_matches(match_ids_loaded)
+        volunteer_map = await self.volunteer_repository.names_by_match(match_ids_loaded)
+        return [
+            self._format_match_for_display(
+                m, ack_map.get(m.id, []), volunteer_map.get(m.id, []),
+            )
+            for m in matches
+        ]
 
     async def get_tournaments_for_filter(self) -> Dict[int, str]:
         """
@@ -194,6 +206,7 @@ class MatchDisplayService:
         self,
         match: Match,
         acknowledgments: Optional[List[MatchAcknowledgment]] = None,
+        stream_volunteers: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Format a match object for UI display."""
         # Get state and corresponding timestamp
@@ -253,11 +266,9 @@ class MatchDisplayService:
                 and to_utc_aware(match.scheduled_at) < datetime.now(timezone.utc)
             ),
             'state': state,
-            # The proctor's dispute flag and their own words. The note outlives
-            # the flag (confirming clears only the flag), so the two are
-            # independent — a row can carry a note with needs_review False.
+            # The proctor's dispute flag: "an admin should look at this before
+            # confirming". Cleared by confirming.
             'needs_review': match.needs_review,
-            'review_note': match.review_note or '',
             # Whether a result is on the board. A match can be Finished with
             # nothing recorded, and ``confirm_match`` refuses that — so the
             # surfaces gate the Confirm control on this rather than on the state
@@ -288,6 +299,11 @@ class MatchDisplayService:
                 else ''
             ),
             'is_stream_candidate': match.is_stream_candidate,
+            # Players who put this match forward for stream. Advisory: it does
+            # not set is_stream_candidate and does not book anything — staff read
+            # it while they build the stream schedule. Names rather than a count,
+            # because "one of the two asked" is the interesting case.
+            'stream_volunteers': list(stream_volunteers or []),
             # Online (racetime.gg) tournaments run remotely, so the table hides
             # on-site-only controls (check-in, station assignment) for their rows.
             'is_racetime': match.tournament.is_racetime_enabled if match.tournament else False,

@@ -99,6 +99,8 @@ erDiagram
     User ||--o{ MatchAcknowledgment : "user"
     Match ||--o{ MatchWatcher : "match"
     User ||--o{ MatchWatcher : "user"
+    Match ||--o{ MatchStreamVolunteer : "match"
+    User ||--o{ MatchStreamVolunteer : "user"
 
     Match ||--o{ Commentator : "match"
     User ||--o{ Commentator : "user"
@@ -670,14 +672,13 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `finished_at` | `DatetimeField` | null, indexed | |
 | `confirmed_at` | `DatetimeField` | null | Post-finish results confirmation |
 | `comment` | `TextField` | null | |
-| `needs_review` | `BooleanField` | default `False` | The proctor's dispute flag: "an admin should look at this before confirming". Not a state — the match stays `Finished`. **Confirming clears it** (`confirm_match`), as does `MatchService.clear_review` |
-| `review_note` | `TextField` | null | The proctor's own words for *why*. Deliberately **outlives the flag**: clearing or confirming leaves it, so a confirmed match can carry a note with `needs_review` false |
+| `needs_review` | `BooleanField` | default `False` | The proctor's dispute flag: "an admin should look at this before confirming". Just a flag — there is no note field; what happened is a conversation, not a textarea filled in between matches. Not a state either: the match stays `Finished`. **Confirming clears it** (`confirm_match`), as does `MatchService.clear_review` |
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
 | `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |
 | `speedgaming_episode` | O2O → `SpeedGamingEpisode` | null, `SET_NULL` | The canonical **source marker**: non-null = materialized by the SpeedGaming ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`) read-only in Wizzrobe (guard in `MatchService.update_match`). `SET_NULL` soft-detaches the match if its episode is purged. `related_name='match'` |
 
-Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); `players`, `commentators`, `trackers`, `watchers`, `racetime_room`, and `bracket_match_game` exist via the children's `related_name`s without class-level declarations.
+Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); `players`, `commentators`, `trackers`, `watchers`, `stream_volunteers`, `racetime_room`, and `bracket_match_game` exist via the children's `related_name`s without class-level declarations.
 
 Properties: `is_seated`, `is_started`, `is_finished`, `is_confirmed` are each `<field> is not None`; `current_state` returns the first of `'Finished'` / `'In Progress'` / `'Checked In'` whose timestamp is set, else `'Scheduled'` (see [Match lifecycle](#match-lifecycle)).
 
@@ -718,6 +719,17 @@ Users watching a match for state-change Discord DMs (observers, not participants
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='watchers'` |
 
 Constraint: `unique_together ('user', 'match')`.
+
+#### `MatchStreamVolunteer`
+
+A player putting their **own** match forward to be streamed. Advisory: it does not set `Match.is_stream_candidate`, does not assign a stage, and obliges nobody — staff read it while they build the stream schedule, and `is_stream_candidate` remains the answer they write. One row per player rather than a flag on the match, so a board can say whether one player asked or both did. See [match-participation.md](../features/match-participation.md#stream-volunteering).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='stream_volunteered_matches'` |
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='stream_volunteers'` |
+
+Constraint: `unique_together ('user', 'match')`. Index on `match` (the composite is user-first, so the per-board fan-out lookup is otherwise uncovered).
 
 #### `GeneratedSeeds`
 
@@ -1510,8 +1522,8 @@ and Confirmed. A proctor raises it (`MatchService.flag_for_review`, gated on
 **is** the review. `MatchService.clear_review` (gated on `can_confirm_match`)
 drops the flag without confirming, for "looked at it, nothing to fix, not
 confirming yet". Both write audit rows and publish
-`match.flagged_for_review` / `match.review_cleared`. `review_note` is never
-cleared by either.
+`match.flagged_for_review` / `match.review_cleared`. The flag carries no text:
+the audit trail is the record that the dispute happened.
 
 ## Repository layer
 
@@ -1542,6 +1554,7 @@ Consult the source for full signatures.
 | `MatchAcknowledgmentRepository` | [`match_acknowledgment_repository.py`](../../application/repositories/match_acknowledgment_repository.py) | `MatchAcknowledgment` | `list_for_match`, `list_for_matches` (one query for many matches, grouped by id; every requested id gets a possibly-empty list), `get`, `upsert`, `delete_for_match`, `delete_for_user` |
 | `MatchRepository` | [`match_repository.py`](../../application/repositories/match_repository.py) | `Match`, `MatchPlayers` | `get_by_id`, `get_all` (filters by tournaments, stages, upcoming-only = `finished_at IS NULL`, or the matches one user plays in; ordered by `scheduled_at`), `create`, `update`, `delete`, `add_player`, `remove_player`, `get_players`. Both getters prefetch `tournament`, `players(+user)`, `stage`, `generated_seed`, `commentators(+user)`, `trackers(+user)` unless asked not to |
 | `MatchWatcherRepository` | [`match_watcher_repository.py`](../../application/repositories/match_watcher_repository.py) | `MatchWatcher` | `get_by_id`, `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_watching`, `get_or_create` (idempotent watch), `delete`, `delete_by_match_and_user` |
+| `MatchStreamVolunteerRepository` | [`match_stream_volunteer_repository.py`](../../application/repositories/match_stream_volunteer_repository.py) | `MatchStreamVolunteer` | `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_volunteer`, `names_by_match` (whole board in one query), `get_or_create`, `delete_by_match_and_user` |
 | `StationRepository` | [`station_repository.py`](../../application/repositories/station_repository.py) | `Station` | `get_all`, `get_active`, `active_names` (the assignable labels; empty = no pool defined), plus the `TenantScopedRepository` CRUD quartet |
 | `StageRepository` | [`stage_repository.py`](../../application/repositories/stage_repository.py) | `Stage` | `get_by_id`, `get_all`, `get_all_as_dict` (id → name for select options), `create`, `update`, `delete` |
 | `TournamentRepository` | [`tournament_repository.py`](../../application/repositories/tournament_repository.py) | `Tournament`, `TournamentPlayers` | `get_by_id`, `get_by_ids`, `get_all`, `get_all_as_dict`, `create`, `update`, `delete`; enrollment `enroll_player`, `enroll_player_by_id`, `unenroll_player`, `get_enrolled_players`, `get_enrolled_players_by_user`, `get_enrolled_players_by_tournament_id`, `is_player_enrolled`, `is_player_enrolled_by_id`; per-tournament grants `set_tournament_grant` (adds/removes an `admins` / `crew_coordinators` row, picking the relation from a `TournamentGrant` so reconciling callers don't branch), `has_tournament_grant` |

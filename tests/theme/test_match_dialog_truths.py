@@ -92,17 +92,17 @@ def test_the_rewind_group_says_what_it_does():
 class TestStateSummary:
     """RC2: the dialog read none of the match's own state."""
 
-    def test_it_reads_the_four_facts_that_explain_the_match(self):
+    def test_it_reads_the_three_facts_that_explain_the_match(self):
         src = inspect.getsource(BaseMatchDialog._render_state_summary)
-        for fact in ('resolve(match=self.match)', 'finish_rank', 'needs_review', 'review_note'):
+        for fact in ('resolve(match=self.match)', 'finish_rank', 'needs_review'):
             assert fact in src, f'the state summary never reads {fact}'
 
-    def test_the_review_note_is_text_not_a_tooltip(self):
-        """The board already hides it behind a hover; repeating that here would
-        leave the note unreadable on every touch screen."""
+    def test_the_dispute_flag_is_text_not_a_tooltip(self):
+        """The board hides its explanation behind a hover; repeating that here
+        would leave it unreadable on every touch screen."""
         src = inspect.getsource(BaseMatchDialog._render_state_summary)
-        note = src[src.index('review_note'):]
-        assert 'tooltip' not in note.lower()
+        flag = src[src.index("'Flagged by the proctor"):]
+        assert 'tooltip' not in flag.lower()
 
     @pytest.mark.parametrize('tone', [
         'neutral', 'info', 'imminent', 'live', 'done', 'settled', 'cancelled', 'attention',

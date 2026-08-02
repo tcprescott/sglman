@@ -1,8 +1,10 @@
 """The dispute signal: a proctor flags a recorded result, an admin resolves it.
 
-Deliberately a **flag plus a note**, not a workflow. There is no review state,
-no assignment, no thread — the match stays ``Finished`` and confirming it *is*
-the resolution (see ``MatchScheduleService.confirm_match``). ``clear_review`` is
+Deliberately **just a flag**, not a workflow. There is no review state, no
+assignment, no thread, and no note — the proctor raising it is standing in the
+room, and writing up what happened is a conversation, not a textarea to fill in
+between matches. The match stays ``Finished`` and confirming it *is* the
+resolution (see ``MatchScheduleService.confirm_match``). ``clear_review`` is
 the escape hatch for "looked at it, nothing to fix, not confirming yet".
 
 Split out of ``match_service`` the way :class:`MatchRequestMixin` and
@@ -11,8 +13,6 @@ Split out of ``match_service`` the way :class:`MatchRequestMixin` and
 through that composed class.
 """
 
-from typing import Optional
-
 from application.events import EventType, match_live
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
@@ -20,12 +20,7 @@ from models import Match, User
 
 
 class MatchReviewMixin:
-    async def flag_for_review(
-        self,
-        match_id: int,
-        note: Optional[str],
-        actor: User,
-    ) -> Match:
+    async def flag_for_review(self, match_id: int, actor: User) -> Match:
         """Mark a recorded result as needing an admin's eyes before confirmation.
 
         Gated on ``can_run_match``: raising the flag is part of the proctor's own
@@ -42,13 +37,12 @@ class MatchReviewMixin:
             raise ValueError("Only a finished match can be flagged for review.")
 
         match.needs_review = True
-        match.review_note = (note or '').strip() or None
         await match.save()
 
         await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_FLAGGED_FOR_REVIEW,
-            {'match_id': match.id, 'note': match.review_note},
+            {'match_id': match.id},
             EventType.MATCH_FLAGGED_FOR_REVIEW,
             event_extra={'tournament_id': match.tournament_id},
         )
@@ -60,9 +54,8 @@ class MatchReviewMixin:
         """Drop the review flag without confirming the match.
 
         Gated on ``can_confirm_match``, which excludes PROCTOR: resolving a
-        contested result is the admin's call, exactly as confirming is.
-        ``review_note`` deliberately survives — the note is the record of why the
-        result was contested, and a resolved dispute still happened.
+        contested result is the admin's call, exactly as confirming is. The
+        audit trail is what survives — a resolved dispute still happened.
         """
         match = await self._require_match(match_id)
 
@@ -77,7 +70,7 @@ class MatchReviewMixin:
         await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_REVIEW_CLEARED,
-            {'match_id': match.id, 'note': match.review_note},
+            {'match_id': match.id},
             EventType.MATCH_REVIEW_CLEARED,
             event_extra={'tournament_id': match.tournament_id},
         )

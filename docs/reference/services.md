@@ -63,6 +63,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchService` | [match_service.py](../../application/services/match/match_service.py) | Match CRUD, results, station/stage, acknowledgments, cancellation (`CancellationMixin`), the dispute flag (`MatchReviewMixin`) | [match-participation.md](../features/match-participation.md) |
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-participation.md](../features/match-participation.md) |
+| `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
@@ -544,8 +545,8 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | `get_match_by_id(match_id)` / `get_by_id(...)` / `get_match_players(match)` / `get_player_names(match_id)` / `list_acknowledgments(match)` | reads | Load-or-`None` / load-or-raise fetches and the participant/acknowledgment reads presentation and the entry surfaces use instead of reaching into repositories. |
 | `record_match_result(match_id, winner_id, actor)` | `Match` | Two-player results: winner gets `finish_rank` 1, the other 2. `winner_id` is a **`MatchPlayers` row id**, not a User id. Gated by `can_run_match`. |
 | `acknowledge_match(match_id, user)` | `MatchAcknowledgment` | Player confirms they have seen their match. Only current players may acknowledge; double-acknowledge raises `ValueError`. Audits `match.acknowledged`. |
-| `flag_for_review(match_id, note, actor)` | `Match` | Raise the dispute flag on a recorded result — "an admin should look at this before confirming". Gated by `can_run_match` (the proctor's own call); `ValueError` unless the match is finished. Stores the trimmed `note` (blank → `None`), audits + emits `match.flagged_for_review`. Lives in [match_review.py](../../application/services/match/match_review.py) (`MatchReviewMixin`). |
-| `clear_review(match_id, actor)` | `Match` | Drop the flag **without** confirming. Gated by `can_confirm_match`, which excludes PROCTOR — resolving a dispute is the admin's. Leaves `review_note` in place; audits + emits `match.review_cleared`. `MatchScheduleService.confirm_match` does the same clear implicitly. Same mixin. |
+| `flag_for_review(match_id, actor)` | `Match` | Raise the dispute flag on a recorded result — "an admin should look at this before confirming". Gated by `can_run_match` (the proctor's own call); `ValueError` unless the match is finished. Carries no note: what happened is a conversation, and the audit row is the record it happened. Audits + emits `match.flagged_for_review`. Lives in [match_review.py](../../application/services/match/match_review.py) (`MatchReviewMixin`). |
+| `clear_review(match_id, actor)` | `Match` | Drop the flag **without** confirming. Gated by `can_confirm_match`, which excludes PROCTOR — resolving a dispute is the admin's. Audits + emits `match.review_cleared`. `MatchScheduleService.confirm_match` does the same clear implicitly. Same mixin. |
 
 **Creation/reschedule flow.** `create_match` resolves every referenced user up front (so a bad id cannot leave an orphan `Match` row), creates the row, enrolls players in the tournament if needed, attaches commentators/trackers as pre-approved, audits `match.created`, then seeds per-player acknowledgment rows (the actor auto-acknowledges their own). Finally it hands the whole scheduled-notification fan-out to `MatchScheduleService.notify_match_scheduled` (ack request + crew DM + subscriber fan-out, plus stream-candidate when flagged). `update_match` re-seeds acknowledgments when `scheduled_at` or the player set changed; on a time change it calls `notify_match_scheduled(rescheduled=True)`, otherwise it enqueues just the acknowledgment request.
 
@@ -586,6 +587,22 @@ Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without 
 | `is_watching(match_id, user)` / `list_watched_match_ids(user)` | `bool` / `list[int]` | Whether the user watches one match; every match id they watch (marks rows in the schedule table). |
 
 Collaborators: `MatchWatcherRepository`, `MatchRepository`, `AuditService`.
+
+### match_stream_volunteer_service.py — MatchStreamVolunteerService
+
+Players offering their **own** match for stream. Advisory throughout: it never
+writes `Match.is_stream_candidate`, which stays the decision of whoever
+`can_assign_match_stream` admits. Feature doc:
+[match-participation.md](../features/match-participation.md#stream-volunteering).
+
+| Method | Returns | Description |
+|---|---|---|
+| `volunteer(match_id, user)` | `MatchStreamVolunteer` | Offer the match (idempotent via get-or-create). `ValueError` for a non-player (`'Only the players in a match can offer it for stream.'`) or a match that has already started. Audits + emits `match.stream_volunteered` on creation. |
+| `withdraw(match_id, user)` | `bool` | Take the offer back; returns whether a row was removed; audits + emits `match.stream_volunteer_withdrawn` when it was. Deliberately **allowed after the match starts** — a player who changes their mind must not be stuck with a request they cannot unsay. |
+| `has_volunteered(match_id, user)` / `list_volunteered_match_ids(user)` | `bool` / `list[int]` | This viewer's own offer state; the id list marks rows in the schedule table. |
+| `names_by_match(match_ids)` / `names_for_match(match)` | `dict[int, list[str]]` / `list[str]` | Who offered, for staff. The batched form is one query for a whole board — `MatchDisplayService` calls it once per refresh and puts `stream_volunteers` on each row. |
+
+Collaborators: `MatchStreamVolunteerRepository`, `MatchRepository`, `AuditService`.
 
 ### player_availability_service.py — PlayerAvailabilityService
 

@@ -25,6 +25,22 @@ Times are shown in your local time.
 Schedule tab shows every match in the event; this one shows only yours.
 :::
 
+## Offering your match for stream
+
+:::snippet stream-volunteer
+The **Stream** column on Your Schedule is where you say you would be happy for
+your match to go out on stream. Tap it once to offer, tap it again to take the
+offer back.
+
+It is a hint to staff, nothing more. They build the stream schedule around
+stages, crew and what the bracket needs, and they will not see your offer as a
+claim on any of it. Offering does not book a stage, does not guarantee your
+match is streamed, and does not change anything about how it is run.
+
+If both players offer, staff see both names. Either of you can withdraw at any
+time, including after the match has started.
+:::
+
 ## Acknowledging a match
 
 When you are scheduled into a match, the bot DMs you with an **Acknowledge**

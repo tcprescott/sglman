@@ -36,7 +36,6 @@ def make_match(**overrides):
         generated_seed=None,
         is_stream_candidate=False,
         needs_review=False,
-        review_note=None,
         players=[],
         commentators=[],
         trackers=[],

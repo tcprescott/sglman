@@ -107,6 +107,41 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
     </q-btn>
 </q-td>'''
 
+# The player's own "we'd be happy to be streamed" toggle. Every copy on it says
+# the offer is advisory, because a control beside a Stage column reads as
+# booking one otherwise. Rendered only for a player *in* the match — the service
+# refuses anyone else, so offering the button elsewhere teaches a refusal.
+STREAM_VOLUNTEER_TOOLTIP = (
+    "Offer this match for stream. Staff see it when they plan coverage — "
+    "it doesn't book a stage."
+)
+
+# The *same* asymmetry ``MatchStreamVolunteerService`` enforces, not a second
+# spelling of it: offering is refused once the match is under way (nothing left
+# for staff to schedule), while withdrawing stays open, so a player who changes
+# their mind is never stuck with a request they cannot unsay.
+STREAM_VOLUNTEER_ACTIONABLE = (
+    "props.row._stream_volunteer"
+    " || ['Scheduled', 'Checked In'].includes(props.row.state)"
+)
+
+STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <q-btn v-if="__ACTIONABLE__ && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
+           :icon="props.row._stream_volunteer ? 'videocam' : 'videocam_off'"
+           :color="props.row._stream_volunteer ? 'primary' : 'grey'"
+           size="sm" flat round
+           @click="$parent.$emit('toggle_stream_volunteer', props.row)">
+        <q-tooltip>{{ props.row._stream_volunteer ? 'Withdraw your stream offer' : "__OFFER__" }}</q-tooltip>
+    </q-btn>
+    <span v-else-if="props.row.stream_volunteers && props.row.stream_volunteers.length"
+          class="wiz-chip wiz-chip--candidate">
+        <q-icon name="videocam" size="12px" />{{ props.row.stream_volunteers.length }}
+        <q-tooltip>Volunteered for stream: {{ props.row.stream_volunteers.join(', ') }}. Advisory only.</q-tooltip>
+    </span>
+</q-td>'''.replace('__OFFER__', STREAM_VOLUNTEER_TOOLTIP).replace(
+    '__ACTIONABLE__', STREAM_VOLUNTEER_ACTIONABLE,
+)
+
 # The Generate button's own gate, shared with the mobile grid's seed detail.
 # A seed can only be rolled once, so offering the button where it cannot help is
 # not merely noise: on a bracket row with no players yet it burns the one roll on
@@ -194,7 +229,7 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
         <span v-if="props.row.needs_review" class="wiz-chip wiz-chip--pending">
             <q-icon name="report_problem" size="14px" />Needs review
-            <q-tooltip v-if="props.row.review_note">{{ props.row.review_note }}</q-tooltip>
+            <q-tooltip>The proctor flagged this result. Confirming clears the flag.</q-tooltip>
         </span>
         <div v-if="__CONFIRM__" style="display: flex; align-items: center; gap: 4px;">
             <!-- No winner on the board: confirming is refused by the service, so
@@ -491,8 +526,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
                         want_stage_readonly: bool = False) -> None:
     """Register every body-cell slot on ``table``.
 
-    ``discord_id`` is the current user's id (or None); the watch slot is only
-    added for a logged-in user. ``access`` supplies the capability flags the
+    ``discord_id`` is the current user's id (or None); the watch and
+    stream-volunteer slots are only added for a logged-in user, since both act
+    on behalf of that person. ``access`` supplies the capability flags the
     templates branch on. The ``want_*`` flags mirror the caller's callback
     availability so the seed/state/stage slots register as the board needs
     them; ``has_edit`` does the same for the id cell's edit link.
@@ -530,6 +566,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
 
     if discord_id:
         table.add_slot('body-cell-watch', WATCH_SLOT)
+        table.add_slot('body-cell-stream_volunteer', STREAM_VOLUNTEER_SLOT.replace(
+            '__DID__', discord_id_js,
+        ))
 
     if want_seed_slot:
         table.add_slot('body-cell-generated_seed', SEED_SLOT)
