@@ -637,18 +637,6 @@ class MatchTableView(MatchTableHandlersMixin):
             for stage_id, name in (self.stages_list or {}).items()
         ]
 
-    async def focus_matches(self, match_ids) -> None:
-        """Narrow the board to ``match_ids`` (or restore it with ``None``).
-
-        The same mechanism a deep link uses, offered to a summary strip: a
-        count of outstanding work is only half a queue if there is no way to
-        get to it. Suspends the State filter for the same reason the deep link
-        does — a pending signup on a Finished match must not vanish because the
-        board's default set hides it.
-        """
-        self.match_ids = list(match_ids) if match_ids else None
-        await self.refresh()
-
     def _notify_rows_changed(self) -> None:
         """Tell the caller the visible row set changed (drives a summary strip)."""
         if self.on_rows_changed is not None:

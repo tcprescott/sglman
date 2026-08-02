@@ -19,7 +19,7 @@ Each side has a surface of its own for the work it owns:
 
 | Who | Where | What it carries |
 |---|---|---|
-| Staff / TA / crew coordinator | Admin → Schedule, the crew strip | *"3 commentators and 1 tracker awaiting approval"* with a one-click filter to exactly those matches |
+| Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
 | The volunteer | Home → **My Crew** (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
 
 My Crew is on Home rather than the Volunteer hub deliberately: crew signup is
