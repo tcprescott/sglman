@@ -89,15 +89,51 @@ def mock_dk64_presets(branch: str) -> List[Dict[str, str]]:
     Same four keys the live API returns, so a preset picker fed from upstream
     renders offline. The settings strings are placeholders: nothing in the mock
     path decodes them, and a real one would go stale against the live presets.
+
+    Deliberately *long*. The live site publishes dozens of presets, and a picker
+    that only ever saw four would hide every problem a real catalogue creates —
+    a list that scrolls off the dialog, a name you cannot find without reading
+    all of them.
     """
     names = [
         ('Season 5 Race Settings', 'Medium length settings with a uniquely shuffled seasonal world.'),
+        ('Season 4 Race Settings', 'The previous season, kept for rematches and vods.'),
+        ('Season 3 Race Settings', 'Archived season settings.'),
         ('Beginner Settings', 'A gentler ruleset for players new to the randomizer.'),
+        ('Beginner Plus', 'Beginner with item rando switched on.'),
         ('Balanced LZR', 'Level order rando with balanced progression requirements.'),
+        ('Hard LZR', 'Level order rando without the training wheels.'),
         ('Hell Mode', 'Long, punishing, and not remotely balanced.'),
+        ('Item Rando Standard', 'Every shop and collectible shuffled into one pool.'),
+        ('Item Rando Lite', 'Item rando limited to major items.'),
+        ('Move Rando', 'Moves shuffled across the vendors.'),
+        ('Kong Rando', 'Kongs freed in a shuffled order.'),
+        ('Barrel Rando', 'Bonus barrel minigames shuffled.'),
+        ('Boss Rando', 'Bosses and their key rewards shuffled.'),
+        ('Key Rando', 'Boss keys placed anywhere in the pool.'),
+        ('Coin Rando', 'Golden bananas replaced by coin checks.'),
+        ('Blocker Rando', 'Randomized B. Locker requirements.'),
+        ('Fast Start', 'Training barrels and tutorial skipped.'),
+        ('Fast Start Plus', 'Fast start with the first three kongs unlocked.'),
+        ('No Logic Chaos', 'Placement ignores logic entirely. Not for races.'),
+        ('Glitchless Standard', 'The default glitchless ruleset.'),
+        ('Glitchless Long', 'Glitchless with a full 201-check pool.'),
+        ('Glitch Any Percent', 'Anything goes, including out of bounds.'),
+        ('Bingo Prep', 'Settings the bingo board is generated against.'),
+        ('Co-op Duo', 'Tuned for two players sharing a file.'),
+        ('Weekly Community Race', 'The rotating weekly community ruleset.'),
+        ('Monthly Marathon', 'Very long settings for the monthly marathon.'),
+        ('Sprint 30', 'A thirty-minute sprint ruleset.'),
+        ('Sprint 60', 'An hour-long sprint ruleset.'),
+        ('Blind Draft', 'Settings drawn blind for draft brackets.'),
+        ('Tournament Qualifier', 'The async qualifier ruleset.'),
+        ('Tournament Finals', 'The finals ruleset.'),
+        ('Practice Isles', 'DK Isles only, for route practice.'),
+        ('Practice Bosses', 'Boss rush for practice.'),
     ]
     if branch == 'dev':
         names.append(('Season 6 Candidate', 'Under evaluation for the next season.'))
+        names.append(('Experimental Shuffle', 'Dev-only placement experiment.'))
     return [
         {
             'branch': branch,

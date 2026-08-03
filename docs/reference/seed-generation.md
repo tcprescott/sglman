@@ -10,7 +10,9 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 |---|---|
 | [`application/services/seedgen_service.py`](../../application/services/seedgen_service.py) | `SeedGenerationService`: `AVAILABLE_RANDOMIZERS`, `generate_seed()` dispatch, per-randomizer generators |
 | [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
-| [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`) + `import_builtins` from the `presets/` files |
+| [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`), `import_builtins` from the `presets/` files, and `import_remote_presets` from a randomizer's own API |
+| [`application/services/seedgen_dk64r.py`](../../application/services/seedgen_dk64r.py) | `DK64RBackend`: every DK64R call — settings conversion, submit/poll, and the published preset catalogue |
+| [`application/services/seedgen_types.py`](../../application/services/seedgen_types.py) | `RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll` |
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
 | [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | Seed Generator + Seed Preset selects on the tournament create/edit dialog |
@@ -95,6 +97,8 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Convenience wrapper over `generate_seed_call` returning just the permalink. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential, or a `SeedProviderError` subclass naming what the upstream did. |
 | `generate_seed_call(randomizer, preset=None, *, surface=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
+| `list_remote_presets(randomizer, *, branch=None) -> list[RemotePreset]` | The presets the randomizer's own API publishes, mapped into storable `settings`. Raises `ValueError` for a randomizer with no catalogue or an unknown branch, `MissingCredentialError` without the key. | `list[RemotePreset]`. |
+| `offers_remote_presets(randomizer) -> bool` / `remote_preset_branches(randomizer) -> list[str]` (classmethods) | Membership in and lookup into `REMOTE_PRESET_BRANCHES` — what the Presets tab's import dialog renders from. | `bool` / `list[str]`. |
 | `supports_triforce_texts(generator: Optional[str]) -> bool` (classmethod) | Membership in `TRIFORCE_TEXT_RANDOMIZERS`. Four consumers: `AuthService.can_submit_triforce_text`, `TriforceTextService` (both the submit guard and the `seed_generator__in=…` tournament filter), the home **Triforce Texts** tab, and the REST `/seeds/randomizers` response field `supports_triforce_texts`. | `bool`. |
 | `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
 
@@ -233,6 +237,21 @@ Note: the match-rolling flow always calls `generate_seed('alttpr')` → `_genera
 Presets are tenant-authored `Preset` rows (`randomizer`, `name`, `settings` JSON, `description`), managed on the admin **Presets** tab via [`PresetService`](../../application/services/preset_service.py) (CRUD gated by `AuthService.can_manage_presets` — STAFF, `PRESET_MANAGER`, super-admin, or the system actor). A tournament links one through its `preset` FK; when set, seed generation resolves the preset's `randomizer` + `settings` and it overrides the legacy `seed_generator` string.
 
 The committed `presets/` files remain as **built-in starting rows**: `PresetService.import_builtins` (the "Import Built-ins" button) parses them and inserts any not already present (idempotent, matched by `(randomizer, name)`).
+
+### Importing a randomizer's own presets
+
+Hand-authoring a settings blob is the fallback, not the expected path. A randomizer that publishes its presets over its API — declared in `SeedGenerationService.REMOTE_PRESET_BRANCHES`, currently DK64R only — can be browsed and imported from the Presets tab's **Import from Randomizer** button:
+
+| Step | Call | Notes |
+|---|---|---|
+| Browse | `PresetService.list_remote_presets(actor, randomizer, branch=None)` | Writes nothing. Delegates to `SeedGenerationService.list_remote_presets`, which returns `RemotePreset(name, settings, description)` with `settings` already in the shape a `Preset` row stores |
+| Keep | `PresetService.import_remote_presets(actor, randomizer, names, branch=None)` | Takes **names**, not payloads: the settings are re-fetched upstream rather than trusted from the picker. Idempotent by `(randomizer, name)` like `import_builtins`; audits `preset.imported` with `source` and `branch` |
+
+`REMOTE_PRESET_BRANCHES` maps a randomizer to its catalogue variants (DK64R publishes a separate list per branch, `stable` and `dev`); an empty tuple means one list and no branch select. `offers_remote_presets` / `remote_preset_branches` are the classmethods the UI renders from.
+
+For DK64R each catalogue entry carries a `settings_string` — the site's own portable format — which is stored as `{'_branch': branch, 'settings_string': …}` and expanded through `/convert_settings` at roll time, so an imported preset means whatever the upstream currently means by that string. The catalogue fetch is key-gated like every other DK64R call, and takes the **default** provider budget (60s, 3 attempts) rather than the roll overrides: it is a read, so retrying it cannot enqueue a second generation.
+
+An import is a **copy**, not a subscription. Nothing re-syncs a preset after the upstream edits it, and re-importing a name that already exists is skipped rather than overwritten — a tournament pointing at a preset never has its settings changed underneath it by someone pressing Import.
 
 ```
 presets/                       # built-in files imported into the Preset table

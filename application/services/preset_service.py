@@ -5,9 +5,12 @@ Tenant-authored seed-rolling presets: a named ``randomizer`` + ``settings`` blob
 that seed generation resolves instead of opening a hard-coded ``presets/*`` file.
 All mutations are gated by :meth:`AuthService.can_manage_presets` and audited.
 
-``import_builtins`` seeds a tenant's preset list from the committed ``presets/``
-files (the same settings the legacy hard-coded paths used), so a fresh tenant has
-usable starting rows that reproduce the original seeds.
+A community fills that list three ways: authoring a preset by hand,
+``import_builtins`` (the committed ``presets/`` files — the same settings the
+legacy hard-coded paths used, so a fresh tenant has usable starting rows), or
+``import_remote_presets``, which pulls the randomizer's *own* published presets
+over its API. The third is the one that keeps up: DK64R's season settings change
+upstream, and nobody has to transcribe a settings blob to race them.
 """
 
 import asyncio
@@ -21,7 +24,7 @@ from application.errors import require_found
 from application.repositories import PresetRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.seedgen_service import SeedGenerationService
+from application.services.seedgen_service import RemotePreset, SeedGenerationService
 from models import Preset, User
 
 # Where the committed built-in presets live (one subdirectory per randomizer).
@@ -167,6 +170,79 @@ class PresetService:
             )
         return created
 
+    async def list_remote_presets(
+        self, actor: User, randomizer: str, *, branch: Optional[str] = None,
+    ) -> List[RemotePreset]:
+        """The presets the randomizer's own API publishes, for a picker to render.
+
+        Nothing is written — this is the catalogue a community browses before
+        choosing which upstream presets to keep. Reaching the upstream needs this
+        tenant's credential, so a missing key raises ``MissingCredentialError``
+        naming it.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(actor), "Cannot manage presets"
+        )
+        return await SeedGenerationService().list_remote_presets(randomizer, branch=branch)
+
+    async def import_remote_presets(
+        self,
+        actor: User,
+        randomizer: str,
+        names: List[str],
+        *,
+        branch: Optional[str] = None,
+    ) -> List[Preset]:
+        """Save chosen upstream presets as this tenant's own ``Preset`` rows.
+
+        The settings blob is re-fetched from the randomizer rather than taken
+        from the caller: the picker's job is to name presets, not to hand this
+        service a payload that seed rolls will trust.
+
+        Idempotent like :meth:`import_builtins` — a name already present for this
+        randomizer is skipped rather than overwritten, so re-importing after the
+        upstream adds a preset only fills the gap and never silently rewrites
+        settings a tournament is already pointing at.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(actor), "Cannot manage presets"
+        )
+        wanted = {(n or '').strip() for n in names} - {''}
+        if not wanted:
+            raise ValueError("Select at least one preset to import")
+
+        catalogue = await SeedGenerationService().list_remote_presets(
+            randomizer, branch=branch,
+        )
+        by_name = {entry.name: entry for entry in catalogue}
+        missing = sorted(wanted - set(by_name))
+        if missing:
+            raise ValueError(
+                f"{randomizer} no longer offers: {', '.join(missing)}"
+            )
+
+        created: List[Preset] = []
+        for name in sorted(wanted):
+            entry = by_name[name]
+            self._validate(name, randomizer, entry.settings)
+            if await self.repository.get_by_natural_key(randomizer, name) is not None:
+                continue
+            created.append(await self.repository.create(
+                name=name,
+                randomizer=randomizer,
+                settings=entry.settings,
+                description=entry.description,
+            ))
+
+        if created:
+            await self.audit_service.write_log(
+                actor,
+                AuditActions.PRESET_IMPORTED,
+                {'source': randomizer, 'branch': branch, 'count': len(created),
+                 'presets': [p.name for p in created]},
+            )
+        return created
+
     # ------------------------------------------------------------ internals
 
     async def _require(self, preset_id: int) -> Preset:
@@ -176,6 +252,8 @@ class PresetService:
     def _validate(name: str, randomizer: str, settings: Any) -> None:
         if not name:
             raise ValueError("Preset name is required")
+        if len(name) > 255:
+            raise ValueError("Preset name must be 255 characters or fewer")
         if not randomizer:
             raise ValueError("Preset randomizer is required")
         if randomizer not in SeedGenerationService.AVAILABLE_RANDOMIZERS:

@@ -67,7 +67,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
-| `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
+| `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in and upstream-API import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `to_display`/`window_hours`/`crew_requirement`/`is_crew_covered` helpers used by both Reports and Insights (so on-time % and crew coverage can't drift) | — |
@@ -704,6 +704,8 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 | `TRIFORCE_TEXT_RANDOMIZERS` (class attr) / `supports_triforce_texts(generator)` | `set[str]` / `bool` | Generators that can embed community triforce texts (`alttpr`), and the predicate `AuthService.can_submit_triforce_text` gates on. |
 | `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); the other preset-aware generator is `dk64r`; every other backend ignores the preset and rolls hard-coded settings. `ValueError` for unsupported keys. |
 | `available_randomizers(configured)` (classmethod) | `list[str]` | `AVAILABLE_RANDOMIZERS` minus any randomizer whose declared credential this community has not set. Pure and DB-free; the caller passes `RandomizerCredentialService.configured_randomizers()`. |
+| `REMOTE_PRESET_BRANCHES` (class attr) / `offers_remote_presets(randomizer)` / `remote_preset_branches(randomizer)` | `dict` / `bool` / `list[str]` | Randomizers that publish a preset catalogue over their API (`dk64r`, per branch), and the predicates the Presets tab's import dialog renders from. |
+| `list_remote_presets(randomizer, *, branch=None)` | `list[RemotePreset]` | Fetch that catalogue, mapped into `RemotePreset(name, settings, description)` with settings already storable on a `Preset`. |
 | `generate_alttpr_for_tournament(tournament_id, balanced=True)` | `str` | ALTTPR seed with an approved community triforce text embedded — balanced selection weights every submitter equally; falls back to a plain seed when no approved texts exist. `ValueError` for unknown tournaments. |
 
 Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs.
@@ -733,6 +735,8 @@ Tenant-authored seed-rolling presets (a named `randomizer` + `settings` blob). D
 | `update_preset(actor, preset_id, *, name=None, randomizer=None, settings=None, description=None)` | `Preset` | Partial update with the same validation + uniqueness re-check. Audits `preset.updated`. |
 | `delete_preset(actor, preset_id)` | `None` | Delete. Audits `preset.deleted`. Detaches linked tournaments (`SET_NULL`). |
 | `import_builtins(actor)` | `list[Preset]` | Import the committed `presets/` files as rows, idempotent by `(randomizer, name)`. Audits `preset.imported`. |
+| `list_remote_presets(actor, randomizer, *, branch=None)` | `list[RemotePreset]` | Browse the presets the randomizer's own API publishes. Read-only; needs this tenant's credential for that randomizer. |
+| `import_remote_presets(actor, randomizer, names, *, branch=None)` | `list[Preset]` | Save chosen upstream presets as rows. Takes names — the settings are re-fetched upstream, not taken from the caller. Idempotent by `(randomizer, name)`. Audits `preset.imported` with `source`/`branch`. |
 
 All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity).
 
