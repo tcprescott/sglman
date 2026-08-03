@@ -193,9 +193,16 @@ class EquipmentService:
             await AuthService.can_checkout_equipment(actor),
             "You do not have permission to check out equipment.",
         )
-        # Volunteers may only check out to themselves; managers/staff may check
-        # out on behalf of any user.
-        if await AuthService.can_manage_equipment(actor) and borrower_id:
+        # Anyone signed in may borrow to themselves — that is a player scanning
+        # the QR code on a loaner. Checking out *on behalf of* someone else is
+        # the manager action, and is refused rather than quietly rewritten to the
+        # actor: a loan silently booked against the wrong person is worse than a
+        # visible no.
+        if borrower_id is not None and borrower_id != actor.id:
+            await AuthService.ensure(
+                await AuthService.can_manage_equipment(actor),
+                "You can only check equipment out to yourself.",
+            )
             borrower = await User.get_or_none(id=borrower_id)
             if borrower is None:
                 raise ValueError("That borrower doesn't exist. Pick someone from the list.")

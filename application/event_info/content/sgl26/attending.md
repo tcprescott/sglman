@@ -102,14 +102,29 @@ The proctor runs the room. Most of what follows is the other side of what they
 have been asked to do.
 
 :::snippet player-room
-Bring your console and your controller. The venue provides the display, the
-seat and the power, but the machine you play on is yours to bring and yours to
-set up, so pack accordingly, including whatever you need to get a seed onto it.
+Bring whatever you play on, and whatever you play with: original hardware, a
+modern console, a laptop. The venue provides the display, the seat and the
+power, but the machine itself is yours to bring and yours to set up, so pack
+accordingly, including whatever you need to get a seed onto it. There are no
+restrictions on what you have at your station.
+
+**RetroTINK 2X upscalers are available to borrow** if you need one to get your
+setup onto the room's displays. **Every loaner device carries a QR code: scan
+it, sign in, and check the device out to yourself.** That is the whole process,
+and it is yours to do rather than something to queue at a desk for — the loan is
+recorded against your name from your own phone.
+
+Returning it is the other way round: **hand it to an admin, who checks it back
+in.** Not to the proctor, and not by leaving it at your station.
+
+> **TODO:** where the units are collected from, and how many there are. Worth
+> saying plainly, since a player on original hardware will want to know before
+> they pack.
 
 The proctor will help you get set up if you need it. The one thing worth
 checking yourself, before the countdown rather than after, is **audio: make sure
-the TV is actually sending sound out of its headphone jack**. Discovering that
-mid-race costs you time nobody can give back.
+sound is actually reaching your headphones**, whatever it is coming out of.
+Discovering that mid-race costs you time nobody can give back.
 
 There is a PC in the room for getting seed data onto an SD card or another
 device. Ask the proctor where it is rather than hunting for a spare laptop.
@@ -121,9 +136,9 @@ station that is mid-match, so trace it to the thing it actually powers, check
 twice that it is yours, and only then unplug it. If you are not sure, ask the
 proctor: that is a much better question to ask than to find out the hard way.
 
-Your phone, notes, trackers, your own headphones or earbuds in the TV's jack,
-and a capture of your own POV if you want to stream yourself are all fine.
-Nothing on this list needs clearing with anyone first.
+Your phone, notes, trackers, your own headphones or earbuds, and a capture of
+your own POV if you want to stream yourself are all fine. Nothing on this list
+needs clearing with anyone first.
 
 Several matches share the room and everyone in it is concentrating, so keep it
 quiet. That applies to you between your own matches as much as to anyone else,

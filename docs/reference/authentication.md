@@ -24,7 +24,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — e
 | `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
 | `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
 | `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
-| `volunteer` | General volunteers | Volunteer workflows on `/volunteer`; check equipment out to themselves (no Admin access) |
+| `volunteer` | General volunteers | Volunteer workflows on `/volunteer` (no Admin access) |
 | `preset_manager` | Seed-preset authors | Author/edit the tenant's seed-rolling presets (`can_manage_presets`) |
 | `sync_admin` | Sync/integration admins | Manage upstream sync config: SpeedGaming links, Discord events, racetime bot/room config (`can_manage_sync`) |
 | `qualifier_admin` | Qualifier admins | Administer async qualifiers — author pools/permalinks, work the reviewer queue (`can_admin_qualifier`) |
@@ -266,7 +266,7 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | `can_assign_match_stream(user, match)` | `can_manage_stages`, or TA of the match's tournament — sets `stage` / `is_stream_candidate` |
 | `can_manage_volunteers(user)` | Staff or volunteer coordinator — positions, shifts, assignments (admin side) |
 | `can_manage_equipment(user)` | Staff or equipment manager — CRUD on lending assets, private notes/owner |
-| `can_checkout_equipment(user)` | `can_manage_equipment`, or a volunteer (who may only check out to themselves) |
+| `can_checkout_equipment(user)` | Any signed-in, active member that is not the system account — **deliberately role-less**, because a loaner's QR code is scanned by whoever holds it. Grants self-checkout only; naming another borrower is `can_manage_equipment` |
 | `can_checkin_equipment(user)` | `can_manage_equipment` |
 | `can_manage_presets(user)` | The shared `_system_admin_staff_or` cascade with `PRESET_MANAGER` |
 | `can_manage_sync(user)` | The same cascade with `SYNC_ADMIN` — SpeedGaming links, Discord events, racetime bot/room config |

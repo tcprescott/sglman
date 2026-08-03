@@ -1,14 +1,14 @@
 ---
-title: Running a room
+title: Running the tournament room
 slug: proctoring
 icon: sports_esports
 order: 40
 roles: VOLUNTEER, PROCTOR, STAFF
-summary: The floor standard for proctors, covering looking after the room, game integrity, when to fetch an admin, and handing over a shift.
+summary: For proctors — the floor standard for a tournament room shift: looking after the room, game integrity, when to fetch an admin, and handing over.
 ---
 
-The standard the people running a room are held to at SpeedGaming Live. Read it
-before your first shift.
+**This one is for proctors.** It is the standard you are held to on a tournament
+room shift at SpeedGaming Live. Read it before your first one.
 
 This is the *procedure*. How the Proctor Station board works (checking a match
 in, seating players, rolling the seed, recording a winner) is covered in
@@ -89,15 +89,31 @@ one player's shoulder for the whole match is fine; moving across to the
 opponent's side part way through is not, and you should stop it when you see it.
 Someone who has seen both screens has information neither player has.
 
+**Players bring whatever they play on**, and setups vary: original hardware on a
+CRT, a modern console, a laptop. There are no restrictions on what a player may
+have at their station at this time, so a setup that looks unusual to you is not
+something to challenge. If a tournament does impose a hardware rule, that comes
+from its admins, not from you.
+
+**RetroTINK 2X upscalers are lent out, and the player checks the device out
+themselves.** Every loaner carries a QR code: the player scans it, signs in, and
+the loan is recorded against their name. Point anyone asking at the code on the
+device rather than checking it out for them — doing it from your account would
+book the loan against you, and you are not the one holding it.
+
+**Check-in is the admin's.** A device coming back goes to them, and the loan
+stays open until they close it. If a player packs up with a borrowed unit, send
+them and it to the desk rather than taking it off their hands.
+
 **Help players get set up** if they need it. The one that catches people out is
-**audio: check the TV is actually sending sound out of the headphone jack**
-before the match starts. A player who discovers that mid-race has lost time you
-cannot give back.
+**audio: check that sound is actually reaching the headphones** before the match
+starts, whatever it is coming out of. A player who discovers that mid-race has
+lost time you cannot give back.
 
 **Beware of power.** While you are helping someone, know what every cable you
 touch is powering before you pull it. Trace it, check it twice, and only then
-unplug it: the console you cut power to might be the one running a live match
-at the next station.
+unplug it: the setup you cut power to might be the one running a live match at
+the next station.
 :::
 
 ## Game integrity
@@ -151,13 +167,16 @@ questions a player's conduct, is an admin call. Recording what you saw is yours.
 Seats are the scarce thing, so turnover matters.
 
 **The losing player is expected to stop.** Once the match is decided they should
-put the controller down rather than play on. The exception is someone very
+stop playing rather than carry on to the end. The exception is someone very
 close to their own finish, who can reasonably be let finish. Everything after
 that is holding up the next match.
 
 **Post-match conversation happens outside the room.** If the two of them want to
-talk it over, you can ask them to take it outside, before or after they pack their
-equipment up, whichever suits the moment. It is your call.
+talk it over, ask them to take it outside. Whether that's before or after they
+pack their equipment up comes down to how busy the room is: if the seat is
+needed, or a match is due on it soon, have them pack up first and talk outside
+after. A quiet room with nothing waiting on the station, and it doesn't matter
+which order they do it in.
 
 Then check the station is genuinely clear before the next pair sits down: things
 collected, seat free.
