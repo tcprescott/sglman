@@ -95,6 +95,13 @@ have at their station at this time, so a setup that looks unusual to you is not
 something to challenge. If a tournament does impose a hardware rule, that comes
 from its admins, not from you.
 
+**RetroTINK 2X upscalers are lent out, and an admin does the lending.** A player
+who needs one to reach the display goes to the on-call admin, who checks the
+device out against their name. Your proctor role does not cover checking a
+device out to someone else, so send them rather than trying to hand one over
+yourself. The loan stays open until the device comes back, so if a player packs
+up with a borrowed unit, remind them it returns to the admin.
+
 **Help players get set up** if they need it. The one that catches people out is
 **audio: check that sound is actually reaching the headphones** before the match
 starts, whatever it is coming out of. A player who discovers that mid-race has
