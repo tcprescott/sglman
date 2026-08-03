@@ -13,12 +13,12 @@ the decisions and the ground rules the three plan files do not repeat.
 | # | File | What it closes | Flag? | Migration? |
 |---|---|---|---|---|
 | 1 | [1-stage-notifications.md](1-stage-notifications.md) | Assigning a stage tells nobody, and nothing reminds a runner before their broadcast match | no | yes (2 columns) |
-| 2 | [2-volunteer-hours.md](2-volunteer-hours.md) | Nothing totals a volunteer's hours against the badge-comp tiers | no (inside `VOLUNTEERS`) | **no** |
+| 2 | ~~2-volunteer-hours.md~~ | **Shipped.** `VolunteerHoursService` totals covered time against the comp tiers | no (inside `VOLUNTEERS`) | **no** |
 | 3 | [3-payouts.md](3-payouts.md) | Prize splits and Matcherino handles live in Discord threads and a private spreadsheet | **yes, new** | yes (1 model, 3 columns) |
 
-Suggested order is the table order: plan 1 is two columns and a worker, plan 2
-adds no model at all, plan 3 is the only one carrying a new flag, a leak test
-and seed rows. Nothing forces that order.
+Suggested order is the table order: plan 1 is two columns and a worker, plan 3
+is the only one carrying a new flag, a leak test and seed rows. Nothing forces
+that order.
 
 Two more files sit alongside these but are **not plans** — they record how the
 `mmr` and `wwr` seed-generator stubs were worked around by hand at SGL25 and what

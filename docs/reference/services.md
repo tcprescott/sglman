@@ -101,6 +101,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
+| `VolunteerHoursService` | [volunteer_hours.py](../../application/services/volunteer/volunteer_hours.py) | Hours served against the per-tenant comp tiers | `VOLUNTEERS` |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
@@ -783,6 +784,7 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stages. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
+| `get_volunteer_comp_tiers(default=None)` | `list[float]` | Ascending hour thresholds that earn a volunteer something (`volunteer_comp_tiers`, comma-separated). `[8, 12, 16]` when unset; a lone `0` means no tiers; a malformed value falls back to the default rather than raising. |
 | `get_tournament_hours()` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). |
 | `get_tournament_window_for_date(d)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
 | `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; Staff-only. |
@@ -1188,6 +1190,28 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthServ
 The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
 A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
+
+### volunteer_hours.py — VolunteerHoursService
+
+Totals the time a volunteer actually served, against the per-tenant comp tiers from `SystemConfigService.get_volunteer_comp_tiers()`. Read-only: no `AuditActions` entry and no `EventType`, on purpose.
+
+| Method | Returns | Description |
+|---|---|---|
+| `merged_hours(windows)` (module fn) | `float` | Hours covered by `[(start, end), …]`, counting overlap once. Touching windows (`a.end == b.start`) merge into one block; zero-length and inverted windows are dropped rather than subtracting. |
+| `for_user(user, *, start=None, end=None)` | `HoursSummary` | One volunteer's own total, the highest tier cleared, and the next one. |
+| `roster(*, start=None, end=None)` | `list[HoursSummary]` | Every opted-in volunteer plus anyone with counted hours, ordered by hours descending. |
+
+`HoursSummary` carries `user_id`, `user_name`, `hours`, `tier_cleared`, `next_tier` and the derived `hours_to_next`.
+
+Three rules decide what counts:
+
+- **Published only.** `auto_generated=False` is the single predicate — a draft is the coordinator's sketch, and `release` deletes the row rather than flagging it, so a withdrawn shift needs no predicate.
+- **Acknowledgement is not required.** Someone who turned up and ignored the DM still served the hours.
+- **Union, not sum.** A coordinator can hand-assign overlapping shifts, so 08:00–12:00 plus 10:00–14:00 is six hours, not eight.
+
+The window defaults to the tenant's event window (`get_event_window()`) rather than all time, so last year's shifts do not comp this year's badge, and its bounds are taken on the community's own clock. Shifts that straddle an edge are clipped to it. Both methods are `@requires_feature(FeatureFlag.VOLUNTEERS)`.
+
+Collaborators: `VolunteerAssignmentRepository.published_for_window`, `VolunteerProfileRepository`, `UserRepository`, `SystemConfigService`, `TimezoneService`.
 
 ### volunteer_profile_service.py — VolunteerProfileService
 

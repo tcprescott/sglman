@@ -104,6 +104,23 @@ class VolunteerAssignmentRepository:
         )
 
     @staticmethod
+    async def published_for_window(
+        start: datetime, end: datetime, user_id: Optional[int] = None,
+    ) -> List[VolunteerAssignment]:
+        """Published assignments whose shift overlaps [start, end].
+
+        ``auto_generated=False`` is the published half of the draft flip; a
+        released shift is deleted outright, so nothing else needs excluding.
+        Tenant-scoped: this runs from a page, not a worker.
+        """
+        query = scoped(VolunteerAssignment.filter(
+            auto_generated=False, shift__starts_at__lt=end, shift__ends_at__gt=start,
+        ))
+        if user_id is not None:
+            query = query.filter(user_id=user_id)
+        return await query.order_by('shift__starts_at').prefetch_related('shift', 'user')
+
+    @staticmethod
     async def delete_auto_for_window(start: datetime, end: datetime) -> int:
         """Delete draft (auto-generated) assignments whose shift overlaps the window.
 
