@@ -6,6 +6,7 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.services import SystemConfigService, get_user_from_discord_id
+from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
 from theme.notify import notify_error
@@ -30,6 +31,30 @@ def release_warning(starts_at: datetime, lead_minutes: int) -> Optional[str]:
             'will be told right away, but may not find cover.')
 
 
+def _hours(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f'{value:g}'
+
+
+def hours_message(summary) -> str:
+    """One line telling a volunteer where their hours stand.
+
+    Module-level and pure so the copy is testable without a slot context. The
+    total covers every published shift in the event window, past and upcoming,
+    counting overlapping shifts once.
+    """
+    if summary.hours <= 0:
+        if summary.next_tier is not None:
+            return (f'No shifts on the books yet. {_hours(summary.next_tier)} hours '
+                    f'gets you to the first tier.')
+        return 'No shifts on the books yet.'
+    line = f"You're down for {_hours(summary.hours)} hours this event."
+    if summary.tier_cleared is not None:
+        line += f" You've cleared {_hours(summary.tier_cleared)}."
+    if summary.next_tier is not None:
+        line += f' {_hours(summary.hours_to_next)} more reaches {_hours(summary.next_tier)}.'
+    return line
+
+
 async def my_shifts_tab() -> None:
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
@@ -37,6 +62,7 @@ async def my_shifts_tab() -> None:
         return
 
     service = VolunteerScheduleService()
+    hours_service = VolunteerHoursService()
     state = {'upcoming_only': True}
     lead_minutes = await SystemConfigService.get_volunteer_reminder_lead_minutes()
 
@@ -45,6 +71,16 @@ async def my_shifts_tab() -> None:
             ui.label('My Shifts').classes('page-title')
 
         ui.separator().classes('separator-spacing')
+
+        @ui.refreshable
+        async def hours_panel() -> None:
+            try:
+                summary = await hours_service.for_user(user)
+            except ValueError:
+                return
+            ui.label(hours_message(summary)).classes('text-body2 q-mb-sm')
+
+        await hours_panel()
 
         async def confirm_release(assignment) -> None:
             shift = assignment.shift
@@ -74,6 +110,7 @@ async def my_shifts_tab() -> None:
                         notify_error(e)
                         return
                     ui.notify('Shift released. Your coordinator has been told.', color='info')
+                    hours_panel.refresh()
                     shift_list.refresh()
 
                 ui.separator()

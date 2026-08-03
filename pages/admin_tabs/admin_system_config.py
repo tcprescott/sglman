@@ -17,12 +17,42 @@ from application.services.system_config_service import (
     KEY_MAX_CONCURRENT_PLAYERS,
     KEY_MAX_CONCURRENT_STAGES,
     KEY_STATION_FORMAT,
+    KEY_VOLUNTEER_COMP_TIERS,
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
 from application.utils.timezone import timezone_label
 from models import StationFormat
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
+
+
+def _format_hours(value: float) -> str:
+    """Render an hour threshold without a pointless ``.0``."""
+    return str(int(value)) if float(value).is_integer() else f'{value:g}'
+
+
+def _validate_comp_tiers(raw: str | None) -> str:
+    """Normalize the comma-separated tier list, or explain what is wrong.
+
+    Blank is stored blank, which the getter reads as "use the default" — the
+    admin who clears the box gets 8/12/16 back rather than nothing.
+    """
+    text = (raw or '').strip()
+    if not text:
+        return ''
+    values: list[float] = []
+    for token in text.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            value = float(token)
+        except ValueError:
+            raise ValueError('Comp tiers must be numbers of hours, separated by commas.') from None
+        if value < 0:
+            raise ValueError('Comp tiers cannot be negative.')
+        values.append(value)
+    return ', '.join(_format_hours(v) for v in sorted(set(values)))
 
 
 def _date_field(label: str, value: str):
@@ -124,6 +154,7 @@ async def admin_system_config_page() -> None:
     max_players = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_PLAYERS)
     max_stages = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_STAGES)
     reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
+    comp_tiers = await SystemConfigService.get_volunteer_comp_tiers()
     station_format = await SystemConfigService.get_station_format()
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
@@ -158,6 +189,15 @@ async def admin_system_config_page() -> None:
                 'Volunteer Reminder Lead (minutes)', value=reminder_lead, min=1, format='%d',
             ).classes('w-full')
             ui.label('How far ahead of a shift to DM volunteers. Blank uses 60 minutes.').classes('text-caption text-grey')
+
+            comp_tiers_input = ui.input(
+                'Volunteer Comp Tiers (hours)',
+                value=', '.join(_format_hours(t) for t in comp_tiers),
+            ).classes('w-full')
+            ui.label(
+                'Hour totals that earn a volunteer something, separated by commas. '
+                'Blank uses 8, 12, 16. Enter 0 if your community awards nothing by hours.'
+            ).classes('text-caption text-grey')
 
             station_format_input = ui.select(
                 options={
@@ -233,6 +273,7 @@ async def admin_system_config_page() -> None:
                 players_raw = int_str(players_input.value)
                 stages_raw = int_str(stages_input.value)
                 reminder_raw = int_str(reminder_lead_input.value)
+                tiers_raw = _validate_comp_tiers(comp_tiers_input.value)
 
                 # Build per-day tournament hours mapping
                 hours_mapping: dict[date, tuple[str, str]] = {}
@@ -247,6 +288,7 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_PLAYERS, players_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_STAGES, stages_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
+                await SystemConfigService.set_raw(KEY_VOLUNTEER_COMP_TIERS, tiers_raw, actor)
                 await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
             except ValueError as e:

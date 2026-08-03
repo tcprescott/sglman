@@ -6,7 +6,7 @@ Typed accessors over the SystemConfiguration key/value table.
 
 import json
 from datetime import date, time
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -19,6 +19,7 @@ KEY_EVENT_END_DATE = 'event_end_date'
 KEY_MAX_CONCURRENT_PLAYERS = 'max_concurrent_players'
 KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
 KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
+KEY_VOLUNTEER_COMP_TIERS = 'volunteer_comp_tiers'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 KEY_STATION_FORMAT = 'station_format'
 
@@ -136,6 +137,36 @@ class SystemConfigService:
     async def get_volunteer_reminder_lead_minutes(default: int = 60) -> int:
         value = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
         return value if value is not None and value > 0 else default
+
+    @staticmethod
+    async def get_volunteer_comp_tiers(
+        default: Optional[List[float]] = None,
+    ) -> List[float]:
+        """Hour thresholds at which a volunteer earns something, ascending.
+
+        SGL comps a badge at 8 hours with more at 12 and 16, which is the
+        default when the key was never set. Stored as a comma-separated list of
+        hours; a single ``0`` means the community awards nothing by hours.
+
+        A malformed value falls back to the default rather than raising — a
+        typo in this box must not take the volunteer roster down.
+        """
+        fallback = [8.0, 12.0, 16.0] if default is None else sorted(default)
+        raw = await SystemConfigService.get_raw(KEY_VOLUNTEER_COMP_TIERS)
+        if raw is None or not raw.strip():
+            return fallback
+        tiers: set[float] = set()
+        for token in raw.split(','):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                value = float(token)
+            except ValueError:
+                return fallback
+            if value > 0:
+                tiers.add(value)
+        return sorted(tiers)
 
     @staticmethod
     def _parse_hours_blob(data: Dict) -> Dict[date, Tuple[time, time]]:

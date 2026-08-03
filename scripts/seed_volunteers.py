@@ -200,6 +200,39 @@ async def seed_volunteers_for_tenant(
             defaults={"assigned_by": staff},
         )
 
+    # Hour totals: one volunteer over every tier, one exactly on 8, one short of
+    # it, so the Vol. Roster chip renders all three states on a fresh seed.
+    # proctor_user's single Race Proctor block above is the below-8 case.
+    hours_specs = [
+        ("player_two", "Admin Desk", ["Shift 1", "Shift 2", "Shift 3", "Shift 4"]),
+        ("player_one", "Check-in Desk", ["Shift 1", "Shift 2"]),
+    ]
+    for uname, pos_name, labels in hours_specs:
+        for label in labels:
+            shift = shift_index.get((first_day, f"{pos_name}|{label}"))
+            if shift:
+                await VolunteerAssignment.get_or_create(
+                    shift=shift, user=users[uname], tenant=tenant,
+                    defaults={"assigned_by": staff},
+                )
+
+    # A deliberately overlapping pair, so the union fold is visible in the app
+    # and not only in a unit test: the staggered Broadcast Tech blocks run
+    # 08:00-12:00 and 10:00-14:00, which is six hours served, not eight.
+    overlap_starts = [
+        parse_local_datetime(first_day, "08:00"),
+        parse_local_datetime(first_day, "10:00"),
+    ]
+    for starts_at in overlap_starts:
+        shift = await VolunteerShift.get_or_none(
+            position=broadcast_tech, starts_at=starts_at, tenant=tenant,
+        )
+        if shift:
+            await VolunteerAssignment.get_or_create(
+                shift=shift, user=users[FULL_RACERS[1]], tenant=tenant,
+                defaults={"assigned_by": staff},
+            )
+
     second_day = event_days[1].isoformat()
     draft_shift = shift_index.get((second_day, "Check-in Desk|Shift 1"))
     if draft_shift:

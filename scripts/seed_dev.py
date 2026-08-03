@@ -370,6 +370,7 @@ async def seed_for_tenant(
             ("max_concurrent_players", "12"),
             ("max_concurrent_stages", "3"),
             ("volunteer_reminder_lead_minutes", "90"),
+            ("volunteer_comp_tiers", "8, 12, 16"),
             ("tournament_hours_by_date", json.dumps(venue_hours, sort_keys=True)),
             # Tenant A's stations are the numbered pool seeded below, so it
             # enforces numeric labels; tenant B has no station pool and keeps the

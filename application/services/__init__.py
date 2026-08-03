@@ -88,9 +88,11 @@ from .twitch_service import TwitchService
 from .user_service import UserService
 from .volunteer import (
     DraftPolicy,
+    HoursSummary,
     VolunteerAutoscheduleService,
     VolunteerAvailabilityService,
     VolunteerExportService,
+    VolunteerHoursService,
     VolunteerPositionService,
     VolunteerProfileService,
     VolunteerQualificationService,
@@ -123,6 +125,7 @@ __all__ = [
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
+    'HoursSummary',
     'IdentityLinkProvider',
     'IdentityLinkService',
     'MatchDisplayService',
@@ -167,6 +170,7 @@ __all__ = [
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
+    'VolunteerHoursService',
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerQualificationService',
