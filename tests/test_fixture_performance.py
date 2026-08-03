@@ -1,20 +1,26 @@
 """Guards against re-introducing a per-test rebuild of an expensive fixture.
 
-The suite's wall time is dominated by fixture *setup*, not by assertions: before
-commit f0ceb4b, 84% of the run (166s of 197s) was setup, and the single biggest
-cause was ~400 API tests each rebuilding an identical, immutable FastAPI app.
-Test *count* is close to free by comparison — see docs/development.md >
-"Keeping it fast".
+The suite's wall time is dominated by fixture *setup*, not by assertions — test
+*count* is close to free by comparison. See docs/development.md > "Keeping it
+fast" for the numbers.
 
-Two shapes are therefore built once per process and shared:
+Five things are therefore built once per process and shared, each of them once
+the most expensive item in the run:
 
 * ``build_api_app()`` (``tests/api_helpers.py``) — mounting the API router costs
   ~200ms, because ``include_router`` resolves each route's dependency graph and
   builds a Pydantic response model per endpoint. Exposed as the ``app`` fixture
   in ``tests/conftest.py``.
 * ``_schema_sql()`` (``tests/conftest.py``) — the CREATE TABLE script, rendered
-  once and replayed by the ``db`` fixture instead of re-derived from model
-  metadata on all ~1450 DB-backed setups.
+  once and replayed instead of re-derived from model metadata.
+* **The engine** (``_bootstrap_engine()``) — ``Tortoise.init()`` spends most of
+  its ~15ms in ``_build_initial_querysets()``, rebuilding a filter map for all
+  ~70 models. Per test that was 60s of a 190s profiled run. Now once per worker,
+  with each test restoring a pristine **template** database instead.
+* **The MCP catalogue** (``tests/mcp/conftest.py``) — ``build_server()`` derives
+  a JSON schema per tool and costs ~230ms; ~106 sessions rebuilt it.
+* **The dev seed** (the ``seeded_db`` fixture) — ``seed_all()`` costs ~1.5s and
+  eight tests want its result, not its execution.
 
 The checks here are **structural, not timing-based** — a wall-clock budget is
 flaky on shared CI runners, and a flaky guard gets deleted. Two kinds: identity
@@ -36,6 +42,11 @@ TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
 #: The one sanctioned builder of the full API app, and the conftest that shares it.
 APP_BUILDER_FILES = {'api_helpers.py', 'conftest.py'}
+
+#: Where each shared-once primitive is allowed to be built, by path under tests/.
+ENGINE_INIT_FILES = {'conftest.py'}
+MCP_BUILDER_FILES = {'mcp/conftest.py'}
+SEED_CALLER_FILES = {'conftest.py', 'test_seed_coverage.py'}
 
 USE_SHARED_APP = (
     'Use the shared `app` fixture in tests/conftest.py (it returns the cached '
@@ -104,6 +115,17 @@ def _is_bare_app_alias(node: ast.AST) -> bool:
     )
 
 
+def _called_name(call: ast.Call) -> str:
+    """``f()`` -> 'f'; ``a.b.f()`` -> 'a.b.f' (best effort, dotted tail only)."""
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        prefix = func.value.id if isinstance(func.value, ast.Name) else ''
+        return f'{prefix}.{func.attr}' if prefix else func.attr
+    return ''
+
+
 @functools.cache
 def _scan() -> dict:
     """One walk over the parsed tree, collecting every location the checks need.
@@ -111,10 +133,14 @@ def _scan() -> dict:
     Kept to a single pass so this module stays cheap — the whole point of the
     guard is that the suite is fast.
     """
-    found = {'app_fixtures': [], 'router_mounts': [], 'schema_calls': [], 'app_aliases': []}
+    found = {
+        'app_fixtures': [], 'router_mounts': [], 'schema_calls': [], 'app_aliases': [],
+        'engine_inits': [], 'mcp_builds': [], 'seed_calls': [],
+    }
     for path, tree in _parsed_test_modules():
         is_builder = path.name in APP_BUILDER_FILES
         where = _rel(path)
+        under_tests = path.relative_to(TESTS_DIR).as_posix()
         for node in ast.walk(tree):
             if _is_fixture(node) and not is_builder:
                 if node.name == 'app':
@@ -127,6 +153,13 @@ def _scan() -> dict:
                 if path.name != 'conftest.py' and isinstance(node.func, ast.Attribute) \
                         and node.func.attr == 'generate_schemas':
                     found['schema_calls'].append(f'{where}:{node.lineno}')
+                name = _called_name(node)
+                if name == 'Tortoise.init' and under_tests not in ENGINE_INIT_FILES:
+                    found['engine_inits'].append(f'{where}:{node.lineno}')
+                elif name == 'build_server' and under_tests not in MCP_BUILDER_FILES:
+                    found['mcp_builds'].append(f'{where}:{node.lineno}')
+                elif name == 'seed_all' and under_tests not in SEED_CALLER_FILES:
+                    found['seed_calls'].append(f'{where}:{node.lineno}')
     return {key: tuple(value) for key, value in found.items()}
 
 
@@ -160,6 +193,48 @@ class TestCachesAreIntact:
         assert _schema_sql(dialect) is _schema_sql(dialect), (
             '_schema_sql() re-rendered the schema instead of returning the cached '
             'script. Restore the @functools.cache in tests/conftest.py.'
+        )
+
+    async def test_the_engine_is_built_once_and_the_database_is_a_template(self, db):
+        """``Tortoise.init()`` is a per-process cost, not a per-test one."""
+        from tortoise import connections
+
+        from tests import conftest
+
+        assert conftest._engine_ready, (
+            'the `db` fixture is initialising Tortoise per test again. Most of '
+            'init() is _build_initial_querysets() rebuilding a filter map for all '
+            '~70 models — 60s of a 190s profiled run when it ran per test.'
+        )
+        if conftest.ON_POSTGRES:
+            return
+        assert connections.get('default')._connection is conftest._shared_sqlite, (
+            'this test is talking to its own SQLite connection rather than the '
+            'shared one, so it opened a second, empty in-memory database.'
+        )
+        assert conftest.BASELINE_TEMPLATE in conftest._templates, (
+            'the baseline template is gone, so each test is rebuilding the schema '
+            'instead of restoring a snapshot of it.'
+        )
+
+    def test_the_mcp_catalogue_is_cached(self):
+        """The MCP tool catalogue is immutable; only its transport is single-use."""
+        import mcpserver
+        from tests.mcp import conftest as mcp_conftest
+
+        assert mcpserver.build_server is mcp_conftest._cached_build_server, (
+            'mcpserver.mount() is building a fresh MCP server per session again. '
+            'Deriving a JSON schema for all 77 tools costs ~230ms, and the ~106 '
+            'sessions in the suite paid it every time (~24s a run).'
+        )
+        assert hasattr(mcp_conftest._catalogue, 'cache_info'), (
+            '_catalogue() lost its @functools.cache (tests/mcp/conftest.py).'
+        )
+        first, second = mcp_conftest._cached_build_server(), mcp_conftest._cached_build_server()
+        assert first is second, 'the cached MCP server is being rebuilt per call'
+        assert first._session_manager is not None, (
+            'the cached server was handed back without a session manager; '
+            'streamable_http_app() has to run again after it is cleared.'
         )
 
 
@@ -198,6 +273,33 @@ class TestNoPerTestRebuilds:
               'different name — request `app` instead.'
         )
 
+    def test_no_test_initialises_tortoise(self):
+        offenders = _scan()['engine_inits']
+        assert not offenders, (
+            'A test calls Tortoise.init(): ' + ', '.join(offenders)
+            + '. Most of init() is rebuilding a filter map for every model, which '
+              'is why the `db` fixture in tests/conftest.py does it once per worker '
+              'and restores a template database per test. Depend on `db`.'
+        )
+
+    def test_no_test_builds_its_own_mcp_server(self):
+        offenders = _scan()['mcp_builds']
+        assert not offenders, (
+            'A test builds its own MCP server: ' + ', '.join(offenders)
+            + '. Registering the 77 tools costs ~230ms and the catalogue is '
+              'immutable. Use mcp_session() from tests/mcp/conftest.py, which '
+              'mounts the cached server with a fresh transport.'
+        )
+
+    def test_no_test_runs_the_dev_seed_inline(self):
+        offenders = _scan()['seed_calls']
+        assert not offenders, (
+            'A test calls seed_all() directly: ' + ', '.join(offenders)
+            + '. It costs ~1.5s. Request the `seeded_db` fixture from '
+              'tests/conftest.py, which snapshots the seeded database once per '
+              'worker and restores it after that.'
+        )
+
 
 def test_ast_scan_actually_sees_the_test_tree():
     """A broken scan would make every check above pass vacuously."""
@@ -206,7 +308,16 @@ def test_ast_scan_actually_sees_the_test_tree():
     assert any(path.name == 'conftest.py' for path, _ in parsed)
 
 
-@pytest.mark.parametrize('name', ['app', 'db'])
+def test_the_ast_scan_can_still_see_the_shapes_it_forbids():
+    """Every rule above passes vacuously if the matcher stopped matching."""
+    tree = ast.parse(
+        'Tortoise.init(db_url=x)\nbuild_server()\nawait seed_all()\n'
+    )
+    names = {_called_name(n) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    assert {'Tortoise.init', 'build_server', 'seed_all'} <= names, names
+
+
+@pytest.mark.parametrize('name', ['app', 'db', 'seeded_db'])
 def test_shared_fixtures_still_live_in_conftest(name):
     """The failure messages above steer people here; fail loudly if one is renamed."""
     conftest = next(

@@ -115,10 +115,7 @@ async def test_status_for_reads_the_named_tenant_not_the_ambient_one(db):
     assert steps_a['tournament'].done is True
 
 
-async def test_the_fledgling_seed_tenant_is_not_setup_complete(db):
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
+async def test_the_fledgling_seed_tenant_is_not_setup_complete(seeded_db):
     fledgling = await Tenant.get(slug='fledgling')
     steps = _by_key(await TenantSetupService.status_for(fledgling.id))
 

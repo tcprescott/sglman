@@ -3,9 +3,8 @@
 PreToolUse hook: block re-introduction of a per-test rebuild of an expensive,
 immutable test fixture.
 
-The suite's wall time is dominated by fixture setup, not assertions: before
-commit f0ceb4b, 84% of the run (166s of 197s) was setup. Two shapes caused it,
-both now built once per process and shared:
+The suite's wall time is dominated by fixture setup, not assertions. Five shapes
+have caused it in turn, all now built once per process and shared:
 
 * a local ``FastAPI()`` with ``api.router`` mounted on it — ~200ms per test,
   because ``include_router`` resolves each route's dependency graph and builds a
@@ -15,8 +14,15 @@ both now built once per process and shared:
 * ``Tortoise.generate_schemas()`` — re-derives the same CREATE TABLE script from
   model metadata on every DB-backed setup. Now ``_schema_sql()`` in
   ``tests/conftest.py``, rendered once and replayed.
+* ``Tortoise.init()`` — ~15ms of it is ``_build_initial_querysets()`` rebuilding
+  a filter map for all ~70 models; per test that was 60s of a 190s profiled run.
+  Now once per worker, with each test restoring a template database.
+* ``build_server()`` — ~230ms to derive a JSON schema per MCP tool, times the
+  ~106 sessions in the suite. Now cached in ``tests/mcp/conftest.py``.
+* ``seed_all()`` — ~1.5s per call. Now the ``seeded_db`` fixture, which
+  snapshots the seeded database once per worker.
 
-Both rules count **net-new** occurrences (the idiom from
+Every rule counts **net-new** occurrences (the idiom from
 ``check_dry_regressions.py``): the proposed content is compared against the
 current on-disk content and the write is blocked only when the number of matches
 *increases*, so rewriting or editing around an existing occurrence never blocks.
@@ -55,6 +61,13 @@ SELF = frozenset({"test_fixture_performance.py"})
 
 def in_tests(norm: str, *, allow: frozenset = frozenset()) -> bool:
     return "/tests/" in norm and os.path.basename(norm) not in (allow | SELF)
+
+
+def in_tests_except(norm: str, *allowed_suffixes: str) -> bool:
+    """Like ``in_tests`` but allows by path tail, so one conftest can be named."""
+    if "/tests/" not in norm or os.path.basename(norm) in SELF:
+        return False
+    return not any(norm.endswith(f"/tests/{suffix}") for suffix in allowed_suffixes)
 
 
 @dataclass
@@ -96,6 +109,37 @@ RULES = [
         "  tests/conftest.py already renders it once via the cached _schema_sql()\n"
         "  and replays the script — depend on `db` instead of initialising your own\n"
         "  schema.",
+    ),
+    Rule(
+        "test-tortoise-init",
+        lambda n: in_tests(n, allow=frozenset({"conftest.py"})),
+        re.compile(r"\bTortoise\.init\s*\("),
+        "Tortoise.init() in a test.\n"
+        "  Most of it is _build_initial_querysets() rebuilding a filter map for all\n"
+        "  ~70 models — 60s of a 190s profiled run when it ran per test. The `db`\n"
+        "  fixture in tests/conftest.py now does it once per worker and gives each\n"
+        "  test a pristine database by restoring a template snapshot. Depend on `db`.",
+    ),
+    Rule(
+        "test-mcp-build-server",
+        lambda n: in_tests_except(n, "mcp/conftest.py"),
+        re.compile(r"\bbuild_server\s*\("),
+        "A test is building its own MCP server.\n"
+        "  Registering the 77 tools derives a JSON schema per tool and costs ~230ms;\n"
+        "  the ~106 MCP sessions in the suite paid it every time (~24s a run). The\n"
+        "  catalogue is immutable — only the transport is single-use. Use\n"
+        "  mcp_session() from tests/mcp/conftest.py, which mounts the cached server\n"
+        "  with a freshly minted session manager.",
+    ),
+    Rule(
+        "test-inline-dev-seed",
+        lambda n: in_tests_except(n, "conftest.py", "test_seed_coverage.py"),
+        re.compile(r"\bseed_all\s*\("),
+        "A test runs the dev seed inline.\n"
+        "  seed_all() costs ~1.5s. Request the `seeded_db` fixture from\n"
+        "  tests/conftest.py instead: it seeds once per worker, snapshots the result\n"
+        "  and restores it for every later test. Call seed_all() directly only when\n"
+        "  the seed *running* is what is under test (idempotency, ordering).",
     ),
 ]
 

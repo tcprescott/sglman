@@ -56,11 +56,7 @@ def _enum_fields() -> list[tuple[type[Model], str, type]]:
     return found
 
 
-async def test_seed_covers_every_tenant_scoped_model(db):
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
-
+async def test_seed_covers_every_tenant_scoped_model(seeded_db):
     missing = [
         m.__name__
         for m in _scoped_models()
@@ -92,17 +88,13 @@ async def test_seed_is_idempotent_for_scoped_models(db):
     assert not grew, f"re-running seed_all() duplicated rows: {grew}"
 
 
-async def test_seed_covers_every_enum_value(db):
+async def test_seed_covers_every_enum_value(seeded_db):
     """A state the seed never creates is a state nobody can re-check.
 
     Enum values are the states the schema itself names, so they are the one set
     of states that can be checked mechanically — which is why the bar is drawn
     here rather than at "states we happened to think of".
     """
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
-
     gaps: dict[str, list[str]] = {}
     for model, field, enum_type in _enum_fields():
         key = f'{model.__name__}.{field}'
@@ -148,7 +140,7 @@ def test_every_fixture_username_is_unique():
     assert not duplicates, f"duplicate fixture usernames: {sorted(duplicates)}"
 
 
-async def test_every_per_tenant_role_has_a_single_capability_holder(db):
+async def test_every_per_tenant_role_has_a_single_capability_holder(seeded_db):
     """Each role needs a holder who holds *nothing else*.
 
     ``staff_user`` satisfies every predicate in the admin area, so a surface that
@@ -156,10 +148,6 @@ async def test_every_per_tenant_role_has_a_single_capability_holder(db):
     dev until the delegate it was written for logs in. A role whose only holders
     also hold something else cannot catch that.
     """
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
-
     held: dict[int, set[Role]] = {}
     for grant in await UserRole.filter(tenant_id=DEFAULT_TEST_TENANT_ID):
         held.setdefault(grant.user_id, set()).add(Role(grant.role))
@@ -176,17 +164,13 @@ async def test_every_per_tenant_role_has_a_single_capability_holder(db):
     )
 
 
-async def test_the_outsider_fixture_belongs_to_no_community(db):
+async def test_the_outsider_fixture_belongs_to_no_community(seeded_db):
     """The fixture defined by an absence still has to have one.
 
     ``outsider`` is what makes the membership gate's join page reachable in dev.
     It has been quietly deleted once already, by an id collision, and nothing
     failed.
     """
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
-
     outsider = await User.get_or_none(discord_id=fixture_discord_id('outsider'))
     assert outsider is not None, "the 'outsider' fixture is missing entirely"
     assert outsider.username == 'outsider', (

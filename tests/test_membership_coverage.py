@@ -153,13 +153,10 @@ async def test_the_backfill_grants_only_in_the_tenant_that_participated(db):
     assert await TenantMembership.filter(user=person, tenant=a).count() == 0
 
 
-async def test_the_seeded_database_has_no_gaps(db):
+async def test_the_seeded_database_has_no_gaps(seeded_db):
     """The dev fixtures must not themselves produce a lockout.
 
     They did: the SpeedGaming placeholder was put on a community's schedule
     without being made a member of it.
     """
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
     assert await grantable_gaps() == []
