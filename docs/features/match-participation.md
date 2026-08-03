@@ -110,6 +110,21 @@ itself is web-only — there is no Watch button on Discord, only Unwatch.
 Someone who is both a player and a watcher gets one DM per event, not two; dedup
 happens in `MatchScheduleService` before the send loop.
 
+## Stage calls
+
+Assigning a stage tells the people it concerns rather than leaving them to spot
+it on the schedule board. `MatchService.assign_stage` DMs the players, the
+approved crew and the watchers; a pending crew signup gets nothing, because
+nobody has given that person the job. Clearing the stage sends its own
+retraction, so a stage call is never left standing after it stops being true.
+
+A second DM lands `Tournament.stage_reminder_minutes` before the match (default
+30, `0` to send none) from `application/services/match/stage_reminder.py`. Both
+DMs carry a **View your match** button onto `/home/player?match=<id>` — the
+player's own board, narrowed to that match, because most of the recipients
+cannot open the admin schedule at all. Detail:
+[discord.md → Stage calls](discord.md#stage-calls).
+
 ## Check-in and the station pool
 
 Check-in is **per match**, not per player: a proctor checks a match in once both

@@ -99,6 +99,35 @@ class MatchRepository:
         )).prefetch_related('tournament', 'players', 'players__user').order_by('scheduled_at')
 
     @staticmethod
+    async def due_for_stage_reminder(
+        now: datetime, window_end: datetime,
+    ) -> List[Match]:
+        """Matches whose stage reminder may be due, across every tenant.
+
+        Deliberately unscoped: the worker scans all tenants in one pass and
+        re-checks each match against its own tournament's lead. Callers outside
+        the worker want the scoped reads.
+
+        There is no cancellation column to filter on — cancelling a match
+        deletes the row — so an unfinished match with a stage and a future time
+        is live by construction.
+        """
+        return await (
+            Match.filter(
+                stage_id__isnull=False,
+                scheduled_at__gte=now,
+                scheduled_at__lte=window_end,
+                stage_reminder_sent_at__isnull=True,
+                finished_at__isnull=True,
+            )
+            .prefetch_related(
+                'tournament', 'stage', 'players__user',
+                'commentators__user', 'trackers__user', 'watchers__user',
+            )
+            .order_by('scheduled_at')
+        )
+
+    @staticmethod
     async def get_all(
         *,
         tournament_ids: Optional[List[int]] = None,

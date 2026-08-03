@@ -563,7 +563,18 @@ class MatchService(
         stage_id: Optional[int],
         actor: Optional[User] = None,
     ) -> Match:
-        """Assign or clear the Stage for a match. Stream Managers globally; TAs within their tournaments."""
+        """Assign or clear the Stage for a match. Stream Managers globally; TAs within their tournaments.
+
+        Both branches DM the players and approved crew. Until this fanned out,
+        the only way to learn you were on stage was to be looking at the
+        schedule board at the right moment, or for somebody to walk over and
+        say so.
+
+        Clearing ``stage_reminder_sent_at`` on every change is what re-arms the
+        pre-match reminder: moving a match from one stage to another has to
+        produce a second reminder naming the new one, and a stamp that survived
+        the change would suppress it.
+        """
         match = await self._require_match(match_id)
 
         await AuthService.ensure(
@@ -572,7 +583,13 @@ class MatchService(
         )
         await StageService().require_in_tenant(stage_id)
 
-        await self.repository.update(match, stage_id=stage_id)
+        await self.repository.update(match, stage_id=stage_id, stage_reminder_sent_at=None)
+
+        # Enqueued, never awaited: this runs from a table-cell handler on the
+        # schedule board, where a slow Discord call blocks the shared loop.
+        discord_queue.enqueue(
+            self.match_schedule_service.notify_stage_changed(match)
+        )
 
         await self.audit_service.write_and_publish(
             actor,

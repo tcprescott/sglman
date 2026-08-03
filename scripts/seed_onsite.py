@@ -68,6 +68,9 @@ async def seed_onsite_for_tenant(
             # tournament that exercises the non-default side of it.
             "required_commentators": 2,
             "required_trackers": 0,
+            # A non-default stage reminder lead, so the worker's per-tournament
+            # re-check is exercised rather than the 30-minute default.
+            "stage_reminder_minutes": 45,
             "staff_administered": False,
             **_ONSITE_META,
             # Per-tournament "tournament days" override: its own event window
@@ -88,6 +91,10 @@ async def seed_onsite_for_tenant(
     if (onsite.required_commentators, onsite.required_trackers) == (1, 1):
         onsite.required_commentators = 2
         onsite.required_trackers = 0
+        await onsite.save()
+    # Same reasoning for the stage reminder lead, which also defaults NOT NULL.
+    if onsite.stage_reminder_minutes == 30:
+        onsite.stage_reminder_minutes = 45
         await onsite.save()
     await onsite.admins.add(staff)
     for p in (players[0], players[1]):
@@ -150,6 +157,9 @@ async def seed_onsite_for_tenant(
             match=checked_in, user=commentator, tenant=tenant,
             defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
         )
+    # Scheduled, on a stage, and inside this tournament's 45-minute lead — the
+    # row the stage reminder worker has to find on a freshly seeded database.
+    await make_match("On-Site Stage Call", 0.5, stage=stage3)
     await make_match("On-Site In Progress", -1, seated=True, started=True, stations=('4', '8'), stage=stage3)
     # Recorded but not yet confirmed — the admin's review queue.
     await make_match(

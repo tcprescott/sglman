@@ -102,6 +102,7 @@ def create() -> None:
         request: Request = None,
         schedule: int | None = None,
         reschedule: int | None = None,
+        match: int | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
@@ -158,9 +159,12 @@ def create() -> None:
             # lands on the date/time picker rather than on a page about it.
             # `reschedule` is a match id doing the same job for the declined
             # reschedule DM, whose next step is asking again with a new time.
+            # `match` narrows the board to one match, for the stage DMs — the
+            # player-side equivalent of `/admin/schedule?match_id=`.
             {'label': 'Player', 'icon': 'videogame_asset',
              'content': (render_player_dashboard, (),
-                         {'schedule': schedule, 'reschedule': reschedule})},
+                         {'schedule': schedule, 'reschedule': reschedule,
+                          'match': match})},
         ]
         if FeatureFlag.BRACKETS in live:
             # Spectator-facing, so it sits with the other read-only tabs and is

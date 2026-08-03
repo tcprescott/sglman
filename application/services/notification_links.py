@@ -37,6 +37,7 @@ from application.utils.app_links import (
     admin_reschedule_request_url,
     admin_url,
     home_url,
+    player_match_url,
     player_reschedule_url,
     player_schedule_url,
 )
@@ -113,6 +114,18 @@ async def player_reschedule(
     move is a different time, so the button opens the form that takes one.
     """
     return await link_for(label, player_reschedule_url(match_id))
+
+
+async def player_match(
+    match_id: int, *, label: str = 'View your match',
+) -> Optional[DMLink]:
+    """"View your match" — the Player tab showing this one match.
+
+    The stage DMs' button. :func:`admin_match` points at the same match on the
+    admin board, which most of these recipients cannot open, so a stage call
+    sent there would be the third failure this module's docstring lists.
+    """
+    return await link_for(label, player_match_url(match_id))
 
 
 async def player_matches() -> Optional[DMLink]:

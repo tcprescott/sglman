@@ -622,6 +622,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `racetime_auto_create_rooms` | `BooleanField` | default `False` | Opt-in: auto-open a race room per scheduled match |
 | `room_open_minutes_before` | `IntField` | default `30` | Lead time before `scheduled_at` to open the room |
 | `require_racetime_link` | `BooleanField` | default `False` | Require players to have a linked racetime identity |
+| `stage_reminder_minutes` | `IntField` | default `30` | How long before a match to DM its players and approved crew which stage they are on. Deliberately **not** `room_open_minutes_before`, which governs racetime room creation; `0` sends no reminder. Read by `application/services/match/stage_reminder.py` |
 | `racetime_default_goal` | `CharField(255)` | null | Default racetime goal for opened rooms |
 | `discord_events_enabled` | `BooleanField` | default `False` | Opt-in: mirror this tournament's scheduled matches into the tenant guild's Discord Scheduled Events |
 | `discord_event_duration_minutes` | `IntField` | default `60` | Sets each mirrored event's end time |
@@ -683,6 +684,7 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `confirmed_at` | `DatetimeField` | null | Post-finish results confirmation |
 | `comment` | `TextField` | null | |
 | `needs_review` | `BooleanField` | default `False` | The proctor's dispute flag: "an admin should look at this before confirming". Just a flag — there is no note field; what happened is a conversation, not a textarea filled in between matches. Not a state either: the match stays `Finished`. **Confirming clears it** (`confirm_match`), as does `MatchService.clear_review` |
+| `stage_reminder_sent_at` | `DatetimeField` | null | Stamped by the stage reminder worker *before* it sends, so a delivery failure or restart cannot re-fire. `MatchService.assign_stage` nulls it on every stage change, which re-arms the reminder for the stage the match ended up on |
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
 | `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |

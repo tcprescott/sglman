@@ -199,6 +199,7 @@ class TournamentService(TournamentSignupMixin):
         race_room_profile_id: Optional[int] = None,
         racetime_auto_create_rooms: bool = False,
         room_open_minutes_before: int = 30,
+        stage_reminder_minutes: int = 30,
         require_racetime_link: bool = False,
         racetime_default_goal: Optional[str] = None,
         event_start_date: Any = None,
@@ -257,6 +258,7 @@ class TournamentService(TournamentSignupMixin):
             race_room_profile_id=race_room_profile_id,
             racetime_auto_create_rooms=racetime_auto_create_rooms,
             room_open_minutes_before=room_open_minutes_before,
+            stage_reminder_minutes=stage_reminder_minutes,
             require_racetime_link=require_racetime_link,
             racetime_default_goal=(racetime_default_goal.strip() if racetime_default_goal else None),
             event_start_date=event_start_date,
@@ -299,6 +301,7 @@ class TournamentService(TournamentSignupMixin):
         race_room_profile_id: Any = _UNSET,
         racetime_auto_create_rooms: Optional[bool] = None,
         room_open_minutes_before: Optional[int] = None,
+        stage_reminder_minutes: Optional[int] = None,
         require_racetime_link: Optional[bool] = None,
         racetime_default_goal: Any = _UNSET,
         event_start_date: Any = _UNSET,
@@ -370,6 +373,8 @@ class TournamentService(TournamentSignupMixin):
             update_data['racetime_auto_create_rooms'] = racetime_auto_create_rooms
         if room_open_minutes_before is not None:
             update_data['room_open_minutes_before'] = room_open_minutes_before
+        if stage_reminder_minutes is not None:
+            update_data['stage_reminder_minutes'] = stage_reminder_minutes
         if require_racetime_link is not None:
             update_data['require_racetime_link'] = require_racetime_link
         if racetime_default_goal is not _UNSET:

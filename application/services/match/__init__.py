@@ -7,8 +7,12 @@ formatting for the tables, the derived status vocabulary, the SpeedGaming field
 guard, the settled-bracket-result guard, the bracket-run scheduling guard,
 player-initiated requests, cancellation, the dispute flag, station assignment
 and the random seating draw, watchers, and time suggestion.
+
+``stage_reminder`` is the background loop that DMs a stage match's players and
+approved crew shortly before it starts; ``main.py`` starts and stops it.
 """
 
+from application.services.match import stage_reminder
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
@@ -52,4 +56,5 @@ __all__ = [
     'assert_player_requests_allowed',
     'assert_sg_fields_unchanged',
     'resolve_matchup',
+    'stage_reminder',
 ]

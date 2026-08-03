@@ -50,6 +50,12 @@ class Tournament(Model):
     racetime_auto_create_rooms = fields.BooleanField(default=False)
     room_open_minutes_before = fields.IntField(default=30)
     require_racetime_link = fields.BooleanField(default=False)
+    # How long before a scheduled match to remind its players and approved crew
+    # which stage they are on. Deliberately separate from
+    # ``room_open_minutes_before`` above, which governs racetime room creation:
+    # the two answer different questions and a community will want different
+    # numbers for them. Zero disables the reminder.
+    stage_reminder_minutes = fields.IntField(default=30)
     racetime_default_goal = fields.CharField(max_length=255, null=True)
     # Discord Scheduled Events mirror (PR 8). Per-tournament opt-in: when enabled,
     # the reconciler worker mirrors this tournament's scheduled matches into the

@@ -259,6 +259,29 @@ class TournamentDialog:
                             min=0, max=20,
                         ).props('inputmode=numeric')
 
+                    # Sits with the stream crew rather than under Racetime, where
+                    # the other "minutes before" number lives: that whole block is
+                    # hidden from communities with no racetime bot, and a stage
+                    # call has nothing to do with race rooms.
+                    ui.separator()
+                    ui.label('Stage reminder').classes('text-bold')
+                    ui.label(
+                        'Assigning a stage DMs the players and approved crew straight '
+                        'away. This is how long before the match a second DM reminds '
+                        'them which stage to walk to. Set it to 0 to send no reminder. '
+                        'Nothing to do with Open Room under Racetime, which decides '
+                        'when a race room is created.'
+                    ).classes('text-caption text-grey')
+                    with ui.row().classes('gap-2'):
+                        stage_reminder_input = ui.number(
+                            'Remind about the stage (min before)',
+                            value=(
+                                self.tournament.stage_reminder_minutes
+                                if self.tournament else 30
+                            ),
+                            min=0, max=1440,
+                        ).props('inputmode=numeric')
+
                 with ui.expansion(
                     'Seeds & randomizer', icon='casino', value=sections_open,
                 ).classes('w-full').props('dense'):
@@ -504,6 +527,7 @@ class TournamentDialog:
                                 team_size=team_size_input.value,
                                 required_commentators=required_commentators_input.value,
                                 required_trackers=required_trackers_input.value,
+                                stage_reminder_minutes=int(stage_reminder_input.value or 0),
                                 staff_administered=staff_administered_checkbox.value,
                                 allow_player_match_requests=allow_requests_checkbox.value,
                                 preset_id=(preset_input.value or None),
@@ -532,6 +556,7 @@ class TournamentDialog:
                             team_size=team_size_input.value,
                             required_commentators=required_commentators_input.value,
                             required_trackers=required_trackers_input.value,
+                            stage_reminder_minutes=int(stage_reminder_input.value or 0),
                             staff_administered=staff_administered_checkbox.value,
                             allow_player_match_requests=allow_requests_checkbox.value,
                             preset_id=(preset_input.value or None),

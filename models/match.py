@@ -39,6 +39,9 @@ class Match(Model):
     # proctor raising it is standing in the room, and typing up what happened is
     # the admin's conversation to have, not a textarea to fill in mid-event.
     needs_review = fields.BooleanField(default=False)
+    # Set when the stage reminder for this match has been sent, so the worker
+    # fires once. Cleared whenever the stage changes, which re-arms it.
+    stage_reminder_sent_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

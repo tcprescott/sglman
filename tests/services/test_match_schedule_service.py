@@ -598,7 +598,7 @@ class TestNotifyMatchParticipants:
              self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
-        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None)
+        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None, link=None)
         real_notify_service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
 
     async def test_watcher_only_gets_unwatch_button_dm(self, real_notify_service):
@@ -612,7 +612,7 @@ class TestNotifyMatchParticipants:
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
-        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None)
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id, embed=None, link=None)
 
     async def test_player_who_is_also_watcher_gets_unwatch_button(self, real_notify_service):
         match = MockMatch()
@@ -627,7 +627,7 @@ class TestNotifyMatchParticipants:
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
-        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id, embed=None)
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id, embed=None, link=None)
 
     async def test_dm_notifications_opt_out_skips_user(self, real_notify_service):
         match = MockMatch()

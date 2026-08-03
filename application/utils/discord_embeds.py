@@ -31,6 +31,7 @@ COLOR_SEED = 0x8250DF         # purple
 COLOR_VOLUNTEER = 0x0E7470    # teal
 COLOR_JOIN_REQUEST = 0x5865F2  # blurple — informational, like a new assignment
 COLOR_CANCELLED = 0x9B2C2C    # deep red — called off, nothing to attend
+COLOR_STAGE = 0xBE185D        # rose — go somewhere else, and soon
 
 # state_changed transitions → colour
 _STATE_COLORS = {
@@ -165,6 +166,29 @@ def matchup_ready_embed(
         ),
         fields=fields,
         url=schedule_url,
+    )
+
+
+def stage_embed(
+    *,
+    title: str,
+    tournament: str,
+    community_name: Optional[str] = None,
+    player_names: Optional[Sequence[str]] = None,
+    when: Optional[datetime] = None,
+    stage_name: Optional[str] = None,
+    description: Optional[str] = None,
+) -> discord.Embed:
+    """Card for the three stage DMs: assigned, cleared, and the reminder.
+
+    Its own colour rather than ``COLOR_SCHEDULED`` or ``COLOR_RESCHEDULED``:
+    neither the time nor the fixture changed, where to stand did, and that is
+    what the recipient has to spot in a stack of match cards.
+    """
+    return match_embed(
+        title=title, color=COLOR_STAGE, tournament=tournament,
+        community_name=community_name, player_names=player_names, when=when,
+        stage_name=stage_name, description=description,
     )
 
 

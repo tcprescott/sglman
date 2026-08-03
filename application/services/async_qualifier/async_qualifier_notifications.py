@@ -17,8 +17,8 @@ from typing import Optional
 
 from application.services import notification_links
 from application.utils.discord_embeds import time_field
-from application.utils.discord_messages import (
-    DMLink,
+from application.utils.discord_messages import DMLink
+from application.utils.discord_messages_qualifier import (
     qualifier_reattempt_granted_dm,
     qualifier_run_expired_dm,
     qualifier_run_expiring_dm,

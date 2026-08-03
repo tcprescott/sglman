@@ -16,7 +16,8 @@ DMs fire on match lifecycle transitions:
 | Seated / checked in | players and approved crew |
 | Started | watchers |
 | Finished | players and crew, with the result |
-| Stage assigned | players |
+| Stage assigned / cleared | players, approved crew, watchers |
+| Stage reminder | the same audience, `stage_reminder_minutes` before the match |
 | Stream candidate | tournament subscribers, with crew-signup buttons |
 | Matchup ready to schedule | both entrants of a bracket matchup (also re-sent as a *rebook* if its game is later called off) |
 
@@ -58,6 +59,7 @@ tenant costs the button, not the DM.
 | Reschedule request (to the opponent) | Agree · View your matches | the Agree button *is* the control; the link is their own schedule |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
+| Stage assigned / cleared / reminder | View your match | `/home/player?match=<id>` — the player's own board, narrowed to that match |
 | Join approved (to requester) | Open the community | the tenant home |
 | Qualifier reviewed / expiring / expired / reattempt | Submit or forfeit · View the leaderboard · Start your next run | `/qualifiers/<id>` |
 
@@ -83,6 +85,32 @@ that viewer's *own* open matchups — a forwarded link cannot open somebody else
 A matchup that has since been booked, cancelled, or finished gets
 "That matchup is no longer waiting to be scheduled." rather than a silent no-op:
 a DM outlives what it points at, and a dead button reads as a broken app.
+
+`?match=` narrows the same tab to one match for the stage DMs, with a chip
+saying so and a "Show all my matches" button beside it — a one-row board with no
+explanation reads as a board that lost rows.
+
+### Stage calls
+
+Assigning a stage tells the people it concerns. `MatchService.assign_stage`
+enqueues `notify_stage_changed`, which reads the stage back off the match and
+DMs the players, the **approved** crew and the watchers — a pending commentator
+has not been given the job and is not told to be anywhere. Clearing the stage
+sends its own retraction ("back in the tournament room"): telling someone they
+are on Kraid and never taking it back sends them to an empty stage.
+
+`application/services/match/stage_reminder.py` sends the second DM shortly
+before the match. It scans every tenant over a fixed 24-hour window
+(`MatchRepository.due_for_stage_reminder`, deliberately unscoped), then
+re-checks each match against its own tournament's `stage_reminder_minutes` —
+0 sends nothing, and anything still outside its lead is left unstamped for a
+later tick. The stamp (`Match.stage_reminder_sent_at`) is written *before* the
+send, so a delivery failure or a restart cannot re-fire it, and
+`assign_stage` clears it on every change so a reassignment re-arms the reminder
+for the stage the match actually ended up on.
+
+All three carry `COLOR_STAGE` rather than the scheduled/rescheduled colours: the
+time did not move, where to stand did.
 
 ### Fan-out and dedup
 
