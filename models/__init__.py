@@ -55,6 +55,7 @@ from .enums import (
     FeedbackStatus,
     JoinRequestStatus,
     MatchNotificationLevel,
+    ProviderTaskStatus,
     RaceRoomStatus,
     RescheduleRequestKind,
     RescheduleRequestStatus,
@@ -90,6 +91,7 @@ from .tenant import Tenant, TenantJoinRequest, TenantMembership
 from .tournament import (
     GeneratedSeeds,
     Preset,
+    ProviderTask,
     RandomizerCredential,
     Tournament,
     TournamentNotificationPreference,
@@ -193,6 +195,8 @@ __all__ = [
     # volunteer
     'PlayerAvailability',
     'Preset',
+    'ProviderTask',
+    'ProviderTaskStatus',
     # racetime
     'RaceRoomProfile',
     'RaceRoomStatus',

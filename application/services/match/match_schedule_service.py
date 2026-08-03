@@ -367,6 +367,15 @@ class MatchScheduleService(MatchNotificationMixin):
                         "once, and its DM would reach nobody"
                     ), None
 
+                # A task-queue backend cannot answer "here is your seed" from one
+                # call, so this surface hands it to ``ProviderTask`` and returns.
+                # The worker finishes the job minutes later, through
+                # ``complete_seed_roll`` below — the same completion this path
+                # runs inline, so a restart in the middle changes who finishes
+                # the roll but not what finishing means.
+                if randomizer in self.seedgen_service.ASYNC_RANDOMIZERS:
+                    return await self._queue_async_seed(match, randomizer, preset, actor)
+
                 # Generate the seed. A keyed randomizer resolves this community's
                 # own credential inside the generator and raises when it is not
                 # configured; that surfaces below as "Error generating seed: …".
@@ -375,82 +384,14 @@ class MatchScheduleService(MatchNotificationMixin):
                 )
                 seed_url = call.value.url
 
-                # Create GeneratedSeeds record. The settings are snapshotted as
-                # sent — a preset edited after this roll must not change what
-                # this seed is recorded as having used.
-                match.generated_seed = await GeneratedSeeds.create(
-                    tenant_id=require_tenant_id(),
+                await self.complete_seed_roll(
+                    match, randomizer, preset, actor,
                     seed_url=seed_url,
-                    seed_info=f"Generated seed for match {match.id}",
-                    randomizer=randomizer,
-                    preset_id=preset.id if preset is not None else None,
-                    settings_snapshot=call.value.settings,
-                    rolled_by_id=actor.id if actor is not None else None,
+                    settings=call.value.settings,
                     provider_meta=call.as_meta(),
                 )
-                await match.save()
-
-                # Send DMs to players in the background (respects dm_notifications opt-out)
-                descriptor = _match_descriptor(match, await bracket_line_for(match.id))
-                community = await _community_name()
-                seed_embed = match_embed(
-                    title='🎲 Seed ready', color=COLOR_SEED,
-                    description=f'[Open your seed]({seed_url})',
-                    tournament=match.tournament.name, community_name=community,
-                    player_names=descriptor['player_names'], when=match.scheduled_at,
-                    stage_name=match.stage.name if match.stage else None,
-                    url=seed_url,
-                )
-
-                # The seed URL is the whole point of this DM, so it gets a button
-                # rather than only a hyperlink buried in the embed description.
-                # It points at the randomizer, not at Wizzrobe — the one link
-                # here that is deliberately off-site.
-                seed_link = DMLink('Open your seed', seed_url)
-
-                async def _send_seed_dms() -> None:
-                    for player in match.players:
-                        if player.user.discord_id and player.user.dm_notifications:
-                            dm_message = seed_dm(
-                                player.user.preferred_name,
-                                match.tournament.name,
-                                seed_url,
-                                **descriptor,
-                            )
-                            success, err = await self.discord_service.send_dm(
-                                player.user.discord_id, dm_message,
-                                embed=seed_embed, link=seed_link,
-                            )
-                            if not success:
-                                logger.warning(
-                                    "seed DM failed for %s: %s", player.user.discord_id, err
-                                )
-
-                discord_queue.enqueue(_send_seed_dms())
 
                 message = f"Seed generated successfully for match ID {match.id}"
-
-                await self.audit_service.write_and_publish(
-                    actor,
-                    AuditActions.MATCH_SEED_ROLLED,
-                    {
-                        'match_id': match.id,
-                        'randomizer': randomizer,
-                        'preset': preset.name if preset is not None else None,
-                        'seed_url': seed_url,
-                        'attempts': call.attempts,
-                        'latency_ms': call.latency_ms,
-                    },
-                    EventType.MATCH_SEED_ROLLED,
-                    event_details={
-                        'match_id': match.id,
-                        'tournament_id': match.tournament_id,
-                        'seed_url': seed_url,
-                    },
-                )
-
-                match_live.publish(match.id)
-
                 return True, message, seed_url
 
             except MissingCredentialError as e:
@@ -475,4 +416,134 @@ class MatchScheduleService(MatchNotificationMixin):
                 # text to the user and the REST 400 detail.
                 logger.exception("Seed generation failed for match %s", match_id)
                 return False, "Seed generation failed. Please check the server logs.", None
+
+    async def _queue_async_seed(
+        self, match: Match, randomizer: str, preset, actor: Optional[User],
+    ) -> Tuple[bool, str, Optional[str]]:
+        """Hand a task-queue roll to :class:`ProviderTask` and return immediately.
+
+        Returns no seed url — there is not one yet. The caller learns the roll
+        finished the same way everyone else does: the worker completes it and
+        publishes on ``match_live``.
+        """
+        from application.services.provider_task_service import ProviderTaskService
+        from application.services.seed_roll_service import SeedRollService
+
+        task_service = ProviderTaskService()
+        existing = await task_service.repository.active_for_match(match.id)
+        if existing is not None:
+            return False, "Seed generation already in progress for this match", None
+
+        task = await task_service.queue(
+            provider=randomizer, operation='generate_seed', actor=actor,
+            match_id=match.id, preset_id=preset.id if preset is not None else None,
+        )
+        await SeedRollService().submit(task, preset)
+
+        await self.audit_service.write_and_publish(
+            actor,
+            AuditActions.MATCH_SEED_ROLL_QUEUED,
+            {
+                'match_id': match.id,
+                'randomizer': randomizer,
+                'preset': preset.name if preset is not None else None,
+                'provider_task_id': task.provider_task_id,
+            },
+            EventType.MATCH_SEED_ROLL_QUEUED,
+            event_details={'match_id': match.id, 'tournament_id': match.tournament_id},
+        )
+
+        # Nudges every open view into showing the rolling indicator, not just the
+        # browser that clicked Generate.
+        match_live.publish(match.id)
+
+        return True, (
+            "Rolling the seed — this takes a few minutes. "
+            "The players are DMed as soon as it lands."
+        ), None
+
+    async def complete_seed_roll(
+        self, match: Match, randomizer: str, preset, actor: Optional[User], *,
+        seed_url: str, settings: Optional[dict], provider_meta: Optional[dict],
+    ) -> str:
+        """Record a finished roll, tell the players, and audit it.
+
+        The single definition of "a seed roll completed", called both inline by
+        the synchronous path and minutes later by the worker for a task-queue
+        backend. Keeping one copy is what makes a restart mid-roll change only
+        *who* finishes the job.
+        """
+        # The settings are snapshotted as sent — a preset edited after this roll
+        # must not change what this seed is recorded as having used.
+        match.generated_seed = await GeneratedSeeds.create(
+            tenant_id=require_tenant_id(),
+            seed_url=seed_url,
+            seed_info=f"Generated seed for match {match.id}",
+            randomizer=randomizer,
+            preset_id=preset.id if preset is not None else None,
+            settings_snapshot=settings,
+            rolled_by_id=actor.id if actor is not None else None,
+            provider_meta=provider_meta,
+        )
+        await match.save()
+
+        # Send DMs to players in the background (respects dm_notifications opt-out)
+        descriptor = _match_descriptor(match, await bracket_line_for(match.id))
+        community = await _community_name()
+        seed_embed = match_embed(
+            title='🎲 Seed ready', color=COLOR_SEED,
+            description=f'[Open your seed]({seed_url})',
+            tournament=match.tournament.name, community_name=community,
+            player_names=descriptor['player_names'], when=match.scheduled_at,
+            stage_name=match.stage.name if match.stage else None,
+            url=seed_url,
+        )
+
+        # The seed URL is the whole point of this DM, so it gets a button rather
+        # than only a hyperlink buried in the embed description. It points at the
+        # randomizer, not at Wizzrobe — the one link here that is deliberately
+        # off-site.
+        seed_link = DMLink('Open your seed', seed_url)
+
+        async def _send_seed_dms() -> None:
+            for player in match.players:
+                if player.user.discord_id and player.user.dm_notifications:
+                    dm_message = seed_dm(
+                        player.user.preferred_name,
+                        match.tournament.name,
+                        seed_url,
+                        **descriptor,
+                    )
+                    success, err = await self.discord_service.send_dm(
+                        player.user.discord_id, dm_message,
+                        embed=seed_embed, link=seed_link,
+                    )
+                    if not success:
+                        logger.warning(
+                            "seed DM failed for %s: %s", player.user.discord_id, err
+                        )
+
+        discord_queue.enqueue(_send_seed_dms())
+
+        await self.audit_service.write_and_publish(
+            actor,  # type: ignore[arg-type]
+            AuditActions.MATCH_SEED_ROLLED,
+            {
+                'match_id': match.id,
+                'randomizer': randomizer,
+                'preset': preset.name if preset is not None else None,
+                'seed_url': seed_url,
+                **{k: v for k, v in (provider_meta or {}).items()
+                   if k in ('attempts', 'latency_ms')},
+            },
+            EventType.MATCH_SEED_ROLLED,
+            event_details={
+                'match_id': match.id,
+                'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
+                'seed_url': seed_url,
+            },
+        )
+
+        match_live.publish(match.id)
+        return f"Seed generated successfully for match ID {match.id}"
 

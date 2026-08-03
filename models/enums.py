@@ -371,3 +371,30 @@ class JoinRequestStatus(str, Enum):
     PENDING = 'pending'
     APPROVED = 'approved'
     DENIED = 'denied'
+
+
+class ProviderTaskStatus(str, Enum):
+    """Where a long-running upstream provider call has got to.
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member.
+
+    ``QUEUED`` is the row before (or at the moment of) submission — no upstream
+    task id yet. ``RUNNING`` means the provider has accepted it and the poller
+    owns it from here. The three terminal states are kept apart because they
+    answer different questions: ``SUCCEEDED`` completed and its consumer was
+    updated, ``FAILED`` is the provider reporting the work itself as broken, and
+    ``ABANDONED`` is Wizzrobe giving up on a task that outlived its deadline —
+    the provider may well have finished it, we simply stopped waiting.
+    """
+
+    QUEUED = 'queued'
+    RUNNING = 'running'
+    SUCCEEDED = 'succeeded'
+    FAILED = 'failed'
+    ABANDONED = 'abandoned'
+
+    @classmethod
+    def terminal(cls) -> frozenset['ProviderTaskStatus']:
+        """States a poller must never pick back up."""
+        return frozenset({cls.SUCCEEDED, cls.FAILED, cls.ABANDONED})

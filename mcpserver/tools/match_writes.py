@@ -332,6 +332,10 @@ async def generate_match_seed(
 
     Uses the tournament's configured randomizer and preset. Refuses while a
     generation for the same match is already running.
+
+    A task-queue randomizer (dk64r) takes a few minutes, so the roll is only
+    *started* here: `seed_url` comes back empty and the players are DMed when it
+    lands. Every other randomizer returns the permalink directly.
     """
     actor = current_actor().user
     # Resolve the id before handing it to the service. ``generate_seed`` reports

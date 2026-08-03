@@ -34,6 +34,8 @@ class AuditActions:
     MATCH_ACKNOWLEDGED = 'match.acknowledged'
     MATCH_RESULT_RECORDED = 'match.result_recorded'
     MATCH_SEED_ROLLED = 'match.seed_rolled'
+    MATCH_SEED_ROLL_QUEUED = 'match.seed_roll_queued'
+    MATCH_SEED_ROLL_FAILED = 'match.seed_roll_failed'
     MATCH_STAGE_ASSIGNED = 'match.stage_assigned'
     MATCH_STAGE_CLEARED = 'match.stage_cleared'
     MATCH_STATIONS_ASSIGNED = 'match.stations_assigned'

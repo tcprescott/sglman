@@ -28,6 +28,8 @@ from models import (
     MatchRescheduleRequest,
     MatchStreamVolunteer,
     MatchWatcher,
+    ProviderTask,
+    ProviderTaskStatus,
     RescheduleRequestKind,
     RescheduleRequestStatus,
     Stage,
@@ -183,6 +185,41 @@ async def seed_matches_for_tenant(
     if disputed_match.generated_seed_id is None:
         disputed_match.generated_seed = disputed_seed
         await disputed_match.save()
+
+    # Provider tasks: the queue that carries a task-queue randomizer's roll
+    # across a restart. One row per state so every value of ProviderTaskStatus
+    # exists somewhere and the terminal ones can be inspected.
+    #
+    # The QUEUED and RUNNING rows are **transient in a running app**: their
+    # upstream ids belong to no live queue, so the poller retires them within a
+    # tick or two of boot. That is the worker doing its job, not a broken
+    # fixture — but it does mean the live "Rolling… 1:24" clock cannot be seen by
+    # seeding it. Roll a real one to watch that (with MOCK_SEEDGEN on, a DK64
+    # roll takes MOCK_DK64_SECONDS).
+    provider_tasks = [
+        (scheduled_match, ProviderTaskStatus.RUNNING, 'dev-task-running', None),
+        (future_match, ProviderTaskStatus.QUEUED, None, None),
+        (finished_match, ProviderTaskStatus.SUCCEEDED, 'dev-task-done', None),
+        (disputed_match, ProviderTaskStatus.FAILED, 'dev-task-failed',
+         'DK64 Randomizer failed to generate the seed.'),
+        (stage3_match, ProviderTaskStatus.ABANDONED, 'dev-task-abandoned',
+         'Timed out waiting for the provider.'),
+    ]
+    for match, status, upstream_id, error in provider_tasks:
+        await ProviderTask.get_or_create(
+            match=match, status=status, tenant=tenant,
+            defaults={
+                "provider": "dk64r",
+                "operation": "generate_seed",
+                "provider_task_id": upstream_id,
+                "provider_params": {"branch": "stable"},
+                "settings_snapshot": (
+                    {"branch": "stable", "generate_spoilerlog": False}
+                    if upstream_id else None
+                ),
+                "error": error,
+            },
+        )
 
     # The dispute flag itself, so the admin's review queue has a contested
     # row out of the box — this match has claimed to be disputed since the

@@ -20,6 +20,12 @@ DEFAULT_TEST_TENANT_ID = 1
 # against the real backend — see docs/development.md on what only Postgres can
 # prove (row locks are a no-op on SQLite, and the DDL itself is never exercised).
 TEST_DB_URL = os.environ.get('WIZZROBE_TEST_DB_URL', 'sqlite://:memory:')
+
+# The mocked DK64 queue simulates a minutes-long roll in real wall clock, which
+# is the point of it in a browser but pure dead time in a test. Collapse it to
+# zero for the whole suite; the handful of tests that assert on the queued and
+# started phases set their own duration.
+os.environ.setdefault('MOCK_DK64_SECONDS', '0')
 ON_POSTGRES = TEST_DB_URL.startswith(('postgres://', 'postgresql://', 'asyncpg://'))
 
 

@@ -9,7 +9,7 @@ opt-out, DM-failure, and exception paths against the real in-memory ORM.
 
 import asyncio
 from datetime import datetime, timezone
-from unittest.mock import ANY, AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -99,6 +99,17 @@ def _rolled(url: str, settings=None):
     return ProviderCall(
         value=RolledSeed(url=url, settings=settings),
         provider='alttpr', operation='generate_seed', attempts=1, latency_ms=5,
+    )
+
+
+def _submission(provider_task_id: str, branch: str = 'stable'):
+    """What a task-queue backend returns instead of a seed: a handle to poll."""
+    from application.services.seedgen_service import AsyncRollSubmission
+
+    return AsyncRollSubmission(
+        provider_task_id=provider_task_id,
+        provider_params={'branch': branch},
+        settings={'branch': branch, 'generate_spoilerlog': False},
     )
 
 
@@ -237,21 +248,31 @@ class TestGenerateSeed:
         assert "DK64 Randomizer API key is not configured" in message
 
     async def test_keyed_randomizer_allowed_when_credential_configured(self, service, db):
-        from models import RandomizerCredential
+        # dk64r is a task-queue backend, so a successful roll *starts* one rather
+        # than returning a seed: no url yet, and a RUNNING ProviderTask holding
+        # the upstream handle the worker will poll.
+        from models import ProviderTask, ProviderTaskStatus, RandomizerCredential
         await RandomizerCredential.create(randomizer="dk64r", key="api_key", value="k")
         staff = await make_staff(discord_id=9200)
         t = await Tournament.create(name="T", seed_generator="dk64r")
         m = await Match.create(tournament=t)
         await MatchPlayers.create(match=m, user=await make_user(21, name="p"))
-        service.seedgen_service.generate_seed_call = AsyncMock(
-            return_value=_rolled("https://dk64randomizer.com/randomizer.html?seed_id=42")
-        )
+        monkeypatch_submit = AsyncMock(return_value=_submission("up-42"))
+        service.seedgen_service.submit_async_roll = monkeypatch_submit
 
-        ok, message, url = await service.generate_seed(m.id, staff)
+        with patch(
+            'application.services.seed_roll_service.SeedGenerationService',
+            return_value=service.seedgen_service,
+        ):
+            ok, message, url = await service.generate_seed(m.id, staff)
 
         assert ok is True
-        assert url.endswith("seed_id=42")
-        service.seedgen_service.generate_seed_call.assert_awaited_once()
+        assert url is None
+        assert "few minutes" in message
+        task = await ProviderTask.get(match_id=m.id)
+        assert task.status == ProviderTaskStatus.RUNNING
+        assert task.provider_task_id == "up-42"
+        assert task.requested_by_id == staff.id
 
     async def test_returns_in_progress_when_lock_held(self, service, db):
         staff = await make_staff()

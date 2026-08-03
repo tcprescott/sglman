@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from nicegui import app, background_tasks, context, ui
 
@@ -527,6 +527,33 @@ class MatchTableView(MatchTableHandlersMixin):
 
         # Live updates: react to match changes made by other users.
         register_view(self._on_remote_change)
+
+        # Keeps the "Rolling… 1:24" clock moving on any row with a seed roll in
+        # flight. Five seconds, not one: the label is the difference between "the
+        # page is working" and "the page is stuck", which does not need
+        # per-second resolution, and this ticks once per open board.
+        ui.timer(5.0, self._tick_rolling_labels)
+
+    def _tick_rolling_labels(self) -> None:
+        """Re-render the elapsed label on every row that is currently rolling.
+
+        Pure formatting against a timestamp the row already carries — no query,
+        and nothing at all to do when nothing is rolling, which is almost always.
+        """
+        from application.services.match.match_display_service import rolling_elapsed_label
+        from application.utils.timezone import to_utc_aware
+
+        touched = False
+        for row in self.table.rows:
+            started = row.get('seed_rolling_since')
+            if not started:
+                continue
+            row['seed_rolling_label'] = rolling_elapsed_label(
+                to_utc_aware(datetime.fromisoformat(started))
+            )
+            touched = True
+        if touched:
+            self.table.update()
 
     async def _on_remote_change(self, match_id, change_type):
         """Apply a match change broadcast from another user's action."""
