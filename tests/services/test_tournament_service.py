@@ -318,9 +318,20 @@ class TestTournamentConfig:
 
 class TestTournamentPreset:
     async def test_create_with_valid_preset_passes_id_to_repo(self, service):
-        service.preset_repository.get_by_id.return_value = SimpleNamespace(id=7)
+        service.preset_repository.get_by_id.return_value = SimpleNamespace(
+            id=7, randomizer='ootr')
         await service.create_tournament(name='X', preset_id=7, actor=make_user())
         assert service.repository.create.await_args.kwargs['preset_id'] == 7
+
+    async def test_create_takes_the_randomizer_from_the_preset(self, service):
+        # The preset is the only place a randomizer is chosen now; a generator
+        # the caller named alongside it does not get to disagree.
+        service.preset_repository.get_by_id.return_value = SimpleNamespace(
+            id=7, randomizer='ootr')
+        await service.create_tournament(
+            name='X', preset_id=7, seed_generator='alttpr', actor=make_user(),
+        )
+        assert service.repository.create.await_args.kwargs['seed_generator'] == 'ootr'
 
     async def test_create_with_unknown_preset_raises_before_create(self, service):
         service.preset_repository.get_by_id.return_value = None
@@ -334,16 +345,30 @@ class TestTournamentPreset:
         service.preset_repository.get_by_id.assert_not_awaited()
 
     async def test_update_sets_preset_when_provided(self, service):
-        service.preset_repository.get_by_id.return_value = SimpleNamespace(id=3)
+        service.preset_repository.get_by_id.return_value = SimpleNamespace(
+            id=3, randomizer='smmap')
         t = make_tournament()
         await service.update_tournament(t, preset_id=3, actor=make_user())
         assert service.repository.update.await_args.kwargs['preset_id'] == 3
+        assert service.repository.update.await_args.kwargs['seed_generator'] == 'smmap'
 
     async def test_update_clears_preset_with_explicit_none(self, service):
         t = make_tournament()
         await service.update_tournament(t, preset_id=None, actor=make_user())
         assert service.repository.update.await_args.kwargs['preset_id'] is None
+        # Nothing left to roll with once the preset that named the randomizer
+        # is gone.
+        assert service.repository.update.await_args.kwargs['seed_generator'] is None
         service.preset_repository.get_by_id.assert_not_awaited()
+
+    async def test_update_keeps_an_explicit_generator_when_clearing_the_preset(self, service):
+        # The legacy REST shape: a caller that names a generator in the same
+        # call meant it, preset or no preset.
+        t = make_tournament()
+        await service.update_tournament(
+            t, preset_id=None, seed_generator='alttpr', actor=make_user(),
+        )
+        assert service.repository.update.await_args.kwargs['seed_generator'] == 'alttpr'
 
     async def test_update_without_preset_leaves_it_untouched(self, service):
         t = make_tournament()
