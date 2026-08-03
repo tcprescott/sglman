@@ -75,7 +75,7 @@ async def _tick() -> None:
     await for_each_tenant_scoped(
         due,
         _remind,
-        tenant_id_of=lambda match: match.tenant_id,
+        tenant_id_of=lambda match: match.tenant_id,  # type: ignore[attr-defined]
         logger=logger,
         describe=lambda match: f'match {getattr(match, "id", None)}',
     )

@@ -121,7 +121,7 @@ def build_admin_tabs(
         'reschedule_request': reschedule_request,
     }
 
-    tabs = []
+    tabs: list[dict] = []
     # Each tab carries a drawer 'group'; the list is stable-sorted by
     # _ADMIN_GROUP_ORDER below so the drawer reads as labeled sections
     # instead of a flat scroll. Icons are unique per destination (no repeats).

@@ -194,8 +194,8 @@ class PayoutService:
         tournament = await self._require_manageable(tournament_id, actor)
         pool = self._validate_money(pool, 'Prize pool')
         bonus = self._validate_money(bonus, 'Bonus')
-        tournament.prize_pool = pool
-        tournament.prize_bonus = bonus
+        tournament.prize_pool = pool  # type: ignore[assignment]
+        tournament.prize_bonus = bonus  # type: ignore[assignment]
         await tournament.save()
         await self.audit_service.write_and_publish(
             actor,
@@ -249,7 +249,7 @@ class PayoutService:
     ) -> TournamentPayout:
         """Name (or un-name) the winner on one drafted row."""
         payout = require_found(await self.repository.get_by_id(payout_id), 'Payout')
-        tournament = await self._require_manageable(payout.tournament_id, actor)
+        tournament = await self._require_manageable(payout.tournament_id, actor)  # type: ignore[attr-defined]
         entrant = None
         if user_id is not None:
             entrant = require_found(await User.get_or_none(id=user_id), 'User')
@@ -257,7 +257,7 @@ class PayoutService:
             # here, which reaches the caller as a 500 rather than as the thing
             # the reader did wrong.
             clash = await TournamentPayout.filter(
-                tournament_id=payout.tournament_id, place=payout.place,
+                tournament_id=payout.tournament_id, place=payout.place,  # type: ignore[attr-defined]
                 entrant_id=user_id,
             ).exclude(id=payout.id).exists()
             if clash:

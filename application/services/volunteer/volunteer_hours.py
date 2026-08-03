@@ -42,20 +42,19 @@ def merged_hours(windows: Sequence[Tuple[datetime, datetime]]) -> float:
         key=lambda w: w[0],
     )
     total = 0.0
-    open_start: Optional[datetime] = None
-    open_end: Optional[datetime] = None
+    open_window: Optional[Tuple[datetime, datetime]] = None
     for start, end in ordered:
-        if open_start is None:
-            open_start, open_end = start, end
+        if open_window is None:
+            open_window = (start, end)
             continue
+        open_start, open_end = open_window
         if start <= open_end:
-            if end > open_end:
-                open_end = end
+            open_window = (open_start, max(open_end, end))
             continue
         total += (open_end - open_start).total_seconds()
-        open_start, open_end = start, end
-    if open_start is not None:
-        total += (open_end - open_start).total_seconds()
+        open_window = (start, end)
+    if open_window is not None:
+        total += (open_window[1] - open_window[0]).total_seconds()
     return total / 3600.0
 
 
@@ -117,11 +116,11 @@ class VolunteerHoursService:
             shift = assignment.shift
             if shift is None:
                 continue
-            by_user.setdefault(assignment.user_id, []).append(
+            by_user.setdefault(assignment.user_id, []).append(  # type: ignore[attr-defined]
                 self._clip_one(shift.starts_at, shift.ends_at, window),
             )
             if assignment.user is not None:
-                names[assignment.user_id] = assignment.user.preferred_name
+                names[assignment.user_id] = assignment.user.preferred_name  # type: ignore[attr-defined]
 
         user_ids = set(by_user) | set(await self.profile_repository.opted_in_user_ids())
         missing = [uid for uid in user_ids if uid not in names]

@@ -172,7 +172,7 @@ class MatchNotificationMixin:
         """
         try:
             await match.fetch_related('tournament', 'players__user')
-            player_names = [p.user.preferred_name for p in match.players]
+            player_names = [p.user.preferred_name for p in match.players]  # type: ignore[attr-defined]
             message = build(player_names, time_field(match.scheduled_at))
             embed = stage_embed(
                 title=title, tournament=match.tournament.name,

@@ -29,7 +29,7 @@ def _to_response(tournament_id: int, split: PayoutSplit) -> PayoutSplitResponse:
                 place=line.place,
                 percentage=line.percentage,
                 amount=line.amount,
-                entrant_id=line.payout.entrant_id,
+                entrant_id=line.payout.entrant_id,  # type: ignore[attr-defined]
                 entrant_name=line.entrant_name,
                 matcherino_username=line.matcherino_username,
                 note=line.payout.note,

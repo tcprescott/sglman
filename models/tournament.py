@@ -183,17 +183,17 @@ class TournamentPayout(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField(
+    tenant = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.Tenant', related_name='payouts', on_delete=fields.CASCADE
     )
-    tournament = fields.ForeignKeyField(
+    tournament = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.Tournament', related_name='payouts', on_delete=fields.CASCADE
     )
     place = fields.IntField()
     percentage = fields.DecimalField(max_digits=5, decimal_places=2)
     # Null while the split is drafted before the bracket finishes. SET_NULL so
     # retiring a user leaves the historical split intact and legible.
-    entrant = fields.ForeignKeyField(
+    entrant = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.User', related_name='payouts', null=True, on_delete=fields.SET_NULL
     )
     note = fields.CharField(max_length=255, null=True)

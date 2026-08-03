@@ -82,7 +82,7 @@ async def admin_payouts_page() -> None:
             'moving the pool moves every share with it.'
         ).classes('text-caption text-grey')
 
-        columns = [
+        columns: list[dict] = [
             {'name': 'tournament_id', 'label': 'ID', 'field': 'tournament_id', 'hidden': True},
             {'name': 'name', 'label': 'Tournament', 'field': 'name', 'sortable': True},
             # The money columns sort on their numeric ``*_raw`` field and render

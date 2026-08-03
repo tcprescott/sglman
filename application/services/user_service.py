@@ -245,7 +245,7 @@ class UserService:
             new_value = matcherino_username.strip() or None
             if new_value != user.matcherino_username:
                 changed['matcherino_username'] = new_value
-            user.matcherino_username = new_value
+            user.matcherino_username = new_value  # type: ignore[assignment]
 
         if any_provided:
             await user.save()
