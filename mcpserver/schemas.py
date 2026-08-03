@@ -16,6 +16,7 @@ in the server instructions, rather than per field.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -144,6 +145,25 @@ class TriforceTextEntry(BaseModel):
     status: str = Field(description='pending, approved, or rejected.')
     submitted_by: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class PayoutEntry(BaseModel):
+    """One placement's share of a prize pool, with the money worked out."""
+
+    place: int
+    percentage: Decimal
+    amount: Decimal
+    entrant_name: Optional[str] = None
+    matcherino_username: Optional[str] = None
+    note: Optional[str] = None
+
+
+class TournamentPayouts(BaseModel):
+    tournament_id: int
+    prize_pool: Decimal
+    prize_bonus: Decimal
+    total: Decimal = Field(description='Pool plus bonus — what the shares apply to.')
+    lines: List[PayoutEntry]
 
 
 class VolunteerPositionInfo(BaseModel):

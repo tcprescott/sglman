@@ -109,6 +109,12 @@ Raising, agreeing and withdrawing take any write token (the service checks the a
 - The signup window itself rides on the tournament: `signups_open_at` / `signups_close_at` (UTC datetimes) on `POST`/`PATCH` and in every tournament response. Both are nullable and read permissively — no open date means signups are open now, no close date means they stay open. A close at or before the open returns `400`.
 - `GET /tournaments/{id}/match-suggestion?player_ids=[&bracket_match_id=]` — suggested UTC start time for the given players (400 if no slot fits). `bracket_match_id` confines the suggestion to that matchup's round window.
 
+### Payouts (`/api/tournaments/{id}/payouts`) · `payouts.py`
+Behind `FeatureFlag.PAYOUTS` (the whole router 404s when the community lacks it). Staff or that tournament's admin; **reads are gated with the writes**, since an unannounced split is admin data. Money serialises as strings, never floats. See [payouts.md](../features/payouts.md).
+- `GET /tournaments/{id}/payouts` — the split with each line's `amount` computed from `prize_pool + prize_bonus` at read time.
+- `PUT /tournaments/{id}/payouts` — replace the whole split with `{"lines": [{"place", "percentage", "entrant_id"?, "note"?}]}`. Two lines may share a `place`. `400` when the shares sum above 100; below 100 is accepted, because an unallocated remainder is real.
+- `PUT /tournaments/{id}/prize-pool` — `{"prize_pool", "prize_bonus"}`, both optional and nullable. Omitting one clears it, which is not the same as sending `0`.
+
 ### Stages (`/api/stages`) · `stages.py`, `stage_actions.py`
 - `GET /stages?active_only=` (`active_only` returns only active stages, default `false`) · `GET /stages/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 

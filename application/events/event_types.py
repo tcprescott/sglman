@@ -163,6 +163,12 @@ class EventType:
     TOURNAMENT_ENROLLED = 'tournament.enrolled'
     TOURNAMENT_WITHDRAWN = 'tournament.withdrawn'
 
+    # Prize money. A subscriber mirroring results to a site or a payout run
+    # needs to hear both halves — the pool changing and the split changing —
+    # because either moves what every placement is owed.
+    TOURNAMENT_PRIZE_POOL_UPDATED = 'tournament.prize_pool_updated'
+    TOURNAMENT_PAYOUT_UPDATED = 'tournament.payout_updated'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
@@ -197,6 +203,7 @@ class EventType:
         TENANT_MEMBER_ADDED, TENANT_MEMBER_REMOVED,
         TENANT_JOIN_REQUESTED, TENANT_JOIN_APPROVED, TENANT_JOIN_DENIED,
         TOURNAMENT_ENROLLED, TOURNAMENT_WITHDRAWN,
+        TOURNAMENT_PRIZE_POOL_UPDATED, TOURNAMENT_PAYOUT_UPDATED,
     })
 
     # Wildcard a subscriber can register to receive every event.

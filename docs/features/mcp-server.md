@@ -176,10 +176,17 @@ hold a writing grant in one client and a reading one in another.
 |---|---|---|
 | `list_tournaments`, `get_tournament` | ACTOR | — |
 | `list_tournament_signups` | ACTOR | — |
+| `get_tournament_payouts` | ACTOR | `PAYOUTS` |
 | `list_stages`, `get_stage` | ACTOR | — |
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
 | `suggest_match_time` | ACTOR | — |
 | `match_operations_report` | ADMIN | — |
+
+`get_tournament_payouts` returns one tournament's prize split with each place's
+amount computed from the pool as it stands. `PayoutService` re-gates it on staff
+or that tournament's admin, so it is a read the connection's own authority has to
+earn. There is no write tool: the MCP write surface is opt-in at consent, and
+prize money is not where to extend it first.
 
 `list_tournament_signups` reports the caller's own signup state per tournament,
 including `can_sign_up` / `can_withdraw`. Those two booleans are the service's

@@ -180,6 +180,14 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Community',
             service_modules=('application/services/event_info_service.py',),
         ),
+        FeatureFlagSpec(
+            FeatureFlag.PAYOUTS,
+            'Prize Payouts',
+            "Prize pool, placement splits and Matcherino handles for a "
+            "tournament's winners, with an export for the payout run.",
+            'Operations',
+            service_modules=('application/services/payout_service.py',),
+        ),
     )
 }
 

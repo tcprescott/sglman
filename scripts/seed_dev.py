@@ -78,6 +78,7 @@ from scripts.seed_online import (
     seed_racetime_bots,
 )
 from scripts.seed_onsite import seed_onsite_for_tenant
+from scripts.seed_payouts import seed_matcherino_handles, seed_payouts_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_preferences import seed_table_preferences
 from scripts.seed_support import (
@@ -150,6 +151,7 @@ async def seed_users() -> dict[str, User]:
             await u.save()
         users[username] = u
     await seed_timezone_preferences(users)
+    await seed_matcherino_handles(users)
     await link_racetime_identities(users)
     await link_twitch_identities(users)
     # Before anything else writes a provider id: clicking Link as one of these
@@ -486,6 +488,9 @@ async def seed_for_tenant(
         # match per step of the proctor's workflow.
         await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
+
+        # --- Prize payouts (scripts/seed_payouts.py) -------------------------
+        await seed_payouts_for_tenant(tenant, players)
 
         # --- Group play-in races (scripts/seed_play_in.py) -------------------
         # Staff-run races of ten, seeding the bracket above — the only rosters

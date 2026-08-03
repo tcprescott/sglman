@@ -77,6 +77,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StageService` | [stage_service.py](../../application/services/stage_service.py) | Stage (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
+| `PayoutService` | [payout_service.py](../../application/services/payout_service.py) | Prize pool, placement splits, and the Matcherino export | [payouts.md](../features/payouts.md), `PAYOUTS` |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
@@ -991,6 +992,23 @@ Two shared, ORM-free passes sit beside the engines so a service, a Discord DM, o
 
 - [`round_names.py`](../../application/services/bracket_engines/round_names.py) — `round_label(...)` for one round, `round_names(nodes, *, double_elim, elimination)` for a whole stage graph (`elimination=False` gives the flat formats plain "Round N"), and `detect_finals_ids` (the structural "which match is the grand final / reset" rule). `theme/brackets/layout.py` re-exports `round_label` and `render.detect_finals` adapts `detect_finals_ids`, so the renderer and the notification path cannot disagree.
 - [`standings.py`](../../application/services/bracket_engines/standings.py) — `compute_standings(refs, results, config)` over opaque `int` refs and `ResultRow` records, computing match points and a configurable tiebreaker chain (`buchholz`, `omw`, `head_to_head`) into 1-based competition ranks (unresolved ties share a rank and list each other in `tied_with`). Round robin, Swiss re-pairing, stage-completion ranking, and the public bracket page's live standings all consume it.
+
+### payout_service.py — PayoutService
+
+Prize pool and placement splits. Behind `FeatureFlag.PAYOUTS` — every public method carries `@requires_feature`. A row stores a place and a percentage; the money is computed as `(prize_pool + prize_bonus) x percentage / 100`, quantized to the cent, at read time. Authorization is `AuthService.can_manage_payouts` (staff, super-admin, or that tournament's admin) and gates reads as well as writes. Feature doc: [payouts.md](../features/payouts.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_overview(actor)` | `list[PayoutOverview]` | Every tournament this actor may manage, with pool, total, place count, allocated percentage and whether every place is named. |
+| `get_split(tournament_id, actor)` | `PayoutSplit` | The rows with their computed amounts. Publishes nothing — it is a read. |
+| `set_pool(tournament_id, pool, bonus, actor)` | `Tournament` | Sets the two columns; `None` clears rather than zeroes. Audits/publishes `tournament.prize_pool_updated`. |
+| `set_split(tournament_id, rows, actor)` | `PayoutSplit` | Replaces the whole split in one transaction. Audits/publishes `tournament.payout_updated`. |
+| `set_entrant(payout_id, user_id, actor)` | `TournamentPayout` | Names (or un-names) the winner on one drafted row. |
+| `export_block(tournament_id, actor)` | `str` | The block pasted into the admin thread; an entrant with no `matcherino_username` is called out by name. |
+
+Validation raises `ValueError`: shares summing above 100 (below is allowed), a place under 1, a share of 0 or less, and a negative pool or bonus.
+
+Collaborators: `TournamentPayoutRepository`, `AuditService`, `AuthService`.
 
 ### triforce_text_service.py — TriforceTextService
 

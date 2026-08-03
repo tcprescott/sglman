@@ -110,7 +110,11 @@ async def render_edit_info_tab():
 
         # This tab is not itself flag-gated, so the Challonge row in Connected
         # accounts has to be skipped when the community lacks the feature.
-        challonge_live = FeatureFlag.CHALLONGE in await FeatureFlagService().enabled_flags()
+        live_flags = await FeatureFlagService().enabled_flags()
+        challonge_live = FeatureFlag.CHALLONGE in live_flags
+        # The Matcherino handle only means anything where prize money is paid,
+        # so a community without payouts is not asked for one.
+        payouts_live = FeatureFlag.PAYOUTS in live_flags
 
         # Per-tournament match notification preferences
         notification_service = TournamentNotificationService()
@@ -146,6 +150,9 @@ async def render_edit_info_tab():
                     display_name=display_name_input.value,
                     pronouns=pronouns_input.value,
                     dm_notifications=dm_checkbox.value,
+                    matcherino_username=(
+                        matcherino_input.value if payouts_live else None
+                    ),
                 )
             except ValueError as e:
                 show_error(str(e))
@@ -375,6 +382,25 @@ async def render_edit_info_tab():
         if challonge_live:
             link_configs.insert(0, CHALLONGE_CONFIG)
         await render_connected_accounts_section(user, link_configs)
+
+        # Deliberately its own card rather than a row among the linked accounts:
+        # those three are verified by the provider, this one is typed in, and
+        # sitting it beside them would let it read as verified too.
+        if payouts_live:
+            with ui.card().classes('card-full-width'):
+                ui.label('Matcherino handle').classes('section-title')
+                ui.label(
+                    'Where prize money is sent. Copy it from your Matcherino '
+                    'profile, including the number after the hash. Nobody checks '
+                    'it for you, so a typo is a payout that goes nowhere.'
+                ).classes('text-muted text-caption')
+                matcherino_input = ui.input(
+                    'Matcherino handle',
+                    value=user.matcherino_username or '',
+                    placeholder='e.g. Jem041#578236',
+                    on_change=on_personal_typing,
+                ).props('outlined dense stack-label').classes('input-full-width')
+                matcherino_input.on('blur', flush_personal)
 
         # What you sent through the feedback form and whether it was read.
         # Draws nothing when you have sent none, or when the community has the

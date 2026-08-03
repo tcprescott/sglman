@@ -65,6 +65,12 @@ class User(Model):
     # User (Postgres allows many NULLs, so non-SG users are unconstrained).
     is_placeholder = fields.BooleanField(default=False)
     speedgaming_id = fields.CharField(max_length=64, null=True, unique=True)
+    # Matcherino handle, in that platform's ``name#id`` form. Self-entered,
+    # unlike the OAuth-verified links above, so deliberately NOT unique: a typo
+    # under a unique constraint would lock the rightful owner out of their own
+    # handle. Global like the rest of identity — someone who wins in two
+    # communities has one Matcherino account.
+    matcherino_username = fields.CharField(max_length=255, null=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]

@@ -85,6 +85,8 @@ erDiagram
     User ||--o{ TournamentPlayers : "user"
     Tournament ||--o{ TournamentNotificationPreference : "tournament"
     User ||--o{ TournamentNotificationPreference : "user"
+    Tournament ||--o{ TournamentPayout : "tournament"
+    User |o--o{ TournamentPayout : "entrant"
     Tournament ||--o{ TriforceText : "tournament"
     User |o--o{ TriforceText : "user"
     User |o--o{ TriforceText : "approved_by"
@@ -464,6 +466,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `racetime_linked_at` | `DatetimeField` | null | When the racetime identity was linked |
 | `is_placeholder` | `BooleanField` | default `False` | Flags an unresolved SpeedGaming player kept as a first-class `User` so its `MatchPlayers` row stays NOT NULL |
 | `speedgaming_id` | `CharField(64)` | null, `unique=True` | SG-side id used to re-find the same placeholder across syncs and to **upgrade it in place** once a `discord_id` appears |
+| `matcherino_username` | `CharField(255)` | null | Matcherino handle (`name#id`), where prize money is sent. Self-entered, so deliberately **not** unique — a typo under a unique constraint would lock the rightful owner out of their own handle. Global, like the rest of identity. See [payouts.md](../features/payouts.md) |
 
 The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch and racetime.gg identities are likewise **identity only** — the user's access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
@@ -633,6 +636,8 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `tournament_hours` | `JSONField` | null | Per-tournament override of per-date open/close windows, same shape as the tenant `tournament_hours_by_date` blob (`{"YYYY-MM-DD": {"open": "HH:MM", "close": "HH:MM"}}`); falls back to `SystemConfigService.get_tournament_hours()` when null. Honored by match scheduling validation and match suggestions |
 | `signups_open_at` | `DatetimeField` | null | Start of the **player self-signup** window (UTC). Null means signups are open now. Distinct from `event_start_date` above, which bounds match *scheduling* |
 | `signups_close_at` | `DatetimeField` | null | End of the signup window (UTC, exclusive). Null means signups stay open. Read by `TournamentService.list_signup_cards` / `self_enroll` / `self_withdraw`; **staff enrolment ignores it** — closing signups stops players adding themselves, not staff fixing a roster |
+| `prize_pool` | `DecimalField(10,2)` | null | The advertised prize pool. Null means nobody has decided yet — distinct from a zero, which is a decision. See [payouts.md](../features/payouts.md) |
+| `prize_bonus` | `DecimalField(10,2)` | null | Leaderboard bonus, **added to the pool before** placement percentages apply |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `required_commentators` | `IntField` | default `1` | Approved commentators a **stream candidate** needs before the coverage surfaces count it as covered. `0` means the tournament does not use the role. Read by `ReportsService.crew_coverage` and `AnalyticsService.tournament_health` through the shared `reporting_shared.is_crew_covered`, and by the schedule board — a role requiring `0` renders no **Sign up**, and `CrewService.signup_crew` refuses it (hiding a control is not enforcing a rule). Withdrawing stays open at any requirement. |
@@ -640,7 +645,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
 | `allow_player_match_requests` | `BooleanField` | default `True` | Whether players may request matches outside a bracket. Turned off automatically by `BracketService.create_bracket` (stage 0) and `ChallongeService.link_tournament` — a bracket-run tournament schedules only its own matchups. Enforced in `MatchService.submit_match_request`; staff can re-enable it per tournament. |
 
-Relationships: declared reverse accessors `players`, `matches`, `notification_preferences`, `triforce_texts`, `challonge_participants`, `challonge_matches`; `brackets`, `bracket_entrants`, and `sg_event_links` exist implicitly via the children's `related_name`. Both M2M through tables carry a unique index on `(tournament_id, user_id)`.
+Relationships: declared reverse accessors `players`, `matches`, `notification_preferences`, `triforce_texts`, `challonge_participants`, `challonge_matches`; `payouts`, `brackets`, `bracket_entrants`, and `sg_event_links` exist implicitly via the children's `related_name`. Both M2M through tables carry a unique index on `(tournament_id, user_id)`.
 
 Computed: `is_racetime_enabled` (property) → `racetime_bot_id is not None`. This is the canonical "configured for racetime.gg" test — a racetime tournament runs online, so the schedule UI hides on-site-only controls (check-in/seating, station assignment) and `MatchScheduleService.seat_match` / `MatchService.assign_stations` reject those actions for it.
 
@@ -666,6 +671,20 @@ Per-user, per-tournament match notification level. See [match-participation.md](
 | `match_notifications` | `CharEnumField(MatchNotificationLevel)` | default `NONE` | `max_length=30` |
 
 Constraint: `unique_together ('user', 'tournament')`.
+
+#### `TournamentPayout`
+
+One placement's share of a tournament's prize pool. Behind `FeatureFlag.PAYOUTS`; see [payouts.md](../features/payouts.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='payouts'` |
+| `place` | `IntField` | not null | 1-based. **Not unique** — joint placings are the normal case |
+| `percentage` | `DecimalField(5,2)` | not null | Share of `prize_pool + prize_bonus`. The money is computed at read time by `PayoutService`, never stored |
+| `entrant` | FK → `User` | null, `SET_NULL` | Null while the split is drafted; `SET_NULL` so retiring a user leaves the historical split legible. `related_name='payouts'` |
+| `note` | `CharField(255)` | null | |
+
+Constraint: `unique_together ('tournament', 'place', 'entrant')` — not `(tournament, place)`, so two rows may share a place. Postgres treats `NULL`s as distinct, so several unnamed rows can sit at one place while the split is drafted. Index on `tournament`.
 
 ### Match
 
@@ -1620,6 +1639,7 @@ Consult the source for full signatures.
 | `StageRepository` | [`stage_repository.py`](../../application/repositories/stage_repository.py) | `Stage` | `get_by_id`, `get_all`, `get_all_as_dict` (id → name for select options), `create`, `update`, `delete` |
 | `TournamentRepository` | [`tournament_repository.py`](../../application/repositories/tournament_repository.py) | `Tournament`, `TournamentPlayers` | `get_by_id`, `get_by_ids`, `get_all`, `get_all_as_dict`, `create`, `update`, `delete`; enrollment `enroll_player`, `enroll_player_by_id`, `unenroll_player`, `get_enrolled_players`, `get_enrolled_players_by_user`, `get_enrolled_players_by_tournament_id`, `is_player_enrolled`, `is_player_enrolled_by_id`; per-tournament grants `set_tournament_grant` (adds/removes an `admins` / `crew_coordinators` row, picking the relation from a `TournamentGrant` so reconciling callers don't branch), `has_tournament_grant` |
 | `TournamentNotificationRepository` | [`tournament_notification_repository.py`](../../application/repositories/tournament_notification_repository.py) | `TournamentNotificationPreference` | `get_by_user_and_tournament`, `get_all_for_user`, `upsert`, `get_match_notification_subscribers` (`ALL` always; `STREAMED`/`STREAMED_AND_CANDIDATES` only when a stage is assigned; drops users without `discord_id` or with `dm_notifications` off), `get_stream_candidate_subscribers` (same DM-ability filter) |
+| `TournamentPayoutRepository` | [`tournament_payout_repository.py`](../../application/repositories/tournament_payout_repository.py) | `TournamentPayout` | `TenantScopedRepository` subclass. `get_by_id` (prefetches `entrant`/`tournament`), `list_for_tournament` (ordered `place, id` so joint placings keep a stable order), `replace_split` (delete-then-create inside one `in_transaction()` — a split is one document, and half of each is worse than either) |
 | `TriforceTextRepository` | [`triforce_text_repository.py`](../../application/repositories/triforce_text_repository.py) | `TriforceText` | `get_by_id`, `list_by_tournament`, `list_by_tournament_and_user`, `list_approved`, `list_approved_user_buckets` (distinct submitter ids with ≥1 approved text, plus a `None` bucket for deleted submitters so their texts stay in the balanced rotation), `list_approved_by_user`, `create`, `update`, `set_moderation`, `delete`. Module-level `APPROVAL_STATUSES = ('pending', 'approved', 'rejected')` is the vocabulary callers pass; a private helper maps it onto the tri-state `approved` column (`pending` → `NULL`) and raises `ValueError` for anything else |
 | `UserRepository` | [`user_repository.py`](../../application/repositories/user_repository.py) | `User` | **Unscoped** — `User` is global, so `create`/`get_by_id` override the base. `get_by_id`, `get_by_ids`, `get_by_discord_id`, `get_by_username`, `get_all` (optional role filter through the `userrole` join; optional has-discord filter), `search_by_name`, `create`, `get_or_create_by_discord_id`, `get_or_create_system_user`, `update_discord_info` (username + avatar hash), `set_discord_avatar` (no-op when unchanged); SpeedGaming placeholders `get_placeholder_by_speedgaming_id`, `create_placeholder`, `upgrade_placeholder` (+ the base `update`/`delete`) |
 | `UserRoleRepository` | [`user_role_repository.py`](../../application/repositories/user_role_repository.py) | `UserRole` | `add` (idempotent `get_or_create`; a `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation), `remove`, `list_for_user`, `list_for_user_by_source`, `list_users_with_role` |

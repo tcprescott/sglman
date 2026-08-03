@@ -1,7 +1,7 @@
 # Majora's Mask seed generation (`mmr`) — research notes
 
 **Not a plan.** `mmr` is a registered stub in
-[`seedgen_service.py`](../../../application/services/seedgen_service.py) — selectable on a
+[`seedgen_service.py`](../../application/services/seedgen_service.py) — selectable on a
 tournament, present in every UI/API surface, and raising `ValueError` when
 rolled. It was rolled by hand at SGL25. This file records how, and what promoting
 the stub would cost, so the decision can be made before the September 2026
@@ -161,7 +161,7 @@ Four conditions, in order of how likely they are to sink it:
 ## If the stub is promoted
 
 The mechanics are already documented — see
-[Adding a randomizer](../../reference/seed-generation.md#adding-a-randomizer-or-preset)
+[Adding a randomizer](../reference/seed-generation.md#adding-a-randomizer-or-preset)
 and the stub-promotion note. In short: replace the `ValueError` body, drop `mmr`
 from `STUB_RANDOMIZERS`, add a `CredentialSpec` if the upstream is keyed, commit
 the settings under `presets/mmr/`, and add `mmr` to `PRESET_AWARE_RANDOMIZERS` if

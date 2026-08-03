@@ -65,6 +65,7 @@ class FeatureFlag(str, Enum):
     BRACKETS = 'brackets'
     FEEDBACK = 'feedback'
     EVENT_INFO = 'event_info'
+    PAYOUTS = 'payouts'
 
 
 class BracketFormat(str, Enum):
