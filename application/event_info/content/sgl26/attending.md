@@ -109,9 +109,13 @@ accordingly, including whatever you need to get a seed onto it. There are no
 restrictions on what you have at your station.
 
 **RetroTINK 2X upscalers are available to borrow** if you need one to get your
-setup onto the room's displays. Ask an on-site admin, or the proctor if the desk
-is busy; either way the device is checked out against your name. When you are
-done with it, it goes back to an admin rather than to the proctor.
+setup onto the room's displays. **Every loaner device carries a QR code: scan
+it, sign in, and check the device out to yourself.** That is the whole process,
+and it is yours to do rather than something to queue at a desk for — the loan is
+recorded against your name from your own phone.
+
+Returning it is the other way round: **hand it to an admin, who checks it back
+in.** Not to the proctor, and not by leaving it at your station.
 
 > **TODO:** where the units are collected from, and how many there are. Worth
 > saying plainly, since a player on original hardware will want to know before

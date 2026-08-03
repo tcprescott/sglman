@@ -95,17 +95,15 @@ have at their station at this time, so a setup that looks unusual to you is not
 something to challenge. If a tournament does impose a hardware rule, that comes
 from its admins, not from you.
 
-**RetroTINK 2X upscalers are lent out.** A player who needs one to reach the
-display goes to the on-call admin, who checks the device out against their name.
+**RetroTINK 2X upscalers are lent out, and the player checks the device out
+themselves.** Every loaner carries a QR code: the player scans it, signs in, and
+the loan is recorded against their name. Point anyone asking at the code on the
+device rather than checking it out for them — doing it from your account would
+book the loan against you, and you are not the one holding it.
 
-**Check one out for them yourself if the admin is busy, or if they ask you to.**
-Same as checking a match in: a player due on station should not be left waiting
-on an occupied desk. Check it out against *their* name, not yours, so the app
-shows who is actually holding it.
-
-**Check-in is the admin's, either way.** A device coming back goes to them, and
-the loan stays open until they close it. If a player packs up with a borrowed
-unit, send them and it to the desk rather than taking it off their hands.
+**Check-in is the admin's.** A device coming back goes to them, and the loan
+stays open until they close it. If a player packs up with a borrowed unit, send
+them and it to the desk rather than taking it off their hands.
 
 **Help players get set up** if they need it. The one that catches people out is
 **audio: check that sound is actually reaching the headphones** before the match

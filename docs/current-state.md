@@ -30,23 +30,26 @@ Everything listed is **stable in production** unless marked otherwise.
 
 ## Known issues
 
-- **A proctor cannot check equipment out to a player, and the SGL handbook says
-  they can.** The procedure written into `proctoring.md` and `attending.md` is
-  that a player borrowing a RetroTINK 2X goes to the on-call admin, and that a
-  proctor checks one out for them when the desk is busy or the admin asks —
-  the same busy-desk carve-out the article already gives match check-in. The
-  code does not allow it: `AuthService.can_checkout_equipment` admits staff,
-  equipment managers and `VOLUNTEER`, and `EquipmentService.checkout` honours a
-  `borrower_id` **only** for `can_manage_equipment` (staff / equipment manager),
-  silently falling back to `borrower = actor` for anyone else. So a proctor who
-  also holds `VOLUNTEER` can only check a device out to themselves, and a
-  proctor holding neither cannot check one out at all. Check-in already matches
-  the procedure — `can_checkin_equipment` is staff / equipment manager only, and
-  the article says returns go to the admin. The enhancement is a lending-capable
-  predicate that includes `PROCTOR` and widens the `borrower_id` branch to it;
-  the silent fallback is the part to fix first, since it books the loan against
-  the wrong person rather than refusing. Nothing reaches a reader meanwhile:
-  `EVENT_INFO` is dark.
+- **A player cannot check a loaner out to themselves, and the SGL handbook says
+  they can.** The procedure written into `attending.md` and `proctoring.md` is
+  self-service: every loaner device carries a QR code, the player scans it, signs
+  in, and the loan records against their name; an admin checks it back in. Every
+  part of that works today **except the checkout itself.** The QR encodes the
+  tenant-qualified `/equipment/<id>` URL (`pages/equipment.py`), the page is
+  `@protected_page` with no role gate, so a signed-in player with no roles
+  reaches it and sees the asset — but `AuthService.can_checkout_equipment`
+  admits only staff, equipment managers and `VOLUNTEER`, so no button renders.
+  What they get instead is `NOT_BORROWABLE_GUIDANCE`: *"Checking equipment out is
+  for volunteers and staff — ask staff or an equipment manager if you need
+  this."* Which is a dead end, since the handbook has just told them to scan.
+  The enhancement is narrow, and narrower than the on-behalf lending it replaced:
+  let any authenticated member check out **to themselves**, leaving the
+  `borrower_id` branch (`EquipmentService.checkout`) manager-only as it is, so
+  nobody gains the ability to book a loan against someone else. Check-in stays
+  manager-only and already matches the article. `theme/equipment_copy.py` then
+  needs its guidance line and its docstring — which states the volunteer gate as
+  settled — revised with it. Nothing reaches a reader meanwhile: `EVENT_INFO` is
+  dark.
 - **Three hand-rolled `write_log` + `event_bus.publish` pairs remain**, each for a
   reason converting would break (see [event-system](features/event-system.md#the-three-remaining-hand-rolled-pairs)):
   `CrewService.set_approval` and `CrewService.acknowledge` audit *inside* an
