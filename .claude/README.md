@@ -261,14 +261,17 @@ whose `old_string` doesn't match (that Edit fails anyway).
 
 ### Slow test fixtures — `scripts/check_fixture_cost.py` (PreToolUse: Write|Edit)
 The test suite's wall time is dominated by per-test **fixture setup**, not by
-assertions: before commit `f0ceb4b` it was 84% of the run (166s of 197s). Two
-shapes caused it, and both are now built once per process and shared. This hook
-blocks re-introducing either one in `tests/`:
+assertions: before commit `f0ceb4b` it was 84% of the run (166s of 197s). Five
+shapes have caused it in turn, and all are now built once per worker process and
+shared. This hook blocks re-introducing any of them in `tests/`:
 
 | Shape | Use instead |
 |---|---|
 | mounting `api.router` on a test's own `FastAPI()` app | the `app` fixture in `tests/conftest.py` (returns the `@functools.cache`d `build_api_app()` from `tests/api_helpers.py`) |
 | `Tortoise.generate_schemas()` in a test | the `db` fixture, which replays the script rendered once by `_schema_sql()` in `tests/conftest.py` |
+| `Tortoise.init()` in a test | the `db` fixture, which inits once per worker and restores a template database per test |
+| `build_server()` in a test | `mcp_session()` from `tests/mcp/conftest.py`, which mounts the cached catalogue with a fresh transport |
+| `seed_all()` in a test | the `seeded_db` fixture, which snapshots the seeded database once per worker |
 
 The first rule cost ~200ms per test (`include_router` resolves every route's
 dependency graph and builds a Pydantic response model per endpoint) across ~400
@@ -285,9 +288,14 @@ sanctioned builder (`api_helpers.py`) plus `conftest.py`. Verified: 0 violations
 across all 163 files in `tests/`, including replaying each of the three
 bare-app files (and each with an extra bare app appended) as a from-scratch write.
 
+The last three rules exempt by **path tail** rather than basename, because the
+sanctioned builder is a specific conftest: `mcp/conftest.py` owns the cached MCP
+catalogue, and `test_seed_coverage.py` keeps its direct `seed_all()` calls
+because there the seed *running* is what is under test.
+
 Uses the **net-new counting** idiom from `check_dry_regressions.py` (same `Rule`
 dataclass, `_norm`/`in_tests` helpers, and Write/Edit content synthesis) even
-though both rules have a zero baseline today — so the rules keep working if a
+though every rule has a zero baseline today — so the rules keep working if a
 justified exception is ever added. It is a **separate script** rather than two
 more rows in `check_dry_regressions.py` because that file is scoped to the
 2026-07 code-quality audit's copy-paste findings; this is a performance
@@ -458,11 +466,15 @@ in `run_full_tests.py` at Stop *and* in CI, so they also bind human contributors
   file, so this module re-asserts the same invariants for every contributor:
   (1) **cache identity** — `build_api_app() is build_api_app()` and
   `_schema_sql() is _schema_sql()`, plus a `cache_info` check, so removing a
-  `@functools.cache` fails by name even when no new fixture is added;
+  `@functools.cache` fails by name even when no new fixture is added; that the
+  engine is already built and the running test is on the shared connection with
+  its template intact; and that `mcpserver.mount()` still resolves to the cached
+  MCP catalogue and gets a fresh session manager with it;
   (2) a **single AST pass** over `tests/` asserting no module but `conftest.py`
   defines a fixture named `app` (the direct guard against the re-pasted
   fixture), that nothing but `api_helpers.py` mounts the API router, that no
-  test calls `generate_schemas`, and that no fixture is a bare
+  test calls `generate_schemas`, `Tortoise.init`, `build_server` or `seed_all`
+  outside the one file that owns each, and that no fixture is a bare
   `return build_api_app()` alias — the shape a local `app` fixture takes once
   renamed. Fixtures that *assemble* a context and merely include the cached app
   in a returned dict (`tests/api/test_speedgaming.py`) are deliberately not

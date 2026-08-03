@@ -243,7 +243,7 @@ async def test_membership_is_what_the_picker_offers(two_tenants, db):
     assert outsider.username in offered
 
 
-async def test_the_seed_has_a_member_of_one_community_and_not_another(db):
+async def test_the_seed_has_a_member_of_one_community_and_not_another(seeded_db):
     """The fixture the scoped pickers are reviewed against.
 
     Every other seeded user is a member everywhere, so without this one a
@@ -251,9 +251,6 @@ async def test_the_seed_has_a_member_of_one_community_and_not_another(db):
     cannot tell scoped from unscoped.
     """
     from models import Tenant
-    from scripts.seed_dev import seed_all
-
-    await seed_all()
     default = await Tenant.get(slug='default')
     second = await Tenant.get(slug='second')
 

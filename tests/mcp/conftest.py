@@ -4,7 +4,8 @@ Mirrors ``tests/api_helpers.py`` but cannot share its shape, for two reasons
 that both come from the transport's task-group:
 
 * ``StreamableHTTPSessionManager.run()`` may be entered exactly once per
-  instance, so the app cannot be ``functools.cache``d like ``build_api_app``.
+  instance, so the *app* cannot be ``functools.cache``d like ``build_api_app``.
+  The tool catalogue behind it can, and is — see :func:`_catalogue`.
 * It is an anyio cancel scope, which must be exited in the task that entered
   it. pytest-asyncio drives async-generator fixture setup and teardown on
   *different* tasks, so a ``yield``-style fixture raises "Attempted to exit
@@ -15,6 +16,7 @@ so enter and exit share one task. It calls the real ``mcpserver.mount()`` rather
 than re-deriving the routing, so the suite exercises production wiring.
 """
 
+import functools
 import hashlib
 import random
 import secrets
@@ -24,6 +26,7 @@ from typing import Any, Iterable, Optional, Tuple
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from mcp.server.fastmcp import FastMCP
 
 import mcpserver
 from application.services.api_token_service import MCP_TOKEN_PREFIX
@@ -38,12 +41,46 @@ MCP_HEADERS = {
 }
 
 
+@functools.cache
+def _catalogue() -> FastMCP:
+    """The tool catalogue, built once per process.
+
+    ``build_server()`` costs ~230ms, effectively all of it in the 77
+    ``add_tool()`` calls: each derives a JSON schema from the tool's signature
+    via Pydantic. The catalogue is immutable and identical every time, so
+    rebuilding it for each of the ~106 sessions below cost ~24s per run — more
+    than any query the MCP suite makes. Same reasoning, and same shape, as
+    ``functools.cache`` on ``build_api_app()`` in ``tests/api_helpers.py``.
+    """
+    return mcpserver.server.build_server()
+
+
+def _cached_build_server() -> FastMCP:
+    """What ``mcpserver.mount()`` calls during the suite.
+
+    The *server* is reusable; its transport is not — ``session_manager.run()``
+    may be entered exactly once per instance. So the cached server hands back a
+    freshly minted session manager each time, which is the only part of
+    ``build_server()`` that was ever per-session to begin with.
+    """
+    mcp = _catalogue()
+    mcp._session_manager = None
+    mcp.streamable_http_app()
+    return mcp
+
+
+# Patched at the module the production ``mount()`` resolves it from, so mount()
+# itself still runs for real: routes, discovery and the OAuth endpoints are all
+# registered by the code that registers them in production.
+mcpserver.build_server = _cached_build_server
+
+
 @asynccontextmanager
 async def mcp_session():
     """Yield a client against a freshly mounted MCP server.
 
-    A new server per use, because its session manager is single-use. Use inside
-    the test body, never as a fixture — see the module docstring.
+    A new transport per use, because its session manager is single-use. Use
+    inside the test body, never as a fixture — see the module docstring.
     """
     app = FastAPI()
     mcpserver.mount(app)

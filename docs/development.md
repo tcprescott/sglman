@@ -204,6 +204,23 @@ Wall time is dominated by **per-test fixture setup**, not by assertions — test
 
 Both are enforced mechanically, and the guard's error message explains the case it caught: [`tests/test_fixture_performance.py`](../tests/test_fixture_performance.py) (structural, never timing-based, runs in CI) and [`.claude/scripts/check_fixture_cost.py`](../.claude/scripts/check_fixture_cost.py) (same shapes, blocked at write time).
 
+Five things are built once per worker process rather than per test, each of them the most expensive item in the run at the time it was found:
+
+| Built once | Was costing | Where |
+|---|---|---|
+| The API app — `include_router` resolves every route's dependency graph and builds a Pydantic response model per endpoint | ~200ms × ~400 API tests | `build_api_app()`, `tests/api_helpers.py` |
+| The `CREATE TABLE` script, rendered from model metadata | ~18ms × every DB-backed setup | `_schema_sql()`, `tests/conftest.py` |
+| **The engine.** Most of `Tortoise.init()` is `_build_initial_querysets()` rebuilding a filter map for all ~70 models | ~15ms × ~1650 DB tests — 60s of a 190s profiled run | `_bootstrap_engine()`, `tests/conftest.py` |
+| **The MCP tool catalogue.** `build_server()` derives a JSON schema per tool | ~230ms × ~106 sessions | `_catalogue()`, `tests/mcp/conftest.py` |
+| **The dev seed.** Eight tests want `seed_all()`'s result, not its execution | ~1.5s × 8 | the `seeded_db` fixture, `tests/conftest.py` |
+
+The database itself is the interesting one. A test still needs an *empty* database, and re-creating the schema is most of what the old fixture paid for. So the pristine state — schema plus the default tenant plus its feature flags — is snapshotted into a detached in-memory `sqlite3` connection, and each test restores it through SQLite's own backup API: one C-level page copy, ~1ms against ~31ms to re-init Tortoise and replay the DDL. The snapshot carries `sqlite_sequence` with it, so autoincrement ids restart at 1 exactly as they did with a brand-new database. `seeded_db` is the same mechanism with a second snapshot.
+
+Two consequences worth knowing:
+
+- **The connection outlives the test.** The `db` fixture pulls it back out of Tortoise's registry on teardown, so a test that forgot to request `db` still fails the way it always did — against a connection to an empty database that has never seen the schema, not against the previous test's leftovers. The stray connection that opens is closed on the next `db` setup; leave four of them behind and the interpreter cannot exit, because aiosqlite's worker thread is not a daemon.
+- **SQLite runs on the event loop.** aiosqlite hands every statement to a background thread and waits on a future, which costs a queue put, a thread wake-up and a selector round trip on top of the query. Right for a server, wrong for an in-memory database where every statement returns in microseconds: skipping the hop halves the cost of every query in the suite. `tests/conftest.py` patches it out; the PostgreSQL path is untouched.
+
 Layout:
 
 | Path | Covers |
@@ -217,7 +234,7 @@ Layout:
 
 Fixtures from the conftests:
 
-- [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture that spins up an **in-memory SQLite** database via `Tortoise.init` and replays the CREATE TABLE script rendered once by `_schema_sql()`. Each test gets a fresh schema; closing the connection discards all rows. (SQLite catches logic errors but not PostgreSQL-specific query behavior.)
+- [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture backed by **in-memory SQLite**. Tortoise is initialised once per worker; each test then restores a pristine template database (schema, the default tenant, its feature flags) through SQLite's backup API, so it starts with no leakage from prior tests. `seeded_db` layers a second template holding everything `scripts/seed_dev.py` creates. (SQLite catches logic errors but not PostgreSQL-specific query behavior.) See [Keeping it fast](#keeping-it-fast) for why it works this way.
 - `tests/services/conftest.py` — an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture (and later close) enqueued coroutines, so tests can assert that notifications were sent without a bot connection or "never awaited" warnings.
 
 ### Known gaps
