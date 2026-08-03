@@ -351,8 +351,11 @@ async def admin_presets_page() -> None:
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            # Descriptions are a sentence or two — DK64R's run to a paragraph —
+            # so this table ships wrapping on rather than pushing the column off
+            # the right edge behind a scrollbar.
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
-                               table_key=TableKeys.ADMIN_PRESETS)
+                               table_key=TableKeys.ADMIN_PRESETS, wrap=True)
 
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))

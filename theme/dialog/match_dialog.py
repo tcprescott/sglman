@@ -59,13 +59,19 @@ class AdminMatchDialog(BaseMatchDialog):
 
         Manual creation is gated on ``can_manage_sync`` (STAFF / SYNC_ADMIN) and
         works regardless of the tournament's auto-open toggle. The section is
-        omitted entirely when the tournament has no racetime bot configured.
+        omitted entirely when the community does not have racetime rooms turned
+        on, or when the tournament has no racetime bot configured. The flag check
+        is not redundant with the bot: a tournament configured while the feature
+        was on keeps its bot id afterwards, and without this the dialog would
+        offer a Create button that ``RaceRoomService`` then refuses.
 
         An *existing* room used to be a dead end: the slug rendered as plain
         text, the status as its raw enum value, and ``cancel_room`` — reachable
         over REST and tested — had no web surface at all, so calling off a room
         opened by mistake meant the API or racetime.gg itself.
         """
+        if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
+            return
         tournament = await self.tournament_service.get_tournament_by_id(self.match.tournament_id)
         if tournament is None or tournament.racetime_bot_id is None:
             return

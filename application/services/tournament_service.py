@@ -60,19 +60,20 @@ class TournamentService(TournamentSignupMixin):
         self.discord_grant_repository = DiscordTournamentGrantRepository()
         self.audit_service = AuditService()
 
-    async def _resolve_preset_id(self, preset_id: Optional[int]) -> Optional[int]:
+    async def _resolve_preset(self, preset_id: Optional[int]):
         """Validate an incoming preset_id is a real preset in this tenant.
 
         ``None`` clears the FK. A non-null id must resolve through the
         tenant-scoped repository, so a preset from another tenant is rejected
-        rather than silently linked.
+        rather than silently linked. Returns the preset itself because the
+        randomizer it names is what ``seed_generator`` is set from.
         """
         if preset_id is None:
             return None
         preset = await self.preset_repository.get_by_id(preset_id)
         if preset is None:
             raise ValueError("Preset not found")
-        return preset.id
+        return preset
 
     async def _resolve_racetime_bot_id(self, racetime_bot_id: Optional[int]) -> Optional[int]:
         """Validate the bot is one this tenant is *authorized* to use.
@@ -226,7 +227,13 @@ class TournamentService(TournamentSignupMixin):
         if signups_open_at and signups_close_at and signups_close_at <= signups_open_at:
             raise ValueError('Signups must close after they open.')
         tournament_hours = self._normalize_tournament_hours(tournament_hours)
-        preset_id = await self._resolve_preset_id(preset_id)
+        preset = await self._resolve_preset(preset_id)
+        if preset is not None:
+            # The preset owns the randomizer: everything that still reads
+            # ``seed_generator`` (triforce texts, the schedule's roll button)
+            # would otherwise treat a preset-only tournament as having none.
+            seed_generator = preset.randomizer
+        preset_id = preset.id if preset is not None else None
         racetime_bot_id = await self._resolve_racetime_bot_id(racetime_bot_id)
         race_room_profile_id = await self._resolve_race_room_profile_id(race_room_profile_id)
         self._check_automation_prerequisites(
@@ -361,7 +368,15 @@ class TournamentService(TournamentSignupMixin):
         if config is not None:
             update_data['config'] = validate_tournament_config(config)
         if preset_id is not _UNSET:
-            update_data['preset_id'] = await self._resolve_preset_id(preset_id)
+            preset = await self._resolve_preset(preset_id)
+            update_data['preset_id'] = preset.id if preset is not None else None
+            # The preset decides which randomizer rolls the seed, so attaching one
+            # rewrites ``seed_generator`` and detaching one clears it — unless this
+            # same call named a generator explicitly (the legacy REST shape).
+            if preset is not None:
+                update_data['seed_generator'] = preset.randomizer
+            elif seed_generator is None:
+                update_data['seed_generator'] = None
         if racetime_bot_id is not _UNSET:
             update_data['racetime_bot_id'] = await self._resolve_racetime_bot_id(racetime_bot_id)
         if race_room_profile_id is not _UNSET:

@@ -9,8 +9,6 @@ from application.services import (
     PresetService,
     RaceRoomProfileService,
     RacetimeBotService,
-    RandomizerCredentialService,
-    SeedGenerationService,
     TournamentService,
     get_user_from_discord_id,
 )
@@ -58,10 +56,16 @@ class TournamentDialog:
             self.challonge_service.is_configured()
             and await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
         )
-        # Racetime room automation is only offered to sync managers, and only the
-        # bot categories this tenant is authorized for are selectable.
+        # Racetime room automation is only offered to sync managers of a community
+        # that has the feature on, and only the bot categories this tenant is
+        # authorized for are selectable. Same reason as Challonge above: this
+        # dialog opens from the ungated Tournaments tab, so it checks the flag
+        # itself — every racetime surface behind it already refuses without it.
+        racetime_live = can_sync and await FeatureFlagService().is_enabled(
+            FeatureFlag.RACETIME_ROOMS
+        )
         rt = {}
-        if can_sync:
+        if racetime_live:
             rt['bots'] = await self.racetime_bot_service.list_authorized_for_tenant(require_tenant_id())
             rt['profiles'] = await self.race_room_profile_service.list_selectable()
 
@@ -262,29 +266,37 @@ class TournamentDialog:
                 with ui.expansion(
                     'Seeds & randomizer', icon='casino', value=sections_open,
                 ).classes('w-full').props('dense'):
-                    default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
-                    configured = await RandomizerCredentialService().configured_randomizers()
-                    seed_choices = SeedGenerationService.available_randomizers(configured)
-                    # Keep a previously-chosen generator selectable even when its
-                    # credential is missing, so editing an existing tournament never
-                    # silently drops its value.
-                    if default_seed and default_seed not in seed_choices:
-                        seed_choices = [*seed_choices, default_seed]
-                    randomizer_choices = ['None', *seed_choices]
-                    seed_generator_input = ui.select(
-                        randomizer_choices, label='Seed Generator', value=default_seed,
-                    ).classes('input-full-width')
                     presets = await self.preset_service.list_selectable()
                     # None (0) clears the FK; ui.select cannot key an option on None,
                     # so a 0 sentinel stands in and maps back to None on submit.
-                    preset_options = {0: '— None (use Seed Generator) —'}
+                    preset_options = {0: '— None (no seeds) —'}
                     preset_options.update({p.id: f'{p.randomizer} / {p.name}' for p in presets})
                     default_preset = self.tournament.preset_id if self.tournament and self.tournament.preset_id else 0
                     preset_input = ui.select(
                         preset_options, label='Seed Preset', value=default_preset,
                     ).classes('input-full-width').props(
-                        'hint="Overrides Seed Generator when set — resolves the preset\'s randomizer & settings."'
+                        'hint="Picks the randomizer and the settings seeds roll with. Manage presets under Presets."'
                     )
+                    if not presets:
+                        ui.label(
+                            'No presets yet — add one under Online Play → Presets, '
+                            'or import a randomizer\'s published presets there.'
+                        ).classes('text-caption text-grey')
+                    # A tournament configured before the preset became the only
+                    # control still rolls on its stored generator. Say so, because
+                    # saving without a preset is what turns that off.
+                    legacy_generator = (
+                        self.tournament.seed_generator
+                        if self.tournament and self.tournament.seed_generator
+                        and not self.tournament.preset_id
+                        else None
+                    )
+                    if legacy_generator:
+                        ui.label(
+                            f'Currently rolling seeds with {legacy_generator} and no '
+                            'preset. Pick one to replace it — saving with None turns '
+                            'seed rolling off.'
+                        ).classes('text-caption text-warning')
                     triforce_access_message_input = ui.textarea(
                         'Triforce Text Access Message',
                         value=self.tournament.triforce_access_message if self.tournament and self.tournament.triforce_access_message else '',
@@ -338,7 +350,7 @@ class TournamentDialog:
 
                         ui.button('Link & Sync', icon='sync', on_click=link_and_sync).props('flat color=primary')
 
-                    if can_sync:
+                    if racetime_live:
                         ui.separator()
                         ui.label('Racetime').classes('text-bold')
                         t = self.tournament
@@ -475,7 +487,7 @@ class TournamentDialog:
                     return
 
                 rt_kwargs = {}
-                if can_sync:
+                if racetime_live:
                     rt_kwargs = dict(
                         racetime_bot_id=(rt['bot_input'].value or None),
                         race_room_profile_id=(rt['profile_input'].value or None),
@@ -492,7 +504,6 @@ class TournamentDialog:
                                 self.tournament,
                                 name=name_input.value,
                                 description=description_input.value,
-                                seed_generator=seed_generator_input.value,
                                 bracket_url=bracket_url_input.value,
                                 rules_url=rules_url_input.value,
                                 tournament_format=tournament_format_input.value,
@@ -520,7 +531,6 @@ class TournamentDialog:
                         new_tournament = await self.tournament_service.create_tournament(
                             name=name_input.value,
                             description=description_input.value,
-                            seed_generator=seed_generator_input.value,
                             bracket_url=bracket_url_input.value,
                             rules_url=rules_url_input.value,
                             tournament_format=tournament_format_input.value,

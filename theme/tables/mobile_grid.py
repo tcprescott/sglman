@@ -91,6 +91,7 @@ def enable_mobile_grid(
     breakpoint: str = MOBILE_GRID_BREAKPOINT,
     table_key: Optional[str] = None,
     required: Optional[AbstractSet[str]] = None,
+    wrap: bool = False,
 ) -> ui.table:
     """Make ``table`` render as stacked cards below ``breakpoint``.
 
@@ -125,6 +126,9 @@ def enable_mobile_grid(
             ``# table-prefs: exempt`` comment so the guardrail agrees.
         required: column names this table may never hide, overriding
             ``DEFAULT_REQUIRED`` (the row-action cells).
+        wrap: ship "wrap long values" on for this table — for tables carrying a
+            prose column that would otherwise run off the right edge. The viewer
+            can still turn it off in the preferences modal.
     """
     field_slots = field_slots or {}
     table.props(f':grid="Quasar.Screen.{breakpoint}"')
@@ -174,5 +178,6 @@ def enable_mobile_grid(
     if table_key:
         from theme.tables.preferences import DEFAULT_REQUIRED, customize_table
         customize_table(table, columns, key=table_key,
-                        required=required if required is not None else DEFAULT_REQUIRED)
+                        required=required if required is not None else DEFAULT_REQUIRED,
+                        wrap=wrap)
     return table
