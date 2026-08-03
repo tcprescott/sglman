@@ -23,6 +23,7 @@ from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_features import admin_features_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
+from pages.admin_tabs.admin_payouts import admin_payouts_page
 from pages.admin_tabs.admin_presets import admin_presets_page
 from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
@@ -120,7 +121,7 @@ def build_admin_tabs(
         'reschedule_request': reschedule_request,
     }
 
-    tabs = []
+    tabs: list[dict] = []
     # Each tab carries a drawer 'group'; the list is stable-sorted by
     # _ADMIN_GROUP_ORDER below so the drawer reads as labeled sections
     # instead of a flat scroll. Icons are unique per destination (no repeats).
@@ -144,6 +145,10 @@ def build_admin_tabs(
         tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
     if is_staff or access.is_stream_manager:
         tabs.append({'label': 'Stages', 'icon': 'tv', 'group': 'Operations', 'content': admin_stages_page})
+    # A tournament admin belongs here: posting their event's payout block is the
+    # job this replaces, and the service scopes each of them to their own events.
+    if (is_staff or is_ta_any) and FeatureFlag.PAYOUTS in live:
+        tabs.append({'label': 'Payouts', 'icon': 'payments', 'group': 'Operations', 'content': admin_payouts_page})
     if is_staff or access.is_preset_manager:
         tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
         tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})

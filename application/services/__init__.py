@@ -64,6 +64,7 @@ from .match import (
 )
 from .match_reschedule_service import MatchRescheduleService
 from .mcp_auth_service import McpAuthService
+from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
 from .provider_task_service import ProviderTaskService
@@ -97,9 +98,11 @@ from .twitch_service import TwitchService
 from .user_service import UserService
 from .volunteer import (
     DraftPolicy,
+    HoursSummary,
     VolunteerAutoscheduleService,
     VolunteerAvailabilityService,
     VolunteerExportService,
+    VolunteerHoursService,
     VolunteerPositionService,
     VolunteerProfileService,
     VolunteerQualificationService,
@@ -134,6 +137,7 @@ __all__ = [
     'FeatureFlagService',
     'FeedbackService',
     'HelpService',
+    'HoursSummary',
     'IdentityLinkProvider',
     'IdentityLinkService',
     'MatchDisplayService',
@@ -146,6 +150,7 @@ __all__ = [
     'MatchWatcherService',
     'McpAuthService',
     'NotFoundError',
+    'PayoutService',
     'PlayerAvailabilityService',
     'PresetService',
     'ProbeResult',
@@ -183,6 +188,7 @@ __all__ = [
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
+    'VolunteerHoursService',
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerQualificationService',

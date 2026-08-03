@@ -50,6 +50,12 @@ class Tournament(Model):
     racetime_auto_create_rooms = fields.BooleanField(default=False)
     room_open_minutes_before = fields.IntField(default=30)
     require_racetime_link = fields.BooleanField(default=False)
+    # How long before a scheduled match to remind its players and approved crew
+    # which stage they are on. Deliberately separate from
+    # ``room_open_minutes_before`` above, which governs racetime room creation:
+    # the two answer different questions and a community will want different
+    # numbers for them. Zero disables the reminder.
+    stage_reminder_minutes = fields.IntField(default=30)
     racetime_default_goal = fields.CharField(max_length=255, null=True)
     # Discord Scheduled Events mirror (PR 8). Per-tournament opt-in: when enabled,
     # the reconciler worker mirrors this tournament's scheduled matches into the
@@ -83,6 +89,12 @@ class Tournament(Model):
     # fixing a roster.
     signups_open_at = fields.DatetimeField(null=True)
     signups_close_at = fields.DatetimeField(null=True)
+    # The advertised pool and the leaderboard bonus. Percentages apply to their
+    # SUM: SGL's ALTTPR 2025 paid 50% of a $1000 pool plus a $100 bonus as $550.
+    # Both nullable — a tournament with no prize money leaves them unset rather
+    # than storing a zero that reads as "decided, and it's nothing".
+    prize_pool = fields.DecimalField(max_digits=10, decimal_places=2, null=True)
+    prize_bonus = fields.DecimalField(max_digits=10, decimal_places=2, null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -155,6 +167,49 @@ class TournamentPlayers(Model):
         unique_together = (('tournament', 'user'),)
         table = 'tournamentplayers'
         indexes = (('user',),)  # composite is tournament-first; user-only reverse lookup uncovered
+
+
+class TournamentPayout(Model):
+    """One placement's share of a tournament's prize pool.
+
+    A row is a *share*, not a payment: ``place`` and ``percentage`` are stored
+    and the money is computed as ``(prize_pool + prize_bonus) * percentage`` at
+    read time. Storing the amount would be a second source of truth that drifts
+    the moment the pool moves, which it does throughout the event.
+
+    ``place`` is not unique. Joint placings are the normal case — SGL's ALTTPR
+    2025 paid two third places at 10% each — and splitting a single 20% third
+    place in half would hide the arithmetic from the admin checking it.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tenant', related_name='payouts', on_delete=fields.CASCADE
+    )
+    tournament = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tournament', related_name='payouts', on_delete=fields.CASCADE
+    )
+    place = fields.IntField()
+    percentage = fields.DecimalField(max_digits=5, decimal_places=2)
+    # Null while the split is drafted before the bracket finishes. SET_NULL so
+    # retiring a user leaves the historical split intact and legible.
+    entrant = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='payouts', null=True, on_delete=fields.SET_NULL
+    )
+    note = fields.CharField(max_length=255, null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'tournamentpayout'
+        # (tournament, place, entrant) rather than (tournament, place), so ties
+        # are legal. Postgres treats NULLs as distinct, so several unfilled rows
+        # can sit at place 3 while the split is drafted, and once both are named
+        # the constraint stops one person being paid twice at one place.
+        # ``tournament`` already implies the tenant, so no tenant column is
+        # needed for the key to be tenant-safe.
+        unique_together = (('tournament', 'place', 'entrant'),)
+        indexes = (('tournament',),)
 
 
 class TournamentNotificationPreference(Model):

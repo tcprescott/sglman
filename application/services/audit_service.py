@@ -74,6 +74,10 @@ class AuditActions:
     TOURNAMENT_ADMIN_REVOKED = 'tournament.admin_revoked'
     TOURNAMENT_CREW_COORDINATOR_GRANTED = 'tournament.crew_coordinator_granted'
     TOURNAMENT_CREW_COORDINATOR_REVOKED = 'tournament.crew_coordinator_revoked'
+    # Prize money. Audited because money moving is what an audit log is for:
+    # who set the pool, and who decided each placement's share.
+    TOURNAMENT_PRIZE_POOL_UPDATED = 'tournament.prize_pool_updated'
+    TOURNAMENT_PAYOUT_UPDATED = 'tournament.payout_updated'
 
     # User
     USER_CREATED = 'user.created'

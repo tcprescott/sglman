@@ -77,6 +77,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StageService` | [stage_service.py](../../application/services/stage_service.py) | Stage (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
+| `PayoutService` | [payout_service.py](../../application/services/payout_service.py) | Prize pool, placement splits, and the Matcherino export | [payouts.md](../features/payouts.md), `PAYOUTS` |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
@@ -101,13 +102,15 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
+| `VolunteerHoursService` | [volunteer_hours.py](../../application/services/volunteer/volunteer_hours.py) | Hours served against the per-tenant comp tiers | `VOLUNTEERS` |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
+| `stage_reminder` (module) | [stage_reminder.py](../../application/services/match/stage_reminder.py) | Background loop DMing a stage match's players and crew shortly before it starts | — |
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-Every service **class** is re-exported from [`application/services/__init__.py`](../../application/services/__init__.py), along with `get_user_from_discord_id` and `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)). The helper and worker modules — `availability_windows`, `discord_queue`, `discord_event_worker`, `oauth_handoff_service`, `race_room_worker`, `reporting_shared`, `service_health_worker`, `speedgaming_sync_worker`, `volunteer_reminder` — are exported as modules (`from application.services import discord_queue`). Non-class members (`AuditActions`, `MatchStatus`, `TelemetryCategory`) import from their own module.
+Every service **class** is re-exported from [`application/services/__init__.py`](../../application/services/__init__.py), along with `get_user_from_discord_id` and `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)). The helper and worker modules — `availability_windows`, `discord_queue`, `discord_event_worker`, `oauth_handoff_service`, `race_room_worker`, `reporting_shared`, `service_health_worker`, `speedgaming_sync_worker`, `volunteer_reminder` — are exported as modules (`from application.services import discord_queue`); `stage_reminder` is exported the same way from its own package (`from application.services.match import stage_reminder`). Non-class members (`AuditActions`, `MatchStatus`, `TelemetryCategory`) import from their own module.
 
 ### api_token_service.py — ApiTokenService
 
@@ -536,7 +539,7 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | `update_match(match_id, *, tournament_id=None, scheduled_date=None, scheduled_time=None, player_ids=None, commentator_ids=None, tracker_ids=None, comment=None, clear_seated/clear_started/clear_finished/clear_confirmed/clear_seed=False, actor=None)` | `Match` | Partial update; syncs player/crew lists; can clear lifecycle timestamps and the seed; audits `match.updated`; re-runs acknowledgment + notification fan-out when the time or player set changed. Gated by `can_crud_match`. |
 | `submit_match_request(tournament_id, scheduled_date, scheduled_time, player_ids, actor, comment=None, *, title=None, from_bracket=False)` | `Match` | Player-initiated creation: the actor must be one of the players (`PermissionError` otherwise) — bypasses the TA/Staff gate without granting other powers. Refuses a tournament whose `allow_player_match_requests` is off (`assert_player_requests_allowed`), since a bracket-run tournament schedules only its own matchups; `from_bracket=True` skips that check and is set **only** by `BracketService.schedule_bracket_match` / `ChallongeService.schedule_challonge_match`, never from a request body. Audits `match.requested` and runs the same acknowledgment/notification fan-out as `create_match`. Lives in `match/match_request.py` (`MatchRequestMixin`). |
 | `set_stream_candidate(match_id, flag, actor=None)` | `Match` | Toggle `is_stream_candidate`; gated by `can_assign_match_stream`; notifies stream-candidate subscribers on a false→true transition. |
-| `assign_stage(match_id, stage_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stage; gated by `can_assign_match_stream`; audits assigned/cleared variants. |
+| `assign_stage(match_id, stage_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stage; gated by `can_assign_match_stream`; audits assigned/cleared variants. Enqueues the stage DM to the players, approved crew and watchers (both branches — the clear is a retraction), and nulls `stage_reminder_sent_at` so the pre-match reminder re-arms. |
 | `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_run_match`; rejected for racetime.gg tournaments (on-site-only — players race remotely). Validation ladder, most specific first: **(1)** the same station twice in one match, **(2)** the `StationFormat` regex, **(3)** a label outside the tenant's `Station` pool *once that pool is non-empty*, **(4)** a station already in use by another seated-and-unfinished match, and **(5)** a key that is not one of this match's player-row ids — the near-miss is a `User` id, and applying only the keys that happened to match would report success for a write that changed nothing. Each raises `ValueError`. Lives in [match_stations.py](../../application/services/match/match_stations.py) (`StationAssignmentMixin`). |
 | `suggest_stations(match_id, actor=None)` | `StationSuggestion` | Draw a free station for each of the match's two players — different `Station.side` where possible, preferring a station whose neighbours (same `side`+`section`, `position` ±1) are not in use, `secrets.choice` within the surviving tier. **Reads only**: the caller applies the result via `assign_stations`, so there is no audit row or event here. Returns `assignments` (`{match_player_id: label}`) plus `relaxations`, a list of user-facing sentences naming each rule it could not honour (one side full, no sides recorded, room too busy to avoid a neighbour). Raises `ValueError` for a match that does not have exactly two players, an empty station pool, fewer than two free stations, or a racetime.gg tournament. Gated by `can_run_match`. Lives in [match_station_draw.py](../../application/services/match/match_station_draw.py) (`StationDrawMixin`). |
 | `occupied_stations_for_dialog(match_id)` | `dict[str, int]` | `{station label: match id}` for stations in play, excluding this match — the read-through the station picker uses so presentation never touches `MatchRepository`. Lives in `match_stations.py` alongside `assign_stations`. |
@@ -787,6 +790,7 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stages. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
+| `get_volunteer_comp_tiers(default=None)` | `list[float]` | Ascending hour thresholds that earn a volunteer something (`volunteer_comp_tiers`, comma-separated). `[8, 12, 16]` when unset; a lone `0` means no tiers; a malformed value falls back to the default rather than raising. |
 | `get_tournament_hours()` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). |
 | `get_tournament_window_for_date(d)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
 | `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; Staff-only. |
@@ -993,6 +997,23 @@ Two shared, ORM-free passes sit beside the engines so a service, a Discord DM, o
 - [`round_names.py`](../../application/services/bracket_engines/round_names.py) — `round_label(...)` for one round, `round_names(nodes, *, double_elim, elimination)` for a whole stage graph (`elimination=False` gives the flat formats plain "Round N"), and `detect_finals_ids` (the structural "which match is the grand final / reset" rule). `theme/brackets/layout.py` re-exports `round_label` and `render.detect_finals` adapts `detect_finals_ids`, so the renderer and the notification path cannot disagree.
 - [`standings.py`](../../application/services/bracket_engines/standings.py) — `compute_standings(refs, results, config)` over opaque `int` refs and `ResultRow` records, computing match points and a configurable tiebreaker chain (`buchholz`, `omw`, `head_to_head`) into 1-based competition ranks (unresolved ties share a rank and list each other in `tied_with`). Round robin, Swiss re-pairing, stage-completion ranking, and the public bracket page's live standings all consume it.
 
+### payout_service.py — PayoutService
+
+Prize pool and placement splits. Behind `FeatureFlag.PAYOUTS` — every public method carries `@requires_feature`. A row stores a place and a percentage; the money is computed as `(prize_pool + prize_bonus) x percentage / 100`, quantized to the cent, at read time. Authorization is `AuthService.can_manage_payouts` (staff, super-admin, or that tournament's admin) and gates reads as well as writes. Feature doc: [payouts.md](../features/payouts.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_overview(actor)` | `list[PayoutOverview]` | Every tournament this actor may manage, with pool, total, place count, allocated percentage and whether every place is named. |
+| `get_split(tournament_id, actor)` | `PayoutSplit` | The rows with their computed amounts. Publishes nothing — it is a read. |
+| `set_pool(tournament_id, pool, bonus, actor)` | `Tournament` | Sets the two columns; `None` clears rather than zeroes. Audits/publishes `tournament.prize_pool_updated`. |
+| `set_split(tournament_id, rows, actor)` | `PayoutSplit` | Replaces the whole split in one transaction. Audits/publishes `tournament.payout_updated`. |
+| `set_entrant(payout_id, user_id, actor)` | `TournamentPayout` | Names (or un-names) the winner on one drafted row. |
+| `export_block(tournament_id, actor)` | `str` | The block pasted into the admin thread; an entrant with no `matcherino_username` is called out by name. |
+
+Validation raises `ValueError`: shares summing above 100 (below is allowed), a place under 1, a share of 0 or less, and a negative pool or bonus.
+
+Collaborators: `TournamentPayoutRepository`, `AuditService`, `AuthService`.
+
 ### triforce_text_service.py — TriforceTextService
 
 Community-submitted ALTTP end-game triforce texts, scoped per tournament, with a moderation workflow (Staff or that tournament's TAs). Validation enforces exactly 3 lines, ≤19 characters each, restricted to the ALTTP text-engine character set, at least one non-blank line. Feature doc: [triforce-texts.md](../features/triforce-texts.md).
@@ -1112,6 +1133,8 @@ The racetime room lifecycle mapped onto a `Match` — the business layer both th
 
 **race_room_worker.py** — the auto-open background loop (peer of `volunteer_reminder`). Every 60 s it scans (cross-tenant, unscoped) not-yet-finished matches on auto-create tournaments in a wide window, then per match — inside `tenant_scope` — opens a room when it enters that tournament's `room_open_minutes_before` lead, is idempotent (one room per match), has an authorized bot, and every entrant has a linked racetime identity. Started from the lifespan only when `RACETIME_BOT_ENABLED` is on.
 
+**match/stage_reminder.py** — the pre-match stage reminder loop (same shape as `volunteer_reminder`). Every 60 s it scans (cross-tenant, unscoped, via `MatchRepository.due_for_stage_reminder`) unfinished, unstamped matches that have a stage and are scheduled within `MAX_LEAD_MINUTES` (24 h), then per match — inside `tenant_scope` — re-checks it against its own tournament's `stage_reminder_minutes`, stamps `stage_reminder_sent_at` **before** enqueuing `MatchScheduleService.notify_stage_reminder`, and leaves anything still outside its lead unstamped for a later tick. A lead of 0 sends nothing; a lead beyond the scan window logs a warning and is still reminded once the match enters the window. Publishes no event: a reminder observes a match nobody changed. Started and stopped from the lifespan, ungated.
+
 **async_qualifier/async_qualifier_worker.py** — the run-expiry loop (same shape). Every 60 s it takes every started, still-in-progress qualifier run (cross-tenant, unscoped — each qualifier configures its own limit, so no single age cutoff is right for all of them, and the set is small: one active run per player per qualifier), then per run — inside `tenant_scope` — warns once ahead of its deadline and forfeits it past it, via `RunExpiryMixin.warn_run_expiring` / `expire_run`. A tenant with `ASYNC_QUALIFIERS` off is skipped rather than raising. Always started; a tenant without the feature has no runs to find.
 
 ### service_health_service.py — ServiceHealthService
@@ -1192,6 +1215,28 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthServ
 The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
 A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
+
+### volunteer_hours.py — VolunteerHoursService
+
+Totals the time a volunteer actually served, against the per-tenant comp tiers from `SystemConfigService.get_volunteer_comp_tiers()`. Read-only: no `AuditActions` entry and no `EventType`, on purpose.
+
+| Method | Returns | Description |
+|---|---|---|
+| `merged_hours(windows)` (module fn) | `float` | Hours covered by `[(start, end), …]`, counting overlap once. Touching windows (`a.end == b.start`) merge into one block; zero-length and inverted windows are dropped rather than subtracting. |
+| `for_user(user, *, start=None, end=None)` | `HoursSummary` | One volunteer's own total, the highest tier cleared, and the next one. |
+| `roster(*, start=None, end=None)` | `list[HoursSummary]` | Every opted-in volunteer plus anyone with counted hours, ordered by hours descending. |
+
+`HoursSummary` carries `user_id`, `user_name`, `hours`, `tier_cleared`, `next_tier` and the derived `hours_to_next`.
+
+Three rules decide what counts:
+
+- **Published only.** `auto_generated=False` is the single predicate — a draft is the coordinator's sketch, and `release` deletes the row rather than flagging it, so a withdrawn shift needs no predicate.
+- **Acknowledgement is not required.** Someone who turned up and ignored the DM still served the hours.
+- **Union, not sum.** A coordinator can hand-assign overlapping shifts, so 08:00–12:00 plus 10:00–14:00 is six hours, not eight.
+
+The window defaults to the tenant's event window (`get_event_window()`) rather than all time, so last year's shifts do not comp this year's badge, and its bounds are taken on the community's own clock. Shifts that straddle an edge are clipped to it. Both methods are `@requires_feature(FeatureFlag.VOLUNTEERS)`.
+
+Collaborators: `VolunteerAssignmentRepository.published_for_window`, `VolunteerProfileRepository`, `UserRepository`, `SystemConfigService`, `TimezoneService`.
 
 ### volunteer_profile_service.py — VolunteerProfileService
 
@@ -1456,10 +1501,13 @@ Notable members:
 
 - **Shared constants:** `MSG_NO_ACCOUNT`, `MSG_UNEXPECTED_ERROR_MATCH`, `MSG_UNEXPECTED_ERROR_CREW`.
 - **Match scheduling DMs** (sent by `MatchScheduleService`/`MatchService`): `scheduled_dm`, `rescheduled_dm`, `acknowledgment_request_dm`, `checked_in_dm`, `state_changed_dm`, `stream_candidate_dm`, `seed_dm`.
+- **Stage DMs** (`MatchService.assign_stage`, `stage_reminder`): `stage_assigned_dm`, `stage_cleared_dm`, `stage_reminder_dm`.
 - **Crew DMs** (`CrewService`): `crew_assignment_dm`, `crew_approval_withdrawn_dm`.
 - **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_unassigned_dm`, `volunteer_shift_changed_dm`, `volunteer_released_dm` (to the coordinators), `volunteer_ack_confirmation`.
 - **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `crew_ack_confirmation`, `crew_signup_confirmation`, `unwatch_confirmation`.
 - **`DMLink(label, url)`** — a DM's call-to-action route, rendered by `send_dm` as a Discord link button and used as the web-push mirror's tap target. Built by [`notification_links.py`](#notification_linkspy), never inline: the URL must be absolute, since a DM is read outside any request context.
+
+The async-qualifier builders live in a sibling module, `discord_messages_qualifier.py`, split out when this one passed the 800-line budget; the same "no message text inline" rule applies to it.
 
 All builders are pure functions returning `str`; optional fields passed as `None`/`''` are omitted from the rendered message.
 

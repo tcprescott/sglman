@@ -56,6 +56,7 @@ How each shipped subsystem behaves.
 | [features/telemetry.md](features/telemetry.md) | Page views, curated interactions, domain-event mirror, Staff-only report |
 | [features/web-push.md](features/web-push.md) | Declarative Web Push device notifications mirroring Discord DMs |
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
+| [features/payouts.md](features/payouts.md) | Prize pool, placement splits with ties, computed amounts, Matcherino handles and the payout block. Behind `FeatureFlag.PAYOUTS` |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
 | [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |
 | [features/event-information.md](features/event-information.md) | Public `/event-info` — a per-community event handbook; role-gated articles, shared prose loader |
@@ -74,7 +75,7 @@ feature docs become the truth.
 | Doc | What it is |
 |---|---|
 | [plans/match-runner/](plans/match-runner/README.md) | Making "how a match is run" a first-class type instead of a scattered `is_racetime` boolean, so a third race-management system can be added without touching sixteen call sites |
-| [plans/sgl26-onsite/](plans/sgl26-onsite/README.md) | Three gaps SpeedGaming Live 2025 asked for and the app still does not do: telling runners which stage they are on, totalling volunteer hours against the badge-comp tiers, and recording prize splits instead of leaving them in Discord threads. Freeze is end of September 2026 |
+| [plans/4-mmr-seedgen.md](plans/4-mmr-seedgen.md), [plans/5-wwr-seedgen.md](plans/5-wwr-seedgen.md) | Not plans — research notes on the two registered seed-generator stubs (`mmr`, `wwr`), how each was rolled by hand at SGL25, and what promoting it would cost. Read the relevant one before starting either |
 | [plans/pre-event-validation/](plans/pre-event-validation/README.md) | The manual test plan for everything the mocks and `/ui-validation` cannot reach — live Discord, real randomizers, racetime, push on real phones, PostgreSQL concurrency, deployment and load — plus the day-of runbook. Delete after the October event |
 | [reviews/](reviews/README.md) | UX evaluations, one flow each, measured against the running app — with the cross-cutting themes that recur across them |
 

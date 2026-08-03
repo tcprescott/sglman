@@ -133,6 +133,7 @@ also how the files stay under the 800-line budget.
 | `seed_match_day.py` | Density only (§6) |
 | `seed_play_in.py` | Group play-in races — the only rosters longer than two |
 | `seed_onsite.py` | The second venue event, and the archived season |
+| `seed_payouts.py` | Last season's split paid out in full (with two third places), a pool on the running tournament that nobody has placed in, and the Matcherino handles — one winner deliberately without one |
 | `seed_crew.py` | Commentator/tracker signups — one row per crew state, including the approved-but-unacknowledged one that is the only fixture rendering the Acknowledge control |
 | `seed_online.py` | Racetime bots/rooms, presets, SpeedGaming, Discord events |
 | `seed_qualifiers.py` | Async qualifiers, open and closed |

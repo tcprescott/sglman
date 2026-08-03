@@ -13,6 +13,7 @@ from models import (
     User,
     VolunteerAssignment,
     VolunteerPosition,
+    VolunteerProfile,
     VolunteerShift,
 )
 from tests.api_helpers import client_for, create_user_token
@@ -382,6 +383,42 @@ class TestCoverage:
             assert row['needed'] == 2
             assert row['understaffed'] is True
             assert row['position'] == 'Desk'
+
+
+# --- Hours ----------------------------------------------------------------
+
+class TestHours:
+    async def test_my_hours_counts_overlap_once(self, db, app):
+        actor, raw = await create_user_token(username='vol-hours')
+        pos = await VolunteerPosition.create(name='Desk')
+        for start, end in ((utc(2025, 10, 8, 8), utc(2025, 10, 8, 12)),
+                           (utc(2025, 10, 8, 10), utc(2025, 10, 8, 14))):
+            shift = await VolunteerShift.create(position=pos, starts_at=start, ends_at=end)
+            await VolunteerAssignment.create(shift=shift, user=actor)
+        async with client_for(app, raw) as c:
+            resp = await c.get(
+                '/api/volunteers/hours/me',
+                params={'start': '2025-10-08', 'end': '2025-10-08'},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body['hours'] == 6.0
+            assert body['user_id'] == actor.id
+
+    async def test_roster_is_coordinator_only(self, db, app):
+        _, raw = await create_user_token(username='plain-hours')
+        async with client_for(app, raw) as c:
+            resp = await c.get('/api/volunteers/hours')
+            assert resp.status_code == 403
+
+    async def test_roster_lists_opted_in_volunteers(self, db, app):
+        _, raw = await _coordinator_token(username='coord-hours')
+        vol = await User.create(discord_id=7101, username='rostered')
+        await VolunteerProfile.create(user=vol, opted_in_at=utc(2025, 10, 1))
+        async with client_for(app, raw) as c:
+            resp = await c.get('/api/volunteers/hours')
+            assert resp.status_code == 200
+            assert [r['user_id'] for r in resp.json()] == [vol.id]
 
 
 # --- Self-service ---------------------------------------------------------

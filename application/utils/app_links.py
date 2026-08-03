@@ -64,6 +64,17 @@ def player_schedule_url(bracket_match_id: int) -> str:
     return home_url(HOME_PLAYER, schedule=bracket_match_id)
 
 
+def player_match_url(match_id: int) -> str:
+    """The Player tab narrowed to one match.
+
+    Where the stage DMs land: the player's own board, showing the match the
+    message is about and nothing else. ``/admin/schedule?match_id=…`` is the
+    staff equivalent and no use here, because a player cannot open the admin
+    board at all.
+    """
+    return home_url(HOME_PLAYER, match=match_id)
+
+
 def player_reschedule_url(match_id: int) -> str:
     """The Player tab with the reschedule-request dialog for one match open.
 

@@ -1,7 +1,7 @@
 # Wind Waker seed generation (`wwr`) — research notes
 
 **Not a plan.** `wwr` is a registered stub in
-[`seedgen_service.py`](../../../application/services/seedgen_service.py) — selectable on a
+[`seedgen_service.py`](../../application/services/seedgen_service.py) — selectable on a
 tournament, present in every UI/API surface, and raising `ValueError` when
 rolled. Nothing automated it at SGL25. This file records what the wwrando repo
 answers, so the decision can be made before the September 2026 freeze.
@@ -79,7 +79,7 @@ Checked against tag `s8-v2` of `tanjo3/wwrando` (2026-08-03).
 ## If the stub is promoted
 
 The mechanics are already documented — see
-[Adding a randomizer](../../reference/seed-generation.md#adding-a-randomizer-or-preset)
+[Adding a randomizer](../reference/seed-generation.md#adding-a-randomizer-or-preset)
 and the stub-promotion note. In short: replace the `ValueError` body, drop `wwr`
 from `STUB_RANDOMIZERS`, commit the season permalink under `presets/wwr/`, and
 add `wwr` to `PRESET_AWARE_RANDOMIZERS` so the generator reads `preset.settings`

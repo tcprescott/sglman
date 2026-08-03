@@ -215,6 +215,7 @@ class UserService:
         display_name: Optional[str] = None,
         pronouns: Optional[str] = None,
         dm_notifications: Optional[bool] = None,
+        matcherino_username: Optional[str] = None,
     ) -> User:
         """Update the user's own profile fields. Caller is expected to be the
         same user (self-edit); permission check is performed at the page level
@@ -239,6 +240,12 @@ class UserService:
             if dm_notifications != user.dm_notifications:
                 changed['dm_notifications'] = dm_notifications
             user.dm_notifications = dm_notifications
+        if matcherino_username is not None:
+            any_provided = True
+            new_value = matcherino_username.strip() or None
+            if new_value != user.matcherino_username:
+                changed['matcherino_username'] = new_value
+            user.matcherino_username = new_value  # type: ignore[assignment]
 
         if any_provided:
             await user.save()

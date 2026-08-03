@@ -134,3 +134,18 @@ class CoverageRow(BaseModel):
     filled: int
     needed: int
     understaffed: bool
+
+
+class VolunteerHoursResponse(BaseModel):
+    """Hours served against the community's comp tiers.
+
+    ``hours`` counts published assignments once across overlaps, over the
+    event window unless ``start``/``end`` narrow it.
+    """
+
+    user_id: int
+    user_name: str
+    hours: float
+    tier_cleared: Optional[float] = None
+    next_tier: Optional[float] = None
+    hours_to_next: Optional[float] = None

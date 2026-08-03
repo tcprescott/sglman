@@ -95,6 +95,7 @@ from .tournament import (
     RandomizerCredential,
     Tournament,
     TournamentNotificationPreference,
+    TournamentPayout,
     TournamentPlayers,
     TriforceText,
 )
@@ -227,6 +228,7 @@ __all__ = [
     'Tournament',
     'TournamentGrant',
     'TournamentNotificationPreference',
+    'TournamentPayout',
     'TournamentPlayers',
     'Tracker',
     'TriforceText',

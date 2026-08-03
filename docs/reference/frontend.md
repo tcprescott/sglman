@@ -244,6 +244,8 @@ The two self-service tabs read the *signed-in* user's own data, so they are safe
 
 `proctor_station_tab()` is a purpose-built board, **deliberately diverged** from the admin Schedule tab it used to render: same `MatchTableView` and the same lifecycle dialogs (both build their callbacks from `theme/tables/match_lifecycle.py:MatchLifecycleHandlers`, so the two cannot drift), but six columns instead of nine — Time, Next step, Players & stations, Seed, Tournament, `#` — with no Commentators/Trackers/Stage and no create/edit/confirm controls. It also passes three board-shaping options the admin table does not: `exclude_racetime=True` (a racetime.gg match has no on-site proctor), `row_sort=proctor_row_order` (overdue → checked in → started → scheduled → finished, earliest first within a bucket) and `actions_first=True` (the mobile card's lifecycle button sits under the player names). A `@ui.refreshable` chip strip above the table — driven by the view's `on_rows_changed` — counts to-check-in / to-start / in-play / overdue. The tab slug stays `proctor-station`, so existing deep links keep working.
 
+Above the list sits one line of hours: `VolunteerHoursService.for_user(user)` rendered by the module-level pure `hours_message(summary)` — how many hours the volunteer is down for this event, the comp tier they have cleared, and the gap to the next one. It is the number a comped badge depends on and the person it belongs to could not previously see. The call is wrapped in `except ValueError` so a tenant with the feature off simply renders no line.
+
 `my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now, with_shiftmates=True)`, which **excludes unpublished drafts** — a coordinator's sketch is not this page's business. Each card answers the three questions a volunteer brings to the page:
 
 - **What am I down for** — position/label, the local start→end, and a provenance caption ("Scheduled by …", when, and the acknowledgment time once given).
@@ -386,7 +388,8 @@ Two tab functions live in this module.
 
 `admin_volunteer_roster_page()` — the "Vol. Roster" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
-- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
+- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In, **Hours**, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
+- **Hours** comes from `VolunteerHoursService.roster()`, keyed by user id, with a positive chip naming the highest comp tier cleared (`8h`, `12h`, …). The column sorts on the raw number, never the rendered string, so 10 does not fall between 1 and 2.
 - The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
 - An **Export data** button opens `VolunteerExportDialog`; the same button sits on the Vol. Schedule tab, since the coordinator may start from either.
 

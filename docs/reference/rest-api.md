@@ -109,6 +109,12 @@ Raising, agreeing and withdrawing take any write token (the service checks the a
 - The signup window itself rides on the tournament: `signups_open_at` / `signups_close_at` (UTC datetimes) on `POST`/`PATCH` and in every tournament response. Both are nullable and read permissively — no open date means signups are open now, no close date means they stay open. A close at or before the open returns `400`.
 - `GET /tournaments/{id}/match-suggestion?player_ids=[&bracket_match_id=]` — suggested UTC start time for the given players (400 if no slot fits). `bracket_match_id` confines the suggestion to that matchup's round window.
 
+### Payouts (`/api/tournaments/{id}/payouts`) · `payouts.py`
+Behind `FeatureFlag.PAYOUTS` (the whole router 404s when the community lacks it). Staff or that tournament's admin; **reads are gated with the writes**, since an unannounced split is admin data. Money serialises as strings, never floats. See [payouts.md](../features/payouts.md).
+- `GET /tournaments/{id}/payouts` — the split with each line's `amount` computed from `prize_pool + prize_bonus` at read time.
+- `PUT /tournaments/{id}/payouts` — replace the whole split with `{"lines": [{"place", "percentage", "entrant_id"?, "note"?}]}`. Two lines may share a `place`. `400` when the shares sum above 100; below 100 is accepted, because an unallocated remainder is real.
+- `PUT /tournaments/{id}/prize-pool` — `{"prize_pool", "prize_bonus"}`, both optional and nullable. Omitting one clears it, which is not the same as sending `0`.
+
 ### Stages (`/api/stages`) · `stages.py`, `stage_actions.py`
 - `GET /stages?active_only=` (`active_only` returns only active stages, default `false`) · `GET /stages/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 
@@ -127,6 +133,7 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
 - **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
+- **Hours:** `GET /volunteers/hours?start=&end=` — every opted-in volunteer's served hours against the comp tiers, coordinator-only (staff or volunteer coordinator; 403 otherwise) · `GET /volunteers/hours/me` — your own. `start`/`end` are optional **local dates** that narrow the count; both default to the tenant's event window. Published assignments only, overlapping shifts counted once.
 - **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`, and unpublished drafts are never listed) · `DELETE /volunteers/me/assignments/{id}` (give a shift back, optional `{"reason": …}` body → 204; the coordinators are DMed).
 
 ### Triforce texts (`/api/triforce-texts`) · `triforce.py`

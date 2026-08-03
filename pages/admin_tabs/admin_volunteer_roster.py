@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.services import AuthService, get_user_from_discord_id
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
@@ -24,10 +25,21 @@ _STATUS_ABBR = {
 _COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True, 'align': 'left'},
     {'name': 'opted_in', 'label': 'Opted In', 'field': 'opted_in', 'sortable': True, 'align': 'center'},
+    # Sorts on the raw number, never the rendered string — "10" must not fall
+    # between "1" and "2".
+    {'name': 'hours', 'label': 'Hours', 'field': 'hours', 'sortable': True, 'align': 'right'},
     {'name': 'qualifications', 'label': 'Qualifications', 'field': 'qualifications', 'align': 'left'},
     {'name': 'availability', 'label': 'Availability', 'field': 'availability', 'align': 'left'},
     {'name': 'actions', 'label': '', 'field': 'id', 'align': 'right'},
 ]
+
+
+def _tier_label(summary) -> str:
+    """The comp tier this volunteer has cleared, for the chip beside their hours."""
+    if summary is None or summary.tier_cleared is None:
+        return ''
+    tier = summary.tier_cleared
+    return f'{int(tier) if float(tier).is_integer() else tier}h'
 
 
 async def admin_volunteer_roster_page() -> None:
@@ -39,6 +51,7 @@ async def admin_volunteer_roster_page() -> None:
     profile_service = VolunteerProfileService()
     position_service = VolunteerPositionService()
     availability_service = VolunteerAvailabilityService()
+    hours_service = VolunteerHoursService()
     qualification_service = VolunteerQualificationService()
 
     volunteers_by_id: dict = {}
@@ -74,6 +87,14 @@ async def admin_volunteer_roster_page() -> None:
             <q-td :props="props">
                 <q-icon :name="props.value ? 'check_circle' : 'cancel'"
                         :color="props.value ? 'positive' : 'negative'" size="sm" />
+            </q-td>
+        ''')
+
+        table.add_slot('body-cell-hours', '''
+            <q-td :props="props">
+                <span class="text-weight-medium">{{ props.value }}</span>
+                <q-chip v-if="props.row.tier" dense color="positive" text-color="white"
+                        class="q-ml-xs">{{ props.row.tier }}</q-chip>
             </q-td>
         ''')
 
@@ -119,6 +140,14 @@ async def admin_volunteer_roster_page() -> None:
                         <div class="col-7">
                             <q-icon :name="props.row.opted_in ? 'check_circle' : 'cancel'"
                                     :color="props.row.opted_in ? 'positive' : 'negative'" size="sm" />
+                        </div>
+                    </div>
+                    <div class="row items-center q-mb-xs">
+                        <div class="col-5 text-grey-7 text-caption">Hours</div>
+                        <div class="col-7">
+                            <span class="text-weight-medium">{{ props.row.hours }}</span>
+                            <q-chip v-if="props.row.tier" dense color="positive" text-color="white"
+                                    class="q-ml-xs">{{ props.row.tier }}</q-chip>
                         </div>
                     </div>
                     <div class="row items-start q-mb-xs">
@@ -171,6 +200,8 @@ async def admin_volunteer_roster_page() -> None:
 
             opted_in_ids = set(await profile_service.opted_in_user_ids())
 
+            hours_by_user = {s.user_id: s for s in await hours_service.roster()}
+
             all_quals = await qualification_service.list_all_qualifications()
             qual_map: dict[int, list[str]] = {}
             for q in all_quals:
@@ -191,10 +222,13 @@ async def admin_volunteer_roster_page() -> None:
                     f'{format_local_time(w.starts_at)}–{format_local_time(w.ends_at)} ET'
                     for w in windows
                 ]
+                summary = hours_by_user.get(volunteer.id)
                 rows.append({
                     'id': volunteer.id,
                     'name': volunteer.preferred_name,
                     'opted_in': volunteer.id in opted_in_ids,
+                    'hours': summary.hours if summary else 0,
+                    'tier': _tier_label(summary),
                     'qualifications': ', '.join(sorted(qual_map.get(volunteer.id, []))),
                     'availability': '\n'.join(avail_lines),
                 })

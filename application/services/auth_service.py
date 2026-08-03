@@ -245,6 +245,19 @@ class AuthService:
         return await AuthService.is_tournament_admin(user, tournament.id)
 
     @staticmethod
+    async def can_manage_payouts(user: Optional[User], tournament: Tournament) -> bool:
+        """Read and edit one tournament's prize split.
+
+        The same people ``can_edit_tournament`` admits — staff, a super-admin,
+        or this tournament's admin — because the tournament admin is who the
+        event's organizer asks for the payout block today. Reads are gated
+        alongside writes: an unannounced split is admin data.
+        """
+        if await AuthService.is_staff(user):
+            return True
+        return await AuthService.is_tournament_admin(user, tournament.id)
+
+    @staticmethod
     async def can_crud_match(user: Optional[User], match: Match) -> bool:
         if await AuthService.is_staff(user):
             return True

@@ -23,6 +23,7 @@ from api.routers import (
     match_actions,
     matches,
     notifications,
+    payouts,
     player_availability,
     presets,
     race_room_profiles,
@@ -70,6 +71,10 @@ router.include_router(player_availability.other_players_router)
 router.include_router(
     triforce.router,
     dependencies=[Depends(require_feature(FeatureFlag.TRIFORCE_TEXTS))],
+)
+router.include_router(
+    payouts.router,
+    dependencies=[Depends(require_feature(FeatureFlag.PAYOUTS))],
 )
 router.include_router(notifications.router)
 router.include_router(audit.router)

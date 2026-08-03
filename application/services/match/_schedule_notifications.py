@@ -26,12 +26,17 @@ from application.utils.discord_embeds import (
     COLOR_SCHEDULED,
     COLOR_STREAM,
     match_embed,
+    stage_embed,
     time_field,
 )
 from application.utils.discord_messages import (
+    DMLink,
     acknowledgment_request_dm,
     rescheduled_dm,
     scheduled_dm,
+    stage_assigned_dm,
+    stage_cleared_dm,
+    stage_reminder_dm,
     stream_candidate_dm,
 )
 from models import Match, MatchPlayers
@@ -87,6 +92,103 @@ class MatchNotificationMixin:
         except Exception:
             logger.exception("notify_match_crew unexpected error for match %s", match.id)
 
+    async def notify_stage_changed(self, match: Match) -> None:
+        """Tell a match's players and approved crew that its stage changed.
+
+        Reads the stage back off the match rather than taking a name, because
+        ``discord_queue`` awaits this after the caller has returned: the row is
+        already written, and the relation is the one source of truth for what it
+        now says. No stage means it was cleared, and that branch is not
+        optional — someone told they are on Kraid and never told otherwise walks
+        to an empty stage. Watchers are in the audience too: they asked to
+        follow this match, and where it is played is part of following it.
+
+        Both branches carry the Player-tab link. The admin board shows the same
+        match and no player can open it, so pointing there would be a button
+        that looks right and does nothing for most recipients.
+
+        Never raises; per-DM failures are logged and swallowed. Publishes no
+        event of its own: the DM is a consequence of the stage change, which
+        ``MatchService.assign_stage`` already audits and publishes.
+        """
+        try:
+            await match.fetch_related('stage')
+        except Exception:
+            logger.exception('notify_stage_changed could not load the stage for match %s', match.id)
+            return
+        stage_name = match.stage.name if match.stage else ''
+        await self._notify_stage(
+            match,
+            build=(
+                (lambda names, when: stage_assigned_dm(
+                    match.tournament.name, stage_name, when, player_names=names,
+                ))
+                if stage_name else
+                (lambda names, when: stage_cleared_dm(
+                    match.tournament.name, when, player_names=names,
+                ))
+            ),
+            stage_name=stage_name,
+            title='📺 You are on stage' if stage_name else '📺 Stage call cancelled',
+            description=(
+                'Play at the stage rather than in the tournament room.'
+                if stage_name else 'This match is back in the tournament room.'
+            ),
+            log_label='notify_stage_changed',
+        )
+
+    async def notify_stage_reminder(self, match: Match, *, stage_name: str) -> None:
+        """The pre-match nudge, fanned out to the same audience as the assignment.
+
+        Sent by ``application/services/match/stage_reminder.py``, which owns the
+        timing and the once-only stamp; this method owns the copy and the
+        fan-out. Never raises, and publishes no event — a reminder observes a
+        match nobody changed.
+        """
+        await self._notify_stage(
+            match,
+            build=lambda names, when: stage_reminder_dm(
+                match.tournament.name, stage_name, when, player_names=names,
+            ),
+            stage_name=stage_name,
+            title='⏰ Your stage match is coming up',
+            description='Head to the stage now.',
+            log_label='notify_stage_reminder',
+        )
+
+    async def _notify_stage(
+        self,
+        match: Match,
+        *,
+        build,
+        stage_name: str,
+        title: str,
+        description: str,
+        log_label: str,
+    ) -> None:
+        """Shared body of the three stage DMs: same audience, card and link.
+
+        ``build(player_names, scheduled_display)`` returns the message text.
+        """
+        try:
+            await match.fetch_related('tournament', 'players__user')
+            player_names = [p.user.preferred_name for p in match.players]  # type: ignore[attr-defined]
+            message = build(player_names, time_field(match.scheduled_at))
+            embed = stage_embed(
+                title=title, tournament=match.tournament.name,
+                community_name=await _community_name(),
+                player_names=player_names, when=match.scheduled_at,
+                stage_name=stage_name or None, description=description,
+            )
+            recipients = await collect_match_recipients(match)
+            await self._send_dms(
+                match, recipients, message, embed=embed,
+                link=await notification_links.player_match(match.id),
+                log_label=log_label,
+            )
+        except Exception:
+            logger.exception("%s unexpected error for match %s", log_label, match.id)
+
     async def notify_match_cancelled(
         self,
         recipients: dict[int, bool],
@@ -130,23 +232,25 @@ class MatchNotificationMixin:
         message: str,
         *,
         embed: Optional[discord.Embed] = None,
+        link: Optional[DMLink] = None,
         log_label: str,
     ) -> None:
         """Send ``message`` to each recipient; watchers get the unwatch-button DM.
 
         ``recipients`` maps discord_id -> is_watcher (see collect_match_recipients).
         ``embed`` (when set) is the Discord card sent alongside; the text still
-        flows to the web-push mirror. Per-DM failures are logged (prefixed with
+        flows to the web-push mirror. ``link`` becomes the card's link button and
+        the web-push tap target. Per-DM failures are logged (prefixed with
         ``log_label``) and swallowed.
         """
         for discord_id, is_watcher in recipients.items():
             if is_watcher:
                 success, err = await self.discord_service.send_dm_with_unwatch_button(
-                    discord_id, message, match.id, embed=embed,
+                    discord_id, message, match.id, embed=embed, link=link,
                 )
             else:
                 success, err = await self.discord_service.send_dm(
-                    discord_id, message, embed=embed,
+                    discord_id, message, embed=embed, link=link,
                 )
             if not success:
                 logger.warning("%s DM failed for %s: %s", log_label, discord_id, err)

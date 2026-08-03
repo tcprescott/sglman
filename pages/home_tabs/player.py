@@ -11,6 +11,7 @@ from application.services import (
     TournamentService,
     get_user_from_discord_id,
 )
+from application.utils.app_links import HOME_PLAYER, home_url
 from application.utils.timezone import format_local_display
 from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
@@ -124,6 +125,7 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
 
 async def render_player_dashboard(
     schedule: int | None = None, reschedule: int | None = None,
+    match: int | None = None,
 ):
     """The player's own schedule.
 
@@ -135,6 +137,10 @@ async def render_player_dashboard(
     ``reschedule`` is a match id doing the same for the declined-request DM:
     its "Ask again" button lands on the request form for that match, because
     asking again with a different time is the actual next step after a refusal.
+
+    ``match`` narrows the board to one match, for the stage DMs' button. It
+    stays a filter rather than a dialog because "which stage am I on" is
+    answered by the row itself.
     """
     discord_id = app.storage.user.get('discord_id', None)
     # Resolved once for the help icons below: three of them read from the event
@@ -168,6 +174,19 @@ async def render_player_dashboard(
                 ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
+
+        # A stage DM linked here naming one match. Say so, and offer the way
+        # out: a one-row board with no explanation reads as a board that lost
+        # rows, and a DM outlives the stage call it was sent about.
+        if match:
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                    ui.icon('filter_alt', size='14px')
+                    ui.label('Showing one match only')
+                ui.button(
+                    'Show all my matches', icon='clear',
+                    on_click=lambda: ui.navigate.to(home_url(HOME_PLAYER)),
+                ).props('flat dense color=primary')
 
         # Challonge: upcoming bracket matches the player can schedule in a few clicks.
         @ui.refreshable
@@ -361,6 +380,7 @@ async def render_player_dashboard(
             extra_slots=extra_slots,
             player_discord_id=discord_id,
             storage_key='player_dashboard',
+            match_ids=[int(match)] if match else None,
         )
         @ui.refreshable
         async def requests_section():

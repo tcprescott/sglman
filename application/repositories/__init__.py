@@ -48,6 +48,7 @@ from .tenant_join_request_repository import TenantJoinRequestRepository
 from .tenant_membership_repository import TenantMembershipRepository
 from .tenant_repository import TenantRepository
 from .tournament_notification_repository import TournamentNotificationRepository
+from .tournament_payout_repository import TournamentPayoutRepository
 from .tournament_repository import TournamentRepository
 from .tracker_repository import TrackerRepository
 from .triforce_text_repository import TriforceTextRepository
@@ -105,6 +106,7 @@ __all__ = [
     'TenantMembershipRepository',
     'TenantRepository',
     'TournamentNotificationRepository',
+    'TournamentPayoutRepository',
     'TournamentRepository',
     'TrackerRepository',
     'TriforceTextRepository',

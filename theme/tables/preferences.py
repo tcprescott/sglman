@@ -76,6 +76,7 @@ class TableKeys:
     ADMIN_DISCORD_ROLES = 'admin.discord_roles'
     ADMIN_EQUIPMENT = 'admin.equipment'
     ADMIN_FEEDBACK = 'admin.feedback'
+    ADMIN_PAYOUTS = 'admin.payouts'
     ADMIN_PRESETS = 'admin.presets'
     ADMIN_QUALIFIERS = 'admin.qualifiers'
     ADMIN_QUALIFIER_LEADERBOARD = 'admin.qualifier_leaderboard'

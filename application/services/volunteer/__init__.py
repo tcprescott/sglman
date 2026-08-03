@@ -17,6 +17,11 @@ from application.services.volunteer.volunteer_availability_service import (
     VolunteerAvailabilityService,
 )
 from application.services.volunteer.volunteer_export_service import VolunteerExportService
+from application.services.volunteer.volunteer_hours import (
+    HoursSummary,
+    VolunteerHoursService,
+    merged_hours,
+)
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import (
@@ -27,12 +32,15 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 __all__ = [
     'DEFAULT_MAX_HOURS',
     'DraftPolicy',
+    'HoursSummary',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
+    'VolunteerHoursService',
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerQualificationService',
     'VolunteerScheduleService',
+    'merged_hours',
     'volunteer_reminder',
 ]

@@ -13,6 +13,7 @@ from api.schemas.tournaments import TournamentResponse
 from application.errors import require_found
 from application.services import (
     MatchSuggestionService,
+    PayoutService,
     StageService,
     TournamentService,
 )
@@ -21,11 +22,14 @@ from mcpserver.registry import register
 from mcpserver.schemas import (
     MatchTimeSuggestion,
     OperationResult,
+    PayoutEntry,
     StageInfo,
     TenantArg,
+    TournamentPayouts,
     TournamentSignupInfo,
     TournamentSummary,
 )
+from models import FeatureFlag
 
 
 async def list_tournaments(
@@ -104,6 +108,37 @@ async def withdraw_from_tournament(
     return OperationResult(detail=f'Withdrew from {tournament.name}.')
 
 
+async def get_tournament_payouts(
+    tournament_id: int,
+    tenant: TenantArg = None,
+) -> TournamentPayouts:
+    """Get a tournament's prize split — each placement's share and what it pays.
+
+    Amounts are computed from the pool plus the bonus at read time, so they
+    always match the pool as it stands now. Several rows may share a place:
+    joint placings are paid separately, not halved. Requires staff, or being an
+    admin of this tournament.
+    """
+    split = await PayoutService().get_split(tournament_id, current_actor().user)
+    return TournamentPayouts(
+        tournament_id=tournament_id,
+        prize_pool=split.pool,
+        prize_bonus=split.bonus,
+        total=split.total,
+        lines=[
+            PayoutEntry(
+                place=line.place,
+                percentage=line.percentage,
+                amount=line.amount,
+                entrant_name=line.entrant_name,
+                matcherino_username=line.matcherino_username,
+                note=line.payout.note,
+            )
+            for line in split.lines
+        ],
+    )
+
+
 async def list_stages(
     tenant: TenantArg = None,
     active_only: bool = False,
@@ -155,6 +190,10 @@ def register_tools(mcp: FastMCP) -> None:
     register(
         mcp, withdraw_from_tournament, gate=Gate.ACTOR, write=True,
         title='Withdraw from tournament', destructive=True,
+    )
+    register(
+        mcp, get_tournament_payouts, gate=Gate.ACTOR,
+        feature=FeatureFlag.PAYOUTS, title='Get tournament payouts',
     )
     register(mcp, list_stages, gate=Gate.ACTOR, title='List stages')
     register(mcp, get_stage, gate=Gate.ACTOR, title='Get stage')

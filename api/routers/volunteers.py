@@ -1,6 +1,6 @@
 """Volunteer scheduling endpoints."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, Query, status
@@ -15,6 +15,7 @@ from api.schemas.volunteers import (
     SetAvailabilityRequest,
     VolunteerAssignmentResponse,
     VolunteerAvailabilityResponse,
+    VolunteerHoursResponse,
     VolunteerPositionCreate,
     VolunteerPositionResponse,
     VolunteerPositionUpdate,
@@ -23,7 +24,9 @@ from api.schemas.volunteers import (
     VolunteerShiftResponse,
 )
 from application.errors import require_found
+from application.services.auth_service import AuthService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
@@ -170,6 +173,43 @@ async def coverage(
     end: datetime = Query(..., description="Window end (UTC ISO 8601)"),
 ):
     return await VolunteerScheduleService().coverage(start, end)
+
+
+# --- Hours ----------------------------------------------------------------
+
+def _hours_resp(summary) -> VolunteerHoursResponse:
+    return VolunteerHoursResponse(
+        user_id=summary.user_id,
+        user_name=summary.user_name,
+        hours=summary.hours,
+        tier_cleared=summary.tier_cleared,
+        next_tier=summary.next_tier,
+        hours_to_next=summary.hours_to_next,
+    )
+
+
+@router.get("/hours", response_model=List[VolunteerHoursResponse], summary="Volunteer hours against the comp tiers")
+async def hours(
+    start: date | None = Query(None, description="First event day to count (local date)"),
+    end: date | None = Query(None, description="Last event day to count (local date)"),
+    actor: User = Depends(require_api_actor),
+):
+    """Every opted-in volunteer's served hours. Defaults to the event window."""
+    await AuthService.ensure(
+        await AuthService.can_manage_volunteers(actor),
+        "Only volunteer coordinators can read the volunteer hours roster.",
+    )
+    summaries = await VolunteerHoursService().roster(start=start, end=end)
+    return [_hours_resp(s) for s in summaries]
+
+
+@router.get("/hours/me", response_model=VolunteerHoursResponse, summary="Your own volunteer hours")
+async def my_hours(
+    start: date | None = Query(None, description="First event day to count (local date)"),
+    end: date | None = Query(None, description="Last event day to count (local date)"),
+    actor: User = Depends(require_api_actor),
+):
+    return _hours_resp(await VolunteerHoursService().for_user(actor, start=start, end=end))
 
 
 # --- Self-service: profile, availability, assignments ---------------------

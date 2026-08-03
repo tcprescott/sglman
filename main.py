@@ -29,6 +29,7 @@ from application.events import event_bus
 from application.services import TelemetryService, WebhookService, web_push_service
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import get_discord_bot
+from application.services.match import stage_reminder
 from application.services.volunteer import volunteer_reminder
 from application.utils.easter_eggs import random_fact
 from application.utils.http_headers import header_safe
@@ -169,6 +170,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     seed_roll_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
+    # Pre-match stage reminder: DMs a stage match's players and approved crew
+    # shortly before it starts. Ungated — a community with no staged matches has
+    # nothing for it to find.
+    stage_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
     # webhook delivery subscriber (fans published events out to staff webhooks).
     event_dispatch_queue.start()
@@ -191,6 +196,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_racetime_bot()
     await async_qualifier_worker.stop()
     await volunteer_reminder.stop()
+    await stage_reminder.stop()
     await event_dispatch_queue.stop()
     await discord_queue.stop()
     await web_push_service.aclose_http_client()
