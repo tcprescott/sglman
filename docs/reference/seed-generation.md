@@ -186,6 +186,12 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 
 Settings resolve from `preset.settings` (else the committed [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json)). The canonical stored shape is `{"settings_string": "<string copied from dk64randomizer.com>"}` — the site's own portable preset format; a full settings JSON dict is also accepted and submitted as-is. An optional `"_branch": "dev"` key routes calls to the `dev` branch/host (default `stable`) and is stripped before anything is sent; an unrecognised value raises **before** the first HTTP call. The flow: `POST /convert_settings` (settings-string shape only — expands it to the full settings JSON), `POST /submit-task` → `task_id`, then `GET /task-status/{task_id}` every 5 s until `finished`. Any non-200 response, a `failed` or unrecognised status, a `finished` whose `result` is not a dict, a missing `seed_number`, or the 10-minute deadline each raise `ValueError`. The `result.seed_number` becomes the player-facing permalink. Spoiler behavior is whatever the preset encodes (Wizzrobe trusts the preset).
 
+#### Mocking the queue
+
+DK64R is the one randomizer that does **not** take the `MOCK_SEEDGEN` short-circuit. An instantly-returned permalink would skip the very thing that makes this backend different: upstream takes two to three minutes, and the Generate button holds a spinner for all of it. So `MOCK_SEEDGEN` instead swaps the `aiohttp` session for `MockDK64Session` ([`mock_dk64.py`](../../application/utils/mocks/mock_dk64.py)), an in-process stand-in for the queue. `_generate_dk64r` is unchanged under it — it really converts, submits, and polls on the 5 s cadence while a fake task walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS` (default 20; the suite pins it to 0). No credential is needed while mocked.
+
+`MOCK_DK64_OUTCOME` picks the ending (`finished`, `failed`, `http_error`, `stuck`) and `MOCK_DK64_BROKEN_STAGE` fails `convert` or `submit` instead, so every error branch above is reachable without a live key. `mock_dk64_presets(branch)` returns a `get_presets`-shaped list for surfaces that read the upstream preset catalogue.
+
 ## ALTTPR tournament generation and triforce texts
 
 `generate_alttpr_for_tournament(tournament_id, balanced=True)` rolls the same `casualboots.yaml` preset but first embeds a community-submitted end-game text from the tournament's approved [triforce text](../features/triforce-texts.md) pool ([`triforce_text_service.py`](../../application/services/triforce_text_service.py)):

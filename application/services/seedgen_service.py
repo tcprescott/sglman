@@ -23,6 +23,7 @@ from pyz3r import ALTTPR
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
 from application.tenant_context import require_tenant_id
+from application.utils.mocks.mock_dk64 import MockDK64Session, is_mock_dk64
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
 from application.utils.seed_provider import (
     PROVIDER_MAX_ATTEMPTS,
@@ -210,7 +211,11 @@ class SeedGenerationService:
         if randomizer not in generator_map:
             raise ValueError(f"Unsupported randomizer: {randomizer}")
 
-        if is_mock_seedgen():
+        # DK64R opts out of the instant short-circuit and mocks one layer down,
+        # at its HTTP session: its roll is a minutes-long task queue, and a
+        # permalink returned immediately never puts the presentation layer into
+        # the waiting state that is the whole point of testing this backend.
+        if is_mock_seedgen() and randomizer != 'dk64r':
             return ProviderCall(
                 value=RolledSeed(url=self._mock_seed_url(randomizer)),
                 provider=randomizer, operation='generate_seed', surface=surface,
@@ -405,7 +410,11 @@ class SeedGenerationService:
         permalink. The API is key-gated: the community's own key is sent as the
         ``X-API-Key`` header on every call.
         """
-        api_key = await self._credential('dk64r', 'api_key')
+        # The simulated queue authenticates nobody, so dev and CI roll DK64
+        # without a credential row — matching every other backend's behaviour
+        # under MOCK_SEEDGEN, which short-circuits before its own key lookup.
+        mocked = is_mock_dk64()
+        api_key = '' if mocked else await self._credential('dk64r', 'api_key')
 
         # Resolve settings: the preset when given, else the committed default.
         if preset is not None:
@@ -433,7 +442,11 @@ class SeedGenerationService:
 
         params = {'branch': branch}
         headers = {'X-API-Key': api_key}
-        async with aiohttp.ClientSession(headers=headers) as session:
+        session_factory = (
+            MockDK64Session if mocked
+            else lambda: aiohttp.ClientSession(headers=headers)
+        )
+        async with session_factory() as session:
             if settings_string is not None:
                 settings_dict = await self._dk64r_convert(session, settings_string, params)
             else:

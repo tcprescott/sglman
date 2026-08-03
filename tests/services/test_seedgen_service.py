@@ -150,12 +150,14 @@ class TestGenerateSeedPreset:
 
 
 class TestMockSeedgen:
-    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'dk64r', 'test'])
+    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test'])
     async def test_returns_mock_url_without_network(self, service, monkeypatch, randomizer):
         # No ALTTPR.generate / aiohttp / credential rows needed: the mock returns
         # before any backend is reached — even for randomizers that would
-        # otherwise raise for a missing credential (smmap/ootr/dk64r). No ``db``
+        # otherwise raise for a missing credential (smmap/ootr). No ``db``
         # fixture either, which is the point: nothing touches the credential table.
+        # ``dk64r`` is deliberately absent: it opts out of this short-circuit and
+        # runs its own simulated queue (``TestMockDK64``).
         monkeypatch.setenv('ENVIRONMENT', 'development')
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
         url = await service.generate_seed(randomizer)
@@ -532,3 +534,123 @@ async def _noop_sleep(_seconds):
 def _preset(settings):
     from types import SimpleNamespace
     return SimpleNamespace(randomizer='dk64r', settings=settings)
+
+
+class TestMockDK64:
+    """The simulated task queue (``MOCK_SEEDGEN`` + ``application.utils.mocks.mock_dk64``).
+
+    Note the absence of the ``db`` and ``dk64r_key`` fixtures throughout: the
+    simulated queue authenticates nobody, so a dev sandbox with no credential
+    row rolls DK64 exactly like every other mocked backend.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _mock_env(self, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        monkeypatch.setenv('MOCK_DK64_SECONDS', '0')
+
+    async def test_returns_a_real_shaped_permalink(self, service):
+        url = (await service._generate_dk64r(None)).url
+        assert url.startswith('https://dk64randomizer.com/randomizer.html?seed_id=')
+
+    async def test_does_not_return_the_generic_mock_url(self, service):
+        # The whole point of opting out of the short-circuit: DK64 must travel
+        # its own convert -> submit -> poll path even when mocked.
+        url = await service.generate_seed('dk64r')
+        assert 'mock.seedgen.local' not in url
+
+    async def test_dev_branch_routes_to_dev_host(self, service):
+        preset = _preset({'_branch': 'dev', 'settings_string': 'abc'})
+        url = (await service._generate_dk64r(preset)).url
+        assert url.startswith('https://dev.dk64randomizer.com/randomizer.html?seed_id=')
+
+    async def test_seed_numbers_differ_between_rolls(self, service):
+        urls = {(await service._generate_dk64r(None)).url for _ in range(5)}
+        assert len(urls) > 1
+
+    @pytest.mark.parametrize('outcome,message', [
+        ('failed', 'failed to generate'),
+        ('http_error', 'generate the seed'),
+    ])
+    async def test_failure_outcomes_raise(self, service, monkeypatch, outcome, message):
+        monkeypatch.setenv('MOCK_DK64_OUTCOME', outcome)
+        with pytest.raises(ValueError, match=message):
+            await service._generate_dk64r(None)
+
+    @pytest.mark.parametrize('stage,message', [
+        ('convert', 'convert settings'),
+        ('submit', 'submit the seed'),
+    ])
+    async def test_broken_stages_raise(self, service, monkeypatch, stage, message):
+        monkeypatch.setenv('MOCK_DK64_BROKEN_STAGE', stage)
+        with pytest.raises(ValueError, match=message):
+            await service._generate_dk64r(None)
+
+    async def test_walks_queued_then_started_then_finished(self, monkeypatch):
+        # The progression the presentation layer renders a waiting state from,
+        # driven off a controlled clock rather than real seconds.
+        from application.utils.mocks import mock_dk64
+
+        monkeypatch.setenv('MOCK_DK64_SECONDS', '100')
+        now = [0.0]
+        monkeypatch.setattr(mock_dk64.time, 'monotonic', lambda: now[0])
+
+        session = mock_dk64.MockDK64Session()
+        async with session.post(
+            'https://api.dk64rando.com/api/submit-task',
+            json={'settings_data': '{}'},
+        ) as resp:
+            task_id = (await resp.json())['task_id']
+
+        async def status_at(elapsed):
+            now[0] = elapsed
+            async with session.get(f'https://api.dk64rando.com/api/task-status/{task_id}') as r:
+                return (await r.json())['status']
+
+        assert await status_at(1.0) == 'queued'
+        assert await status_at(50.0) == 'started'
+        assert await status_at(101.0) == 'finished'
+
+    async def test_stuck_outcome_never_finishes(self, monkeypatch):
+        from application.utils.mocks import mock_dk64
+
+        monkeypatch.setenv('MOCK_DK64_SECONDS', '10')
+        monkeypatch.setenv('MOCK_DK64_OUTCOME', 'stuck')
+        now = [0.0]
+        monkeypatch.setattr(mock_dk64.time, 'monotonic', lambda: now[0])
+
+        session = mock_dk64.MockDK64Session()
+        async with session.post(
+            'https://api.dk64rando.com/api/submit-task', json={'settings_data': '{}'},
+        ) as resp:
+            task_id = (await resp.json())['task_id']
+
+        now[0] = 100_000.0
+        async with session.get(f'https://api.dk64rando.com/api/task-status/{task_id}') as r:
+            assert (await r.json())['status'] == 'started'
+
+    async def test_unknown_task_id_is_404(self):
+        from application.utils.mocks.mock_dk64 import MockDK64Session
+
+        session = MockDK64Session()
+        async with session.get('https://api.dk64rando.com/api/task-status/nope') as resp:
+            assert resp.status == 404
+
+    async def test_presets_match_the_upstream_shape(self):
+        from application.utils.mocks.mock_dk64 import mock_dk64_presets
+
+        presets = mock_dk64_presets('stable')
+        assert presets
+        assert all(
+            set(p) == {'branch', 'name', 'description', 'settings_string'}
+            for p in presets
+        )
+        assert all(p['branch'] == 'stable' for p in presets)
+
+    def test_refused_in_production(self, monkeypatch):
+        from application.utils.mocks.mock_dk64 import is_mock_dk64
+
+        monkeypatch.setenv('ENVIRONMENT', 'production')
+        with pytest.raises(RuntimeError, match='must not be enabled in production'):
+            is_mock_dk64()

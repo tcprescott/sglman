@@ -1484,6 +1484,7 @@ Each `MOCK_*` env var is read through one helper in `application/utils/mocks/`, 
 | `is_mock_twitch()` | `MOCK_TWITCH` | A verified Twitch identity for the link/unlink flow. |
 | `is_mock_racetime()` | `MOCK_RACETIME` | A verified racetime identity for link/unlink — **and** the `racetimebot/` runtime; both halves share the one production-refusal switch. |
 | `is_mock_seedgen()` | `MOCK_SEEDGEN` | Seed rolling: `generate_seed` returns a believable permalink instead of reaching a live randomizer, most of which need credentials or are unreachable from a dev sandbox. |
+| `is_mock_dk64()` | `MOCK_SEEDGEN` | DK64R only, and one layer lower: rather than short-circuiting the roll, it swaps `_generate_dk64r`'s `aiohttp` session for `MockDK64Session`, an in-process stand-in for the api.dk64rando.com task queue. The convert/submit/poll code runs for real against a fake task that walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS`, which is what puts the presentation layer into the minutes-long waiting state a real DK64 roll causes. Rides on `MOCK_SEEDGEN`, so it inherits the one production refusal. |
 
 ### qrcode_util.py
 
