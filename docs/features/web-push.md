@@ -117,6 +117,26 @@ worker bails rather than registering a device the server cannot attribute.
 Disabling notifications clears the record, so a later rotation cannot resurrect
 a device the user just turned off.
 
+### The endpoint is an SSRF vector, checked twice
+
+A stored endpoint is a URL the *browser* supplied and the *server* later POSTs
+to, so it is dereferenced with the app's own network position. `subscribe` and
+`rotate` both require `https`, cap the length, and run the shared
+[`ensure_public_host`](../../application/utils/ssrf.py) guard — the same one the
+webhook targets use — which rejects private, loopback, link-local, reserved,
+multicast and unspecified addresses, including the `169.254.169.254` metadata
+endpoint.
+
+`_deliver_one` runs it **again** at send time. The subscribe-time check resolves
+DNS once, but the delivery POST re-resolves it, so a host repointed at an
+internal address afterwards (slow DNS rebinding) would otherwise be reached on a
+stale verdict. A blocked delivery is *skipped, not pruned*: the host may resolve
+publicly again on the next send, and dropping a real device's subscription over
+one transient answer is the worse failure.
+
+Both checks are production-only, matching the webhook guard, so a development
+setup can still point at a local push mock.
+
 Source: model `WebPushSubscription` in [`models/user.py`](../../models/user.py)
 (user × device: unique `endpoint`, `p256dh`, `auth`, `user_agent`; the repository's
 endpoint upsert re-binds a device to the latest user),
