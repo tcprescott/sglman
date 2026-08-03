@@ -62,6 +62,32 @@ class RolledSeed:
     settings: Optional[dict] = None
 
 
+@dataclass
+class AsyncRollSubmission:
+    """A roll handed to a task queue, described well enough to resume later.
+
+    Everything here is persisted on a :class:`ProviderTask` the moment it comes
+    back, because the process that polls this task may not be the one that
+    submitted it.
+    """
+
+    provider_task_id: str
+    provider_params: dict
+    settings: dict
+
+
+@dataclass
+class AsyncRollPoll:
+    """One check of a submitted task.
+
+    ``seed`` is ``None`` while the task is still queued or running; a failed
+    task raises instead of returning, so "not yet" never reads as "never".
+    """
+
+    seed: Optional[RolledSeed] = None
+    verification_hash: Optional[list] = None
+
+
 async def _read_bundled_preset(path: str) -> str:
     """Read a committed preset file without blocking the shared event loop.
 
@@ -96,6 +122,13 @@ class SeedGenerationService:
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
     PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r'}
+
+    # Backends whose roll is a task queue rather than a request: submit now,
+    # collect minutes later. These do not return a seed from one call, so every
+    # surface that rolls one has to decide what to do with a task instead —
+    # ``MatchScheduleService`` queues a ``ProviderTask``, REST answers 202, and
+    # qualifier batch rolls refuse until that path is converted.
+    ASYNC_RANDOMIZERS: ClassVar[Set[str]] = {'dk64r'}
 
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr'}
@@ -409,13 +442,104 @@ class SeedGenerationService:
         task, poll until it finishes, and return a shareable dk64randomizer.com
         permalink. The API is key-gated: the community's own key is sent as the
         ``X-API-Key`` header on every call.
-        """
-        # The simulated queue authenticates nobody, so dev and CI roll DK64
-        # without a credential row — matching every other backend's behaviour
-        # under MOCK_SEEDGEN, which short-circuits before its own key lookup.
-        mocked = is_mock_dk64()
-        api_key = '' if mocked else await self._credential('dk64r', 'api_key')
 
+        This is the **blocking** shape — a seed back, like every other backend.
+        The persisted path (:class:`ProviderTask`, driven by ``seed_roll_worker``)
+        uses :meth:`submit_async_roll` / :meth:`poll_async_roll` instead, so a
+        roll survives a restart. Both share every HTTP call below.
+        """
+        branch, settings, settings_string = await self._dk64r_prepare(preset)
+        params = {'branch': branch}
+
+        async with await self._dk64r_session() as session:
+            settings_dict = await self._dk64r_resolve_settings(
+                session, settings, settings_string, params,
+            )
+            task_id = await self._dk64r_submit(session, settings_dict, params)
+            result = await self._dk64r_poll(session, task_id, params)
+
+        return self._dk64r_seed(result, branch, {'branch': branch, **settings_dict})
+
+    # ------------------------------------------------------------------
+    # Asynchronous (task-queue) rolls — the persisted path
+    # ------------------------------------------------------------------
+
+    async def submit_async_roll(
+        self, randomizer: str, preset: Optional[Preset] = None,
+    ) -> AsyncRollSubmission:
+        """Hand a roll to a task-queue backend and return its upstream handle.
+
+        Returns everything a *later* poll needs — possibly in another process
+        after a restart — so no part of an in-flight roll lives only in this
+        call's stack frame.
+        """
+        self._require_async(randomizer)
+        branch, settings, settings_string = await self._dk64r_prepare(preset)
+        params = {'branch': branch}
+
+        async with await self._dk64r_session() as session:
+            settings_dict = await self._dk64r_resolve_settings(
+                session, settings, settings_string, params,
+            )
+            task_id = await self._dk64r_submit(session, settings_dict, params)
+
+        return AsyncRollSubmission(
+            provider_task_id=task_id,
+            provider_params=params,
+            settings={'branch': branch, **settings_dict},
+        )
+
+    async def poll_async_roll(
+        self, randomizer: str, provider_task_id: str,
+        provider_params: Optional[dict] = None, settings: Optional[dict] = None,
+    ) -> AsyncRollPoll:
+        """Check a submitted task **once**. Never sleeps; the caller owns cadence.
+
+        ``AsyncRollPoll.seed`` is set once the task finished and ``None`` while
+        it is still queued or running. A failure raises ``ValueError``, keeping
+        "not done yet" and "will never be done" distinguishable to a caller that
+        must persist them differently.
+        """
+        self._require_async(randomizer)
+        params = provider_params or {}
+
+        async with await self._dk64r_session() as session:
+            result = await self._dk64r_poll_once(session, provider_task_id, params)
+
+        if result is None:
+            return AsyncRollPoll(seed=None)
+
+        branch = str((settings or {}).get('branch') or params.get('branch') or 'stable')
+        if branch not in DK64R_SITE_HOSTS:
+            branch = 'stable'
+        return AsyncRollPoll(
+            seed=self._dk64r_seed(result, branch, settings),
+            # The five-icon verification hash racers compare before starting.
+            # The ~9 MB base64 ``patch`` beside it is deliberately dropped here:
+            # nothing downstream reads it, and the permalink patches in-browser.
+            verification_hash=result.get('hash'),
+        )
+
+    def _require_async(self, randomizer: str) -> None:
+        if randomizer not in self.ASYNC_RANDOMIZERS:
+            raise ValueError(f"'{randomizer}' is not an asynchronous randomizer.")
+
+    @staticmethod
+    def _dk64r_seed(result: dict, branch: str, settings: Optional[dict]) -> RolledSeed:
+        seed_number = result.get('seed_number')
+        if seed_number is None:
+            raise ValueError('DK64 Randomizer returned no seed identifier.')
+        return RolledSeed(
+            url=f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}",
+            settings=settings or None,
+        )
+
+    async def _dk64r_prepare(self, preset: Optional[Preset]) -> tuple:
+        """Resolve a DK64R preset into ``(branch, settings, settings_string)``.
+
+        Pure: no HTTP and no credential, so an unrecognised branch raises before
+        anything is sent or persisted.
+        """
         # Resolve settings: the preset when given, else the committed default.
         if preset is not None:
             settings = dict(preset.settings or {})
@@ -438,41 +562,43 @@ class SeedGenerationService:
         # A settings string is the site's own portable preset format; expand it
         # to the full settings dict. A full-JSON preset is submitted as-is
         # (converting a dict would yield a string — the opposite direction).
-        settings_string = settings.get('settings_string')
+        return branch, settings, settings.get('settings_string')
 
-        params = {'branch': branch}
-        headers = {'X-API-Key': api_key}
-        session_factory = (
-            MockDK64Session if mocked
-            else lambda: aiohttp.ClientSession(headers=headers)
+    async def _dk64r_session(self):
+        """An HTTP session for DK64R: the real one, or the simulated queue.
+
+        Each roll phase opens its own, because a poll may run minutes after its
+        submit and in a different process — there is no session to keep alive
+        across that gap. The mock's task registry is process-wide for the same
+        reason.
+        """
+        # The simulated queue authenticates nobody, so dev and CI roll DK64
+        # without a credential row — matching every other backend's behaviour
+        # under MOCK_SEEDGEN, which short-circuits before its own key lookup.
+        if is_mock_dk64():
+            return MockDK64Session()
+        api_key = await self._credential('dk64r', 'api_key')
+        return aiohttp.ClientSession(headers={'X-API-Key': api_key})
+
+    async def _dk64r_resolve_settings(
+        self, session, settings: dict, settings_string: Optional[str], params: dict,
+    ) -> dict:
+        """Expand the preset if needed, then force the spoiler log off."""
+        settings_dict = (
+            await self._dk64r_convert(session, settings_string, params)
+            if settings_string is not None else settings
         )
-        async with session_factory() as session:
-            if settings_string is not None:
-                settings_dict = await self._dk64r_convert(session, settings_string, params)
-            else:
-                settings_dict = settings
 
-            # Never generate a spoiler log, whatever the preset asked for. The
-            # upstream serves one to anyone holding the seed number at
-            # ``GET /get_spoiler_log?hash=<seed_number>``, and the seed number is
-            # the permalink we DM to the players — so a preset with this on hands
-            # every racer the item locations. Several of the site's own presets,
-            # including "Season 5 Race Settings", convert with it set to true, so
-            # trusting the preset is not a safe default. Forced last, after both
-            # settings shapes have resolved, and it lands in the settings
-            # snapshot the ``GeneratedSeeds`` row records.
-            settings_dict['generate_spoilerlog'] = False
-
-            task_id = await self._dk64r_submit(session, settings_dict, params)
-            result = await self._dk64r_poll(session, task_id, params)
-
-        seed_number = result.get('seed_number')
-        if seed_number is None:
-            raise ValueError('DK64 Randomizer returned no seed identifier.')
-        return RolledSeed(
-            url=f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}",
-            settings={'branch': branch, **settings_dict},
-        )
+        # Never generate a spoiler log, whatever the preset asked for. The
+        # upstream serves one to anyone holding the seed number at
+        # ``GET /get_spoiler_log?hash=<seed_number>``, and the seed number is the
+        # permalink we DM to the players — so a preset with this on hands every
+        # racer the item locations. Several of the site's own presets, including
+        # "Season 5 Race Settings", convert with it set to true, so trusting the
+        # preset is not a safe default. Forced last, after both settings shapes
+        # have resolved, and it lands in the snapshot ``GeneratedSeeds`` records.
+        settings_dict['generate_spoilerlog'] = False
+        return settings_dict
 
     async def _dk64r_convert(self, session, settings_string: str, params: dict) -> dict:
         """Expand a DK64R settings string into the full settings JSON object."""
@@ -509,28 +635,40 @@ class SeedGenerationService:
         a 200, so both are handled.
         """
         deadline = time.monotonic() + DK64R_GENERATION_TIMEOUT
-        while True:
-            async with session.get(
-                f"{DK64R_API_BASE}/task-status/{task_id}", params=params,
-            ) as resp:
-                if resp.status != 200:
-                    raise ValueError(await self._dk64r_error(resp, 'generate the seed'))
-                data = await resp.json()
-            status = (data or {}).get('status')
-            if status == 'finished':
-                result = data.get('result')
-                if not isinstance(result, dict):
-                    raise ValueError('DK64 Randomizer finished without a seed result.')
+        while time.monotonic() < deadline:
+            result = await self._dk64r_poll_once(session, task_id, params)
+            if result is not None:
                 return result
-            if status == 'failed':
-                raise ValueError('DK64 Randomizer failed to generate the seed.')
-            if status not in ('queued', 'started'):
-                raise ValueError(
-                    f"DK64 Randomizer returned an unexpected status '{status}'."
-                )
-            if time.monotonic() >= deadline:
-                raise ValueError('DK64 Randomizer seed generation timed out.')
             await asyncio.sleep(DK64R_POLL_INTERVAL)
+        raise ValueError('DK64 Randomizer seed generation timed out.')
+
+    async def _dk64r_poll_once(self, session, task_id: str, params: dict) -> Optional[dict]:
+        """Check a task once: its ``result`` if finished, ``None`` if still going.
+
+        A crashed task surfaces as HTTP 500; the reference client also defends
+        against a ``failed`` status inside a 200, so both raise here. Everything
+        that merely means "not done yet" returns ``None``, which is what lets the
+        persisted poller tell a task worth re-checking from a dead end.
+        """
+        async with session.get(
+            f"{DK64R_API_BASE}/task-status/{task_id}", params=params,
+        ) as resp:
+            if resp.status != 200:
+                raise ValueError(await self._dk64r_error(resp, 'generate the seed'))
+            data = await resp.json()
+        status = (data or {}).get('status')
+        if status == 'finished':
+            result = data.get('result')
+            if not isinstance(result, dict):
+                raise ValueError('DK64 Randomizer finished without a seed result.')
+            return result
+        if status == 'failed':
+            raise ValueError('DK64 Randomizer failed to generate the seed.')
+        if status not in ('queued', 'started'):
+            raise ValueError(
+                f"DK64 Randomizer returned an unexpected status '{status}'."
+            )
+        return None
 
     @staticmethod
     async def _dk64r_error(resp, action: str) -> str:

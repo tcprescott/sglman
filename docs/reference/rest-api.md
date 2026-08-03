@@ -238,7 +238,9 @@ External-dependency health board (the HTTP dep is the only authz; the service do
 ### Seeds (`/api/seeds`) · `seeds.py`
 - `GET /seeds/randomizers` — the randomizers this community can actually roll + their `supports_triforce_texts` flag. A key-gated backend (`ootr`, `smmap`, `dk64r`) appears only once the community has configured its credential.
 - `POST /seeds` (`{randomizer, preset_id?}`) — roll a seed (loads the tenant-scoped preset when given; unsupported randomizer → 400; honors `MOCK_SEEDGEN`). Generation is ungated, so the write token is the authz. A key-gated randomizer the community has not configured → **400** naming the missing credential.
-
+- **Asynchronous randomizers** (`dk64r`) answer **202** with `{task_id, randomizer, status}` instead of a permalink: their upstream is a task queue and a roll takes minutes, so there is no url yet. Poll `GET /seeds/tasks/{id}` until `status` is terminal (`succeeded` / `failed` / `abandoned`); `url` is filled in only for a task that rolled for a match. Synchronous randomizers are unchanged (**200** + `url`).
+- `GET /seeds/tasks/{id}` — where a queued roll has got to. A task another community owns → **404**.
+- `POST /matches/{id}/seed` keeps its shape for both: an asynchronous roll returns `seed_url: null` with a message saying it is under way, and the players are DMed when it lands.
 ### Async qualifiers (`/api/async-qualifiers`) · `async_qualifiers.py`
 Self-paced permalink-pool qualifiers (mixed auth: admin reads/writes gate
 `can_admin_qualifier`; player run methods enforce ownership; `/open` and `/{id}/public`

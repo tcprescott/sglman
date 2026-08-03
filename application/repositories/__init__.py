@@ -32,6 +32,7 @@ from .match_watcher_repository import MatchWatcherRepository
 from .mcp_auth_repository import McpAuthRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
+from .provider_task_repository import ProviderTaskRepository
 from .race_room_profile_repository import RaceRoomProfileRepository
 from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
@@ -87,6 +88,7 @@ __all__ = [
     'McpAuthRepository',
     'PlayerAvailabilityRepository',
     'PresetRepository',
+    'ProviderTaskRepository',
     'RaceRoomProfileRepository',
     'RacetimeBotRepository',
     'RacetimeRoomRepository',

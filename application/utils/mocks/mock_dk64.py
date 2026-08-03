@@ -129,16 +129,26 @@ class _MockResponse:
         return str(self._payload)
 
 
-class MockDK64Session:
-    """A fake ``aiohttp.ClientSession`` serving the DK64 task-queue endpoints.
+#: Submitted tasks, by id, with the monotonic time each was accepted.
+#:
+#: Module level on purpose, and **not** the per-user state CLAUDE.md warns
+#: about: this stands in for a server, and a server remembers its tasks between
+#: connections. The persisted roll path submits on one session and polls on
+#: another, minutes later and possibly in a different process, so an
+#: instance-level registry would make every resumed poll a 404 — the one
+#: behaviour the mock exists to let us test.
+_TASKS: Dict[str, float] = {}
 
-    One session per roll, which is also how the real generator uses it, so the
-    simulated task's clock lives here rather than in module state that would be
-    shared across every user (CLAUDE.md: no per-user state at module level).
-    """
+
+def reset_mock_dk64() -> None:
+    """Forget every simulated task. For tests that assert on a clean queue."""
+    _TASKS.clear()
+
+
+class MockDK64Session:
+    """A fake ``aiohttp.ClientSession`` serving the DK64 task-queue endpoints."""
 
     def __init__(self) -> None:
-        self._tasks: Dict[str, float] = {}
         self._duration = mock_dk64_seconds()
         self._outcome = mock_dk64_outcome()
         self._broken = mock_dk64_broken_stage()
@@ -184,11 +194,11 @@ class MockDK64Session:
         if not body.get('settings_data'):
             return _MockResponse(400, {'error': 'Missing settings_data'})
         task_id = f"mock-{random.getrandbits(48):012x}"
-        self._tasks[task_id] = time.monotonic()
+        _TASKS[task_id] = time.monotonic()
         return _MockResponse(200, {'task_id': task_id, 'status': 'queued', 'priority': 'High'})
 
     def _task_status(self, task_id: str) -> _MockResponse:
-        started_at = self._tasks.get(task_id)
+        started_at = _TASKS.get(task_id)
         if started_at is None:
             return _MockResponse(404, {'error': 'Unknown task'})
 

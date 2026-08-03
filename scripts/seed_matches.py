@@ -28,6 +28,8 @@ from models import (
     MatchRescheduleRequest,
     MatchStreamVolunteer,
     MatchWatcher,
+    ProviderTask,
+    ProviderTaskStatus,
     RescheduleRequestKind,
     RescheduleRequestStatus,
     Stage,
@@ -183,6 +185,40 @@ async def seed_matches_for_tenant(
     if disputed_match.generated_seed_id is None:
         disputed_match.generated_seed = disputed_seed
         await disputed_match.save()
+
+    # Provider tasks: the queue that carries a task-queue randomizer's roll
+    # across a restart. One in each state, because the seed cell renders them
+    # differently and the difference is the whole feature — RUNNING is the one
+    # worth having, since it is the only way to see the "Rolling… 1:24" clock in
+    # a dev environment without waiting on an actual roll.
+    #
+    # The RUNNING row deliberately hangs off the *scheduled* match, which has no
+    # seed yet: a rolling indicator on a match that already has one would never
+    # render.
+    provider_tasks = [
+        (scheduled_match, ProviderTaskStatus.RUNNING, 'dev-task-running', None),
+        (future_match, ProviderTaskStatus.QUEUED, None, None),
+        (finished_match, ProviderTaskStatus.SUCCEEDED, 'dev-task-done', None),
+        (disputed_match, ProviderTaskStatus.FAILED, 'dev-task-failed',
+         'DK64 Randomizer failed to generate the seed.'),
+        (stage3_match, ProviderTaskStatus.ABANDONED, 'dev-task-abandoned',
+         'Timed out waiting for the provider.'),
+    ]
+    for match, status, upstream_id, error in provider_tasks:
+        await ProviderTask.get_or_create(
+            match=match, status=status, tenant=tenant,
+            defaults={
+                "provider": "dk64r",
+                "operation": "generate_seed",
+                "provider_task_id": upstream_id,
+                "provider_params": {"branch": "stable"},
+                "settings_snapshot": (
+                    {"branch": "stable", "generate_spoilerlog": False}
+                    if upstream_id else None
+                ),
+                "error": error,
+            },
+        )
 
     # The dispute flag itself, so the admin's review queue has a contested
     # row out of the box — this match has claimed to be disputed since the

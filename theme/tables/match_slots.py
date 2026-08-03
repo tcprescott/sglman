@@ -176,7 +176,11 @@ SEED_ROLLABLE = ("props.row.tournament_seed_generator && !props.row.is_racetime"
                  " && !['Finished', 'Confirmed'].includes(props.row.state)")
 
 SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <q-btn v-if="__ROLLABLE__ && !props.value"
+    <span v-if="props.row.seed_rolling_since && !props.value" class="st-pending">
+        <q-spinner size="16px" class="q-mr-xs" />{{ props.row.seed_rolling_label }}
+        <q-tooltip>This randomizer generates seeds on a queue, which takes a few minutes. The players are DMed as soon as it lands — you can leave this page.</q-tooltip>
+    </span>
+    <q-btn v-if="__ROLLABLE__ && !props.value && !props.row.seed_rolling_since"
            :loading="props.row._generating_seed"
            :disabled="props.row._generating_seed"
            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"

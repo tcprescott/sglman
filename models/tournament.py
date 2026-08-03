@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import MatchNotificationLevel
+from .enums import MatchNotificationLevel, ProviderTaskStatus
 
 
 class Tournament(Model):
@@ -205,6 +205,75 @@ class GeneratedSeeds(Model):
     provider_meta = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+
+class ProviderTask(Model):
+    """One long-running call to an upstream provider, tracked across restarts.
+
+    Most provider work is a request: ask, wait a second, get an answer. The DK64
+    randomizer is not — it is a task queue, and a roll takes two to three
+    minutes. Holding that upstream task id in a local variable for the duration
+    means a restart orphans the work: the seed exists upstream, but nothing can
+    ever claim it, so the match stays unseeded, no DM goes out, and there is no
+    record the roll happened. This row is the fix. Once the id is persisted,
+    resuming after a restart is not a special path — it is the normal one, since
+    the poller only ever reads its work from here.
+
+    Deliberately named for the *provider*, not for seeds: ``provider`` and
+    ``operation`` mirror ``application.utils.seed_provider.ProviderCall``, so a
+    later long-running call that is not a seed roll needs no new table. The
+    poller dispatches on ``operation``; today the only value is
+    ``generate_seed``.
+
+    **Consumers are explicit nullable FKs, not a generic type/id pair.** Tortoise
+    has no generic relation, and the generic version loses the cascade that
+    matters here: delete a match and a dangling task would keep polling for a
+    seed nobody can receive.
+
+    ``settings_snapshot`` is captured at submit time for the same reason
+    :class:`GeneratedSeeds` captures one — a completion that happens minutes
+    later, possibly in a different process, must record what was *sent*, not
+    re-resolve a ``Preset`` that may have been edited in between.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='provider_tasks', on_delete=fields.CASCADE)
+    # Mirrors ProviderCall.provider / .operation ('dk64r' / 'generate_seed').
+    provider = fields.CharField(max_length=32)
+    operation = fields.CharField(max_length=32)
+    status = fields.CharEnumField(ProviderTaskStatus, max_length=16, default=ProviderTaskStatus.QUEUED)
+    # The upstream handle. Null between row creation and a successful submit —
+    # a row in that window is a submit that died, which the poller abandons.
+    provider_task_id = fields.CharField(max_length=128, null=True)
+    # Whatever a *later* poll needs to address the task, e.g. {'branch': 'stable'}.
+    provider_params = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    settings_snapshot = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    preset = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Preset', related_name='provider_tasks', null=True, on_delete=fields.SET_NULL
+    )
+    # SET_NULL, like GeneratedSeeds.rolled_by: deleting the requester must not
+    # delete the record of the work. Carried so a completion running in the
+    # worker can attribute the resulting seed to whoever asked for it.
+    requested_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='provider_tasks', null=True, on_delete=fields.SET_NULL
+    )
+    match = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Match', related_name='provider_tasks', null=True, on_delete=fields.CASCADE
+    )
+    # Upstream's own words when it failed, shown to the admin who asked. Null on
+    # every non-failed row.
+    error = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+    completed_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = 'provider_task'
+        indexes = (('status', 'provider'),)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in ProviderTaskStatus.terminal()
 
 
 class Preset(Model):

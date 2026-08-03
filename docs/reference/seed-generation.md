@@ -188,6 +188,23 @@ Settings resolve from `preset.settings` (else the committed [`presets/dk64r/sgl.
 
 **`generate_spoilerlog` is forced to `false` on every roll**, overriding whatever the preset encodes, and the override happens *after* `convert_settings` so a settings string cannot smuggle it back on. Upstream serves the log to anyone holding the seed number (`GET /get_spoiler_log?hash=<seed_number>`) and the seed number *is* the permalink the players are DMed, so a preset with this on hands every racer the item locations. Several of the site's own presets, "Season 5 Race Settings" among them, convert with it set to `true`, so trusting the preset is not a safe default. The forced value lands in the settings snapshot the `GeneratedSeeds` row records.
 
+#### Asynchronous rolls
+
+`dk64r` is the only member of `ASYNC_RANDOMIZERS`, and it does not return a seed from one call. Every surface that rolls one therefore has to decide what to do with a *task*:
+
+| Surface | Behaviour |
+|---|---|
+| Match board / `MatchScheduleService.generate_seed` | Queues a `ProviderTask`, returns "Rolling the seed…" with no url. The row shows a live `Rolling… 1:24` clock (server-side, so it survives a refresh and every viewer sees it). |
+| REST `POST /seeds` | **202** + `{task_id, status}`; poll `GET /seeds/tasks/{id}`. |
+| REST `POST /matches/{id}/seed`, MCP `generate_match_seed` | Unchanged shape: `seed_url: null` plus a message saying it is under way. |
+| Qualifier pools | **Refused.** Each roll would land independently, so the batch's all-or-nothing property would not hold. Enforced in `AsyncQualifierService`, not only in the preset picker, because a pool created before dk64r became asynchronous can already point at one. |
+
+The split in `SeedGenerationService` is `submit_async_roll` → `AsyncRollSubmission` (the upstream handle, the params a later poll needs, and the settings as sent) and `poll_async_roll` → `AsyncRollPoll` (`seed` set once finished, `None` while queued or running, raises on failure — so "not yet" never reads as "never"). Both share every HTTP call with the blocking `_generate_dk64r`, which is still there for callers that want a seed back.
+
+`seed_roll_worker` (5 s tick) is the only thing that advances a task: it sweeps stale rows, then polls each unfinished task inside its own `tenant_scope`. Because it reads its work from the table, resuming after a restart is the normal path, not a recovery path that only runs after a crash and therefore only breaks after one. Completion goes through `MatchScheduleService.complete_seed_roll` — the same method the synchronous path calls — so a restart changes who finishes the roll, not what finishing means. A terminal transition is claimed with a conditional update, so a duplicate tick cannot write a second seed or DM the players twice.
+
+**No retry.** A failed task stays terminal for a human to re-run: every attempt consumes a real, publicly-numbered seed upstream, and a silent retry loop spends them where nobody is watching.
+
 #### Mocking the queue
 
 DK64R is the one randomizer that does **not** take the `MOCK_SEEDGEN` short-circuit. An instantly-returned permalink would skip the very thing that makes this backend different: upstream takes two to three minutes, and the Generate button holds a spinner for all of it. So `MOCK_SEEDGEN` instead swaps the `aiohttp` session for `MockDK64Session` ([`mock_dk64.py`](../../application/utils/mocks/mock_dk64.py)), an in-process stand-in for the queue. `_generate_dk64r` is unchanged under it — it really converts, submits, and polls on the 5 s cadence while a fake task walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS` (default 20; the suite pins it to 0). No credential is needed while mocked.

@@ -213,7 +213,10 @@ _SEED_DETAIL = '''
         <div class="mgc-detail" v-if="props.row.generated_seed || (__RUN__ && __ROLLABLE__)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <q-btn v-if="__RUN__ && __ROLLABLE__ && !props.row.generated_seed"
+                <span v-if="props.row.seed_rolling_since && !props.row.generated_seed" class="st-pending">
+                    <q-spinner size="14px" class="q-mr-xs" />{{ props.row.seed_rolling_label }}
+                </span>
+                <q-btn v-if="__RUN__ && __ROLLABLE__ && !props.row.generated_seed && !props.row.seed_rolling_since"
                        :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
                        icon="casino" color="primary" size="sm" dense outline
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
