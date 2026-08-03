@@ -6,7 +6,6 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
-    ChallongeService,
     FeatureFlagService,
     TimezoneService,
     TournamentNotificationService,
@@ -103,29 +102,15 @@ async def render_edit_info_tab():
         # SUPER_ADMIN, which isn't a community role).
         roles = await AuthService.get_roles(user)
 
-        # Get tournaments and user registrations from service
-        tournament_data = await user_service.get_active_tournaments_categorized()
+        # Signing up happens on the Tournaments tab now; what is still needed
+        # here is which tournaments the player is in, so the match-alert rows
+        # below can mark them.
         user_tournaments = await user_service.get_user_tournament_registrations(user)
-
-        tournaments = tournament_data['all_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
-        # Challonge-linked tournaments handle participation automatically via the
-        # bracket mirror, so their opt-in checkbox is read-only and reflects
-        # bracket membership rather than a manual choice. This tab is not itself
-        # flag-gated, so every Challonge call it makes has to be skipped when the
-        # community lacks the feature — the service refuses otherwise.
+        # This tab is not itself flag-gated, so the Challonge row in Connected
+        # accounts has to be skipped when the community lacks the feature.
         challonge_live = FeatureFlag.CHALLONGE in await FeatureFlagService().enabled_flags()
-        account_linked = bool(user.challonge_user_id)
-        challonge_participant_ids = (
-            await ChallongeService().participant_tournament_ids(user) if challonge_live else set()
-        )
-        # Existing manual enrollments for linked tournaments must be preserved
-        # untouched when the player edits their other (manual) selections.
-        challonge_enrolled_ids = {
-            t.id for t in tournaments
-            if challonge_live and t.challonge_tournament_id and t.id in selected_tournament_ids
-        }
 
         # Per-tournament match notification preferences
         notification_service = TournamentNotificationService()
@@ -213,27 +198,6 @@ async def render_edit_info_tab():
             await save_personal()
             # Defined further down (the notifications card); resolved at call time.
             delivery_off_note.refresh()
-
-        async def on_tournament_change():
-            mark_dirty()
-            selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
-            # Challonge-managed enrollments aren't editable here; carry them
-            # through so the full-set update doesn't drop them.
-            selected_ids |= challonge_enrolled_ids
-            show_saving()
-            try:
-                await user_service.manage_tournament_enrollments(
-                    user=user,
-                    actor=user,
-                    tournament_ids=selected_ids,
-                    is_update=True,
-                )
-            except ValueError as e:
-                show_error(str(e))
-                ui.notify(str(e), color='warning')
-                return
-            show_saved()
-            mark_clean()
 
         async def on_notification_pref_change(tournament_id: int):
             mark_dirty()
@@ -386,7 +350,7 @@ async def render_edit_info_tab():
                 ui.label(
                     'Follow a tournament to hear when its matches are scheduled — you do not '
                     'have to be playing in it. "Streamed & Candidates" also alerts you when a '
-                    'match may be streamed.'
+                    'match may be streamed. To play in one, sign up on the Tournaments tab.'
                 ).classes('text-caption text-grey-7')
                 if not active_tournaments:
                     ui.label('No active tournaments.').classes('text-muted')
@@ -404,82 +368,6 @@ async def render_edit_info_tab():
                                 value=current_level,
                                 on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
                             ).props('outlined dense').style('min-width: 170px')
-
-        # Tournament enrollment — manual opt-in lists, one checkbox per row so it
-        # stays tappable on mobile.
-        tournament_checkboxes = {}
-        staff_tournaments = [t for t in tournaments if t.staff_administered]
-        player_tournaments = [t for t in tournaments if not t.staff_administered]
-
-        def render_challonge_tournament(t):
-            """Read-only opt-in for a Challonge-linked tournament.
-
-            Participation is driven by the synced bracket, so the checkbox is
-            disabled and just reflects bracket membership. Players who haven't
-            linked their Challonge account get a call to action to do so.
-            """
-            in_bracket = t.id in challonge_participant_ids
-            # Quasar's disabled checkbox is only a slight opacity change, so on its
-            # own the row is indistinguishable from the editable ones beside it. A
-            # lock glyph and an "Automatic" badge carry the read-only state, and the
-            # explanatory lines are indented under the row rather than emitted as
-            # card-level siblings where they read as unattached prose.
-            with ui.row().classes('items-center gap-2 no-wrap w-full'):
-                checkbox = ui.checkbox(t.name, value=in_bracket)
-                checkbox.props('disable')
-                checkbox.tooltip('Enrollment for this tournament is managed automatically through Challonge.')
-                ui.icon('lock', size='xs').classes('text-grey-6')
-                ui.badge('Automatic').props('outline color=grey')
-            with ui.column().classes('gap-1 q-ml-lg'):
-                if account_linked:
-                    ui.label(
-                        'Enrolled from the Challonge bracket — nothing to change here.'
-                        if in_bracket else
-                        'You are not in this bracket yet. Enrollment follows the bracket automatically.'
-                    ).classes('text-caption text-grey-7')
-                else:
-                    ui.label('Link your Challonge account to be enrolled automatically.').classes(
-                        'text-caption text-grey-7'
-                    )
-                    ui.button(
-                        'Link Challonge account', icon='link',
-                        on_click=lambda: ui.navigate.to('/challonge/link'),
-                    ).props('flat dense color=primary size=sm')
-                if t.challonge_tournament_url:
-                    ui.link('View bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
-
-        def render_tournament_group(tournament_list, label, icon):
-            if not tournament_list:
-                return
-            with ui.row().classes('items-center gap-2 q-mt-sm'):
-                ui.icon(icon, size='sm').classes('icon-primary')
-                ui.label(label).classes('subsection-title')
-            for t in tournament_list:
-                if challonge_live and t.challonge_tournament_id:
-                    render_challonge_tournament(t)
-                else:
-                    tournament_checkboxes[t.id] = ui.checkbox(
-                        t.name,
-                        value=t.id in selected_tournament_ids,
-                        on_change=on_tournament_change,
-                    ).classes('input-full-width')
-
-        with ui.card().classes('card-full-width'):
-            ui.label('Tournament enrollment').classes('section-title')
-            # Says what enrollment is *not*, because the same tournaments also
-            # appear under Match alerts above and the two lists look like duplicates.
-            blurb = (
-                'Join a tournament to appear in its player pool and get scheduled. '
-                'This is separate from match alerts — you can follow a tournament '
-                'without playing in it.'
-            )
-            if challonge_live:
-                blurb += ' Challonge-linked tournaments enroll you automatically from the bracket.'
-            ui.label(blurb).classes('text-muted text-caption')
-            if not staff_tournaments and not player_tournaments:
-                ui.label('No tournaments are open for enrollment right now.').classes('text-muted')
-            render_tournament_group(staff_tournaments, 'Staff-administered', 'emoji_events')
-            render_tournament_group(player_tournaments, 'Community', 'groups')
 
         # Connected accounts (Challonge / Twitch / racetime) — one compact card
         # of rows instead of three near-identical cards.

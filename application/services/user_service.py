@@ -10,6 +10,7 @@ from typing import Dict, Iterable, List, Optional, Set
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
+from application.services._tournament_signup import record_enrolment_change
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.tenant_membership_service import TenantMembershipService
@@ -204,19 +205,6 @@ class UserService:
         )
         return user
 
-    async def get_active_tournaments_categorized(self) -> Dict[str, List[Tournament]]:
-        # Ordered by name to match TournamentNotificationService.get_active_tournaments:
-        # the profile page renders both lists, and an unordered one reads as a
-        # differently-shuffled duplicate of the other.
-        tournaments = await Tournament.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
-        staff_tournaments = [t for t in tournaments if t.staff_administered]
-        player_tournaments = [t for t in tournaments if not t.staff_administered]
-        return {
-            'staff_tournaments': staff_tournaments,
-            'player_tournaments': player_tournaments,
-            'all_tournaments': tournaments,
-        }
-
     async def get_user_tournament_registrations(self, user: User) -> List[TournamentPlayers]:
         return await TournamentPlayers.filter(user=user, tenant_id=require_tenant_id())
 
@@ -283,15 +271,17 @@ class UserService:
                 await self.tournament_repository.enroll_player(tournament, user)
                 created_ids.append(tournament_id)
 
-        if created_ids or removed_ids:
-            await self.audit_service.write_log(
-                actor,
-                AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
-                {
-                    'target_user_id': user.id,
-                    'added_tournament_ids': sorted(created_ids),
-                    'removed_tournament_ids': sorted(removed_ids),
-                },
+        # One record per tournament rather than one batched row for the whole
+        # edit: a staff roster change is as much a roster change as a player's
+        # own signup, and a subscriber mirroring the roster has to hear about it
+        # at the same granularity or its copy drifts with nothing to show why.
+        for tournament_id in sorted(removed_ids):
+            await record_enrolment_change(
+                self.audit_service, actor, user, tournament_id, added=False,
+            )
+        for tournament_id in sorted(created_ids):
+            await record_enrolment_change(
+                self.audit_service, actor, user, tournament_id, added=True,
             )
 
     async def create_user(
@@ -442,13 +432,7 @@ class UserService:
                 if tournament:
                     await self.tournament_repository.enroll_player(tournament, user)
                     added.append(tournament_id)
-            if added:
-                await self.audit_service.write_log(
-                    actor,
-                    AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
-                    {
-                        'target_user_id': user.id,
-                        'added_tournament_ids': sorted(added),
-                        'removed_tournament_ids': [],
-                    },
+            for tournament_id in sorted(added):
+                await record_enrolment_change(
+                    self.audit_service, actor, user, tournament_id, added=True,
                 )

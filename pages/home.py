@@ -22,6 +22,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 # tab building `None`.
 from pages.home_tabs.schedule import schedule as schedule_tab
 from pages.home_tabs.stage_timeline import stage_timeline_tab
+from pages.home_tabs.tournaments import tournaments_tab
 from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.assets import asset_url
 from theme.base import BaseLayout
@@ -166,6 +167,11 @@ def create() -> None:
             # offered signed out — the bracket pages it links to are public.
             tabs.insert(2, {'label': 'Brackets', 'icon': 'account_tree', 'content': brackets_tab})
         if user is not None:
+            # Sits directly after Player, ahead of the two "what I already
+            # committed to" tabs: signing up is the step that comes before
+            # having a schedule at all, and it used to be a checkbox on Profile
+            # that a player could use the app for a season without ever finding.
+            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': tournaments_tab})
             # My Availability is intentionally ungated — availability feeds crew
             # signup too, not only volunteer scheduling. Triforce Texts and
             # Equipment are hidden unless the tenant has that feature enabled.

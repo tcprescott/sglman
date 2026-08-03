@@ -5,7 +5,7 @@ Handles tournament-related operations including creation, updates, validation,
 and admin/crew-coordinator membership.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, Optional, Tuple
 
 from application.repositories import (
@@ -15,6 +15,11 @@ from application.repositories import (
     RacetimeBotRepository,
     TournamentRepository,
 )
+from application.services._tournament_signup import (
+    COLOR_SIGNUP,
+    TournamentSignupCard,
+    TournamentSignupMixin,
+)
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.system_config_service import SystemConfigService
@@ -22,6 +27,13 @@ from application.services.tenant_membership_service import TenantMembershipServi
 from application.services.tournament_config import validate_tournament_config
 from application.tenant_context import require_tenant_id
 from models import Tournament, TournamentGrant, User
+
+__all__ = [
+    'COLOR_SIGNUP',
+    'DELETE_CONFIRMATION_PHRASE',
+    'TournamentService',
+    'TournamentSignupCard',
+]
 
 # Sentinel distinguishing "caller did not supply preset_id" (leave as-is) from an
 # explicit None (detach the preset). Update-only; create defaults to no preset.
@@ -33,8 +45,12 @@ _UNSET = object()
 DELETE_CONFIRMATION_PHRASE = 'permanently delete'
 
 
-class TournamentService:
-    """Service for tournament-related business operations."""
+class TournamentService(TournamentSignupMixin):
+    """Service for tournament-related business operations.
+
+    Player self-service signup lives in
+    :class:`~application.services._tournament_signup.TournamentSignupMixin`.
+    """
 
     def __init__(self) -> None:
         self.repository = TournamentRepository()
@@ -188,6 +204,8 @@ class TournamentService:
         event_start_date: Any = None,
         event_end_date: Any = None,
         tournament_hours: Optional[Dict[date, Tuple[str, str]]] = None,
+        signups_open_at: Optional[datetime] = None,
+        signups_close_at: Optional[datetime] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -205,6 +223,8 @@ class TournamentService:
         event_start_date, event_end_date = self._normalize_event_dates(
             event_start_date, event_end_date,
         )
+        if signups_open_at and signups_close_at and signups_close_at <= signups_open_at:
+            raise ValueError('Signups must close after they open.')
         tournament_hours = self._normalize_tournament_hours(tournament_hours)
         preset_id = await self._resolve_preset_id(preset_id)
         racetime_bot_id = await self._resolve_racetime_bot_id(racetime_bot_id)
@@ -242,6 +262,8 @@ class TournamentService:
             event_start_date=event_start_date,
             event_end_date=event_end_date,
             tournament_hours=tournament_hours,
+            signups_open_at=signups_open_at,
+            signups_close_at=signups_close_at,
         )
 
         await self.audit_service.write_log(
@@ -282,6 +304,8 @@ class TournamentService:
         event_start_date: Any = _UNSET,
         event_end_date: Any = _UNSET,
         tournament_hours: Any = _UNSET,
+        signups_open_at: Any = _UNSET,
+        signups_close_at: Any = _UNSET,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -364,6 +388,18 @@ class TournamentService:
                 update_data['event_end_date'] = norm_end
         if tournament_hours is not _UNSET:
             update_data['tournament_hours'] = self._normalize_tournament_hours(tournament_hours)
+        if signups_open_at is not _UNSET or signups_close_at is not _UNSET:
+            # Validated as a pair against the stored value for whichever bound
+            # this call left alone, so an edit that only moves the close date
+            # cannot land it before an open date already saved.
+            raw_open = signups_open_at if signups_open_at is not _UNSET else tournament.signups_open_at
+            raw_close = signups_close_at if signups_close_at is not _UNSET else tournament.signups_close_at
+            if raw_open and raw_close and raw_close <= raw_open:
+                raise ValueError('Signups must close after they open.')
+            if signups_open_at is not _UNSET:
+                update_data['signups_open_at'] = signups_open_at
+            if signups_close_at is not _UNSET:
+                update_data['signups_close_at'] = signups_close_at
 
         # Checked against the *post-update* shape, falling back to what is stored
         # for every field this call left alone: clearing the bot on a tournament
@@ -581,18 +617,7 @@ class TournamentService:
                 f'{target.display_name or target.username} is already enrolled.'
             )
         await self.repository.enroll_player(tournament, target)
-        # Deliberately the same action as the per-user edit dialog and the match
-        # dialog: one fact reached from three screens. A parallel action would
-        # make the log unanswerable.
-        await self.audit_service.write_log(
-            actor,
-            AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
-            {
-                'target_user_id': target.id,
-                'added_tournament_ids': [tournament.id],
-                'removed_tournament_ids': [],
-            },
-        )
+        await self._record_enrolment(actor, target, tournament, added=True)
 
     async def unenroll_player(self, tournament: Tournament, target: User, actor: User) -> None:
         await AuthService.ensure(
@@ -600,15 +625,7 @@ class TournamentService:
             'Only Staff can manage tournament entrants',
         )
         await self.repository.unenroll_player(tournament, target)
-        await self.audit_service.write_log(
-            actor,
-            AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
-            {
-                'target_user_id': target.id,
-                'added_tournament_ids': [],
-                'removed_tournament_ids': [tournament.id],
-            },
-        )
+        await self._record_enrolment(actor, target, tournament, added=False)
 
     async def get_enrolled_players_by_user(self, user: User) -> list:
         return await self.repository.get_enrolled_players_by_user(user)

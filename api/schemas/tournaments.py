@@ -35,5 +35,10 @@ class TournamentResponse(BaseModel):
     event_start_date: Optional[date] = None
     event_end_date: Optional[date] = None
     tournament_hours: Optional[Dict[str, Any]] = None
+    # The player self-signup window. Null on either side is permissive — no open
+    # date means signups are open now, no close date means they stay open — so a
+    # tournament with both null accepts signups indefinitely.
+    signups_open_at: Optional[datetime] = None
+    signups_close_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

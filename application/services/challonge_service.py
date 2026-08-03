@@ -286,8 +286,11 @@ class ChallongeService:
     async def participant_tournament_ids(self, user: User) -> Set[int]:
         """Tournament IDs whose mirrored Challonge bracket includes this user.
 
-        Bracket membership is what drives tournament participation for linked
-        tournaments, so the UI reads this instead of manual opt-in records.
+        Bracket membership is what drives participation in a linked tournament,
+        rather than any manual opt-in. Currently read only by tests: the Profile
+        card that used it is gone, and the Tournaments tab needs only *whether* a
+        tournament is Challonge-managed, not who is in its bracket. Kept as the
+        query behind that question if a surface needs it again.
         """
         return await self.repository.participant_tournament_ids_for_user(user)
 

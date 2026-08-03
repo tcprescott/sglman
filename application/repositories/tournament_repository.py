@@ -4,7 +4,7 @@ Tournament Repository - Data Access Layer
 Handles database operations for tournaments.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
@@ -117,6 +117,39 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         }
 
     @staticmethod
+    async def entrants_by_tournament(
+        tournament_ids: List[int],
+    ) -> dict[int, list[Any]]:
+        """``{tournament_id: [User, …]}`` for the given tournaments, in one query.
+
+        The Tournaments tab shows each card's entrant list, so the per-card
+        ``get_enrolled_players`` it would otherwise make is one query per card
+        plus one per row for the user. Ordered by display name so two cards
+        listing the same person put them in the same place.
+        """
+        rows = await scoped(
+            TournamentPlayers.filter(tournament_id__in=tournament_ids)
+        ).prefetch_related('user')
+        entrants: dict[int, list[Any]] = {}
+        for row in rows:
+            entrants.setdefault(row.tournament_id, []).append(row.user)
+        for players in entrants.values():
+            players.sort(key=lambda u: (u.display_name or u.username or '').lower())
+        return entrants
+
+    @staticmethod
+    async def enrolled_tournament_ids(user_id: int) -> set[int]:
+        """The tournaments in *this tenant* one user is enrolled in.
+
+        Tenant-filtered explicitly: ``TournamentPlayers`` reached from a global
+        ``user`` spans every community that user plays in.
+        """
+        rows: list[int] = await scoped(
+            TournamentPlayers.filter(user_id=user_id)
+        ).values_list('tournament_id', flat=True)  # type: ignore[assignment]
+        return set(rows)
+
+    @staticmethod
     async def any_exists() -> bool:
         """Whether this tenant has any tournament at all."""
         return await scoped(Tournament.all()).exists()
@@ -195,6 +228,8 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         event_start_date: Optional[date] = None,
         event_end_date: Optional[date] = None,
         tournament_hours: Optional[Dict[str, Any]] = None,
+        signups_open_at: Optional[datetime] = None,
+        signups_close_at: Optional[datetime] = None,
     ) -> Tournament:
         """
         Create a new tournament.
@@ -248,6 +283,8 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             event_start_date=event_start_date,
             event_end_date=event_end_date,
             tournament_hours=tournament_hours,
+            signups_open_at=signups_open_at,
+            signups_close_at=signups_close_at,
         )
 
     @staticmethod

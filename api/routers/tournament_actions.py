@@ -141,3 +141,32 @@ async def remove_crew_coordinator(
     tournament = await _load_tournament_or_404(tournament_id)
     target = await load_user_or_404(user_id)
     await TournamentService().remove_crew_coordinator(tournament, target, actor=actor)
+
+
+@router.post(
+    "/{tournament_id}/signup",
+    summary="Sign yourself up for a tournament",
+    description=(
+        "Self-service enrolment, the same act the Tournaments tab performs. "
+        "Refused outside the tournament's signup window, for a non-member, and "
+        "for a tournament whose roster is synced from Challonge. Staff enrolling "
+        "someone else use PUT /users/{user_id}/tournaments, which ignores the window."
+    ),
+)
+async def sign_up_for_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
+    tournament = await TournamentService().self_enroll(tournament_id, actor)
+    return {"detail": f"Signed up for {tournament.name}"}
+
+
+@router.delete(
+    "/{tournament_id}/signup",
+    summary="Withdraw yourself from a tournament",
+    description=(
+        "Allowed while the signup window is open. Once it closes, withdrawing is "
+        "staff's call — a roster a bracket was seeded from should not lose an "
+        "entrant silently."
+    ),
+)
+async def withdraw_from_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
+    tournament = await TournamentService().self_withdraw(tournament_id, actor)
+    return {"detail": f"Withdrew from {tournament.name}"}

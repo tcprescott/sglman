@@ -539,8 +539,16 @@ class BaseMatchDialog:
             return
 
         try:
+            # The actor is passed so the enrolments this creates carry a name in
+            # the audit log — scheduling someone into a tournament they were not
+            # in is a roster change somebody made, not one that happened.
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             newly_enrolled = await self.match_service.ensure_players_enrolled(
-                tournament_id, player_ids,
+                # This dialog is behind a staff-gated page, so the lookup cannot
+                # come back empty in practice; if it ever did, the service's
+                # audit write raises and the `except` below shows it rather than
+                # writing an unattributable enrolment.
+                tournament_id, player_ids, actor=actor,  # type: ignore[arg-type]
             )
         except ValueError as e:
             with self.dialog:

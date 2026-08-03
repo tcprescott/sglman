@@ -2,6 +2,8 @@ from nicegui import ui
 from tortoise.functions import Count
 
 from application.tenant_context import get_current_tenant_id
+from application.utils.timezone import format_local_display
+from application.utils.tournament_signup import SignupWindow, signup_window_state
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
@@ -15,6 +17,27 @@ from theme.tables.preferences import (
     search_input,
     sticky_header,
 )
+
+_SIGNUP_LABELS = {
+    SignupWindow.UPCOMING: 'Not open yet',
+    SignupWindow.OPEN: 'Open',
+    SignupWindow.CLOSED: 'Closed',
+}
+
+
+def _signup_label(tournament) -> str:
+    """The signup column's cell, with the boundary that produced it.
+
+    Bare "Open" leaves staff unsure whether a window is set at all, so a
+    tournament with a bound names the date it moves on.
+    """
+    state = signup_window_state(tournament.signups_open_at, tournament.signups_close_at)
+    label = _SIGNUP_LABELS[state]
+    boundary = (
+        tournament.signups_open_at if state is SignupWindow.UPCOMING
+        else tournament.signups_close_at
+    )
+    return f'{label} — {format_local_display(boundary)}' if boundary else label
 
 
 class TournamentTableView:
@@ -129,6 +152,10 @@ class TournamentTableView:
                 <div class="col-4 text-grey-7">Players:</div>
                 <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" class="table-link">{{ props.row.player_count }}</a></div>
             </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Signups:</div>
+                <div class="col-8">{{ props.row.signups }}</div>
+            </div>
         </div>
         ''')
         if self.extra_slots:
@@ -178,6 +205,7 @@ class TournamentTableView:
                 'player_count': t.player_count,
                 'average_match_duration': t.average_match_duration,
                 'max_match_duration': t.max_match_duration,
+                'signups': _signup_label(t),
             }
             rows.append(row)
         self.table.rows = rows
@@ -206,6 +234,7 @@ class TournamentTableView:
             'player_count': t.player_count,
             'average_match_duration': t.average_match_duration,
             'max_match_duration': t.max_match_duration,
+            'signups': _signup_label(t),
         }
         self.table.rows[idx] = row
         self.table.update()

@@ -110,17 +110,17 @@ async def test_ensure_players_enrolled_reports_who_it_enrolled(staff, tournament
     from application.services import MatchService
 
     service = MatchService()
-    newly = await service.ensure_players_enrolled(tournament.id, [member.id])
+    newly = await service.ensure_players_enrolled(tournament.id, [member.id], staff)
     assert [u.id for u in newly] == [member.id]
 
     # Second time round nobody is new, so the dialog says nothing.
-    assert await service.ensure_players_enrolled(tournament.id, [member.id]) == []
+    assert await service.ensure_players_enrolled(tournament.id, [member.id], staff) == []
 
 
-async def test_ensure_players_enrolled_reports_nothing_for_an_empty_roster(tournament, db):
+async def test_ensure_players_enrolled_reports_nothing_for_an_empty_roster(staff, tournament, db):
     from application.services import MatchService
 
-    assert await MatchService().ensure_players_enrolled(tournament.id, []) == []
+    assert await MatchService().ensure_players_enrolled(tournament.id, [], staff) == []
 
 
 # --- The admin match dialog's Tournament options ---------------------------

@@ -52,7 +52,7 @@
   "application/services/match/match_cancellation.py": 8,
   "application/services/match/match_display_service.py": 8,
   "application/services/match/match_participants.py": 2,
-  "application/services/match/match_request.py": 9,
+  "application/services/match/match_request.py": 4,
   "application/services/match/match_review.py": 4,
   "application/services/match/match_schedule_service.py": 13,
   "application/services/match/match_service.py": 32,

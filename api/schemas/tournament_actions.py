@@ -1,6 +1,6 @@
 """Request schemas for tournament write actions."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Optional, Tuple
 
 from pydantic import BaseModel, Field
@@ -15,6 +15,11 @@ _HOURS_DESC = (
     'Omit or null to inherit the community setting.'
 )
 _DATE_DESC = 'Overrides the community event-window bound; null inherits it.'
+_SIGNUP_DESC = (
+    'Bound of the player self-signup window (UTC). Null on either side is '
+    'permissive: no open date means signups are open now, no close date means '
+    'they stay open. Staff enrolment ignores the window entirely.'
+)
 _CREW_DESC = (
     'Approved crew a streamed match needs before the coverage reports count it '
     'as covered. 0 means this tournament does not use the role. Does not '
@@ -43,6 +48,8 @@ class TournamentCreateRequest(BaseModel):
     tournament_hours: Optional[Dict[date, Tuple[str, str]]] = Field(
         default=None, description=_HOURS_DESC,
     )
+    signups_open_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
+    signups_close_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
 
 
 class TournamentUpdateRequest(BaseModel):
@@ -66,6 +73,8 @@ class TournamentUpdateRequest(BaseModel):
     tournament_hours: Optional[Dict[date, Tuple[str, str]]] = Field(
         default=None, description=_HOURS_DESC,
     )
+    signups_open_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
+    signups_close_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
 
 
 class MembershipRequest(BaseModel):

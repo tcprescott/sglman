@@ -16,12 +16,14 @@ from application.services import (
     StageService,
     TournamentService,
 )
-from mcpserver.auth import Gate
+from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import (
     MatchTimeSuggestion,
+    OperationResult,
     StageInfo,
     TenantArg,
+    TournamentSignupInfo,
     TournamentSummary,
 )
 
@@ -48,6 +50,58 @@ async def get_tournament(
         await TournamentService().get_tournament_by_id(tournament_id), 'Tournament'
     )
     return TournamentResponse.model_validate(tournament, from_attributes=True)
+
+
+async def list_tournament_signups(
+    tenant: TenantArg = None,
+) -> List[TournamentSignupInfo]:
+    """List the community's active tournaments with your own signup state on each.
+
+    Says whether you are already entered, how many entrants there are, where the
+    signup window stands, and whether `sign_up_for_tournament` would be accepted
+    right now — check `can_sign_up` rather than reading the window yourself.
+    """
+    actor = current_actor().user
+    cards = await TournamentService().list_signup_cards(actor)
+    return [
+        TournamentSignupInfo(
+            id=card.tournament.id,
+            name=card.tournament.name,
+            window=card.window.value,
+            enrolled=card.enrolled,
+            entrant_count=card.entrant_count,
+            can_sign_up=card.can_sign_up,
+            can_withdraw=card.can_withdraw,
+            signups_open_at=card.tournament.signups_open_at,
+            signups_close_at=card.tournament.signups_close_at,
+        )
+        for card in cards
+    ]
+
+
+async def sign_up_for_tournament(
+    tournament_id: int,
+    tenant: TenantArg = None,
+) -> OperationResult:
+    """Sign yourself up to play in a tournament.
+
+    Enters the person this connection belongs to, never anyone else. Refused
+    outside the signup window, for a non-member, and for a tournament whose
+    roster is synced from Challonge.
+    """
+    actor = current_actor().user
+    tournament = await TournamentService().self_enroll(tournament_id, actor)
+    return OperationResult(detail=f'Signed up for {tournament.name}.')
+
+
+async def withdraw_from_tournament(
+    tournament_id: int,
+    tenant: TenantArg = None,
+) -> OperationResult:
+    """Withdraw yourself from a tournament, while its signup window is open."""
+    actor = current_actor().user
+    tournament = await TournamentService().self_withdraw(tournament_id, actor)
+    return OperationResult(detail=f'Withdrew from {tournament.name}.')
 
 
 async def list_stages(
@@ -93,6 +147,15 @@ async def suggest_match_time(
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, list_tournaments, gate=Gate.ACTOR, title='List tournaments')
     register(mcp, get_tournament, gate=Gate.ACTOR, title='Get tournament')
+    register(mcp, list_tournament_signups, gate=Gate.ACTOR, title='List tournament signups')
+    register(
+        mcp, sign_up_for_tournament, gate=Gate.ACTOR, write=True,
+        title='Sign up for tournament',
+    )
+    register(
+        mcp, withdraw_from_tournament, gate=Gate.ACTOR, write=True,
+        title='Withdraw from tournament', destructive=True,
+    )
     register(mcp, list_stages, gate=Gate.ACTOR, title='List stages')
     register(mcp, get_stage, gate=Gate.ACTOR, title='Get stage')
     register(mcp, suggest_match_time, gate=Gate.ACTOR, title='Suggest a match time')

@@ -53,6 +53,11 @@ async def seed_onsite_for_tenant(
         name="Wizzrobe Cup", tenant=tenant,
         defaults={
             "description": "On-site fixture — no racetime.gg integration.",
+            # **Closed** signups, the state the Tournaments tab has to render
+            # without a button: the dev tournament covers open, and the
+            # not-yet-open case is seeded on the archived one below.
+            "signups_open_at": now - timedelta(days=60),
+            "signups_close_at": now - timedelta(days=7),
             "seed_generator": "alttpr",
             "is_active": True,
             "players_per_match": 2,
@@ -158,7 +163,43 @@ async def seed_onsite_for_tenant(
     )
 
     await _seed_archived_season(tenant, staff, players, now)
+    await _seed_announced_season(tenant, now)
     return onsite
+
+
+async def _seed_announced_season(tenant: Tenant, now: datetime) -> Tournament:
+    """Next season, announced but not yet taking signups.
+
+    The third signup state, and the only one with no fixture otherwise: without
+    it the Tournaments tab's "Opening soon" section never renders in dev and
+    nobody sees what an announced-but-shut card looks like. Active with no
+    matches and no entrants on purpose — that is exactly what a tournament looks
+    like the day it is announced.
+    """
+    announced, _ = await Tournament.get_or_create(
+        name="Wizzrobe Cup — Next Season", tenant=tenant,
+        defaults={
+            "description": (
+                "Signups open in a month. Same format as last season.\n\n"
+                "- Open to anyone in the community\n"
+                "- One qualifier round, then a double-elimination bracket\n"
+            ),
+            "seed_generator": "alttpr",
+            "is_active": True,
+            "players_per_match": 2,
+            "staff_administered": False,
+            "tournament_format": "Double elimination, best of 3",
+            "average_match_duration": 85,
+            "signups_open_at": now + timedelta(days=30),
+            "signups_close_at": now + timedelta(days=60),
+        },
+    )
+    await backfill(
+        announced,
+        signups_open_at=now + timedelta(days=30),
+        signups_close_at=now + timedelta(days=60),
+    )
+    return announced
 
 
 async def _seed_archived_season(

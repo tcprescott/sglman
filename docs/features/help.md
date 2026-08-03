@@ -27,7 +27,7 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — nine articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — ten articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -38,6 +38,7 @@ is runtime content, not project documentation.
 | `getting-started` | Signing in, preferred name, opting into a tournament, where to go next | — |
 | `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
+| `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
 | `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
 | `on-air` | The stage timeline, finding a stream, watching a match | — |
 | `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |

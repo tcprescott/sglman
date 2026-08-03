@@ -49,6 +49,12 @@ async def admin_tournaments_page() -> None:
              'field': 'staff_administered', 'sortable': True},
             {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count',
              'sortable': True},
+            # Whether players can currently sign themselves up. Staff setting a
+            # window on the Tournaments tab need to see it took effect without
+            # reopening the dialog. Not sortable: the cell is a state plus the
+            # date it moves on, and sorting that string alphabetically is neither
+            # chronological nor state order — it just looks like it means something.
+            {'name': 'signups', 'label': 'Signups', 'field': 'signups'},
         ]
 
         async def add_tournament():

@@ -924,17 +924,43 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `list_schedulable(keep_id=None)` | `(tournaments, {id: entrants})` | The admin match dialog's Tournament options: active only (`keep_id` spares the one an edited match already points at, so editing does not blank its own chip) plus each tournament's entrant count, so an option whose player menu will open empty says so *before* the choice. |
 | `enroll_player(tournament, target, actor)` / `unenroll_player(tournament, target, actor)` | `None` | Entrant management from the tournament's own screen (`can_grant_roles` gated). `enroll_player` refuses a non-member of the community and a duplicate — the picker being member-scoped is a convenience, not the gate. |
 
-**Enrolment has three entry points** — the per-user edit dialog
-(`UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`),
-the tournament's own entrants dialog (above), and the match dialog's create path
-(`MatchService.ensure_players_enrolled`, which returns the users it enrolled so
-the UI can report the side effect instead of hiding it). All three write the
-**same** audit action, `user.tournament_enrollment_updated`: one fact reached
-from three screens, and a parallel action per screen is how an audit log stops
-being answerable. All three write through `TournamentRepository`, which is what
-stamps the non-null tenant FK.
+| `list_signup_cards(user=None, now=None)` | `list[TournamentSignupCard]` | Every active tournament with this viewer's signup state on each: window, enrolment, entrant count and list, Challonge-managed flag, and the derived `can_sign_up` / `can_withdraw`. The one shape the Tournaments tab, the REST payload and the MCP tool all read, so none of them can offer a signup the others would refuse. |
+| `self_enroll(tournament_id, user)` | `Tournament` | Player signs *themselves* up. Refuses outside the window, for a non-member, for a Challonge-synced roster, and on a duplicate. Audits, publishes `tournament.enrolled`, and DMs a confirmation with a link button to the tab. |
+| `self_withdraw(tournament_id, user)` | `Tournament` | Player withdraws themselves, **while the window is open**. Once it closes it is staff's call — a roster a bracket was seeded from should not lose an entrant silently. |
 
-Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`.
+**Enrolment has four entry points** — the Tournaments tab's self-service signup
+(`self_enroll` / `self_withdraw`, above), the per-user admin dialog
+(`UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`),
+the tournament's own entrants dialog (`enroll_player` / `unenroll_player`), and
+the match dialog's create path (`MatchService.ensure_players_enrolled`, which
+returns the users it enrolled so the UI can report the side effect instead of
+hiding it, and which takes a **required** `actor` because each row it creates is
+audited). All four go through `record_enrolment_change`
+(`application/services/_tournament_signup.py`), which writes the **same** audit
+action, `user.tournament_enrollment_updated` — one fact reached from four
+screens, and a parallel action per screen is how an audit log stops being
+answerable — and publishes `tournament.enrolled` / `tournament.withdrawn`. The
+event splits by direction because a subscriber mirroring a roster needs to know
+which way it moved, and it fires on **one call per tournament** rather than one
+batched call per screen: a staff roster edit is as much a roster change as a
+player's own signup, so both reach a subscriber at the same granularity. All
+four write through `TournamentRepository`, which stamps the non-null tenant FK.
+
+**Only the self-service pair honours the signup window.** Staff enrolment
+deliberately ignores it: closing signups stops players adding themselves, not
+staff fixing a roster. Where the window stands is decided by the pure
+`application/utils/tournament_signup.py` (`SignupWindow`, `signup_window_state`),
+which both bounds read permissively — no open date means open now, no close date
+means it stays open — so every tournament predating those columns behaves as it
+always did.
+
+Player self-service signup lives in the `TournamentSignupMixin`
+(`application/services/_tournament_signup.py`), composed into `TournamentService`
+so neither file exceeds the length budget. The split is an implementation
+detail — importers still use `from application.services import TournamentService`.
+
+Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`,
+`FeatureFlagService` (the Challonge carve-out), `DiscordService`.
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 
@@ -1145,7 +1171,6 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | `get_community_people(*, role=None, has_discord=False, include_user_ids=None, include_inactive=False)` | `list[User]` | **The people of the tenant in scope** — every per-community picker, the Users tab, `GET /users` and MCP `list_users`. `User` is global, so belonging is derived, and `TenantMembership` derives it: the same basis the access gate checks, so a picker cannot offer someone the app would turn away. (It used to union role-holders with tournament entrants, because membership was a frozen backfill nothing wrote to; the membership work closed that and the old union is a strict subset.) `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account by **both** its flag and its sentinel id, and deactivated accounts unless `include_inactive` — which the match dialog passes, since a SpeedGaming placeholder is inactive by construction. Raises with no tenant in scope. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
-| `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |
 | `get_user_tournament_registrations(user)` | `list[TournamentPlayers]` | The user's enrollment rows. |
 | `update_user_personal_info(user, actor, display_name=None, pronouns=None, dm_notifications=None)` | `User` | Self-profile edit (page-level auth assumed); blank strings become `None`; audits only when something changed. |
 | `update_user_tournament_registrations(user, actor, selected_tournament_ids, current_registrations)` | `None` | Diff-and-apply enrollment set; audits added/removed tournament ids. |
