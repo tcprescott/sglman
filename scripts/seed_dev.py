@@ -29,6 +29,7 @@ from tortoise import Tortoise
 from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.mcp_auth_service import READ_SCOPE, WRITE_SCOPE
+from application.services.room_token_service import hash_token
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_local, parse_local_datetime
 from models import (
@@ -45,6 +46,7 @@ from models import (
     RacetimeBot,
     Role,
     RoleSource,
+    RoomToken,
     Stage,
     Station,
     StationSide,
@@ -385,6 +387,10 @@ async def seed_for_tenant(
             # enforces numeric labels; tenant B has no station pool and keeps the
             # free-text default — the two halves of the same setting.
             ("station_format", "numeric" if tenant.slug == "default" else "free"),
+            # Both halves of the join-page preview: tenant B publishes today's
+            # matches to non-members, tenant A keeps the gate closed. A dev
+            # signed out of both sees the two versions of the same door.
+            ("join_page_match_preview", "true" if tenant.slug == "second" else "false"),
         ]
         for key, val in config_specs:
             await SystemConfiguration.get_or_create(
@@ -565,6 +571,24 @@ async def seed_for_tenant(
                 token_prefix=ro_bearer[:17], read_only=True,
             )
         print(f"    [{tenant.slug}] api tokens ok (dev bearer: {dev_bearer})")
+
+        # --- Tournament room screens -----------------------------------------
+        # A live token per tenant plus a revoked one, so the settings list shows
+        # both states and /ui-validation can open the seeds board without a
+        # login. Deterministic like the bearers above and just as non-secret.
+        room_token = f"wizzrobe_room_devseed_{tenant.slug}_local_only_do_not_use"
+        await RoomToken.get_or_create(
+            token_hash=hash_token(room_token),
+            defaults={"label": "Room A desk PC", "tenant": tenant, "created_by": staff},
+        )
+        await RoomToken.get_or_create(
+            token_hash=hash_token(f"{room_token}_retired"),
+            defaults={
+                "label": "Old laptop (retired)", "tenant": tenant,
+                "created_by": staff, "revoked_at": now,
+            },
+        )
+        print(f"    [{tenant.slug}] room tokens ok (/room/{room_token}/seeds)")
 
 
         # --- Triforce texts --------------------------------------------------

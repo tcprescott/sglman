@@ -116,6 +116,11 @@ Two carve-outs:
   stamp the ambient tenant on write. NULL means "platform-level": a super-admin
   audit/telemetry row, the global `SUPER_ADMIN` role, or an MCP OAuth token, whose
   hash lookup happens before any tenant context exists.
+  `RoomToken` is the deliberate counter-example: it is a credential too, but its
+  hash lookup happens **inside** `/t/<slug>/room/…`, where the middleware has
+  already bound the community — so `RoomTokenRepository.get_by_hash` is `scoped`
+  like any other read, and a token from another community is simply not found
+  rather than needing a check someone must remember to write.
 - **The tenancy tables** (`Tenant`, `TenantMembership`, `RacetimeBotTenant`) are
   served by cross-tenant repositories that are **never** `scoped` — they answer
   *which* tenant, so they take explicit ids. See

@@ -112,7 +112,7 @@
   "models/mcp.py": 6,
   "models/racetime.py": 8,
   "models/speedgaming.py": 6,
-  "models/system.py": 1,
+  "models/system.py": 3,
   "models/tenant.py": 7,
   "models/tournament.py": 24,
   "models/user.py": 34,

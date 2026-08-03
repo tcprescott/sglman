@@ -108,6 +108,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/live/tournament/{tournament_id}/brackets`, `/live/brackets/{bracket_id}` | [`pages/static_brackets.py`](../../pages/static_brackets.py) | **No login, and not a NiceGUI page** — plain FastAPI routes returning server-rendered, heavily-cached HTML (no websocket) for spectators. Same tenant + `BRACKETS` gate and the same DRAFT/CANCELLED rule as the interactive twins above; see [brackets.md](../features/brackets.md#static-spectator-views--the-link-you-send-a-stream) |
 | `/help`, `/help/{slug}` | [`pages/help.py`](../../pages/help.py) | **No login** — `@public_page`; the in-app help index (search over article cards) and article pages (sidebar nav + anchored headings). Articles are Markdown in `application/help/content/`, parsed to a closed block model and rendered with native elements — never `ui.markdown`. Reached from the **Help** drawer item, which is not gated on a signed-in user. See [help.md](../features/help.md) |
 | `/event-info`, `/event-info/{slug}` | [`pages/event_info.py`](../../pages/event_info.py) | **No login** — `@public_page(feature=FeatureFlag.EVENT_INFO)`; one community's own event handbook (what's on, attending, who to ask, and role-gated floor procedure). Articles are Markdown in `application/event_info/content/<tenant-slug>/`, through the same closed block model as help. Article visibility additionally filters on `roles:`, so the page stays public while the room-staff procedure is not. Reached from the **Event Information** drawer item, above Help. See [event-information.md](../features/event-information.md) |
+| `/room/{token}/seeds` | [`pages/room_seeds.py`](../../pages/room_seeds.py) | **No login** — `@public_page`; authorizes on an unlisted `RoomToken` instead of a session, for a tournament-room machine nobody signs in on. Read-only board of matches whose seed is rolled and which nobody has started. An unknown, revoked, malformed or wrong-community token renders a plain 404. See [the tournament-room seeds board](#the-tournament-room-seeds-board) |
 | `/cat-facts` | [`pages/cat_facts.py`](../../pages/cat_facts.py) | **No login** — `@public_page`; the easter egg's landing page: one featured fact with a shuffle button, then the whole `CAT_FACTS` bank. Deliberately **absent from the drawer nav** — it is reached from `CatFactDialog`'s "See them all" button and from the facts in empty states, waiting panels and the 404 page |
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Super-admin only, **no tenant context**; tenant + racetime-bot CRUD (see [multitenancy.md](../features/multitenancy.md)) |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
@@ -446,6 +447,69 @@ Each row shows **one primary button — the step that stage is actually up to** 
 
 Dialog chrome detail: [brackets.md → Admin dialogs](../features/brackets.md#admin-dialogs).
 
+### The join page (`theme/join_page.py`)
+
+What `enforce_membership` renders for anyone who is not a member of the
+community, anonymous visitors included — so it is the whole first impression a
+new attendee gets. It is **synchronous** (like `theme/error_page.py`) so the
+middleware decorator can call it without restructuring; everything needing an
+`await` is resolved first by `resolve_join_preview(tenant_id)`, which never
+raises — a community whose bracket list or schedule read fails must still be able
+to take a join request.
+
+Beyond the Request access form it carries two previews with deliberately
+different rules:
+
+- **Brackets** — one button per tournament with published stages, into
+  `/tournament/{id}/brackets`. No opt-in: those pages are already
+  `@public_page`, they were merely unreachable without knowing the URL. Gated
+  only on `FeatureFlag.BRACKETS`, and filtered through
+  `theme/brackets/visibility.py` with `is_staff=False`, so DRAFT and CANCELLED
+  stages stay hidden.
+- **Today's matches** — times and player names, **behind a staff opt-in**
+  (`SystemConfiguration` key `join_page_match_preview`, default off, on Admin →
+  Settings). This re-opens exactly what the membership gate was added to close,
+  so it is a decision each community makes rather than a default. Times render on
+  the **community's** clock (`TimezoneService.tenant_timezone_name` + `tz_scope`),
+  not the visitor's: "today" here means the event's day, and someone reading two
+  zones over must not see a different list from the person in the venue. Finished
+  matches are dropped, the list is capped at `PREVIEW_LIMIT` (12) with an
+  "…and N more today" line, and a roster longer than two renders as
+  "A vs B +N more" so a ten-racer play-in does not run off the card.
+
+Not a `FeatureFlag`: one display toggle does not need two-tier availability, a
+`FeatureFlagSpec`, `service_modules`, or `@requires_feature`.
+
+### The tournament-room seeds board (`pages/room_seeds.py`)
+
+`GET /t/<slug>/room/<token>/seeds` — a read-only, live board of matches whose
+seed is rolled and which nobody has started, for a PC in the tournament room.
+
+**Inside the tenant prefix on purpose.** The middleware there has already
+resolved the community and bound the display clock, so the token only has to
+authorize; outside the prefix the page would have to resolve a tenant from the
+token itself and enter `tenant_scope` by hand, and every scoped read would raise
+until it did.
+
+- **Authorization** is a [`RoomToken`](data-model.md#roomtoken) via
+  `RoomTokenService.resolve`, not a session. Unknown, revoked, malformed and
+  wrong-community all render the same plain 404 as a route that never existed.
+  The token is redacted out of the page-view telemetry row (`_tracked_params`).
+- **Read-only.** Rolling and re-rolling stay signed-in staff work: an anonymous
+  token that could spend randomizer API calls and replace the seed for a match
+  about to be played is not a trade worth making for a machine in a room the
+  public walks through.
+- **Built on `MatchTableView`** with `row_filter=is_seeded_and_unplayed`, the
+  readonly `state`/`seed` slots, and no action callbacks — so it inherits the
+  live wiring, the mobile card, and the flash-on-change for free.
+- **Table preferences: exempt.** An anonymous kiosk has no user row to key a
+  saved layout to, and the columns are fixed. Rearranging them would need a
+  general anonymous-preferences path, not a second persistence backend for one
+  page.
+- **Not linked from anywhere**, including the join page. A token URL that is
+  publicly linked is not unlisted; the room PC gets it by bookmark. Staff issue,
+  revoke and copy the URL on Admin → Settings.
+
 ### Public bracket view (`pages/brackets.py`)
 
 Two read-only `@public_page(..., feature=FeatureFlag.BRACKETS)` routes rendering through `BaseLayout` and `BracketService` (with a load-or-404 `Tournament` lookup). **Public here means anonymous** — a bracket is the spectator-facing artefact of a tournament, so neither route joins `protected_routes` and a link to one works signed out (see [`public_page`](authentication.md#public_page)). The feature and tenant gates still apply, and every staff affordance sits behind `is_staff`, which is `False` for an anonymous visitor. The browse path in is the home **Brackets** tab.
@@ -516,7 +580,8 @@ Rendered as a `no-print` warning **above** the Print button on the label sheet (
 
 `admin_system_config_page()` — the "Settings" tab (`AuthService.is_staff` gates the Save button).
 
-- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, per-day tournament hours, and the Discord sync guild id.
+- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), and the Discord sync guild id.
+- Hosts two sections beyond the key/value form: the **Station Pool**, and **Tournament Room Screens** (`pages/admin_tabs/room_tokens_section.py`) — issue a token per shared machine, see when each last used it, revoke one. The URL is shown once, in a dialog, since only the hash is stored.
 - Date fields use a calendar-popup helper; per-day tournament hours render an Open/Close time pair per event day; the Discord-server select is populated from `DiscordService.list_guilds`. **Save** validates and persists each key through `SystemConfigService.set_raw` / `set_tournament_hours`.
 
 ## Reports subsystem (`pages/admin_tabs/reports/`)
@@ -652,11 +717,11 @@ Three view classes — `MatchTableView`, `TournamentTableView`, `UserTableView` 
 
 The largest UI component, used by the home Schedule and Player tabs and the admin Schedule tab. Split across `match.py` (view), `match_slots.py` (Vue templates), `match_grid.py` (cards), and `match_handlers.py`.
 
-**Constructor flags**: `admin_controls` (this is an operator's board — station chips, no self-signup), `access` (a `MatchBoardAccess`; see below), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_set_stage`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Four **board-shaping** options exist for surfaces that need a different frame around the same rows (only the Proctor Station board uses them today): `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players).
+**Constructor flags**: `admin_controls` (this is an operator's board — station chips, no self-signup), `access` (a `MatchBoardAccess`; see below), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_set_stage`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Five **board-shaping** options exist for surfaces that need a different frame around the same rows: `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `row_filter` (a per-row predicate defining what the board *is*, rather than what its operator chose — the tournament-room board passes `is_seeded_and_unplayed`; it applies to a full refresh **and** to a single row arriving from a live update, so a match that starts leaves the screen and a match that gains a seed brings the board to a refresh), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players).
 
 **Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button; options load asynchronously from `MatchDisplayService.get_tournaments_for_filter` / `get_stages_for_filter`. Values persist **per user per tenant** through `tenant_session_get` / `tenant_session_set` ([`application/utils/tenant_session.py`](../../application/utils/tenant_session.py)), which key under `app.storage.user['by_tenant'][<tenant_id>]` — a filter is meaningful only within its own community. State defaults to `DEFAULT_STATE_FILTER` (Scheduled + Checked In + Started). Below 1024px the filter card collapses behind a toggle with an active-filter count badge.
 
-**Live updates are push, not polled.** `register_view(self._on_remote_change)` subscribes the view through [`theme/realtime.py`](../../theme/realtime.py): a remote `'changed'` / `'deleted'` updates that one row (with a flash), `CREATED` refreshes the table, since a new match has no row yet.
+**Live updates are push, not polled.** `register_view(self._on_remote_change)` subscribes the view through [`theme/realtime.py`](../../theme/realtime.py): a remote `'changed'` / `'deleted'` updates that one row (with a flash), `CREATED` refreshes the table, since a new match has no row yet. On a `row_filter` board a `'changed'` for a match with **no** row also refreshes — an existing match can become that board's business (rolling a seed publishes `changed`, not `CREATED`), and an in-place update would no-op against a row that is not there yet.
 
 **Data flow** — `refresh()` calls `MatchDisplayService.get_matches_for_display(tournament_ids, stage_ids, only_upcoming=False, user_discord_id, exclude_racetime)`, applies the state filter client-side, merges per-row `_watching` flags from `MatchWatcherService.list_watched_match_ids` `_stream_volunteer` from `MatchStreamVolunteerService.list_volunteered_match_ids`, and `_can_reschedule`/`_reschedule_pending` from `MatchRescheduleService` (two bulk queries, never per row), then applies `row_sort` (if given) and notifies `on_rows_changed`. `update_row_by_id(match_id)` re-fetches one row via `get_match_for_display` (deleting the row if the match is gone, preserving `_watching` and `_stream_volunteer`); `delete_row_by_id` removes a row from the UI only.
 

@@ -73,6 +73,30 @@ async def _run_in_tenant(tenant_id, coro) -> None:
 # can't bloat a telemetry row.
 _MAX_TRACKED_PARAMS = 15
 _MAX_PARAM_LEN = 120
+# Path params whose *value* is a credential. The room-seeds view carries its
+# token in the URL, and a telemetry row is read by anyone with the reports tab —
+# recording the value would turn engagement data into a key ring. Matched on the
+# param name so a future route gets the redaction without having to remember it.
+_SECRET_PARAM_MARKERS = ('token', 'secret', 'password', 'code')
+
+
+def _tracked_params(kwargs: dict) -> dict:
+    """The page's params, bounded and with any credential redacted.
+
+    Pure, and split out of :func:`_record_page_view` because that one swallows
+    every exception by design — a rule this important should be testable without
+    a request context to raise inside.
+    """
+    params: dict = {}
+    for key, value in kwargs.items():
+        if value is None or len(params) >= _MAX_TRACKED_PARAMS:
+            continue
+        if any(marker in key.lower() for marker in _SECRET_PARAM_MARKERS):
+            params[key] = '[redacted]'
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            params[key] = str(value)[:_MAX_PARAM_LEN]
+    return params
 
 
 def _record_page_view(path: str, kwargs: dict) -> None:
@@ -89,12 +113,7 @@ def _record_page_view(path: str, kwargs: dict) -> None:
             session_id = app.storage.browser.get('id')
         except Exception:
             session_id = None
-        params: dict = {}
-        for key, value in kwargs.items():
-            if value is None or len(params) >= _MAX_TRACKED_PARAMS:
-                continue
-            if isinstance(value, (str, int, float, bool)):
-                params[key] = str(value)[:_MAX_PARAM_LEN]
+        params = _tracked_params(kwargs)
         tenant_id = get_current_tenant_id()
         background_tasks.create(
             _run_in_tenant(
@@ -152,7 +171,7 @@ async def enforce_membership(
     platform community picker, which has no tenant and must stay anonymous), so
     it applies the gate itself against this one implementation.
     """
-    from theme.join_page import render_join_page, resolve_join_state
+    from theme.join_page import render_join_page, resolve_join_preview, resolve_join_state
 
     if is_super_admin is None:
         is_super_admin = await AuthService.is_super_admin(user)
@@ -167,6 +186,7 @@ async def enforce_membership(
         tenant_name=tenant.name if tenant else 'this community',
         user=user,
         pending=await resolve_join_state(user, tenant_id),
+        preview=await resolve_join_preview(tenant_id),
     )
     return True
 

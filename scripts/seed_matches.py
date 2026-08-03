@@ -186,6 +186,27 @@ async def seed_matches_for_tenant(
         disputed_match.generated_seed = disputed_seed
         await disputed_match.save()
 
+    # Rolled but not yet played — the state the tournament room's seeds board
+    # exists for, and the only one the two seeds above cannot produce (both of
+    # their matches are already finished). Without it that board is empty in
+    # dev, which reads as a broken page rather than an idle room.
+    upcoming_seed, _ = await GeneratedSeeds.get_or_create(
+        seed_url="https://alttpr.com/en/h/DevSeed2",
+        tenant=tenant,
+        defaults={
+            "seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"}),
+            "randomizer": "alttpr",
+            "settings_snapshot": {"glitches": "none", "mode": "open", "goal": "ganon"},
+            "provider_meta": {
+                "provider": "alttpr", "operation": "generate_seed",
+                "attempts": 1, "latency_ms": 3980, "surface": "match",
+            },
+        },
+    )
+    if stage3_match.generated_seed_id is None:
+        stage3_match.generated_seed = upcoming_seed
+        await stage3_match.save()
+
     # Provider tasks: the queue that carries a task-queue randomizer's roll
     # across a restart. One row per state so every value of ProviderTaskStatus
     # exists somewhere and the terminal ones can be inspected.

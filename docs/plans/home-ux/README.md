@@ -6,13 +6,13 @@ phone bottom bar holds four, so the count decided — by list order — which ta
 player could reach with a thumb. **Player**, holding their own matches and every
 deep link a Discord DM sends, was not one of them.
 
-The work splits in two. PR 1 is the nav restructure and has shipped; PR 2 is the
-anonymous-facing half plus the tournament-room seeds view, and is **not started**.
+The work splits in two. PR 1 is the nav restructure; PR 2 is the anonymous-facing
+half plus the tournament-room seeds view. Both have shipped.
 
 | PR | Scope | Status |
 |---|---|---|
 | 1 | Four tabs, slug aliases, bottom-bar rule | done — see [pr1-four-tabs.md](pr1-four-tabs.md) |
-| 2 | Join page, room seeds view, `RoomToken` | planned — see [pr2-join-page-and-room-seeds.md](pr2-join-page-and-room-seeds.md) |
+| 2 | Join page, room seeds view, `RoomToken` | done — see [pr2-join-page-and-room-seeds.md](pr2-join-page-and-room-seeds.md) |
 
 ## The decisions behind both
 

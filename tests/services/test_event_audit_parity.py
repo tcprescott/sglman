@@ -114,6 +114,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Secrets — leaking these to arbitrary receivers is a risk.
     AuditActions.APITOKEN_CREATED,
     AuditActions.APITOKEN_REVOKED,
+    # Room tokens, for the same reason: the credential a venue machine holds is
+    # a security fact, not a domain one.
+    AuditActions.ROOM_TOKEN_CREATED,
+    AuditActions.ROOM_TOKEN_REVOKED,
     # Randomizer credential rotation — same reasoning: a community's API-key
     # activity is not something to broadcast to arbitrary webhook receivers.
     AuditActions.RANDOMIZER_CREDENTIAL_SET,
