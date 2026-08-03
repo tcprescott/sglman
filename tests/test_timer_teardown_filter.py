@@ -32,7 +32,9 @@ def _raised_in(module_name: str, exc: Exception) -> Exception:
     namespace = {'__name__': module_name, 'exc': exc}
     try:
         exec(source, namespace)
-    except Exception as raised:  # noqa: BLE001 - re-raising is the point
+    except Exception as raised:
+        # Broad on purpose: the caller chooses the exception, and returning it
+        # with a real traceback attached is the whole point of this helper.
         return raised
     raise AssertionError('exc was not raised')
 
