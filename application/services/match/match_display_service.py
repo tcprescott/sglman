@@ -16,6 +16,7 @@ from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
     MatchStreamVolunteerRepository,
+    ProviderTaskRepository,
     StageRepository,
     TournamentRepository,
 )
@@ -26,7 +27,19 @@ from application.utils.timezone import (
     format_local_time,
     to_utc_aware,
 )
-from models import Match, MatchAcknowledgment
+from models import Match, MatchAcknowledgment, ProviderTask
+
+
+def rolling_elapsed_label(started_at: datetime) -> str:
+    """"Rolling… 1:24" — how long an in-flight seed roll has been going.
+
+    Elapsed rather than a percentage or an ETA because the provider gives
+    nothing to base one on: its status endpoint reports queued/started/finished
+    and no position in the queue. A counting clock is the only honest thing to
+    show, and it is what tells someone the page is working rather than stuck.
+    """
+    seconds = max(0, int((datetime.now(timezone.utc) - to_utc_aware(started_at)).total_seconds()))
+    return f'Rolling… {seconds // 60}:{seconds % 60:02d}'
 
 
 class MatchDisplayService:
@@ -38,6 +51,7 @@ class MatchDisplayService:
         self.volunteer_repository = MatchStreamVolunteerRepository()
         self.tournament_repository = TournamentRepository()
         self.stage_repository = StageRepository()
+        self.provider_task_repository = ProviderTaskRepository()
 
     async def get_match_for_display(
         self,
@@ -58,8 +72,10 @@ class MatchDisplayService:
 
         acks = await self.ack_repository.list_for_match(match)
         volunteers = await self.volunteer_repository.names_by_match([match.id])
+        rolling = await self.provider_task_repository.active_for_match(match.id)
+        failed = await self.provider_task_repository.latest_failure_for_match(match.id)
         return self._format_match_for_display(
-            match, acks, volunteers.get(match.id, []),
+            match, acks, volunteers.get(match.id, []), rolling, failed,
         )
 
     async def get_matches_for_display(
@@ -100,9 +116,15 @@ class MatchDisplayService:
         match_ids_loaded = [m.id for m in matches]
         ack_map = await self.ack_repository.list_for_matches(match_ids_loaded)
         volunteer_map = await self.volunteer_repository.names_by_match(match_ids_loaded)
+        # One query for the whole page, not one per row: the seed cell asks "is
+        # this match rolling?" of every row it draws.
+        rolling_map, failed_map = await self.provider_task_repository.board_state_for_matches(
+            match_ids_loaded,
+        )
         return [
             self._format_match_for_display(
                 m, ack_map.get(m.id, []), volunteer_map.get(m.id, []),
+                rolling_map.get(m.id), failed_map.get(m.id),
             )
             for m in matches
         ]
@@ -207,6 +229,8 @@ class MatchDisplayService:
         match: Match,
         acknowledgments: Optional[List[MatchAcknowledgment]] = None,
         stream_volunteers: Optional[List[str]] = None,
+        rolling_task: Optional['ProviderTask'] = None,
+        failed_task: Optional['ProviderTask'] = None,
     ) -> Dict[str, Any]:
         """Format a match object for UI display."""
         # Get state and corresponding timestamp
@@ -310,6 +334,30 @@ class MatchDisplayService:
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
+            # When an in-flight task-queue roll started, so the cell can show a
+            # live elapsed clock. Server-side and therefore shared: it survives a
+            # refresh and every viewer sees the same roll in progress, unlike the
+            # per-browser flag it replaces. ``None`` whenever nothing is rolling.
+            'seed_rolling_since': (
+                to_utc_aware(rolling_task.created_at).isoformat()
+                if rolling_task is not None else None
+            ),
+            # Rendered server-side rather than computed in the Vue slot: a slot
+            # template has no ticking clock of its own, so the board refreshes
+            # this label on a timer while any row is rolling.
+            'seed_rolling_label': (
+                rolling_elapsed_label(rolling_task.created_at)
+                if rolling_task is not None else ''
+            ),
+            # Why the last roll produced nothing. Without this the row reverts to
+            # a plain Generate button, which is exactly what an unrolled match
+            # looks like — so the person who clicked and walked away is never
+            # told it broke. Only meaningful while the match has no seed; a
+            # later successful roll fills that in and the cell stops asking.
+            'seed_roll_error': (
+                failed_task.error or 'The seed roll did not complete.'
+                if failed_task is not None else ''
+            ),
             # Players the seed DM cannot reach — no linked Discord account, or
             # DMs opted out. This is deliverability, not delivery: it mirrors the
             # skip condition in ``_send_seed_dms`` and says nothing about whether

@@ -13,6 +13,7 @@ from . import (
     oauth_handoff_service,
     race_room_worker,
     reporting_shared,
+    seed_roll_worker,
     service_health_worker,
     speedgaming_sync_worker,
 )
@@ -65,6 +66,7 @@ from .match_reschedule_service import MatchRescheduleService
 from .mcp_auth_service import McpAuthService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
+from .provider_task_service import ProviderTaskService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
 from .racetime_bot_service import RacetimeBotService
@@ -72,6 +74,7 @@ from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
 from .randomizer_credential_service import RandomizerCredentialService
 from .reports_service import ReportsService
+from .seed_roll_service import SeedRollService
 from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
@@ -146,6 +149,7 @@ __all__ = [
     'PlayerAvailabilityService',
     'PresetService',
     'ProbeResult',
+    'ProviderTaskService',
     'RaceRoomProfileService',
     'RaceRoomService',
     'RacetimeBotService',
@@ -154,6 +158,7 @@ __all__ = [
     'RandomizerCredentialService',
     'ReportsService',
     'SeedGenerationService',
+    'SeedRollService',
     'ServiceHealthService',
     'ServiceStatus',
     'SetupStep',
@@ -196,6 +201,7 @@ __all__ = [
     'race_room_worker',
     'reporting_shared',
     'require_found',
+    'seed_roll_worker',
     'service_health_worker',
     'speedgaming_sync_worker',
     'validate_async_qualifier_config',

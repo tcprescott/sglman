@@ -161,6 +161,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # have the qualifier feature on, and a tenant without it has no runs to find.
     from application.services.async_qualifier import async_qualifier_worker
     async_qualifier_worker.start()
+    # Seed-roll polling: advances every in-flight ProviderTask, which is the only
+    # thing that finishes a task-queue roll (DK64). Ungated — with no async
+    # randomizer in use there is simply nothing in the queue to poll, and gating
+    # it would mean a restart silently stranding rolls that were already running.
+    from application.services import seed_roll_worker
+    seed_roll_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -178,6 +184,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with mcpserver.session_lifespan():
         yield
     await race_room_worker.stop()
+    await seed_roll_worker.stop()
     await speedgaming_sync_worker.stop()
     await discord_event_worker.stop()
     await service_health_worker.stop()

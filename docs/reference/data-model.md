@@ -779,6 +779,32 @@ Carries the seed's **provenance**: a `Preset` is an editable row, so without a s
 | `rolled_by` | FK → `User` | null, `SET_NULL` | Who spent the match's single roll |
 | `provider_meta` | `JSONField` | null | `{provider, operation, attempts, latency_ms, surface}` from the seed-provider envelope |
 
+#### `ProviderTask`
+
+One long-running call to an upstream provider, tracked across restarts. Created by `ProviderTaskService`; polled to completion by the `seed_roll_worker`. See [seed-generation.md](seed-generation.md#asynchronous-rolls).
+
+Most provider work is a request. The DK64 randomizer is a **task queue**, and a roll takes two to three minutes — long enough that holding the upstream task id in a local variable means a restart orphans the work: the seed exists upstream but nothing can claim it, so the match stays unseeded, no DM goes out, and there is no record it happened. This row is what makes resuming the normal path rather than a recovery path.
+
+Named for the *provider*, not for seeds: `provider` and `operation` mirror `ProviderCall`, so a later long-running call that is not a seed roll needs no new table. Consumers are explicit nullable FKs rather than a generic type/id pair — Tortoise has no generic relation, and the generic version loses the cascade that matters (delete a match and a dangling task keeps polling for a seed nobody can receive).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `provider` | `CharField(32)` | not null | `'dk64r'` |
+| `operation` | `CharField(32)` | not null | `'generate_seed'` — what the worker dispatches on |
+| `status` | `CharEnumField(ProviderTaskStatus, 16)` | `QUEUED` | |
+| `provider_task_id` | `CharField(128)` | null | Upstream handle; null between row creation and a successful submit |
+| `provider_params` | `JSONField` | null | What a *later* poll needs, e.g. `{'branch': 'stable'}` |
+| `settings_snapshot` | `JSONField` | null | The settings as sent, so a completion minutes later records what was used |
+| `preset` | FK → `Preset` | null, `SET_NULL` | |
+| `requested_by` | FK → `User` | null, `SET_NULL` | Attributes the resulting seed and audit row |
+| `match` | FK → `Match` | null, `CASCADE` | The consumer |
+| `error` | `TextField` | null | Upstream's own words on failure |
+| `completed_at` | `DatetimeField` | null | Set on every terminal transition |
+
+Index on `(status, provider)` — the worker's scan. Reverse accessor `provider_tasks` on tenant, match, preset and user.
+
+**`ProviderTaskStatus`**: `QUEUED` (written before submission, no upstream handle yet), `RUNNING` (the provider accepted it; the poller owns it), then three terminal states kept apart because they answer different questions — `SUCCEEDED` (completed and its consumer updated), `FAILED` (the provider reported the work itself as broken), `ABANDONED` (Wizzrobe gave up on a task that outlived its budget; the provider may well have finished it).
+
 #### `Preset`
 
 Tenant-authored seed-rolling preset: a named `randomizer` + `settings` blob that seed generation resolves instead of a hard-coded `presets/*` file. CRUD via `PresetService` (gated by `AuthService.can_manage_presets`); the built-in files import as starting rows. Referenced by `Tournament.preset`. See [seed-generation.md](seed-generation.md).

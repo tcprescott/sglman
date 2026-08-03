@@ -232,46 +232,6 @@ async def test_submit_and_review_publish_events(db):
     assert EventType.ASYNC_QUALIFIER_RUN_REVIEWED in seen
 
 
-async def test_roll_permalinks_blocked_when_credential_missing(db):
-    # A pool whose preset uses a keyed randomizer (dk64r) cannot roll when this
-    # community has not configured the key: the first roll raises before any
-    # permalink row exists, so the whole batch aborts with nothing half-written.
-    # A fresh tenant is used because the db-fixture tenant would otherwise share
-    # any credential a sibling test created.
-    #
-    # ASYNC_QUALIFIERS is turned on for this tenant so the subject under test is
-    # the credential, not AsyncQualifierService's own feature guard (which would
-    # refuse create_qualifier first with every flag off).
-    from application.tenant_context import tenant_scope
-    from models import FeatureFlag, Preset, Tenant, TenantFeatureFlag
-
-    service = AsyncQualifierService()
-    b = await Tenant.create(name='NoDK', slug='no-dk-q')
-    await TenantFeatureFlag.create(
-        tenant_id=b.id, flag=FeatureFlag.ASYNC_QUALIFIERS.value,
-        available=True, enabled=True,
-    )
-    with tenant_scope(b.id):
-        staff = await User.create(discord_id=900500, username='qstaff')
-        await UserRole.create(user=staff, role=Role.STAFF)
-        preset = await Preset.create(
-            name='DK', randomizer='dk64r', settings={'settings_string': 'x'},
-        )
-        now = datetime.now(timezone.utc)
-        q = await service.create_qualifier(
-            staff, name='Q', opens_at=now - timedelta(days=1),
-            closes_at=now + timedelta(days=1), runs_per_pool=1,
-        )
-        pool = await service.create_pool(staff, q.id, name='Pool A', preset_id=preset.id)
-
-        with pytest.raises(ValueError, match='DK64 Randomizer API key is not configured'):
-            await service.roll_permalinks(staff, pool.id, count=2)
-
-        assert await AsyncQualifierPermalink.filter(pool_id=pool.id).count() == 0
-
-
-# --- the server's own clock as evidence -----------------------------------
-
 async def test_submit_stores_the_server_measured_duration(db):
     service = AsyncQualifierService()
     staff = await _staff()

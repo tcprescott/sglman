@@ -1484,6 +1484,19 @@ Each `MOCK_*` env var is read through one helper in `application/utils/mocks/`, 
 | `is_mock_twitch()` | `MOCK_TWITCH` | A verified Twitch identity for the link/unlink flow. |
 | `is_mock_racetime()` | `MOCK_RACETIME` | A verified racetime identity for link/unlink — **and** the `racetimebot/` runtime; both halves share the one production-refusal switch. |
 | `is_mock_seedgen()` | `MOCK_SEEDGEN` | Seed rolling: `generate_seed` returns a believable permalink instead of reaching a live randomizer, most of which need credentials or are unreachable from a dev sandbox. |
+| `is_mock_dk64()` | `MOCK_SEEDGEN` | DK64R only, and one layer lower: rather than short-circuiting the roll, it swaps `_generate_dk64r`'s `aiohttp` session for `MockDK64Session`, an in-process stand-in for the api.dk64rando.com task queue. The convert/submit/poll code runs for real against a fake task that walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS`, which is what puts the presentation layer into the minutes-long waiting state a real DK64 roll causes. Rides on `MOCK_SEEDGEN`, so it inherits the one production refusal. |
+
+### provider_task_service.py — `ProviderTaskService`
+
+Lifecycle of `ProviderTask`: `queue` (write the row *before* submitting, so a crash leaves evidence rather than silence), `mark_submitted`, `claim` (a conditional update — every terminal transition goes through it, because completing a seed roll twice would write two `GeneratedSeeds` rows and DM both players twice), `fail`, `get_by_id` (tenant-scoped, the read every entry surface uses), `due_for_poll` (cross-tenant, worker-facing) and `sweep_stale` (abandons tasks past `TASK_MAX_AGE`, 20 minutes). Knows nothing about what any task *is*.
+
+### seed_roll_service.py — `SeedRollService`
+
+The domain half of the persisted roll: `submit` and `poll`, and the completion that runs when a task lands. Delegates to `MatchScheduleService.complete_seed_roll` — the same method the synchronous path uses — so a restart mid-roll changes who finishes it, not what finishing means. Misconfiguration (a missing credential, an unknown branch) is re-raised and the queued row deleted, because nothing was submitted and filing a config mistake as a broken roll would file another on every click. No retry. Detail: [seed-generation.md](seed-generation.md#asynchronous-rolls).
+
+### seed_roll_worker.py
+
+5-second `run_worker_loop` tick: sweep stale tasks, then poll every unfinished one inside its own `tenant_scope` (`for_each_tenant_scoped`). The only thing that advances a task-queue roll. Ungated — with no async randomizer in use there is nothing in the queue, and gating it would mean a restart silently stranding rolls already in flight. Started/stopped in `main.py`.
 
 ### qrcode_util.py
 

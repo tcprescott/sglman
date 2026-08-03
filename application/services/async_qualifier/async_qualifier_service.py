@@ -377,6 +377,17 @@ class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
             raise ValueError("Pool has no preset to roll from")
         if count < 1 or count > 25:
             raise ValueError("Roll count must be between 1 and 25")
+        # Task-queue backends are not wired into this batch yet. Each roll would
+        # take minutes and complete independently, which breaks the "abort with
+        # nothing half-written" property below — a pool would sit part-filled
+        # with no way to tell a slow roll from a lost one. Refused here rather
+        # than only in the preset picker, because a pool created before DK64
+        # became asynchronous can already point at one.
+        if pool.preset.randomizer in SeedGenerationService.ASYNC_RANDOMIZERS:
+            raise ValueError(
+                f"'{pool.preset.randomizer}' rolls seeds asynchronously and cannot "
+                "fill a qualifier pool yet. Pick a preset for another randomizer."
+            )
         # A keyed randomizer raises on the first roll when this community has not
         # configured its credential — before any permalink row is created, so the
         # batch aborts with nothing half-written.
