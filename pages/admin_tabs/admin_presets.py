@@ -127,6 +127,7 @@ async def admin_presets_page() -> None:
 
             existing_names = {(r['randomizer'], r['name']) for r in table.rows}
             selected: set[str] = set()
+            catalogue_state: dict = {}
 
             with table_container:
                 with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
@@ -150,7 +151,8 @@ async def admin_presets_page() -> None:
 
                     def reset_catalogue() -> None:
                         selected.clear()
-                        results.refresh(None)
+                        catalogue_state.clear()
+                        results.refresh()
 
                     def on_randomizer_change() -> None:
                         branches = SeedGenerationService.remote_preset_branches(
@@ -166,39 +168,63 @@ async def admin_presets_page() -> None:
                     branch_input.on_value_change(lambda _: reset_catalogue())
 
                     @ui.refreshable
-                    def results(catalogue) -> None:
-                        if catalogue is None:
+                    def results() -> None:
+                        """The picker itself, rebuilt whenever the catalogue changes.
+
+                        A searchable multi-select rather than a checkbox list:
+                        DK64R publishes dozens of presets, and a list that long
+                        is a scroll-and-squint exercise. Typing filters it.
+                        """
+                        if not catalogue_state:
                             ui.label(
                                 'Fetch the catalogue to choose presets.'
                             ).classes('text-caption text-grey')
                             return
+
+                        catalogue = catalogue_state['entries']
                         if not catalogue:
                             ui.label(
                                 'This randomizer published no presets.'
                             ).classes('text-caption text-grey')
                             return
-                        with ui.column().classes('w-full max-h-80 overflow-auto'):
-                            for entry in catalogue:
-                                already = (randomizer_input.value, entry.name) in existing_names
-                                row = ui.checkbox(
-                                    entry.name,
-                                    value=entry.name in selected,
-                                    on_change=lambda e, name=entry.name: (
-                                        selected.add(name) if e.value
-                                        else selected.discard(name)
-                                    ),
-                                )
-                                if already:
-                                    row.disable()
-                                    ui.label('Already imported').classes(
-                                        'text-caption text-grey q-ml-lg'
-                                    )
-                                elif entry.description:
-                                    ui.label(entry.description).classes(
-                                        'text-caption text-grey q-ml-lg'
-                                    )
 
-                    results(None)
+                        importable = {
+                            e.name: e for e in catalogue
+                            if (randomizer_input.value, e.name) not in existing_names
+                        }
+                        already = len(catalogue) - len(importable)
+                        if not importable:
+                            ui.label(
+                                f'All {len(catalogue)} published presets are already imported.'
+                            ).classes('text-caption text-grey')
+                            return
+
+                        picker = ui.select(
+                            # Description in the option label so the search box
+                            # matches on it too — "sprint" finds the sprint
+                            # rulesets whatever they happen to be called.
+                            {
+                                name: (f'{name} — {entry.description}'
+                                       if entry.description else name)
+                                for name, entry in importable.items()
+                            },
+                            label='Presets to import',
+                            multiple=True, with_input=True, clearable=True,
+                            value=sorted(selected),
+                        ).classes('w-full').props('use-chips')
+
+                        def on_pick(event) -> None:
+                            selected.clear()
+                            selected.update(event.value or [])
+
+                        picker.on_value_change(on_pick)
+
+                        note = f'{len(importable)} available'
+                        if already:
+                            note += f', {already} already imported'
+                        ui.label(note).classes('text-caption text-grey')
+
+                    results()
 
                     async def fetch() -> None:
                         fetch_button.disable()
@@ -213,7 +239,8 @@ async def admin_presets_page() -> None:
                         finally:
                             fetch_button.enable()
                         selected.clear()
-                        results.refresh(catalogue)
+                        catalogue_state['entries'] = catalogue
+                        results.refresh()
 
                     async def do_import() -> None:
                         try:

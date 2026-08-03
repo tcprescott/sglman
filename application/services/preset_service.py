@@ -171,7 +171,7 @@ class PresetService:
         return created
 
     async def list_remote_presets(
-        self, actor: Optional[User], randomizer: str, *, branch: Optional[str] = None,
+        self, actor: User, randomizer: str, *, branch: Optional[str] = None,
     ) -> List[RemotePreset]:
         """The presets the randomizer's own API publishes, for a picker to render.
 
@@ -187,7 +187,7 @@ class PresetService:
 
     async def import_remote_presets(
         self,
-        actor: Optional[User],
+        actor: User,
         randomizer: str,
         names: List[str],
         *,
