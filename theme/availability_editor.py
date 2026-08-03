@@ -53,6 +53,7 @@ def _status_label(status) -> str:
 
 async def render_availability_editor(
     service, *, help_text: str, help_snippet: str = '',
+    title: str = 'My Availability', title_class: str = 'page-title',
 ) -> None:
     """Render the availability window editor + effective-availability graph.
 
@@ -64,6 +65,11 @@ async def render_availability_editor(
     callers pass different ones on purpose: the editors look identical but hold
     different data and feed different things, which is the single most confusing
     thing about this surface.
+
+    ``title_class`` exists because the two callers sit at different depths: the
+    Volunteer hub gives this editor a whole tab, while Home stacks it as one
+    section among several under My Schedule, where a second page-sized heading
+    would compete with the tab's own.
     """
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
@@ -100,7 +106,7 @@ async def render_availability_editor(
 
     with ui.column().classes('page-container'):
         with ui.row().classes('header-row items-center'):
-            ui.label('My Availability').classes('page-title')
+            ui.label(title).classes(title_class)
             if help_snippet:
                 await help_icon(help_snippet)
         ui.separator().classes('separator-spacing')

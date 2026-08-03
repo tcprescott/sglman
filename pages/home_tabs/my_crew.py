@@ -66,7 +66,7 @@ async def my_crew_tab() -> None:
 
     with ui.column().classes('page-container') as page:
         with ui.row().classes('header-row items-center full-width'):
-            ui.label('My Crew').classes('page-title')
+            ui.label('Crew you signed up for').classes('section-title')
             await help_icon('crew-status')
             await help_icon('crew-approval', label='Approval')
             await help_icon('crew-withdraw', label='Withdrawing')

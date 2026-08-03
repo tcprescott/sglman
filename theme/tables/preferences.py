@@ -88,7 +88,9 @@ class TableKeys:
     ADMIN_WEBHOOK_DELIVERIES = 'admin.webhook_deliveries'
 
     # Player-facing
-    EQUIPMENT_INVENTORY = 'equipment.inventory'
+    # (No equipment.inventory: browsing the register left the player surface
+    # when Home came down to four tabs, and the admin table has its own key.
+    # Rows saved against the old key are simply never read.)
     EQUIPMENT_MINE = 'equipment.mine'
     QUALIFIERS_LIST = 'qualifiers.list'
     QUALIFIERS_LEADERBOARD = 'qualifiers.leaderboard'

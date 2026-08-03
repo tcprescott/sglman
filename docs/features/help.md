@@ -193,9 +193,9 @@ icons for specific topics — two bare `help_outline`s side by side are
 indistinguishable, and the reader has to open both to find which one answers
 their question.
 
-Wired at: Home → Schedule (columns + states), My Crew (statuses + approval +
-withdrawing), Player (overview + check-in + the room + stages), My Availability,
-Profile → Notifications; the Submit Match dialog and its Suggest a time button;
+Wired at: Home → Event → Schedule (columns + states), My Schedule (crew
+statuses + approval + withdrawing; matches overview + check-in + the room +
+stages; availability), Profile → Notifications; the Submit Match dialog and its Suggest a time button;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result
 dialog's review flag; Home → On Air; and the shared availability editor, which

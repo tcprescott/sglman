@@ -14,7 +14,7 @@ wide row has no room for four labels.
 import re
 
 from pages.admin_tabs.admin_equipment import _ACTIONS_CELL, _GRID_CARD
-from pages.home_tabs.equipment import _ICON_BTNS, _LABEL_BTNS
+from pages.home_tabs.equipment import _VIEW_ICON_BTN, _VIEW_LABEL_BTN
 
 
 def _labels(template: str) -> set:
@@ -49,10 +49,17 @@ class TestRegisterCard:
         assert '<q-tooltip>' in _ACTIONS_CELL
 
 
-class TestHomeTabCards:
+class TestHomeCheckoutsSection:
+    """Home keeps only "what am I still holding", so View is the only action.
+
+    Checking out and back in moved to the admin register and the QR-scan detail
+    page when Home came down to four tabs; the card rules are unchanged, there
+    is just one button left to apply them to.
+    """
+
     def test_the_card_form_is_labelled(self):
-        assert _labels(''.join(_LABEL_BTNS.values())) == {'Check out', 'Check in', 'View'}
+        assert _labels(_VIEW_LABEL_BTN) == {'View'}
 
     def test_the_desktop_form_is_not(self):
-        assert _labels(''.join(_ICON_BTNS.values())) == set()
-        assert all('<q-tooltip>' in html for html in _ICON_BTNS.values())
+        assert _labels(_VIEW_ICON_BTN) == set()
+        assert '<q-tooltip>' in _VIEW_ICON_BTN
