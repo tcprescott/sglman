@@ -51,7 +51,9 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
    ./start.sh mock   # or: ./start.sh dev
    ```
 
-   [`start.sh`](../start.sh) changes to the repo root and sources `.env` with `set -a` (values with spaces survive), then runs uvicorn on port 8000. `dev` binds to localhost with `--reload`; `mock` adds the offline flags (see below); `prod` is the production variant. Full mode table: [deployment.md](deployment.md#startsh-modes).
+   [`start.sh`](../start.sh) changes to the repo root and sources `.env` with `set -a` (values with spaces survive), then runs uvicorn on port 8000. `dev` binds to localhost with `--reload`; `mock` adds the offline flags (see below); `validate` is `mock` with no reload at all, for browser runs; `stop` stops whichever of them is running; `prod` is the production variant. Full mode table: [deployment.md](deployment.md#startsh-modes).
+
+   **Always start through `start.sh`.** It is the only place `.env` is sourced, so a hand-rolled `poetry run uvicorn main:app` gets none of it and dies validating a Discord token instead of falling back to `MOCK_DISCORD` — which is a `.env` setting, not a default. See [Running the server](#running-the-server-and-the-two-ways-it-bites) for that and the other two traps.
 
 5. **First boot:** the FastAPI lifespan in [`main.py`](../main.py) runs Aerich `upgrade()` before initializing Tortoise, so all pending migrations apply automatically and the schema is created on an empty database. No manual `aerich upgrade` is needed just to boot.
 
@@ -64,6 +66,59 @@ docker-compose up -d postgres   # if not already running
 ./start.sh mock                 # app with auto-reload on :8000, no external credentials
 poetry run pytest               # before pushing
 ```
+
+## Running the server, and the two ways it bites
+
+Three traps, all of which have already cost a session real time. They are
+written down because none of them announces itself — each looks like a bug in
+the change you were making.
+
+### Stopping it: never `pkill -f`
+
+```bash
+./start.sh stop     # not: pkill -f "uvicorn main:app"
+```
+
+`pkill -f` matches **full command lines**, and the shell running your `pkill`
+has the whole command — pattern included — in its own. So it kills itself
+(exit 143/144, no output at all) and the server keeps running. The pattern is
+always present, because it *is* the argument, which makes this a certainty
+rather than a risk. Quoting does not help. Neither does `uvi[c]orn`: the
+character class still matches the literal text elsewhere in the same command,
+and a heredoc that merely *mentions* the string is enough.
+
+`./start.sh stop` keeps the pattern inside the script, where the caller's
+command line cannot match it. `enforce_safe_commands.py` blocks the `pkill -f`
+form and points here; `pgrep -f` on its own stays allowed, since looking is
+harmless until you pipe it into `kill`.
+
+### Validating in a browser: use `validate`, not `dev`
+
+```bash
+./start.sh validate   # mocked services, no --reload
+```
+
+`dev` and `mock` run with `--reload`, and the app writes into its own directory:
+`.nicegui/` gets a `storage-user-<id>.json` **per session**, so every login
+restarts the server. `start.sh` now excludes `.nicegui/`, `*.log` and
+`.pytest_cache/` from the watcher, which stops the storm — but a reload mid-run
+still tears down every open page, so a screenshot can catch a half-built DOM and
+the log fills with teardown tracebacks that read like findings. For
+[`/ui-validation`](#claude-code-hooks), the flag sweep, or any Playwright run,
+not watching at all is the only way to be sure the log slice you are reading is
+about your change. Restart it by hand after an edit.
+
+### Reading the log: know what is already noisy
+
+A `RuntimeError: The parent slot of the element has been deleted` from
+`nicegui/timer.py` is **not** a finding. `Timer._run_in_loop` sleeps for its
+interval, waits for the client, and only then enters `self.parent_slot` — while
+its own `_should_stop` (which does check `is_deleted`) is evaluated inside that
+context. Navigating away from any board carrying the 5s roll-label tick lands in
+that gap. `theme/timer_teardown.py` now recognises it and `frontend.py` drops it
+before it reaches Sentry or the flag sweep, so it should not reappear; if
+something like it does, **check `main` before believing it is yours** — a stash,
+a restart and a re-run is cheaper than the wrong diagnosis.
 
 ## Local development without Discord (MOCK_DISCORD)
 

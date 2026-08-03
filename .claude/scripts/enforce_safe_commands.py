@@ -16,6 +16,14 @@ Blocks:
   dropdb / DROP TABLE|DATABASE               → destroys data (local sessions only)
   git add .env / committing .env             → never commit secrets
   cat/echo .env                               → don't print secrets to the transcript
+  pkill -f … / pgrep -f … | kill             → kills its own shell; use ./start.sh stop
+
+The ``-f`` rule has one false-positive shape worth knowing: writing *prose* about
+the hazard through a Bash heredoc can trip it, because markdown inline code
+(`` `pkill -f x` ``) puts a backtick before the command and a backtick opens a
+command substitution in shell. Shell ``#`` comments are stripped before scanning,
+which covers the common case; for the rest, edit files with the Edit/Write tools
+rather than a heredoc, which is the right tool anyway and is not hooked.
 
 A rule marked ``local_only`` is enforced only when Claude runs on a developer's
 machine. Remote sessions (Claude Code on the web) get a fresh throwaway
@@ -113,6 +121,47 @@ RULES = [
 ]
 
 
+# `pkill -f …` and `pgrep -f …` at a **command position** — start of input, or
+# after a separator that begins one. The anchor matters: prose merely naming the
+# command (a shell comment, a heredoc, a docstring in a file being written) is
+# not the hazard, and this file and its test both have to discuss it.
+_PKILL_F = re.compile(r"(?:^|[\n;&|]|\$\(|`)\s*pkill\b[^\n|;]*?\s-\w*f\w*(?:\s|$)")
+_PGREP_F = re.compile(r"(?:^|[\n;&|]|\$\(|`)\s*pgrep\b[^\n|;]*?\s-\w*f\w*(?:\s|$)")
+
+# `kill` as a command, so a `pgrep -f` used only to *look* stays allowed.
+_KILL_CMD = re.compile(r"(?:^|[\n;&|]|\$\(|`|\bdo\s)\s*kill\b")
+
+# A `#` comment to end of line. Stripped before scanning so prose about the
+# hazard does not read as the hazard.
+_SHELL_COMMENT = re.compile(r"(?m)(?:^|\s)#[^\n]*")
+
+
+def pattern_kill_hazard(command: str) -> str | None:
+    """Why this command's ``-f`` process matching will hit its own shell.
+
+    ``-f`` matches against **full command lines**, and the shell running the
+    command has the whole command — pattern included — in its own. The pattern
+    is always present, because it is right there as the argument. So the match
+    is not a risk to weigh: it is a certainty, and the shell dies (exit 143/144,
+    no output) before the intended target is touched.
+
+    Tricks like ``uvicorn[ ]main:app`` do not help — the character class still
+    matches the literal text elsewhere in the same command — and neither does
+    quoting.
+
+    ``pgrep -f`` alone is fine, since looking is harmless; it becomes the same
+    hazard the moment its output is piped or looped into ``kill``.
+
+    Returns the reason, or None when there is nothing to warn about.
+    """
+    scannable = _SHELL_COMMENT.sub(" ", command)
+    if _PKILL_F.search(scannable):
+        return "pkill -f"
+    if _PGREP_F.search(scannable) and _KILL_CMD.search(scannable):
+        return "pgrep -f piped into kill"
+    return None
+
+
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
@@ -122,6 +171,22 @@ def main() -> None:
     command = payload.get("tool_input", {}).get("command", "")
     if not command:
         sys.exit(0)
+
+    hazard = pattern_kill_hazard(command)
+    if hazard is not None:
+        print(
+            f"BLOCKED COMMAND: {hazard}\n"
+            f"  Command: {command}\n"
+            "  -f matches full command lines, and the shell running this has the\n"
+            "  whole command — pattern included — in its own. It will kill itself\n"
+            "  (exit 143/144, no output) and leave the real target running.\n"
+            "  Quoting and tricks like 'uvi[c]orn' do not help.\n"
+            "  To stop this project's dev server: ./start.sh stop\n"
+            "  Otherwise kill a PID you captured earlier, or match on process\n"
+            "  names without -f.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     local = is_local_session()
 

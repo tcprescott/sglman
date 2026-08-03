@@ -40,6 +40,7 @@ from pages import (
 from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
 from theme.assets import cache_control
+from theme.timer_teardown import is_timer_teardown_race
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
 
@@ -62,6 +63,11 @@ def _handle_unhandled_ui_exception(exc: Exception) -> None:
     log the traceback (reaches Sentry) and, when a UI context is available,
     surface a generic notice so a failure is visible-but-generic rather than
     silent. Never raises itself."""
+    # A timer whose page went away is not an error anyone can act on, and
+    # reporting it buries the ones that are — see theme/timer_teardown.py.
+    if is_timer_teardown_race(exc):
+        _ui_logger.debug('Timer outlived its page; stopping quietly.')
+        return
     _ui_logger.exception('Unhandled exception in a UI event handler', exc_info=exc)
     try:
         ui.notify('Something went wrong. Please try again.', color='negative')

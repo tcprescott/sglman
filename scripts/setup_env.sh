@@ -14,7 +14,7 @@
 #     MOCK_RACETIME + a generated STORAGE_SECRET) if one is absent
 #
 # Idempotent and safe to re-run. Does NOT boot the app — do that per task with
-# `./start.sh dev`. See the `ui-validation` skill for the full validation loop.
+# `./start.sh validate`. See the `ui-validation` skill for the full loop.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -104,4 +104,5 @@ else
   say "No pre-installed Playwright browsers detected; the ui-validation skill will note fallbacks"
 fi
 
-say "Setup complete. Boot with: ./start.sh dev   then seed: poetry run python scripts/seed_dev.py"
+say "Setup complete. Boot with: ./start.sh validate   then seed: poetry run python scripts/seed_dev.py"
+say "Stop it with: ./start.sh stop   (a -f process match would kill its own shell instead)"

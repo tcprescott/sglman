@@ -173,15 +173,21 @@ Shutdown reverses this: the queue worker is cancelled (any still-queued DMs are 
 
 ### `start.sh` modes
 
-| | `./start.sh dev` | `./start.sh mock` | `./start.sh prod` |
-|---|---|---|---|
-| Reload | `--reload` | `--reload` | off |
-| Host binding | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | `0.0.0.0` (required in a container) |
-| Workers | n/a (reload implies one process) | n/a | `--workers 1` |
-| Port | 8000 | 8000 | 8000 |
-| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_CHALLONGE`, `MOCK_SEEDGEN` | `ENVIRONMENT=production` |
+| | `./start.sh dev` | `./start.sh mock` | `./start.sh validate` | `./start.sh prod` |
+|---|---|---|---|---|
+| Reload | `--reload` | `--reload` | **off** | off |
+| Host binding | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | `0.0.0.0` (required in a container) |
+| Workers | n/a (reload implies one process) | n/a | one | `--workers 1` |
+| Port | 8000 | 8000 | 8000 | 8000 |
+| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_CHALLONGE`, `MOCK_SEEDGEN` | same as `mock` | `ENVIRONMENT=production` |
 
-`mock` is the one-command offline dev loop — no Discord, Challonge or randomizer credentials needed. Any other argument prints an error and exits 1; the script `cd`s to its own directory first, so it can be started from anywhere.
+`mock` is the one-command offline dev loop — no Discord, Challonge or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
+
+`./start.sh stop` stops whichever of them is running. Use it rather than `pkill -f`, which reliably kills its own shell instead — the reasoning is in [development.md](development.md#stopping-it-never-pkill--f), and `enforce_safe_commands.py` blocks the form.
+
+The reload modes exclude `.nicegui/`, `*.log` and `.pytest_cache/` from the watcher. Without that, the per-session `storage-user-<id>.json` the app writes into `.nicegui/` restarts the server on every login.
+
+Any other argument prints an error and exits 1; the script `cd`s to its own directory first, so it can be started from anywhere.
 
 ## Operations
 

@@ -20,8 +20,10 @@ deps, dev `.env` with `MOCK_DISCORD=true`).
 Each run:
 
 ```bash
-nohup ./start.sh dev > /tmp/app.log 2>&1 &
+setsid ./start.sh validate > /tmp/app.log 2>&1 < /dev/null &
 # wait for "Application startup complete" in /tmp/app.log
+# `validate` is `mock` with no --reload. `dev` restarts on every login, because
+# the app writes .nicegui/storage-user-<id>.json into the watched tree.
 poetry run python scripts/seed_dev.py
 ```
 
@@ -75,4 +77,6 @@ for status-only probes):
 - The in-process equivalents live in `tests/api/test_*.py` — anything you
   verified by hand here that isn't covered there should become a test
   (`tests/api_helpers.py` + the conftest `app`/`two_tenant_api` fixtures).
-- Kill the server when done: `pkill -f 'start.sh dev' ; pkill -f uvicorn`.
+- Stop the server when done: `./start.sh stop`. Not a `-f` process match — that
+  matches full command lines, so it kills the shell running it (exit 143/144, no
+  output) and leaves the server up. `enforce_safe_commands.py` blocks the form.
