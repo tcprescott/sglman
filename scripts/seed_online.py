@@ -268,6 +268,19 @@ async def _seed_presets(tenant: Tenant, staff: User) -> Preset:
     # the JSON editor, the payload-size handling and the per-randomizer filter are
     # written against. Idempotent by (randomizer, name) inside the service.
     await PresetService().import_builtins(staff)
+    # One preset in the shape **Import from Randomizer** produces: a name and
+    # description straight from the upstream catalogue, and settings that are a
+    # branch plus a portable settings string rather than a full payload. Seeded
+    # directly instead of through ``import_remote_presets`` so the row exists
+    # whether or not this run has the DK64 mock queue enabled.
+    await Preset.get_or_create(
+        name="Season 5 Race Settings", tenant=tenant,
+        defaults={
+            "randomizer": "dk64r",
+            "settings": {"_branch": "stable", "settings_string": "SEEDDEVSTABLE0001"},
+            "description": "Medium length settings with a uniquely shuffled seasonal world.",
+        },
+    )
     # Placeholder randomizer credentials so the keyed backends stay *selectable*
     # in the Presets tab and tournament dialog, and the Randomizer Keys tab is not
     # empty in dev. The default tenant gets all three; the second tenant only the

@@ -119,6 +119,70 @@ class TestImportBuiltins:
         assert second == []
 
 
+class TestImportRemotePresets:
+    """Importing a randomizer's own published presets.
+
+    Driven through the DK64R mock queue (``MOCK_SEEDGEN`` + ``mock_dk64``), which
+    serves ``get_presets`` without a credential — the same path a dev sandbox
+    takes.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _mock_env(self, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+
+    async def test_lists_the_upstream_catalogue(self, service, actor):
+        catalogue = await service.list_remote_presets(actor, 'dk64r', branch='stable')
+        assert catalogue
+        entry = next(p for p in catalogue if p.name == 'Season 5 Race Settings')
+        # Stored in the shape the roll expects: branch + portable settings string.
+        assert entry.settings['_branch'] == 'stable'
+        assert entry.settings['settings_string']
+
+    async def test_dev_branch_has_its_own_catalogue(self, service, actor):
+        stable = {p.name for p in await service.list_remote_presets(actor, 'dk64r', branch='stable')}
+        dev = {p.name for p in await service.list_remote_presets(actor, 'dk64r', branch='dev')}
+        assert dev - stable
+
+    async def test_randomizer_without_a_catalogue_raises(self, service, actor):
+        with pytest.raises(ValueError, match='does not publish a preset catalogue'):
+            await service.list_remote_presets(actor, 'alttpr')
+
+    async def test_import_saves_the_chosen_presets(self, service, actor):
+        created = await service.import_remote_presets(
+            actor, 'dk64r', ['Season 5 Race Settings', 'Hell Mode'], branch='stable',
+        )
+        assert {p.name for p in created} == {'Season 5 Race Settings', 'Hell Mode'}
+        stored = await service.repository.get_by_natural_key('dk64r', 'Hell Mode')
+        assert stored is not None
+        assert stored.settings['_branch'] == 'stable'
+        assert stored.description
+
+    async def test_import_is_idempotent(self, service, actor):
+        await service.import_remote_presets(actor, 'dk64r', ['Hell Mode'])
+        assert await service.import_remote_presets(actor, 'dk64r', ['Hell Mode']) == []
+
+    async def test_unknown_preset_name_raises(self, service, actor):
+        with pytest.raises(ValueError, match='no longer offers'):
+            await service.import_remote_presets(actor, 'dk64r', ['Not A Preset'])
+
+    async def test_empty_selection_raises(self, service, actor):
+        with pytest.raises(ValueError, match='at least one preset'):
+            await service.import_remote_presets(actor, 'dk64r', ['  '])
+
+    async def test_unknown_branch_raises(self, service, actor):
+        with pytest.raises(ValueError, match='Unknown DK64R branch'):
+            await service.list_remote_presets(actor, 'dk64r', branch='nightly')
+
+    async def test_non_manager_cannot_import(self, service, db):
+        from models import User
+
+        user = await User.create(discord_id=556, username='nobody-import')
+        with pytest.raises(PermissionError, match='manage presets'):
+            await service.import_remote_presets(user, 'dk64r', ['Hell Mode'])
+
+
 class TestManagementGate:
     async def test_non_manager_cannot_create(self, service, db):
         from models import User

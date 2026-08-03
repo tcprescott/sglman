@@ -44,7 +44,8 @@ async def admin_presets_page() -> None:
         ui.label(
             'Named randomizer settings that seed generation resolves for a tournament. '
             "A tournament's Seed Preset (set on the tournament) overrides its Seed Generator. "
-            'Import the built-in presets to get started.'
+            'Import the built-in presets to get started, or pull a randomizer\'s '
+            'own published presets over its API.'
         ).classes('text-caption text-grey')
 
         columns = [
@@ -105,6 +106,142 @@ async def admin_presets_page() -> None:
                 else:
                     ui.notify('No new presets to import', color='info')
                 await refresh_table()
+
+        def open_remote_dialog() -> None:
+            """Browse a randomizer's own published presets and keep the useful ones.
+
+            The alternative to hand-authoring a settings blob: the community
+            picks from what the randomizer's site already offers its players.
+            """
+            remote_choices = [
+                r for r in available_randomizers
+                if SeedGenerationService.offers_remote_presets(r)
+            ]
+            if not remote_choices:
+                ui.notify(
+                    'No randomizer with a preset catalogue is configured. '
+                    'Add its API key under Randomizer Keys first.',
+                    color='warning',
+                )
+                return
+
+            existing_names = {(r['randomizer'], r['name']) for r in table.rows}
+            selected: set[str] = set()
+
+            with table_container:
+                with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
+                    ui.label('Import from Randomizer').classes('text-h6')
+                    ui.label(
+                        "Fetches the randomizer's published presets. Importing one "
+                        'saves it as a preset of your own — later changes upstream '
+                        'do not follow it.'
+                    ).classes('text-caption text-grey')
+
+                    first_branches = SeedGenerationService.remote_preset_branches(
+                        remote_choices[0]
+                    )
+                    randomizer_input = ui.select(
+                        remote_choices, label='Randomizer', value=remote_choices[0],
+                    ).classes('w-full')
+                    branch_input = ui.select(
+                        first_branches, label='Branch',
+                        value=first_branches[0] if first_branches else None,
+                    ).classes('w-full')
+
+                    def reset_catalogue() -> None:
+                        selected.clear()
+                        results.refresh(None)
+
+                    def on_randomizer_change() -> None:
+                        branches = SeedGenerationService.remote_preset_branches(
+                            randomizer_input.value
+                        )
+                        branch_input.options = branches
+                        branch_input.value = branches[0] if branches else None
+                        branch_input.set_visibility(bool(branches))
+                        branch_input.update()
+                        reset_catalogue()
+
+                    randomizer_input.on_value_change(lambda _: on_randomizer_change())
+                    branch_input.on_value_change(lambda _: reset_catalogue())
+
+                    @ui.refreshable
+                    def results(catalogue) -> None:
+                        if catalogue is None:
+                            ui.label(
+                                'Fetch the catalogue to choose presets.'
+                            ).classes('text-caption text-grey')
+                            return
+                        if not catalogue:
+                            ui.label(
+                                'This randomizer published no presets.'
+                            ).classes('text-caption text-grey')
+                            return
+                        with ui.column().classes('w-full max-h-80 overflow-auto'):
+                            for entry in catalogue:
+                                already = (randomizer_input.value, entry.name) in existing_names
+                                row = ui.checkbox(
+                                    entry.name,
+                                    value=entry.name in selected,
+                                    on_change=lambda e, name=entry.name: (
+                                        selected.add(name) if e.value
+                                        else selected.discard(name)
+                                    ),
+                                )
+                                if already:
+                                    row.disable()
+                                    ui.label('Already imported').classes(
+                                        'text-caption text-grey q-ml-lg'
+                                    )
+                                elif entry.description:
+                                    ui.label(entry.description).classes(
+                                        'text-caption text-grey q-ml-lg'
+                                    )
+
+                    results(None)
+
+                    async def fetch() -> None:
+                        fetch_button.disable()
+                        try:
+                            catalogue = await service.list_remote_presets(
+                                await _current(), randomizer_input.value,
+                                branch=branch_input.value,
+                            )
+                        except (ValueError, PermissionError) as e:
+                            notify_error(e)
+                            return
+                        finally:
+                            fetch_button.enable()
+                        selected.clear()
+                        results.refresh(catalogue)
+
+                    async def do_import() -> None:
+                        try:
+                            created = await service.import_remote_presets(
+                                await _current(), randomizer_input.value,
+                                sorted(selected), branch=branch_input.value,
+                            )
+                        except (ValueError, PermissionError) as e:
+                            notify_error(e)
+                            return
+                        if created:
+                            ui.notify(f'Imported {len(created)} preset(s)', color='positive')
+                        else:
+                            ui.notify('Those presets are already imported', color='info')
+                        dialog.close()
+                        await refresh_table()
+
+                    with ui.row().classes('justify-end w-full'):
+                        fetch_button = ui.button(
+                            'Fetch Presets', icon='cloud_download', on_click=fetch,
+                        ).props('flat color=primary')
+                        ui.button('Cancel', on_click=dialog.close).props('flat')
+                        ui.button(
+                            'Import', icon='download', on_click=do_import,
+                        ).props('color=primary')
+
+                    on_randomizer_change()
+            dialog.open()
 
         def open_preset_dialog(existing=None) -> None:
             is_edit = existing is not None
@@ -176,6 +313,10 @@ async def admin_presets_page() -> None:
                 ui.button(
                     'Import Built-ins', icon='download',
                     on_click=lambda: background_tasks.create(import_builtins(context.client)),
+                ).props('flat color=primary')
+                ui.button(
+                    'Import from Randomizer', icon='cloud_download',
+                    on_click=open_remote_dialog,
                 ).props('flat color=primary')
                 ui.space()
                 refresh_button(refresh_table)

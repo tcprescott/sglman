@@ -521,7 +521,7 @@ class TestGenerateDk64r:
         import itertools
         clock = itertools.count(0.0, 10_000.0)
         monkeypatch.setattr(
-            'application.services.seedgen_service.time.monotonic',
+            'application.services.seedgen_dk64r.time.monotonic',
             lambda: next(clock),
         )
 
@@ -537,6 +537,72 @@ async def _noop_sleep(_seconds):
 def _preset(settings):
     from types import SimpleNamespace
     return SimpleNamespace(randomizer='dk64r', settings=settings)
+
+
+class TestRemotePresetCatalogue:
+    """``list_remote_presets`` — the randomizer's own published presets."""
+
+    async def test_maps_entries_into_storable_presets(self, service, monkeypatch, dk64r_key):
+        stub = _DK64RStub([(200, [
+            {'branch': 'stable', 'name': 'Season 5', 'description': 'Race settings',
+             'settings_string': 'abc123'},
+        ])])
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+
+        presets = await service.list_remote_presets('dk64r', branch='stable')
+
+        assert stub.calls[0][1].endswith('/get_presets')
+        assert stub.calls[0][2]['params'] == {'branch': 'stable'}
+        assert [(p.name, p.description) for p in presets] == [('Season 5', 'Race settings')]
+        # Stored as the roll path reads it: the branch it came from, and the
+        # portable string expanded through /convert_settings at roll time.
+        assert presets[0].settings == {'_branch': 'stable', 'settings_string': 'abc123'}
+
+    async def test_skips_unusable_entries(self, service, monkeypatch, dk64r_key):
+        stub = _DK64RStub([(200, [
+            {'name': 'No string'},
+            {'settings_string': 'x'},
+            'not an object',
+            {'name': 'Keeper', 'settings_string': 'y'},
+        ])])
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+
+        presets = await service.list_remote_presets('dk64r')
+        # One malformed row must not cost the community the whole catalogue.
+        assert [p.name for p in presets] == ['Keeper']
+
+    async def test_non_list_payload_raises(self, service, monkeypatch, dk64r_key):
+        stub = _DK64RStub([(200, {'presets': []})])
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+
+        with pytest.raises(ValueError, match='unexpected preset catalogue'):
+            await service.list_remote_presets('dk64r')
+
+    async def test_upstream_error_surfaces(self, service, monkeypatch, dk64r_key):
+        stub = _DK64RStub([(500, {'error': 'boom'})] * 3)
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+        monkeypatch.setattr('asyncio.sleep', _noop_sleep)
+
+        with pytest.raises(ValueError, match='list the presets'):
+            await service.list_remote_presets('dk64r')
+
+    async def test_missing_credential_raises(self, service, db):
+        with pytest.raises(ValueError, match='DK64 Randomizer API key is not configured'):
+            await service.list_remote_presets('dk64r')
+
+    async def test_randomizer_without_a_catalogue_raises(self, service):
+        with pytest.raises(ValueError, match='does not publish a preset catalogue'):
+            await service.list_remote_presets('ootr')
+
+    def test_branch_helpers(self):
+        assert SeedGenerationService.offers_remote_presets('dk64r')
+        assert not SeedGenerationService.offers_remote_presets('alttpr')
+        assert SeedGenerationService.remote_preset_branches('dk64r') == ['stable', 'dev']
+        assert SeedGenerationService.remote_preset_branches('alttpr') == []
 
 
 class TestMockDK64:

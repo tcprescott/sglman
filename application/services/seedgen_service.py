@@ -10,9 +10,7 @@ import asyncio
 import json
 import random
 import secrets
-import time
 import urllib.parse
-from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, List, Optional, Set
 
@@ -22,8 +20,18 @@ from pyz3r import ALTTPR
 
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
+from application.services.seedgen_dk64r import (
+    DK64R_GENERATION_TIMEOUT,
+    DK64R_SITE_HOSTS,
+    DK64RBackend,
+)
+from application.services.seedgen_types import (
+    AsyncRollPoll,
+    AsyncRollSubmission,
+    RemotePreset,
+    RolledSeed,
+)
 from application.tenant_context import require_tenant_id
-from application.utils.mocks.mock_dk64 import MockDK64Session, is_mock_dk64
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
 from application.utils.seed_provider import (
     PROVIDER_MAX_ATTEMPTS,
@@ -35,57 +43,13 @@ from application.utils.seed_provider import (
 )
 from models import Preset
 
-# DK64 Randomizer (api.dk64rando.com) — a task-queue backend: submit → poll →
-# result.
-DK64R_API_BASE = 'https://api.dk64rando.com/api'
-DK64R_BRANCHES = {'stable', 'dev'}
-# The player-facing site host per branch (the permalink the roll returns).
-DK64R_SITE_HOSTS = {'stable': 'dk64randomizer.com', 'dev': 'dev.dk64randomizer.com'}
-DK64R_POLL_INTERVAL = 5.0        # seconds — matches the reference web client's cadence
-DK64R_GENERATION_TIMEOUT = 600.0  # seconds (10 min) worst-case queue + generation budget
-
-
-@dataclass
-class RolledSeed:
-    """What a generator produced: the permalink, and the settings that made it.
-
-    ``settings`` is the **resolved payload as sent upstream**, which is the whole
-    reason it is carried back here rather than re-derived by the caller. A
-    ``Preset`` is an editable row: without a snapshot taken at roll time, editing
-    a preset silently rewrites the apparent history of every seed rolled from it,
-    and the question a disputed result actually asks — "what settings did this
-    seed use?" — has no answer. ``None`` where the generator has no settings to
-    speak of (the test stub).
-    """
-
-    url: str
-    settings: Optional[dict] = None
-
-
-@dataclass
-class AsyncRollSubmission:
-    """A roll handed to a task queue, described well enough to resume later.
-
-    Everything here is persisted on a :class:`ProviderTask` the moment it comes
-    back, because the process that polls this task may not be the one that
-    submitted it.
-    """
-
-    provider_task_id: str
-    provider_params: dict
-    settings: dict
-
-
-@dataclass
-class AsyncRollPoll:
-    """One check of a submitted task.
-
-    ``seed`` is ``None`` while the task is still queued or running; a failed
-    task raises instead of returning, so "not yet" never reads as "never".
-    """
-
-    seed: Optional[RolledSeed] = None
-    verification_hash: Optional[list] = None
+__all__ = [
+    'AsyncRollPoll',
+    'AsyncRollSubmission',
+    'RemotePreset',
+    'RolledSeed',
+    'SeedGenerationService',
+]
 
 
 async def _read_bundled_preset(path: str) -> str:
@@ -98,7 +62,7 @@ async def _read_bundled_preset(path: str) -> str:
     return await asyncio.to_thread(Path(path).read_text, encoding='utf-8')
 
 
-class SeedGenerationService:
+class SeedGenerationService(DK64RBackend):
     """Service for generating seeds for various randomizers."""
 
     # Available randomizers
@@ -133,6 +97,14 @@ class SeedGenerationService:
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr'}
 
+    # Randomizers that publish their own preset catalogue over their API, so a
+    # community can pull the upstream's presets instead of hand-authoring the
+    # settings blob. The value is the catalogue's variants — DK64R publishes a
+    # separate list per branch — or an empty tuple where there is only one list.
+    REMOTE_PRESET_BRANCHES: ClassVar[dict] = {
+        'dk64r': ('stable', 'dev'),
+    }
+
     # Per-provider overrides of the shared execution contract
     # (``application.utils.seed_provider``). Anything absent takes the defaults.
     #
@@ -152,6 +124,16 @@ class SeedGenerationService:
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
+
+    @classmethod
+    def offers_remote_presets(cls, randomizer: Optional[str]) -> bool:
+        """Whether this randomizer's API publishes a preset catalogue."""
+        return randomizer in cls.REMOTE_PRESET_BRANCHES
+
+    @classmethod
+    def remote_preset_branches(cls, randomizer: Optional[str]) -> List[str]:
+        """The catalogue variants to choose between, empty where there is one list."""
+        return list(cls.REMOTE_PRESET_BRANCHES.get(randomizer or '', ()))
 
     @classmethod
     def available_randomizers(cls, configured: Set[str]) -> List[str]:
@@ -520,171 +502,45 @@ class SeedGenerationService:
             verification_hash=result.get('hash'),
         )
 
+    # ------------------------------------------------------------------
+    # Upstream preset catalogues
+    # ------------------------------------------------------------------
+
+    async def list_remote_presets(
+        self, randomizer: str, *, branch: Optional[str] = None,
+    ) -> List[RemotePreset]:
+        """The presets the randomizer's own API publishes, ready to store.
+
+        The alternative to hand-authoring a settings blob: a community pulls the
+        upstream's own presets — the ones its players already race — and saves
+        the ones it wants as ``Preset`` rows.
+
+        Read-only and idempotent, so it takes the *default* provider budget
+        rather than this randomizer's roll overrides: DK64R's 11-minute ceiling
+        and single attempt exist because re-running a roll enqueues a second
+        generation, which fetching a catalogue does not.
+        """
+        catalogue_map = {
+            'dk64r': self._dk64r_presets,
+        }
+        if randomizer not in catalogue_map:
+            raise ValueError(f"'{randomizer}' does not publish a preset catalogue.")
+
+        fetch = catalogue_map[randomizer]
+        variants = self.remote_preset_branches(randomizer)
+        chosen = branch or (variants[0] if variants else None)
+
+        call = await call_provider(
+            lambda: fetch(chosen),
+            provider=randomizer,
+            operation='list_presets',
+            surface='preset_import',
+        )
+        return call.value
+
     def _require_async(self, randomizer: str) -> None:
         if randomizer not in self.ASYNC_RANDOMIZERS:
             raise ValueError(f"'{randomizer}' is not an asynchronous randomizer.")
-
-    @staticmethod
-    def _dk64r_seed(result: dict, branch: str, settings: Optional[dict]) -> RolledSeed:
-        seed_number = result.get('seed_number')
-        if seed_number is None:
-            raise ValueError('DK64 Randomizer returned no seed identifier.')
-        return RolledSeed(
-            url=f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}",
-            settings=settings or None,
-        )
-
-    async def _dk64r_prepare(self, preset: Optional[Preset]) -> tuple:
-        """Resolve a DK64R preset into ``(branch, settings, settings_string)``.
-
-        Pure: no HTTP and no credential, so an unrecognised branch raises before
-        anything is sent or persisted.
-        """
-        # Resolve settings: the preset when given, else the committed default.
-        if preset is not None:
-            settings = dict(preset.settings or {})
-        else:
-            # Read off the shared event loop — a blocking file read stalls every
-            # connected user (CLAUDE.md: never block the event loop).
-            def _read_default() -> dict:
-                with open("presets/dk64r/sgl.json", "r", encoding="utf-8") as f:
-                    return json.load(f)
-
-            settings = await asyncio.to_thread(_read_default)
-
-        # Optional per-preset branch override, stripped before anything is sent.
-        branch = str(settings.pop('_branch', 'stable'))
-        if branch not in DK64R_BRANCHES:
-            raise ValueError(
-                f"Unknown DK64R branch '{branch}' (expected 'stable' or 'dev')."
-            )
-
-        # A settings string is the site's own portable preset format; expand it
-        # to the full settings dict. A full-JSON preset is submitted as-is
-        # (converting a dict would yield a string — the opposite direction).
-        return branch, settings, settings.get('settings_string')
-
-    async def _dk64r_session(self):
-        """An HTTP session for DK64R: the real one, or the simulated queue.
-
-        Each roll phase opens its own, because a poll may run minutes after its
-        submit and in a different process — there is no session to keep alive
-        across that gap. The mock's task registry is process-wide for the same
-        reason.
-        """
-        # The simulated queue authenticates nobody, so dev and CI roll DK64
-        # without a credential row — matching every other backend's behaviour
-        # under MOCK_SEEDGEN, which short-circuits before its own key lookup.
-        if is_mock_dk64():
-            return MockDK64Session()
-        api_key = await self._credential('dk64r', 'api_key')
-        return aiohttp.ClientSession(headers={'X-API-Key': api_key})
-
-    async def _dk64r_resolve_settings(
-        self, session, settings: dict, settings_string: Optional[str], params: dict,
-    ) -> dict:
-        """Expand the preset if needed, then force the spoiler log off."""
-        settings_dict = (
-            await self._dk64r_convert(session, settings_string, params)
-            if settings_string is not None else settings
-        )
-
-        # Never generate a spoiler log, whatever the preset asked for. The
-        # upstream serves one to anyone holding the seed number at
-        # ``GET /get_spoiler_log?hash=<seed_number>``, and the seed number is the
-        # permalink we DM to the players — so a preset with this on hands every
-        # racer the item locations. Several of the site's own presets, including
-        # "Season 5 Race Settings", convert with it set to true, so trusting the
-        # preset is not a safe default. Forced last, after both settings shapes
-        # have resolved, and it lands in the snapshot ``GeneratedSeeds`` records.
-        settings_dict['generate_spoilerlog'] = False
-        return settings_dict
-
-    async def _dk64r_convert(self, session, settings_string: str, params: dict) -> dict:
-        """Expand a DK64R settings string into the full settings JSON object."""
-        async with session.post(
-            f"{DK64R_API_BASE}/convert_settings",
-            json={'settings': settings_string}, params=params,
-        ) as resp:
-            if resp.status != 200:
-                raise ValueError(await self._dk64r_error(resp, 'convert settings'))
-            data = await resp.json()
-        if not isinstance(data, dict):
-            raise ValueError('DK64 Randomizer returned an unexpected settings payload.')
-        return data
-
-    async def _dk64r_submit(self, session, settings_dict: dict, params: dict) -> str:
-        """Submit a generation task; return its task id."""
-        async with session.post(
-            f"{DK64R_API_BASE}/submit-task",
-            json={'settings_data': json.dumps(settings_dict)}, params=params,
-        ) as resp:
-            if resp.status != 200:
-                raise ValueError(await self._dk64r_error(resp, 'submit the seed'))
-            data = await resp.json()
-        task_id = (data or {}).get('task_id')
-        if not task_id:
-            raise ValueError('DK64 Randomizer did not return a task id.')
-        return task_id
-
-    async def _dk64r_poll(self, session, task_id: str, params: dict) -> dict:
-        """Poll a task until it finishes; return its ``result`` object.
-
-        Bounded by ``DK64R_GENERATION_TIMEOUT``. A crashed task surfaces as HTTP
-        500; the reference client also defends against a ``failed`` status inside
-        a 200, so both are handled.
-        """
-        deadline = time.monotonic() + DK64R_GENERATION_TIMEOUT
-        while time.monotonic() < deadline:
-            result = await self._dk64r_poll_once(session, task_id, params)
-            if result is not None:
-                return result
-            await asyncio.sleep(DK64R_POLL_INTERVAL)
-        raise ValueError('DK64 Randomizer seed generation timed out.')
-
-    async def _dk64r_poll_once(self, session, task_id: str, params: dict) -> Optional[dict]:
-        """Check a task once: its ``result`` if finished, ``None`` if still going.
-
-        A crashed task surfaces as HTTP 500; the reference client also defends
-        against a ``failed`` status inside a 200, so both raise here. Everything
-        that merely means "not done yet" returns ``None``, which is what lets the
-        persisted poller tell a task worth re-checking from a dead end.
-        """
-        async with session.get(
-            f"{DK64R_API_BASE}/task-status/{task_id}", params=params,
-        ) as resp:
-            if resp.status != 200:
-                raise ValueError(await self._dk64r_error(resp, 'generate the seed'))
-            data = await resp.json()
-        status = (data or {}).get('status')
-        if status == 'finished':
-            result = data.get('result')
-            if not isinstance(result, dict):
-                raise ValueError('DK64 Randomizer finished without a seed result.')
-            return result
-        if status == 'failed':
-            raise ValueError('DK64 Randomizer failed to generate the seed.')
-        if status not in ('queued', 'started'):
-            raise ValueError(
-                f"DK64 Randomizer returned an unexpected status '{status}'."
-            )
-        return None
-
-    @staticmethod
-    async def _dk64r_error(resp, action: str) -> str:
-        """Best-effort upstream error text for a failed DK64R call."""
-        detail = ''
-        try:
-            body = await resp.json()
-            if isinstance(body, dict):
-                detail = body.get('error') or body.get('message') or ''
-        except Exception:
-            try:
-                detail = (await resp.text())[:200]
-            except Exception:
-                detail = ''
-        suffix = f': {detail}' if detail else ''
-        return f"DK64 Randomizer failed to {action} (HTTP {resp.status}){suffix}"
 
     async def _generate_wwr(self) -> str:
         """Generate a Wind Waker Randomizer seed. Not yet implemented."""
