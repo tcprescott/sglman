@@ -54,18 +54,49 @@ class TestPermissions:
 
 
 class TestCheckoutCheckin:
-    async def test_volunteer_checkout_is_self_only(self, db, service):
+    async def test_a_non_manager_checking_out_to_someone_else_is_refused(self, db, service):
+        """Refused, not silently rewritten to the actor. A loan booked against
+        the wrong person is the failure that survives the event."""
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
         volunteer = await _user(2, 'vol', Role.VOLUNTEER)
         other = await _user(3, 'other', Role.VOLUNTEER)
         asset = await service.create_asset(manager, name='Console')
 
-        # Volunteer attempts to check out to someone else — forced to self.
-        loan = await service.checkout(volunteer, asset.id, borrower_id=other.id)
+        with pytest.raises(PermissionError):
+            await service.checkout(volunteer, asset.id, borrower_id=other.id)
+
+        assert (await service.get_asset(asset.id)).status == EquipmentStatus.AVAILABLE
+
+    async def test_volunteer_checks_out_to_themselves(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        volunteer = await _user(2, 'vol', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Console')
+
+        loan = await service.checkout(volunteer, asset.id)
         assert loan.borrower_id == volunteer.id
 
         refreshed = await service.get_asset(asset.id)
         assert refreshed.status == EquipmentStatus.CHECKED_OUT
+
+    async def test_a_member_with_no_roles_can_borrow(self, db, service):
+        """The QR-code case: a player scans a loaner and checks it out to
+        themselves, holding no roles at all."""
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        player = await _user(4, 'player')
+        asset = await service.create_asset(manager, name='RetroTINK 2X')
+
+        loan = await service.checkout(player, asset.id)
+        assert loan.borrower_id == player.id
+        assert (await service.get_asset(asset.id)).status == EquipmentStatus.CHECKED_OUT
+
+    async def test_a_member_with_no_roles_still_cannot_check_in(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        player = await _user(4, 'player')
+        asset = await service.create_asset(manager, name='RetroTINK 2X')
+        await service.checkout(player, asset.id)
+
+        with pytest.raises(PermissionError):
+            await service.checkin(player, asset.id)
 
     async def test_manager_can_checkout_on_behalf(self, db, service):
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)

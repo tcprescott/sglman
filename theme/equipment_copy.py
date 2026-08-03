@@ -1,12 +1,13 @@
 """What the asset page says to a viewer it offers no buttons to.
 
-The check-in gate is asymmetric on purpose: ``can_checkout_equipment`` admits
-volunteers, ``can_checkin_equipment`` is manager-only, so a return is recorded by
-someone accountable for the item coming back. That is settled. What was missing
-is any *explanation* — a volunteer scanning the label of the cable in their own
-hand got a name, a status badge, a holder line and no controls at all, with
-nothing to distinguish "you are not the one who records returns" from "this page
-is broken".
+The check-in gate is asymmetric on purpose: ``can_checkout_equipment`` admits any
+signed-in member, borrowing to themselves — the QR code on a loaner is scanned by
+whoever is holding it, usually a player with no roles — while
+``can_checkin_equipment`` is manager-only, so a return is recorded by someone
+accountable for the item coming back. That is settled. What was missing is any
+*explanation* — a volunteer scanning the label of the cable in their own hand got
+a name, a status badge, a holder line and no controls at all, with nothing to
+distinguish "you are not the one who records returns" from "this page is broken".
 
 Pure so it can be tested without a client: it takes only the predicates the page
 has already computed and returns the one line to render, or ``None`` when the
@@ -22,9 +23,12 @@ CHECKIN_GUIDANCE = (
 )
 HOLDER_PREFIX = 'You have this checked out.'
 RETIRED_GUIDANCE = 'This asset is retired, so it cannot be checked out.'
+#: Kept as the defensive fallback rather than the volunteers-and-staff rule it
+#: used to state: borrowing is open to any signed-in member, so the only viewers
+#: this can now reach are ones the page will not render for anyway.
 NOT_BORROWABLE_GUIDANCE = (
-    'Checking equipment out is for volunteers and staff — ask staff or an '
-    'equipment manager if you need this.'
+    'This account cannot borrow equipment — ask staff or an equipment manager '
+    'if you need this.'
 )
 
 

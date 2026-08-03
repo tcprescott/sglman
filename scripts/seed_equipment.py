@@ -17,7 +17,12 @@ re-check:
 * one with a **long history**, so the bounded loan list and its "5 of N" line
   have a real N;
 * an ``EQUIPMENT_MANAGER``-only grant, so the manager surfaces can be driven by
-  someone who is not also STAFF.
+  someone who is not also STAFF;
+* a **self-checked-out loaner** (``checked_out_by`` is the borrower, who holds no
+  role at all) and a spare sitting **available** — the QR-code path, where a
+  player scans the code on the device in their hand and checks it out to
+  themselves. Both are needed: the closed one shows the resulting loan, the open
+  one is what you scan to walk the flow.
 """
 
 from datetime import datetime, timedelta
@@ -41,6 +46,8 @@ _ASSET_SPECS = (
     # produced, so nothing in dev showed how a retired asset reads in the list or
     # that it cannot be checked out.
     ('Console 2', 'Super Nintendo (SNES) — dead PPU, kept for parts', 'staff'),
+    ('RetroTINK 2X', 'Upscaler loaner — scan the QR code on the unit', None),
+    ('RetroTINK 2X (spare)', 'Upscaler loaner — the one still on the shelf', None),
 )
 
 
@@ -98,6 +105,14 @@ async def seed_equipment_for_tenant(
         equipment['Mic Stand'], users['player_three'], equip_manager, tenant,
     )
 
+    # Borrowed by the person who scanned it: checked_out_by *is* the borrower,
+    # and they hold no role in any community. That combination is only reachable
+    # since borrowing stopped being role-gated, so nothing else in the seed
+    # produces it — and the loan card reading "out by" the borrower themselves is
+    # exactly what the QR path leaves behind.
+    walk_in = users['outsider']
+    await _open_loan(equipment['RetroTINK 2X'], walk_in, walk_in, tenant)
+
     retired = equipment['Console 2']
     if retired.status != EquipmentStatus.RETIRED:
         retired.status = EquipmentStatus.RETIRED
@@ -115,7 +130,8 @@ async def seed_equipment_for_tenant(
 
     print(
         f'    [{tenant.slug}] equipment ok — equip_manager holds EQUIPMENT_MANAGER only; '
-        f"'Mic Stand' is out to player_three; 'Long HDMI Run' has {_LONG_HISTORY} closed loans"
+        f"'Mic Stand' is out to player_three; 'RetroTINK 2X' is self-checked-out by outsider; "
+        f"'Long HDMI Run' has {_LONG_HISTORY} closed loans"
     )
     return equipment
 

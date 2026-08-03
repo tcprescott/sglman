@@ -182,7 +182,7 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_manage_stages(user)` | `bool` | Staff or Stream Manager — gates Stage CRUD. |
 | `can_manage_volunteers(user)` | `bool` | Staff or Volunteer Coordinator — gates volunteer position/shift/assignment management and the auto-scheduler. |
 | `can_manage_equipment(user)` | `bool` | Staff or Equipment Manager — gates asset CRUD and check-in. |
-| `can_checkout_equipment(user)` | `bool` | Manager (any borrower) or Volunteer (self-checkout only). |
+| `can_checkout_equipment(user)` | `bool` | Any signed-in, active member (self-checkout). Naming another borrower needs `can_manage_equipment`. |
 | `can_checkin_equipment(user)` | `bool` | Staff or Equipment Manager. |
 | `can_assign_match_stream(user, match)` | `bool` | Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
@@ -410,7 +410,7 @@ The human-driven surface over the reconciler, gated by `AuthService.can_manage_s
 
 ### equipment_service.py — EquipmentService
 
-Lending-asset management (create/edit/delete, bulk creation with auto-assigned asset numbers) and the checkout/check-in workflow with full loan history. Asset management is gated by `AuthService.can_manage_equipment` (Staff or Equipment Manager); checkout by `can_checkout_equipment` (managers, or Volunteers checking out to themselves only); check-in by `can_checkin_equipment`. Audited under `equipment.*`. Module constant: `MAX_BULK_COUNT = 200`.
+Lending-asset management (create/edit/delete, bulk creation with auto-assigned asset numbers) and the checkout/check-in workflow with full loan history. Asset management is gated by `AuthService.can_manage_equipment` (Staff or Equipment Manager); checkout by `can_checkout_equipment` (any signed-in member, to themselves — a loaner's QR code is scanned by whoever holds it; only a manager may pass `borrower_id`, and a non-manager who does is refused rather than silently self-assigned); check-in by `can_checkin_equipment`. Audited under `equipment.*`. Module constant: `MAX_BULK_COUNT = 200`.
 
 | Method | Returns | Description |
 |---|---|---|

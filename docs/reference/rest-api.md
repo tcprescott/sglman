@@ -145,7 +145,7 @@ Lending inventory and the checkout workflow. **Reads take any token** — the ga
 - **Reads:** `GET /equipment?status=` (`available` / `checked_out` / `retired`) · `GET /equipment/{id}` (adds `current_loan`) · `GET /equipment/{id}/loans?limit=` (history, newest first) · `GET /equipment/me/checkouts` (what you are holding).
 - **Assets:** `POST /equipment` · `POST /equipment/bulk` (`{name, count}`, 1–200 identical assets with consecutive numbers) · `PUT /equipment/{id}` · `DELETE /equipment/{id}` (Staff/Equipment Manager; `400` on an asset that is checked out).
   `PUT`, not `PATCH`, because the service takes the whole record: `description`, `private_notes` and `owner_user_id` are cleared when omitted. `status` is the exception (omit to leave it), and it cannot move into or out of `checked_out` — that is what the two lending routes are for.
-- **Lending:** `POST /equipment/{id}/checkout` (optional `{borrower_id}` — only an Equipment Manager may name someone else; anyone else borrows to themselves whatever they send) · `POST /equipment/{id}/checkin` (Staff/Equipment Manager only — the check-in gate is deliberately narrower than checkout, which admits volunteers).
+- **Lending:** `POST /equipment/{id}/checkout` (optional `{borrower_id}` — only an Equipment Manager may name someone else, and a non-manager who sends one gets **403** rather than a loan against themselves; with no body, any authenticated member borrows to themselves) · `POST /equipment/{id}/checkin` (Staff/Equipment Manager only — the check-in gate is deliberately narrower than checkout, which is role-less).
 
 ### Feedback (`/api/feedback`) · `feedback.py`
 In-app feedback: submit, read your own, and the staff queue.

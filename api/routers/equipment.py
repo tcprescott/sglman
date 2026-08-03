@@ -13,8 +13,8 @@ rather than hiding the whole asset.
 **Writes reject read-only tokens here and are re-gated in the service**
 (``can_manage_equipment`` for asset management, ``can_checkout_equipment`` /
 ``can_checkin_equipment`` for the lending workflow). Checkout deliberately stays
-at the coarse HTTP gate: a volunteer may check an asset out to themselves, and
-the service is what knows that.
+at the coarse HTTP gate: any member may check an asset out to themselves and only
+a manager may name a ``borrower_id``, and the service is what knows that.
 """
 
 from typing import List, Optional

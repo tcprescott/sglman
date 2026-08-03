@@ -170,17 +170,26 @@ class TestWrites:
             assert (await c.post('/api/equipment', json={'name': 'X'})).status_code == 403
             assert (await c.post(f'/api/equipment/{asset.id}/checkout')).status_code == 403
 
-    async def test_volunteer_checks_out_to_themselves_only(self, db, app):
-        volunteer, raw = await create_user_token(username='vol', roles=[Role.VOLUNTEER])
+    async def test_naming_another_borrower_is_refused_for_a_non_manager(self, db, app):
+        _, raw = await create_user_token(username='vol', roles=[Role.VOLUNTEER])
         other, _ = await create_user_token(username='other')
         asset = await _asset(1, 'CRT')
         async with client_for(app, raw) as c:
             resp = await c.post(
                 f'/api/equipment/{asset.id}/checkout', json={'borrower_id': other.id},
             )
+            # 403 rather than a 201 recorded against the caller: a loan booked on
+            # the wrong person is the failure that outlives the request.
+            assert resp.status_code == 403
+
+    async def test_a_member_with_no_roles_borrows_to_themselves(self, db, app):
+        """The QR-code path over HTTP: no roles, no body, checked out to them."""
+        player, raw = await create_user_token(username='player')
+        asset = await _asset(1, 'RetroTINK 2X')
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/equipment/{asset.id}/checkout')
             assert resp.status_code == 201
-            # The named borrower is ignored for a non-manager: it lands on them.
-            assert resp.json()['borrower_id'] == volunteer.id
+            assert resp.json()['borrower_id'] == player.id
 
     async def test_manager_checks_out_on_behalf_of_someone_else(self, db, app):
         _, raw = await create_user_token(username='mgr', roles=[Role.EQUIPMENT_MANAGER])

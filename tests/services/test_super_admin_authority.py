@@ -66,7 +66,6 @@ async def test_get_roles_stays_literal_for_super_admin(super_admin, fresh_tenant
     'can_manage_volunteers',
     'can_manage_stages',
     'can_manage_equipment',
-    'can_checkout_equipment',
     'can_checkin_equipment',
     'can_manage_presets',
     'can_manage_sync',
@@ -80,6 +79,16 @@ async def test_gated_helpers_grant_super_admin_in_a_foreign_tenant(
         assert await getattr(AuthService, helper)(super_admin) is True
         # Same call, ordinary user: proves the fixture tenant really grants nothing.
         assert await getattr(AuthService, helper)(nobody) is False
+
+
+async def test_borrowing_is_deliberately_not_role_gated(nobody, fresh_tenant):
+    """``can_checkout_equipment`` is absent from the list above on purpose: a
+    loaner's QR code is scanned by whoever holds it, so borrowing to yourself is
+    open to any signed-in member. Lending *on behalf of* someone else is the
+    gated action, and it is ``can_manage_equipment`` that gates it."""
+    with tenant_scope(fresh_tenant.id):
+        assert await AuthService.can_checkout_equipment(nobody) is True
+        assert await AuthService.can_checkout_equipment(None) is False
 
 
 async def test_super_admin_may_edit_and_crud_another_tenants_tournament(

@@ -191,12 +191,23 @@ class TestDeleteErrors:
 
 
 class TestCheckoutErrors:
-    async def test_checkout_permission_denied(self, db, service):
+    async def test_a_proctor_borrows_to_themselves(self, db, service):
+        """Borrowing carries no role gate — a proctor holding nothing else gets
+        the same self-checkout a player scanning the QR code does."""
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
         proctor = await _user(2, 'proc', Role.PROCTOR)
         asset = await service.create_asset(manager, name='Console')
+        loan = await service.checkout(proctor, asset.id)
+        assert loan.borrower_id == proctor.id
+
+    async def test_deactivated_actor_cannot_borrow(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        gone = await _user(2, 'gone')
+        gone.is_active = False
+        await gone.save()
+        asset = await service.create_asset(manager, name='Console')
         with pytest.raises(PermissionError):
-            await service.checkout(proctor, asset.id)
+            await service.checkout(gone, asset.id)
 
     async def test_manager_checkout_unknown_borrower_raises(self, db, service):
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)

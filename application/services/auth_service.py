@@ -10,7 +10,7 @@ User, then pass it into the helpers.
 from typing import Any, ClassVar, Optional
 
 from application.tenant_context import get_current_tenant_id
-from models import Match, Role, Tournament, User, UserRole
+from models import SYSTEM_USER_DISCORD_ID, Match, Role, Tournament, User, UserRole
 
 
 class AuthService:
@@ -324,10 +324,18 @@ class AuthService:
 
     @staticmethod
     async def can_checkout_equipment(user: Optional[User]) -> bool:
-        """Check equipment out (volunteers may only check out to themselves)."""
-        if await AuthService.can_manage_equipment(user):
-            return True
-        return await AuthService.is_volunteer(user)
+        """Borrow an asset. Any signed-in member may, **to themselves only**.
+
+        Deliberately role-less: a loaner device's QR code is scanned by whoever
+        is holding it, and at a live event that is usually a player with no roles
+        at all. Checking out *on behalf of* someone else is the manager action
+        and stays on :meth:`can_manage_equipment` — ``EquipmentService.checkout``
+        is where the two split. The system account is excluded for the same
+        reason it is excluded from the borrower picker.
+        """
+        if user is None or not user.is_active:
+            return False
+        return str(user.discord_id) != str(SYSTEM_USER_DISCORD_ID)
 
     @staticmethod
     async def can_checkin_equipment(user: Optional[User]) -> bool:
