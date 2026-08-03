@@ -76,10 +76,17 @@ async def event_tab(view: Optional[str] = None) -> None:
     with ui.column().classes('w-full'):
         # A switcher over one option is just a label taking up room.
         if len(views) > 1:
-            with ui.row().classes('q-px-md q-pt-md'):
+            # `page-container`, matching every view below it, so the switcher
+            # sits on the same left edge as the content it switches between.
+            with ui.row().classes('page-container wiz-view-switch items-center'):
+                # No `color=`: on a q-btn-toggle that prop is the *inactive*
+                # background, so `color=primary` painted all three segments gold
+                # and the selected one was indistinguishable from the other two.
+                # `toggle-color` (primary by default) is the one that marks the
+                # selection; the rest of the look is .wiz-segmented in styles.css.
                 ui.toggle(
                     {v.slug: v.label for v in views},
                     value=state['slug'],
                     on_change=lambda e: switch(e.value),
-                ).props('no-caps dense unelevated color=primary')
+                ).props('no-caps dense unelevated').classes('wiz-segmented')
         await body()

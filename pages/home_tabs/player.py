@@ -18,8 +18,8 @@ from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
-from theme.help import help_icon
 from theme.notify import notify_error
+from theme.section import section_panel
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 from theme.tables.preferences import TableKeys
@@ -154,19 +154,21 @@ async def render_player_dashboard(
     challonge_service = ChallongeService()
     bracket_service = BracketService()
 
-    with ui.column().classes('page-container'):
-        # Header section
-        with ui.row().classes('header-row'):
-            ui.label('Your matches').classes('section-title')
-            await help_icon('player-schedule', user=viewer)
-            await help_icon('stream-volunteer', label='Stream', user=viewer)
-            await help_icon('reschedule-request', label='Change', user=viewer)
-            await help_icon('check-in', label='Check-in', user=viewer)
-            await help_icon('player-room', label='In the room', user=viewer)
-            await help_icon('player-stage', label='On a stage', user=viewer)
-
-        ui.separator().classes('separator-spacing')
-
+    panel = await section_panel(
+        'Your matches',
+        icon='sports_esports',
+        subtitle='What you are playing, and anything still waiting on a time.',
+        help_topics=[
+            'player-schedule',
+            ('stream-volunteer', 'Stream'),
+            ('reschedule-request', 'Change'),
+            ('check-in', 'Check-in'),
+            ('player-room', 'In the room'),
+            ('player-stage', 'On a stage'),
+        ],
+        user=viewer,
+    )
+    with panel.body:
         # A stage DM linked here naming one match. Say so, and offer the way
         # out: a one-row board with no explanation reads as a board that lost
         # rows, and a DM outlives the stage call it was sent about.
@@ -197,8 +199,8 @@ async def render_player_dashboard(
                 return
             # The refreshable renders into its own container, so create elements
             # directly (there is no separate challonge_container to enter).
-            with ui.card().classes('card-full-width'):
-                ui.label('Upcoming matches to schedule').classes('section-title')
+            with ui.card().classes('wiz-subcard'):
+                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
                 ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
                     'text-caption text-grey-7'
                 )
@@ -252,8 +254,8 @@ async def render_player_dashboard(
                 _report_stale_deep_link(deep_link)
                 return
             openers: dict = {}
-            with ui.card().classes('card-full-width'):
-                ui.label('Upcoming matches to schedule').classes('section-title')
+            with ui.card().classes('wiz-subcard'):
+                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
                 ui.label('From your bracket. Pick a time and your opponent confirms.').classes(
                     'text-caption text-grey-7'
                 )
@@ -363,17 +365,6 @@ async def render_player_dashboard(
             and await TournamentService().list_player_requestable(viewer)
         )
 
-        table_view = MatchTableView(
-            columns=columns,
-            get_query=get_query,
-            admin_controls=False,
-            table_key=TableKeys.HOME_PLAYER_MATCHES,
-            submit_match_callback=submit_match if can_request else None,
-            extra_slots=extra_slots,
-            player_discord_id=discord_id,
-            storage_key='player_dashboard',
-            match_ids=[int(match)] if match else None,
-        )
         @ui.refreshable
         async def requests_section():
             """This viewer's own reschedule requests, and what became of them.
@@ -390,8 +381,8 @@ async def render_player_dashboard(
             rows = await reschedule_service.list_mine(viewer)
             if not rows:
                 return
-            with ui.card().classes('card-full-width'):
-                ui.label('Your change requests').classes('section-title')
+            with ui.card().classes('wiz-subcard'):
+                ui.label('Your change requests').classes('wiz-subcard__title')
                 for row in rows:
                     _render_request_card(row, on_withdraw=requests_section.refresh)
 
@@ -411,8 +402,27 @@ async def render_player_dashboard(
 
             await RescheduleRequestDialog(match, viewer, on_submit=after).open()
 
+        # Render order is what the reader owes the section, not what the section
+        # holds. A matchup with no time on it is the only thing here that is
+        # waiting on *them*, and it used to sit below a twelve-row board and a
+        # filter card — far enough down that the "matchup ready" DM landed on a
+        # page whose call to action was off-screen. Then the board, then the
+        # requests they have already made and are only tracking.
         await challonge_section()
         await bracket_section()
+
+        table_view = MatchTableView(
+            columns=columns,
+            get_query=get_query,
+            admin_controls=False,
+            table_key=TableKeys.HOME_PLAYER_MATCHES,
+            submit_match_callback=submit_match if can_request else None,
+            extra_slots=extra_slots,
+            player_discord_id=discord_id,
+            storage_key='player_dashboard',
+            match_ids=[int(match)] if match else None,
+        )
+
         await requests_section()
         if reschedule is not None:
             await _open_reschedule(int(reschedule))

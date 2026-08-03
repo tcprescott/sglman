@@ -76,10 +76,11 @@ async def brackets_tab() -> None:
             ui.label('No brackets have been published yet.').classes('italic-note')
             return
 
-        ui.label(
-            'Tournament brackets, standings, and results.'
-        ).classes('text-muted')
-        ui.separator().classes('separator-spacing')
+        # Same compact intro line the Schedule view uses, for the same reason.
+        with ui.row().classes('wiz-view-note items-center'):
+            ui.label(
+                'Tournament brackets, standings, and results.'
+            ).classes('text-muted')
 
         for tournament_id, name, stages in group_by_tournament(brackets):
             with ui.card().classes('w-full q-pa-md q-mb-sm'):

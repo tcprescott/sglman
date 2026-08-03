@@ -20,15 +20,17 @@ async def schedule():
         # No page title: the Event tab's view switcher directly above already
         # names this view. The line stays because "you can sign up for crew from
         # this board" is not something the table says on its own.
-        with ui.row().classes('header-row items-center'):
+        # One compact line under the view switcher, not a `header-row` +
+        # `separator-spacing` stack: that put ~3em of empty band between a
+        # one-sentence note and the board it introduces, and on a phone the
+        # help icons dropped to their own line stranded in the middle of it.
+        with ui.row().classes('wiz-view-note items-center'):
             ui.label('Every match, and where you can sign up as crew.') \
                 .classes('text-muted')
             # Bare icon = "explain this page"; labelled icons = a named topic.
             # Two bare help_outlines side by side are indistinguishable.
             await help_icon('schedule-columns')
             await help_icon('match-states', label='States')
-
-        ui.separator().classes('separator-spacing')
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
