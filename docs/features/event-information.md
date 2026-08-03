@@ -45,8 +45,8 @@ context.
 
 | Tenant | Articles |
 |---|---|
-| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) · `broadcast` (Broadcast tech info — **role-gated**) |
-| `default` | `attending` · `proctoring` · `broadcast` — the **dev fixture**, see below |
+| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) |
+| `default` | `attending` · `proctoring` — the **dev fixture**, see below |
 
 A tenant with no directory has **no articles**, not an error: a community that
 has just been granted the feature and written nothing renders an empty state.
@@ -68,23 +68,35 @@ badge-comp tiers, the lanyard convention, the Discord, and the Twitch channels.
 **Prize pools are community-funded and grow until the event**, so those figures
 are a snapshot — the article says so rather than implying they are fixed.
 
-> **What is still `TODO:`** renders as visible note blocks, because it is not
-> published anywhere to copy: the **daily agenda** (the most-asked question), each
-> tournament's **format and entry requirements**, **badge collection**, the room
-> and stage **locations**, **lost property / accessibility / first aid**, the
-> **board game room** (whether it exists this year, where, and its hours), and a
-> **code of conduct** — neither `sglive.speedgaming.org` nor `speedgaming.org`
-> publishes one that could be linked. One more is a genuine conflict: the site
-> gives hotel check-out as the 27th and the announcement as the 26th.
+A second pass (2026-08-03) filled most of the original gaps from the event
+Discord rather than the website, since that is where the answers actually are.
+What came from where, in case any of it needs re-checking:
+
+| Filled | Source |
+|---|---|
+| Room block runs to the 26th; the booking form defaults a day early at both ends | `#announcements` 2026-02-02, and the follow-up expanding the block |
+| Code of conduct, both documents | pinned in `#rules` — SpeedGaming-wide, covers in person and the server |
+| Groups Thu/Fri (players schedule their own), bracket Sat/Sun; finals staggered for broadcast; the tournament room is not streamed | `#general` 2026-07-28 |
+| Check-in desk hours (Wed 6–10 PM, Thu/Fri to 8 PM) and the @Staff fallback when it is closed | `#check-in-desk`, the 2024 and 2025 pattern, confirmed by the maintainer |
+| Board game room exists, runs on attendee-brought games, no closing time | `#board-game-room` |
+| Lost property goes to the check-in desk | consistent across `#lost-and-found` and prior years |
+| Dani is the volunteer coordinator, and owns shifts and swaps | the maintainer |
+
+> **Still `TODO:`, and nowhere to look it up.** The **venue map** is the big one
+> and four notes wait on it: the tournament room, the stage, the admin desk and
+> the board game room all need a room name and a floor. Beyond that,
+> per-tournament **bracket size and entry requirements** (each tournament sets
+> its own and nobody collects them), and **accessibility, quiet space and first
+> aid**, on which nothing has ever been published.
 >
 > The flag is dark, so none of this reaches a reader until the gaps are filled and
 > a super-admin grants it.
 
-`broadcast` (role-gated to `STREAM_MANAGER`/`STAFF`) is scaffolding: the room
-boundary and pre-air checklist are written, but the stage list, technical
-requirements (resolution/bitrate/audio, OBS scene collection, restream
-routing) and the broadcast lead's contact are all `TODO:` — nobody has
-supplied that content yet.
+There was a `broadcast` article (role-gated to `STREAM_MANAGER`/`STAFF`); it was
+dropped because everything event-specific in it — the stage list, technical
+requirements, the broadcast lead's contact — was still `TODO:`, and the rest
+duplicated help's `on-air` article. Broadcast techs are not currently a
+handbook audience.
 
 ### This is v1 of a database-backed surface
 

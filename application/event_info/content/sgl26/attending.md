@@ -22,11 +22,17 @@ The event runs Thursday 22 to Sunday 25 October 2026, in the hotel.
 beds or one king, bookable through
 [the event's hotel link](https://www.hilton.com/en/attend-my-event/iaddddt-sgt-dbdc1c4d-2085-440e-abcd-94c590cebeee/).
 Check-in from Wednesday the 21st is what the organisers recommend, so you are
-there before the first day rather than travelling into it.
+there before the first day rather than travelling into it, and out on Monday the
+26th. The last night of the block is Sunday the 25th.
 
-> **TODO:** the last night of the room block — the event site says check-out the
-> 27th and the announcement says the 26th. Confirm which before this is read by
-> anyone booking.
+**Change the dates before you reserve.** The booking link defaults to arriving
+the 20th and leaving the 25th, which is a day early at both ends: you would miss
+Sunday night and pay for a Tuesday you don't need. Set it to the 21st through the
+26th yourself.
+
+If the block rate isn't showing, tell a staff member rather than booking at full
+price. The hotel will usually add rooms on request, and did so once already for
+this event.
 
 > **TODO:** which room the tournament room is, and where the stage is. Add the
 > room names and the floor once the venue map is settled.
@@ -49,8 +55,15 @@ collecting yours is the first thing to do when you arrive.
 **The check-in desk opens on Wednesday**, the day before play starts, so you can
 collect your badge the evening before rather than queueing on Thursday morning.
 
-> **TODO:** check-in desk hours, and where in the hotel it is. The Wednesday
-> opening is confirmed; the times are not set yet.
+The desk runs **6–10 PM on Wednesday**, then **until 8 PM on Thursday and
+Friday**.
+
+**If the desk is closed, ping @Staff in the
+[event Discord](https://discord.com/invite/T6qzxNJ).** Someone will come and
+check you in. You do not have to wait until the next morning to get your badge.
+
+> **TODO:** where in the hotel the desk is. Add it with the rest of the venue
+> map.
 
 **Your lanyard says what you are.** Attendee, volunteer and staff lanyards are
 different, which is how you pick a staff member out of a room when you need one.
@@ -190,17 +203,32 @@ releases itself once the proctor records the result.
 
 ## Board game room
 
-> **TODO:** whether the event has a board game room this year, where it is, what
-> hours it runs, and whether you bring your own games or borrow from a shared
-> library. Not published anywhere yet — add the details once the venue and
-> programming are settled.
+There is one, and it runs the whole event. It has no scheduled closing time; it
+stays open as long as people are playing, and gets torn down on the Monday.
+
+**The library is whatever people bring.** Attendees leave their own games out for
+anyone to pick up, so the shelf is different every year. Put your name on
+anything you bring and collect it before teardown, or it ends up at the check-in
+desk. There are usually jigsaw puzzles going as well, which are a good way to
+kill an hour between races.
+
+> **TODO:** which room it is and what floor. Add it with the rest of the venue
+> map.
 
 ## Conduct
 
-> **TODO:** the event's code of conduct — link it here, and say how to report a
-> breach and who handles it. Neither sglive.speedgaming.org nor speedgaming.org
-> publishes one that could be linked. This is the one gap on this page that
-> should not ship empty.
+SpeedGaming's code of conduct covers this event, and it covers the Discord too.
+Read the
+[quick reference](https://docs.google.com/document/d/1y-j3aeNmoEYZL7Tn5nPbtBSapU0MykZm1m9rtZ2fGwo/edit)
+if you read one thing; the
+[full version](https://docs.google.com/document/d/1ROnq2Iu1shplVljjqljK0WjrV3OWLWILRnA1awPAVG8/edit)
+is the official one.
+
+**Report a breach to an admin.** Conduct is an admin's call, the same as a match
+dispute, so the route is the one on [Who to ask](/event-info/who-to-ask): tell
+the proctor, or find the on-call admin. **@Staff** in the
+[event Discord](https://discord.com/invite/T6qzxNJ) reaches someone if you would
+rather not do it in the room.
 
 ## Anything else
 

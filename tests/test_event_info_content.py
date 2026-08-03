@@ -64,16 +64,10 @@ class TestRoleGates:
             assert article is not None, f'{tenant} ships no proctoring article'
             assert set(article.roles) == {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
 
-    def test_the_broadcast_article_parses_to_real_roles(self):
-        for tenant in tenant_slugs():
-            article = article_for_tenant(tenant, 'broadcast')
-            assert article is not None, f'{tenant} ships no broadcast article'
-            assert set(article.roles) == {Role.STREAM_MANAGER, Role.STAFF}
-
     def test_the_reader_facing_articles_are_public(self):
         """The inverse, and the one that would leak: an article nobody meant to
         gate must not have picked up roles."""
-        role_gated = {'proctoring', 'broadcast'}
+        role_gated = {'proctoring'}
         for tenant, article in ALL_ARTICLES:
             if article.slug not in role_gated:
                 assert article.roles == (), \

@@ -29,7 +29,10 @@ however briefly, tell the admin first**, so they know they are covering it until
 you are back. This is not a request for permission, and you do not need a reason;
 saying so on your way out is simply what keeps the room staffed the whole time.
 
-> **TODO:** the coordinator to ask about shifts and swaps.
+**Shifts and swaps go to Dani**, the volunteer coordinator, not to the admin in
+the room. The admin needs to know you're stepping out; Dani is the one who
+changes what you're rostered for. If you can't find them on the floor, they're
+`Dani3883` in the [event Discord](https://discord.com/invite/T6qzxNJ).
 
 ## Checking a match in
 

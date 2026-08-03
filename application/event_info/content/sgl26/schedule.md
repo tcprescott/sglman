@@ -60,9 +60,23 @@ Played at the event, 22–25 October:
 - Super Metroid Any% · Super Metroid: DASH · Super Metroid Map Randomizer
 - Donkey Kong 64 Randomizer · Final Fantasy Randomizer · The Legend of Zelda Randomizer
 
-> **TODO:** each tournament's format, bracket size and entry requirements, and
-> whether its matches are scheduled by the players or come out of a bracket —
-> that changes what an entrant does in this app.
+**Most tournaments run groups on Thursday and Friday, then a bracket on Saturday
+and Sunday.** That split is what decides how your matches get scheduled, and it
+changes what you do in this app:
+
+- **Group matches you arrange yourselves.** Nothing appears on the board until
+  groups are announced, which is usually not until the day before the event
+  starts. Once yours is out, you and your opponent agree a time and it goes on
+  the schedule.
+- **Bracket matches come to you.** You play whoever you drew, at a time staff
+  set, and you get a DM when the matchup is ready.
+
+Finals are deliberately staggered across the weekend so every one of them can be
+broadcast. If a match isn't on a stage it's played in the tournament room, and
+the public can't watch it — the room is not streamed.
+
+> **TODO:** per-tournament bracket size and entry requirements. The individual
+> tournaments set their own, and they are not published in one place yet.
 
 ## Online tournaments
 

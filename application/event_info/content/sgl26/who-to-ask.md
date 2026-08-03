@@ -62,8 +62,13 @@ when you can *work*. Filling in one does not fill in the other.
 ## If you are proctoring
 
 The floor standard for running a room is on its own page, visible once you hold
-the Proctor or Volunteer role. If you have been given a shift and cannot see it,
-ask a coordinator, since the role is what unlocks it.
+the Proctor or Volunteer role. If you've been given a shift and can't see it, ask
+Dani, since the role is what unlocks it.
+
+**Dani is the volunteer coordinator**, and shifts and swaps are theirs rather
+than the on-call admin's. They're `Dani3883` in the
+[event Discord](https://discord.com/invite/T6qzxNJ) if you can't find them in
+person.
 
 ## Elsewhere
 
@@ -73,4 +78,12 @@ ask a coordinator, since the role is what unlocks it.
   what these pages do not, and where **@Staff** reaches someone if nobody can be
   found in person
 
-> **TODO:** lost property, accessibility provision, quiet space, first aid.
+## Lost property
+
+**Lost something, or found something? The check-in desk.** That is where things
+hand in and where you go looking, for the whole event. Anything the hotel picks
+up outside the event space goes to the hotel's own lost and found at the front
+desk, so it is worth asking both.
+
+> **TODO:** accessibility provision, quiet space, first aid. Nothing on any of
+> these has been published or settled.
