@@ -6,8 +6,7 @@ import pytest
 
 from application.errors import FeatureDisabledError
 from application.services.payout_service import PayoutService
-from models import FeatureFlag, TenantFeatureFlag, Tournament, TournamentPayout, UserRole
-from models import Role
+from models import FeatureFlag, Role, TenantFeatureFlag, Tournament, TournamentPayout, UserRole
 from tests.conftest import DEFAULT_TEST_TENANT_ID
 from tests.factories import make_user
 

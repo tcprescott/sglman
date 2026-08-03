@@ -43,8 +43,8 @@ def _parse_money(raw: str | None, label: str) -> Decimal | None:
         return None
     try:
         return Decimal(text)
-    except InvalidOperation:
-        raise ValueError(f'{label} must be a number, or blank.')
+    except InvalidOperation as err:
+        raise ValueError(f'{label} must be a number, or blank.') from err
 
 
 def _parse_percentage(raw: str | None) -> Decimal:
@@ -53,8 +53,8 @@ def _parse_percentage(raw: str | None) -> Decimal:
         raise ValueError('Every place needs a share.')
     try:
         return Decimal(text)
-    except InvalidOperation:
-        raise ValueError(f'{text!r} is not a percentage.')
+    except InvalidOperation as err:
+        raise ValueError(f'{text!r} is not a percentage.') from err
 
 
 def _status(overview) -> dict:
