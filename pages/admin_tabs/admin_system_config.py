@@ -14,6 +14,7 @@ from application.services import (
 from application.services.system_config_service import (
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
+    KEY_JOIN_PREVIEW,
     KEY_MAX_CONCURRENT_PLAYERS,
     KEY_MAX_CONCURRENT_STAGES,
     KEY_STATION_FORMAT,
@@ -22,6 +23,7 @@ from application.services.system_config_service import (
 )
 from application.utils.timezone import timezone_label
 from models import StationFormat, StationSide
+from pages.admin_tabs.room_tokens_section import render_room_tokens_section
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
 
@@ -220,6 +222,7 @@ async def admin_system_config_page() -> None:
     reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
     comp_tiers = await SystemConfigService.get_volunteer_comp_tiers()
     station_format = await SystemConfigService.get_station_format()
+    join_preview = await SystemConfigService.get_bool(KEY_JOIN_PREVIEW)
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
     # Operating hours are the community's rule, so they are written and enforced
@@ -275,7 +278,19 @@ async def admin_system_config_page() -> None:
             ).classes('w-full')
             ui.label('Controls the format enforced when assigning stations to match players.').classes('text-caption text-grey')
 
+            join_preview_input = ui.switch(
+                'Show today’s matches to non-members', value=join_preview,
+            )
+            ui.label(
+                'People who are not members of this community see a join page. '
+                'With this on, that page also lists today’s match times and '
+                f'player names, on the community’s clock ({tenant_tz_label}). '
+                'Published brackets are always listed there — they are public '
+                'pages already. Off by default.'
+            ).classes('text-caption text-grey')
+
         await _station_pool_section(can_edit)
+        await render_room_tokens_section(can_edit)
 
         # --- Per-day tournament hours ---
         from datetime import timedelta
@@ -354,6 +369,9 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_COMP_TIERS, tiers_raw, actor)
                 await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
+                await SystemConfigService.set_raw(
+                    KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
+                )
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')

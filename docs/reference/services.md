@@ -71,6 +71,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `to_display`/`window_hours`/`crew_requirement`/`is_crew_covered` helpers used by both Reports and Insights (so on-time % and crew coverage can't drift) | — |
+| `RoomTokenService` | [room_token_service.py](../../application/services/room_token_service.py) | Unlisted kiosk tokens for the tournament room's read-only seeds board | [frontend.md](frontend.md#the-tournament-room-seeds-board) |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
@@ -125,6 +126,26 @@ Issues, lists, revokes, and authenticates personal API access tokens. Only the S
 | `resolve_actor(raw_token)` | `(User, ApiToken) \| None` | `authenticate` plus the deactivated-owner check. **The shared front half of bearer authentication for both entry surfaces** — the REST API and the MCP server call this so their notion of "who is this token" cannot drift. Raises `PermissionError` when the token is valid but its owner is deactivated (401 vs 403 at the caller). Binds no tenant: which community a request acts in is the caller's decision. |
 
 Collaborators: `ApiTokenRepository`, `AuditService`.
+
+### room_token_service.py — RoomTokenService
+
+Issues, lists, revokes and resolves the unlisted keys that open the tournament
+room's seeds board (`/t/<slug>/room/<token>/seeds`). Only the SHA-256 hash is
+stored; the URL (token prefixed `wizzrobe_room_`) is shown once, at issue. A room
+token carries **no user identity** and authorizes exactly one read-only page —
+deliberately not an `ApiToken`, which acts with its owner's full permissions.
+
+| Method | Returns | Description |
+|---|---|---|
+| `issue(actor, label)` | `(RoomToken, str)` | Create a token for the actor's community; returns the record and the **raw token** (only chance to capture it). STAFF only; non-empty label required. Audits `roomtoken.created`. |
+| `list_tokens(actor)` | `list[RoomToken]` | Every token this community has issued, live ones first then newest-first. Revoked rows stay listed so staff can see which machine's URL stopped working. STAFF only. |
+| `revoke(actor, token_id)` | `RoomToken` | Revoke; `NotFoundError` for unknown or already-revoked tokens. STAFF only. Audits `roomtoken.revoked`. |
+| `resolve(raw_token)` | `RoomToken \| None` | The live token this string opens. Unknown, revoked, malformed and wrong-community all return `None` — the page renders the same plain 404 for each, so guessing reveals nothing. Stamps `last_used_at` on success. |
+
+Both audit actions are deliberately event-less (`test_event_audit_parity`): a
+credential a venue machine holds is a security fact, not a domain one.
+
+Collaborators: `RoomTokenRepository`, `AuditService`, `AuthService`.
 
 ### mcp_auth_service.py — McpAuthService
 

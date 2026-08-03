@@ -1,0 +1,87 @@
+"""The tournament room's seeds board — the one page a token opens.
+
+A room PC is a shared machine in a public room; nobody signs in on it, and it
+still has to show the seed for the next match. So this route authorizes on an
+unlisted :class:`~models.RoomToken` instead of a session, and shows exactly one
+thing: matches whose seed is rolled and which nobody has started yet.
+
+``GET /t/<slug>/room/<token>/seeds`` — **inside** the tenant prefix on purpose.
+The middleware there has already resolved the community and bound the display
+clock, so the token only has to authorize; outside the prefix this page would
+have to resolve a tenant from the token itself and enter ``tenant_scope`` by
+hand, and every scoped read would raise until it did.
+
+**Read-only.** Rolling and re-rolling stay signed-in staff work: an anonymous
+token that could spend randomizer API calls and replace the seed for a match
+about to be played is not a trade worth making for a machine sitting in a room
+the public walks through.
+"""
+
+from nicegui import ui
+
+from application.services import RoomTokenService
+from application.services.match.match_display_service import is_seeded_and_unplayed
+from middleware.auth import public_page
+from theme.base import BaseLayout
+from theme.tables.match import MatchTableView
+from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+
+COLUMNS = [
+    {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True},
+    {'name': 'players', 'label': 'Players', 'field': 'players'},
+    {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
+    {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
+    {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
+    {'name': 'generated_seed', 'label': 'Seed', 'field': 'generated_seed'},
+]
+
+
+def create() -> None:
+    @public_page('/room/{token}/seeds', telemetry_path='/room/seeds')
+    async def room_seeds(token: str) -> None:
+        ui.page_title('Wizzrobe — Room Seeds')
+
+        # An unknown, revoked, malformed or wrong-community token renders the
+        # same page a route that never existed would, so guessing at a URL
+        # tells you nothing about which tokens are live.
+        if await RoomTokenService().resolve(token) is None:
+            from theme.error_page import render_error_page
+            render_error_page(
+                status_code=404,
+                headline='Not Found',
+                message="This page only exists inside a specific community. Try getting there from your community's link.",
+                user=None,
+            )
+            return
+
+        # Anonymous by construction: no user is loaded, so the chrome renders
+        # signed out and every signed-in affordance hides itself.
+        await BaseLayout(user=None).render()
+
+        with ui.column().classes('page-container'):
+            with ui.row().classes('header-row items-center'):
+                ui.label('Seeds ready to play').classes('page-title')
+            ui.label(
+                'Matches with a rolled seed that nobody has started yet. '
+                'Updates on its own — leave it open.'
+            ).classes('text-muted')
+
+            ui.separator().classes('separator-spacing')
+
+            MatchTableView(
+                columns=COLUMNS,
+                get_query=None,
+                admin_controls=False,
+                extra_slots={
+                    'body-cell-state': state_readonly_slot(scheduled_detailed=False),
+                    'body-cell-generated_seed': SEED_SLOT_READONLY,
+                },
+                row_filter=is_seeded_and_unplayed,
+                default_state_filter=['Scheduled', 'Checked In'],
+                storage_key='room_seeds',
+                # table-prefs: exempt — an anonymous kiosk has no user row to key
+                # a saved layout to, and the columns here are fixed. Rearranging
+                # them would need a general anonymous-preferences path, not a
+                # second persistence backend for one page.
+                table_key=None,
+            )

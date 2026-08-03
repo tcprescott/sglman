@@ -30,6 +30,7 @@ from pages import (
     platform,
     qualifiers,
     racetime_oauth,
+    room_seeds,
     static_brackets,
     twitch_oauth,
     volunteer,
@@ -194,6 +195,7 @@ def init(fastapi_app: FastAPI) -> None:
     equipment_labels.create()
     equipment.create()
     brackets.create()
+    room_seeds.create()
     # Registered before ui.run_with so the cached, socket-free spectator views
     # sit on the same app (and behind the same tenant middleware) as the pages.
     static_brackets.create()

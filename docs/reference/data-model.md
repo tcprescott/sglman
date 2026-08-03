@@ -942,6 +942,38 @@ Key-value application settings. Accessed directly by `SystemConfigService` (type
 
 Constraint: `unique_together (('tenant', 'name'),)`.
 
+Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
+`max_concurrent_players`, `max_concurrent_stages`,
+`volunteer_reminder_lead_minutes`, `volunteer_comp_tiers`,
+`tournament_hours_by_date`, `station_format`, and `join_page_match_preview`
+(the join page's today's-matches opt-in, default off — see
+[frontend.md](frontend.md#the-join-page)).
+
+#### `RoomToken`
+
+An unlisted key that opens one read-only page — the tournament room's seeds
+board — on a shared venue machine nobody signs in on. Only the SHA-256 hash is
+stored; the URL is shown once, at issue. Managed by
+[`RoomTokenService`](services.md); issued and revoked on Admin → Settings.
+
+Deliberately **not** an `ApiToken`, which acts with its owning user's full
+permissions. This one carries no identity beyond who issued it and authorizes a
+single page, so a token taped to a machine in a public room cannot roll a seed,
+run a match, or read anything else.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `label` | `CharField(100)` | not null | Which machine it belongs to ("Room A desk PC") |
+| `token_hash` | `CharField(64)` | not null, `unique=True`, `index=True` | SHA-256 of the plaintext token |
+| `created_by` | FK → `User` | null, `SET_NULL` | An issuer who leaves must not revoke the room PC's access on their way out. `related_name='room_tokens_created'` |
+| `last_used_at` | `DatetimeField` | null | Stamped on each successful resolve — how staff tell a machine is still using its token |
+| `revoked_at` | `DatetimeField` | null | Set when revoked; revoked tokens 404 like unknown ones |
+
+The lookup is **tenant-scoped**, unlike `ApiToken.get_by_hash`: the token is only
+ever resolved from a page under `/t/<slug>/room/…`, where the middleware has
+already bound the community, so a token from another community simply is not
+found.
+
 #### `Webhook`
 
 Staff-managed outbound webhook. When a published event matches `event_types`, the app POSTs a signed JSON body to `url`. Managed via `WebhookService`; the delivery path subscribes to the [event bus](../features/event-system.md). See [webhooks.md](../features/webhooks.md).

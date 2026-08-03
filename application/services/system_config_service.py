@@ -22,6 +22,10 @@ KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
 KEY_VOLUNTEER_COMP_TIERS = 'volunteer_comp_tiers'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 KEY_STATION_FORMAT = 'station_format'
+# Whether the join page shows non-members today's match times and player names.
+# Default off: the membership gate exists precisely to keep a stranger from
+# reading a community's schedule, so publishing it again is a staff decision.
+KEY_JOIN_PREVIEW = 'join_page_match_preview'
 
 
 class SystemConfigService:
@@ -64,6 +68,24 @@ class SystemConfigService:
             return int(raw)
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    async def get_bool(key: str, default: bool = False) -> bool:
+        """A stored flag, defaulting when the key was never written.
+
+        Anything other than the values ``set_raw`` writes for a switch reads as
+        the default rather than as ``True`` — a half-written key must not turn a
+        display toggle on by accident.
+        """
+        raw = await SystemConfigService.get_raw(key)
+        if raw is None or raw == '':
+            return default
+        normalized = raw.strip().lower()
+        if normalized in ('true', '1', 'yes', 'on'):
+            return True
+        if normalized in ('false', '0', 'no', 'off'):
+            return False
+        return default
 
     @staticmethod
     async def get_date(key: str, default: Optional[date] = None) -> Optional[date]:

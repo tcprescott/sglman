@@ -136,6 +136,10 @@ class AuditActions:
     APITOKEN_CREATED = 'apitoken.created'
     APITOKEN_REVOKED = 'apitoken.revoked'
 
+    # Tournament-room kiosk tokens
+    ROOM_TOKEN_CREATED = 'roomtoken.created'
+    ROOM_TOKEN_REVOKED = 'roomtoken.revoked'
+
     # In-app feedback
     FEEDBACK_SUBMITTED = 'feedback.submitted'
     FEEDBACK_REVIEWED = 'feedback.reviewed'

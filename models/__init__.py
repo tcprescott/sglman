@@ -86,7 +86,7 @@ from .mcp import McpAuthorizationCode, McpOAuthClient
 from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
-from .system import SystemConfiguration
+from .system import RoomToken, SystemConfiguration
 from .tenant import Tenant, TenantJoinRequest, TenantMembership
 from .tournament import (
     GeneratedSeeds,
@@ -209,6 +209,7 @@ __all__ = [
     'RescheduleRequestStatus',
     'Role',
     'RoleSource',
+    'RoomToken',
     # speedgaming
     'SpeedGamingEpisode',
     'SpeedGamingEventLink',

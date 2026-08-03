@@ -1,8 +1,15 @@
 # PR 2 — the join page, and the tournament-room seeds view
 
-**Status: not started.** PR 1 ([pr1-four-tabs.md](pr1-four-tabs.md)) is the
-prerequisite and has shipped. Read [README.md](README.md) first for the decisions
-both PRs share.
+**Status: shipped.** PR 1 ([pr1-four-tabs.md](pr1-four-tabs.md)) was the
+prerequisite. Read [README.md](README.md) first for the decisions both PRs share.
+
+What landed matches the plan below, with three additions the browser loop
+forced: the match preview drops finished matches, caps at twelve rows with an
+"…and N more today" line, and abbreviates a roster longer than two — an event day
+put thirty-four rows and a ten-racer play-in on the door, burying the Request
+access button. Reference docs:
+[frontend.md § the join page](../../reference/frontend.md#the-join-page) and
+[§ the tournament-room seeds board](../../reference/frontend.md#the-tournament-room-seeds-board).
 
 Two independent pieces that ship together because both are about what someone
 outside the member surface can see.

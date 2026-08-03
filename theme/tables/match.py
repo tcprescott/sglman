@@ -82,7 +82,7 @@ class MatchTableView(MatchTableHandlersMixin):
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_result=None, on_set_stage=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
-                 row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
+                 row_sort=None, row_filter=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
                  scope_tournament_ids=None, table_key=None, searchable=False):
         self.columns = columns
@@ -113,6 +113,12 @@ class MatchTableView(MatchTableHandlersMixin):
         # ``on_rows_changed`` lets a caller mirror the row set (a summary strip),
         # and ``actions_first`` hoists the mobile card's action row.
         self.row_sort = row_sort
+        # A predicate every row must satisfy to stay on this board, applied to a
+        # full refresh *and* to a single row arriving from a live update. Unlike
+        # the State and Day filters it is not the operator's to change: the
+        # tournament-room view exists to show rolled seeds for unplayed matches,
+        # so a match that starts leaves the screen rather than lingering.
+        self.row_filter = row_filter
         # A deep link focuses the board on specific matches. It narrows the query
         # and suspends the State filter — a link to a Confirmed match must not
         # land on an empty board because the board's default set hides it — but
@@ -555,11 +561,20 @@ class MatchTableView(MatchTableHandlersMixin):
         if touched:
             self.table.update()
 
+    def _has_row(self, match_id) -> bool:
+        return any(row.get('id') == match_id for row in self.table.rows)
+
     async def _on_remote_change(self, match_id, change_type):
         """Apply a match change broadcast from another user's action."""
         from application.events import match_live
         if change_type == match_live.CREATED:
             await self.refresh()  # a new match may not have a row yet
+        elif self.row_filter is not None and not self._has_row(match_id):
+            # On a filtered board an *existing* match can become this board's
+            # business — the room view's rows appear the moment a seed is
+            # rolled, and rolling publishes 'changed', not CREATED. Without this
+            # the update would no-op against a row that is not there yet.
+            await self.refresh()
         else:
             # 'changed' updates in place; 'deleted' removes the row.
             await self.update_row_by_id(match_id, flash=True)
@@ -632,6 +647,9 @@ class MatchTableView(MatchTableHandlersMixin):
             row['_reschedule_pending'] = row.get('id') in asked_ids
             if stage_options is not None:
                 row['stage_options'] = stage_options
+
+        if self.row_filter is not None:
+            rows = [row for row in rows if self.row_filter(row)]
 
         if self.row_sort is not None:
             rows = self.row_sort(rows)
@@ -730,8 +748,9 @@ class MatchTableView(MatchTableHandlersMixin):
         # Use service to get match data
         match_data = await self.display_service.get_match_for_display(match_id)
 
-        if not match_data:
-            # Match not found, delete the row from the table
+        if not match_data or (self.row_filter is not None and not self.row_filter(match_data)):
+            # Gone, or no longer this board's business (a room-view seed whose
+            # match just started) — either way the row goes.
             del self.table.rows[idx]
             self.table.update()
             self._notify_rows_changed()
