@@ -89,15 +89,21 @@ one player's shoulder for the whole match is fine; moving across to the
 opponent's side part way through is not, and you should stop it when you see it.
 Someone who has seen both screens has information neither player has.
 
+**Players bring whatever they play on**, and setups vary: original hardware on a
+CRT, a modern console, a laptop. There are no restrictions on what a player may
+have at their station at this time, so a setup that looks unusual to you is not
+something to challenge. If a tournament does impose a hardware rule, that comes
+from its admins, not from you.
+
 **Help players get set up** if they need it. The one that catches people out is
-**audio: check the TV is actually sending sound out of the headphone jack**
-before the match starts. A player who discovers that mid-race has lost time you
-cannot give back.
+**audio: check that sound is actually reaching the headphones** before the match
+starts, whatever it is coming out of. A player who discovers that mid-race has
+lost time you cannot give back.
 
 **Beware of power.** While you are helping someone, know what every cable you
 touch is powering before you pull it. Trace it, check it twice, and only then
-unplug it: the console you cut power to might be the one running a live match
-at the next station.
+unplug it: the setup you cut power to might be the one running a live match at
+the next station.
 :::
 
 ## Game integrity
@@ -151,7 +157,7 @@ questions a player's conduct, is an admin call. Recording what you saw is yours.
 Seats are the scarce thing, so turnover matters.
 
 **The losing player is expected to stop.** Once the match is decided they should
-put the controller down rather than play on. The exception is someone very
+stop playing rather than carry on to the end. The exception is someone very
 close to their own finish, who can reasonably be let finish. Everything after
 that is holding up the next match.
 
