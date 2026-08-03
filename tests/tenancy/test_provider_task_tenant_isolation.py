@@ -30,6 +30,9 @@ async def tasks_in_both(two_tenants):
                 provider='dk64r',
                 operation='generate_seed',
                 match_id=matches[tenant.id].id,
+                # A pollable task has an upstream handle; without one the worker
+                # scan skips it as a submit still in flight.
+                provider_task_id=f'up-{tenant.slug}',
             )
     return a, b, matches, tasks
 

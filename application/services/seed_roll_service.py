@@ -71,10 +71,13 @@ class SeedRollService:
         without re-reading the row.
         """
         if task.provider_task_id is None:
-            # Submitted-but-never-accepted: the process died between writing the
-            # row and the provider taking the work. There is nothing to poll.
-            await self.task_service.fail(task, 'The roll was never submitted.')
-            return ProviderTaskStatus.FAILED
+            # No upstream handle yet, so there is nothing to poll — but this is
+            # **not** a failure. It is also the state of a task whose submit is
+            # still in flight, and the submit takes as long as the provider takes
+            # to answer. Failing here would let a tick that lands in that window
+            # kill a live roll. ``sweep_stale`` retires the ones that really are
+            # stuck, on a timer long enough to tell the two apart.
+            return ProviderTaskStatus(task.status)
 
         try:
             result = await self.seedgen_service.poll_async_roll(

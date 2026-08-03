@@ -62,14 +62,19 @@ class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
 
     @classmethod
     async def due_for_poll(cls, limit: int = 50) -> List[ProviderTask]:
-        """Every unfinished task across **all tenants**, oldest first.
+        """Every **pollable** task across all tenants, oldest first.
 
         Deliberately unscoped: the worker runs outside any request and owns the
         whole queue, then re-enters each task's own ``tenant_scope`` to act on
         it. Oldest first so a backlog drains in the order people asked.
+
+        A task with no ``provider_task_id`` is excluded rather than picked up and
+        failed: that is the state of a submit still in flight, and the provider
+        takes as long as it takes to answer. ``stale`` retires the ones that
+        never get a handle, on a timer long enough to tell them apart.
         """
         return await ProviderTask.filter(
-            status__in=_ACTIVE
+            status__in=_ACTIVE, provider_task_id__isnull=False,
         ).order_by('created_at').limit(limit).prefetch_related(
             'match', 'preset', 'requested_by'
         )

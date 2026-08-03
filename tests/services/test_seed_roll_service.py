@@ -185,14 +185,37 @@ class TestPollAndComplete:
         assert 'failed to generate' in refreshed.error
         assert await GeneratedSeeds.all().count() == 0
 
-    async def test_a_task_that_never_submitted_is_failed_not_polled(self, queued_task):
-        # QUEUED with no upstream handle: the process died between writing the
-        # row and the provider accepting the work. There is nothing to poll.
+    async def test_a_submit_still_in_flight_is_left_alone(self, queued_task):
+        """A tick that lands mid-submit must not kill a live roll.
+
+        QUEUED with no upstream handle is both "the submit died" and "the submit
+        has not answered yet", and nothing at this instant can tell them apart.
+        Failing here would mean a 5-second tick occasionally destroying a roll
+        whose provider simply took a moment to reply.
+        """
         status = await SeedRollService().poll(queued_task)
 
-        assert status == ProviderTaskStatus.FAILED
+        assert status == ProviderTaskStatus.QUEUED
         refreshed = await ProviderTask.get(id=queued_task.id)
-        assert 'never submitted' in refreshed.error
+        assert refreshed.status == ProviderTaskStatus.QUEUED
+        assert refreshed.error is None
+
+    async def test_an_unsubmitted_task_is_not_even_scanned(self, queued_task):
+        # It is not pollable, so the worker never picks it up in the first place.
+        due = await ProviderTaskService().due_for_poll()
+        assert queued_task.id not in [t.id for t in due]
+
+    async def test_a_submit_that_never_landed_is_swept_eventually(self, queued_task):
+        # The other half of the trade: a row that never gets a handle is retired
+        # by the sweeper rather than left QUEUED forever.
+        await ProviderTask.filter(id=queued_task.id).update(
+            created_at=datetime.now(timezone.utc) - TASK_MAX_AGE - timedelta(minutes=1),
+        )
+
+        assert await ProviderTaskService().sweep_stale() == 1
+
+        refreshed = await ProviderTask.get(id=queued_task.id)
+        assert refreshed.status == ProviderTaskStatus.ABANDONED
 
 
 class TestSurvivesRestart:

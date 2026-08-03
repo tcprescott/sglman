@@ -187,14 +187,15 @@ async def seed_matches_for_tenant(
         await disputed_match.save()
 
     # Provider tasks: the queue that carries a task-queue randomizer's roll
-    # across a restart. One in each state, because the seed cell renders them
-    # differently and the difference is the whole feature — RUNNING is the one
-    # worth having, since it is the only way to see the "Rolling… 1:24" clock in
-    # a dev environment without waiting on an actual roll.
+    # across a restart. One row per state so every value of ProviderTaskStatus
+    # exists somewhere and the terminal ones can be inspected.
     #
-    # The RUNNING row deliberately hangs off the *scheduled* match, which has no
-    # seed yet: a rolling indicator on a match that already has one would never
-    # render.
+    # The QUEUED and RUNNING rows are **transient in a running app**: their
+    # upstream ids belong to no live queue, so the poller retires them within a
+    # tick or two of boot. That is the worker doing its job, not a broken
+    # fixture — but it does mean the live "Rolling… 1:24" clock cannot be seen by
+    # seeding it. Roll a real one to watch that (with MOCK_SEEDGEN on, a DK64
+    # roll takes MOCK_DK64_SECONDS).
     provider_tasks = [
         (scheduled_match, ProviderTaskStatus.RUNNING, 'dev-task-running', None),
         (future_match, ProviderTaskStatus.QUEUED, None, None),
