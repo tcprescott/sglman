@@ -405,7 +405,9 @@ class TestGenerateDk64r:
         assert stub.calls[0][2]['params'] == {'branch': 'stable'}
         assert stub.calls[1][1].endswith('/submit-task')
         import json as _json
-        assert _json.loads(stub.calls[1][2]['json']['settings_data']) == {'level_randomization': 'level_order'}
+        assert _json.loads(stub.calls[1][2]['json']['settings_data']) == {
+            'level_randomization': 'level_order', 'generate_spoilerlog': False,
+        }
         # Poll hits task-status for the returned task id.
         assert '/task-status/task-123' in stub.calls[2][1]
 
@@ -427,6 +429,7 @@ class TestGenerateDk64r:
         import json as _json
         assert _json.loads(stub.calls[0][2]['json']['settings_data']) == {
             'level_randomization': 'level_order', 'krool_phases': 5,
+            'generate_spoilerlog': False,
         }
 
     async def test_dev_branch_routes_to_dev_host_and_is_stripped(self, service, monkeypatch, dk64r_key):
@@ -654,3 +657,54 @@ class TestMockDK64:
         monkeypatch.setenv('ENVIRONMENT', 'production')
         with pytest.raises(RuntimeError, match='must not be enabled in production'):
             is_mock_dk64()
+
+
+class TestDk64rSpoilerLog:
+    """Spoiler logs are forced off, whatever the preset says.
+
+    Upstream serves the log to anyone holding the seed number
+    (``GET /get_spoiler_log?hash=<seed_number>``), and the seed number is the
+    permalink the players are DMed — so a preset with this on would hand every
+    racer the item locations.
+    """
+
+    async def test_full_json_preset_asking_for_a_spoiler_is_overridden(
+        self, service, monkeypatch, dk64r_key,
+    ):
+        stub = _DK64RStub([
+            (200, {'task_id': 't1', 'status': 'queued'}),
+            (200, {'status': 'finished', 'result': {'seed_number': 1}}),
+        ])
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+        monkeypatch.setattr('asyncio.sleep', _noop_sleep)
+
+        preset = _preset({'krool_phases': 3, 'generate_spoilerlog': True})
+        rolled = await service._generate_dk64r(preset)
+
+        import json as _json
+        sent = _json.loads(stub.calls[0][2]['json']['settings_data'])
+        assert sent['generate_spoilerlog'] is False
+        # And the recorded snapshot reflects what actually went upstream.
+        assert rolled.settings['generate_spoilerlog'] is False
+
+    async def test_converted_settings_string_is_overridden(
+        self, service, monkeypatch, dk64r_key,
+    ):
+        # The live API converts several of the site's own presets — including
+        # "Season 5 Race Settings" — with the spoiler log switched on, so the
+        # override has to happen after convert_settings, not before.
+        stub = _DK64RStub([
+            (200, {'krool_phases': 3, 'generate_spoilerlog': True}),   # convert
+            (200, {'task_id': 't1', 'status': 'queued'}),
+            (200, {'status': 'finished', 'result': {'seed_number': 2}}),
+        ])
+        import aiohttp
+        monkeypatch.setattr(aiohttp, 'ClientSession', stub)
+        monkeypatch.setattr('asyncio.sleep', _noop_sleep)
+
+        await service._generate_dk64r(_preset({'settings_string': 'abc'}))
+
+        import json as _json
+        sent = _json.loads(stub.calls[1][2]['json']['settings_data'])
+        assert sent['generate_spoilerlog'] is False

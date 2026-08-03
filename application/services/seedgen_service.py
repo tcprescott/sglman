@@ -451,6 +451,18 @@ class SeedGenerationService:
                 settings_dict = await self._dk64r_convert(session, settings_string, params)
             else:
                 settings_dict = settings
+
+            # Never generate a spoiler log, whatever the preset asked for. The
+            # upstream serves one to anyone holding the seed number at
+            # ``GET /get_spoiler_log?hash=<seed_number>``, and the seed number is
+            # the permalink we DM to the players — so a preset with this on hands
+            # every racer the item locations. Several of the site's own presets,
+            # including "Season 5 Race Settings", convert with it set to true, so
+            # trusting the preset is not a safe default. Forced last, after both
+            # settings shapes have resolved, and it lands in the settings
+            # snapshot the ``GeneratedSeeds`` row records.
+            settings_dict['generate_spoilerlog'] = False
+
             task_id = await self._dk64r_submit(session, settings_dict, params)
             result = await self._dk64r_poll(session, task_id, params)
 
