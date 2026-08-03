@@ -20,6 +20,16 @@ Suggested order is the table order: plan 1 is two columns and a worker, plan 2
 adds no model at all, plan 3 is the only one carrying a new flag, a leak test
 and seed rows. Nothing forces that order.
 
+Two more files sit alongside these but are **not plans** — they record how the
+`mmr` and `wwr` seed-generator stubs were worked around by hand at SGL25 and what
+promoting each would cost. They are separate problems with separate answers, so
+they are separate files; read the relevant one before anyone starts on either.
+
+| File | Randomizer | Where it landed |
+|---|---|---|
+| [4-mmr-seedgen.md](4-mmr-seedgen.md) | Majora's Mask | Likely a seed number (`z1r` shape), gated on whether self-rolling players reading their own spoiler is acceptable |
+| [5-wwr-seedgen.md](5-wwr-seedgen.md) | Wind Waker | A permalink string built with stdlib only; needs the Season 8 permalink from the organizers |
+
 ## The evidence this exists to fix
 
 From the SpeedGaming Live Discord, read 2026-08-02. Feedback lives in the
