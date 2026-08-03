@@ -60,7 +60,6 @@ class BaseLayout:
         self._drawer = None
         self._tab_panels = None
         self._bottom_tabs = None
-        self._more_btn = None
         self._bottom_tab_labels: list = []
         self._syncing_nav = False
         self._tab_item_refs: dict = {}
@@ -105,10 +104,26 @@ class BaseLayout:
             # (path → default tab) and write-out (tab change → path).
             self._slug_by_label = {t['label']: t.get('slug') or tab_slug(t['label']) for t in tabs}
             self._label_by_slug = {slug: label for label, slug in self._slug_by_label.items()}
-            self._default_tab = self._label_by_slug.get(section) or tabs[0]['label']
+            # Retired slugs that must still resolve. A tab dict lists them under
+            # 'aliases'; they answer on read-in only, so the URL normalizes to the
+            # canonical slug on the first tab switch and nothing new is minted
+            # against a name we no longer publish. A canonical slug always wins,
+            # so an alias can never shadow a live tab.
+            self._label_by_alias = {
+                alias: t['label']
+                for t in tabs
+                for alias in t.get('aliases', ())
+                if alias not in self._label_by_slug
+            }
+            self._default_tab = (
+                self._label_by_slug.get(section)
+                or self._label_by_alias.get(section)
+                or tabs[0]['label']
+            )
         else:
             self._slug_by_label = {}
             self._label_by_slug = {}
+            self._label_by_alias = {}
             self._default_tab = None
 
     async def render(self) -> None:
@@ -474,22 +489,17 @@ class BaseLayout:
         ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
 
     def _sync_bottom_nav(self, label: str) -> None:
-        """Highlight the active tab in the bottom nav. Tabs beyond the first four
-        live behind the More button, so when the active tab is one of those, clear
-        the tab highlight (avoids Quasar's 'no matching tab' warning) and mark More
-        active instead."""
+        """Highlight the active tab in the bottom nav.
+
+        The bar only exists where every tab is in it (see ``_render_footer``), so
+        the label always has a matching child and there is no not-in-the-bar case
+        to fall back from."""
         if self._bottom_tabs is None:
             return
-        in_bar = label in self._bottom_tab_labels
         # Guard: setting the bottom tab's value re-fires its own change handler.
         self._syncing_nav = True
-        self._bottom_tabs.set_value(label if in_bar else None)
+        self._bottom_tabs.set_value(label)
         self._syncing_nav = False
-        if self._more_btn is not None:
-            if in_bar:
-                self._more_btn.props(remove='color=primary')
-            else:
-                self._more_btn.props(add='color=primary')
 
     def _on_bottom_tab(self) -> None:
         """A bottom-nav tab was tapped: drive the panel (which then routes through
@@ -501,44 +511,48 @@ class BaseLayout:
         if value and value != self._tab_panels.value:
             self._tab_panels.set_value(value)
 
+    # A bottom bar can hold about this many tabs before the labels stop being
+    # readable at 390px. It is also, not coincidentally, the number Home was cut
+    # down to.
+    BOTTOM_NAV_CAPACITY = 4
+
     def _render_footer(self) -> None:
         """Render the app-shell bottom navigation for phones/tablets (<1024px).
 
-        The footer is *only* the bottom nav: the first four tabs as a native tab
-        row plus a More button that opens the drawer for the remaining tabs. On
-        desktop the drawer carries navigation so the bar collapses away (via
-        .wiz-bottom-nav). Copyright and Feedback live in the drawer, not here, so
-        a tab-less page renders no footer at all rather than an empty strip.
+        **Only when every tab fits.** The bar used to show `tabs[:4]` and hide the
+        rest behind a **More** button, which meant a hub with more tabs than the
+        bar holds — Admin has twenty-seven — spent 72px of phone screen offering
+        four of them chosen by list order, plus a button that is the drawer with
+        an extra tap. Where the nav does not fit, the drawer is the honest answer
+        and the header's burger opens it.
+
+        Where it does fit, the bar is worth its space: Home's four are the tabs a
+        player switches between constantly, and a thumb reaches the bottom of a
+        phone far more easily than the top-left corner.
+
+        The footer is *only* the bottom nav — copyright and Feedback live in the
+        drawer — so a page that does not qualify renders no footer at all rather
+        than an empty strip.
         """
-        if not self.tabs:
+        if not self.tabs or len(self.tabs) > self.BOTTOM_NAV_CAPACITY:
             return
 
         # Tells styles.css this page actually reserves bottom-nav clearance —
-        # see the --wiz-bottom-nav-h comment there. Without it, a tab-less page
-        # (e.g. /help, /event-info) still reserves 72px of dead space under the
-        # reconnect banner/popup and the refresh FAB, for a nav that never renders.
+        # see the --wiz-bottom-nav-h comment there. Without it, a page with no bar
+        # (a tab-less one like /help, or a hub whose nav does not fit) still
+        # reserves 72px of dead space under the reconnect banner/popup and the
+        # refresh FAB, for a nav that never renders.
         ui.query('body').classes(add='wiz-has-bottom-nav')
 
         with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
-            self._bottom_tab_labels = [tab['label'] for tab in self.tabs[:4]]
-            # A deep link may open on a tab that lives behind More; seed the bar
-            # with no active tab in that case so we never bind a value with no
-            # matching child (which Quasar warns about and leaves unhighlighted).
-            initial = self._default_tab if self._default_tab in self._bottom_tab_labels else None
-            with ui.tabs(value=initial).props('dense no-caps').classes(
+            self._bottom_tab_labels = [tab['label'] for tab in self.tabs]
+            # Every tab is in the bar, so the deep-linked default always has a
+            # matching child — no empty value to bind and no Quasar warning.
+            with ui.tabs(value=self._default_tab).props('dense no-caps').classes(
                 'wiz-bottom-nav'
             ) as self._bottom_tabs:
-                for tab in self.tabs[:4]:
+                for tab in self.tabs:
                     ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
-                # The More affordance is a plain button, not a q-tab, so it carries
-                # no value that could corrupt the tab binding.
-                self._more_btn = ui.button(
-                    'More',
-                    icon='more_horiz',
-                    on_click=lambda: self._drawer.toggle(),
-                ).props('flat no-caps')
-                if initial is None:
-                    self._more_btn.props(add='color=primary')
             # Tapping a bottom tab drives the panel; the highlight/URL sync then
             # flows back through _handle_tab_change.
             self._bottom_tabs.on_value_change(self._on_bottom_tab)

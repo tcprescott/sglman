@@ -32,12 +32,24 @@ script to paste into the "Setup script" field of a Claude Code cloud environment
 
 ## Each validation run
 
-1. **Boot** (background) and wait for readiness:
+1. **Boot** (background, **`validate` — not `dev`**) and wait for readiness:
    ```bash
-   nohup ./start.sh dev > /tmp/app.log 2>&1 &
+   setsid ./start.sh validate > /tmp/app.log 2>&1 < /dev/null &
    # wait until /tmp/app.log shows "Application startup complete"
    ```
    The FastAPI lifespan auto-applies Aerich migrations on first boot.
+
+   **`validate` is `mock` with no `--reload`.** `dev`/`mock` watch the tree, and
+   the app writes `.nicegui/storage-user-<id>.json` **per session**, so every
+   login restarts the server. A reload mid-run tears down every open page: a
+   screenshot catches a half-built DOM, and the log fills with timer-teardown
+   tracebacks that read like findings. Restart by hand after an edit.
+
+   **Stop it with `./start.sh stop`.** Not `pkill -f "uvicorn main:app"` — `-f`
+   matches full command lines, so it kills the shell running it (exit 143/144,
+   no output) while the server keeps going. `enforce_safe_commands.py` blocks
+   that form. Full reasoning:
+   [development.md](../../../docs/development.md#running-the-server-and-the-two-ways-it-bites).
 
 2. **Seed** baseline fixtures (idempotent — 7 users incl. `staff_user`,
    `proctor_user`, `sm_user`; a tournament; 4 matches across lifecycle states;
@@ -114,6 +126,24 @@ unhandled-UI-handler line during the run. Screenshots + per-target text land in
 check, so the page looks fine and only the server log shows it — that is exactly
 how the Service Health board's Challonge probe surfaced. `--out/app-log-slice.txt`
 holds the log for the sweep's own window.
+
+**A log error is not automatically yours.** Before diagnosing one, ask whether
+the sweep would produce it on `main` too — and if the answer is not obviously no,
+find out, because it is cheap:
+
+```bash
+git stash push -u -m baseline
+./start.sh stop && setsid ./start.sh validate > /tmp/app-main.log 2>&1 < /dev/null &
+# wait for readiness, then:
+APP_LOG=/tmp/app-main.log scripts/ui_flag_sweep.sh
+git stash pop     # and restart again
+```
+
+This is written down because a session spent two rounds on a
+`RuntimeError: The parent slot of the element has been deleted` that reproduced
+identically on `main`, having first talked itself into a wrong cause. That one is
+filtered now (`theme/timer_teardown.py`), but the lesson generalises: the sweep
+reports what the log contains, not what your diff caused.
 
 **What the sweep can't see: dialogs.** It loads pages; it does not click. A
 dialog opened from an ungated tab (the user edit dialog's Challonge fields, the

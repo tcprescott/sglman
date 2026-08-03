@@ -17,7 +17,9 @@
 #                 an all-off pass cannot see.
 #
 # Prereqs (see the ui-validation skill): scripts/setup_env.sh, the app running
-# (./start.sh mock > /tmp/app.log), and scripts/seed_dev.py.
+# (./start.sh validate > /tmp/app.log — `validate`, not `dev`/`mock`: a reload
+# mid-sweep tears down open pages and fills the log with teardown noise that
+# reads like findings), and scripts/seed_dev.py. Stop it with ./start.sh stop.
 #
 # Usage:
 #   scripts/ui_flag_sweep.sh [--tenant default] [--mixed-tenant second]

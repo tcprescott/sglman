@@ -241,9 +241,10 @@ every booking.
 |---|---|---|
 | `list_equipment`, `get_equipment` | ACTOR | `EQUIPMENT` |
 
-Mirrors `api/routers/equipment.py`, which mirrors the **home** Equipment tab —
-a surface with no role check at all, where every member of a community with the
-feature on sees the inventory and its current holders. These were ADMIN when
+Mirrors `api/routers/equipment.py`. The inventory carries no role check at all:
+every member of a community with the feature on may read it and see its current
+holders. That was the **home** Equipment tab until Home came down to four tabs;
+the read is unchanged, it is just no longer browsable from a player surface. These were ADMIN when
 there was no REST counterpart, on the belief that the *admin* equipment tab was
 the gate of record; it is not, and the stricter gate only meant a member saw
 less through a connected client than in their own browser. `private_notes` is

@@ -1,7 +1,7 @@
 from fastapi import Request
 from nicegui import app, ui
 
-from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_discord_id
 from application.tenant_context import (
     get_current_tenant_id,
     is_host_mode,
@@ -9,21 +9,10 @@ from application.tenant_context import (
     stash_client_tenant_id,
 )
 from middleware.auth import bind_display_timezone, enforce_membership
-from models import FeatureFlag
-from pages.home_tabs.availability import availability_tab
-from pages.home_tabs.brackets import brackets_tab
-from pages.home_tabs.equipment import equipment_tab
-from pages.home_tabs.my_crew import my_crew_tab
-from pages.home_tabs.player import render_player_dashboard
+from pages.home_tabs.event import event_tab
+from pages.home_tabs.my_schedule import my_schedule_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
-
-# Aliased: the page function below takes a `schedule` query param (the bracket
-# matchup to open), which would otherwise shadow this tab and leave the Schedule
-# tab building `None`.
-from pages.home_tabs.schedule import schedule as schedule_tab
-from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.tournaments import tournaments_tab
-from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.assets import asset_url
 from theme.base import BaseLayout
 
@@ -146,49 +135,41 @@ def create() -> None:
                 app.storage.user.clear()
             ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
             return
-        # Resolved before the tabs are assembled (not inside the signed-in
-        # branch) because Brackets is flag-gated but anonymous-readable.
-        live = await FeatureFlagService().enabled_flags()
+        # Four tabs, on every community, whatever its feature flags. The count
+        # used to run from five to ten, which meant no two communities' phone nav
+        # looked alike and — because the bottom bar carries ``tabs[:4]`` and hides
+        # the rest behind More — a player's own matches were off the bar entirely.
+        # A feature that is off now removes a *view* or a *section*, never a tab.
+        #
+        # Each tab lists the slugs it absorbed. Those answer on read-in only, so
+        # DMs already sent (docs/features/discord.md) keep landing where they
+        # always did while the URL normalizes to the new slug on the first switch.
         tabs = [
-            # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
-            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule_tab},
-            {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
-            {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
-            # `schedule` is a bracket matchup id: the Player tab opens its
+            # `view` is the section slug the visitor arrived on: the Event tab
+            # opens on the matching view, so /home/on-air and /home/brackets
+            # still open On Air and Brackets rather than the board.
+            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'on-air', 'brackets'),
+             'content': (event_tab, (), {'view': section})},
+            # `schedule` is a bracket matchup id: the matches section opens its
             # schedule dialog on arrival, so the "matchup ready" DM's button
             # lands on the date/time picker rather than on a page about it.
             # `reschedule` is a match id doing the same job for the declined
             # reschedule DM, whose next step is asking again with a new time.
             # `match` narrows the board to one match, for the stage DMs — the
             # player-side equivalent of `/admin/schedule?match_id=`.
-            {'label': 'Player', 'icon': 'videogame_asset',
-             'content': (render_player_dashboard, (),
+            {'label': 'My Schedule', 'icon': 'event_available',
+             'aliases': ('player', 'my-crew', 'availability', 'equipment'),
+             'content': (my_schedule_tab, (),
                          {'schedule': schedule, 'reschedule': reschedule,
                           'match': match})},
+            # Signing up is the step that comes before having a schedule at all,
+            # and it used to be a checkbox on Profile that a player could use the
+            # app for a season without ever finding. Triforce text submission
+            # hangs off the card for the tournament it belongs to.
+            {'label': 'Tournaments', 'icon': 'emoji_events', 'aliases': ('triforce-texts',),
+             'content': tournaments_tab},
+            {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
         ]
-        if FeatureFlag.BRACKETS in live:
-            # Spectator-facing, so it sits with the other read-only tabs and is
-            # offered signed out — the bracket pages it links to are public.
-            tabs.insert(2, {'label': 'Brackets', 'icon': 'account_tree', 'content': brackets_tab})
-        if user is not None:
-            # Sits directly after Player, ahead of the two "what I already
-            # committed to" tabs: signing up is the step that comes before
-            # having a schedule at all, and it used to be a checkbox on Profile
-            # that a player could use the app for a season without ever finding.
-            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': tournaments_tab})
-            # My Availability is intentionally ungated — availability feeds crew
-            # signup too, not only volunteer scheduling. Triforce Texts and
-            # Equipment are hidden unless the tenant has that feature enabled.
-            tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
-            # Ungated for the same reason My Availability is: crew signup is
-            # open to any member from the Schedule tab, behind no role and no
-            # feature flag, so the record of what they signed up for has to be
-            # too. Volunteers who work shifts have had My Shifts all along.
-            tabs.append({'label': 'My Crew', 'icon': 'record_voice_over', 'content': my_crew_tab})
-            if FeatureFlag.TRIFORCE_TEXTS in live:
-                tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
-            if FeatureFlag.EQUIPMENT in live:
-                tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
         show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/home" if request else '/home'
         await BaseLayout(

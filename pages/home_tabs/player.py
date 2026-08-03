@@ -142,7 +142,9 @@ async def render_player_dashboard(
     stays a filter rather than a dialog because "which stage am I on" is
     answered by the row itself.
     """
-    discord_id = app.storage.user.get('discord_id', None)
+    # Always set: home applies the membership gate before any tab is built, so a
+    # signed-out visitor gets the join page and never reaches this section.
+    discord_id = app.storage.user.get('discord_id')
     # Resolved once for the help icons below: three of them read from the event
     # handbook, which filters by role, and each would otherwise look the viewer
     # up for itself.
@@ -151,29 +153,19 @@ async def render_player_dashboard(
     reschedule_service = MatchRescheduleService()
     challonge_service = ChallongeService()
     bracket_service = BracketService()
-    
+
     with ui.column().classes('page-container'):
         # Header section
         with ui.row().classes('header-row'):
-            ui.label('Your Schedule').classes('page-title')
+            ui.label('Your matches').classes('section-title')
             await help_icon('player-schedule', user=viewer)
             await help_icon('stream-volunteer', label='Stream', user=viewer)
             await help_icon('reschedule-request', label='Change', user=viewer)
             await help_icon('check-in', label='Check-in', user=viewer)
             await help_icon('player-room', label='In the room', user=viewer)
             await help_icon('player-stage', label='On a stage', user=viewer)
-            ui.space()
-            if not discord_id:
-                ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
-        
+
         ui.separator().classes('separator-spacing')
-        
-        if not discord_id:
-            with ui.card().classes('card-centered'):
-                ui.icon('lock', size='3em').classes('icon-large')
-                ui.label('You must be logged in to view this page.').classes('text-muted')
-                ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
-            return
 
         # A stage DM linked here naming one match. Say so, and offer the way
         # out: a one-row board with no explanation reads as a board that lost

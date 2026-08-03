@@ -180,22 +180,29 @@ class TestPushMirrorGetsTheSameTarget:
 
 
 class TestTheDeepLinkParamDoesNotShadowATab:
-    """`home()` takes a `schedule` query param, and a tab named Schedule.
+    """`home()` takes `schedule`/`reschedule`/`match` query params.
 
-    They collided once: the param shadowed the imported tab function, so the
-    Schedule tab built `None` and rendered "This section failed to load" for
-    every viewer — a page-wide regression from a notification change, and
-    invisible to a service test.
+    A param shadowed an imported tab function once, so that tab built `None` and
+    rendered "This section failed to load" for every viewer — a page-wide
+    regression from a notification change, invisible to a service test. No tab
+    function is named for a param any more, which is what this pins.
     """
 
-    def test_the_schedule_tab_content_is_callable(self):
+    def test_no_deep_link_param_shadows_an_imported_tab(self):
         import inspect
 
         import pages.home as home
 
-        assert callable(home.schedule_tab)
         src = inspect.getsource(home.create)
-        assert "'content': schedule_tab" in src
+        params = {'section', 'request', 'schedule', 'reschedule', 'match'}
+        imported_tabs = {
+            name for name, value in vars(home).items()
+            if callable(value) and name.endswith(('_tab', '_dashboard'))
+        }
+        assert not (params & imported_tabs)
+        # Every tab's content resolves to something callable, whether it is a
+        # bare function or the (func, args, kwargs) tuple form.
+        assert "'content': tournaments_tab" in src
 
     def test_the_page_still_accepts_the_deep_link_param(self):
         import inspect

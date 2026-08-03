@@ -20,10 +20,16 @@ from typing import Optional
 from nicegui import app, background_tasks, context, ui
 
 from application.content import parse_blocks
-from application.services import TournamentService, get_user_from_discord_id
+from application.services import (
+    FeatureFlagService,
+    TournamentService,
+    get_user_from_discord_id,
+)
 from application.services.tournament_service import TournamentSignupCard
 from application.utils.timezone import format_local_date, format_local_display
 from application.utils.tournament_signup import SignupWindow
+from models import FeatureFlag
+from pages.home_tabs.triforce_texts import open_triforce_dialog, supporting_tournament_ids
 from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
@@ -103,6 +109,12 @@ async def tournaments_tab() -> None:
         return
 
     service = TournamentService()
+    # Which cards get a Triforce Texts button. One query for the whole list
+    # rather than a support check per card, and empty where the community has
+    # the feature off, which is what removes the button.
+    triforce_ids: set[int] = set()
+    if FeatureFlag.TRIFORCE_TEXTS in await FeatureFlagService().enabled_flags():
+        triforce_ids = await supporting_tournament_ids()
 
     with ui.column().classes('page-container'):
         with ui.row().classes('header-row items-center full-width'):
@@ -201,6 +213,13 @@ async def tournaments_tab() -> None:
                         ui.label(
                             'Signups have closed — ask staff if you need to drop out.'
                         ).classes('text-caption text-grey-7')
+
+                    if t.id in triforce_ids:
+                        ui.button(
+                            'Triforce Texts', icon='auto_awesome',
+                            on_click=lambda _e, tourney=t: background_tasks.create(
+                                open_triforce_dialog(tourney, user)),
+                        ).props('flat color=primary dense no-caps')
 
         @ui.refreshable
         async def cards() -> None:

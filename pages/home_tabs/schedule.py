@@ -11,20 +11,22 @@ from theme.tables.preferences import TableKeys
 
 
 async def schedule():
-    discord_id = app.storage.user.get('discord_id', None)
+    # Always set: home applies the membership gate before any tab is built, so a
+    # signed-out visitor gets the join page and never reaches this board.
+    discord_id = app.storage.user.get('discord_id')
     match_service = MatchService()
 
     with ui.column().classes('page-container'):
-        # Header section
-        with ui.row().classes('header-row'):
-            ui.label('Schedule & Crew Signup').classes('page-title')
+        # No page title: the Event tab's view switcher directly above already
+        # names this view. The line stays because "you can sign up for crew from
+        # this board" is not something the table says on its own.
+        with ui.row().classes('header-row items-center'):
+            ui.label('Every match, and where you can sign up as crew.') \
+                .classes('text-muted')
             # Bare icon = "explain this page"; labelled icons = a named topic.
             # Two bare help_outlines side by side are indistinguishable.
             await help_icon('schedule-columns')
             await help_icon('match-states', label='States')
-            ui.space()
-            if not discord_id:
-                ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
 
         ui.separator().classes('separator-spacing')
 
@@ -41,8 +43,7 @@ async def schedule():
             {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
             {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
-        if discord_id:
-            columns.append({'name': 'watch', 'label': 'Watch', 'field': 'watch'})
+        columns.append({'name': 'watch', 'label': 'Watch', 'field': 'watch'})
 
         async def get_query():
             return await match_service.get_all_matches_for_schedule()
@@ -53,8 +54,6 @@ async def schedule():
         }
 
         async def on_edit(match_id: int):
-            if not discord_id:
-                return
             match = await match_service.get_by_id(match_id)
             if not match:
                 ui.notify("Couldn't find that match. Try refreshing the page.", color='warning')
@@ -73,7 +72,7 @@ async def schedule():
             admin_controls=False,
             table_key=TableKeys.HOME_SCHEDULE,
             extra_slots=extra_slots,
-            on_edit=on_edit if discord_id else None,
+            on_edit=on_edit,
             grid_breakpoint='lt.lg',
             storage_key='home_schedule',
         )

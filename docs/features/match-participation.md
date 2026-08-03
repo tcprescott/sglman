@@ -13,19 +13,21 @@ land in the same service, so the rules and audit trail are identical.
 
 1. Signup inserts a `Commentator` or `Tracker` row with `approved=False`, either from the web UI or from the buttons on a stream-candidate DM (`discordbot/crew_signup.py`).
 2. Whoever `can_approve_crew` admits — staff, the tournament's admin, **or its crew coordinator** — approves from the toggle beside the crew member's name in the match table (both directions confirm first).
-3. The approved crew member acknowledges — from **My Crew**, the schedule board, or the DM button.
+3. The approved crew member acknowledges — from **My Schedule**, the schedule board, or the DM button.
 
 Each side has a surface of its own for the work it owns:
 
 | Who | Where | What it carries |
 |---|---|---|
 | Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
-| The volunteer | Home → **My Crew** (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
+| The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
 
-My Crew is on Home rather than the Volunteer hub deliberately: crew signup is
-behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up
+The crew list is on Home rather than the Volunteer hub deliberately: crew signup
+is behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up
 must be able to see what they signed up for. It is the crew twin of
-**My Shifts**, which volunteers who work shifts have had all along.
+**My Shifts**, which volunteers who work shifts have had all along. It was its
+own **My Crew** tab until Home came down to four tabs; `/home/my-crew` still
+resolves, onto My Schedule.
 
 Both directions DM the crew member: approving sends the assignment DM with the
 Acknowledge button, and withdrawing approval sends a withdrawal notice — a
@@ -80,7 +82,7 @@ match is scheduled. The handler in `discordbot/match_acknowledgment.py` calls
 `MatchService.acknowledge_match(match_id, user)`, which upserts a
 `MatchAcknowledgment` row — one per player per match.
 
-**Crew** acknowledge after approval, from **My Crew**, the schedule board's crew
+**Crew** acknowledge after approval, from **My Schedule**, the schedule board's crew
 cell, or the DM button in `discordbot/crew_acknowledgment.py` — all three route to
 `CrewService.acknowledge_crew_assignment`.
 

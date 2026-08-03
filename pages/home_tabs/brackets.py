@@ -70,17 +70,16 @@ async def brackets_tab() -> None:
     )
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row'):
-            ui.label('Brackets').classes('page-title')
-        ui.separator().classes('separator-spacing')
-
+        # No page title: the Event tab's view switcher above already says
+        # Brackets.
         if not brackets:
             ui.label('No brackets have been published yet.').classes('italic-note')
             return
 
         ui.label(
-            'Tournament brackets, standings, and results. No account needed.'
+            'Tournament brackets, standings, and results.'
         ).classes('text-muted')
+        ui.separator().classes('separator-spacing')
 
         for tournament_id, name, stages in group_by_tournament(brackets):
             with ui.card().classes('w-full q-pa-md q-mb-sm'):

@@ -7,7 +7,7 @@
  * only way to validate client-side Vue/Quasar slot templates that Python render
  * tests can't reach.
  *
- * Prereqs: `bash scripts/setup_env.sh`, then boot (`./start.sh dev`) and seed
+ * Prereqs: `bash scripts/setup_env.sh`, then boot (`./start.sh validate`) and seed
  * (`poetry run python scripts/seed_dev.py`). See the `ui-validation` skill.
  *
  * Usage:
