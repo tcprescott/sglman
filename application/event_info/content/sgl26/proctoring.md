@@ -1,14 +1,14 @@
 ---
-title: Running a room
+title: Running the tournament room
 slug: proctoring
 icon: sports_esports
 order: 40
 roles: VOLUNTEER, PROCTOR, STAFF
-summary: The floor standard for proctors, covering looking after the room, game integrity, when to fetch an admin, and handing over a shift.
+summary: For proctors — the floor standard for a tournament room shift: looking after the room, game integrity, when to fetch an admin, and handing over.
 ---
 
-The standard the people running a room are held to at SpeedGaming Live. Read it
-before your first shift.
+**This one is for proctors.** It is the standard you are held to on a tournament
+room shift at SpeedGaming Live. Read it before your first one.
 
 This is the *procedure*. How the Proctor Station board works (checking a match
 in, seating players, rolling the seed, recording a winner) is covered in

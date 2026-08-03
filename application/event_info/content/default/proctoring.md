@@ -1,5 +1,5 @@
 ---
-title: Running a room
+title: Running the tournament room
 slug: proctoring
 icon: sports_esports
 order: 40

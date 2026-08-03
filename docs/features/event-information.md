@@ -45,7 +45,7 @@ context.
 
 | Tenant | Articles |
 |---|---|
-| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running a room — **role-gated**) |
+| `sgl26` | `schedule` (What's on, and when) · `attending` (Attending the event) · `who-to-ask` (Who to ask) · `proctoring` (Running the tournament room — **role-gated**) |
 | `default` | `attending` · `proctoring` — the **dev fixture**, see below |
 
 A tenant with no directory has **no articles**, not an error: a community that
@@ -112,7 +112,7 @@ The same front matter as a help article, plus `roles:`:
 
 ```markdown
 ---
-title: Running a room
+title: Running the tournament room
 slug: proctoring
 icon: sports_esports
 order: 40

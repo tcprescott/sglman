@@ -61,7 +61,7 @@ when you can *work*. Filling in one does not fill in the other.
 
 ## If you are proctoring
 
-The floor standard for running a room is on its own page, visible once you hold
+The floor standard, *Running the tournament room*, is on its own page, visible once you hold
 the Proctor or Volunteer role. If you've been given a shift and can't see it, ask
 Dani, since the role is what unlocks it.
 
