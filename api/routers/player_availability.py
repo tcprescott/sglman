@@ -15,7 +15,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
-from api._helpers import load_user_or_404
+from api._helpers import load_community_user_or_404
 from api.dependencies import (
     ServiceErrorRoute,
     require_api_actor,
@@ -92,7 +92,7 @@ async def list_availability_for(
             await AuthService.is_staff(actor),
             "Staff access required to view other players' availability",
         )
-    target = await load_user_or_404(user_id)
+    target = await load_community_user_or_404(user_id, actor)
     windows = await PlayerAvailabilityService().availability_for(target)
     return [
         window for window in windows

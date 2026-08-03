@@ -408,6 +408,28 @@ class WebPushService:
             await self.repository.delete(subscription)
             return False
 
+        # Re-resolve the destination at delivery time, the way webhook_service
+        # does. The subscribe/rotate check resolved DNS once, but this POST
+        # re-resolves it — so an endpoint whose host is repointed at an internal
+        # address afterwards (slow DNS rebinding) would otherwise be
+        # dereferenced with a stale verdict. Production-only, matching
+        # _validate_subscription, which allows local endpoints in development.
+        # Not a prune: the host may be fine again on the next send, and deleting
+        # a real device's subscription over a transient answer is worse than
+        # skipping one notification.
+        if is_production():
+            try:
+                await ensure_public_host(
+                    urlparse(subscription.endpoint).hostname or '',
+                    subject='Push subscription endpoint',
+                )
+            except ValueError as exc:
+                logger.warning(
+                    'web push delivery to subscription %s blocked by SSRF check: %s',
+                    subscription.id, exc,
+                )
+                return False
+
         try:
             response = await client.post(subscription.endpoint, content=body, headers=headers)
         except httpx.HTTPError as exc:

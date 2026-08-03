@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api._helpers import load_user_or_404
+from api._helpers import load_community_user_or_404, load_user_or_404
 from api.dependencies import (
     ServiceErrorRoute,
     require_api_actor,
@@ -76,7 +76,7 @@ async def get_me(actor: User = Depends(require_api_actor)):
 async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    return await _to_detail(await load_user_or_404(user_id))
+    return await _to_detail(await load_community_user_or_404(user_id, actor))
 
 
 # --- Writes -----------------------------------------------------------------
@@ -118,7 +118,7 @@ async def update_me(body: UserSelfUpdate, actor: User = Depends(require_write_ac
     summary="Update a user's profile (self or Staff)",
 )
 async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depends(require_write_actor)):
-    target = await load_user_or_404(user_id)
+    target = await load_community_user_or_404(user_id, actor)
     await UserService().update_user_profile(
         user=target, actor=actor, display_name=body.display_name, pronouns=body.pronouns,
     )
@@ -131,7 +131,7 @@ async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depen
     summary="Update admin-managed fields (Staff only)",
 )
 async def update_user_admin(user_id: int, body: UserAdminUpdate, actor: User = Depends(require_write_actor)):
-    target = await load_user_or_404(user_id)
+    target = await load_community_user_or_404(user_id, actor)
     await UserService().update_user_admin_fields(user=target, actor=actor, is_active=body.is_active)
     return await _to_detail(target)
 
@@ -145,7 +145,7 @@ async def update_user_tournaments(
 ):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    target = await load_user_or_404(user_id)
+    target = await load_community_user_or_404(user_id, actor)
     await UserService().manage_tournament_enrollments(
         user=target, actor=actor, tournament_ids=set(body.tournament_ids), is_update=True,
     )

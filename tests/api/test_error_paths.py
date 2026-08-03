@@ -14,7 +14,7 @@ validation branches without touching existing test cases.
 from tortoise import connections
 
 from models import AuditLog, Match, MatchPlayers, Role, Stage, Tournament, User
-from tests.api_helpers import client_for, create_user_token
+from tests.api_helpers import client_for, create_community_member, create_user_token
 
 
 async def _tournament_and_players(**tournament_kwargs):
@@ -101,7 +101,7 @@ class TestUserProfileWrites:
 
     async def test_staff_updates_other_profile(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
-        other = await User.create(discord_id=4242, username='target')
+        other = await create_community_member(discord_id=4242, username='target')
         async with client_for(app, raw) as c:
             resp = await c.patch(f'/api/users/{other.id}', json={'pronouns': 'they/them'})
             assert resp.status_code == 200
@@ -109,7 +109,7 @@ class TestUserProfileWrites:
 
     async def test_non_staff_cannot_update_other_profile(self, db, app):
         _, raw = await create_user_token(username='plain')
-        other = await User.create(discord_id=4343, username='target')
+        other = await create_community_member(discord_id=4343, username='target')
         async with client_for(app, raw) as c:
             resp = await c.patch(f'/api/users/{other.id}', json={'display_name': 'Nope'})
             assert resp.status_code == 403
@@ -129,7 +129,7 @@ class TestUserProfileWrites:
 class TestUserAdminFieldWrites:
     async def test_staff_deactivates_user(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
-        other = await User.create(discord_id=5151, username='target', is_active=True)
+        other = await create_community_member(discord_id=5151, username='target')
         async with client_for(app, raw) as c:
             resp = await c.patch(f'/api/users/{other.id}/admin', json={'is_active': False})
             assert resp.status_code == 200
@@ -159,7 +159,7 @@ class TestUserEnrollmentWrites:
 
     async def test_staff_replaces_other_enrollments(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
-        other = await User.create(discord_id=6161, username='target')
+        other = await create_community_member(discord_id=6161, username='target')
         t = await Tournament.create(name='Cup', is_active=True)
         async with client_for(app, raw) as c:
             resp = await c.put(f'/api/users/{other.id}/tournaments', json={'tournament_ids': [t.id]})
@@ -167,7 +167,7 @@ class TestUserEnrollmentWrites:
 
     async def test_non_staff_cannot_replace_other_enrollments(self, db, app):
         _, raw = await create_user_token(username='plain')
-        other = await User.create(discord_id=6262, username='target')
+        other = await create_community_member(discord_id=6262, username='target')
         async with client_for(app, raw) as c:
             resp = await c.put(f'/api/users/{other.id}/tournaments', json={'tournament_ids': []})
             assert resp.status_code == 403

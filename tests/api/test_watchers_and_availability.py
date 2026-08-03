@@ -9,7 +9,7 @@
 from datetime import timedelta
 
 from application.utils.timezone import now_local
-from models import Match, Role, SystemConfiguration, Tournament, User
+from models import Match, Role, SystemConfiguration, TenantMembership, Tournament, User
 from tests.api_helpers import client_for, create_user_token
 
 # ---------------------------------------------------------------------------
@@ -115,6 +115,10 @@ class TestReadingAnotherPlayersAvailability:
 
     async def _player_with_a_window(self, app):
         player, raw = await create_user_token(username='player')
+        # A member, because the route resolves the target within the token's
+        # community — a global User with no membership is not someone this
+        # community can look up by id.
+        await TenantMembership.get_or_create(user=player, tenant_id=1)
         async with client_for(app, raw) as c:
             await c.put('/api/users/me/availability', json=ONE_WINDOW)
         return player

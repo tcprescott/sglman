@@ -12,7 +12,24 @@ the truth and git history keeps the rationale.
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
 
-Shipped and deleted: the table UX audit — its findings became
+Shipped and deleted: the August 2026 security audit of the preceding week's
+328 commits — its findings became `Role.tenant_grantable()` and the gates behind
+it (any community's STAFF could grant themselves `SUPER_ADMIN`, by one checkbox
+on their own Users tab or one Discord role mapping, and the sync now filters
+stored rows so a mapping written before the guard cannot still pay out),
+`load_community_user_or_404` scoping the by-id user routes to `TenantMembership`
+(the read leaked every account on the platform, and the same lookup fed the
+`is_active` write, which is a *global* account disable), the redirect host on the
+MCP consent card (registration is open, so `client_name` proves nothing and the
+redirect URI is the only unfakeable field), the shared rate limiter extended over
+the four unauthenticated OAuth routes, web push re-resolving its destination at
+delivery, and the aiohttp bump past CVE-2026-59881 that `pip-audit` caught and
+the audit's own eyeball-the-versions pass had missed. The invariants live in
+[reference/authentication.md](../reference/authentication.md#roles),
+[reference/rest-api.md](../reference/rest-api.md),
+[features/mcp-server.md](../features/mcp-server.md) and
+[features/web-push.md](../features/web-push.md).
+The table UX audit — its findings became
 `UserTablePreference` and the Preferences gear on every desktop table (visible
 columns, order, drag-to-resize widths, page size, density, wrap, remembered per
 person and resettable), the `table_key` argument `enable_mobile_grid` now owns

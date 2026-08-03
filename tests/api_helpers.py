@@ -13,6 +13,10 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 import api
+from application.repositories._tenant import current_tenant_id
+from application.repositories.tenant_membership_repository import (
+    TenantMembershipRepository,
+)
 from application.services.api_token_service import ApiTokenService
 from models import Role, User, UserRole
 
@@ -59,6 +63,24 @@ async def create_user_token(
             await UserRole.create(user=user, role=role)
     _, raw_token = await ApiTokenService().create_token(user, name='test', read_only=read_only)
     return user, raw_token
+
+
+async def create_community_member(
+    *, username: str = 'member', discord_id: Optional[int] = None,
+) -> User:
+    """A user who belongs to the ambient tenant, like a real one does.
+
+    A bare ``User.create`` produces an account with no ``TenantMembership``,
+    which no community can see: the person pickers read
+    ``get_community_people`` (membership-based) and the by-id routes now scope to
+    the same basis. A test that wants "another person in this community" wants
+    this; a test that wants "someone from elsewhere" keeps ``User.create``.
+    """
+    if discord_id is None:
+        discord_id = random.randint(1, 10 ** 12)
+    user = await User.create(discord_id=discord_id, username=username)
+    await TenantMembershipRepository.add(user, current_tenant_id())
+    return user
 
 
 async def enable_all_features(tenant_id: int) -> None:
