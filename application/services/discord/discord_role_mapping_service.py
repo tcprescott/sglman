@@ -86,6 +86,15 @@ class DiscordRoleMappingService:
             'discord_role_name': discord_role_name,
         }
         if app_role is not None:
+            if app_role not in Role.tenant_grantable():
+                # The other half of the same door ``UserService.grant_role``
+                # closes: a mapping is a *standing* grant, so this one would have
+                # handed platform authority to whoever holds a guild role the
+                # community's own staff control, on their next login.
+                raise ValueError(
+                    "Super Admin is a platform role and cannot be mapped from a "
+                    "Discord role."
+                )
             if tournament_id is not None:
                 raise ValueError("An application role applies community-wide, not to one tournament")
             if await self.mapping_repository.get_match(guild_id, discord_role_id, app_role):
@@ -243,9 +252,15 @@ class DiscordRoleMappingService:
 
             with tenant_scope(tenant.id):
                 mappings = await self.mapping_repository.list_for_guild(guild_id)
+                # Filtered here as well as at ``add_mapping``, because this side
+                # is what a *stored* row reaches. A mapping written before the
+                # grantable check existed — or restored from a backup — would
+                # otherwise grant platform authority on the next login, silently,
+                # with no one performing an action to notice.
+                grantable = set(Role.tenant_grantable())
                 desired: Set[Role] = {
                     m.app_role for m in mappings
-                    if m.app_role is not None and m.discord_role_id in member_role_ids
+                    if m.app_role in grantable and m.discord_role_id in member_role_ids
                 }
                 current_all = await AuthService.get_roles(user)
                 discord_rows = await self.role_repository.list_for_user_by_source(

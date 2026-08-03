@@ -8,10 +8,53 @@ the new REST routers behind all of them.
 
 Method: read every entry surface that authenticates, authorizes, renders
 attacker-controlled text, or makes an outbound request; trace each to the
-service gate behind it. Full suite green (5405 passed), `ruff` clean, mypy
-ratchet at baseline.
+service gate behind it, then follow anything that looked load-bearing out of
+scope — which is how finding 0, the worst one here, turned up. Full suite green
+(5426 passed), `ruff` clean, mypy ratchet at baseline.
 
 ## What was fixed here
+
+### 0. Any community's STAFF could grant themselves SUPER_ADMIN — critical
+
+Found while tracing the callers of the by-id user lookup (finding 3), which is
+the only reason it turned up at all — it predates this week and nothing in the
+week's diff caused it.
+
+`Role.SUPER_ADMIN` is the one global role: its `UserRole` row carries
+`tenant=NULL` and `AuthService.is_super_admin` bypasses every per-tenant gate.
+`UserService.grant_role` gated on `can_grant_roles`, which is `is_staff` — and
+`is_staff` is evaluated inside the *actor's own* community. So the check was
+asking a tenant-local question about a platform-wide answer, and the enum's own
+comment ("Not grantable per-tenant") was documentation with nothing enforcing it.
+
+Two surfaces reached it, both one interaction deep:
+
+- **The Users tab.** `theme/dialog/user_edit_dialog.py` built its role picker
+  from `{r.value: … for r in Role}` — every member, Super Admin included. Any
+  community's STAFF could open the dialog on themselves, tick it, save, and hold
+  authority over every other community on the platform. `POST
+  /api/users/{id}/roles` with `{"role": "super_admin"}` did the same over REST.
+- **Discord role mappings.** `pages/admin_tabs/admin_discord_roles.py` offered
+  the same unfiltered list as a mapping target, and `sync_user_roles` applies
+  mappings on login. That one is a *standing* grant: map a guild role the
+  community's own staff control, and it pays out on the holder's next sign-in.
+
+Confirmed against the real database before fixing — a STAFF-only actor in a
+throwaway tenant granted `SUPER_ADMIN` and `is_super_admin` returned True for
+the target.
+
+Fixed with one list, `Role.tenant_grantable()`, read by both pickers and both
+service gates, so a future global role is excluded from all four at once instead
+of in four places someone has to remember. `grant_role` and `revoke_role` refuse
+the platform role outright rather than re-gating on super-admin: `/platform`'s
+`TenantService.grant_super_admin` already does it properly, and one grant path
+means one audit action — two paths writing the same row under different action
+names is how a grant goes unnoticed. Revocation is gated too, or any community
+could unseat the people who police it.
+
+The mapping sync filters on the **stored row**, not just at create: a mapping
+written before this guard existed, or restored from a backup, would otherwise
+still pay out on the next login with nobody performing an action to notice.
 
 ### 1. The MCP consent screen named the client but not where the code went — medium
 
@@ -61,28 +104,54 @@ shape: the SDK hands `/authorize` a plain request handler and wraps the other
 three in `CORSMiddleware`. `OPTIONS` passes through — a 429 on a preflight
 breaks a browser client (MCP Inspector) for a reason it cannot report.
 
-## Open, not fixed here
+### 3. The by-id user routes walked the whole platform — low/medium
 
-### `GET /api/users/{id}` reads across communities — low/medium, needs a product call
+`api/routers/users.py` gated on "self, or Staff", then loaded the user globally
+(`load_user_or_404` → `UserService.get_user_by_id`, no tenant filter). The MCP
+`get_user` tool did the same. So STAFF of any community could count `id=1..N`
+and read every account on the platform: username, `discord_id`, display name,
+pronouns, active flag. The sibling `list_users` was already narrowed for exactly
+this — *"returning the platform's whole user table was a leak; there is
+deliberately no `?scope=all`, which would re-open it behind a parameter"* — and
+by-id reopened it behind a loop.
 
-`api/routers/users.py` gates the route on "self, or Staff", then loads the user
-globally: `load_user_or_404` → `UserService.get_user_by_id`, no tenant filter.
-The MCP `get_user` tool (`mcpserver/tools/people.py`) does the same. So STAFF of
-any community can walk `id=1..N` and read every account on the platform:
-username, `discord_id`, display name, pronouns, active flag.
+The caller trace turned up something sharper than the read. The same global
+lookup fed `PATCH /users/{id}/admin`, whose `is_active` field is a *global*
+account disable — so staff of any community could lock any account on the
+platform out of every community, including ones they have nothing to do with.
+`PATCH /users/{id}` (display name, pronouns) and the availability read had the
+same shape.
 
-What makes this worth raising is that the sibling endpoint was already fixed —
-`list_users` carries the comment *"returning the platform's whole user table was
-a leak; there is deliberately no `?scope=all`, which would re-open it behind a
-parameter."* The by-id route re-opens it behind a loop.
+Fixed with a second loader, `load_community_user_or_404`, scoped on
+`TenantMembership` — the same basis the access gate and the person pickers use,
+since holding a role in a tenant implies membership in it. It refuses with 404,
+not 403, so "no such id" and "not in your community" read identically and the
+status code is not a membership oracle. The actor always resolves themselves,
+and a super-admin resolves anyone.
 
-Not fixed unilaterally because scoping it is a real behaviour change and the
-codebase argues both ways. `CLAUDE.md` says identity is global; the equipment
-borrower picker deliberately widens past members because *"lending to someone who
-just walked into the venue is the case this serves"*. The narrow fix — resolve
-only users who hold a role or membership in the actor's tenant, with the actor
-and super-admins exempt — would break that flow unless the picker keeps its own
-path. Worth a decision rather than a patch.
+The **grant** routes deliberately keep the global loader: naming a tournament
+admin or granting a role is *how someone joins* — `grant_role` calls
+`ensure_member` as it goes — so scoping those would make the first grant
+impossible. Both loaders now carry a docstring saying which is which, because
+picking the wrong one is a cross-community leak.
+
+Four API tests broke, all of them fixture artefacts rather than real behaviour:
+they built the target with a bare `User.create`, which produces an account with
+no membership — something no community's own pickers can see either. They now
+use a `create_community_member` helper, which is what the app actually produces.
+No production caller depends on the cross-community reach; the one flow that
+deliberately reaches past members (the equipment borrower picker, for "someone
+who just walked into the venue") goes through `get_community_people` with an
+opt-in widening, not through these routes.
+
+### 4. Web push did not re-check its destination at delivery — low
+
+`ensure_public_host` ran when a subscription was stored but not when a push was
+sent, so an endpoint whose host was repointed at an internal address afterwards
+(slow DNS rebinding) would be dereferenced on a stale verdict. `webhook_service`
+already re-checks at delivery; `_deliver_one` now does the same. It skips rather
+than prunes — the host may resolve publicly again on the next send, and dropping
+a real device's subscription over one transient answer is the worse failure.
 
 ## Checked and sound
 
@@ -115,9 +184,17 @@ Recorded so the next audit does not re-derive them.
   `hmac.compare_digest` against the retired subscription's `auth` secret, with
   the miss and the mismatch returning the same message. Endpoints are validated
   https, length-capped, and passed through `ensure_public_host` in production.
-  *One residual:* the SSRF check runs at subscribe/rotate, not at delivery, so a
-  DNS rebind between the two is not caught. `webhook_service` re-checks at
-  delivery; web push could adopt the same shape.
+  Delivery re-resolves the host too, since finding 4.
+- **Discord DM interaction handlers** (`discordbot/`, six of them). The acting
+  user comes from `interaction.user.id` — Discord-authenticated — never from the
+  `custom_id`, which carries only an entity id. `_ack_common.run_dm_interaction`
+  discovers the entity's tenant with a deliberately-unscoped read, then does
+  every scoped call inside `tenant_scope`. Authorization is the service's, and
+  each one holds: `acknowledge_crew_assignment` and `VolunteerScheduleService.
+  acknowledge` both compare `user_id` before writing, `signup_crew` checks
+  community membership, `record_opponent_agreement` refuses the requester and
+  anyone who is not the other player, and `unwatch` is self-scoped by
+  construction. Nothing found.
 - **Injection.** No `eval`/`exec`/`pickle`/`yaml.load`/`subprocess`, no raw SQL,
   no string-built queries. Zero `ui.html`/`ui.markdown` calls in `pages/` or
   `theme/` — the `check_markdown_xss` hook enforces it, and the help/event-info

@@ -18,6 +18,27 @@ from application.tenant_context import require_tenant_id
 from models import Role, RoleSource, Tournament, TournamentPlayers, User
 
 
+def _reject_platform_role(role: Role, verb: str) -> None:
+    """Refuse a global role on a per-tenant role surface.
+
+    ``can_grant_roles`` is ``is_staff``, which is evaluated **inside the actor's
+    own community** — so without this, STAFF anywhere could grant
+    ``SUPER_ADMIN``, whose ``UserRole`` row carries ``tenant=NULL`` and bypasses
+    every per-tenant gate. One tick of a checkbox on any community's Users tab
+    would have produced an account with authority over every other community.
+
+    Refused outright rather than re-gated on super-admin, so the global role has
+    exactly one grant path (``TenantService.grant_super_admin``, on
+    ``/platform``) and therefore exactly one audit action. Two paths writing the
+    same row under different action names is how a grant goes unnoticed.
+    """
+    if role is Role.SUPER_ADMIN:
+        raise PermissionError(
+            f"Super Admin is a platform role and cannot be {verb} from a "
+            "community's Users tab. An existing super-admin does it on /platform."
+        )
+
+
 class UserService:
     """Service for user-related business operations."""
 
@@ -395,6 +416,7 @@ class UserService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can grant roles",
         )
+        _reject_platform_role(role, 'granted')
         await self.role_repository.add(target, role, granted_by=actor, source=RoleSource.MANUAL)
         # A role in a tenant implies membership in it. Guarded on the role rather
         # than on the ambient tenant: grant_role runs *inside* a tenant context,
@@ -413,6 +435,7 @@ class UserService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can revoke roles",
         )
+        _reject_platform_role(role, 'revoked')
         await self.role_repository.remove(target, role)
         await self.audit_service.write_log(
             actor,

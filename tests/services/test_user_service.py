@@ -322,12 +322,34 @@ class TestRoleManagement:
         await service.grant_role(target, Role.PROCTOR, make_user(user_id=1))
         service.membership_hook.assert_awaited_once_with(target)
 
-    async def test_granting_super_admin_makes_no_membership(self, service):
-        # SUPER_ADMIN's UserRole carries tenant=NULL and belongs to no community,
-        # but grant_role runs inside a tenant context — so the guard is on the
-        # role, not on whether a tenant happens to be in scope.
-        await service.grant_role(make_user(user_id=7), Role.SUPER_ADMIN, make_user(user_id=1))
+    async def test_super_admin_cannot_be_granted_from_a_community(self, service):
+        """The per-tenant role surface must not reach the platform role.
+
+        ``can_grant_roles`` is ``is_staff``, evaluated inside the actor's *own*
+        community — so before this guard, STAFF anywhere could tick Super Admin
+        on their Users tab and mint an account with authority over every other
+        community on the platform. ``/platform`` is the only grant path.
+        """
+        with pytest.raises(PermissionError, match='platform role'):
+            await service.grant_role(
+                make_user(user_id=7), Role.SUPER_ADMIN, make_user(user_id=1)
+            )
+        service.role_repository.add.assert_not_awaited()
         service.membership_hook.assert_not_awaited()
+
+    async def test_super_admin_cannot_be_revoked_from_a_community(self, service):
+        """Revocation is gated too, or staff anywhere could unseat the platform."""
+        with pytest.raises(PermissionError, match='platform role'):
+            await service.revoke_role(
+                make_user(user_id=7), Role.SUPER_ADMIN, make_user(user_id=1)
+            )
+        service.role_repository.remove.assert_not_awaited()
+
+    def test_tenant_grantable_is_every_role_but_the_platform_one(self):
+        """The one list the pickers and the service gates both read."""
+        grantable = Role.tenant_grantable()
+        assert Role.SUPER_ADMIN not in grantable
+        assert set(grantable) == set(Role) - {Role.SUPER_ADMIN}
 
     async def test_revoking_a_role_leaves_membership_alone(self, service):
         # Membership is the wider set: losing a role does not eject you from the

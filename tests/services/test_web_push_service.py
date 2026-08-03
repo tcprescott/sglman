@@ -382,6 +382,63 @@ class TestDelivery:
         stored = await WebPushSubscription.get(endpoint=ENDPOINT)
         assert stored.last_used_at is not None
 
+    async def test_delivery_rechecks_the_host_and_skips_a_rebound_one(
+        self, db, vapid_env, fake_client, monkeypatch,
+    ):
+        """A stored endpoint whose host now resolves internally is not POSTed to.
+
+        The subscribe-time check resolved DNS once; this POST re-resolves it, so
+        without a second check a host repointed afterwards (DNS rebinding) would
+        be dereferenced on a stale verdict. Mirrors webhook_service.
+        """
+        fake = fake_client([201])
+        user = await _subscribed_user(discord_id=42)
+        monkeypatch.setattr(
+            'application.services.web_push_service.is_production', lambda: True
+        )
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('169.254.169.254', 0))],
+        )
+
+        delivered = await WebPushService().notify_user(user, title='t', body='b')
+
+        assert delivered == 0
+        assert fake.calls == []
+        # Skipped, not pruned: the host may resolve publicly again next time, and
+        # dropping a real device over one transient answer is the worse failure.
+        assert await WebPushSubscription.all().count() == 1
+
+    async def test_delivery_proceeds_when_the_host_is_still_public(
+        self, db, vapid_env, fake_client, monkeypatch,
+    ):
+        fake = fake_client([201])
+        user = await _subscribed_user(discord_id=42)
+        monkeypatch.setattr(
+            'application.services.web_push_service.is_production', lambda: True
+        )
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('93.184.216.34', 0))],
+        )
+
+        assert await WebPushService().notify_user(user, title='t', body='b') == 1
+        assert len(fake.calls) == 1
+
+    async def test_delivery_does_not_resolve_outside_production(
+        self, db, vapid_env, fake_client, monkeypatch,
+    ):
+        """Dev keeps working against a local push mock."""
+        fake = fake_client([201])
+        user = await _subscribed_user(discord_id=42)
+
+        def _boom(*a, **k):
+            raise AssertionError('getaddrinfo must not run outside production')
+
+        monkeypatch.setattr('application.utils.ssrf.socket.getaddrinfo', _boom)
+        assert await WebPushService().notify_user(user, title='t', body='b') == 1
+        assert len(fake.calls) == 1
+
     async def test_mirror_dm_without_subscriptions_makes_no_requests(self, db, vapid_env, fake_client):
         fake = fake_client([])
         await _user(discord_id=42)

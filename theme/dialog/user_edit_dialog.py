@@ -178,7 +178,13 @@ class AdminUserDialog(BaseUserDialog):
                 else:
                     discord_id_input = None
 
-                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                # tenant_grantable, not every Role: SUPER_ADMIN is a platform role
+                # and the service refuses it, so offering it here would only ever
+                # produce an error dialog.
+                role_options = {
+                    r.value: r.name.replace('_', ' ').title()
+                    for r in Role.tenant_grantable()
+                }
                 current_roles = []
                 if self.user:
                     current_roles = [r.value for r in await AuthService.get_roles(self.user)]

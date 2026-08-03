@@ -20,6 +20,24 @@ class Role(str, Enum):
     # inside any tenant request. Not grantable per-tenant.
     SUPER_ADMIN = 'super_admin'
 
+    @classmethod
+    def tenant_grantable(cls) -> 'list[Role]':
+        """The roles a community may hand out, in declaration order.
+
+        Everything except ``SUPER_ADMIN``. That one is a *platform* role — its
+        ``UserRole`` row carries ``tenant=NULL`` and bypasses every per-tenant
+        gate — so a community that could grant it could mint an account with
+        authority over every other community on the platform. It is granted on
+        ``/platform`` by an existing super-admin, through
+        ``TenantService.grant_super_admin``.
+
+        The one list every per-tenant role surface reads: the Users dialog's
+        picker, the Discord role-mapping picker, and the service gates behind
+        both. A new global role added here is excluded from all of them at once
+        rather than in three places someone has to remember.
+        """
+        return [role for role in cls if role is not cls.SUPER_ADMIN]
+
 
 class TournamentGrant(str, Enum):
     """Per-tournament authority a Discord role can confer.

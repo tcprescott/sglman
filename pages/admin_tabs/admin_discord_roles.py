@@ -23,7 +23,11 @@ from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
-_ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
+# tenant_grantable, not every Role: a mapping is a standing grant, and
+# SUPER_ADMIN is a platform role no community may hand out.
+_ROLE_OPTIONS = {
+    r.value: r.value.replace('_', ' ').title() for r in Role.tenant_grantable()
+}
 _GRANT_OPTIONS = {g.value: g.value.replace('_', ' ').title() for g in TournamentGrant}
 
 # The picker mixes two kinds of grant, so each option carries its kind. Without

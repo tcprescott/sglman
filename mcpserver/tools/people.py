@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
+from api._helpers import load_community_user_or_404
 from api._match_view import MATCH_PREFETCH
 from application.errors import require_found
 from application.services import (
@@ -66,12 +67,15 @@ async def get_user(
     """Get one user's profile and the roles they hold in this community.
 
     You may always read your own record; reading anyone else's requires staff
-    access, matching the REST API.
+    access and only reaches people who belong to this community.
     """
     actor = current_actor()
     if user_id != actor.user.id and not await AuthService.is_staff(actor.user):
         raise PermissionError('Staff access required to view another user')
-    user = require_found(await UserService().get_user_by_id(user_id), 'User')
+    # Scoped, like `list_users` above and the REST route this mirrors: `User` is
+    # global, so a bare id lookup let staff of any one community read every
+    # account on the platform by counting upwards.
+    user = await load_community_user_or_404(user_id, actor.user)
     roles = await AuthService.get_roles(user)
     detail = UserDetail.model_validate(user, from_attributes=True)
     detail.roles = sorted(r.value for r in roles)
