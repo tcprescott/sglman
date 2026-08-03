@@ -17,7 +17,7 @@ logic of its own.
 | Writes | 19 match-management tools, served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
 | Reads | 54 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
 | Feature flag | None — the server is always on. `MCP_ENABLED=false` is an operational kill switch. |
-| Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). |
+| Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). Covers `/mcp` **and** the four unauthenticated authorization-server routes. |
 | Code | [`mcpserver/`](../../mcpserver), consent page [`pages/mcp_consent.py`](../../pages/mcp_consent.py) |
 
 ## Connecting a client
@@ -99,6 +99,14 @@ It still reads as Wizzrobe: the page applies
 its card, grant list and expired-transaction notice use the `.consent-*` classes
 in `styles.css`. The palette is the shipped default, not a tenant override,
 because the credential is not scoped to a community.
+
+**The redirect target.** Under the lede, the card names the host approving will
+send the code to. Registration is open, so `client_name` is a string the
+requester chose — anyone can register a client called "Claude". The redirect URI
+is the part that cannot be faked, because it is where the authorization code
+goes, and a person who can see `claude.ai.evil.test` on the card can decline. The
+host is rendered by `_redirect_target()` (host and port for `http(s)`, the whole
+URI for a native client's custom scheme, which has no netloc).
 
 **The write box.** One unticked checkbox, "Let it make changes". It is the only
 place write access can be granted: a client cannot request its way past it and a

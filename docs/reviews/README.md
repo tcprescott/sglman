@@ -11,6 +11,7 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
+| [security-audit-2026-08.md](security-audit-2026-08.md) | The 328 commits to 2026-08-03 | The MCP consent screen named the client but not the redirect host, and open registration lets anyone pick the name |
 
 Shipped and deleted: the table UX audit — its findings became
 `UserTablePreference` and the Preferences gear on every desktop table (visible

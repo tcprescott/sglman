@@ -297,3 +297,55 @@ class TestRoleIndependence:
         result = resp.json()['result']
         assert not result.get('isError'), result
         assert result['structuredContent']['result'] == []
+
+
+class TestUnauthenticatedRouteLimits:
+    """The authorization-server routes are the app's only unauthenticated writes.
+
+    They hang off the outer app, so neither the ``/api`` router's limiter nor the
+    ``/mcp`` endpoint's covers them — and ``/register`` inserts a row per call.
+    Without a limit anyone can grow ``mcp_oauth_clients`` as fast as they can POST.
+    """
+
+    async def test_register_is_rate_limited(self, db, monkeypatch):
+        monkeypatch.setenv('API_RATE_LIMIT_PER_MIN', '3')
+        async with mcp_session() as client:
+            codes = []
+            for index in range(5):
+                resp = await client.post('/register', json={
+                    'client_name': f'flood-{index}',
+                    'redirect_uris': ['http://localhost:9999/callback'],
+                    'grant_types': ['authorization_code'],
+                    'response_types': ['code'],
+                    'token_endpoint_auth_method': 'none',
+                })
+                codes.append(resp.status_code)
+        assert 429 in codes, codes
+        assert codes[0] != 429, codes
+
+    async def test_token_endpoint_is_rate_limited(self, db, monkeypatch):
+        """A bad-code guess is cheap; guessing it unboundedly should not be."""
+        monkeypatch.setenv('API_RATE_LIMIT_PER_MIN', '2')
+        async with mcp_session() as client:
+            codes = []
+            for _ in range(4):
+                resp = await client.post('/token', data={
+                    'grant_type': 'authorization_code',
+                    'client_id': 'nobody',
+                    'code': 'guess',
+                    'code_verifier': 'x' * 43,
+                    'redirect_uri': 'http://localhost:9999/callback',
+                })
+                codes.append(resp.status_code)
+        assert 429 in codes, codes
+
+    async def test_cors_preflight_is_never_limited(self, db, monkeypatch):
+        """A 429 on a preflight breaks a browser client for a reason it can't report."""
+        monkeypatch.setenv('API_RATE_LIMIT_PER_MIN', '1')
+        async with mcp_session() as client:
+            for _ in range(4):
+                resp = await client.options('/register', headers={
+                    'Origin': 'https://inspector.example',
+                    'Access-Control-Request-Method': 'POST',
+                })
+                assert resp.status_code != 429, resp.status_code

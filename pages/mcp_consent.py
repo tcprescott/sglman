@@ -19,7 +19,7 @@ cannot widen a grant that was approved without it.
 """
 
 import logging
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from nicegui import app, ui
 from starlette.responses import RedirectResponse
@@ -49,6 +49,27 @@ _WRITE_GRANTS = [
     ('edit_calendar', 'Schedule, edit, cancel and run matches'),
     ('emoji_events', 'Record results, roll seeds and manage crew signups'),
 ]
+
+
+def _redirect_target(redirect_uri: str) -> str:
+    """Where approving actually sends the code, as a person can check it.
+
+    Client registration is open (RFC 7591 — that is what lets a client configure
+    itself from a URL), so ``client_name`` is a string the requester chose and
+    proves nothing. The redirect URI is the one part of the request that cannot
+    be faked: it is where the authorization code goes. Showing it is what lets
+    someone notice that "Claude" wants to hand the code to a host they have never
+    heard of.
+
+    Host and port only — a full URL with query string is noise on a card whose
+    whole job is to be read.
+    """
+    parsed = urlparse(redirect_uri or '')
+    if parsed.scheme in ('http', 'https') and parsed.netloc:
+        return parsed.netloc
+    # A native client's custom scheme (``cursor://…``) has no netloc; the scheme
+    # is the identifying part, so show the URI as given rather than nothing.
+    return redirect_uri or 'an unknown address'
 
 
 def _render_notice(headline: str, message: str) -> None:
@@ -185,6 +206,13 @@ def create() -> None:
                     f'{client_name} wants to access Wizzrobe as '
                     f'{user.preferred_name}.'
                 ).classes('consent-lede')
+                with ui.row().classes('consent-note consent-note--lock no-wrap'):
+                    ui.icon('open_in_new').props('size=sm')
+                    ui.label(
+                        f'Approving sends your access to {_redirect_target(pending.redirect_uri)}. '
+                        'Any app can call itself anything here, so check that address '
+                        'is the one you started from.'
+                    )
                 ui.separator().classes('consent-rule')
                 grant_summary()
                 with ui.column().classes('consent-write'):
