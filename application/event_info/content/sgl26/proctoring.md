@@ -156,8 +156,11 @@ close to their own finish, who can reasonably be let finish. Everything after
 that is holding up the next match.
 
 **Post-match conversation happens outside the room.** If the two of them want to
-talk it over, you can ask them to take it outside, before or after they pack their
-equipment up, whichever suits the moment. It is your call.
+talk it over, ask them to take it outside. Whether that's before or after they
+pack their equipment up comes down to how busy the room is: if the seat is
+needed, or a match is due on it soon, have them pack up first and talk outside
+after. A quiet room with nothing waiting on the station, and it doesn't matter
+which order they do it in.
 
 Then check the station is genuinely clear before the next pair sits down: things
 collected, seat free.
