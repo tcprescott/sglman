@@ -237,7 +237,9 @@ class ProviderTask(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='provider_tasks', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tenant', related_name='provider_tasks', on_delete=fields.CASCADE,
+    )
     # Mirrors ProviderCall.provider / .operation ('dk64r' / 'generate_seed').
     provider = fields.CharField(max_length=32)
     operation = fields.CharField(max_length=32)

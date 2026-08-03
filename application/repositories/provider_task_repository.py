@@ -46,7 +46,7 @@ class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
         tasks = await scoped(
             ProviderTask.filter(match_id__in=match_ids, status__in=_ACTIVE)
         ).order_by('created_at')
-        return {task.match_id: task for task in tasks}  # type: ignore[attr-defined]
+        return {task.match_id: task for task in tasks}
 
     @classmethod
     async def create_queued(cls, **fields) -> ProviderTask:
@@ -85,7 +85,7 @@ class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
         :meth:`due_for_poll` — the caller is the worker, holding a task it just
         read from the global queue.
         """
-        completed = (
+        completed: Optional[datetime] = (
             datetime.now(timezone.utc) if status in ProviderTaskStatus.terminal() else None
         )
         updated = await ProviderTask.filter(
@@ -93,7 +93,7 @@ class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
         ).update(status=status, completed_at=completed)
         if updated:
             task.status = status
-            task.completed_at = completed
+            task.completed_at = completed  # type: ignore[assignment]
         return bool(updated)
 
     @classmethod

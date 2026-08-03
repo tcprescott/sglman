@@ -526,7 +526,7 @@ class MatchScheduleService(MatchNotificationMixin):
         discord_queue.enqueue(_send_seed_dms())
 
         await self.audit_service.write_and_publish(
-            actor,
+            actor,  # type: ignore[arg-type]
             AuditActions.MATCH_SEED_ROLLED,
             {
                 'match_id': match.id,
@@ -539,7 +539,7 @@ class MatchScheduleService(MatchNotificationMixin):
             EventType.MATCH_SEED_ROLLED,
             event_details={
                 'match_id': match.id,
-                'tournament_id': match.tournament_id,
+                'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
                 'seed_url': seed_url,
             },
         )

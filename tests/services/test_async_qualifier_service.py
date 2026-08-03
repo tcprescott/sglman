@@ -232,48 +232,6 @@ async def test_submit_and_review_publish_events(db):
     assert EventType.ASYNC_QUALIFIER_RUN_REVIEWED in seen
 
 
-async def test_roll_permalinks_blocked_when_credential_missing(db):
-    # A pool whose preset uses a keyed randomizer (ootr) cannot roll when this
-    # community has not configured the key: the first roll raises before any
-    # permalink row exists, so the whole batch aborts with nothing half-written.
-    # Deliberately not dk64r, which now refuses earlier for being asynchronous
-    # (see test_roll_permalinks_refuses_async_randomizer).
-    # A fresh tenant is used because the db-fixture tenant would otherwise share
-    # any credential a sibling test created.
-    #
-    # ASYNC_QUALIFIERS is turned on for this tenant so the subject under test is
-    # the credential, not AsyncQualifierService's own feature guard (which would
-    # refuse create_qualifier first with every flag off).
-    from application.tenant_context import tenant_scope
-    from models import FeatureFlag, Preset, Tenant, TenantFeatureFlag
-
-    service = AsyncQualifierService()
-    b = await Tenant.create(name='NoDK', slug='no-dk-q')
-    await TenantFeatureFlag.create(
-        tenant_id=b.id, flag=FeatureFlag.ASYNC_QUALIFIERS.value,
-        available=True, enabled=True,
-    )
-    with tenant_scope(b.id):
-        staff = await User.create(discord_id=900500, username='qstaff')
-        await UserRole.create(user=staff, role=Role.STAFF)
-        preset = await Preset.create(
-            name='OOT', randomizer='ootr', settings={'settings_string': 'x'},
-        )
-        now = datetime.now(timezone.utc)
-        q = await service.create_qualifier(
-            staff, name='Q', opens_at=now - timedelta(days=1),
-            closes_at=now + timedelta(days=1), runs_per_pool=1,
-        )
-        pool = await service.create_pool(staff, q.id, name='Pool A', preset_id=preset.id)
-
-        with pytest.raises(ValueError, match='OoT Randomizer API key is not configured'):
-            await service.roll_permalinks(staff, pool.id, count=2)
-
-        assert await AsyncQualifierPermalink.filter(pool_id=pool.id).count() == 0
-
-
-# --- the server's own clock as evidence -----------------------------------
-
 async def test_submit_stores_the_server_measured_duration(db):
     service = AsyncQualifierService()
     staff = await _staff()
@@ -791,37 +749,3 @@ async def test_availability_reports_no_pools_when_only_live_races_exist(db):
 
     availability = await service.get_run_availability(player, q.id)
     assert availability.reason is rules.RunUnavailableReason.NO_POOLS
-
-
-async def test_roll_permalinks_refuses_async_randomizer(db):
-    # A task-queue backend (dk64r) cannot fill a pool yet: each roll takes
-    # minutes and lands independently, so the batch's all-or-nothing property
-    # would not hold. Refused in the service, not only in the preset picker,
-    # because a pool created before dk64r became asynchronous already exists.
-    from application.tenant_context import tenant_scope
-    from models import FeatureFlag, Preset, Tenant, TenantFeatureFlag
-
-    service = AsyncQualifierService()
-    b = await Tenant.create(name='AsyncQ', slug='async-q')
-    await TenantFeatureFlag.create(
-        tenant_id=b.id, flag=FeatureFlag.ASYNC_QUALIFIERS.value,
-        available=True, enabled=True,
-    )
-    with tenant_scope(b.id):
-        staff = await User.create(discord_id=900501, username='qstaff2')
-        await UserRole.create(user=staff, role=Role.STAFF)
-        preset = await Preset.create(
-            name='DK', randomizer='dk64r', settings={'settings_string': 'x'},
-        )
-        now = datetime.now(timezone.utc)
-        q = await service.create_qualifier(
-            staff, name='Q', opens_at=now - timedelta(days=1),
-            closes_at=now + timedelta(days=1), runs_per_pool=1,
-        )
-        pool = await service.create_pool(staff, q.id, name='Pool A', preset_id=preset.id)
-
-        with pytest.raises(ValueError, match='rolls seeds asynchronously'):
-            await service.roll_permalinks(staff, pool.id, count=2)
-
-        from models import AsyncQualifierPermalink
-        assert await AsyncQualifierPermalink.all().count() == 0

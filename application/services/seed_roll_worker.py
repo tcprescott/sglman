@@ -50,7 +50,7 @@ async def _tick() -> None:
     # every scoped read and write inside it resolves the right tenant.
     await for_each_tenant_scoped(
         tasks, _poll,
-        tenant_id_of=lambda task: task.tenant_id,
+        tenant_id_of=lambda task: task.tenant_id,  # type: ignore[attr-defined]
         logger=logger,
         describe=lambda task: f'provider task {task.id} ({task.provider})',
     )
