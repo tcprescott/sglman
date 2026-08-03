@@ -187,6 +187,10 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
            icon="casino" color="primary" size="sm">
         Generate
     </q-btn>
+    <q-icon v-if="props.row.seed_roll_error && !props.value && !props.row.seed_rolling_since"
+            name="error_outline" class="st-pending q-ml-xs" size="xs">
+        <q-tooltip>Last roll failed: {{ props.row.seed_roll_error }} Generate again to retry.</q-tooltip>
+    </q-icon>
     <span v-if="props.value">
         <template v-if="/^https?:\\/\\//.test(props.value)">
             <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">

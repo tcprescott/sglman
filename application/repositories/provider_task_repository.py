@@ -11,6 +11,10 @@ from models import ProviderTask, ProviderTaskStatus
 # the scan's shape is one thing to read.
 _ACTIVE = (ProviderTaskStatus.QUEUED, ProviderTaskStatus.RUNNING)
 
+# Terminal states that mean "this roll produced nothing". Kept apart from
+# SUCCEEDED because these are the ones a person needs told about.
+_FAILED = (ProviderTaskStatus.FAILED, ProviderTaskStatus.ABANDONED)
+
 
 class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
     model = ProviderTask
@@ -35,18 +39,37 @@ class ProviderTaskRepository(TenantScopedRepository[ProviderTask]):
         ).order_by('-created_at').first()
 
     @classmethod
-    async def latest_for_matches(cls, match_ids: List[int]) -> dict[int, ProviderTask]:
-        """Newest active task per match, for rendering many rows in one query.
+    async def latest_failure_for_match(cls, match_id: int) -> Optional[ProviderTask]:
+        """The most recent roll for a match that produced nothing, if any."""
+        return await scoped(
+            ProviderTask.filter(match_id=match_id, status__in=_FAILED)
+        ).order_by('-created_at').first()
 
-        The match table asks "is this row rolling?" for every row it draws; one
-        query for the page beats one per row.
+    @classmethod
+    async def board_state_for_matches(
+        cls, match_ids: List[int],
+    ) -> tuple[dict[int, ProviderTask], dict[int, ProviderTask]]:
+        """``(rolling, failed)`` newest-per-match, in **one** query.
+
+        The seed cell asks two questions of every row it draws — is this rolling,
+        and did the last roll break — and a board renders many rows. Fetching
+        both states together and partitioning here keeps that at one round trip
+        rather than one per question (``tests/test_query_budget.py`` holds the
+        line). Ascending order, so the last write per match wins: the newest.
         """
         if not match_ids:
-            return {}
+            return {}, {}
         tasks = await scoped(
-            ProviderTask.filter(match_id__in=match_ids, status__in=_ACTIVE)
+            ProviderTask.filter(
+                match_id__in=match_ids, status__in=_ACTIVE + _FAILED,
+            )
         ).order_by('created_at')
-        return {task.match_id: task for task in tasks}
+        rolling: dict[int, ProviderTask] = {}
+        failed: dict[int, ProviderTask] = {}
+        for task in tasks:
+            bucket = rolling if task.status in _ACTIVE else failed
+            bucket[task.match_id] = task
+        return rolling, failed
 
     @classmethod
     async def create_queued(cls, **fields) -> ProviderTask:

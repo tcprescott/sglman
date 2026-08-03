@@ -56,13 +56,15 @@ async def test_active_for_match_does_not_cross_tenants(tasks_in_both):
         assert await ProviderTaskRepository.active_for_match(matches[b.id].id) is None
 
 
-async def test_latest_for_matches_does_not_cross_tenants(tasks_in_both):
+async def test_board_state_does_not_cross_tenants(tasks_in_both):
     a, b, matches, tasks = tasks_in_both
     with tenant_scope(a.id):
-        by_match = await ProviderTaskRepository.latest_for_matches(
+        rolling, failed = await ProviderTaskRepository.board_state_for_matches(
             [matches[a.id].id, matches[b.id].id],
         )
-        assert set(by_match) == {matches[a.id].id}
+        # Another community's match id is passed in and must contribute nothing.
+        assert set(rolling) == {matches[a.id].id}
+        assert failed == {}
 
 
 async def test_create_stamps_the_ambient_tenant(two_tenants):

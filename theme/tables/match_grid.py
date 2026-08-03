@@ -222,6 +222,10 @@ _SEED_DETAIL = '''
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
                     Generate
                 </q-btn>
+                <span v-if="props.row.seed_roll_error && !props.row.generated_seed && !props.row.seed_rolling_since"
+                      class="st-pending" style="flex-basis: 100%;">
+                    <q-icon name="error_outline" size="14px" class="q-mr-xs" />Last roll failed: {{ props.row.seed_roll_error }} Generate again to retry.
+                </span>
                 <template v-if="props.row.generated_seed">
                     <a v-if="props.row.generated_seed.startsWith('https://') || props.row.generated_seed.startsWith('http://')"
                        :href="props.row.generated_seed" target="_blank" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>

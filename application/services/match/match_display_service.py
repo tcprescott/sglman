@@ -73,8 +73,9 @@ class MatchDisplayService:
         acks = await self.ack_repository.list_for_match(match)
         volunteers = await self.volunteer_repository.names_by_match([match.id])
         rolling = await self.provider_task_repository.active_for_match(match.id)
+        failed = await self.provider_task_repository.latest_failure_for_match(match.id)
         return self._format_match_for_display(
-            match, acks, volunteers.get(match.id, []), rolling,
+            match, acks, volunteers.get(match.id, []), rolling, failed,
         )
 
     async def get_matches_for_display(
@@ -117,11 +118,13 @@ class MatchDisplayService:
         volunteer_map = await self.volunteer_repository.names_by_match(match_ids_loaded)
         # One query for the whole page, not one per row: the seed cell asks "is
         # this match rolling?" of every row it draws.
-        rolling_map = await self.provider_task_repository.latest_for_matches(match_ids_loaded)
+        rolling_map, failed_map = await self.provider_task_repository.board_state_for_matches(
+            match_ids_loaded,
+        )
         return [
             self._format_match_for_display(
                 m, ack_map.get(m.id, []), volunteer_map.get(m.id, []),
-                rolling_map.get(m.id),
+                rolling_map.get(m.id), failed_map.get(m.id),
             )
             for m in matches
         ]
@@ -227,6 +230,7 @@ class MatchDisplayService:
         acknowledgments: Optional[List[MatchAcknowledgment]] = None,
         stream_volunteers: Optional[List[str]] = None,
         rolling_task: Optional['ProviderTask'] = None,
+        failed_task: Optional['ProviderTask'] = None,
     ) -> Dict[str, Any]:
         """Format a match object for UI display."""
         # Get state and corresponding timestamp
@@ -344,6 +348,15 @@ class MatchDisplayService:
             'seed_rolling_label': (
                 rolling_elapsed_label(rolling_task.created_at)
                 if rolling_task is not None else ''
+            ),
+            # Why the last roll produced nothing. Without this the row reverts to
+            # a plain Generate button, which is exactly what an unrolled match
+            # looks like — so the person who clicked and walked away is never
+            # told it broke. Only meaningful while the match has no seed; a
+            # later successful roll fills that in and the cell stops asking.
+            'seed_roll_error': (
+                failed_task.error or 'The seed roll did not complete.'
+                if failed_task is not None else ''
             ),
             # Players the seed DM cannot reach — no linked Discord account, or
             # DMs opted out. This is deliverability, not delivery: it mirrors the
