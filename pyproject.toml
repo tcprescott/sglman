@@ -14,7 +14,7 @@ pyyaml = "^6.0.2"
 asyncpg = "^0.31.0"
 tortoise-orm = {extras = ["asyncpg"], version = "^0.24.0"}
 aerich = {extras = ["toml"], version = "^0.8.1"}
-cryptography = "^48.0.0"
+cryptography = "^50.0.0"
 zenora = "^0.0.3.post1"
 python-dotenv = "^1.1.1"
 discord-py = "^2.7.1"
