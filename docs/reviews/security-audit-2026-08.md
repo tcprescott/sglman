@@ -208,10 +208,16 @@ Recorded so the next audit does not re-derive them.
   production. `PublicCacheMiddleware` strips `Set-Cookie` from the two
   `Cache-Control: public` spectator routes, whose renders read no session.
 - **Dependencies.** Current across the board — `starlette` 1.3.1, `fastapi`
-  0.136.3, `cryptography` 48.0.1, `aiohttp` 3.14.1, `urllib3` 2.7.0. No known
-  advisories. `pydantic` is pinned to `2.14.0a1`, an alpha; that is a stability
-  and supply-chain question rather than a vulnerability, but a released version
-  is the better resting place.
+  0.136.3, `cryptography` 48.0.1, `urllib3` 2.7.0. One advisory, which I missed
+  by reading versions instead of running the scanner: `aiohttp` 3.14.1 carries
+  **CVE-2026-59881**, fixed in 3.14.2. CI's `pip-audit` job caught it. Bumped to
+  3.14.3; it is transitive (discord.py, NiceGUI, pyz3r) and every constraint
+  already allowed it, so the lock moved and `pyproject.toml` did not. The lesson
+  is the method, not the package: "these look recent" is not an advisory check,
+  and `pip-audit` was sitting in the workflow the whole time. `pydantic` is
+  pinned to `2.14.0a1`, an alpha; that is a stability and supply-chain question
+  rather than a vulnerability, but a released version is the better resting
+  place.
 - **Secrets.** Nothing credential-shaped committed in the week's diff. Token
   auth failures log a prefix, never the value; audit rows record an endpoint
   host, never a push key.
