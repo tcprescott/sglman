@@ -68,6 +68,46 @@ def install_timezone_detection() -> None:
     )
 
 
+def apply_brand_palette(colors: dict[str, str]) -> None:
+    """Point Quasar's palette and the ``--wiz-*`` brand vars at ``colors``.
+
+    Shared by every surface that paints itself Wizzrobe — the tenant layout, the
+    platform chrome, and the auth wait screens — so a community's colours reach
+    all of them and none of them drift. Semantic status colours stay fixed,
+    warm-tuned to the ``--status-*`` tokens in styles.css.
+    """
+    ui.colors(
+        primary=colors['primary'],
+        secondary=colors['secondary'],
+        accent=colors['accent'],
+        positive='#557A1F',
+        negative='#B3362B',
+        warning='#B45309',
+        info='#0E7470',
+    )
+    # ui.colors only recolors Quasar's palette; the header bar, links, and
+    # section titles read the --wiz-* brand vars from styles.css. Re-point
+    # those to the tenant palette here (loaded after the stylesheet, so this
+    # wins). --wiz-header-bg is set on :root for the light bar; the dark
+    # rule in styles.css re-points it to charcoal on <body>, which stays
+    # authoritative in dark mode. The two dark text-tint rules mirror the
+    # !important defaults in styles.css so primary/secondary text follows the
+    # tenant accent/secondary in dark mode too.
+    ui.add_head_html(
+        '<style>'
+        ':root{'
+        f'--wiz-gold-deep:{colors["primary"]};'
+        f'--wiz-gold:{colors["accent"]};'
+        f'--wiz-ember-deep:{colors["secondary"]};'
+        f'--wiz-ember:{colors["secondary"]};'
+        f'--wiz-header-bg:{colors["header"]};'
+        '}'
+        '.body--dark .text-primary,.q-dark .text-primary{color:var(--wiz-gold)!important;}'
+        '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--wiz-ember)!important;}'
+        '</style>'
+    )
+
+
 def dark_mode_button(dark: ui.dark_mode) -> ui.button:
     """The header's dark-mode toggle, bound to ``dark`` and the user's session.
 
@@ -122,15 +162,7 @@ def render_platform_chrome(
     # to the platform, and the consent screen in particular grants a credential
     # that is not scoped to any one community.
     from application.services.tenant_theme_service import DEFAULT_THEME
-    ui.colors(
-        primary=DEFAULT_THEME['primary'],
-        secondary=DEFAULT_THEME['secondary'],
-        accent=DEFAULT_THEME['accent'],
-        positive='#557A1F',
-        negative='#B3362B',
-        warning='#B45309',
-        info='#0E7470',
-    )
+    apply_brand_palette(DEFAULT_THEME)
     with ui.header().classes(replace='row items-center no-wrap wiz-header'):
         ui.label('Wizzrobe').classes('wiz-wordmark')
         if subtitle:

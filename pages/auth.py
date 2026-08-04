@@ -44,7 +44,7 @@ from application.utils.tenant_urls import (
 from models import Role, Tenant, User
 from theme.notice import drain_notice, stash_notice
 from theme.tables.mobile_grid import enable_mobile_grid
-from theme.waiting import waiting_panel
+from theme.waiting import waiting_screen
 
 logger = logging.getLogger(__name__)
 
@@ -293,11 +293,12 @@ def create() -> None:
 
     @ui.page('/oauth/callback')
     async def oauth_callback(client: Client):
-        await client.connected()
         # The code-for-token exchange and the role sync below are two network
         # round trips the visitor stares at a blank page through. Say what is
-        # happening; the page navigates away before anyone finishes the fact.
-        waiting_panel('Signing you in…')
+        # happening — built before the socket connects so the spinner paints
+        # while the work runs, and held on screen long enough to read the fact.
+        wait = await waiting_screen('Signing you in…')
+        await client.connected()
         url = await ui.run_javascript('window.location.href')
         expected_state = app.storage.user.pop('oauth_state', None)
         try:
@@ -307,21 +308,21 @@ def create() -> None:
             if 'error' in params:
                 logger.warning('OAuth callback returned error: %s', params.get('error'))
                 stash_notice("That Discord login didn't go through. Try again when you're ready.", color='warning')
-                ui.navigate.to('/login')
+                await wait.navigate_to('/login')
                 return
 
             returned_state = (params.get('state') or [None])[0]
             if not expected_state or returned_state != expected_state:
                 logger.warning('OAuth state mismatch on callback.')
                 stash_notice('That login link expired. Log in again to continue.', color='warning')
-                ui.navigate.to('/login')
+                await wait.navigate_to('/login')
                 return
 
             code = (params.get('code') or [None])[0]
             if not code:
                 logger.warning('OAuth callback missing authorization code.')
                 stash_notice("That login didn't go through. Try again.", color='warning')
-                ui.navigate.to('/login')
+                await wait.navigate_to('/login')
                 return
 
             # Rebuild the exact redirect_uri the /login leg sent (Discord requires
@@ -359,7 +360,7 @@ def create() -> None:
                     'This account is inactive. Contact staff if this seems wrong.',
                     color='negative',
                 )
-                ui.navigate.to('/login')
+                await wait.navigate_to('/login')
                 return
 
             # Design B: this login began via /oauth/start on the platform host for
@@ -405,12 +406,12 @@ def create() -> None:
             referrer = app.storage.user.get('referrer_path', '/')
             if referrer.split('?', 1)[0] in AUTH_ROUTES:
                 referrer = '/'
-            ui.navigate.to(referrer)
+            await wait.navigate_to(referrer)
             app.storage.user.pop('referrer_path', None)
         except Exception:
             logger.exception('Unexpected error during OAuth callback')
             stash_notice('Something went wrong logging you in. Give it another try.', color='negative')
-            ui.navigate.to('/login')
+            await wait.navigate_to('/login')
 
     @ui.page('/oauth/start')
     async def oauth_start(request: Request, client: Client) -> Optional[RedirectResponse]:
@@ -444,8 +445,8 @@ def create() -> None:
     @ui.page('/session/claim')
     async def session_claim(client: Client) -> None:
         """Design B claim (custom domain): validate the handoff and set the session."""
+        wait = await waiting_screen('Finishing your login…')
         await client.connected()
-        waiting_panel('Finishing your login…')
         url = await ui.run_javascript('window.location.href')
         parsed = urlparse(url)
         token = (parse_qs(parsed.query).get('token') or [None])[0]
@@ -455,7 +456,7 @@ def create() -> None:
         payload = handoff_service.claim(token, request_host) if (token and request_host) else None
         if payload is None:
             stash_notice("That login link has expired or already been used. Log in again to continue.", color='warning')
-            ui.navigate.to('/login')
+            await wait.navigate_to('/login')
             return
         # Login-CSRF guard: the token must have been minted for a login *this*
         # browser initiated — i.e. the secret behind the committed hash must be
@@ -466,7 +467,7 @@ def create() -> None:
                 and hmac.compare_digest(expected, _bind_commit(bind))):
             logger.warning('OAuth handoff browser-binding mismatch on %r', request_host)
             stash_notice("That login link isn't valid for this browser. Log in again from here.", color='warning')
-            ui.navigate.to('/login')
+            await wait.navigate_to('/login')
             return
         # Re-check the account is still active (it was provisioned at mint time,
         # but could have been deactivated inside the short TTL window).
@@ -474,7 +475,7 @@ def create() -> None:
         if user is None:
             app.storage.user.clear()
             stash_notice('This account is inactive. Contact staff if this is a mistake.', color='negative')
-            ui.navigate.to('/login')
+            await wait.navigate_to('/login')
             return
         app.storage.user.update({
             'username': payload.get('username'),
@@ -487,7 +488,7 @@ def create() -> None:
         # Host mode: the claim runs on the tenant's own domain, where root_path
         # (and so the client's options.prefix) is empty — the path travels
         # unstripped, exactly as minted.
-        ui.navigate.to(_safe_next(payload.get('next') or '/'))
+        await wait.navigate_to(_safe_next(payload.get('next') or '/'))
 
 
 def _login_as(user: User, root_path: str = '') -> None:

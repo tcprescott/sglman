@@ -1281,6 +1281,35 @@ body.body--dark {
     font-size: 0.95em;
 }
 
+/* theme/waiting.waiting_screen — the whole-page form, for a route that is
+   nothing but a wait (the OAuth callback, the handoff claim). Centered in the
+   viewport rather than pinned to the top of a blank page. */
+.wiz-waiting-screen {
+    width: 100%;
+    min-height: 100dvh;
+    gap: 0.75em;
+    padding: 1em;
+}
+
+/* A fact set loose across a desktop viewport reads as one long line; hold it to
+   a paragraph's width. */
+.wiz-waiting-screen .wiz-waiting {
+    max-width: 32rem;
+}
+
+.wiz-waiting-brand {
+    font-family: var(--font-display);
+    font-size: 1.6em;
+    font-weight: 600;
+    color: var(--wiz-gold-deep);
+    letter-spacing: 0.01em;
+    text-align: center;
+}
+
+.body--dark .wiz-waiting-brand {
+    color: var(--wiz-gold);
+}
+
 /* The /cat-facts page (pages/cat_facts.py). */
 .wiz-cat-featured {
     gap: 0.75em;
