@@ -53,6 +53,7 @@ FILE_CHECKS = [
     "check_event_types",
     "check_feature_flag_gating",
     "check_file_length",
+    "check_fixture_cost",
     "check_layer_exports",
     "check_markdown_xss",
     "check_native_datetime_inputs",
@@ -83,10 +84,20 @@ REPO_CHECKS = [
     "check_seed_coverage",
 ]
 
-# Deliberately not run here: run_full_tests / run_related_tests are test
-# runners, not checks, and enforce_safe_commands guards Bash tool calls.
-# check_migration_drift reads the working tree, which is clean in CI — the
-# ``migrations`` job proves the chain applies instead.
+# Deliberately not replayed here, each with the reason. Data rather than a
+# comment because ``tests/test_guardrail_ci_parity.py`` reads it: every script in
+# ``.claude/scripts/`` must appear in one of the lists above or in this mapping,
+# so a new hook cannot quietly end up enforced in a Claude session and nowhere
+# else. That is exactly how ``check_fixture_cost`` was missed for a while.
+EXCLUDED_CHECKS = {
+    "run_full_tests": "a test runner, not a check — CI runs pytest directly",
+    "run_related_tests": "a test runner, not a check — CI runs pytest directly",
+    "enforce_safe_commands": "guards Bash tool calls, which have no CI analogue",
+    "check_migration_drift": (
+        "reads the working tree, which is clean in CI — the `migrations` job "
+        "proves the chain applies to a real PostgreSQL instead"
+    ),
+}
 
 TEXT_SUFFIXES = {".py", ".md", ".html", ".js", ".json", ".yaml", ".yml", ".toml"}
 

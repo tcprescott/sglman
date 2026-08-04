@@ -5,6 +5,14 @@ on:
     branches: [main]
     tags: ["v*"]
 
+permissions:
+  contents: read
+
+# Never cancel a publish in flight: a half-pushed image is worse than a slow one.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -12,24 +20,15 @@ env:
 jobs:
   test:
     # Gate the image build on a green suite so a red main never ships :latest.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install Poetry
-        run: pipx install poetry
-      - name: Install dependencies
-        run: poetry install --no-interaction
-      - name: Ruff
-        run: poetry run ruff check .
-      - name: Pytest
-        run: poetry run pytest -q
+    # The whole suite, not a subset of it — calling test.yml means the gate is
+    # lint + guardrails + pytest + the PostgreSQL and migration lanes, and it
+    # cannot drift away from what a PR was checked against.
+    uses: ./.github/workflows/test.yml
 
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

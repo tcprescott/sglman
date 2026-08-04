@@ -28,9 +28,10 @@ current on-disk content and the write is blocked only when the number of matches
 *increases*, so rewriting or editing around an existing occurrence never blocks.
 Both have a verified zero baseline in ``tests/`` today.
 
-This hook only fires when Claude Code writes the file. The load-bearing layer is
+As a hook this fires only when Claude Code writes the file; ``scripts/guardrails.py``
+replays it in CI over the diff. The load-bearing layer either way is
 ``tests/test_fixture_performance.py``, which asserts the same invariants (plus
-the cache identity checks) for every contributor in CI.
+the cache identity checks) against the finished tree rather than the diff.
 
 Exit 0 = no net-new occurrence (or not applicable); exit 2 = a rebuild is being
 re-introduced (stderr names the shared primitive to use instead).

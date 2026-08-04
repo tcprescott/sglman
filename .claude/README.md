@@ -497,6 +497,28 @@ don't exist in a fresh CI/web container). Its sibling `/code-quality-audit` (see
 Skills & agents below) mines the *codebase* rather than the session history; the two
 feed the same hook pipeline.
 
+### The same checks in CI — `scripts/guardrails.py`
+As hooks, everything above fires on a Write/Edit **inside a Claude session and
+nowhere else**: a hand-written commit, a merge, or an edit from another tool
+passes all of it. `scripts/guardrails.py` (repo root, not this directory)
+replays each check against files on disk, synthesizing the payload it already
+parses — it reimplements nothing. The `guardrails` job in `test.yml` runs it
+over a PR's changed files; `guardrail-sweep.yml` runs it over the whole tree
+weekly, since a changed-files run cannot see a violation that arrived by a route
+no diff covers (a rule tightened after the code was written).
+
+Four scripts are excluded, named with their reason in the runner's
+`EXCLUDED_CHECKS`: the two test runners, `enforce_safe_commands` (Bash calls
+have no CI analogue), and `check_migration_drift` (reads the working tree, clean
+in CI — the `migrations` job proves the chain applies instead).
+`tests/test_guardrail_ci_parity.py` holds that line: every script here must be
+replayed or excluded, and must be wired in `settings.json`. Without it a new
+check silently binds one author on one tool, which is how `check_fixture_cost`
+went un-replayed for a while.
+
+`scripts/guardrail_baseline.json` records accepted pre-existing hits per
+(check, file); a run fails only when a count *grows*.
+
 ### Pre-existing doc automation — `hooks/*.sh`
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
 coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
