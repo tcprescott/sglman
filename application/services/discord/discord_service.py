@@ -88,7 +88,7 @@ _bot_instance: Optional[commands.Bot] = None
 # function-body imports). The bot package registers each interaction handler
 # and view factory here at startup, so the dependency now runs one way (the bot
 # package -> ``application.services``) and this module never imports it back.
-# Mirrors ``application/match_live.py``.
+# Mirrors ``application/events/match_live.py``.
 # See docs/reviews/2026-07-project-structure-review.md, roadmap item 21.
 # ---------------------------------------------------------------------------
 
