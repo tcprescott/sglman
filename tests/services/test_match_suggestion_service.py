@@ -267,7 +267,7 @@ class TestRoundWindow:
 
 class TestBestCandidate:
     def test_returns_none_when_no_candidates(self, service):
-        result = service._best_candidate([], [], {}, set(), [], timedelta(hours=2))
+        result = service._best_candidate([], [], {}, [], timedelta(hours=2))
         assert result is None
 
     def test_prefers_lower_occupancy(self, service):
@@ -280,13 +280,13 @@ class TestBestCandidate:
             (slot_busy, slot_busy + duration),
             (slot_free, slot_free + duration),
         ]
-        result = service._best_candidate(candidates, [], {}, set(), [match], duration)
+        result = service._best_candidate(candidates, [], {}, [match], duration)
         # Should pick slot_free (lower occupancy)
         assert result is not None
         result_eastern_hour = result.astimezone(EASTERN_TZ).hour
         assert result_eastern_hour == 12
 
-    def test_skips_unavailable_slots_for_players_with_windows(self, service):
+    def test_skips_slots_a_player_blocked_out(self, service):
         from models import VolunteerAvailabilityStatus
 
         slot_start = _local(10)
@@ -299,14 +299,56 @@ class TestBestCandidate:
             status=VolunteerAvailabilityStatus.UNAVAILABLE,
         )
         avail_map = {player_id: [unavailable_window]}
-        has_windows = {player_id}
 
         result = service._best_candidate(
             [(slot_start, slot_end)],
             [player_id],
             avail_map,
-            has_windows,
             [],
             timedelta(hours=2),
         )
         assert result is None
+
+    def test_slot_outside_every_window_is_eligible(self, service):
+        """Opt-out: a player who blocked a morning is still schedulable at noon."""
+        from models import VolunteerAvailabilityStatus
+
+        slot_start = _local(12)
+        player_id = 1
+        avail_map = {player_id: [SimpleNamespace(
+            starts_at=_local(8),
+            ends_at=_local(11),
+            status=VolunteerAvailabilityStatus.UNAVAILABLE,
+        )]}
+
+        result = service._best_candidate(
+            [(slot_start, slot_start + timedelta(hours=2))],
+            [player_id],
+            avail_map,
+            [],
+            timedelta(hours=2),
+        )
+        assert result is not None
+        assert result.astimezone(EASTERN_TZ).hour == 12
+
+    def test_prefers_a_slot_a_player_marked_preferred(self, service):
+        from models import VolunteerAvailabilityStatus
+
+        duration = timedelta(hours=2)
+        plain, preferred = _local(10), _local(14)
+        player_id = 1
+        avail_map = {player_id: [SimpleNamespace(
+            starts_at=_local(14),
+            ends_at=_local(18),
+            status=VolunteerAvailabilityStatus.PREFERRED,
+        )]}
+
+        result = service._best_candidate(
+            [(plain, plain + duration), (preferred, preferred + duration)],
+            [player_id],
+            avail_map,
+            [],
+            duration,
+        )
+        assert result is not None
+        assert result.astimezone(EASTERN_TZ).hour == 14

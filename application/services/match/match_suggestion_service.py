@@ -8,6 +8,10 @@ no suitable slot exists in that range.
 Capacity information is never surfaced to callers — the suggestion appears as a
 neutral "best time," invisibly spreading load across the venue.
 
+Player availability is read opt-out: a slot is eligible unless a player has
+blocked it, and a slot inside a player's PREFERRED window scores higher. A
+player who has entered nothing constrains nothing.
+
 A bracket matchup narrows that search to its round's window
 (``Bracket.config['rounds'][str(round)]``): pass ``bracket_match_id`` and the
 suggestion is a **hard bound** — only slots the match fits inside wholly are
@@ -23,6 +27,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from application.repositories.bracket_repository import BracketRepository
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
+from application.services.player_availability_service import PlayerAvailabilityService
 from application.services.system_config_service import SystemConfigService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
@@ -92,14 +97,15 @@ class MatchSuggestionService:
         event_start_dt = parse_local_datetime(event_start.isoformat(), '00:00', tz)
         event_end_dt = parse_local_datetime(event_end.isoformat(), '23:59', tz)
         avail_map = await self._build_availability_map(player_ids, event_start_dt, event_end_dt)
-        has_windows = await self.availability_repository.has_any(player_ids)
 
         # --- Primary search: next 4 hours ---
         primary_end = now + timedelta(hours=_PRIMARY_WINDOW_HOURS)
         primary_candidates = self._generate_candidates(
             now, primary_end, hours_map, duration, event_start, event_end, tz, round_end,
         )
-        result = self._best_candidate(primary_candidates, player_ids, avail_map, has_windows, existing_matches, duration)
+        result = self._best_candidate(
+            primary_candidates, player_ids, avail_map, existing_matches, duration,
+        )
         if result is not None:
             return result
 
@@ -110,7 +116,9 @@ class MatchSuggestionService:
         # Exclude slots already checked in the primary pass
         primary_set = {s for s, _ in primary_candidates}
         fallback_candidates = [(s, e) for s, e in fallback_candidates if s not in primary_set]
-        result = self._best_candidate(fallback_candidates, player_ids, avail_map, has_windows, existing_matches, duration)
+        result = self._best_candidate(
+            fallback_candidates, player_ids, avail_map, existing_matches, duration,
+        )
         if result is not None:
             return result
 
@@ -221,7 +229,6 @@ class MatchSuggestionService:
         candidates: List[Tuple[datetime, datetime]],
         player_ids: List[int],
         avail_map,
-        has_windows: set,
         existing_matches: List[Match],
         duration: timedelta,
     ) -> Optional[datetime]:
@@ -234,16 +241,8 @@ class MatchSuggestionService:
             eligible = True
             for pid in player_ids:
                 windows: List[PlayerAvailability] = avail_map.get(pid, [])
-                if pid not in has_windows:
-                    # No windows declared → unconstrained
-                    preferred_count += 0
-                    continue
                 status = _covers(windows, slot_start, slot_end)
                 if status == VolunteerAvailabilityStatus.UNAVAILABLE:
-                    eligible = False
-                    break
-                if status is None:
-                    # Windows exist but none cover this slot → unavailable
                     eligible = False
                     break
                 if status == VolunteerAvailabilityStatus.PREFERRED:
@@ -327,13 +326,6 @@ def _parse_config_dt(value: Optional[str], tz) -> Optional[datetime]:
 def _covers(
     windows: Sequence[PlayerAvailability], start: datetime, end: datetime,
 ) -> Optional[VolunteerAvailabilityStatus]:
-    result: Optional[VolunteerAvailabilityStatus] = None
-    for w in windows:
-        if w.starts_at < end and w.ends_at > start:
-            if w.status == VolunteerAvailabilityStatus.UNAVAILABLE:
-                return VolunteerAvailabilityStatus.UNAVAILABLE
-            if w.status == VolunteerAvailabilityStatus.PREFERRED:
-                result = VolunteerAvailabilityStatus.PREFERRED
-            elif result is None:
-                result = VolunteerAvailabilityStatus.AVAILABLE
-    return result
+    """Opt-out reading of a player's windows: a slot they have said nothing
+    about is one they can play."""
+    return PlayerAvailabilityService.covers(windows, start, end)

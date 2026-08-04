@@ -12,7 +12,6 @@
   "application/repositories/discord_scheduled_event_repository.py": 1,
   "application/repositories/equipment_repository.py": 2,
   "application/repositories/match_watcher_repository.py": 1,
-  "application/repositories/player_availability_repository.py": 1,
   "application/repositories/racetime_bot_repository.py": 2,
   "application/repositories/speedgaming_episode_repository.py": 1,
   "application/repositories/speedgaming_event_link_repository.py": 1,

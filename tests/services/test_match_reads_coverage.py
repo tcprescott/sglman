@@ -213,9 +213,13 @@ class TestFilterDropdowns:
 
 
 class TestCovers:
-    def test_no_overlap_returns_none(self):
-        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 9), Status.AVAILABLE)
-        assert _covers([w], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) is None
+    def test_no_overlap_returns_available(self):
+        """Opt-out: a slot no window reaches is one the player can be given."""
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 9), Status.UNAVAILABLE)
+        assert _covers([w], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.AVAILABLE
+
+    def test_no_windows_at_all_returns_available(self):
+        assert _covers([], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.AVAILABLE
 
     def test_available_overlap_returns_available(self):
         w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.AVAILABLE)
@@ -284,26 +288,28 @@ class TestGenerateCandidatesCeiling:
 class TestBestCandidate:
     def test_unconstrained_player_without_windows_is_eligible(self, service):
         slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
-        result = service._best_candidate([slot], [99], {}, set(), [], timedelta(hours=2))
+        result = service._best_candidate([slot], [99], {}, [], timedelta(hours=2))
         assert result is not None
         assert result.astimezone(EASTERN_TZ).hour == 10
 
-    def test_player_window_not_covering_slot_is_skipped(self, service):
-        w = _win(to_display(2026, 1, 15, 6), to_display(2026, 1, 15, 8), Status.AVAILABLE)
+    def test_slot_outside_a_players_windows_is_eligible(self, service):
+        """Opt-out: blocking the early morning does not withdraw the rest."""
+        w = _win(to_display(2026, 1, 15, 6), to_display(2026, 1, 15, 8), Status.UNAVAILABLE)
         slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
-        result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
-        assert result is None
+        result = service._best_candidate([slot], [1], {1: [w]}, [], timedelta(hours=2))
+        assert result is not None
+        assert result.astimezone(EASTERN_TZ).hour == 10
 
     def test_unavailable_window_disqualifies_slot(self, service):
         w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.UNAVAILABLE)
         slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
-        result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
+        result = service._best_candidate([slot], [1], {1: [w]}, [], timedelta(hours=2))
         assert result is None
 
     def test_preferred_window_is_eligible(self, service):
         w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.PREFERRED)
         slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
-        result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
+        result = service._best_candidate([slot], [1], {1: [w]}, [], timedelta(hours=2))
         assert result is not None
         assert result.astimezone(EASTERN_TZ).hour == 10
 

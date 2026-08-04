@@ -2,7 +2,15 @@
 Player Availability Service - Business Logic Layer
 
 Self-service availability for any logged-in player. Unlike volunteer availability,
-this has no role or opt-in gate — any authenticated user may declare when they can play.
+this has no role or opt-in gate — any authenticated user may say when they cannot play.
+
+**Player availability is opt-out.** A player who has said nothing is available for
+the whole event; the windows they save are the times they *cannot* play (plus, as
+a bonus signal, the times they would prefer). This is the one place the two
+availability subsystems differ in meaning: volunteer windows are opt-in, so a
+volunteer who has said nothing is not offered a shift. Everything unspecified
+resolves through the ``default=AVAILABLE`` argument to
+:mod:`application.services.availability_windows`.
 """
 
 from datetime import datetime
@@ -15,9 +23,13 @@ from application.services import availability_windows
 from application.services.audit_service import AuditActions, AuditService
 from models import PlayerAvailability, User, VolunteerAvailabilityStatus
 
+#: Availability of a stretch nobody has said anything about. Players are
+#: available by default, so the absence of a window is a yes, not a shrug.
+DEFAULT_STATUS = VolunteerAvailabilityStatus.AVAILABLE
+
 
 class PlayerAvailabilityService:
-    """Player-declared availability windows."""
+    """Player-declared availability windows, read opt-out."""
 
     def __init__(self) -> None:
         self.repository = PlayerAvailabilityRepository()
@@ -31,10 +43,18 @@ class PlayerAvailabilityService:
         user: User,
         windows: Sequence[Tuple[datetime, datetime, VolunteerAvailabilityStatus, Optional[str]]],
     ) -> List[PlayerAvailability]:
-        """Replace the user's availability with the supplied windows (self-service)."""
+        """Replace the user's availability with the supplied windows (self-service).
+
+        An ``AVAILABLE`` window is dropped rather than stored: opt-out already
+        makes every unspoken-for hour available, so keeping one would be a row
+        that reads back as a declaration while changing no answer. The rule
+        lives here so the API, MCP and the editor all agree on what a saved set
+        contains.
+        """
         for starts_at, ends_at, _status, _note in windows:
             if ends_at <= starts_at:
                 raise ValueError("End time needs to be after the start time for each window.")
+        windows = [w for w in windows if w[2] != DEFAULT_STATUS]
 
         async with in_transaction():
             await self.repository.delete_for_user(user)
@@ -69,12 +89,13 @@ class PlayerAvailabilityService:
     def covers(
         windows: Sequence[PlayerAvailability], start: datetime, end: datetime,
     ) -> Optional[VolunteerAvailabilityStatus]:
-        """Return the strongest availability signal for a time window.
+        """Return the availability signal for a time window.
 
-        PREFERRED beats AVAILABLE; an overlapping UNAVAILABLE window wins outright.
-        Returns None when no window overlaps the range.
+        An overlapping UNAVAILABLE window wins outright; PREFERRED beats
+        AVAILABLE. A range no window touches is AVAILABLE — players block out
+        the times they cannot play rather than declaring the ones they can.
         """
-        return availability_windows.covers(windows, start, end)
+        return availability_windows.covers(windows, start, end, DEFAULT_STATUS)
 
     @staticmethod
     def effective_segments(
@@ -83,8 +104,10 @@ class PlayerAvailabilityService:
         """Split ``[start, end]`` into maximal segments of constant availability.
 
         Overlapping windows are resolved by :meth:`covers` precedence
-        (unavailable > preferred > available). Segments with no overlapping
-        window carry a ``None`` status. Adjacent segments of equal status are
-        merged so the result is the minimal set of contiguous spans.
+        (unavailable > preferred > available); everything they leave untouched
+        is AVAILABLE. Adjacent segments of equal status are merged so the
+        result is the minimal set of contiguous spans.
         """
-        return availability_windows.effective_segments(windows, start, end)
+        return availability_windows.effective_segments(
+            windows, start, end, DEFAULT_STATUS,
+        )

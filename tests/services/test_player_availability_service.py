@@ -41,13 +41,15 @@ def service():
 
 
 # ---------------------------------------------------------------------------
-# covers (static) — mirrors VolunteerAvailabilityService.covers
+# covers (static) — opt-out, unlike VolunteerAvailabilityService.covers
 # ---------------------------------------------------------------------------
 
 
 class TestCovers:
-    def test_returns_none_when_no_windows(self):
-        assert PlayerAvailabilityService.covers([], _dt(8), _dt(12)) is None
+    def test_available_when_no_windows(self):
+        """The whole point of opt-out: silence is a yes."""
+        assert PlayerAvailabilityService.covers([], _dt(8), _dt(12)) == \
+            VolunteerAvailabilityStatus.AVAILABLE
 
     def test_available_when_window_overlaps(self):
         windows = [make_window(7, 13)]
@@ -70,16 +72,16 @@ class TestCovers:
         result = PlayerAvailabilityService.covers(windows, _dt(8), _dt(12))
         assert result == VolunteerAvailabilityStatus.UNAVAILABLE
 
-    def test_non_overlapping_returns_none(self):
-        windows = [make_window(14, 18)]
+    def test_blocked_elsewhere_leaves_the_slot_available(self):
+        windows = [make_window(14, 18, VolunteerAvailabilityStatus.UNAVAILABLE)]
         result = PlayerAvailabilityService.covers(windows, _dt(8), _dt(12))
-        assert result is None
+        assert result == VolunteerAvailabilityStatus.AVAILABLE
 
     def test_touching_at_start_is_not_overlap(self):
-        # ends_at == slot start, so no overlap
-        windows = [make_window(4, 8)]
+        # ends_at == slot start, so the block does not reach this slot
+        windows = [make_window(4, 8, VolunteerAvailabilityStatus.UNAVAILABLE)]
         result = PlayerAvailabilityService.covers(windows, _dt(8), _dt(12))
-        assert result is None
+        assert result == VolunteerAvailabilityStatus.AVAILABLE
 
 
 # ---------------------------------------------------------------------------
@@ -98,13 +100,20 @@ class TestEffectiveSegments:
         assert len(segs) == 1
         assert segs[0][2] == VolunteerAvailabilityStatus.AVAILABLE
 
-    def test_gap_produces_none_status(self):
-        # Window only covers 10–12; 8–10 has no coverage
-        windows = [make_window(10, 12)]
+    def test_gap_is_available_not_unknown(self):
+        # Blocked 10–12; the untouched 8–10 is available, never None
+        windows = [make_window(10, 12, VolunteerAvailabilityStatus.UNAVAILABLE)]
         segs = PlayerAvailabilityService.effective_segments(windows, _dt(8), _dt(12))
         statuses = [s[2] for s in segs]
-        assert None in statuses
-        assert VolunteerAvailabilityStatus.AVAILABLE in statuses
+        assert None not in statuses
+        assert statuses == [
+            VolunteerAvailabilityStatus.AVAILABLE,
+            VolunteerAvailabilityStatus.UNAVAILABLE,
+        ]
+
+    def test_whole_range_available_with_no_windows(self):
+        segs = PlayerAvailabilityService.effective_segments([], _dt(8), _dt(12))
+        assert segs == [(_dt(8), _dt(12), VolunteerAvailabilityStatus.AVAILABLE)]
 
     def test_contiguous_same_status_merged(self):
         windows = [make_window(8, 10), make_window(10, 12)]

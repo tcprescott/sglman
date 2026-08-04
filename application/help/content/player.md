@@ -75,33 +75,35 @@ instead, not from here.
 ### Suggest a time
 
 :::snippet suggest-time
-**Suggest a time** fills in a slot for you. It looks for a time that sits inside
-the availability windows both players entered, falls within the event's operating
-hours, and avoids a moment the venue is already busy.
+**Suggest a time** fills in a slot for you. It looks for a time neither player
+has blocked out, falls within the event's operating hours, and avoids a moment
+the venue is already busy. A time either of you marked *Prefer* wins ties.
 
 It fills the fields in but does not book anything. Review what it picked and
 change it if it does not suit.
 
-If neither player has entered any availability it still suggests a quiet time; it
-just has less to work with. Add your windows under **My Availability**.
+If neither of you has blocked anything out, every hour of the event is fair
+game — block out what does not work for you under **When you can't play**.
 :::
 
-## When you can play
+## When you can't play
 
 :::snippet player-availability
-**My Availability** on Home is where you add the windows when you can *play*.
+You count as available for every hour the event is running. **When you can't
+play** on Home is where you carve out the hours you are not: a shift, a flight,
+a night you want off. Everything you leave alone stays open.
 
 It feeds one thing: **Suggest a time**. When you or your opponent are picking a
-slot for a match, that button looks for a time inside the windows both of you
-entered, within the event's hours, avoiding a moment the venue is already busy.
-The more you enter, the better a time it can find.
+slot for a match, that button skips anything either of you has blocked out and
+leans towards anything either of you marked *Prefer*.
 
-It is not a roster staff work from: nobody is reading your windows and
-scheduling you into them. If you enter nothing, Suggest a time simply has less
-to go on.
+Blocking a time out is a signal, not a lock — staff can still schedule you into
+it, and your opponent can still propose it. It is also not a roster: nobody is
+reading your windows and placing you into the hours you left open.
 
-This is separate from the availability editor on the Volunteer tab, which is when
-you can *work*. Filling in one does not fill in the other.
+This is separate from the availability editor on the Volunteer tab, which works
+the other way round: there you say when you *can* work, and a shift is only
+offered to you inside a window you entered.
 :::
 
 ## Your result

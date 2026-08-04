@@ -528,11 +528,13 @@ async def seed_for_tenant(
 
         # --- Player availability --------------------------------------------
         # Same three-day window the venue hours and the volunteer fixtures use.
+        # Player availability is opt-out, so the rows are blocks and preferences;
+        # player_four gets none on purpose — that is the default state, fully
+        # available, which the suggestion service and the heatmap must both show.
         player_avail_specs = {
-            "player_one": ("10:00", "18:00", VolunteerAvailabilityStatus.PREFERRED),
-            "player_two": ("14:00", "22:00", VolunteerAvailabilityStatus.AVAILABLE),
-            "player_three": ("08:00", "12:00", VolunteerAvailabilityStatus.AVAILABLE),
-            "player_four": ("18:00", "23:00", VolunteerAvailabilityStatus.UNAVAILABLE),
+            "player_one": ("08:00", "12:00", VolunteerAvailabilityStatus.UNAVAILABLE),
+            "player_two": ("18:00", "22:00", VolunteerAvailabilityStatus.PREFERRED),
+            "player_three": ("20:00", "23:00", VolunteerAvailabilityStatus.UNAVAILABLE),
         }
         for uname, (start_hhmm, end_hhmm, status) in player_avail_specs.items():
             u = users[uname]
