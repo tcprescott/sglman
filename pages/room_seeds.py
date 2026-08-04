@@ -11,6 +11,10 @@ clock, so the token only has to authorize; outside the prefix this page would
 have to resolve a tenant from the token itself and enter ``tenant_scope`` by
 hand, and every scoped read would raise until it did.
 
+**Chromeless.** No header, drawer or bottom nav — the board is the whole page,
+because a machine nobody signs in on has nowhere to navigate to and no session
+to sign out of. A floating dark-mode toggle is the one control that survives.
+
 **Read-only.** Rolling and re-rolling stay signed-in staff work: an anonymous
 token that could spend randomizer API calls and replace the seed for a match
 about to be played is not a trade worth making for a machine sitting in a room
@@ -54,9 +58,10 @@ def create() -> None:
             )
             return
 
-        # Anonymous by construction: no user is loaded, so the chrome renders
-        # signed out and every signed-in affordance hides itself.
-        await BaseLayout(user=None).render()
+        # Anonymous by construction, and chromeless: a room PC has no session to
+        # sign out of and nowhere else to go, so the layout contributes the
+        # palette and page scripts without a header, drawer or bottom nav.
+        await BaseLayout(user=None, chromeless=True).render()
 
         with ui.column().classes('page-container'):
             with ui.row().classes('header-row items-center'):

@@ -27,7 +27,7 @@ The UI is built entirely with NiceGUI (Quasar/Vue under the hood) mounted into t
 
 [`theme/base.py`](../../theme/base.py) defines **`BaseLayout`**, the shell used by every page.
 
-Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=False, show_volunteer=None, wordmark=None, **_kwargs)`.
+Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=False, show_volunteer=None, wordmark=None, chromeless=False, **_kwargs)`.
 
 - `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'`, `'group'` and `'aliases'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass the board's `MatchBoardAccess` and the report query params. A `'group'` turns the drawer's flat tab list into labeled sections.
 - `section` is the URL **slug** of the initially active tab (e.g. `reports`); it resolves to a label via the auto-derived slug map (`tab_slug()`, or an explicit `'slug'`). An unknown or missing slug falls back to the first tab.
@@ -36,6 +36,7 @@ Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=
 - `show_admin=True` adds an "Admin" entry to the drawer's top menu (Home is always present).
 - `show_volunteer` is **tri-state**. `None` — the default, and what every page but `/volunteer` uses — resolves it in `render()` via `AuthService.can_view_volunteer(user)`, so the link is never offered where the `VOLUNTEERS` flag or the role gate would reject it and dead-end on a 404/403. An explicit bool is honoured as-is, which keeps the synchronous error path working without a DB round-trip.
 - `wordmark` is the header brand text; `None` resolves to the in-scope community's own name via `TenantService.current_community_name()`, falling back to `Wizzrobe`.
+- `chromeless=True` is kiosk mode: the palette, fonts, head/body scripts and dark-mode preference are set up as usual, but no header, drawer or bottom nav is drawn — the page body gets the whole viewport. A floating `ui.page_sticky` dark-mode toggle stays in the top-right corner, because a room's lighting is not the viewer's system theme and there is no header left to hang the toggle on. Used by [the tournament-room seeds board](#the-tournament-room-seeds-board), the one surface with no session to sign out of and nowhere else to navigate.
 - Callers also pass `page_name=…`; `BaseLayout` absorbs it via `**_kwargs` and does not use it.
 
 `async render()` resolves the wordmark and Volunteer visibility, `await`s `_load_theme_colors()` (the tenant's brand palette via `TenantThemeService.get_current_theme()`), calls the synchronous `render_chrome()`, then `await`s `_render_tab_panels()` if tabs were supplied.
@@ -544,6 +545,10 @@ until it did.
   token that could spend randomizer API calls and replace the seed for a match
   about to be played is not a trade worth making for a machine in a room the
   public walks through.
+- **Chromeless.** `BaseLayout(user=None, chromeless=True)` — no header, drawer
+  or bottom nav, so the board fills the screen it is displayed on. Nothing is
+  lost: the header's only working control for an anonymous kiosk was the login
+  button, and the dark-mode toggle survives as a floating corner button.
 - **Built on `MatchTableView`** with `row_filter=is_seeded_and_unplayed`, the
   readonly `state`/`seed` slots, and no action callbacks — so it inherits the
   live wiring, the mobile card, and the flash-on-change for free.
