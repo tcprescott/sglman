@@ -9,7 +9,7 @@ spinners and the 404 page. Finding it should still feel like finding something.
 from nicegui import app, ui
 
 from application.services import AuthService, get_user_from_discord_id
-from application.utils.easter_eggs import CAT_FACTS, random_cat_fact
+from application.utils.easter_eggs import CAT_FACT_SECTIONS, CAT_FACTS, random_cat_fact
 from middleware.auth import public_page
 from theme.base import BaseLayout
 
@@ -40,7 +40,8 @@ def create() -> None:
                 ui.label('Cat facts').classes('page-title')
             ui.label(
                 f"You found them. All {len(CAT_FACTS)} of the facts this app "
-                "hides in its empty tables, its spinners and its 404 page."
+                "hides in its empty tables, its spinners, its 404 page and the "
+                "X-Fun-Fact header on every response."
             ).classes('text-muted')
 
             with ui.card().classes('wiz-cat-featured w-full items-center'):
@@ -48,9 +49,10 @@ def create() -> None:
                 featured()
                 ui.button('Another one', icon='refresh', on_click=shuffle).props('flat')
 
-            ui.label('Every fact').classes('section-title')
-            with ui.column().classes('wiz-cat-list w-full'):
-                for fact in CAT_FACTS:
-                    with ui.row().classes('wiz-cat-list-row items-start no-wrap'):
-                        ui.icon('pets').props('size=xs').classes('wiz-cat-list-icon')
-                        ui.label(fact)
+            for section, facts in CAT_FACT_SECTIONS.items():
+                ui.label(f'{section} · {len(facts)}').classes('section-title')
+                with ui.column().classes('wiz-cat-list w-full'):
+                    for fact in facts:
+                        with ui.row().classes('wiz-cat-list-row items-start no-wrap'):
+                            ui.icon('pets').props('size=xs').classes('wiz-cat-list-icon')
+                            ui.label(fact)

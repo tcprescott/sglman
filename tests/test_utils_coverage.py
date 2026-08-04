@@ -498,11 +498,17 @@ class TestEphemeralReplies:
 
 class TestEasterEggs:
     def _all_facts(self):
-        return (
-            easter_eggs.COASTER_FACTS + easter_eggs.CAT_FACTS + easter_eggs.BALATRO_FACTS
-            + easter_eggs.DIABLO_FACTS + easter_eggs.WOW_FACTS + easter_eggs.HAMILTON_FACTS
-            + easter_eggs.CLOVERPIT_TIPS
-        )
+        return easter_eggs.CAT_FACTS
+
+    def test_the_pool_is_all_cats(self):
+        """The other topic lists were retired; random_fact is a cat fact now."""
+        assert not [name for name in vars(easter_eggs) if name.endswith('_FACTS')
+                    and name not in {'CAT_FACTS'}]
+
+    def test_sections_flatten_into_the_pool(self):
+        flattened = [f for facts in easter_eggs.CAT_FACT_SECTIONS.values() for f in facts]
+        assert easter_eggs.CAT_FACTS == flattened
+        assert all(facts for facts in easter_eggs.CAT_FACT_SECTIONS.values())
 
     def test_random_fact_returns_known_string(self):
         fact = easter_eggs.random_fact()

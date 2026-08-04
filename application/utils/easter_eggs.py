@@ -1,178 +1,272 @@
 import random
 
-COASTER_FACTS = [
-    # Speed & records
-    "The world's fastest roller coaster hits 149.1 mph — Formula Rossa, Abu Dhabi.",
-    "Formula Rossa goes from 0 to 149 mph in just 4.9 seconds.",
-    "Kingda Ka in New Jersey stands 456 feet tall — taller than the Statue of Liberty.",
-    "Steel Dragon 2000 in Japan is the longest roller coaster in the world at 8,133 feet.",
-    "The Smiler at Alton Towers holds the record for most inversions: 14 loops.",
+CAT_FACT_SECTIONS: dict[str, list[str]] = {
+    'Anatomy': [
+        "Cats have 32 muscles in each ear and can rotate them 180 degrees.",
+        "Cats cannot taste sweetness — they lack the gene for sweet receptors.",
+        "A cat's nose print is as unique as a human fingerprint.",
+        "Cats have a third eyelid (nictitating membrane) rarely visible in healthy cats.",
+        "Cats have a free-floating clavicle, letting them squeeze through any gap their head fits through.",
+        "A cat's heart beats 140–220 bpm — roughly twice as fast as a human's.",
+        "The technical term for a cat's hairball is a 'trichobezoar.'",
+        "A cat's skeleton has around 230 bones — a couple of dozen more than a human's.",
+        "Most of those extra bones are in the tail: 18 to 23 caudal vertebrae.",
+        "A cat has 18 toes — five on each front paw, four on each back one.",
+        "Polydactyl cats grow extra toes; the record holder had 28.",
+        "Cats have 30 adult teeth. Kittens cut 26 baby teeth first.",
+        "A cat's jaw can't grind sideways, so cats shear food rather than chew it.",
+        "Cats walk on their toes — digitigrade, like horses on hooves.",
+        "Cats sweat only through the pads of their paws.",
+        "A cat's tongue is covered in backward-facing keratin spines called papillae.",
+        "Those spines are tiny scoops: research in 2018 showed they wick saliva down to the skin.",
+        "Whiskers are rooted about three times deeper than ordinary fur and wired straight into nerves.",
+        "A cat has roughly 12 whiskers per side of the muzzle, in four neat rows.",
+        "Whiskers also grow above the eyes, on the chin, and on the back of the front legs.",
+        "A cat's vertebrae are loosely joined, so the front half and back half can twist in opposite directions.",
+        "Normal cat body temperature is 100.5–102.5°F — warmer than yours.",
+        "Cats have three blood types: A, B, and the rare AB.",
+        "The vomeronasal organ in the roof of a cat's mouth tastes smells.",
+        "Kittens are born blind and deaf; their eyes open at 7 to 10 days.",
+        "Every kitten is born with blue eyes — the adult colour arrives around six weeks.",
+        "A cat's claws retract into sheaths, which is why they stay needle-sharp.",
+        "Domestic cats share 95.6% of their DNA with tigers.",
+        "A cat's cerebral cortex holds roughly 250 million neurons.",
+    ],
+    'Senses': [
+        "A cat's field of vision is about 200 degrees — wider than a human's 180.",
+        "Cats need about one-sixth as much light as we do to see.",
+        "The eyeshine is a mirror called the tapetum lucidum, bouncing light back through the retina.",
+        "Cats are nearsighted: sharp up close, blurry past about 20 feet.",
+        "Cats see blues and yellows well and reds poorly — red-green colour blindness, not black and white.",
+        "Cat hearing reaches 64 kHz, nearly two octaves above the human ceiling and a full octave above a dog's.",
+        "That range is tuned to rodents, which squeak in ultrasound.",
+        "A cat can pinpoint a sound source to within a few inches from a metre away.",
+        "Cats have a blind spot directly under their nose, which is why a treat dropped there vanishes.",
+        "Whiskers read air currents, letting a cat map a dark room it isn't touching.",
+        "Whiskers are roughly as wide as the cat, doubling as a gauge for whether a gap will fit.",
+        "'Whisker fatigue' is the theory that deep bowls overstimulate whiskers at every meal.",
+        "The open-mouthed grimace at a strange smell is the flehmen response, not disgust.",
+        "Cats have about 470 taste buds. Humans have around 9,000.",
+        "Paw pads pick up vibration, so a cat often feels you coming before it hears you.",
+        "Vertical slit pupils are standard equipment for small ambush predators that hunt day and night.",
+        "A cat's sense of smell is roughly fourteen times sharper than a human's.",
+    ],
+    'Motion and balance': [
+        "A cat can jump up to six times its own body length in a single leap.",
+        "The righting reflex works from as little as a foot of fall and is fully developed by seven weeks.",
+        "A falling cat rotates front half then back half, using its own inertia — no push-off required.",
+        "A falling cat tops out near 60 mph, half a human's, and spreads out like a parachute.",
+        "A 1987 study of 132 cats that fell from windows found those dropping past seven storeys were often less hurt.",
+        "Domestic cats sprint at around 30 mph in short bursts.",
+        "Cats pace: both legs on one side move together. Only camels and giraffes share the gait.",
+        "The jump is almost all hind leg — the front paws are for landing.",
+        "Cats climb down trees badly because their claws only hook one way.",
+        "A tail is a counterweight, but tailless Manx cats balance fine without one.",
+    ],
+    'Sleep and grooming': [
+        "Cats sleep 12–16 hours a day, among the sleepiest mammals on Earth.",
+        "A cat spends about two-thirds of its life asleep — a 12-year-old cat has been awake for four years.",
+        "Cats are crepuscular, not nocturnal: dawn and dusk are the busy shifts.",
+        "Cats dream: Michel Jouvet's 1960s experiments had sleeping cats acting out hunts.",
+        "A cat nap really is short — bouts run 15 to 100 minutes.",
+        "Cats spend up to half their waking hours grooming.",
+        "Grooming is also air conditioning: evaporating saliva cools the coat.",
+        "Cats groom each other around the head and neck, the spots no cat can reach alone.",
+        "Kittens sleep even more than adults; growth hormone is released while they're out.",
+        "Curled nose-to-tail means conserving heat. Sprawled on its back means it feels safe.",
+    ],
+    'How cats talk': [
+        "Cats can make around 100 distinct vocalizations; dogs manage about 10.",
+        "Adult cats barely meow at each other. The meow is aimed at humans.",
+        "Kittens meow at their mothers, then mostly stop — except with us.",
+        "A cat's purr vibrates at 25–150 Hz, a frequency shown to aid bone healing.",
+        "Purring isn't only contentment; injured and frightened cats purr too.",
+        "The purr comes from laryngeal muscles twitching 25 to 150 times a second.",
+        "Cats that purr can't roar, and cats that roar can't purr continuously. Blame the hyoid bone.",
+        "The 'solicitation purr' hides a cry pitched near a human baby's, which is why it's so hard to ignore.",
+        "The chattering at a bird through the window may be frustration, or a rehearsal of the killing bite.",
+        "A trill — the rising chirrup — is a greeting borrowed from mother-to-kitten talk.",
+        "A cat's 'slow blink' signals trust and affection — blinking back is recognized as friendly.",
+        "A 2020 University of Sussex study found cats slow-blink back at humans who slow-blink first.",
+        "A tail held straight up is a friendly greeting, and it's the signal cats reserve for friends.",
+        "A tail tip hooked like a question mark is an invitation.",
+        "Flattened 'airplane ears' mean a frightened cat, not an angry one.",
+        "When cats head-butt you they're marking you with scent glands on their cheeks and forehead.",
+        "Scratching is scent-marking as much as claw care — there are glands between the toes.",
+        "A cat showing you its belly is showing trust. It is not necessarily a request.",
+        "One theory holds that the hiss is mimicry of a snake.",
+        "A 2019 study found cats recognise their own names. Responding is optional.",
+        "Cats can tell their owner's voice from a stranger's, per a 2013 study, and still ignore both.",
+        "Researchers catalogued 276 distinct cat facial expressions in 2023.",
+    ],
+    'Behaviour': [
+        "Kneading — making biscuits — is nursing behaviour that never got switched off.",
+        "Cats cover their waste to keep their scent off the radar of anything bigger.",
+        "Cats bring prey home as provisioning behaviour: you are a very bad hunter who must be fed.",
+        "The post-litter-box zoomies have a name in the literature: frenetic random activity periods.",
+        "A 2014 study of shelter cats found a cardboard box measurably lowered their stress.",
+        "A 2017 study found cats will sit in a square of tape on the floor — an outline is box enough.",
+        "In a 2017 Oregon State experiment, most cats picked human attention over food.",
+        "A 2019 study found cats form secure attachments to their people the way infants and dogs do.",
+        "Knocking a glass off a table is investigation: paws are how cats ask what something does.",
+        "The catnip response comes from nepetalactone and is inherited — 50 to 70% of cats have it.",
+        "Kittens under about three months don't react to catnip at all.",
+        "Silver vine works on many of the cats catnip misses.",
+        "A 2021 study found the compounds cats rub onto themselves from catnip and silver vine repel mosquitoes.",
+        "Rubbing against your legs mixes scents so the household smells like one colony.",
+        "Sleeping in a sunbeam is a calorie decision: free heat means less metabolism spent on staying warm.",
+        "Cats prefer running water because moving water reads as fresh.",
+        "Feral colonies are matrilineal — related females raising kittens communally.",
+        "Cats pick the one person who dislikes cats: that person avoids eye contact, which cats read as good manners.",
+    ],
+    'Health and lifespan': [
+        "The world's oldest cat, Creme Puff, lived to be 38 years and 3 days old.",
+        "Indoor cats typically live 12 to 18 years; outdoor cats average far less.",
+        "Cats are obligate carnivores — without taurine in the diet, the heart and retinas fail.",
+        "Paracetamol and ibuprofen are poisonous to cats; cats lack the liver enzyme to process them.",
+        "Every part of a true lily is lethal to cats, pollen included.",
+        "Onions, garlic, and chocolate are all toxic to cats.",
+        "Cats hide illness by instinct — a sick cat that acts sick is prey.",
+        "Hyperthyroidism is one of the most common diseases of older cats.",
+        "Declawing amputates the last bone of each toe, which is why many countries ban it.",
+        "Cats are the only animals in which Toxoplasma gondii can complete its life cycle.",
+        "A cat's kidneys are efficient enough that a cat can rehydrate on seawater.",
+        "FIP was a near-certain death sentence until antivirals turned it treatable in the 2020s.",
+        "Cat bites drive needle-deep and infect easily — they're taken more seriously than dog bites.",
+    ],
+    'Coats and genetics': [
+        "Almost every calico and tortoiseshell cat is female — the orange gene rides on the X chromosome.",
+        "Male calicos are XXY, about one in 3,000, and nearly always sterile.",
+        "Roughly 80% of orange cats are male.",
+        "The gene behind orange fur, ARHGAP36, was finally pinned down in 2025.",
+        "Tortoiseshell patterning is X-inactivation made visible — a mosaic of two cell lineages.",
+        "Siamese points are temperature-sensitive albinism: pigment only forms where the body runs cool.",
+        "Siamese kittens are born white and darken in the weeks after birth.",
+        "White cats with blue eyes are often deaf; odd-eyed whites are sometimes deaf on the blue side only.",
+        "Every domestic cat carries a tabby pattern, even solid blacks — look for ghost stripes in strong sun.",
+        "The gene that turns mackerel stripes into blotched 'classic' tabby swirls was identified in 2012.",
+        "The cat genome was first sequenced in 2007 from an Abyssinian named Cinnamon.",
+        "The first cloned pet was a cat, CC, in 2001 — her coat didn't match her donor's, because X-inactivation is random.",
+    ],
+    'Breeds': [
+        "The CFA recognises about 45 breeds; TICA recognises more than 70.",
+        "Most cats on Earth belong to no breed at all.",
+        "The Maine Coon is the largest domestic breed — the record is just under four feet nose to tail.",
+        "The Singapura is the smallest breed, often under five pounds.",
+        "The Sphynx isn't hairless; it's covered in fine down and needs regular baths.",
+        "Manx taillessness comes from a mutation that can also damage the spine.",
+        "A Ragdoll goes limp when picked up. That's the name.",
+        "The Scottish Fold's ears come from a cartilage mutation that also causes painful joint disease.",
+        "Norwegian Forest Cats were probably ships' cats for the Norse.",
+        "The Turkish Van is the breed famous for enjoying a swim.",
+        "Bengals descend from crosses with the Asian leopard cat.",
+        "Savannahs descend from crosses with the serval; first-generation cats can top 25 pounds.",
+        "The Siamese is one of the oldest recognised breeds, brought west from Siam in the 1800s.",
+        "The Persian's flat face is brachycephalic, which is why the breed's tear ducts and airways struggle.",
+        "The Japanese Bobtail is the cat behind the maneki-neko figurine.",
+        "The Lykoi is nicknamed the werewolf cat for its patchy roan coat.",
+    ],
+    'Wild relatives': [
+        "There are around 40 species in the cat family.",
+        "The domestic cat, Felis catus, descends from the African wildcat, Felis lybica.",
+        "A 2007 study traced every domestic cat to five maternal lineages from the Fertile Crescent.",
+        "The Scottish wildcat is critically endangered — mostly by breeding with house cats.",
+        "The black-footed cat is the deadliest cat alive: about 60% of its hunts succeed.",
+        "The rusty-spotted cat is the smallest wild cat, about the weight of a bag of sugar.",
+        "Sand cats have fur-covered paw pads for walking on scorching dune sand.",
+        "The fishing cat hunts by diving.",
+        "Pallas's cat has round pupils, unusual for a small cat.",
+        "Snow leopards can't roar.",
+        "Cheetahs purr like house cats and can't roar at all.",
+        "Lions sleep up to 20 hours a day, out-lazing your cat.",
+        "No cat of any species can taste sugar. The receptor is broken across the whole family.",
+        "Lions are the only cats that live in permanent social groups.",
+    ],
+    'History': [
+        "The oldest evidence of cats and people together is a 9,500-year-old joint burial in Cyprus.",
+        "Cats domesticated themselves, more or less, by moving in on the rodents in Neolithic grain stores.",
+        "Ancient Egyptians worshipped the cat goddess Bastet; harming a cat was punishable by death.",
+        "Herodotus wrote that Egyptian families shaved their eyebrows in mourning when a house cat died.",
+        "Egypt banned the export of cats, which did nothing to stop sailors taking them anyway.",
+        "In 1888, a shipment of hundreds of thousands of Egyptian cat mummies was sold in England as fertiliser.",
+        "Romans carried cats across Europe; the Vikings carried them across the North Atlantic.",
+        "A papal letter of 1233, Vox in Rama, tied cats to devil worship and poisoned Europe's opinion of them.",
+        "Cats reached the Americas on European ships as working rat-catchers.",
+        "The first modern cat show was held at the Crystal Palace in London in 1871.",
+        "The Royal Navy kept official ship's cats until 1975.",
+        "Cat litter was invented in 1947, when Ed Lowe handed a neighbour granulated clay instead of ashes.",
+        "Sir Isaac Newton is credited with inventing the cat flap after his cat kept interrupting his light experiments.",
+        "Medieval scribes complained about cats in the margins, and one manuscript carries inky paw prints.",
+        "Domestic cats are never mentioned in the Bible.",
+    ],
+    'Myth and superstition': [
+        "The nine lives are regional: much of the Arabic- and Turkish-speaking world gives cats six or seven.",
+        "In Britain and Japan a black cat crossing your path is good luck. In much of the US it's the opposite.",
+        "The maneki-neko's raised right paw invites money; the left invites customers.",
+        "Freyja's chariot, in Norse myth, is pulled by cats.",
+        "Sailors prized polydactyl cats, believing the extra toes helped them keep their footing at sea.",
+        "The Cat Sìth of Highland folklore was a black cat with a white chest that could steal a soul.",
+        "Japanese folklore says a cat that lives long enough becomes a bakeneko, and eventually grows a forked tail.",
+        "Islamic tradition holds cats in high regard — Muhammad's cat Muezza is the best-known example.",
+        "Nobody knows where 'raining cats and dogs' comes from; every confident explanation is a guess.",
+    ],
+    'Cats with jobs': [
+        "Larry has been Chief Mouser to the Cabinet Office at 10 Downing Street since 2011.",
+        "The Hermitage Museum in St Petersburg has kept cats on staff since a 1745 decree; about 50 live there now.",
+        "New York's bodega cats are technically illegal and universally tolerated.",
+        "Tama, a calico, was stationmaster of Kishi Station in Japan and is credited with saving the line.",
+        "Stubbs the cat was honorary mayor of Talkeetna, Alaska, for 20 years.",
+        "Simon of HMS Amethyst is the only cat to receive the Dickin Medal for gallantry.",
+        "Towser, a distillery cat in Scotland, was credited with 28,899 mice over her career.",
+        "The first cat in space was Félicette, a French cat launched in 1963 — she survived.",
+        "Cat cafés started in Taipei in 1998 before Japan made them a phenomenon.",
+        "Japan has several 'cat islands', including Aoshima and Tashirojima, where cats outnumber people.",
+    ],
+    'Famous cats': [
+        "Grumpy Cat's expression came from feline dwarfism and an underbite.",
+        "Lil Bub was polydactyl, had osteopetrosis, and became a subject of published genetic research.",
+        "Maru, the Japanese cat who cannot resist a box, has been viewed hundreds of millions of times.",
+        "Orangey is the only cat to win two PATSY awards, including one for Breakfast at Tiffany's.",
+        "Choupette, Karl Lagerfeld's Birman, had her own staff.",
+        "Ernest Hemingway's Key West house still keeps about 60 cats, many of them polydactyl.",
+        "Nikola Tesla credited a static spark off his cat Macak with starting his interest in electricity.",
+        "A cat named F.D.C. Willard is credited as co-author on a 1975 physics paper.",
+        "Schrödinger invented his cat in 1935 to argue that a theory implying it was absurd.",
+        "T.S. Eliot's book of cat poems became Cats, one of the longest-running shows in Broadway history.",
+        "Tom and Jerry cartoons won seven Academy Awards.",
+        "Garfield first ran in 1978 and became the most widely syndicated comic strip in the world.",
+        "Sanrio insists Hello Kitty is not a cat.",
+    ],
+    'Records': [
+        "A group of cats is called a clowder.",
+        "The loudest recorded purr belongs to Merlin, at 67.8 decibels — about as loud as a shower.",
+        "The longest jump by a cat is seven feet, set by Waffle the Warrior Cat.",
+        "The most toes on a cat is 28.",
+        "The longest fur on a cat measured just over nine inches.",
+        "The smallest adult cat on record stood about seven centimetres at the shoulder.",
+        "There are roughly 370 million pet cats in the world.",
+        "Cats live on every continent except Antarctica.",
+        "A 2013 study estimated free-ranging cats kill between 1.3 and 4 billion birds a year in the US alone.",
+    ],
+    'Words for cats': [
+        "A group of kittens is a kindle.",
+        "A male cat is a tom; a female is a queen; a neutered male is a gib.",
+        "'Cat' comes from Late Latin cattus, and nearly every European language kept the root.",
+        "The ancient Egyptian word for cat was 'miu' — they named it after the noise.",
+        "An ailurophile loves cats. An ailurophobe does not.",
+        "Catgut was never made from cats. It's sheep intestine.",
+        "'Copycat' dates to the 1880s; 'the cat's pyjamas' to the 1920s.",
+        "A cat's pregnancy runs about 65 days, and the average litter is four.",
+        "The claim that Napoleon and Julius Caesar both feared cats has no reliable source behind it.",
+    ],
+}
 
-    # History
-    "The first looping coaster opened at Coney Island in 1895. It closed after one day.",
-    "'Roller coaster' likely derives from 18th-century Russian ice slides called Gorka.",
-    "The oldest operating roller coaster, Leap-the-Dips in Pennsylvania, was built in 1902.",
-    "The world's first roller coaster patent was granted to LaMarcus Adna Thompson in 1885.",
-    "The Coney Island Cyclone, built in 1927, was declared a New York City landmark in 1988.",
-    "The first modern steel coaster was the Matterhorn Bobsleds at Disneyland, opening in 1959.",
-
-    # Physics & engineering
-    "Roller coasters don't have engines — after the lift hill, they run entirely on gravity.",
-    "At the top of a loop, riders briefly experience 0g — the same as free fall.",
-    "Wooden coasters lose roughly 1/16 inch of height per year from wood settlement.",
-    "Magnetic (eddy current) brakes on modern coasters require no physical contact to slow the train.",
-
-    # Culture & trivia
-    "Enthusiasts who ride every seat on every train call it 'riding all positions.'",
-    "The world record for most coasters ridden in 24 hours is 74, set in 2013.",
-    "El Toro at Six Flags Great Adventure has the steepest drop on any wooden coaster: 76 degrees.",
-    "Son of Beast at Kings Island was the world's only wooden looping coaster — the loop was later removed.",
-    "The term 'airtime' refers to the sensation of weightlessness when a coaster crests a hill quickly.",
-]
-
-CAT_FACTS = [
-    # Biology
-    "A group of cats is called a clowder.",
-    "Cats have 32 muscles in each ear and can rotate them 180 degrees.",
-    "Cats cannot taste sweetness — they lack the gene for sweet receptors.",
-    "A cat's purr vibrates at 25–150 Hz, a frequency shown to aid bone healing.",
-    "A cat's nose print is as unique as a human fingerprint.",
-    "Cats have a third eyelid (nictitating membrane) rarely visible in healthy cats.",
-    "A cat's field of vision is about 200 degrees — wider than a human's 180.",
-    "Cats have a free-floating clavicle, letting them squeeze through any gap their head fits through.",
-    "A cat's heart beats 140–220 bpm — roughly twice as fast as a human's.",
-    "The technical term for a cat's hairball is a 'trichobezoar.'",
-    "Domestic cats share 95.6% of their DNA with tigers.",
-    "Cats can make around 100 distinct vocalizations; dogs manage about 10.",
-
-    # Behavior
-    "Cats sleep 12–16 hours a day, among the sleepiest mammals on Earth.",
-    "The world's oldest cat, Creme Puff, lived to be 38 years and 3 days old.",
-    "A cat's 'slow blink' signals trust and affection — blinking back is recognized as friendly.",
-    "When cats head-butt you they're marking you with scent glands on their cheeks and forehead.",
-    "A cat can jump up to six times its own body length in a single leap.",
-
-    # History & culture
-    "The first cat in space was Félicette, a French cat launched in 1963 — she survived.",
-    "Ancient Egyptians worshipped the cat goddess Bastet; harming a cat was punishable by death.",
-    "Sir Isaac Newton is credited with inventing the cat flap after his cat kept interrupting his light experiments.",
-]
-
-
-BALATRO_FACTS = [
-    # Development
-    "Balatro was made almost entirely by a single anonymous developer who goes by LocalThunk.",
-    "LocalThunk spent more than two years building Balatro as a hobby project.",
-    "LocalThunk has said he isn't much of a poker player — the game just uses the deck.",
-    "Balatro was inspired by the deckbuilder Luck Be a Landlord and a poker-based mini-game.",
-    "The game was published by Playstack and released on February 20, 2024.",
-
-    # Design & details
-    "Balatro is a roguelike deckbuilder built around scoring poker hands, not playing real poker.",
-    "Its grinning joker mascot is named Jimbo.",
-    "The name 'Balatro' comes from a Latin word for a jester, babbler, or buffoon.",
-    "Every run is powered by Jokers — stacking their effects is the heart of the game.",
-    "Balatro uses a deliberately lo-fi, CRT-style visual filter for its retro look.",
-
-    # Reception & impact
-    "Balatro was nominated for Game of the Year at The Game Awards 2024.",
-    "It swept multiple BAFTA Games Awards in 2025, including Best Game.",
-    "Balatro sold over a million copies within its first two weeks.",
-    "By the end of 2024 Balatro had sold more than five million copies.",
-    "Balatro briefly received an adults-only rating in Europe over its card-and-chip imagery, which was later overturned.",
-    "Despite using poker chips, Balatro involves no real money or gambling whatsoever.",
-    "Balatro launched on PC and consoles before arriving on mobile, where it topped paid-app charts.",
-]
-
-
-DIABLO_FACTS = [
-    # Series & lore
-    "The Diablo series began in 1996 and is set in the dark fantasy world of Sanctuary.",
-    "Diablo, the 'Lord of Terror,' is one of the three Prime Evils alongside Mephisto and Baal.",
-    "Sanctuary was created by the renegade angel Inarius and the demon Lilith.",
-    "Nephalem — the powerful offspring of angels and demons — are the ancestors of humanity.",
-
-    # Diablo II
-    "Diablo II launched on June 29, 2000 and was one of the fastest-selling PC games of its era.",
-    "Diablo II's base classes were the Amazon, Necromancer, Barbarian, Sorceress, and Paladin.",
-    "The Lord of Destruction expansion (2001) added Act V plus the Assassin and Druid classes.",
-    "The Horadric Cube let players transmute items and combine runes into powerful runewords.",
-    "Diablo II's Secret Cow Level is reached using Wirt's Leg and a Tome of Town Portal in the Cube.",
-    "Diablo II: Resurrected, a full remaster, arrived in September 2021.",
-
-    # Diablo IV
-    "Diablo IV released on June 6, 2023 as the series' first fully open-world entry.",
-    "Its main antagonist is Lilith, the 'Daughter of Hatred' and daughter of Mephisto.",
-    "Diablo IV launched with the Barbarian, Sorcerer, Druid, Rogue, and Necromancer classes.",
-    "Diablo IV grossed $666 million in its first five days — a figure Blizzard happily leaned into.",
-    "It was the fastest-selling game in Blizzard's history.",
-    "The Vessel of Hatred expansion (2024) added the Spiritborn class and the jungle region of Nahantu.",
-]
-
-
-WOW_FACTS = [
-    # History
-    "World of Warcraft launched on November 23, 2004 and is set on the world of Azeroth.",
-    "At its 2010 peak, WoW had more than 12 million subscribers.",
-    "WoW holds a Guinness World Record as the most popular subscription-based MMORPG.",
-    "WoW's original level cap was 60.",
-    "WoW Classic, a re-release of the original 2004 game, launched in 2019.",
-
-    # Expansions & story
-    "Wrath of the Lich King (2008) pitted players against Arthas Menethil, the Lich King.",
-    "The War Within (2024) kicked off WoW's multi-expansion Worldsoul Saga.",
-    "WoW's expansions include The Burning Crusade, Cataclysm, Legion, Shadowlands, and Dragonflight.",
-    "The game is split between two warring factions: the Alliance and the Horde.",
-    "Major capital cities include the Alliance's Ironforge and the Horde's Orgrimmar.",
-
-    # Culture & trivia
-    "The 2005 'Corrupted Blood' plague accidentally escaped its raid and was later studied by epidemiologists.",
-    "The 'Leeroy Jenkins' battle cry became an internet legend after a 2005 WoW guild video.",
-    "Murlocs — the burbling fish-people — are among WoW's most iconic creatures.",
-    "Blizzard's annual BlizzCon convention grew largely out of WoW's popularity.",
-    "Azeroth's two original continents at launch were the Eastern Kingdoms and Kalimdor.",
-    "WoW was developed and published by Blizzard Entertainment.",
-]
-
-
-HAMILTON_FACTS = [
-    # Creation
-    "Hamilton's music, lyrics, and book were all written by Lin-Manuel Miranda.",
-    "The musical is based on Ron Chernow's 2004 biography of Alexander Hamilton.",
-    "Miranda debuted an early version at a 2009 White House poetry event as 'The Hamilton Mixtape.'",
-    "Hamilton blends hip-hop, R&B, pop, and soul with traditional show tunes.",
-    "The show deliberately casts actors of color as America's Founding Fathers.",
-
-    # Production
-    "Hamilton premiered Off-Broadway at The Public Theater in early 2015.",
-    "It opened on Broadway at the Richard Rodgers Theatre in August 2015.",
-    "The original cast featured Leslie Odom Jr. as Aaron Burr and Daveed Diggs as Lafayette and Jefferson.",
-    "Phillipa Soo, Renée Elise Goldsberry, and Jasmine Cephas Jones originated the three Schuyler sisters.",
-    "A filmed version of the original cast premiered on Disney+ in July 2020.",
-
-    # Awards & legacy
-    "Hamilton received a record 16 Tony nominations in 2016 and won 11.",
-    "Hamilton won the 2016 Pulitzer Prize for Drama.",
-    "Leslie Odom Jr. won the Tony for Best Actor in a Musical for playing Aaron Burr.",
-    "The original cast recording won the Grammy for Best Musical Theater Album.",
-]
-
-
-CLOVERPIT_TIPS = [
-    "Cloverpit is a slot-machine roguelike from indie studio Panik Arcade, released in 2025.",
-    "In Cloverpit you're trapped in a cramped room, feeding a slot machine to pay off escalating debt.",
-    "Charms modify Cloverpit's slot machine — stacking the right ones is how you chase a saving jackpot.",
-    "Miss one of Cloverpit's debt deadlines and the run is over.",
-    "Cloverpit wraps its gambling loop in a tense, claustrophobic horror atmosphere.",
-    "The clovers and lucky symbols of Cloverpit play into its desperate escape-the-pit theme.",
-]
+CAT_FACTS = [fact for facts in CAT_FACT_SECTIONS.values() for fact in facts]
 
 
 def random_fact() -> str:
-    return random.choice(
-        COASTER_FACTS + CAT_FACTS + BALATRO_FACTS
-        + DIABLO_FACTS + WOW_FACTS + HAMILTON_FACTS + CLOVERPIT_TIPS
-    )
+    """A random cat fact. Cats are the only trivia this app deals in."""
+    return random.choice(CAT_FACTS)
 
 
 def random_cat_fact(exclude: str | None = None) -> str:
