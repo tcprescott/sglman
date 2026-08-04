@@ -139,11 +139,11 @@ Only the signed-in shape is listed because it is the only shape: `enforce_member
 
 | Module | Tab | Responsibility |
 |---|---|---|
-| [`event.py`](../../pages/home_tabs/event.py) | Event | The view switcher. `available_views` / `resolve_view` are pure (unit-tested); a view whose flag is off is absent, and a lone view renders no switcher |
+| [`event.py`](../../pages/home_tabs/event.py) | Event | The view switcher. `available_views` / `resolve_view` are pure (unit-tested); a view whose flag is off is absent, and a lone view renders no switcher. Styled `.wiz-segmented` and **never given `color=`** — on a `q-btn-toggle` that prop paints the *inactive* segments, so `color=primary` made all three gold and none of them look chosen |
 | [`schedule.py`](../../pages/home_tabs/schedule.py) | Event → Schedule | Event schedule with crew signup, watch toggles |
 | [`stage_timeline.py`](../../pages/home_tabs/stage_timeline.py) | Event → On Air | Per-day timeline of streamed matches grouped by stage |
 | [`brackets.py`](../../pages/home_tabs/brackets.py) | Event → Brackets | Browse path into the public bracket pages: one card per tournament with stages. `group_by_tournament` is pure (unit-tested); the single read is `BracketService.list_all_brackets` |
-| [`my_schedule.py`](../../pages/home_tabs/my_schedule.py) | My Schedule | Stacks the four sections below in commitment order. Passes the `schedule`/`reschedule`/`match` deep-link params through to the matches section |
+| [`my_schedule.py`](../../pages/home_tabs/my_schedule.py) | My Schedule | Stacks the four sections below in commitment order, each a [section panel](#section-panels-themesectionpy). Passes the `schedule`/`reschedule`/`match` deep-link params through to the matches section |
 | [`player.py`](../../pages/home_tabs/player.py) | My Schedule → Your matches | The player's own match list and match requests; bracket matches to schedule |
 | [`my_crew.py`](../../pages/home_tabs/my_crew.py) | My Schedule → Crew | The commentator and tracker slots the viewer signed up for |
 | [`availability.py`](../../pages/home_tabs/availability.py) | My Schedule → Availability | Self-service availability windows with a live effective-availability graph |
@@ -164,6 +164,50 @@ Several further modules render **inside** the Profile tab rather than as standal
 | [`web_push_section.py`](../../pages/home_tabs/web_push_section.py) | "Your devices" subsection of the Notifications card | Enable/disable web push on the current device via `WebPushService`. The buttons run [`static/js/web-push.js`](../../static/js/web-push.js) client-side via `js_handler` (permission prompts must stay inside the click gesture) and report back through `emitEvent` → `ui.on`. Hides itself when VAPID keys aren't configured ([../features/web-push.md](../features/web-push.md)) |
 
 [`pages/mcp_consent.py`](../../pages/mcp_consent.py) registers `/oauth/mcp/consent`, the OAuth approval screen for MCP clients. It is a bespoke `@ui.page`, **not** `@protected_page`: every protected page is a tenant page and 404s without a tenant, but an MCP grant is platform-wide. It adds itself to `protected_routes` directly to get the sign-in redirect, and styles through [`render_platform_chrome`](#tenant-less-chrome-themechromepy). The grant list and its closing lock note live in one `@ui.refreshable` so ticking the "Let it make changes" box (unticked by default, and the only way write access is ever granted) redraws both together. See [features/mcp-server.md](../features/mcp-server.md).
+
+### Section panels (`theme/section.py`)
+
+A tab that stacks several independent blocks on one scroll — currently My
+Schedule — builds each one with `section_panel(...)` rather than a
+`section-title` heading over a `separator-spacing` rule.
+
+```python
+panel = await section_panel(
+    'Crew you signed up for', icon='headset_mic',
+    subtitle='Commentary and tracking slots you volunteered for.',
+    help_topics=['crew-status', ('crew-approval', 'Approval')],
+    user=viewer,
+)
+with panel.aside:
+    ui.switch('Include past', ...)      # the section's own controls
+with panel.body:
+    ...                                 # the content
+```
+
+| Slot | Holds |
+|---|---|
+| `panel` | the `<section>` element itself (`.wiz-panel`) |
+| `aside` | the header's right-hand control strip — a scope switch, a column-preferences gear |
+| `body` | the content (`.wiz-panel__body`, one padding rule) |
+
+`help_topics` takes a bare snippet name or `(name, label)`; they render as a
+wrapped, right-aligned chip group **below** the subtitle, not glued to the title.
+The stack itself is `ui.column().classes('page-container wiz-section-stack')` —
+one gap between panels, no separators, since a panel already has an edge.
+
+Two rules the classes exist to keep:
+
+- **A section inside a stack does not carry `header-row`, `section-title`, or its
+  own `page-container`.** That is the page-level heading pattern; four of them in
+  a column reads as four competing page titles with ~4em of dead space above each
+  one's content. `render_availability_editor(title='')` suppresses its heading for
+  exactly this reason — the Volunteer hub still gives it a whole tab and keeps the
+  default.
+- **A nested block inside a panel body uses `.wiz-subcard` / `.wiz-subcard__title`**
+  (the "waiting on you to pick a time" list, the change requests), which sit below
+  the panel title in the hierarchy instead of competing with it.
+
+`tests/theme/test_section_panels.py` pins both by source inspection.
 
 ### Schedule (`pages/home_tabs/schedule.py`)
 
@@ -210,14 +254,15 @@ The public event schedule with crew signup.
 
 ### Player (`pages/home_tabs/player.py`)
 
-`render_player_dashboard()` — "Your Schedule": the logged-in player's own matches.
+`render_player_dashboard()` — "Your matches": the logged-in player's own matches, as one [section panel](#section-panels-themesectionpy) on the My Schedule stack.
 
 - A `MatchTableView` (`admin_controls=False`, `player_discord_id` set). Columns: ID, Tournament, Scheduled At, State, Players, Stage, Generated Seed, Stream, Watch, using the same read-only state/seed `extra_slots` as the Schedule tab.
 - The reschedule **queue strip** on Admin → Schedule calls `register_view` itself rather than refreshing from `on_rows_changed` like the review and crew strips beside it: those summarise the rows on screen, while this one summarises pending requests, which can sit on a match the board's filters hide.
 - The **Change** column is the player's own "ask staff to move or cancel this" control (`MatchRescheduleService`). It renders only for a player *in* that match, on a `Scheduled` row, and only when the service says a request is possible (`_can_reschedule`); a player who already asked sees an **Asked** chip instead. Opening it is `RescheduleRequestDialog`; the answers live in **Your change requests** below the board. See [match-participation.md](../features/match-participation.md#reschedule-requests).
 - The **Stream** column is the player's own "offer this match for stream" toggle (`MatchStreamVolunteerService`). It renders only for a player *in* that match; everyone else sees a count chip. Advisory — it does not set `is_stream_candidate` — and the tooltip, the mobile card and the confirmation all say so. See [match-participation.md](../features/match-participation.md#stream-volunteering).
 - A **Request Match** button opens `UserMatchDialog` in create mode — but only when `TournamentService.list_player_requestable(viewer)` returns something. A bracket-run community has nothing to request, and a button whose only outcome is a dialog explaining that is a button that should not be there.
-- When Challonge is configured, an "Upcoming matches to schedule" card lists the player's unscheduled bracket matchups (`ChallongeService.list_unscheduled_matches_for_user`); each links an opponent and a **Schedule** button opening `ChallongeScheduleDialog` (disabled when the opponent hasn't linked their account).
+- **Render order is what the section owes the reader, not what it holds**: the "waiting on you to pick a time" cards, then the board, then the change requests. A matchup with no time on it is the only thing here waiting on *them*, and below the board and its filter card it was off-screen — which is where the "matchup ready" DM used to land.
+- When Challonge is configured, a "Waiting on you to pick a time" card lists the player's unscheduled bracket matchups (`ChallongeService.list_unscheduled_matches_for_user`); each links an opponent and a **Schedule** button opening `ChallongeScheduleDialog` (disabled when the opponent hasn't linked their account).
 - When `FeatureFlag.BRACKETS` is live, a matching card lists pending **native** bracket matchups (`BracketService.list_open_matches_for_user`) with opponent, round, and a **Schedule game N** button opening [`BracketScheduleDialog`](../../theme/dialog/bracket_schedule_dialog.py). In a bracket-run tournament this is the player's *only* scheduling route.
 
 ### Triforce Texts (`pages/home_tabs/triforce_texts.py`)

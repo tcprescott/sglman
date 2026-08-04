@@ -9,6 +9,12 @@ Sections render in commitment order: what you are scheduled to play, then what
 you volunteered for, then what you told staff about your time, then what you are
 carrying. Every section stays open. A section whose feature the community has
 turned off is not built at all.
+
+Each is a panel (``theme/section.py``) rather than a heading over a hairline
+separator. Stacked flat, the four ran together into one document while each
+section's own header/separator margin left its title floating four ems above its
+content — the tab was long *and* looked empty. The panel puts an edge round each
+block and its controls in its own header.
 """
 
 from typing import Optional
@@ -36,14 +42,11 @@ async def my_schedule_tab(
     """
     live = await FeatureFlagService().enabled_flags()
 
-    with ui.column().classes('w-full'):
+    with ui.column().classes('page-container wiz-section-stack'):
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match,
         )
-        ui.separator().classes('separator-spacing')
         await my_crew_tab()
-        ui.separator().classes('separator-spacing')
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
-            ui.separator().classes('separator-spacing')
             await equipment_checkouts_section()

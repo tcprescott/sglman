@@ -14,6 +14,7 @@ from nicegui import app, ui
 from application.services import EquipmentService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
+from theme.section import section_panel
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _MINE_COLUMNS: list[dict] = [
@@ -52,10 +53,13 @@ async def equipment_checkouts_section() -> None:
 
     service = EquipmentService()
 
-    with ui.column().classes('page-container w-full'):
-        with ui.row().classes('header-row items-center'):
-            ui.label('Equipment you have out').classes('section-title')
-
+    panel = await section_panel(
+        'Equipment you have out',
+        icon='inventory_2',
+        subtitle='Gear checked out to you and not yet returned.',
+        user=user,
+    )
+    with panel.body:
         loans = await service.my_checkouts(user)
         if not loans:
             ui.label('You have no equipment checked out.').classes('italic-note')
@@ -70,7 +74,6 @@ async def equipment_checkouts_section() -> None:
             }
             for loan in loans
         ]
-        gear_slot = ui.row().classes('full-width justify-end')
         table = ui.table(columns=_MINE_COLUMNS, rows=rows, row_key='id').classes(
             'equipment-table equipment-table-container w-full'
         ).props(':grid="Quasar.Screen.lt.md"')
@@ -92,6 +95,8 @@ async def equipment_checkouts_section() -> None:
             <div class="row items-center justify-end">''' + _VIEW_LABEL_BTN + '''</div>
         </div>''')
         customize_table(table, _MINE_COLUMNS, key=TableKeys.EQUIPMENT_MINE)
-        with gear_slot:
+        # In the panel header: on its own row above the table it was a lone icon
+        # floating in an otherwise empty band.
+        with panel.aside:
             preferences_button(table)
         table.on('view', lambda e: ui.navigate.to(f"/equipment/{e.args['id']}"))

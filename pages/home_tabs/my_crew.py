@@ -23,8 +23,8 @@ from application.services import CrewService, get_user_from_discord_id
 from application.utils.match_labels import match_label
 from application.utils.timezone import format_local_display
 from theme.dialog.confirmation_dialog import ConfirmationDialog
-from theme.help import help_icon
 from theme.notify import notify_error
+from theme.section import section_panel
 
 
 def commitment_status(row: dict) -> tuple[str, str]:
@@ -64,16 +64,19 @@ async def my_crew_tab() -> None:
     service = CrewService()
     state = {'upcoming_only': True}
 
-    with ui.column().classes('page-container') as page:
-        with ui.row().classes('header-row items-center full-width'):
-            ui.label('Crew you signed up for').classes('section-title')
-            await help_icon('crew-status')
-            await help_icon('crew-approval', label='Approval')
-            await help_icon('crew-withdraw', label='Withdrawing')
-            ui.space()
-
-        ui.separator().classes('separator-spacing')
-
+    panel = await section_panel(
+        'Crew you signed up for',
+        icon='headset_mic',
+        subtitle='Commentary and tracking slots you volunteered for.',
+        help_topics=[
+            'crew-status',
+            ('crew-approval', 'Approval'),
+            ('crew-withdraw', 'Withdrawing'),
+        ],
+        user=user,
+    )
+    page = panel.body
+    with page:
         # ``client`` arrives from the call site, never read in here: both of
         # these run as detached background tasks, where the slot stack is empty
         # and ``context.client`` *raises* rather than returning None. Reading it
@@ -174,5 +177,11 @@ async def my_crew_tab() -> None:
             state['upcoming_only'] = not bool(event.value)
             await commitments.refresh()
 
-        ui.switch('Include past matches', value=False, on_change=toggle_scope)
+        # In the header rather than above the list: a scope switch floating over
+        # the cards it filters reads as a stray control on a stacked page.
+        with panel.aside:
+            ui.switch('Include past', value=False, on_change=toggle_scope) \
+                .props('dense').classes('wiz-panel__switch') \
+                .tooltip('Show matches that have already been played')
+
         await commitments()

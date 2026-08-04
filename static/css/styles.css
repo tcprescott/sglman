@@ -2336,3 +2336,189 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--wiz-link);
     text-decoration: underline;
 }
+
+/* ── Segmented view switcher ────────────────────────────────────────────────
+   The Event tab's Schedule / On Air / Brackets control. Quasar renders a
+   q-btn-toggle as a button group, and the global .q-btn radius above rounds
+   every segment individually — three pills mashed together rather than one
+   control. Round the ends only, and let the filled segment be the selected one.
+   (The other half of that bug was in the page: passing `color=primary` sets the
+   *inactive* background, so all three segments were gold and none of them
+   looked chosen.) */
+.wiz-view-switch {
+    width: 100%;
+    margin-bottom: var(--space-4);
+}
+
+.wiz-segmented {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--surface-alt);
+    padding: 3px;
+    box-shadow: none;
+    overflow: hidden;
+}
+
+.wiz-segmented .q-btn {
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 4px 16px;
+    color: var(--status-neutral);
+    transition: background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
+}
+
+.wiz-segmented .q-btn::before { box-shadow: none; }
+
+.wiz-segmented .q-btn:hover:not(.q-btn--active) {
+    background: color-mix(in srgb, var(--wiz-gold) 12%, transparent);
+    color: var(--wiz-section-title);
+}
+
+.wiz-segmented .q-btn--active {
+    color: #fff;
+    box-shadow: var(--shadow-1);
+}
+
+/* Phone: a switcher hugging the left edge reads as a stray button cluster.
+   Spread it so it reads as what it is — the tab bar for this view. */
+@media (max-width: 599px) {
+    .wiz-segmented { display: flex; width: 100%; }
+    .wiz-segmented .q-btn { flex: 1 1 0; padding: 4px 8px; }
+}
+
+/* ── Stacked page sections ──────────────────────────────────────────────────
+   My Schedule stacks four independent blocks on one scroll (theme/section.py).
+   Each gets a visible edge and one padding rule, instead of a bare heading with
+   ~4em of stacked header/separator margin above content that ran straight into
+   the next section. */
+.wiz-panel {
+    display: block;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+}
+
+.wiz-panel__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.wiz-panel__head-row {
+    width: 100%;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+}
+
+.wiz-panel__icon {
+    color: var(--wiz-section-title);
+    font-size: 1.35rem;
+}
+
+/* No bottom margin, unlike .section-title: that 1em is what left every one of
+   these headings floating above its own content. */
+.wiz-panel__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    letter-spacing: 0.01em;
+    color: var(--wiz-section-title);
+    line-height: 1.2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wiz-panel__aside {
+    margin-left: auto;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+}
+
+/* Help topics sit on their own line, right-aligned, as a set of chips — beside
+   the title six of them read as one unbroken run of tiny text. */
+.wiz-panel__help {
+    justify-content: flex-end;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+}
+
+.wiz-panel__help .wiz-help-icon {
+    opacity: 0.85;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    font-size: 0.75rem;
+}
+
+.wiz-panel__sub {
+    font-size: 0.85rem;
+    color: var(--status-neutral);
+}
+
+.wiz-panel__body {
+    width: 100%;
+    padding: var(--space-4);
+    gap: var(--space-3);
+}
+
+/* The stack itself: one gap between panels rather than each section carrying
+   its own trailing separator + margin. */
+.wiz-section-stack {
+    width: 100%;
+    gap: var(--space-4);
+}
+
+@media (max-width: 599px) {
+    .wiz-panel__head { padding: var(--space-3); }
+    .wiz-panel__body { padding: var(--space-3); }
+    .wiz-panel__title { font-size: 1.1rem; }
+    .wiz-section-stack { gap: var(--space-3); }
+}
+
+/* A block nested inside a panel body (the "waiting on you" list, the change
+   requests). Lighter than the panel around it, and its heading sits below the
+   panel title in the hierarchy rather than competing with it — .section-title
+   at 1.5em with a 1em bottom margin did exactly that. */
+.wiz-subcard {
+    width: 100%;
+    padding: var(--space-3);
+    background: var(--surface-alt);
+    border: 1px solid var(--border-subtle);
+    box-shadow: none;
+}
+
+.wiz-subcard__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--wiz-section-title);
+    line-height: 1.3;
+}
+
+/* Header switches sit tight to the title row; Quasar's default label spacing
+   pushes them out of line with the icon buttons beside them. */
+.wiz-panel__switch .q-toggle__label {
+    font-size: 0.8rem;
+    color: var(--status-neutral);
+}
+
+/* The one-line note under an Event view's switcher. Sits tight to the content
+   it introduces and keeps its help icons on the same baseline; on a phone they
+   wrap with it rather than stranding on a line of their own. */
+.wiz-view-note {
+    width: 100%;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+}

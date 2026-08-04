@@ -105,11 +105,16 @@ async def render_availability_editor(
     ]
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row items-center'):
-            ui.label(title).classes(title_class)
-            if help_snippet:
-                await help_icon(help_snippet)
-        ui.separator().classes('separator-spacing')
+        # ``title=''`` means the caller has already given this editor a heading —
+        # My Schedule wraps it in a section panel — so a second one here would
+        # only repeat the words and re-add the header/separator margin the panel
+        # exists to remove.
+        if title:
+            with ui.row().classes('header-row items-center'):
+                ui.label(title).classes(title_class)
+                if help_snippet:
+                    await help_icon(help_snippet)
+            ui.separator().classes('separator-spacing')
         ui.label(
             f'Event window: {format_local_date(event_start)} → {format_local_date(event_end)} '
             f'({timezone_label()}). {help_text}'
