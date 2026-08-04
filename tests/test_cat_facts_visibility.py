@@ -70,5 +70,29 @@ class TestAuthWaitScreens:
     def test_oauth_callback_and_claim_both_show_a_panel(self):
         with open('pages/auth.py', encoding='utf-8') as fh:
             source = fh.read()
-        assert "waiting_panel('Signing you in…')" in source
-        assert "waiting_panel('Finishing your login…')" in source
+        assert "waiting_screen('Signing you in…')" in source
+        assert "waiting_screen('Finishing your login…')" in source
+
+    def test_screen_is_branded_and_centered(self):
+        """Unframed pages: without this they render unstyled and top-aligned."""
+        source = inspect.getsource(waiting.waiting_screen)
+        assert 'apply_brand_palette' in source
+        assert 'get_current_theme' in source
+        assert 'wiz-waiting-screen' in source
+
+    def test_screen_holds_the_panel_long_enough_to_read(self):
+        assert waiting.MIN_WAIT_SECONDS >= 2
+        assert 'hold' in inspect.getsource(waiting.WaitingScreen.navigate_to)
+
+    def test_auth_pages_leave_through_the_hold(self):
+        """A bare ui.navigate.to here is the flash the hold exists to prevent."""
+        with open('pages/auth.py', encoding='utf-8') as fh:
+            source = fh.read()
+        callback = source[source.index('async def oauth_callback'):source.index("@ui.page('/oauth/start')")]
+        claim = source[source.index('async def session_claim'):source.index('def _login_as(')]
+        for body in (callback, claim):
+            for line in body.splitlines():
+                # The one exception: the Design B hop to the claim page, whose
+                # own wait screen carries the hold.
+                if 'ui.navigate.to(' in line and '_claim_url' not in line:
+                    raise AssertionError(f'unheld navigation: {line.strip()}')

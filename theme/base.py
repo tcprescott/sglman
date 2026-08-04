@@ -8,7 +8,7 @@ from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import FeatureFlag, User
 from theme.assets import asset_url
-from theme.chrome import dark_mode_button, install_timezone_detection
+from theme.chrome import apply_brand_palette, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
 from theme.waiting import waiting_panel
@@ -270,40 +270,8 @@ class BaseLayout:
         # markup added from a lazy tab build never executes its <script>.
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         # Phoenix brand palette: gold primary, ember secondary — overridable per
-        # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
-        # colors stay fixed, warm-tuned to match the --status-* tokens in
-        # styles.css so notify toasts and negative buttons sit with the palette
-        # instead of stock Material green/red.
-        ui.colors(
-            primary=colors['primary'],
-            secondary=colors['secondary'],
-            accent=colors['accent'],
-            positive='#557A1F',
-            negative='#B3362B',
-            warning='#B45309',
-            info='#0E7470',
-        )
-        # ui.colors only recolors Quasar's palette; the header bar, links, and
-        # section titles read the --wiz-* brand vars from styles.css. Re-point
-        # those to the tenant palette here (loaded after the stylesheet, so this
-        # wins). --wiz-header-bg is set on :root for the light bar; the dark
-        # rule in styles.css re-points it to charcoal on <body>, which stays
-        # authoritative in dark mode. The two dark text-tint rules mirror the
-        # !important defaults in styles.css so primary/secondary text follows the
-        # tenant accent/secondary in dark mode too.
-        ui.add_head_html(
-            '<style>'
-            ':root{'
-            f'--wiz-gold-deep:{colors["primary"]};'
-            f'--wiz-gold:{colors["accent"]};'
-            f'--wiz-ember-deep:{colors["secondary"]};'
-            f'--wiz-ember:{colors["secondary"]};'
-            f'--wiz-header-bg:{colors["header"]};'
-            '}'
-            '.body--dark .text-primary,.q-dark .text-primary{color:var(--wiz-gold)!important;}'
-            '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--wiz-ember)!important;}'
-            '</style>'
-        )
+        # tenant (theme/base loads TenantThemeService.get_current_theme).
+        apply_brand_palette(colors)
         if self._chromeless:
             # The one control a kiosk still needs: a room's lighting is not the
             # viewer's system theme, and there is no header left to hang the
