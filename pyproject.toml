@@ -35,7 +35,7 @@ pytest-mock = "^3.14"
 ruff = "^0.9"
 mypy = "^1.14"
 aiosqlite = "^0.21.0"
-pytest-cov = "^6.0"
+pytest-cov = ">=6,<8"
 pytest-xdist = "^3.8.0"
 
 [tool.pytest.ini_options]
