@@ -257,15 +257,20 @@ class MatchSummary(BaseModel):
 
 
 class AvailabilityWindow(BaseModel):
-    """One declared window of a player's availability."""
+    """One window a player spoke for. Everything else is available."""
 
     starts_at: datetime
     ends_at: datetime
-    status: str = Field(description='available, preferred, or unavailable.')
+    status: str = Field(
+        description='unavailable (cannot play then) or preferred. An available '
+                    'window states the default and is never stored.',
+    )
     note: Optional[str] = None
 
 
 class PlayerAvailability(BaseModel):
+    """A player's windows. No windows means available for the whole event."""
+
     user_id: int
     name: Optional[str] = None
     windows: List[AvailabilityWindow] = Field(default_factory=list)

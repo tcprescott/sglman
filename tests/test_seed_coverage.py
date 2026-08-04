@@ -36,6 +36,13 @@ ENUM_EXEMPT: dict[str, str] = {
         'not grantable per tenant, so mapping it would be a bug. UserRole.role '
         'is where every Role is covered.'
     ),
+    'PlayerAvailability.status': (
+        'Player availability is opt-out: a player is available for every hour '
+        'they have not blocked, so an AVAILABLE row states the default and no '
+        'surface writes one. The seed leaves player_four with no rows at all, '
+        'which is what "available" looks like here. VolunteerAvailability.status '
+        'covers the enum, opt-in, where AVAILABLE is a real declaration.'
+    ),
 }
 
 #: Holds no per-tenant role by design, so it cannot be a single-capability

@@ -39,9 +39,11 @@ The short version: an **Unavailable** window is the only way to rule a time out,
 and stating your windows is what gets you the shifts you actually want.
 :::
 
-> There are two availability editors and they hold different things. The one on
-> the Volunteer tab is when you can *work*; the one on Home is when you can
-> *play*. Filling in one does not fill in the other.
+> There are two availability editors and they work in opposite directions. This
+> one is when you can *work*, and a shift only reaches you inside a window you
+> entered. The one on Home is when you *can't play*: you count as available for
+> the whole event and block out the times you are not. Filling in one does not
+> fill in the other.
 
 ## How shifts reach you
 

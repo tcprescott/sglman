@@ -42,9 +42,14 @@ class BaseLayout:
         show_admin: bool = False,
         show_volunteer: bool | None = None,
         wordmark: str | None = None,
+        chromeless: bool = False,
         **_kwargs
     ):
         self._copyright = copyright_text if copyright_text is not None else "© 2026 Thomas Prescott"
+        # Kiosk mode: palette, fonts and page-level scripts, no header/drawer/footer.
+        # A shared room PC has nowhere to navigate to and nobody to sign in, so the
+        # chrome is screen space spent on controls that do nothing there.
+        self._chromeless = chromeless
         self.tabs = tabs
         self.user = user
         self.dark_mode = None
@@ -267,6 +272,13 @@ class BaseLayout:
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme).
         apply_brand_palette(colors)
+        if self._chromeless:
+            # The one control a kiosk still needs: a room's lighting is not the
+            # viewer's system theme, and there is no header left to hang the
+            # toggle on. Floated in the corner, off the header's white palette.
+            with ui.page_sticky(position='top-right', x_offset=12, y_offset=12):
+                dark_mode_button(self.dark_mode).props('flat color=primary')
+            return
         self._render_header()
         self._render_drawer()
         self._render_footer()

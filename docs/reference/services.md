@@ -66,7 +66,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchRescheduleService` | [match_reschedule_service.py](../../application/services/match_reschedule_service.py) | Players asking staff to move or call off their match; approving performs the change | [match-participation.md](../features/match-participation.md#reschedule-requests) |
 | `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
-| `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
+| `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services; the `default` argument is what makes one opt-out and the other opt-in | — |
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in and upstream-API import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
@@ -593,7 +593,7 @@ A player with **no** ack row is invisible to the whole acknowledgment surface �
 
 ### match_suggestion_service.py — MatchSuggestionService
 
-Finds occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy and preferring slots all players prefer. Searches the next 4 hours within the configured tournament hours first, then the full remaining event window. A slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." A bracket matchup narrows both searches to its round's `scheduled_at`/`scheduled_end` window, as a **hard bound** — only slots the match fits inside end to end are offered, and an absent or half-configured window bounds only the side that is set. Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
+Finds occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy and preferring slots all players prefer. Searches the next 4 hours within the configured tournament hours first, then the full remaining event window. A slot is ineligible only if a player has **blocked it out** — availability is opt-out, so a slot no window covers is eligible and a player who entered nothing constrains nothing. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." A bracket matchup narrows both searches to its round's `scheduled_at`/`scheduled_end` window, as a **hard bound** — only slots the match fits inside end to end are offered, and an absent or half-configured window bounds only the side that is set. Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -672,14 +672,16 @@ Collaborators: `RescheduleRequestRepository`, `MatchRepository`,
 
 Self-service availability for any logged-in player — unlike volunteer availability there is no role or opt-in gate. A user's windows are replaced wholesale on each save. Windows carry a `VolunteerAvailabilityStatus` (`AVAILABLE`/`PREFERRED`/`UNAVAILABLE`). Audited under `player_availability.*`.
 
+**Read opt-out, and that is the one thing that differs from the volunteer service.** A player is available for any stretch no window covers, so the windows they save are the times they *cannot* play (`UNAVAILABLE`) or would rather (`PREFERRED`); an `AVAILABLE` window states the default and constrains nothing (the player editor does not offer it). Both static readers pass `DEFAULT_STATUS = AVAILABLE` as the `default` argument to `availability_windows`; the volunteer service passes nothing, keeping `None` for "not declared".
+
 | Method | Returns | Description |
 |---|---|---|
 | `availability_for(user)` | `list[PlayerAvailability]` | The user's declared windows. |
 | `set_windows(user, windows)` | `list[PlayerAvailability]` | Replace the user's availability with `(starts_at, ends_at, status, note)` tuples (each must end after it starts); transactional. Audits `player_availability.updated`. |
 | `clear(user)` | `None` | Delete all of the user's windows; audits `player_availability.updated` with `window_count: 0`. |
 | `availability_map(user_ids, start, end)` | `dict[int, list[PlayerAvailability]]` | user_id → windows overlapping `[start, end]` (batch lookup). |
-| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Delegate to [`availability_windows`](#package-layout): strongest signal for a window — an overlapping `UNAVAILABLE` wins; else `PREFERRED` beats `AVAILABLE`; `None` if nothing overlaps. |
-| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Delegate to `availability_windows`: split `[start, end]` into maximal constant-availability segments (resolved by `covers` precedence, adjacent equal segments merged). |
+| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus` | Delegate to [`availability_windows`](#package-layout) with `default=AVAILABLE`: an overlapping `UNAVAILABLE` wins; else `PREFERRED` beats `AVAILABLE`; **`AVAILABLE` when nothing overlaps**. Never `None`. |
+| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status)]` | Delegate to `availability_windows` with the same default: split `[start, end]` into maximal constant-availability segments (resolved by `covers` precedence, adjacent equal segments merged); an uncovered stretch is `AVAILABLE`, not `None`. |
 
 Collaborators: `PlayerAvailabilityRepository`, `AuditService`, `availability_windows`.
 
@@ -1276,7 +1278,7 @@ Collaborators: `VolunteerProfileRepository`, `AuditService`.
 
 ### volunteer_availability_service.py — VolunteerAvailabilityService
 
-Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. Two differences:
+Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. It reads **opt-in**: no `default` is passed, so an undeclared stretch is `None` and the shift picker treats it as no availability at all. Two further differences:
 
 | Difference | |
 |---|---|
@@ -1534,7 +1536,7 @@ All builders are pure functions returning `str`; optional fields passed as `None
 
 ### easter_eggs.py
 
-A small bank of trivia strings surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `random_fact() -> str` returns a uniformly-random fact drawn from the combined topic lists (roller coasters, cats, Balatro, Diablo, WoW, Hamilton, Cloverpit) — this is what the `X-Fun-Fact` response header carries. `random_cat_fact(exclude=None) -> str` draws from `CAT_FACTS` alone, which is what every UI surface uses: empty states and table `no-data` slots, the 404 page, `theme.waiting.waiting_panel`, the report busy overlay, `CatFactDialog`, and the `/cat-facts` page. Passing `exclude` drops that one fact from the pool so a re-roll always visibly changes. No external dependencies or side effects.
+A bank of cat facts surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `CAT_FACT_SECTIONS: dict[str, list[str]]` holds the facts under user-facing headings (Anatomy, Senses, Breeds, …) that the `/cat-facts` page renders section by section; `CAT_FACTS` is derived by flattening it and is the pool everything else draws from. `random_fact() -> str` returns a uniformly-random fact — this is what the `X-Fun-Fact` response header carries. `random_cat_fact(exclude=None) -> str` draws from the same pool, and is what every UI surface uses: empty states and table `no-data` slots, the 404 page, `theme.waiting.waiting_panel`, the report busy overlay, `CatFactDialog`, and the `/cat-facts` page. Passing `exclude` drops that one fact from the pool so a re-roll always visibly changes. No external dependencies or side effects.
 
 ### environment.py
 

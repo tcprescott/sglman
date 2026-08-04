@@ -354,8 +354,8 @@ load. It subscribes for itself rather than riding the table's
 match the board's day or state filter is hiding.
 
 The decision dialog carries everything needed to decide — both times, the
-reason, whether the opponent agreed, and either player having marked themselves
-unavailable for the proposed window — because the alternative is closing it to
+reason, whether the opponent agreed, and either player having blocked the
+proposed window out — because the alternative is closing it to
 go and look. Staff can approve at the proposed time or counter with a different
 one; the requester is told which they got either way.
 

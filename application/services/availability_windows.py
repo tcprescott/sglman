@@ -37,13 +37,16 @@ UW = TypeVar('UW', bound=UserAvailabilityWindow)
 
 def covers(
     windows: Sequence[AvailabilityWindow], start: datetime, end: datetime,
+    default: Optional[VolunteerAvailabilityStatus] = None,
 ) -> Optional[VolunteerAvailabilityStatus]:
     """Return the strongest availability signal for a time window.
 
     PREFERRED beats AVAILABLE; an overlapping UNAVAILABLE window wins outright.
-    Returns None when no window overlaps the range.
+    Returns ``default`` when no window overlaps the range — ``None`` for the
+    opt-in reading volunteers use ("nothing said" is not a signal), and
+    ``AVAILABLE`` for the opt-out reading players use ("nothing said" means yes).
     """
-    result: Optional[VolunteerAvailabilityStatus] = None
+    result: Optional[VolunteerAvailabilityStatus] = default
     for w in windows:
         if w.starts_at < end and w.ends_at > start:
             if w.status == VolunteerAvailabilityStatus.UNAVAILABLE:
@@ -57,12 +60,13 @@ def covers(
 
 def effective_segments(
     windows: Sequence[AvailabilityWindow], start: datetime, end: datetime,
+    default: Optional[VolunteerAvailabilityStatus] = None,
 ) -> List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]]:
     """Split ``[start, end]`` into maximal segments of constant availability.
 
     Overlapping windows are resolved by :func:`covers` precedence
     (unavailable > preferred > available). Segments with no overlapping
-    window carry a ``None`` status. Adjacent segments of equal status are
+    window carry ``default``. Adjacent segments of equal status are
     merged so the result is the minimal set of contiguous spans.
     """
     if end <= start:
@@ -75,7 +79,7 @@ def effective_segments(
     points = sorted(boundaries)
     segments: List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]] = []
     for seg_start, seg_end in itertools.pairwise(points):
-        status = covers(windows, seg_start, seg_end)
+        status = covers(windows, seg_start, seg_end, default)
         if segments and segments[-1][2] == status:
             segments[-1] = (segments[-1][0], seg_end, status)
         else:
