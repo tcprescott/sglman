@@ -1536,7 +1536,7 @@ All builders are pure functions returning `str`; optional fields passed as `None
 
 ### easter_eggs.py
 
-A small bank of trivia strings surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `random_fact() -> str` returns a uniformly-random fact drawn from the combined topic lists (roller coasters, cats, Balatro, Diablo, WoW, Hamilton, Cloverpit) — this is what the `X-Fun-Fact` response header carries. `random_cat_fact(exclude=None) -> str` draws from `CAT_FACTS` alone, which is what every UI surface uses: empty states and table `no-data` slots, the 404 page, `theme.waiting.waiting_panel`, the report busy overlay, `CatFactDialog`, and the `/cat-facts` page. Passing `exclude` drops that one fact from the pool so a re-roll always visibly changes. No external dependencies or side effects.
+A bank of cat facts surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `CAT_FACT_SECTIONS: dict[str, list[str]]` holds the facts under user-facing headings (Anatomy, Senses, Breeds, …) that the `/cat-facts` page renders section by section; `CAT_FACTS` is derived by flattening it and is the pool everything else draws from. `random_fact() -> str` returns a uniformly-random fact — this is what the `X-Fun-Fact` response header carries. `random_cat_fact(exclude=None) -> str` draws from the same pool, and is what every UI surface uses: empty states and table `no-data` slots, the 404 page, `theme.waiting.waiting_panel`, the report busy overlay, `CatFactDialog`, and the `/cat-facts` page. Passing `exclude` drops that one fact from the pool so a re-roll always visibly changes. No external dependencies or side effects.
 
 ### environment.py
 
