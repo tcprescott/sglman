@@ -224,7 +224,6 @@ class DiscordService:
             if self._bot is None:
                 return False, "Discord bot not initialized"
 
-            # Check if bot is ready
             if not self._bot.is_ready():
                 return False, "Discord bot is not connected. Please try again in a moment."
 
@@ -353,7 +352,6 @@ class DiscordService:
 
             guild = self._bot.get_guild(guild_id)
             if guild is None:
-                # Try fetching from API as a fallback
                 try:
                     guild = await self._bot.fetch_guild(guild_id)
                 except discord.NotFound:
@@ -366,7 +364,6 @@ class DiscordService:
                 # Prefer explicit fetch to ensure complete/updated role list
                 roles_list = await guild.fetch_roles()
             except Exception:
-                # Fallback to cached roles if fetch is unavailable or fails
                 roles_list = list(getattr(guild, "roles", []))
 
             data = [{"id": r.id, "name": r.name} for r in roles_list]
@@ -402,7 +399,6 @@ class DiscordService:
 
             role = guild.get_role(role_id)
             if role is None:
-                # Ensure roles are available; try fetching full list
                 try:
                     roles_list = await guild.fetch_roles()
                     role = next((r for r in roles_list if r.id == role_id), None)

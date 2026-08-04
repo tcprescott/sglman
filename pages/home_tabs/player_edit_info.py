@@ -26,7 +26,6 @@ from theme.help import help_icon
 
 async def render_edit_info_tab():
     """Render the profile tab for players to update their information."""
-    # Initialize service
     user_service = UserService()
 
     tz_settings = await TimezoneService.get_settings()
@@ -116,7 +115,6 @@ async def render_edit_info_tab():
         # so a community without payouts is not asked for one.
         payouts_live = FeatureFlag.PAYOUTS in live_flags
 
-        # Per-tournament match notification preferences
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
         existing_prefs = await notification_service.get_user_preferences(user)
@@ -250,7 +248,6 @@ async def render_edit_info_tab():
             status_icon = ui.icon('check_circle', size='xs').classes('text-muted')
             status_label = ui.label('Changes save automatically').classes('text-muted text-caption')
 
-        # Personal Information Section
         with ui.card().classes('card-full-width'):
             ui.label('Personal information').classes('section-title')
 

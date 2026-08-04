@@ -4,7 +4,6 @@
 Initializes the database, sets up API and frontend routes, and manages application lifespan.
 """
 
-# import api
 import asyncio
 import logging
 import os
@@ -203,7 +202,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_discord_bot()
     await close_db()
 
-# Create FastAPI app with metadata for API documentation
 API_DESCRIPTION = """
 REST API for managing tournaments, matches, players, crew, and event
 operations for Wizzrobe.

@@ -396,7 +396,6 @@ class TestUpdateUserTournamentRegistrations:
             SimpleNamespace(tournament_id=3, delete=AsyncMock()),
         ]
 
-        # Mock Tournament.get_or_none and TournamentPlayers.create
         tournament_5 = SimpleNamespace(id=5)
         tournament_6 = SimpleNamespace(id=6)
 

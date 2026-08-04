@@ -106,7 +106,6 @@ class MatchParticipants:
             for user in await self.resolve_users(list(to_add)):
                 await repository.create(match=match, user=user, approved=True)
 
-        # Remove old
         for uid in existing_ids - new_ids_set:
             await repository.delete(existing_map[uid])
 

@@ -87,13 +87,11 @@ class MatchSuggestionService:
                 "This round's scheduled window has no room left for a match."
             )
 
-        # Occupancy snapshot: all unfinished matches with a scheduled time
         existing_matches = await Match.filter(
             scheduled_at__isnull=False, confirmed_at__isnull=True,
             tenant_id=require_tenant_id(),
         ).prefetch_related('tournament', 'players')
 
-        # Player availability windows for the entire event range
         event_start_dt = parse_local_datetime(event_start.isoformat(), '00:00', tz)
         event_end_dt = parse_local_datetime(event_end.isoformat(), '23:59', tz)
         avail_map = await self._build_availability_map(player_ids, event_start_dt, event_end_dt)
@@ -113,7 +111,6 @@ class MatchSuggestionService:
         fallback_candidates = self._generate_candidates(
             now, None, hours_map, duration, event_start, event_end, tz, round_end,
         )
-        # Exclude slots already checked in the primary pass
         primary_set = {s for s, _ in primary_candidates}
         fallback_candidates = [(s, e) for s, e in fallback_candidates if s not in primary_set]
         result = self._best_candidate(
@@ -206,9 +203,7 @@ class MatchSuggestionService:
                 close_t.hour, close_t.minute, tzinfo=tz,
             )
 
-            # Start no earlier than "from_dt" (rounded up to next slot)
             slot = max(day_open, from_dt)
-            # Round up to next 30-min boundary
             slot = self._round_up_to_interval(slot)
 
             while slot + duration <= day_close:
@@ -236,7 +231,6 @@ class MatchSuggestionService:
         scored: List[Tuple[int, int, datetime]] = []  # (occupancy, -preferred, slot_utc)
 
         for slot_start, slot_end in candidates:
-            # Availability check
             preferred_count = 0
             eligible = True
             for pid in player_ids:
@@ -251,7 +245,6 @@ class MatchSuggestionService:
             if not eligible:
                 continue
 
-            # Occupancy count
             occupancy = self._count_occupancy(existing_matches, slot_start, slot_end, duration)
             scored.append((occupancy, -preferred_count, slot_start))
 
@@ -260,7 +253,6 @@ class MatchSuggestionService:
 
         scored.sort()
         best_eastern = scored[0][2]
-        # Convert display-zone-aware dt to UTC
         from datetime import timezone
         return best_eastern.astimezone(timezone.utc)
 

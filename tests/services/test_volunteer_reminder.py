@@ -20,7 +20,6 @@ class TestStartStop:
         with patch.object(loop, 'create_task', return_value=MagicMock()) as mock_create:
             reminder_mod.start()
         mock_create.assert_called_once()
-        # Clean up
         reminder_mod._loop._task = None
 
     async def test_start_is_idempotent(self):

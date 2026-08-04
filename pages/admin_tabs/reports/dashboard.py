@@ -129,7 +129,6 @@ async def dashboard_page(
             SystemConfigService.get_max_concurrent_stages(),
         )
 
-        # KPI computations
         peak_players = max(forecast['player_counts']) if forecast['player_counts'] else 0
         if peak_players > 0:
             peak_idx = forecast['player_counts'].index(peak_players)

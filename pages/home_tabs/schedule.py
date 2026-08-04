@@ -67,7 +67,6 @@ async def schedule():
             )
             await dialog.open()
 
-        # Include crew signup functionality with centralized green/yellow status rendering
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,

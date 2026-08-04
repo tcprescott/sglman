@@ -19,7 +19,6 @@ async def admin_tournaments_page() -> None:
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
-        # Header section
         with ui.row().classes('header-row'):
             ui.label('Tournament Management').classes('page-title')
 
@@ -84,7 +83,6 @@ async def admin_stages_page() -> None:
     can_manage = await AuthService.can_manage_stages(actor)
 
     with ui.column().classes('page-container-narrow'):
-        # Header section
         with ui.row().classes('header-row'):
             ui.label('Stage Management').classes('page-title')
 
@@ -160,7 +158,6 @@ async def admin_stages_page() -> None:
                 row_key='id',
             ).classes('w-full wiz-table')
             
-            # Enable grid mode for mobile using Quasar's screen detection
             table.props(':grid="Quasar.Screen.lt.md"')
             
             table.add_slot('body-cell-stream_url', '''
@@ -209,7 +206,6 @@ async def admin_stages_page() -> None:
                 'No stages yet — add one for each stage or capture station '
                 'you run matches on.', icon='tv'))
             
-            # Add grid item slot for mobile/card view
             table.add_slot('item', '''
                 <div class="q-pa-xs col-xs-12 col-sm-6 col-md-4">
                     <q-card class="q-pa-sm">

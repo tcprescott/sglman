@@ -117,7 +117,6 @@ def _state_notification(
 class MatchScheduleService(MatchNotificationMixin):
     """Service for match scheduling operations."""
 
-    # Class-level lock dictionary for seed generation
     _seed_locks: ClassVar[Dict[int, asyncio.Lock]] = {}
 
     def __init__(self) -> None:
@@ -319,19 +318,16 @@ class MatchScheduleService(MatchNotificationMixin):
             - If already in progress: (False, "Generation already in progress", None)
             - If failed: (False, error_message, None)
         """
-        # Get or create lock for this match
         lock = self._seed_locks.get(match_id)
         if lock is None:
             lock = asyncio.Lock()
             self._seed_locks[match_id] = lock
 
-        # Check if another generation is in progress
         if lock.locked():
             return False, "Seed generation already in progress for this match", None
 
         async with lock:
             try:
-                # Fetch match with related data
                 match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related(
                     'tournament', 'tournament__preset', 'players', 'players__user', 'stage'
                 )
@@ -339,7 +335,6 @@ class MatchScheduleService(MatchNotificationMixin):
                 if not await AuthService.can_run_match(actor, match):
                     return False, "You do not have permission to roll a seed for this match", None
 
-                # Check if seed already exists
                 if match.generated_seed:
                     return False, "A seed has already been generated for this match", None
 

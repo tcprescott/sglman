@@ -54,11 +54,10 @@ class StationAssignmentDialog:
         self.purpose = purpose if purpose in _PURPOSE_COPY else 'stations'
         self.match_service = MatchService()
         self.dialog = None
-        self.station_inputs = {}  # Dict to store station input fields by player ID
+        self.station_inputs = {}
 
     async def open(self):
         """Open the dialog and load match data."""
-        # Ensure match has players and tournament loaded
         await self.match.fetch_related('tournament', 'players', 'players__user')
         fmt = await SystemConfigService.get_station_format()
         copy = _PURPOSE_COPY[self.purpose]
@@ -70,7 +69,6 @@ class StationAssignmentDialog:
 
         with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 600px; width: 100%;'):
             mobile_sheet(self.dialog)
-            # Header
             with ui.row().classes('dialog-header'):
                 ui.label(
                     copy['title'].format(
@@ -82,7 +80,6 @@ class StationAssignmentDialog:
             
             ui.separator()
             
-            # Match info
             with ui.column().classes('q-pa-md'):
                 if self.match.tournament:
                     ui.label(f'Tournament: {self.match.tournament.name}').classes('text-subtitle1')
@@ -93,7 +90,6 @@ class StationAssignmentDialog:
             
             ui.separator()
             
-            # Players and station assignments
             with ui.column().classes('q-pa-md q-gutter-md full-width'):
                 if not self.match.players:
                     ui.label('No players assigned to this match').classes('text-grey-7')
@@ -117,7 +113,6 @@ class StationAssignmentDialog:
 
                     for player in self.match.players:
                         with ui.column().classes('q-gutter-xs full-width'):
-                            # Player name
                             ui.label(player.user.preferred_name or player.user.username).classes('text-weight-medium')
 
                             # Station input (leave blank to clear assignment).
@@ -157,14 +152,11 @@ class StationAssignmentDialog:
                                     validation={'Invalid station format': lambda v: not v or STATION_REGEXES[fmt].fullmatch(v) is not None},
                                 ).props('outlined dense maxlength=50').classes('full-width')
 
-                            # Pre-fill existing station if available
                             if player.assigned_station:
                                 station_input.value = player.assigned_station
 
-                            # Store reference to input
                             self.station_inputs[player.id] = station_input
             
-            # Action buttons
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 ui.button(copy['submit'], on_click=self._handle_submit).props('color=primary')

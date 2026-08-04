@@ -78,7 +78,6 @@ def admin_schedule_page(
     """
     access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
-        # Header section
         with ui.row().classes('header-row'):
             ui.label('Schedule Management').classes('page-title')
 

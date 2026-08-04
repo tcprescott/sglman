@@ -239,7 +239,6 @@ class MatchService(
             f"Tournament {tournament_id}",
         )
 
-        # Permission check: must be Staff or TA of the target tournament
         if await AuthService.is_staff(actor):
             pass
         else:
@@ -248,7 +247,6 @@ class MatchService(
                 f"User cannot create matches in tournament {tournament_id}",
             )
 
-        # Business rule: Must have at least one player
         if not player_ids:
             raise ValueError("Add at least one player before creating the match.")
 
@@ -274,7 +272,6 @@ class MatchService(
         if player_id_set & {u.id for u in trackers}:
             raise ValueError("A player in this match can't also crew it as a tracker.")
 
-        # Create match
         match = await self.repository.create(
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
@@ -313,7 +310,6 @@ class MatchService(
         # Seed per-player acknowledgments (actor auto-acks themselves)
         await self._seed_acknowledgments(match, player_ids, actor)
 
-        # Notify participants of the newly scheduled match
         await self.match_schedule_service.notify_match_scheduled(
             match, rescheduled=False, is_stream_candidate=is_stream_candidate,
         )
@@ -424,7 +420,6 @@ class MatchService(
         if new_player_ids & effective_tracker_ids:
             raise ValueError("A player in this match can't also crew it as a tracker.")
 
-        # Build update fields
         update_fields = {}
 
         if tournament_id is not None:
@@ -464,19 +459,15 @@ class MatchService(
         if clear_seed:
             update_fields['generated_seed'] = None
 
-        # Apply updates
         if update_fields:
             await self.repository.update(match, **update_fields)
 
-        # Update players if provided
         if player_ids is not None:
             await self.participants.sync_players(match, player_ids, tournament_id or match.tournament_id)
 
-        # Update commentators if provided
         if commentator_ids is not None:
             await self.participants.sync_crew(match, commentator_ids, self.commentator_repository)
 
-        # Update trackers if provided
         if tracker_ids is not None:
             await self.participants.sync_crew(match, tracker_ids, self.tracker_repository)
 
@@ -494,7 +485,6 @@ class MatchService(
             actor, AuditActions.MATCH_UPDATED, audit_details,
         )
 
-        # Notify participants when the match time changes on an already-scheduled match
         new_scheduled_at = update_fields.get('scheduled_at')
         scheduled_at_changed = bool(
             new_scheduled_at and old_scheduled_at and new_scheduled_at != old_scheduled_at
@@ -503,10 +493,8 @@ class MatchService(
         if scheduled_at_changed or players_changed:
             await self._seed_acknowledgments(match, list(new_player_ids), actor)
             if scheduled_at_changed:
-                # Time changed: fan out the full reschedule notification.
                 await self.match_schedule_service.notify_match_scheduled(match, rescheduled=True)
             else:
-                # Only the player set changed: just re-request acknowledgments.
                 # Resolve the embed-footer community here (request context); the
                 # enqueued coroutine runs later in the scope-less queue worker.
                 from application.services.tenant_service import TenantService

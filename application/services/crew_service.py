@@ -59,7 +59,6 @@ class CrewService:
         Raises:
             ValueError: If role is invalid or user already signed up
         """
-        # Validate role
         if role not in ['commentator', 'tracker']:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
 
@@ -73,7 +72,6 @@ class CrewService:
                 'You are not a member of this community. Ask to join it first.'
             )
 
-        # Get match with crew prefetched
         match = require_found(
             await self.match_repository.get_by_id(match_id, prefetch_relations=True),
             f"Match {match_id}",
@@ -103,7 +101,6 @@ class CrewService:
         if required == 0:
             raise ValueError(f"This tournament does not use {role}s.")
 
-        # Check if user already signed up
         crew_list = match.commentators if role == 'commentator' else match.trackers
         if any(c.user_id == user.id for c in crew_list):
             raise ValueError(f"You're already signed up as {role} for this match.")
@@ -112,7 +109,6 @@ class CrewService:
         if any(p.user_id == user.id for p in players):
             raise ValueError("You can't crew a match you're playing in.")
 
-        # Create crew entry (not approved by default)
         if role == 'commentator':
             await self.commentator_repository.create(match=match, user=user, approved=False)
         else:
@@ -144,7 +140,6 @@ class CrewService:
         Raises:
             ValueError: If role is invalid or user not signed up
         """
-        # Validate role
         if role not in ['commentator', 'tracker']:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
 
@@ -158,13 +153,11 @@ class CrewService:
                 'You are not a member of this community. Ask to join it first.'
             )
 
-        # Get match with crew prefetched
         match = require_found(
             await self.match_repository.get_by_id(match_id, prefetch_relations=True),
             f"Match {match_id}",
         )
 
-        # Find crew member
         crew_list = match.commentators if role == 'commentator' else match.trackers
         crew_member = next((c for c in crew_list if c.user_id == user.id), None)
 
@@ -176,7 +169,6 @@ class CrewService:
         was_approved = bool(crew_member.approved)
         approved_by_id = crew_member.approved_by_id
 
-        # Delete crew entry
         await crew_member.delete()
 
         await self.audit_service.write_and_publish(

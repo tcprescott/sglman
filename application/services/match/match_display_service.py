@@ -260,7 +260,6 @@ class MatchDisplayService:
         failed_task: Optional['ProviderTask'] = None,
     ) -> Dict[str, Any]:
         """Format a match object for UI display."""
-        # Get state and corresponding timestamp
         state = self._get_match_state(match)
 
         if match.confirmed_at:
