@@ -1,4 +1,4 @@
-"""The bracket ↔ scheduled-match seam (docs/plans/bracket-match-integration-plan.md).
+"""The bracket ↔ scheduled-match seam (docs/features/brackets.md).
 
 DB-backed (the ``db`` fixture: in-memory SQLite, default tenant id 1). Four units
 meet here, and each has a failure mode that is silent in production:

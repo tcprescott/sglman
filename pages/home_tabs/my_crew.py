@@ -7,7 +7,7 @@ board — 17 rows and ~5,900 px of scroll on a phone — and their only reminder
 the approval DM, if approval ever happened. The Player tab ("Your Schedule") is
 players-only and mentions crew nowhere.
 
-Modelled on **My Shifts** (``volunteer_tabs/my_shifts.py``), deliberately: the
+Modelled on **My Shifts** (``pages/volunteer_tabs/my_shifts.py``), deliberately: the
 same people do both kinds of work, and shifts have had this page all along.
 Lives on Home rather than the Volunteer hub because crew signup is neither
 role-gated nor behind ``FeatureFlag.VOLUNTEERS`` — anyone in the community can

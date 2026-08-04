@@ -5,7 +5,7 @@ view + the mobile per-round accordion), plus the small pure helpers both callers
 need (context assembly, finals detection, per-entry records, scheduled-time
 formatting). Keeping these here — rather than in ``pages/`` — lets the admin
 Results dialog embed the identical visual bracket for click-to-report
-(docs/plans/bracket-ui-plan.md, U5). Presentation-only.
+(docs/features/brackets.md). Presentation-only.
 """
 
 from __future__ import annotations

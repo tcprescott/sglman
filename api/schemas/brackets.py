@@ -93,8 +93,8 @@ class BracketMatchResponse(BaseModel):
     entry2_score: Optional[int] = None
     forfeit: bool = False
     state: BracketMatchState
-    # The derived cross-surface status (docs/plans/bracket-match-integration-plan.md,
-    # U1): what the web bracket paints and what the Discord DM says, so an API
+    # The derived cross-surface status (docs/features/brackets.md): what the
+    # web bracket paints and what the Discord DM says, so an API
     # consumer sees "live" while a game is being raced rather than having to
     # re-derive it from the games' Match timestamps. Populated on the list reads;
     # None where the matchup's games were not resolved.

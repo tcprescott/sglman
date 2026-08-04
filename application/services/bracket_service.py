@@ -1,4 +1,4 @@
-"""Bracket Service - Business Logic Layer (native brackets, docs/plans/brackets-plan.md).
+"""Bracket Service - Business Logic Layer (native brackets, docs/features/brackets.md).
 
 Owns the bracket lifecycle: authoring a stage (create/update/delete while DRAFT),
 managing the tournament-level roster (entrants) and per-stage participation

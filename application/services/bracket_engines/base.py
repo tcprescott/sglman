@@ -1,4 +1,4 @@
-"""Bracket engine contract — pure structural types, no ORM (docs/plans/brackets-plan.md).
+"""Bracket engine contract — pure structural types, no ORM (docs/features/brackets.md).
 
 An engine turns a seeded field + a validated config into a description of a
 bracket's match graph. It never touches the database: it returns plain

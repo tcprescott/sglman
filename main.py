@@ -120,8 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
     # Importing discordbot registers its interaction handlers and DM view
     # factories with discord_service's registries — the one-way wiring that
-    # replaced the old bidirectional import cycle (see
-    # docs/reviews/2026-07-project-structure-review.md, roadmap item 21).
+    # replaced the old bidirectional import cycle.
     import discordbot  # noqa: F401
     await init_discord_bot()
     # Racetime bot runtime: one long-lived connection per active RacetimeBot

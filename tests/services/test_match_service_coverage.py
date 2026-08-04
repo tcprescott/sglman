@@ -1,6 +1,6 @@
 """DB-backed coverage tests for MatchService.
 
-Exercises the large untested regions of ``application/services/match_service.py``
+Exercises the large untested regions of ``application/services/match/match_service.py``
 against the in-memory SQLite ``db`` fixture with a *real* ``MatchService`` (real
 repositories, real ``MatchScheduleService``). Permission gates are satisfied by
 granting real roles / tournament-admin membership rather than monkeypatching, so

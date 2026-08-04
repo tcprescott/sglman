@@ -6,7 +6,7 @@ builds the score-group weighted graph and runs the min-cost perfect matching
 that yields no-rematch, minimal-score-difference pairings plus a single
 lowest-standing bye. Here we translate ``PairingPlayer`` state into
 ``swisspair.Player`` inputs and map the returned matches back to ``ref`` tuples
-(docs/plans/brackets-plan.md).
+(docs/features/brackets.md).
 
 Determinism note: when several matchings share the minimum cost (e.g. round one
 with everyone on zero points), swisspair breaks the tie with an internal RNG, so

@@ -1,5 +1,5 @@
 """Bracket engines — pairing/progression logic behind the ``bracket_format``
-strategy kind (docs/plans/brackets-plan.md).
+strategy kind (docs/features/brackets.md).
 
 Importing this package registers every engine with the shared
 :mod:`application.services.tournament_strategies` registry (a side effect of
