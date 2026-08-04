@@ -178,6 +178,8 @@ cython_debug/
 .vscode
 config.yaml
 .claude/worktrees/
+# Per-developer Claude Code overrides — settings.json is the shared, checked-in one.
+.claude/settings.local.json
 
 # Scalene profiling artifact (regenerate locally)
 profile.html

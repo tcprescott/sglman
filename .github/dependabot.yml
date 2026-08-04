@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  # Action versions are pinned by major tag, so a compromised or yanked release
+  # inside that major still reaches us silently. Dependabot at least makes the
+  # major bumps visible instead of leaving them to rot.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+
+  # security.yml already fails on a known advisory; this is the other half —
+  # a PR that actually moves the lockfile. Grouped so routine patch bumps arrive
+  # as one review rather than thirty.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

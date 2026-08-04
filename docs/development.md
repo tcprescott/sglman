@@ -317,16 +317,26 @@ rejected and that the avatar hash actually lands.)
 
 ## Continuous integration
 
-[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs four jobs on pushes to `main` and pull requests targeting it, all on `ubuntu-latest` / Python 3.12:
+[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs six jobs, all on `ubuntu-latest` / Python 3.12:
 
 | Job | What it runs |
 |---|---|
-| `lint` | `ruff check .` (**blocking**) then `mypy application api middleware main.py frontend.py` (informational) |
-| `pytest` | `pytest -q` with coverage over `application`, `api`, `middleware`; Poetry virtualenv cached on `poetry.lock` |
-| `swiss-crossvalidation` | builds bbpPairings and runs `tests/services/test_bracket_swiss_crossvalidation.py` against it; the suite skips itself unless `BBPPAIRINGS_BIN` points at the executable, so it is opt-in locally |
+| `lint` | `ruff check .` (**blocking**) then `scripts/mypy_ratchet.py` (blocking, but only on a file that *gains* errors — see below) |
+| `guardrails` | `scripts/guardrails.py --changed` — the `.claude/scripts/` checks against the files this diff touches |
+| `pytest` | `pytest -q` with coverage over `application`, `api`, `middleware` |
+| `swiss-crossvalidation` | builds bbpPairings (pinned to a commit) and runs `tests/services/test_bracket_swiss_crossvalidation.py` against it; the suite skips itself unless `BBPPAIRINGS_BIN` points at the executable, so it is opt-in locally |
+| `postgres` | re-runs `tests/postgres` and `tests/tenancy` against a real PostgreSQL 16 service |
 | `migrations` | applies the full migration chain to a fresh database |
 
-Container image publishing is handled separately by `.github/workflows/publish.yml` (see [deployment.md](deployment.md)).
+Pull requests trigger it directly. Pushes to `main` and `v*` tags reach it
+through `workflow_call` from [`publish.yml`](../.github/workflows/publish.yml),
+which gates the container build on the whole suite — so what guards a release is
+the same thing that guarded the PR, and a `main` push runs it once rather than
+twice. Image publishing itself is described in [deployment.md](deployment.md).
+
+Two more workflows run on their own schedule: `security.yml` (pip-audit over the
+runtime dependencies, on every PR and weekly) and `guardrail-sweep.yml` (the
+whole-tree guardrail run, weekly).
 
 ## Conventions & adding a feature
 
@@ -414,10 +424,11 @@ per-(check, file) count; a run fails only when a count *grows*. Deleting an entr
 is always safe, so the baseline shrinks on its own and only grows when somebody
 deliberately runs `--all --update-baseline`.
 
-Three scripts are deliberately excluded: `run_full_tests` and `run_related_tests`
+Four scripts are deliberately excluded: `run_full_tests` and `run_related_tests`
 are test runners rather than checks, `enforce_safe_commands` guards Bash tool
 calls, and `check_migration_drift` reads the working tree — which is clean in CI,
 where the `migrations` job proves the chain applies to a real PostgreSQL instead.
+Everything else in `.claude/scripts/` runs here.
 
 ## Repository hygiene notes
 

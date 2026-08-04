@@ -1,14 +1,32 @@
 name: Tests
 
+# Pull requests run this directly. Pushes to main and tags reach it through
+# `workflow_call` from publish.yml, which gates the container build on it — so
+# the suite that guards a release is the same one that guards a PR, and a main
+# push runs it once rather than twice.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# `github.workflow` is the *caller's* name inside a reusable workflow, so a PR
+# run and the publish.yml run of the same suite never share a group.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned so a Poetry release cannot break every job at once. Bump deliberately.
+  POETRY_VERSION: '2.3.3'
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +36,13 @@ jobs:
           python-version: '3.12'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-full-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -37,6 +61,7 @@ jobs:
     # gating, audit discipline. As Claude Code hooks they only fire inside a
     # Claude session; here they bind every commit, whoever wrote it.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,26 +86,23 @@ jobs:
 
   pytest:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.12']
-
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Cache Poetry virtualenv
         uses: actions/cache@v4
         with:
           path: ~/.cache/pypoetry/virtualenvs
-          key: poetry-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+          key: poetry-full-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -93,6 +115,11 @@ jobs:
     # Dutch engine). Kept as a separate job so the main matrix stays fast and is
     # not blocked on building the C++ binary.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Pinned to a commit rather than tracking master: an upstream push would
+      # otherwise change what we cross-validate against, mid-PR and unannounced.
+      BBPPAIRINGS_REF: 8f9e3c5ffdc4d7a08a33d31c6fb49b4e7acef4d5
     steps:
       - uses: actions/checkout@v4
 
@@ -102,12 +129,21 @@ jobs:
           python-version: '3.12'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Build bbpPairings
         run: |
-          git clone --depth 1 https://github.com/BieremaBoyzProgramming/bbpPairings
+          git init bbpPairings
+          git -C bbpPairings remote add origin https://github.com/BieremaBoyzProgramming/bbpPairings
+          git -C bbpPairings fetch --depth 1 origin "$BBPPAIRINGS_REF"
+          git -C bbpPairings checkout FETCH_HEAD
           make -C bbpPairings
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-full-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -126,6 +162,7 @@ jobs:
     # enforcement. Serial: each test drops and recreates the schema, so parallel
     # workers would pull the tables out from under each other.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -147,7 +184,13 @@ jobs:
           python-version: '3.12'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-full-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -161,6 +204,7 @@ jobs:
     # Prove the full aerich migration chain applies from an empty PostgreSQL
     # database — the tests run on SQLite and never exercise the migrations.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -182,7 +226,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Install runtime dependencies
         run: poetry install --only main --no-interaction
