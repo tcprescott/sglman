@@ -397,7 +397,7 @@ async def render_edit_info_tab():
                 matcherino_input = ui.input(
                     'Matcherino handle',
                     value=user.matcherino_username or '',
-                    placeholder='e.g. Jem041#578236',
+                    placeholder='e.g. yourname#123456',
                     on_change=on_personal_typing,
                 ).props('outlined dense stack-label').classes('input-full-width')
                 matcherino_input.on('blur', flush_personal)

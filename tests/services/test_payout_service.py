@@ -181,16 +181,16 @@ async def test_the_flag_being_off_hides_the_whole_surface(staff, tournament):
 
 
 async def test_the_export_block_reads_as_it_is_pasted(staff, tournament):
-    jem = await make_user(discord_id=10, username='jem', display_name='Jem',
-                          matcherino_username='Jem041#578236')
-    cody = await make_user(discord_id=11, username='ninjembro', display_name='ninjembro',
-                           matcherino_username='Cody_Allyn#1102083')
+    jem = await make_user(discord_id=10, username='jemgold', display_name='Jemgold',
+                          matcherino_username='jemgold#100234')
+    blueshell = await make_user(discord_id=11, username='blueshell', display_name='blueshell',
+                           matcherino_username='blueshell#204871')
     # No handle on purpose: a payout run stalls on exactly this, so the block
     # has to say so rather than leave a blank.
-    specks = await make_user(discord_id=12, username='Specks', display_name='Specks')
+    greenpotion = await make_user(discord_id=12, username='greenpotion', display_name='greenpotion')
     await _split(tournament, [
-        (1, '50.00', jem), (2, '30.00', cody),
-        (3, '10.00', specks), (3, '10.00', None),
+        (1, '50.00', jem), (2, '30.00', blueshell),
+        (3, '10.00', greenpotion), (3, '10.00', None),
     ])
 
     block = await PayoutService().export_block(tournament.id, staff)
@@ -199,8 +199,8 @@ async def test_the_export_block_reads_as_it_is_pasted(staff, tournament):
         'Total prize pool: $1000.00\n'
         'Bonus: $100.00\n'
         '\n'
-        '1st place - Jem (Jem041#578236): 50% / $550.00\n'
-        '2nd place - ninjembro (Cody_Allyn#1102083): 30% / $330.00\n'
-        '3rd place - Specks (no Matcherino handle): 10% / $110.00\n'
+        '1st place - Jemgold (jemgold#100234): 50% / $550.00\n'
+        '2nd place - blueshell (blueshell#204871): 30% / $330.00\n'
+        '3rd place - greenpotion (no Matcherino handle): 10% / $110.00\n'
         '3rd place - (unassigned): 10% / $110.00'
     )

@@ -26,9 +26,9 @@ _ARCHIVED_SPLIT = [
 #: a third place in the split above, so the export renders its missing-handle
 #: branch every time someone opens it.
 MATCHERINO_HANDLES = {
-    'player_one': 'Jem041#578236',
-    'player_two': 'Cody_Allyn#1102083',
-    'player_four': 'Andy#86139',
+    'player_one': 'jemgold#100234',
+    'player_two': 'blueshell#204871',
+    'player_four': 'ridgeline#309552',
 }
 
 
