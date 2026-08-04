@@ -600,7 +600,7 @@ class BaseLayout:
         built the first time that tab is shown. The home page carries up to nine
         tabs and a viewer sees one, so eager rendering spent ~47% of the page's
         render CPU on panels nobody looked at
-        (docs/plans/single-worker-escape-plan.md §1.3).
+        (docs/scaling-roadmap.md).
         """
         with ui.tab_panels(value=self._default_tab).props('swipeable animated').classes(
             'w-full'

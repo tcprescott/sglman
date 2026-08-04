@@ -354,7 +354,6 @@ async def admin_system_config_page() -> None:
                 reminder_raw = int_str(reminder_lead_input.value)
                 tiers_raw = _validate_comp_tiers(comp_tiers_input.value)
 
-                # Build per-day tournament hours mapping
                 hours_mapping: dict[date, tuple[str, str]] = {}
                 for d, fields in hours_inputs.items():
                     open_str = (fields['open'].value or '').strip()

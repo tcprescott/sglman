@@ -289,7 +289,7 @@ class AuditActions:
     ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
 
-    # Native brackets (docs/plans/brackets-plan.md). Bracket/entrant lifecycle and the
+    # Native brackets (docs/features/brackets.md). Bracket/entrant lifecycle and the
     # match/advancement/stage events the lifecycle drives. Actor is a human STAFF
     # for management; the started/completed/advanced rows capture the graph
     # transitions the service performs.

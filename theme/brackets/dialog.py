@@ -2,7 +2,7 @@
 
 Opened by clicking a match card on the public bracket page *or* in the admin
 Results dialog's embedded bracket, so both surfaces get the identical visual
-report/override flow (docs/plans/bracket-ui-plan.md, U5). Presentation-only: it renders
+report/override flow (docs/features/brackets.md). Presentation-only: it renders
 NiceGUI and calls ``BracketService`` for the write (the sanctioned
 presentation → service call), rebinding ``tenant_scope`` because it fires from a
 detached client event. The caller supplies the resolved lookups, the tenant id,

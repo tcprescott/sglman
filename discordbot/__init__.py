@@ -7,8 +7,7 @@ This is the inversion of what used to be a bidirectional import cycle between
 ``discord_service.py`` and ``discordbot/`` — previously held together only by
 ~20 deferred, function-body imports on both sides. The dependency now runs one
 way (``discordbot`` -> ``application.services``); ``discord_service`` no longer
-imports ``discordbot`` at all. Mirrors ``application/match_live.py``. See
-docs/reviews/2026-07-project-structure-review.md, roadmap item 21.
+imports ``discordbot`` at all. Mirrors ``application/events/match_live.py``.
 
 ``main.py``'s lifespan imports this package once at startup so the registration
 runs before any Discord interaction is dispatched or DM is sent.

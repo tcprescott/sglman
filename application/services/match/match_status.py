@@ -8,7 +8,7 @@ to hold, so a bracket card said "Scheduled" for a match the schedule was calling
 "In Progress".
 
 :class:`MatchStatus` is the single vocabulary all three project into. It is
-**derived, never stored** (docs/plans/bracket-match-integration-plan.md, D5): the
+**derived, never stored** (docs/features/brackets.md): the
 timestamps stay the source of truth and this module is a pure projection of them.
 
 Pure and ORM-free, like its peers ``match_source_guard`` / ``match_request_guard``

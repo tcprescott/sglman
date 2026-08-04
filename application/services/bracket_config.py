@@ -159,7 +159,7 @@ class BracketConfig(BaseModel):
     # Per-round display metadata (best-of, scheduled time), keyed by the round
     # number as a string — negative keys address losers-bracket rounds. Purely
     # display chrome for the redesigned bracket view; set by staff through the
-    # admin per-round editor. See docs/plans/bracket-ui-plan.md.
+    # admin per-round editor. See docs/features/brackets.md.
     rounds: Optional[Dict[str, RoundConfig]] = None
 
     @field_validator('default_best_of')

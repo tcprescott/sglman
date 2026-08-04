@@ -66,7 +66,7 @@ def host_oauth_handoff_enabled() -> bool:
     the platform host (one registered URI regardless of domain count) and a
     short-lived signed token hands the session to the custom domain. Flip this
     once the number of custom domains approaches the provider's redirect-URI
-    ceiling (see docs/plans/host-based-routing-plan.md §4.2).
+    ceiling (see docs/features/multitenancy.md).
     """
     return (os.environ.get('HOST_OAUTH_MODE') or '').strip().lower() == 'handoff'
 

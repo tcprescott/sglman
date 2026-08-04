@@ -143,7 +143,7 @@ class TestDispatchQueue:
 
 
 # --------------------------------------------------------------------------- #
-# application/match_live.py
+# application/events/match_live.py
 # --------------------------------------------------------------------------- #
 class TestMatchEvents:
     @pytest.fixture(autouse=True)

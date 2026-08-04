@@ -1,7 +1,7 @@
 """Shared standings & tiebreakers — pure functions over opaque entrant refs.
 
 Round robin uses this now; Swiss and stage-completion ranking will consume the
-same API to write each entry's ``final_rank`` (docs/plans/brackets-plan.md). There is
+same API to write each entry's ``final_rank`` (docs/features/brackets.md). There is
 no ORM here: entrants are plain ``int`` refs (the service passes ``BracketEntry``
 ids) and results are plain :class:`ResultRow` records. The module computes match
 points and a configurable chain of tiebreakers, then assigns 1-based competition

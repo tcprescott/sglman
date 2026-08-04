@@ -44,7 +44,6 @@ def _apply_results(state, pairings):
             state[a]['points'] += 1.0
             state[a]['received_bye'] = True
             continue
-        # Record the matchup.
         state[a]['opponents'].add(b)
         state[b]['opponents'].add(a)
         # Winner: higher points, tie broken by lower ref.

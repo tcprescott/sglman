@@ -20,7 +20,6 @@ async def stage_timeline_tab():
     user = await get_user_from_discord_id(discord_id) if discord_id else None
     show_admin_link = await AuthService.can_view_admin(user)
 
-    # Initialize service
     match_service = MatchService()
 
     # "Today" is the viewer's today, not UTC's — at 21:00 in New York it is
@@ -29,7 +28,6 @@ async def stage_timeline_tab():
     current_date = {'value': today_local()}
 
     with ui.column().classes('full-width-column'):
-        # Header with date navigation
         with ui.row().classes('timeline-header'):
             # Keep the chevrons flanking the date as one unit so they never split
             # across lines when the row wraps on a narrow (phone) viewport.
@@ -55,7 +53,6 @@ async def stage_timeline_tab():
 
             ui.space()
 
-            # Date picker
             with ui.input('Select Date', value=current_date['value'].strftime('%Y-%m-%d')) as date_input:
                 with ui.menu().props('no-parent-event') as menu:
                     ui.date(value=current_date['value'].strftime('%Y-%m-%d')).bind_value(date_input)
@@ -64,21 +61,17 @@ async def stage_timeline_tab():
                 with date_input.add_slot('append'):
                     ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
 
-        # Refresh button
         refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button').tooltip('Refresh')
 
-        # Container for the timeline view
         timeline_container = ui.column().classes('timeline-container')
 
         async def load_timeline():
             """Load and render the timeline for the selected date."""
             timeline_container.clear()
 
-            # Update date label
             date_label.text = current_date['value'].strftime('%A, %B %d, %Y')
             date_input.value = current_date['value'].strftime('%Y-%m-%d')
 
-            # Fetch matches for the selected date using service
             matches = await match_service.get_matches_for_date(
                 target_date=current_date['value'],
                 exclude_finished=True,
@@ -90,35 +83,28 @@ async def stage_timeline_tab():
                     empty_state('No matches scheduled for this date.')
                 return
 
-            # Group matches by stage using service
             matches_by_stage = await match_service.group_matches_by_stage(matches)
 
-            # Sort stages by name
             sorted_stages = sorted(matches_by_stage.items(), key=lambda x: x[1][0].name)
 
             with timeline_container:
-                # Display each stage and its matches
                 for _stage_id, (stage, stage_matches) in sorted_stages:
                     with ui.card().classes('card-full-width'):
-                        # Stage header
                         with ui.row().classes('stage-header'):
                             ui.label(stage.name).classes('stage-name')
                             if stage.stream_url:
                                 ui.link('Watch Stream', stage.stream_url, new_tab=True).classes('stage-link')
                             ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
 
-                        # Matches timeline
                         with ui.column().classes('column-spacing'):
                             for match in stage_matches:
                                 render_match_card(match, user)
 
         def render_match_card(match: Match, user: User = None):
             """Render a single match card in the timeline."""
-            # Determine match status
             status_text = 'Finished' if match.is_finished else 'In Progress' if match.is_seated else 'Scheduled'
             chip_class = 'wiz-chip--ok' if match.is_finished else 'wiz-chip--live' if match.is_seated else 'wiz-chip--neutral'
 
-            # Determine border class
             border_class = 'border-left-green' if match.is_finished else 'border-left-blue' if match.is_seated else 'border-left-gray'
 
             with ui.card().classes(f'match-card {border_class}'):
@@ -127,10 +113,8 @@ async def stage_timeline_tab():
                     time_str = format_local_time(match.scheduled_at) if match.scheduled_at else 'TBD'
                     ui.label(time_str).classes('match-time')
 
-                    # Status badge
                     ui.label(status_text).classes(f'match-badge wiz-chip {chip_class}')
 
-                    # Tournament name
                     if match.tournament:
                         ui.label(match.tournament.name).classes('match-tournament')
 
@@ -145,13 +129,11 @@ async def stage_timeline_tab():
                             'Open in Schedule', admin_url(SCHEDULE, match_id=match.id),
                         ).classes('text-link')
 
-                # Players
                 with ui.row().classes('match-details'):
                     ui.icon('sports_esports').classes('icon-spacing')
                     player_names = [p.user.preferred_name for p in match.players]
                     ui.label(' vs '.join(player_names) if player_names else 'No players assigned').classes('match-players')
 
-                # Commentators (if any)
                     if match.commentators:
                         approved_commentators = [c for c in match.commentators if c.approved]
                         if approved_commentators:
@@ -160,7 +142,6 @@ async def stage_timeline_tab():
                                 commentator_names = [c.user.preferred_name for c in approved_commentators]
                                 ui.label(', '.join(commentator_names)).classes('text-success')
 
-                # Trackers (if any)
                     if match.trackers:
                         approved_trackers = [t for t in match.trackers if t.approved]
                         if approved_trackers:
@@ -169,13 +150,6 @@ async def stage_timeline_tab():
                                 tracker_names = [t.user.preferred_name for t in approved_trackers]
                                 ui.label(', '.join(tracker_names)).classes('text-success')
 
-                    # # Comment (if any)
-                    # if match.comment:
-                    #     with ui.row().classes('match-details-nested'):
-                    #         ui.icon('comment').classes('icon-spacing')
-                    #         ui.label(match.comment).classes('text-italic')
-
-        # Define button actions
         async def go_prev_day():
             current_date['value'] = current_date['value'] - timedelta(days=1)
             await load_timeline()
@@ -218,5 +192,4 @@ async def stage_timeline_tab():
 
         register_view(on_remote_change)
 
-        # Initial load
         await load_timeline()

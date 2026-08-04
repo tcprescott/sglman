@@ -9,7 +9,7 @@ and a fully crewed restream.
 The approved-but-unacknowledged row is the one to keep: it is the only fixture
 that renders the Acknowledge control and the "Approved, awaiting acknowledgment"
 marker, and while the seed lacked it neither was reachable in a dev database
-(docs/reviews/crew-signup-ux.md F9).
+(docs/features/match-participation.md).
 
 These rows now feed three surfaces, not one: the board's crew cells, Reports →
 Crew Activity with its Pending-only filter (the unapproved rows), and **My Crew**

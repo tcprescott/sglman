@@ -17,7 +17,6 @@ from theme.notify import notify_error
 class MatchTableHandlersMixin:
     """Coroutine handlers for the match-table events, bound to a MatchTableView."""
 
-    # Helper to extract match id from emitted events
     def _event_match_id(self, event):
         if hasattr(event, 'args'):
             args = event.args
@@ -160,7 +159,6 @@ class MatchTableHandlersMixin:
             ui.notify(f'You must be logged in to {action}.', color='warning')
             return
 
-        # Get user via service layer
         user = await self.user_service.get_current_user_from_storage(discord_id)
         if not user:
             ui.notify("We couldn't find your account. Try logging in again.", color='warning')

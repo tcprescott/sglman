@@ -59,25 +59,21 @@ class UserTableView:
         if self.row_actions:
             self.table.add_slot(
                 'body-cell-actions', f'<q-td :props="props">{self.row_actions}</q-td>')
-        # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
-        # Render is_active as icon
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
             <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
         </q-td>''')
-        # Truncate long discord ids if present (leave plain text)
         self.table.add_slot('body-cell-discord_id', '''<q-td :props="props">
             <span v-if="props.value" class="wrap" :title="props.value">{{ props.value.toString().length > 24 ? props.value.toString().substring(0, 21) + '...' : props.value }}</span>
             <span v-else>-</span>
         </q-td>''')
-        # Show a dash when the user hasn't linked a Challonge account.
         self.table.add_slot('body-cell-challonge', '''<q-td :props="props">
             <span v-if="props.value">{{ props.value }}</span>
             <span v-else class="text-grey-7">-</span>
         </q-td>''')
-        # Display roles as comma-separated chips. props.value is a comma-separated string.
+        # props.value is a comma-separated string.
         self.table.add_slot('body-cell-roles', '''<q-td :props="props">
             <template v-if="props.value">
                 <q-chip v-for="r in props.value.split(',')" :key="r" color="primary" text-color="white" dense>{{ r.trim() }}</q-chip>
@@ -97,7 +93,6 @@ class UserTableView:
             with self.table.parent_slot:
                 row_count_label(self.table, 'people')
             sticky_header(self.table)
-        # Handler for editing a user
 
         async def handle_edit_user(event):
             row = event.args['row'] if 'row' in event.args else event.args
@@ -117,18 +112,14 @@ class UserTableView:
         self._bg(self.refresh())
 
     def render_grid_slot(self):
-        # Dynamically generate grid slot fields from self.columns
         grid_fields = []
         for col in self.columns:
             field = { 'label': col.get('label', col.get('name', '')), 'key': col.get('name', '') }
-            # Add event for username
             if field['key'] == 'username':
                 field['event'] = 'edit_user'
-            # Add bool for is_active
             if field['key'] == 'is_active':
                 field['bool'] = True
             grid_fields.append(field)
-        # Build JS array for Vue template
         js_field_array = ',\n    '.join([
             f"{{ label: '{f['label']}', key: '{f['key']}'" +
             (f", event: '{f['event']}'" if 'event' in f else '') +

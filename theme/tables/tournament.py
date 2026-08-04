@@ -67,7 +67,6 @@ class TournamentTableView:
         scoped_background(self._render_context, coro)
 
     def _setup_ui(self):
-        # Toolbar with actions
         with ui.row().classes('full-width'):
             if self.submit_tournament_callback:
                 ui.button('Add Tournament', icon='add', on_click=self.submit_tournament_callback).props('color=primary')
@@ -89,29 +88,24 @@ class TournamentTableView:
         # enable_mobile_grid, so it has to honour `hidden` itself.
         apply_column_visibility(self.table, self.columns)
         self.table.add_slot('no-data', no_data_slot('No tournaments yet.'))
-        # Add slot for clickable tournament name
         self.table.add_slot('body-cell-name', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_tournament', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
-        # Add slot for clickable player count
         self.table.add_slot('body-cell-player_count', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('show_players', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
-        # Truncate long descriptions with tooltip
         self.table.add_slot('body-cell-description', '''<q-td :props="props">
             <span v-if="props.value" class="wrap" :title="props.value">
                 {{ props.value.length > 120 ? props.value.substring(0, 117) + '...' : props.value }}
             </span>
             <span v-else>-</span>
         </q-td>''')
-        # Render booleans as icons
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
             <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
         </q-td>''')
         self.table.add_slot('body-cell-staff_administered', '''<q-td :props="props">
             <q-icon :name="props.value ? 'badge' : 'person'" :color="props.value ? 'primary' : 'grey'" size="sm" />
         </q-td>''')
-        # Mobile grid item slot
         self.table.add_slot('item', '''
         <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box;">
             <div class="row items-center q-mb-xs">
@@ -178,7 +172,6 @@ class TournamentTableView:
                     lambda: self.table.rows,
                 )
                 preferences_button(self.table)
-        # Register edit_tournament event handler immediately after table creation
         self.table.on('edit_tournament', self.handle_edit_tournament)
         self.table.on('show_players', self.handle_show_players)
         # Initial load at build: correctness must not depend on the selected_tab
@@ -239,7 +232,6 @@ class TournamentTableView:
         self.table.rows[idx] = row
         self.table.update()
 
-    # Handler for editing a tournament
     async def handle_edit_tournament(self, event):
         row = event.args['row'] if hasattr(event, 'args') and 'row' in event.args else event.args if hasattr(event, 'args') else event
         tournament_id = row['id']

@@ -172,7 +172,6 @@ class MatchTableView(MatchTableHandlersMixin):
         # True until the stored filters have been restored, so restoring them
         # does not each trigger their own table load. See _refresh_unless_initializing.
         self._initializing = True
-        # Initialize services
         self.service = MatchService()
         self.display_service = MatchDisplayService()
         self.user_service = UserService()
@@ -303,7 +302,6 @@ class MatchTableView(MatchTableHandlersMixin):
             self.tournaments_list = {
                 tid: name for tid, name in self.tournaments_list.items() if tid in allowed
             }
-        # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = tenant_session_get(self._skey('tournament_filter'), None)
         if self.tournament_filter:
             self.tournament_filter.options = self.tournaments_list
@@ -314,7 +312,6 @@ class MatchTableView(MatchTableHandlersMixin):
     async def _load_stages(self):
         """Load all stage names for the filter using service layer."""
         self.stages_list = await self.display_service.get_stages_for_filter()
-        # Set initial value from storage or default to None (All Stages)
         default_stage_id = tenant_session_get(self._skey('stage_filter'), None)
         if self.stage_filter:
             self.stage_filter.options = self.stages_list
@@ -323,7 +320,6 @@ class MatchTableView(MatchTableHandlersMixin):
         self._update_filter_badge()
 
     def _setup_ui(self):
-        # Action button row
         if self.submit_match_callback:
             with ui.row().classes('full-width row-spacing'):
                 ui.button(
@@ -341,7 +337,6 @@ class MatchTableView(MatchTableHandlersMixin):
             ui.space()
             ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary round dense').tooltip('Refresh table')
 
-        # Filters section - professional card-based layout
         self.filters_card = ui.card().classes('match-filters-card')
         with self.filters_card:
             with ui.row().classes('match-filter-row'):
@@ -355,7 +350,6 @@ class MatchTableView(MatchTableHandlersMixin):
                         on_change=self._on_day_filter_change,
                     ).classes('full-width').props('outlined dense')
 
-                # Tournament filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('Tournament').classes('match-filter-label')
                     self.tournament_filter = ui.select(
@@ -365,7 +359,6 @@ class MatchTableView(MatchTableHandlersMixin):
                         on_change=self._on_tournament_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
 
-                # Stage filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('Stage').classes('match-filter-label')
                     self.stage_filter = ui.select(
@@ -375,7 +368,6 @@ class MatchTableView(MatchTableHandlersMixin):
                         on_change=self._on_stage_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
 
-                # State filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('State').classes('match-filter-label')
                     default_states = self._stored_or_default_states()
@@ -581,7 +573,6 @@ class MatchTableView(MatchTableHandlersMixin):
 
     async def refresh(self, *_args):
         """Refresh table data using service layer."""
-        # Build filter parameters
         tournament_ids = None
         if self.tournament_filter and self.tournament_filter.value:
             tournament_ids = self.tournament_filter.value
@@ -739,13 +730,11 @@ class MatchTableView(MatchTableHandlersMixin):
         Uses service layer to fetch match data. When ``flash`` is set, the refreshed row
         briefly highlights so viewers notice a change made elsewhere.
         """
-        # Find the index of the row with the given match_id
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is None:
             return  # Row not visible, do nothing
 
-        # Use service to get match data
         match_data = await self.display_service.get_match_for_display(match_id)
 
         if not match_data or (self.row_filter is not None and not self.row_filter(match_data)):
