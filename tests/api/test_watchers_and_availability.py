@@ -79,6 +79,29 @@ class TestPlayerAvailability:
             assert (await c.delete('/api/users/me/availability')).status_code == 204
             assert (await c.get('/api/users/me/availability')).json() == []
 
+    async def test_available_window_is_dropped(self, db, app):
+        """Opt-out: an 'available' window states the default, so it is not kept."""
+        _, raw = await create_user_token(username='player')
+        payload = {
+            'windows': [
+                {
+                    'starts_at': '2026-06-10T18:00:00+00:00',
+                    'ends_at': '2026-06-10T20:00:00+00:00',
+                    'status': 'available',
+                },
+                {
+                    'starts_at': '2026-06-11T18:00:00+00:00',
+                    'ends_at': '2026-06-11T20:00:00+00:00',
+                    'status': 'unavailable',
+                },
+            ]
+        }
+        async with client_for(app, raw) as c:
+            put = await c.put('/api/users/me/availability', json=payload)
+            assert put.status_code == 200
+            assert [w['status'] for w in put.json()] == ['unavailable']
+            assert len((await c.get('/api/users/me/availability')).json()) == 1
+
     async def test_inverted_window_is_400(self, db, app):
         _, raw = await create_user_token(username='player')
         bad = {

@@ -136,7 +136,12 @@ class VolunteerAvailability(Model):
 
 
 class PlayerAvailability(Model):
-    """A window a player self-declares they can play (UTC)."""
+    """A window a player spoke for (UTC).
+
+    Read opt-out, unlike its volunteer sibling: a player is available for the
+    whole event, so a row is a time they cannot play (UNAVAILABLE) or would
+    rather (PREFERRED). No rows means fully available.
+    """
 
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='player_availability', on_delete=fields.CASCADE)

@@ -1,7 +1,9 @@
 """
 PlayerAvailability Repository - Data Access Layer
 
-Player self-declared availability windows.
+Player self-declared availability windows — the times a player has blocked out
+or marked preferred. Everything they leave unsaid is available; that reading
+lives in :class:`PlayerAvailabilityService`, not here.
 """
 
 from datetime import datetime
@@ -52,11 +54,3 @@ class PlayerAvailabilityRepository:
     @staticmethod
     async def delete_for_user(user: User) -> int:
         return await scoped(PlayerAvailability.filter(user=user)).delete()
-
-    @staticmethod
-    async def has_any(user_ids: List[int]) -> set[int]:
-        """Return subset of user_ids that have at least one availability window."""
-        if not user_ids:
-            return set()
-        rows = await scoped(PlayerAvailability.filter(user_id__in=user_ids)).distinct().values_list('user_id', flat=True)
-        return set(rows)

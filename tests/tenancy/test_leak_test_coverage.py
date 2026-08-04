@@ -34,7 +34,6 @@ BACKLOG: dict[str, str] = {
     'EquipmentLoan': _DEBT,
     'GeneratedSeeds': _DEBT,
     'MatchAcknowledgment': _DEBT,
-    'PlayerAvailability': _DEBT,
     'TournamentNotificationPreference': _DEBT,
     'Tracker': _DEBT,
     'TriforceText': _DEBT,

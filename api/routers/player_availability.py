@@ -1,8 +1,13 @@
 """Player availability endpoints.
 
-Any authenticated user may declare when they are available to play. Unlike
-volunteer availability (``/volunteers/me/availability``) there is no opt-in or
-role gate. Delegates to :class:`PlayerAvailabilityService`.
+Any authenticated user may say when they cannot play. Unlike volunteer
+availability (``/volunteers/me/availability``) there is no opt-in or role gate,
+and the windows read **opt-out**: a player who has posted nothing is available
+for the whole event, and the windows they do post are the times they cannot
+play (``unavailable``) or would rather (``preferred``). An ``available`` window
+is accepted but **dropped** — it states the default, so storing it would be a
+row that reads like a declaration and answers nothing.
+Delegates to :class:`PlayerAvailabilityService`.
 
 Reading *another* player's windows is staff, matching ``GET /users/{id}`` and
 the MCP ``get_player_availability`` tool — schedulers need the whole field's
@@ -47,7 +52,7 @@ async def list_availability(actor: User = Depends(require_api_actor)):
 @router.put(
     "",
     response_model=List[PlayerAvailabilityResponse],
-    summary="Replace your availability windows",
+    summary="Replace your blocked-out windows",
 )
 async def set_availability(
     body: SetPlayerAvailabilityRequest, actor: User = Depends(require_write_actor),
@@ -59,7 +64,7 @@ async def set_availability(
 @router.delete(
     "",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Clear all your availability windows",
+    summary="Clear all your windows (back to available all event)",
 )
 async def clear_availability(actor: User = Depends(require_write_actor)):
     await PlayerAvailabilityService().clear(actor)

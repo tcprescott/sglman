@@ -143,12 +143,16 @@ async def get_player_availability(
     tenant: TenantArg = None,
     user_ids: Optional[List[int]] = None,
 ) -> List[PlayerAvailability]:
-    """When players said they can play, across a window.
+    """What players said about playing in a window.
+
+    Availability is **opt-out**: a player is available for any time they have
+    not spoken for, so the windows here are the times they *cannot* play
+    (`unavailable`) or would rather (`preferred`). An empty list means fully
+    available, not unknown — a player is returned with one rather than omitted,
+    so you can tell them apart from players you did not ask about.
 
     `start` and `end` are ISO 8601 timestamps. Defaults to your own windows;
-    naming other players requires staff access, matching `get_user`. A player
-    with no declared windows is returned with an empty list rather than omitted,
-    so "has not answered" is distinguishable from "not asked about".
+    naming other players requires staff access, matching `get_user`.
     """
     actor = current_actor()
     start_dt, end_dt = _window(start, end)

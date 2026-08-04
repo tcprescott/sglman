@@ -1,4 +1,10 @@
-"""Schemas for player self-service availability endpoints."""
+"""Schemas for player self-service availability endpoints.
+
+Player windows are read opt-out — see :mod:`api.routers.player_availability`.
+The wire shape is the volunteer one, so ``status`` still defaults to
+``available``; for a player that window is dropped on save, and the useful
+values are ``unavailable`` and ``preferred``.
+"""
 
 from datetime import datetime
 from typing import Optional

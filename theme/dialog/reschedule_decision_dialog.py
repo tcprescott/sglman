@@ -19,7 +19,12 @@ from application.utils.timezone import (
     parse_local_datetime,
     to_local,
 )
-from models import MatchRescheduleRequest, RescheduleRequestKind, User
+from models import (
+    MatchRescheduleRequest,
+    RescheduleRequestKind,
+    User,
+    VolunteerAvailabilityStatus,
+)
 from theme.dialog._helpers import (
     dialog_actions,
     form_dialog,
@@ -208,8 +213,8 @@ class RescheduleDecisionDialog:
             status = PlayerAvailabilityService.covers(
                 windows.get(player.user_id, []), start, end,
             )
-            if status is not None and status.value == 'unavailable':
+            if status == VolunteerAvailabilityStatus.UNAVAILABLE:
                 lines.append(
-                    f'{player.user.preferred_name} marked themselves unavailable then.'
+                    f'{player.user.preferred_name} blocked that time out.'
                 )
         return lines
