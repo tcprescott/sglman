@@ -70,9 +70,9 @@ nothing: pasting a block into a thread changes no state.
 Total prize pool: $1000.00
 Bonus: $100.00
 
-1st place - Jem (Jem041#578236): 50% / $550.00
-2nd place - ninjembro (Cody_Allyn#1102083): 30% / $330.00
-3rd place - Specks (no Matcherino handle): 10% / $110.00
+1st place - Jemgold (jemgold#100234): 50% / $550.00
+2nd place - blueshell (blueshell#204871): 30% / $330.00
+3rd place - greenpotion (no Matcherino handle): 10% / $110.00
 3rd place - (unassigned): 10% / $110.00
 ```
 
