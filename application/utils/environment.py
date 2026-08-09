@@ -143,6 +143,55 @@ def service_health_alert_dm_enabled() -> bool:
     return os.environ.get('SERVICE_HEALTH_ALERT_DM', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def session_storage_url() -> str:
+    """Return the configured Redis URL for NiceGUI session storage, or ''.
+
+    ``NICEGUI_REDIS_URL`` is read by NiceGUI itself (``nicegui.storage.Storage``
+    picks its backend from the environment at import time); this reads the same
+    variable so startup can say which backend is live and refuse a broken one.
+    """
+    return (os.environ.get('NICEGUI_REDIS_URL') or '').strip()
+
+
+def validate_session_storage() -> None:
+    """Fail fast when Redis session storage is configured but unusable.
+
+    Without this, a typo'd or unreachable ``NICEGUI_REDIS_URL`` is not caught at
+    startup — NiceGUI constructs its ``RedisPersistentDict`` lazily, so the
+    first symptom is a login failing in production. The reachability probe is
+    deliberately synchronous and one-shot: it runs before the app serves
+    anything, and a Redis that is down at boot is a configuration problem, not a
+    transient to retry through.
+    """
+    url = session_storage_url()
+    if not url:
+        return
+
+    try:
+        import redis  # noqa: F401
+    except ImportError as exc:  # pragma: no cover - dependency is declared
+        raise RuntimeError(
+            'NICEGUI_REDIS_URL is set but the `redis` package is not installed. '
+            'Install it (it ships as a dependency) or unset the variable to fall '
+            'back to file-backed session storage.'
+        ) from exc
+
+    from redis import Redis
+    from redis.exceptions import RedisError
+
+    try:
+        client = Redis.from_url(url, socket_connect_timeout=5, socket_timeout=5)
+        try:
+            client.ping()
+        finally:
+            client.close()
+    except RedisError as exc:
+        raise RuntimeError(
+            f'NICEGUI_REDIS_URL is set but Redis is not reachable: {exc}. Sessions '
+            'would fail at login, so startup is aborted rather than degraded.'
+        ) from exc
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

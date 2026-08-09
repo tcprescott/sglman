@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_engines import get_bracket_engine
@@ -75,7 +76,7 @@ class StandingsGroup:
     rows: List[StandingsRow]
 
 
-class CompletionMixin:
+class CompletionMixin(ComposedBracketService):
     # -- stage completion / round progression -----------------------------
 
     async def _maybe_complete_stage(

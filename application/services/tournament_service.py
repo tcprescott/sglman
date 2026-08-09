@@ -189,10 +189,8 @@ class TournamentService(TournamentSignupMixin):
         max_match_duration: Optional[int] = None,
         is_active: bool = True,
         players_per_match: int = 2,
-        team_size: int = 1,
         required_commentators: int = 1,
         required_trackers: int = 1,
-        staff_administered: bool = False,
         allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
@@ -254,10 +252,8 @@ class TournamentService(TournamentSignupMixin):
             max_match_duration=max_match_duration,
             is_active=is_active,
             players_per_match=players_per_match,
-            team_size=team_size,
             required_commentators=self._crew_requirement(required_commentators, 'commentators'),
             required_trackers=self._crew_requirement(required_trackers, 'trackers'),
-            staff_administered=staff_administered,
             allow_player_match_requests=allow_player_match_requests,
             config=config,
             preset_id=preset_id,
@@ -297,10 +293,8 @@ class TournamentService(TournamentSignupMixin):
         max_match_duration: Optional[int] = None,
         is_active: Optional[bool] = None,
         players_per_match: Optional[int] = None,
-        team_size: Optional[int] = None,
         required_commentators: Optional[int] = None,
         required_trackers: Optional[int] = None,
-        staff_administered: Optional[bool] = None,
         allow_player_match_requests: Optional[bool] = None,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Any = _UNSET,
@@ -354,8 +348,6 @@ class TournamentService(TournamentSignupMixin):
             update_data['is_active'] = is_active
         if players_per_match is not None:
             update_data['players_per_match'] = players_per_match
-        if team_size is not None:
-            update_data['team_size'] = team_size
         if required_commentators is not None:
             update_data['required_commentators'] = self._crew_requirement(
                 required_commentators, 'commentators'
@@ -364,8 +356,6 @@ class TournamentService(TournamentSignupMixin):
             update_data['required_trackers'] = self._crew_requirement(
                 required_trackers, 'trackers'
             )
-        if staff_administered is not None:
-            update_data['staff_administered'] = staff_administered
         if allow_player_match_requests is not None:
             update_data['allow_player_match_requests'] = allow_player_match_requests
         if config is not None:

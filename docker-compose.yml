@@ -16,6 +16,21 @@ services:
       timeout: 5s
       retries: 10
 
+  # Holds app.storage.user so a redeploy does not sign everyone out. The app
+  # runs without it (NiceGUI falls back to a file in the container), but that
+  # file goes wherever the container goes.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   wizzrobe:
     build: .
     image: wizzrobe:latest
@@ -24,10 +39,13 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
+      NICEGUI_REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -39,3 +57,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

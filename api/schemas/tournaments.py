@@ -15,7 +15,6 @@ class TournamentResponse(BaseModel):
     seed_generator: Optional[str] = None
     is_active: bool
     players_per_match: int
-    team_size: int
     bracket_url: Optional[str] = None
     rules_url: Optional[str] = None
     tournament_format: Optional[str] = None
@@ -26,7 +25,6 @@ class TournamentResponse(BaseModel):
     # covered; 0 means the tournament does not use that role.
     required_commentators: int
     required_trackers: int
-    staff_administered: bool
     # False once a bracket is attached: the tournament schedules only its own
     # matchups, so POST /matches/request is refused for it.
     allow_player_match_requests: bool

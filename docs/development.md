@@ -317,7 +317,7 @@ rejected and that the avatar hash actually lands.)
 
 ## Continuous integration
 
-[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs six jobs, all on `ubuntu-latest` / Python 3.12:
+[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs seven jobs, all on `ubuntu-latest` / Python 3.12:
 
 | Job | What it runs |
 |---|---|
@@ -327,6 +327,7 @@ rejected and that the avatar hash actually lands.)
 | `swiss-crossvalidation` | builds bbpPairings (pinned to a commit) and runs `tests/services/test_bracket_swiss_crossvalidation.py` against it; the suite skips itself unless `BBPPAIRINGS_BIN` points at the executable, so it is opt-in locally |
 | `postgres` | re-runs `tests/postgres` and `tests/tenancy` against a real PostgreSQL 16 service |
 | `migrations` | applies the full migration chain to a fresh database |
+| `browser` | boots the real app against PostgreSQL with every integration mocked, seeds it, and walks the surfaces in [`scripts/ui_smoke_ci.json`](../scripts/ui_smoke_ci.json) in headless Chromium. The only job that executes `pages/` and `theme/` at all — the coverage figure above covers neither, and their Quasar slot templates run client-side where Python cannot reach them. Screenshots upload as an artifact on pass or fail |
 
 Pull requests trigger it directly. Pushes to `main` and `v*` tags reach it
 through `workflow_call` from [`publish.yml`](../.github/workflows/publish.yml),

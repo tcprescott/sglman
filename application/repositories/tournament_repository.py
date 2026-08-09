@@ -57,7 +57,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
     @staticmethod
     async def get_all(
         active_only: bool = False,
-        staff_only: bool = False,
         prefetch_players: bool = False
     ) -> List[Tournament]:
         """
@@ -65,7 +64,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         
         Args:
             active_only: Only return active tournaments
-            staff_only: Only return staff administered tournaments
             prefetch_players: Whether to prefetch enrolled players
             
         Returns:
@@ -75,9 +73,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
 
         if active_only:
             query = query.filter(is_active=True)
-        
-        if staff_only:
-            query = query.filter(staff_administered=True)
         
         if prefetch_players:
             query = query.prefetch_related('players', 'players__user')
@@ -179,7 +174,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
     @staticmethod
     async def get_all_as_dict(
         active_only: bool = False,
-        staff_only: bool = False
     ) -> dict[int, str]:
         """
         Get all tournaments as a dict mapping ID to name.
@@ -187,14 +181,12 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         
         Args:
             active_only: Only return active tournaments
-            staff_only: Only return staff tournaments
             
         Returns:
             Dict mapping tournament ID to name
         """
         tournaments = await TournamentRepository.get_all(
             active_only=active_only,
-            staff_only=staff_only,
             prefetch_players=False
         )
         return {t.id: t.name for t in tournaments}
@@ -206,7 +198,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         seed_generator: Optional[str] = None,
         is_active: bool = True,
         players_per_match: int = 2,
-        team_size: int = 1,
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
         tournament_format: Optional[str] = None,
@@ -215,7 +206,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         max_match_duration: Optional[int] = None,
         required_commentators: int = 1,
         required_trackers: int = 1,
-        staff_administered: bool = False,
         allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
@@ -241,7 +231,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             seed_generator: Name of seed generator to use
             is_active: Whether tournament is active
             players_per_match: Number of players per match
-            team_size: Number of players per team
             bracket_url: URL to tournament bracket
             rules_url: URL to tournament rules
             tournament_format: Format description
@@ -250,7 +239,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             required_commentators: Approved commentators a streamed match needs
                 to count as covered (0 = the role is not used here)
             required_trackers: Approved trackers a streamed match needs
-            staff_administered: Whether this is staff administered
             
         Returns:
             Created Tournament object
@@ -262,7 +250,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             seed_generator=seed_generator,
             is_active=is_active,
             players_per_match=players_per_match,
-            team_size=team_size,
             bracket_url=bracket_url,
             rules_url=rules_url,
             tournament_format=tournament_format,
@@ -271,7 +258,6 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             max_match_duration=max_match_duration,
             required_commentators=required_commentators,
             required_trackers=required_trackers,
-            staff_administered=staff_administered,
             allow_player_match_requests=allow_player_match_requests,
             config=config,
             preset_id=preset_id,

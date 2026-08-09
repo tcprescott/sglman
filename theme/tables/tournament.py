@@ -103,9 +103,6 @@ class TournamentTableView:
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
             <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
         </q-td>''')
-        self.table.add_slot('body-cell-staff_administered', '''<q-td :props="props">
-            <q-icon :name="props.value ? 'badge' : 'person'" :color="props.value ? 'primary' : 'grey'" size="sm" />
-        </q-td>''')
         self.table.add_slot('item', '''
         <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box;">
             <div class="row items-center q-mb-xs">
@@ -125,10 +122,6 @@ class TournamentTableView:
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Active:</div>
                 <div class="col-8"><q-icon :name="props.row.is_active ? 'check_circle' : 'cancel'" :color="props.row.is_active ? 'positive' : 'negative'" size="sm" /></div>
-            </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Staff Admin:</div>
-                <div class="col-8"><q-icon :name="props.row.staff_administered ? 'badge' : 'person'" :color="props.row.staff_administered ? 'primary' : 'grey'" size="sm" /></div>
             </div>
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Players Per Match:</div>
@@ -193,8 +186,6 @@ class TournamentTableView:
                 'seed_generator': t.seed_generator,
                 'is_active': t.is_active,
                 'players_per_match': t.players_per_match,
-                'team_size': t.team_size,
-                'staff_administered': t.staff_administered,
                 'player_count': t.player_count,
                 'average_match_duration': t.average_match_duration,
                 'max_match_duration': t.max_match_duration,
@@ -222,8 +213,6 @@ class TournamentTableView:
             'seed_generator': t.seed_generator,
             'is_active': t.is_active,
             'players_per_match': t.players_per_match,
-            'team_size': t.team_size,
-            'staff_administered': t.staff_administered,
             'player_count': t.player_count,
             'average_match_duration': t.average_match_duration,
             'max_match_duration': t.max_match_duration,

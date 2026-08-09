@@ -46,7 +46,7 @@ async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
         # reviewer both the empty and the full dialog.
         await Tournament.get_or_create(
             name='First Tournament', tenant=tenant,
-            defaults={'is_active': True, 'staff_administered': True},
+            defaults={'is_active': True},
         )
         # A pending request, so the staff queue has something in it. Its author
         # is the one seeded account that belongs to no community at all — see

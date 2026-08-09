@@ -39,10 +39,8 @@ class TournamentCreateRequest(BaseModel):
     max_match_duration: Optional[int] = None
     is_active: bool = True
     players_per_match: int = 2
-    team_size: int = 1
     required_commentators: int = Field(default=1, ge=0, description=_CREW_DESC)
     required_trackers: int = Field(default=1, ge=0, description=_CREW_DESC)
-    staff_administered: bool = False
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     event_end_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     tournament_hours: Optional[Dict[date, Tuple[str, str]]] = Field(
@@ -64,10 +62,8 @@ class TournamentUpdateRequest(BaseModel):
     max_match_duration: Optional[int] = None
     is_active: Optional[bool] = None
     players_per_match: Optional[int] = None
-    team_size: Optional[int] = None
     required_commentators: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
     required_trackers: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
-    staff_administered: Optional[bool] = None
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     event_end_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     tournament_hours: Optional[Dict[date, Tuple[str, str]]] = Field(

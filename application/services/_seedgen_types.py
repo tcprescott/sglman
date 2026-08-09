@@ -1,6 +1,6 @@
 """Value objects shared by seed generation and everything that persists a roll.
 
-Their own module so the per-backend modules (``seedgen_dk64r``) can name them
+Their own module so the per-backend modules (``_seedgen_dk64r``) can name them
 without importing the service that composes them.
 """
 

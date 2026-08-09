@@ -20,12 +20,12 @@ from pyz3r import ALTTPR
 
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
-from application.services.seedgen_dk64r import (
+from application.services._seedgen_dk64r import (
     DK64R_GENERATION_TIMEOUT,
     DK64R_SITE_HOSTS,
     DK64RBackend,
 )
-from application.services.seedgen_types import (
+from application.services._seedgen_types import (
     AsyncRollPoll,
     AsyncRollSubmission,
     RemotePreset,

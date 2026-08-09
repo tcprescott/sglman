@@ -48,7 +48,6 @@ async def _demo_tournament(tenant: Tenant, name: str) -> Tournament:
             "seed_generator": "alttpr",
             "is_active": True,
             "players_per_match": 2,
-            "staff_administered": False,
         },
     )
     return tournament

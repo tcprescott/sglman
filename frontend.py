@@ -11,7 +11,13 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
-from application.utils.environment import get_platform_host, is_production, validate_security_config
+from application.utils.environment import (
+    get_platform_host,
+    is_production,
+    session_storage_url,
+    validate_security_config,
+    validate_session_storage,
+)
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.public_cache import PublicCacheMiddleware
@@ -159,8 +165,27 @@ def init(fastapi_app: FastAPI) -> None:
     Args:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
-    # Refuse to start with an insecure session/DB configuration.
+    # Refuse to start with an insecure session/DB configuration, or with a
+    # session store that is configured but unreachable.
     validate_security_config()
+    validate_session_storage()
+
+    # Which store holds `app.storage.user` decides whether a deploy logs
+    # everyone out: the file backend lives in the container's filesystem and
+    # goes with it, Redis outlives the process. Say which one is live so the
+    # answer is in the startup log rather than in someone's memory.
+    redis_url = session_storage_url()
+    if redis_url:
+        logging.getLogger('wizzrobe').info(
+            'Session storage: Redis (sessions survive restarts).',
+        )
+    else:
+        logging.getLogger('wizzrobe').warning(
+            'Session storage: local file (.nicegui). Every restart signs all users out — '
+            'set NICEGUI_REDIS_URL to persist sessions across deploys.'
+            if is_production() else
+            'Session storage: local file (.nicegui).',
+        )
 
     # Log the resolved platform host so a proxy that isn't forwarding Host (which
     # would make every configured custom domain silently render the platform

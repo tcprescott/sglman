@@ -438,7 +438,6 @@ async def seed_for_tenant(
                 "seed_generator": "alttpr",
                 "is_active": True,
                 "players_per_match": 2,
-                "staff_administered": False,
                 **dev_tournament_meta,
             },
         )

@@ -17,7 +17,7 @@ from typing import List, Optional
 
 import aiohttp
 
-from application.services.seedgen_types import RemotePreset, RolledSeed
+from application.services._seedgen_types import RemotePreset, RolledSeed
 from application.utils.mocks.mock_dk64 import MockDK64Session, is_mock_dk64
 from application.utils.seed_provider import SeedProviderBadResponse
 from models import Preset

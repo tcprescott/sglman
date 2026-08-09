@@ -44,8 +44,6 @@ async def admin_tournaments_page() -> None:
              'field': 'average_match_duration', 'sortable': True},
             {'name': 'max_match_duration', 'label': 'Max Match Duration (min)',
              'field': 'max_match_duration', 'sortable': True},
-            {'name': 'staff_administered', 'label': 'Staff Administered',
-             'field': 'staff_administered', 'sortable': True},
             {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count',
              'sortable': True},
             # Whether players can currently sign themselves up. Staff setting a

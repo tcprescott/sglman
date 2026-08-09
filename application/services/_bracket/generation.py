@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_engines import get_bracket_engine
@@ -44,7 +45,7 @@ class DrawPreview:
     error: Optional[str] = None
 
 
-class GenerationMixin:
+class GenerationMixin(ComposedBracketService):
     # -- draw preview (pure: the engine over the current seeding, no writes) ---
     async def preview_draw(self, bracket_id: int) -> DrawPreview:
         """Run the engine over the current seeding and return the projected draw.

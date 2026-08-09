@@ -521,7 +521,7 @@ class TestGenerateDk64r:
         import itertools
         clock = itertools.count(0.0, 10_000.0)
         monkeypatch.setattr(
-            'application.services.seedgen_dk64r.time.monotonic',
+            'application.services._seedgen_dk64r.time.monotonic',
             lambda: next(clock),
         )
 

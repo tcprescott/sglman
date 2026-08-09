@@ -52,7 +52,7 @@ N>1 rather than merely duplicating work:
 | Per-match seed lock | two processes roll a seed for the same match, last-writer-wins |
 | NiceGUI element trees + socket.io | no cross-process client manager |
 | `app.storage.user` | fixable — NiceGUI 3.12 ships `NICEGUI_REDIS_URL` → `RedisPersistentDict` |
-| `aerich upgrade()` at boot | two processes race one migration; Aerich has no locking |
+| ~~`aerich upgrade()` at boot~~ | **done** — `application/utils/migration_lock.py` wraps the upgrade in a `pg_advisory_lock` on a dedicated connection, built to the shape this document specifies below (own connection, own constant, no-op on SQLite). It was worth doing ahead of the rest: at one replica the race is still reachable through an overlapping deploy or a fast crash-loop, and a half-applied migration is the one failure here that damages data rather than degrading behaviour |
 
 The rest duplicate or degrade: the Discord gateway, racetime connections, the five
 `BackgroundLoop` workers, the DM and dispatch queues, the API rate limiter
@@ -88,6 +88,15 @@ dedicated `asyncpg.connect()` owned by the lifespan. The migration lock must be 
 short critical section, and a follower must block on the schema while not blocking
 on leadership. The test suite runs on SQLite, which has no advisory locks, so the
 election helper needs a seam that no-ops to always-leader on non-Postgres backends.
+
+The migration half already exists and is the worked example to copy:
+`migration_lock` in `application/utils/migration_lock.py` holds
+`MIGRATION_LOCK_KEY` on its own `asyncpg` connection, yields `False` instead of
+locking on a non-PostgreSQL DSN, and is proven against a real backend in
+`tests/postgres/test_migration_lock.py` — where the assertion is that a second
+holder *cannot* enter, which is the only property worth testing and the one
+SQLite can never show. The leader election needs a different constant and a
+`try`-style acquire (`pg_try_advisory_lock`) rather than a blocking one.
 
 **Phase 3 — `web`/`worker` split.** Availability, not capacity. Postgres
 `LISTEN`/`NOTIFY` is the cross-process seam, chosen over adding Redis: Postgres is
