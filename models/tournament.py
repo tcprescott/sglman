@@ -12,7 +12,6 @@ class Tournament(Model):
     seed_generator = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
     players_per_match = fields.IntField(default=2)
-    team_size = fields.IntField(default=1)
     bracket_url = fields.CharField(max_length=255, null=True)
     rules_url = fields.CharField(max_length=255, null=True)
     tournament_format = fields.CharField(max_length=255, null=True)
@@ -117,7 +116,6 @@ class Tournament(Model):
     # can still be removed.
     required_commentators = fields.IntField(default=1)
     required_trackers = fields.IntField(default=1)
-    staff_administered = fields.BooleanField(default=False)
     # Whether players may schedule matches themselves outside a bracket
     # (``MatchService.submit_match_request``). Turned off automatically when a
     # native bracket is created or a Challonge bracket is linked: a bracket-run

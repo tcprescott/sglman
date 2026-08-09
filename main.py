@@ -32,10 +32,11 @@ from application.services.match import stage_reminder
 from application.services.volunteer import volunteer_reminder
 from application.utils.easter_eggs import random_fact
 from application.utils.http_headers import header_safe
+from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
 from middleware.security_headers import SecurityHeadersMiddleware
-from migrations.tortoise_config import TORTOISE_ORM
+from migrations.tortoise_config import DB_URL, TORTOISE_ORM
 
 # Configure application logging once, at import of the entrypoint. Without this
 # app loggers fall through to Python's lastResort handler: INFO is dropped and
@@ -54,10 +55,17 @@ _bot_task: Optional[asyncio.Task] = None
 async def init_db() -> None:
     """
     Initialize the database using Aerich migrations and Tortoise ORM.
+
+    The upgrade runs under an advisory lock so two overlapping container starts
+    cannot apply the same migration chain concurrently — see
+    ``application/utils/migration_lock.py``.
     """
     command = Command(tortoise_config=TORTOISE_ORM, app='models', location='./migrations')
     await command.init()
-    await command.upgrade()
+    async with migration_lock(DB_URL) as locked:
+        if not locked:
+            logger.info('Migration lock skipped: backend is not PostgreSQL.')
+        await command.upgrade()
     await Tortoise.init(config=TORTOISE_ORM)
 
 async def close_db() -> None:

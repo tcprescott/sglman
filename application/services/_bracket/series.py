@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.bracket_config import validate_best_of
 from models import (
@@ -39,7 +40,7 @@ from models import (
 logger = logging.getLogger(__name__)
 
 
-class SeriesMixin:
+class SeriesMixin(ComposedBracketService):
     # -- best-of resolution ------------------------------------------------
     @staticmethod
     def resolve_best_of(bracket: Bracket, bracket_match: BracketMatch) -> int:

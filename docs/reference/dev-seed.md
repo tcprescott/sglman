@@ -143,13 +143,10 @@ also how the files stay under the 800-line budget.
 
 Recorded so they read as decisions rather than gaps:
 
-- **No team fixtures.** `Tournament.team_size` is stored and editable, but nothing
-  in the app gives team membership meaning, so a fixture would imply semantics
-  that do not exist. Team events happen and are tracked outside Wizzrobe — see
-  [current-state.md](../current-state.md).
-- **Nothing is built on `staff_administered`.** It only ever split the profile
-  page's tournament lists cosmetically, real tournaments do not set it, and it is
-  a removal candidate. No fixture depends on it.
+- **No team fixtures.** Nothing in the app gives team membership meaning, so a
+  fixture would imply semantics that do not exist. `Tournament.team_size` used to
+  be stored against that someday and has been dropped; team events happen and are
+  tracked outside Wizzrobe — see [current-state.md](../current-state.md).
 - **Multi-racer is the exception, not the rule.** Head-to-head is what this app
   runs; the play-in fixture exists because ten-racer group races are the one real
   shape that is not 1v1, and it lives inside the tournament whose bracket it feeds

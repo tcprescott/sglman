@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from application.errors import require_found
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from models import (
@@ -25,7 +26,7 @@ from models import (
 )
 
 
-class AdvancementMixin:
+class AdvancementMixin(ComposedBracketService):
     # -- B7: results, advancement, stage completion -----------------------
 
     _ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
@@ -136,8 +137,8 @@ class AdvancementMixin:
         )
 
         match.winner = winner_entry
-        match.entry1_score = entry1_score
-        match.entry2_score = entry2_score
+        match.entry1_score = entry1_score  # type: ignore[assignment]  # nullable IntField, typed int by Tortoise
+        match.entry2_score = entry2_score  # type: ignore[assignment]  # nullable IntField, typed int by Tortoise
         match.forfeit = forfeit
         match.state = BracketMatchState.COMPLETE
         await match.save()
@@ -421,8 +422,8 @@ class AdvancementMixin:
         )
 
         match.winner = winner_entry
-        match.entry1_score = entry1_score
-        match.entry2_score = entry2_score
+        match.entry1_score = entry1_score  # type: ignore[assignment]  # nullable IntField, typed int by Tortoise
+        match.entry2_score = entry2_score  # type: ignore[assignment]  # nullable IntField, typed int by Tortoise
         match.forfeit = forfeit
         await match.save()
 

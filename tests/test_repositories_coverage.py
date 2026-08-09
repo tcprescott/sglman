@@ -435,20 +435,15 @@ class TestTournamentRepository:
         assert [t.name for t in result] == ["Alpha", "Bravo", "Charlie"]
 
     async def test_get_all_filters(self, db):
-        active_staff = await Tournament.create(name="A", is_active=True, staff_administered=True)
-        inactive = await Tournament.create(name="B", is_active=False, staff_administered=False)
-        active_nonstaff = await Tournament.create(name="C", is_active=True, staff_administered=False)
+        first_active = await Tournament.create(name="A", is_active=True)
+        await Tournament.create(name="B", is_active=False)
+        second_active = await Tournament.create(name="C", is_active=True)
 
         all_t = await TournamentRepository.get_all()
         assert [t.name for t in all_t] == ["A", "B", "C"]
 
         active = await TournamentRepository.get_all(active_only=True)
-        assert {t.id for t in active} == {active_staff.id, active_nonstaff.id}
-
-        staff = await TournamentRepository.get_all(staff_only=True)
-        assert {t.id for t in staff} == {active_staff.id}
-
-        _ = inactive  # referenced for clarity
+        assert {t.id for t in active} == {first_active.id, second_active.id}
 
     async def test_get_all_prefetch_players(self, db):
         t = await Tournament.create(name="A")
@@ -472,21 +467,17 @@ class TestTournamentRepository:
             seed_generator="alttpr",
             is_active=False,
             players_per_match=4,
-            team_size=2,
             bracket_url="http://b",
             rules_url="http://r",
             tournament_format="single elim",
             triforce_access_message="hi",
             average_match_duration=30,
             max_match_duration=60,
-            staff_administered=True,
         )
         assert t.name == "New"
         assert t.seed_generator == "alttpr"
         assert t.is_active is False
         assert t.players_per_match == 4
-        assert t.team_size == 2
-        assert t.staff_administered is True
         assert t.average_match_duration == 30
 
     async def test_update_persists(self, db):

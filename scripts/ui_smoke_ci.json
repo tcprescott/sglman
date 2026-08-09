@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "The browser smoke suite CI runs on every PR (the `browser` job in",
+    ".github/workflows/test.yml). It is deliberately much shorter than the full",
+    "/ui-validation loop: pages/ and theme/ are ~34k lines that the pytest suite",
+    "does not cover at all, and their Vue/Quasar slot templates run client-side,",
+    "so a bad `props.row.foo` in a table slot renders blank and no Python test",
+    "can see it. This list is the set of surfaces where that failure would cost",
+    "the most, not an attempt at coverage.",
+    "",
+    "Targets address a tab by URL section (/home/<slug>, /admin/<slug>) rather",
+    "than clicking a label, so the tab's content is built during the initial",
+    "render — same reasoning as scripts/ui_flag_targets.json.",
+    "",
+    "Runs against the seeded `default` tenant, which has every feature flag on,",
+    "so gated surfaces (brackets, qualifiers, equipment, volunteers) are",
+    "reachable here. The flag-OFF direction is scripts/ui_flag_sweep.sh's job and",
+    "is not duplicated.",
+    "",
+    "Adding a target costs ~3s of CI. Add one when a surface becomes somewhere a",
+    "blank render would go unnoticed until an event; do not mirror every tab."
+  ],
+  "loginAs": "staff_user",
+  "tenant": "default",
+  "outDir": "/tmp/ui-smoke-ci",
+  "targets": [
+    { "name": "home-schedule", "path": "/home/schedule", "selector": ".match-table" },
+    { "name": "home-player", "path": "/home/player" },
+    { "name": "home-profile", "path": "/home/profile" },
+    { "name": "admin-schedule", "path": "/admin/schedule", "selector": ".match-table" },
+    { "name": "admin-users", "path": "/admin/users" },
+    { "name": "admin-tournaments", "path": "/admin/tournaments" },
+    { "name": "admin-reports", "path": "/admin/reports" },
+    { "name": "brackets", "path": "/brackets" },
+    { "name": "equipment", "path": "/equipment" },
+    { "name": "volunteer", "path": "/volunteer" }
+  ]
+}

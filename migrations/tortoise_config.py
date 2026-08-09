@@ -17,9 +17,11 @@ if not all([host, port, dbname]):
 if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production" and not (username.strip() and password.strip()):
     raise ValueError("DB_USERNAME and DB_PASSWORD must be set in production.")
 
+DB_URL = f"postgres://{username}:{urllib.parse.quote_plus((password).encode())}@{host}:{port}/{dbname}"
+
 TORTOISE_ORM = {
     "connections": {
-        "default": f"postgres://{username}:{urllib.parse.quote_plus((password).encode())}@{host}:{port}/{dbname}"
+        "default": DB_URL
     },
     "apps": {
         "models": {

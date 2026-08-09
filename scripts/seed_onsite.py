@@ -71,7 +71,6 @@ async def seed_onsite_for_tenant(
             # A non-default stage reminder lead, so the worker's per-tournament
             # re-check is exercised rather than the 30-minute default.
             "stage_reminder_minutes": 45,
-            "staff_administered": False,
             **_ONSITE_META,
             # Per-tournament "tournament days" override: its own event window
             # and per-day hours, distinct from the tenant default.
@@ -197,7 +196,6 @@ async def _seed_announced_season(tenant: Tenant, now: datetime) -> Tournament:
             "seed_generator": "alttpr",
             "is_active": True,
             "players_per_match": 2,
-            "staff_administered": False,
             "tournament_format": "Double elimination, best of 3",
             "average_match_duration": 85,
             "signups_open_at": now + timedelta(days=30),
@@ -231,7 +229,6 @@ async def _seed_archived_season(
             "seed_generator": "alttpr",
             "is_active": False,
             "players_per_match": 2,
-            "staff_administered": False,
             "tournament_format": "Single elimination, best of 3",
             "average_match_duration": 80,
             "max_match_duration": 130,

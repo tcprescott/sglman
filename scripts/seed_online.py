@@ -317,7 +317,6 @@ async def _seed_online_tournament(
             "description": "Online fixture — races run in racetime.gg rooms.",
             "is_active": True,
             "players_per_match": 2,
-            "staff_administered": False,
             **_ONLINE_TOURNAMENT_META,
         },
     )

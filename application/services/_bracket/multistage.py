@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_config import AdvancementConfig
@@ -45,7 +46,7 @@ class AdvancementPlan:
     already_seeded: bool
 
 
-class MultiStageMixin:
+class MultiStageMixin(ComposedBracketService):
     # -- B8: multi-stage chaining -----------------------------------------
 
     async def advance_stage(

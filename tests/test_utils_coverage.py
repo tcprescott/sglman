@@ -67,6 +67,65 @@ class TestTelemetryEnabled:
         assert environment.telemetry_enabled() is False
 
 
+class TestSessionStorage:
+    def test_unset_means_file_backed(self, monkeypatch):
+        monkeypatch.delenv('NICEGUI_REDIS_URL', raising=False)
+        assert environment.session_storage_url() == ''
+        assert environment.validate_session_storage() is None
+
+    def test_blank_is_treated_as_unset(self, monkeypatch):
+        monkeypatch.setenv('NICEGUI_REDIS_URL', '   ')
+        assert environment.session_storage_url() == ''
+        assert environment.validate_session_storage() is None
+
+    def test_reachable_redis_passes(self, monkeypatch):
+        monkeypatch.setenv('NICEGUI_REDIS_URL', 'redis://localhost:6379/0')
+        pinged = {}
+
+        class FakeClient:
+            def ping(self):
+                pinged['called'] = True
+                return True
+
+            def close(self):
+                pinged['closed'] = True
+
+        monkeypatch.setattr('redis.Redis.from_url', lambda url, **kw: FakeClient())
+        assert environment.validate_session_storage() is None
+        assert pinged == {'called': True, 'closed': True}
+
+    def test_unreachable_redis_aborts_startup(self, monkeypatch):
+        """A bad URL must fail at boot, not at the first person's login."""
+        from redis.exceptions import ConnectionError as RedisConnectionError
+
+        monkeypatch.setenv('NICEGUI_REDIS_URL', 'redis://nope:6379/0')
+
+        def explode(url, **kw):
+            raise RedisConnectionError('name does not resolve')
+
+        monkeypatch.setattr('redis.Redis.from_url', explode)
+        with pytest.raises(RuntimeError, match='Redis is not reachable'):
+            environment.validate_session_storage()
+
+    def test_client_is_closed_even_when_ping_fails(self, monkeypatch):
+        from redis.exceptions import TimeoutError as RedisTimeoutError
+
+        monkeypatch.setenv('NICEGUI_REDIS_URL', 'redis://localhost:6379/0')
+        closed = {}
+
+        class FakeClient:
+            def ping(self):
+                raise RedisTimeoutError('timed out')
+
+            def close(self):
+                closed['yes'] = True
+
+        monkeypatch.setattr('redis.Redis.from_url', lambda url, **kw: FakeClient())
+        with pytest.raises(RuntimeError, match='Redis is not reachable'):
+            environment.validate_session_storage()
+        assert closed == {'yes': True}
+
+
 class TestValidateSecurityConfig:
     def test_missing_storage_secret_raises(self, monkeypatch):
         monkeypatch.delenv('STORAGE_SECRET', raising=False)

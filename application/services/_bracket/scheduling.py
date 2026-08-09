@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
 from application.events import EventType
+from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from models import (
@@ -23,7 +24,7 @@ from models import (
 )
 
 
-class SchedulingMixin:
+class SchedulingMixin(ComposedBracketService):
     # -- B9: scheduling seam (mirrors the Challonge integration) ----------
     async def list_open_matches_for_user(
         self, user_id: int, tournament_id: Optional[int] = None

@@ -26,6 +26,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from application.services import notification_links
+from application.services._bracket._composed import ComposedBracketService
 from application.services.bracket_engines.round_names import RoundNode, round_names
 from application.services.discord import discord_queue
 from application.utils.discord_embeds import matchup_ready_embed
@@ -41,7 +42,7 @@ from models import (
 logger = logging.getLogger(__name__)
 
 
-class BracketNotificationMixin:
+class BracketNotificationMixin(ComposedBracketService):
     # -- round naming ------------------------------------------------------
     async def round_name_for(self, bracket: Bracket, round_number: int) -> str:
         """The human name of one round of a stage — "Semifinals", "Losers Round 2".

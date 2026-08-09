@@ -240,3 +240,101 @@ jobs:
           DB_NAME: wizzrobe
           ENVIRONMENT: development
         run: poetry run aerich upgrade
+
+  browser:
+    # pages/ + theme/ are ~34k lines the pytest suite does not cover, and their
+    # Vue/Quasar slot templates run client-side: a bad `props.row.foo` in a table
+    # slot renders a blank cell that no Python test can see. This job boots the
+    # real app against a real PostgreSQL, seeds it, and walks the surfaces where
+    # a blank render would cost the most — the short CI cousin of the full
+    # /ui-validation loop, which stays a local tool.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wizzrobe
+          POSTGRES_PASSWORD: wizzrobe
+          POSTGRES_DB: wizzrobe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wizzrobe"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_NAME: wizzrobe
+      DB_USERNAME: wizzrobe
+      DB_PASSWORD: wizzrobe
+      DB_HOST: localhost
+      DB_PORT: 5432
+      ENVIRONMENT: development
+      # Every outbound integration is mocked: this job proves pages render, and
+      # it must not depend on Discord, a randomizer, Challonge, Twitch or
+      # racetime.gg being reachable from a CI runner.
+      MOCK_DISCORD: 'true'
+      MOCK_SEEDGEN: 'true'
+      MOCK_CHALLONGE: 'true'
+      MOCK_TWITCH: 'true'
+      MOCK_RACETIME: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-full-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Install Playwright Chromium
+        # Pinned: Playwright ships browser-behaviour changes in minor releases,
+        # and an unpinned bump would land as a mystery CI failure on an unrelated
+        # PR. 1.56.1 matches the version preinstalled in the dev sandbox, so a
+        # local /ui-validation run and this job drive the same browser.
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Generate a session secret
+        run: echo "STORAGE_SECRET=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> "$GITHUB_ENV"
+
+      - name: Boot the app
+        run: |
+          setsid poetry run uvicorn main:app --workers 1 --log-level info \
+            --port 8000 --host 127.0.0.1 > /tmp/app.log 2>&1 < /dev/null &
+          # The FastAPI lifespan applies the migration chain on first boot, so
+          # readiness is the signal to wait for, not a fixed sleep.
+          for _ in $(seq 1 60); do
+            grep -q 'Application startup complete' /tmp/app.log && exit 0
+            sleep 2
+          done
+          echo "app did not become ready in 120s"; cat /tmp/app.log; exit 1
+
+      - name: Seed fixtures
+        run: poetry run python scripts/seed_dev.py
+
+      - name: Walk the surfaces
+        run: node scripts/ui_smoke.js scripts/ui_smoke_ci.json
+
+      - name: App log
+        if: always()
+        run: tail -200 /tmp/app.log
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-screenshots
+          path: /tmp/ui-smoke-ci/
+          if-no-files-found: warn
