@@ -32,6 +32,16 @@ happened once with ``preset_service.py`` and ``seedgen_service.py``, which repor
 one error fewer on 3.13 than on 3.12. If it happens again, restore those specific
 entries by hand rather than re-running ``--update``: the numbers CI produces are
 the authoritative ones.
+
+It happened again, on ``preset_service.py`` again, and the sharper lesson is that
+matching the *minor* version is not enough — 3.12.3 also reports one fewer there
+than the runner's 3.12.13. So there is no local interpreter that reliably
+reproduces CI's numbers, and **the safe move after fixing errors is to leave the
+baseline alone.** A stale-high baseline costs nothing: the check only fails on an
+increase, and the run prints how many fewer there are, so the improvement is
+still visible and still locked against regression at the old ceiling. Re-record
+only when the slack has grown large enough to be worth the round trip, and expect
+to fix up a file or two from what CI reports.
 """
 
 from __future__ import annotations
