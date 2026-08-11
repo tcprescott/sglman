@@ -8,7 +8,7 @@ list are ungated by design (a valid token is still required). Every read uses th
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api._helpers import load_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
@@ -19,6 +19,7 @@ from api.schemas.async_qualifiers import (
     AsyncQualifierPublicResponse,
     AsyncQualifierResponse,
     AsyncQualifierReviewNoteResponse,
+    AsyncQualifierRunPage,
     AsyncQualifierRunResponse,
     LeaderboardEntryResponse,
     MyQualifierRunResponse,
@@ -44,6 +45,12 @@ from application.tenant_context import require_tenant_id
 from models import AsyncQualifier, User
 
 router = APIRouter(prefix="/async-qualifiers", tags=["Async qualifiers"], route_class=ServiceErrorRoute)
+
+# One page of runs, and the most a caller may ask for at once. A 500-player
+# qualifier holds a few thousand runs, so the unbounded read this replaces was a
+# 1.66 MB body every time.
+RUNS_PAGE_DEFAULT = 100
+RUNS_PAGE_MAX = 500
 
 
 async def _load_qualifier_or_404(qualifier_id: int) -> AsyncQualifier:
@@ -119,11 +126,32 @@ async def list_review_queue(qualifier_id: int, actor: User = Depends(require_api
 
 @router.get(
     "/{qualifier_id}/runs",
-    response_model=List[AsyncQualifierRunResponse],
-    summary="Every run in the qualifier (admin)",
+    response_model=AsyncQualifierRunPage,
+    summary="Runs in the qualifier, newest first (admin)",
 )
-async def list_runs(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    return await AsyncQualifierService().list_runs(actor, qualifier_id)
+async def list_runs(
+    qualifier_id: int,
+    limit: int = Query(RUNS_PAGE_DEFAULT, ge=1, le=RUNS_PAGE_MAX,
+                       description="Maximum runs to return."),
+    offset: int = Query(0, ge=0),
+    actor: User = Depends(require_api_actor),
+):
+    """One page of runs, plus the qualifier's total.
+
+    Paginated because it was not: a 500-player qualifier answered this with 3,129
+    runs in a 1.66 MB body, every time, and a caller that wanted the ten most recent
+    had no way to say so. ``total`` is how many exist, not how many came back.
+    """
+    service = AsyncQualifierService()
+    return AsyncQualifierRunPage(
+        total=await service.count_runs(actor, qualifier_id),
+        limit=limit,
+        offset=offset,
+        items=[
+            AsyncQualifierRunResponse.model_validate(run)
+            for run in await service.list_runs(actor, qualifier_id, limit=limit, offset=offset)
+        ],
+    )
 
 
 @router.get(

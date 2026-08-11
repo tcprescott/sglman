@@ -441,16 +441,35 @@ class AsyncQualifierService(PoolManagementMixin, PlayerReadsMixin, RunExpiryMixi
         return await self.run_repository.outcome_tally_for_users(qualifier_id, user_ids)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def list_runs(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierRun]:
+    async def list_runs(
+        self,
+        actor: Optional[User],
+        qualifier_id: int,
+        *,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[AsyncQualifierRun]:
         """Every run in the qualifier, for the reviewer's runs list.
 
         The review queue only returns finished+pending runs, so a forfeit — which
         is written straight to approved/score 0 — is unreachable from it. This is
         the read that lets a reviewer find one and grant a reattempt on it.
+
+        ``limit``/``offset`` page it for the API, where the whole list of a
+        real qualifier's runs is megabytes. The web page passes neither: its table
+        paginates in the browser and the reviewer searches across the lot.
         """
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
-        return await self.run_repository.list_for_qualifier(qualifier_id)
+        return await self.run_repository.list_for_qualifier(
+            qualifier_id, limit=limit, offset=offset)
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def count_runs(self, actor: Optional[User], qualifier_id: int) -> int:
+        """How many runs the qualifier holds — the total beside a page of them."""
+        qualifier = await self._require_qualifier(qualifier_id)
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
+        return await self.run_repository.count_for_qualifier(qualifier_id)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def claim_run(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
@@ -639,8 +658,7 @@ class AsyncQualifierService(PoolManagementMixin, PlayerReadsMixin, RunExpiryMixi
 
     async def _count_reattempts(self, user_id: int, qualifier_id: int) -> int:
         """Reattempts this player spent themselves — a reviewer's grant is not theirs."""
-        runs = await self.run_repository.list_for_user(qualifier_id, user_id)
-        return sum(1 for r in runs if r.reattempted and r.reattempt_granted_by_id is None)
+        return await self.run_repository.count_self_spent_reattempts(qualifier_id, user_id)
 
     # feature-gate: exempt — a sibling service's continuation, already past the gate
     # its own entry method enforced; refusing here would abandon runs it just wrote

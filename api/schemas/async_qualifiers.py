@@ -191,6 +191,20 @@ class AsyncQualifierRunResponse(BaseModel):
     updated_at: datetime
 
 
+class AsyncQualifierRunPage(BaseModel):
+    """One page of a qualifier's runs, and how many there are in total.
+
+    The same envelope ``GET /audit-logs`` uses. An envelope rather than a bare array
+    because the array had no bound: a 500-player qualifier answered with 3,129 runs
+    in one 1.66 MB body, and a caller wanting the ten most recent could not say so.
+    """
+
+    total: int
+    limit: int
+    offset: int
+    items: List[AsyncQualifierRunResponse]
+
+
 class MyQualifierRunResponse(BaseModel):
     """One of the caller's own runs — a narrower projection than the admin view.
 

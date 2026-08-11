@@ -275,16 +275,24 @@ class PlayerReadsMixin:
 
         Both the pool list and the availability read derive from this, so "may I
         draw here?" is answered in one place.
+
+        Three queries, whatever the pool count. It was about five and a half *per
+        pool* — 22 for a four-pool qualifier — because the candidate list, the seed
+        count and the spent count each went to the database on their own, and the
+        first two re-read the same permalinks the pool read had already prefetched.
         """
         pools = await self.pool_repository.list_for_qualifier(qualifier.id)
+        pool_ids = [p.id for p in pools]
+        played = await self.run_repository.played_permalink_ids_for_user_by_pool(
+            pool_ids, user.id)
+        spent = await self.run_repository.valid_run_counts_for_user_by_pool(pool_ids, user.id)
         usage = {}
         for pool in pools:
-            candidates = await self.draw.draw_candidates(pool, user.id)
-            used = await self.run_repository.count_valid_runs_for_user_in_pool(pool.id, user.id)
+            candidates = self.draw.drawable(pool.permalinks, played.get(pool.id, set()))
             usage[pool.id] = rules.PoolUsage(
-                pool_id=pool.id, name=pool.name, used=used,
+                pool_id=pool.id, name=pool.name, used=spent.get(pool.id, 0),
                 allowed=qualifier.runs_per_pool, has_candidates=bool(candidates),
-                seeded=await self.draw.async_seed_count(pool) > 0,
+                seeded=self.draw.async_seeds(pool) > 0,
             )
         return pools, usage
 

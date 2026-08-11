@@ -372,7 +372,15 @@ class TestRunLifecycle:
             queue = await c.get(f'/api/async-qualifiers/{qid}/review-queue')
             assert queue.json() == []
             runs = await c.get(f'/api/async-qualifiers/{qid}/runs')
-            assert [r['id'] for r in runs.json()] == [run_id]
+            page = runs.json()
+            assert [r['id'] for r in page['items']] == [run_id]
+            assert (page['total'], page['offset']) == (1, 0)
+
+            # A page past the end is empty and still reports the total, so a client
+            # paging through knows it has reached the end rather than guessing.
+            beyond = await c.get(f'/api/async-qualifiers/{qid}/runs?limit=1&offset=5')
+            assert beyond.json()['items'] == []
+            assert beyond.json()['total'] == 1
 
             blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
                                  json={'reason': ' '})

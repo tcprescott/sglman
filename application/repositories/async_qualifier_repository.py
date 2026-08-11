@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 
 from tortoise.expressions import Q
+from tortoise.functions import Count
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
@@ -147,10 +148,30 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
             AsyncQualifierRun.filter(qualifier_id=qualifier_id, user_id=user_id)
         ).prefetch_related('permalink__pool', 'review_notes__author').order_by('-created_at')
 
-    async def list_for_qualifier(self, qualifier_id: int) -> List[AsyncQualifierRun]:
-        return await scoped(
+    async def list_for_qualifier(
+        self, qualifier_id: int, *, limit: Optional[int] = None, offset: int = 0
+    ) -> List[AsyncQualifierRun]:
+        """Runs newest first, optionally one page of them.
+
+        ``limit`` exists for the API, where a real qualifier's whole run list is a
+        multi-megabyte response. Ordered by ``-created_at, -id`` so a page boundary
+        is stable: ordering by a timestamp alone lets two runs created in the same
+        second swap between page 1 and page 2, which shows one twice and hides the
+        other entirely.
+        """
+        query = scoped(
             AsyncQualifierRun.filter(qualifier_id=qualifier_id)
-        ).prefetch_related('user', 'permalink__pool', 'review_notes__author').order_by('-created_at')
+        ).prefetch_related(
+            'user', 'permalink__pool', 'review_notes__author',
+        ).order_by('-created_at', '-id')
+        if offset:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        return await query
+
+    async def count_for_qualifier(self, qualifier_id: int) -> int:
+        return await scoped(AsyncQualifierRun.filter(qualifier_id=qualifier_id)).count()
 
     async def list_valid_for_qualifier(self, qualifier_id: int) -> List[AsyncQualifierRun]:
         """Runs that count toward scoring/leaderboard: not voided by a reattempt."""
@@ -316,20 +337,84 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         return {pid for pid in rows if pid is not None}
 
     async def valid_run_counts_by_permalink_for_pool(self, pool_id: int) -> Dict[int, int]:
-        """Play count per permalink in a pool (all players), for draw fairness."""
-        rows = await scoped(
-            AsyncQualifierRun.filter(permalink__pool_id=pool_id, reattempted=False)
-        ).values_list('permalink_id', flat=True)
-        counts: Dict[int, int] = {}
-        for pid in rows:
-            if pid is not None:
-                counts[pid] = counts.get(pid, 0) + 1
-        return counts
+        """Play count per permalink in a pool (all players), for draw fairness.
+
+        Counted in the database. It used to pull every run's ``permalink_id`` in the
+        pool and tally them in Python, so the draw a player waits on read a row per
+        run already taken — the one query in the whole flow that grows with the
+        qualifier's own success.
+        """
+        rows = await (
+            scoped(AsyncQualifierRun.filter(permalink__pool_id=pool_id, reattempted=False))
+            .annotate(n=Count('id'))
+            .group_by('permalink_id')
+            .values('permalink_id', 'n')
+        )
+        return {row['permalink_id']: row['n'] for row in rows if row['permalink_id'] is not None}
 
     async def count_valid_runs_for_user_in_pool(self, pool_id: int, user_id: int) -> int:
         return await scoped(
             AsyncQualifierRun.filter(
                 permalink__pool_id=pool_id, user_id=user_id, reattempted=False
+            )
+        ).count()
+
+    async def valid_run_counts_for_user_by_pool(
+        self, pool_ids: Collection[int], user_id: int
+    ) -> Dict[int, int]:
+        """This player's spent slots per pool, in one grouped query.
+
+        The per-pool :meth:`count_valid_runs_for_user_in_pool` is still what the draw
+        transaction uses — it checks one pool and wants the freshest possible read
+        inside its lock. This one serves the run-availability surface, which asks
+        about every pool at once and paid a query each.
+        """
+        if not pool_ids:
+            return {}
+        rows = await (
+            scoped(AsyncQualifierRun.filter(
+                permalink__pool_id__in=list(pool_ids), user_id=user_id, reattempted=False,
+            ))
+            .annotate(n=Count('id'))
+            .group_by('permalink__pool_id')
+            .values('permalink__pool_id', 'n')
+        )
+        return {row['permalink__pool_id']: row['n'] for row in rows}
+
+    async def played_permalink_ids_for_user_by_pool(
+        self, pool_ids: Collection[int], user_id: int
+    ) -> Dict[int, Set[int]]:
+        """Permalinks this player has consumed, per pool, in one query.
+
+        The no-repeat rule needs this for every pool the availability read reports
+        on; asking pool by pool is what made that read cost five queries a pool.
+        """
+        if not pool_ids:
+            return {}
+        rows = await scoped(
+            AsyncQualifierRun.filter(
+                permalink__pool_id__in=list(pool_ids), user_id=user_id, reattempted=False,
+            )
+        ).values('permalink_id', 'permalink__pool_id')
+        played: Dict[int, Set[int]] = {pool_id: set() for pool_id in pool_ids}
+        for row in rows:
+            if row['permalink_id'] is not None:
+                played.setdefault(row['permalink__pool_id'], set()).add(row['permalink_id'])
+        return played
+
+    async def count_self_spent_reattempts(self, qualifier_id: int, user_id: int) -> int:
+        """Reattempts this player spent themselves — a reviewer's grant is not theirs.
+
+        A count, not a list: this used to go through ``list_for_user``, which
+        prefetches ``permalink__pool`` and ``review_notes__author`` for every run the
+        player has ever made in order to match two booleans.
+        """
+        return await scoped(
+            AsyncQualifierRun.filter(
+                qualifier_id=qualifier_id,
+                user_id=user_id,
+                reattempted=True,
+                reattempt_granted_by_id__isnull=True,
             )
         ).count()
 
