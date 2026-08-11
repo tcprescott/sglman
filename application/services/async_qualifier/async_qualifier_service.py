@@ -626,6 +626,25 @@ class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
         return await self.run_repository.list_pending_review(qualifier_id)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def review_queue_context(
+        self, actor: Optional[User], qualifier_id: int, runs: Sequence[AsyncQualifierRun]
+    ) -> dict:
+        """Per-runner outcome counts for the runs in a review queue.
+
+        Re-reviewing without seeing a runner's other attempts is how two reviewers
+        reach opposite conclusions about the same person, so the queue card carries
+        that context. It used to come from ``list_runs`` — every run in the
+        qualifier, hydrated with two levels of prefetch, then scanned once per card
+        — which is quadratic in entrants. This reads counts for the queue's own
+        runners instead, so the cost tracks the queue and not the tournament.
+        """
+        qualifier = await self._require_qualifier(qualifier_id)
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
+        return await self.run_repository.outcome_tally_for_users(
+            qualifier_id, {run.user_id for run in runs},  # type: ignore[attr-defined]
+        )
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_runs(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierRun]:
         """Every run in the qualifier, for the reviewer's runs list.
 

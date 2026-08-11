@@ -2,7 +2,8 @@
 
 **Scope:** the whole async-qualifier lifecycle from an organiser's empty
 qualifier to a scored board — Admin → Qualifiers
-([`pages/admin_tabs/admin_qualifiers.py`](../../pages/admin_tabs/admin_qualifiers.py))
+([`pages/admin_tabs/admin_qualifiers/`](../../pages/admin_tabs/admin_qualifiers/) — a single
+`admin_qualifiers.py` when this was written; it was split into a package by wave 2)
 and its Manage drill-down, the player surface
 ([`pages/qualifiers.py`](../../pages/qualifiers.py)), the eleven service modules
 under [`application/services/async_qualifier/`](../../application/services/async_qualifier/),
@@ -79,7 +80,7 @@ reach. A moderator has the same problem.
 
 ## Findings
 
-### F1 · Nothing in the subsystem paginates
+### F1 · Nothing in the subsystem paginates — *shipped*
 
 All four `ui.table`s are constructed without `pagination=`, so
 `customize_table` reads `page_size` as `0` — which Quasar treats as "all rows" —
@@ -90,7 +91,7 @@ size. The reports and the match/user/tournament family tables all pass
 tables are the outlier. Measured above. The review queue is cards rather than a
 table and needs its own bound.
 
-### F2 · The leaderboard read hydrates a fifth of its rows to discard them
+### F2 · The leaderboard read hydrates a fifth of its rows to discard them — *shipped*
 
 `get_leaderboard` calls `list_valid_for_qualifier`, which filters only on
 `reattempted=False` and prefetches `user` and `permalink__pool` for every row.
@@ -110,7 +111,7 @@ Two alternatives were run against the same data and verified to reproduce all
 Only `('qualifier', 'review_status')` is indexed today; the leaderboard's filter
 is `(qualifier, reattempted, status, review_status)`.
 
-### F3 · The drill-down reloads everything after every verdict
+### F3 · The drill-down reloads everything after every verdict — *shipped*
 
 `load_detail()` fetches the qualifier, its pools, the review queue, *every* run,
 the leaderboard, every preset and every live race — sequentially — then
@@ -143,7 +144,7 @@ which are written the same shape.
 
 **F4c — ties get distinct ranks.** Rank is an `enumerate` index in
 [`pages/qualifiers.py`](../../pages/qualifiers.py),
-[`admin_qualifiers.py`](../../pages/admin_tabs/admin_qualifiers.py) *and*
+[`admin_qualifiers/page.py`](../../pages/admin_tabs/admin_qualifiers/page.py) *and*
 [`mcpserver/tools/competition.py`](../../mcpserver/tools/competition.py) — three
 independent derivations — while `LeaderboardEntryResponse` has no `rank` field at
 all, forcing every REST consumer to invent a fourth. A three-way tie on 100.00
@@ -403,17 +404,44 @@ with the maintainer:
 Ordered by leverage, which is the argument: each buys more than the one below it
 per hour spent.
 
-| Wave | Findings | Why here |
+| Wave | Findings | Status |
 |---|---|---|
-| 1 | F1, F2, F13 | Pagination and the leaderboard read. Measured wins, no policy, contained. |
-| 2 | F3 | The moderator loop — 6 s and a lost place per verdict is the biggest human cost in the feature. |
-| 3 | F4, F10 | Everything that changes what the board says, including the live-race path. Needs the decisions above. |
-| 4 | F5, F6 | Review integrity and the flag hole. |
-| 5 | F7, F8, F9 | The information both sides are missing. |
-| 6 | F11, F12, F14 | Query fat, seed authoring, events. |
+| 1 | F1, F2 | **Shipped.** Pagination and the projected leaderboard read. |
+| 2 | F3 | **Shipped.** The moderator loop — per-tab loaders and a preserved tab. |
+| 3 | F4, F10 | Open. Everything that changes what the board says, including the live-race path. The four decisions above settle it. |
+| 4 | F5, F6 | Open. Review integrity and the flag hole. |
+| 5 | F7, F8, F9 | Open. The information both sides are missing. |
+| 6 | F11, F12, F13, F14 | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
 
-Delete this file once the findings ship — the feature docs become the truth and
-git history keeps the rationale.
+### What waves 1 and 2 measured, after
+
+Same fixtures, same script, same machine as the numbers above.
+
+| Measure | Before | After |
+|---|---:|---:|
+| `get_leaderboard` server time | 170 ms | **21 ms** |
+| Open the Manage drill-down | 4.40 s | **1.45 s** |
+| Switch to the Review Queue | 3.53 s | **1.47 s** |
+| Approve one run | 6.08 s | **2.53 s** |
+| Switch to the Runs tab | 7.06 s | **2.08 s** |
+| Switch to the Leaderboard tab | *unreachable* | **2.04 s** |
+| Runs tab: rows / height / DOM nodes | 3,129 / 151,156 px / 43,714 | **25 / 1,672 px / 817** |
+| Review Queue: cards / height | 234 / 54,030 px | **20 / 5,588 px** |
+| Player board: rows / height / nodes | 505 / 24,826 px / 3,206 | **50 / 1,632 px / 569** |
+| Reviewer keeps their tab after a verdict | no | **yes** |
+
+The board is byte-identical to the one it replaced — all 499 entries, matching
+totals, checked entry by entry. The Leaderboard tab row is the one worth reading
+twice: it had no "before" because the tab strip sat above a 151,000-pixel page and
+could not be clicked at all.
+
+F13's unbounded `GET /{id}/runs` moved to wave 6 rather than shipping with F1: the
+web fix is client-side paging over rows already loaded, which is the pattern this
+repo chose deliberately, while the API needs a real page parameter and a schema
+change.
+
+Delete this file once the remaining findings ship — the feature docs become the truth
+and git history keeps the rationale.
 
 ## Reproducing any of this
 

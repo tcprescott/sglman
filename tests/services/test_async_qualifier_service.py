@@ -749,3 +749,94 @@ async def test_availability_reports_no_pools_when_only_live_races_exist(db):
 
     availability = await service.get_run_availability(player, q.id)
     assert availability.reason is rules.RunUnavailableReason.NO_POOLS
+
+
+# ---------------------------------------------------------------------------
+# The reads the admin drill-down was split onto: a projected leaderboard read and
+# a per-runner tally that scales with the review queue rather than the tournament.
+
+
+async def test_leaderboard_read_is_projected_but_scores_the_same_board(db):
+    """The board is assembled from four scalars per run, not from hydrated runs.
+
+    ``list_valid_for_qualifier`` filtered on ``reattempted`` alone and prefetched
+    ``user`` and ``permalink__pool`` for every row, leaving the status checks to
+    Python — so a fifth of the rows were built as models and discarded. This pins
+    the replacement to the same numbers it replaced.
+    """
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2', 'u3'])
+
+    fast = await _player(900101, 'fast_runner', display_name='Fast Runner')
+    slow = await _player(900102, 'slow_runner')
+
+    # Two approved runs for the quick one, one for the other, plus rows the board
+    # must ignore: a pending run, a rejected one, and a forfeit.
+    for seconds in (1200, 1300):
+        run = await service.start_run(fast, q.id, pool.id)
+        await _submit(service, fast, run, seconds)
+        await service.review_run(staff, run.id, approved=True)
+    run = await service.start_run(slow, q.id, pool.id)
+    await _submit(service, slow, run, 2400)
+    await service.review_run(staff, run.id, approved=True)
+    pending = await service.start_run(slow, q.id, pool.id)
+    await _submit(service, slow, pending, 1250)   # left pending on purpose
+
+    rows = await service.run_repository.list_scored_for_leaderboard(q.id)
+    assert all(set(row) == {'user_id', 'score', 'permalink__pool_id',
+                            'user__display_name', 'user__username'} for row in rows)
+    assert len(rows) == 3, 'only finished + approved + scored runs reach the board'
+
+    board = await service.get_leaderboard(staff, q.id)
+    by_name = {e.username: e for e in board}
+    # display_name wins over username, the same rule display_name() applies to a model.
+    assert 'Fast Runner' in by_name and 'slow_runner' in by_name
+    assert by_name['Fast Runner'].slots_filled == 2
+    assert by_name['slow_runner'].slots_filled == 1
+    assert board[0].username == 'Fast Runner', 'ranked by realised total'
+
+
+async def test_review_queue_context_counts_only_the_queues_runners(db):
+    """The reviewer's "other runs" line costs a grouped count over the queue's own
+    runners, not every run in the qualifier hydrated twice over."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+
+    queued = await _player(900111, 'queued_runner')
+    other = await _player(900112, 'unrelated_runner')
+
+    approved = await service.start_run(queued, q.id, pool.id)
+    await _submit(service, queued, approved, 1200)
+    await service.review_run(staff, approved.id, approved=True)
+    pending = await service.start_run(queued, q.id, pool.id)
+    await _submit(service, queued, pending, 1300)
+
+    # Someone else's run, which must not appear in the context at all.
+    theirs = await service.start_run(other, q.id, pool.id)
+    await _submit(service, other, theirs, 1400)
+    await service.review_run(staff, theirs.id, approved=True)
+
+    queue = await service.list_review_queue(staff, q.id)
+    assert [r.id for r in queue] == [pending.id]
+
+    context = await service.review_queue_context(staff, q.id, queue)
+    assert set(context) == {queued.id}, 'only the queue\'s runners are counted'
+    assert context[queued.id] == {'approved': 1, 'pending': 1}
+
+
+async def test_review_queue_context_requires_qualifier_admin(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900121, 'outsider')
+    run = await service.start_run(player, q.id, pool.id)
+    await _submit(service, player, run, 1200)
+
+    queue = await service.list_review_queue(staff, q.id)
+    with pytest.raises(PermissionError):
+        await service.review_queue_context(player, q.id, queue)

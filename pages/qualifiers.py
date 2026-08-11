@@ -27,7 +27,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.qualifier_copy import BOARD_EXPLAINER, SCORE_EXPLAINER
 from theme.tables.mobile_grid import enable_mobile_grid
-from theme.tables.preferences import TableKeys
+from theme.tables.preferences import TableKeys, row_count_label, search_input, sticky_header
 
 
 def _fmt(dt) -> str:
@@ -37,6 +37,15 @@ def _fmt(dt) -> str:
 # Run states a reattempt can void — an in-progress run is finished or forfeited
 # first, which is what reattempt_run enforces.
 _TERMINAL_STATUSES = {'finished', 'forfeit', 'disqualified'}
+
+# Client-side paging over rows already loaded, matching the family boards
+# (theme/tables/match.py). Without an explicit pagination prop, page_size resolves
+# to 0 — which Quasar reads as "every row" — and the board renders the whole set
+# into the DOM with no pager to escape it.
+_RUNS_PAGE = {'rowsPerPage': 25, 'page': 1}
+# The board is scanned for your own name rather than read top to bottom, so it
+# gets a bigger page than the runs table, plus a search box.
+_BOARD_PAGE = {'rowsPerPage': 50, 'page': 1}
 
 _REATTEMPT_ACTION = '''
     <q-btn v-if="props.row.reattemptable" flat dense icon="restart_alt" color="primary"
@@ -335,7 +344,8 @@ def create() -> None:
                     'note': _latest_note(r),
                     'reattemptable': not r.reattempted and status in _TERMINAL_STATUSES,
                 })
-            table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full wiz-table')
+            table = ui.table(columns=columns, rows=rows, row_key='id',
+                             pagination=_RUNS_PAGE).classes('w-full wiz-table')
             if can_reattempt:
                 table.add_slot('body-cell-actions',
                                f'<q-td :props="props">{_REATTEMPT_ACTION}</q-td>')
@@ -398,7 +408,19 @@ def create() -> None:
                  'slots': f'{e.slots_filled}/{e.slots_total}'}
                 for i, e in enumerate(entries)
             ]
-            table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
+            # Built before the table so it renders above it; filled in after, once
+            # there is a table to bind to.
+            toolbar = ui.row().classes('items-center w-full')
+            table = ui.table(columns=columns, rows=rows, row_key='rank',
+                             pagination=_BOARD_PAGE).classes('w-full wiz-table')
+            # A paged board hides the row you came to read, so the search box is
+            # part of the pagination rather than an extra: it is how a competitor
+            # finds their own line among five hundred.
+            with toolbar:
+                search_input(table, placeholder='Find a player…')
+                ui.space()
+                row_count_label(table, 'players')
+            sticky_header(table)
             enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LEADERBOARD)
             ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 

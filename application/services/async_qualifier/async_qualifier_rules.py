@@ -96,7 +96,18 @@ def imbalance_threshold(qualifier: AsyncQualifier) -> int:
 
 
 def display_name(user: User) -> str:
-    return user.display_name or user.username or f"User {user.id}"
+    return display_name_of(user.display_name, user.username, user.id)
+
+
+def display_name_of(
+    display: Optional[str], username: Optional[str], user_id: int
+) -> str:
+    """The same fallback as :func:`display_name`, from columns rather than a model.
+
+    The leaderboard reads its rows with ``.values()`` — four scalars per scored run
+    instead of a hydrated ``User`` — so it needs the rule without the object.
+    """
+    return display or username or f"User {user_id}"
 
 
 def ensure_window_open(qualifier: AsyncQualifier) -> None:

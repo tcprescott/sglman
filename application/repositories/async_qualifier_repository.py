@@ -8,7 +8,7 @@ row-lock helper the draw transaction needs — which is data access (a SELECT �
 FOR UPDATE), not business logic.
 """
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
@@ -27,6 +27,12 @@ from models import (
 # Runs that consumed a permalink slot: everything except a voided reattempt.
 # Used for draw fairness and the runs-per-pool cap.
 _VOIDED = {'reattempted': True}
+
+
+def _enum_value(value: Any) -> str:
+    """``.values()`` returns the raw column for a CharEnumField on some backends
+    and the enum on others, so the tally normalises both."""
+    return value.value if hasattr(value, 'value') else str(value)
 
 
 class AsyncQualifierRepository(TenantScopedRepository[AsyncQualifier]):
@@ -135,6 +141,59 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         return await scoped(
             AsyncQualifierRun.filter(qualifier_id=qualifier_id, reattempted=False)
         ).prefetch_related('user', 'permalink__pool').order_by('created_at')
+
+    async def list_scored_for_leaderboard(self, qualifier_id: int) -> List[Dict[str, Any]]:
+        """The four scalars per run the board actually scores with.
+
+        The board used to come from :meth:`list_valid_for_qualifier`, which filters
+        on ``reattempted`` alone and prefetches ``user`` and ``permalink__pool`` for
+        every row — so a fifth of the rows were built as full ORM objects and
+        discarded by a Python status check, and each survivor contributed a user id,
+        a name, a pool id and a score. Pushing the status filters into SQL and asking
+        for values instead of models is the same board an order of magnitude cheaper.
+
+        Ordered so ties on the board are stable and reproducible, which the pure
+        scoring function relies on rather than re-deriving.
+        """
+        return await scoped(
+            AsyncQualifierRun.filter(
+                qualifier_id=qualifier_id,
+                reattempted=False,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.APPROVED,
+                score__not_isnull=True,
+                permalink_id__not_isnull=True,
+            )
+        ).order_by('user_id').values(
+            'user_id', 'score', 'permalink__pool_id',
+            'user__display_name', 'user__username',
+        )
+
+    async def outcome_tally_for_users(
+        self, qualifier_id: int, user_ids: Sequence[int]
+    ) -> Dict[int, Dict[str, int]]:
+        """Per-user run outcome counts, for the reviewer's "other runs" context line.
+
+        Scales with the *queue* rather than with the qualifier: the reviewer needs
+        this only for the people whose runs they are looking at, so passing the
+        queue's user ids reads a handful of rows on a quiet queue instead of every
+        run in the tournament. Four scalars per row, no joins and no model
+        hydration — the card wants counts, not runs.
+        """
+        if not user_ids:
+            return {}
+        rows = await scoped(
+            AsyncQualifierRun.filter(qualifier_id=qualifier_id, user_id__in=list(user_ids))
+        ).values('id', 'user_id', 'status', 'review_status', 'reattempted')
+        tally: Dict[int, Dict[str, int]] = {}
+        for row in rows:
+            status = _enum_value(row['status'])
+            label = ('voided' if row['reattempted']
+                     else _enum_value(row['review_status']) if status == 'finished'
+                     else status)
+            per_user = tally.setdefault(row['user_id'], {})
+            per_user[label] = per_user.get(label, 0) + 1
+        return tally
 
     async def list_pending_review(self, qualifier_id: int) -> List[AsyncQualifierRun]:
         return await scoped(

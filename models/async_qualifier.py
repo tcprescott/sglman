@@ -205,6 +205,10 @@ class AsyncQualifierRun(Model):
             ('user',),                       # "my runs"
             ('permalink',),                  # par recompute
             ('status', 'started_at'),        # expiry worker's cross-tenant scan
+            # The leaderboard's own filter. ('qualifier', 'review_status') covers the
+            # queue but not this one, which also constrains reattempted and status —
+            # the four columns that decide whether a run scores at all.
+            ('qualifier', 'reattempted', 'status', 'review_status'),
         )
 
 

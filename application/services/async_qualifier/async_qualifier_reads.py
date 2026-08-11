@@ -25,9 +25,7 @@ from application.utils.timezone import format_local_display
 from models import (
     AsyncQualifier,
     AsyncQualifierPool,
-    AsyncQualifierReviewStatus,
     AsyncQualifierRun,
-    AsyncQualifierRunStatus,
     FeatureFlag,
     User,
 )
@@ -173,19 +171,19 @@ class PlayerReadsMixin:
             )
         pools = await self.pool_repository.list_for_qualifier(qualifier_id)
         pool_ids = [p.id for p in pools]
-        runs = await self.run_repository.list_valid_for_qualifier(qualifier_id)
-        scored: List[ScoredRun] = []
-        for run in runs:
-            if (run.status == AsyncQualifierRunStatus.FINISHED
-                    and run.review_status == AsyncQualifierReviewStatus.APPROVED
-                    and run.score is not None
-                    and run.permalink is not None):
-                scored.append(ScoredRun(
-                    user_id=run.user_id,
-                    username=rules.display_name(run.user),
-                    pool_id=run.permalink.pool_id,
-                    score=run.score,
-                ))
+        # Filtered and projected in SQL: the board needs four scalars per scored run,
+        # not a hydrated run with its user and pool attached.
+        rows = await self.run_repository.list_scored_for_leaderboard(qualifier_id)
+        scored = [
+            ScoredRun(
+                user_id=row['user_id'],
+                username=rules.display_name_of(
+                    row['user__display_name'], row['user__username'], row['user_id']),
+                pool_id=row['permalink__pool_id'],
+                score=row['score'],
+            )
+            for row in rows
+        ]
         # Deterministic input order → stable ties (scoring keeps insertion order).
         scored.sort(key=lambda s: (s.username.lower(), s.user_id))
         return build_leaderboard(
