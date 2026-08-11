@@ -409,9 +409,31 @@ per hour spent.
 | 1 | F1, F2 | **Shipped.** Pagination and the projected leaderboard read. |
 | 2 | F3 | **Shipped.** The moderator loop — per-tab loaders and a preserved tab. |
 | 3 | F4, F10 | **Shipped**, bar F10's reconcile control (see below). What the board counts, and the live-race path. |
-| 4 | F5, F6 | Open. Review integrity and the flag hole. |
+| 4 | F5, F6 | **Shipped.** Review integrity and the flag hole. |
 | 5 | F7, F8, F9 | Open. The information both sides are missing. |
 | 6 | F11, F12, F13, F14, F10's reconcile control | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
+
+### What wave 4 changed
+
+Not a performance wave, so the table is behaviour rather than milliseconds.
+
+| Collision, driven against Postgres | Before | After |
+|---|---|---|
+| Reviewer B acts on a run A has claimed | both verdicts land; the claim was decoration | B is refused **by name**; Claim/Release now exist on the card |
+| A closes the tab holding a claim | the run is parked for the rest of the qualifier | the expiry worker sweeps it after `REVIEW_CLAIM_TTL` (2h), and a claim past its TTL stops blocking immediately rather than at the next tick |
+| A second verdict on a settled run | flips it silently and DMs in first-verdict shape | refused, unless it is an explicit `override`: reason required, own audit action carrying the previous status, and a DM saying the verdict *changed* |
+| Two verdicts committed simultaneously | both succeeded, leaving contradictory notes and two DMs | `settle_review` is a compare-and-set, so the second loses on its stale read and leaves nothing — its note is in the same transaction |
+| `get_leaderboard` with the feature off | returned the whole board | `FeatureDisabledError` |
+
+The gating hook now also catches the *shape* of F6 rather than that one instance: a
+class that guards the flag anywhere is held to guarding every public async method.
+Sweeping the other flagged subsystems with that rule found 24 gaps of the same kind
+elsewhere — 18 on `VolunteerScheduleService`, including the mutations `assign`,
+`create_shift`, `delete_shift` and `reset_all_shifts`. Those are holes, not
+carve-outs, and fixing them belongs to those subsystems, so they sit in the hook's
+`KNOWN_GAPS` ledger (the shape `guardrail_baseline.json` uses): the rule binds new
+code today and the ledger can only shrink. **This is the wave's one deliberate
+hand-off — a genuine finding of the same class, outside this review's scope.**
 
 ### What wave 3 changed, measured
 

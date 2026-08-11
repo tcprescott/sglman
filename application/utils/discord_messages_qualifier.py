@@ -11,6 +11,7 @@ def qualifier_run_reviewed_dm(
     approved: bool,
     reason: str = '',
     qualifier_url: str = '',
+    overridden: bool = False,
 ) -> str:
     """The verdict on a submitted run, the reason behind it, and a way back.
 
@@ -18,9 +19,18 @@ def qualifier_run_reviewed_dm(
     that reason is the whole message: told only "your run was rejected", a runner
     has nothing to act on and nothing to appeal. An approval keeps it short and
     includes the reviewer's note only when one was left.
+
+    An overturned verdict says so. Arriving in the shape of a first verdict, a
+    reversal reads as a duplicate DM — the runner scrolls up, sees the opposite
+    result, and cannot tell which one is current.
     """
     verb = 'approved' if approved else 'rejected'
-    blocks = [f"Your **{qualifier_name}** qualifier run was {verb}."]
+    blocks = [
+        f"A reviewer changed the verdict on your **{qualifier_name}** qualifier "
+        f"run: it is now {verb}."
+        if overridden else
+        f"Your **{qualifier_name}** qualifier run was {verb}."
+    ]
     if reason:
         blocks.append(f"Reason: {reason}")
     if qualifier_url:

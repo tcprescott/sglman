@@ -35,7 +35,10 @@ async def _tick() -> None:
     # own limit, so no single cutoff is right for all of them, and the set is
     # small (one active run per player per qualifier).
     candidates = await AsyncQualifierRunRepository.list_in_progress_all()
-    if not candidates:
+    stale_claims = await AsyncQualifierRunRepository.list_stale_claims_all(
+        now - rules.REVIEW_CLAIM_TTL
+    )
+    if not candidates and not stale_claims:
         return
 
     service = AsyncQualifierService()
@@ -56,13 +59,29 @@ async def _tick() -> None:
             await service.warn_run_expiring(run, deadline, now=now)
             logger.info('warned qualifier run %s of upcoming expiry', run.id)
 
+    async def _unclaim(run) -> None:
+        if not await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS):
+            return  # tenant has async qualifiers disabled
+        await service.release_stale_claim(run)
+        logger.info('released a stale review claim on qualifier run %s', run.id)
+
+    # ``tenant_id`` is Tortoise's generated FK column, invisible to mypy.
+    def tenant_id_of(run):
+        return run.tenant_id
+
     await for_each_tenant_scoped(
         candidates,
         _handle,
-        # ``tenant_id`` is Tortoise's generated FK column, invisible to mypy.
-        tenant_id_of=lambda run: run.tenant_id,  # type: ignore[attr-defined]
+        tenant_id_of=tenant_id_of,
         logger=logger,
         describe=lambda run: f'qualifier run {getattr(run, "id", None)}',
+    )
+    await for_each_tenant_scoped(
+        stale_claims,
+        _unclaim,
+        tenant_id_of=tenant_id_of,
+        logger=logger,
+        describe=lambda run: f'stale review claim on qualifier run {getattr(run, "id", None)}',
     )
 
 

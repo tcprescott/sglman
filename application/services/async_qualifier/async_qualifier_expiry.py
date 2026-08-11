@@ -125,3 +125,17 @@ class RunExpiryMixin:
         )
         await notifications.notify_run_expiring(run, deadline)
         return run
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def release_stale_claim(self, run: AsyncQualifierRun) -> AsyncQualifierRun:
+        """Drop a review claim that has aged out, so the run returns to the queue.
+
+        The counterpart of ``release_claim`` with no reviewer behind it: unaudited
+        and un-notified, because nobody decided anything — a lock simply expired.
+        Idempotent, so a run swept twice is a no-op rather than a second write.
+        """
+        if run.review_claimed_by_id is None:  # type: ignore[attr-defined]
+            return run
+        return await self.run_repository.update(
+            run, review_claimed_by_id=None, review_claimed_at=None,
+        )

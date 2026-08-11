@@ -21,8 +21,8 @@ which is the reminder to delete the marker rather than the test. A test with no
 marker is one whose finding has shipped; it now guards the fix.
 
 Waves 1 and 2 (F1-F3) were performance and had no assertions here. Wave 3 closed
-F4a-e and F10a-b, so those markers are gone and their tests pass. Still xfailing:
-F5 (three cases), F6, and F12 (two cases).
+F4a-e and F10a-b; wave 4 closed F5 (all three) and F6. Still xfailing: F12 (two
+cases).
 """
 
 from datetime import datetime, timedelta, timezone
@@ -218,7 +218,11 @@ async def test_rejecting_a_run_clears_its_score(db):
     run = await _approved_run(service, staff, player, q, pool, 3600)
     assert run.score is not None, 'precondition: the approved run is scored'
 
-    await service.review_run(staff, run.id, approved=False, note='VoD does not match')
+    # Reversing a settled verdict is an override since F5; the score-clearing this
+    # test is about is the same on either path.
+    await service.review_run(
+        staff, run.id, approved=False, note='VoD does not match', override=True,
+    )
     run = await AsyncQualifierRun.get(id=run.id)
     assert run.review_status == AsyncQualifierReviewStatus.REJECTED
     assert run.score is None, f'a rejected run must not carry a score, got {run.score}'
@@ -242,7 +246,6 @@ async def test_a_reattempted_run_clears_its_score(db):
 
 # ============================================================ F5 · review locks
 
-@pytest.mark.xfail(strict=True, reason='F5 — review_run ignores review_claimed_by')
 async def test_review_run_refuses_a_run_claimed_by_another_reviewer(db):
     """The claim is documented as a lock; ``review_run`` never reads it."""
     service = AsyncQualifierService()
@@ -260,7 +263,6 @@ async def test_review_run_refuses_a_run_claimed_by_another_reviewer(db):
         await service.review_run(staff_b, run.id, approved=True)
 
 
-@pytest.mark.xfail(strict=True, reason='F5 — review_run does not check review_status')
 async def test_review_run_refuses_to_silently_re_review_a_settled_run(db):
     """Reversing a verdict is legitimate; doing it indistinguishably is not.
 
@@ -280,7 +282,6 @@ async def test_review_run_refuses_to_silently_re_review_a_settled_run(db):
         await service.review_run(staff, run.id, approved=False, note='changed my mind')
 
 
-@pytest.mark.xfail(strict=True, reason='F5 — concurrent verdicts both commit')
 async def test_two_concurrent_verdicts_do_not_both_commit(db):
     """Driven against Postgres, both calls succeeded and both notes were attached,
     leaving the run with contradictory reviewer notes and the runner with two
@@ -316,7 +317,6 @@ async def test_two_concurrent_verdicts_do_not_both_commit(db):
 
 # ========================================================== F6 · feature gating
 
-@pytest.mark.xfail(strict=True, reason='F6 — get_leaderboard lacks @requires_feature')
 async def test_get_leaderboard_refuses_when_the_feature_is_disabled(db):
     """The one public read in the subsystem without the guard its siblings carry.
 

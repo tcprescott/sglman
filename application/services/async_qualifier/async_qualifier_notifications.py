@@ -30,7 +30,9 @@ from models import AsyncQualifierRun
 logger = logging.getLogger(__name__)
 
 
-async def notify_run_reviewed(run: AsyncQualifierRun, approved: bool, reason: str = '') -> None:
+async def notify_run_reviewed(
+    run: AsyncQualifierRun, approved: bool, reason: str = '', *, overridden: bool = False
+) -> None:
     """Tell the runner the verdict, the reason behind it, and where to look."""
     try:
         await run.fetch_related('user', 'qualifier', 'tenant')
@@ -42,7 +44,7 @@ async def notify_run_reviewed(run: AsyncQualifierRun, approved: bool, reason: st
             int(discord_id),
             qualifier_run_reviewed_dm(
                 run.qualifier.name, approved=approved, reason=reason,
-                qualifier_url=_qualifier_url(run),
+                qualifier_url=_qualifier_url(run), overridden=overridden,
             ),
             link=_qualifier_link(run, 'View the leaderboard'),
         )

@@ -7,8 +7,10 @@ because the bug they exist to prevent is a table built without one.
 
 from typing import Any, Dict, Mapping, Sequence
 
+from application.services.async_qualifier import async_qualifier_rules as rules
 from application.utils.duration import format_hms
 from application.utils.timezone import format_local_display
+from models import AsyncQualifierReviewStatus, AsyncQualifierRunStatus
 
 __all__ = [
     'BOARD_COLUMNS',
@@ -47,6 +49,9 @@ def enum_value(value: Any) -> str:
 # finished or forfeited first.
 GRANTABLE_STATUSES = {'finished', 'forfeit', 'disqualified'}
 
+_FINISHED = AsyncQualifierRunStatus.FINISHED.value
+_PENDING = AsyncQualifierReviewStatus.PENDING.value
+
 # The drill-down's tabs, by name rather than by element: the name is what
 # ``state['tab']`` carries across a rebuild, and what each per-tab loader is keyed
 # on. A refreshable detail view resets its panel to the default on every rebuild,
@@ -76,6 +81,11 @@ GRANT_ACTION = '''
            label="Grant reattempt"
            @click="$parent.$emit('grant', props.row)">
         <q-tooltip>Void this run and free its pool slot</q-tooltip>
+    </q-btn>
+    <q-btn v-if="props.row.reversible" flat dense icon="gavel" color="warning"
+           label="Change verdict"
+           @click="$parent.$emit('override', props.row)">
+        <q-tooltip>Overturn this run&rsquo;s review, with a reason</q-tooltip>
     </q-btn>
 '''
 
@@ -119,6 +129,11 @@ def run_rows(runs) -> list:
             'score': '' if run.score is None else round(run.score, 1),
             'grantable': (not run.reattempted
                           and enum_value(run.status) in GRANTABLE_STATUSES),
+            # A verdict can only be overturned where there is one: a finished run
+            # already approved or rejected, and not since voided.
+            'reversible': (not run.reattempted
+                           and enum_value(run.status) == _FINISHED
+                           and enum_value(run.review_status) != _PENDING),
         }
         for run in runs
     ]
@@ -175,6 +190,21 @@ def other_runs_summary(tally: Mapping[int, Mapping[str, int]], run) -> str:
 def existing_notes(run) -> list:
     notes = list(getattr(run, 'review_notes', []) or [])
     return [n.note for n in notes if getattr(n, 'note', '')]
+
+
+def claim_holder(run) -> str:
+    """Who holds a live review claim on this run, or ``''`` for nobody.
+
+    Empty for an expired claim too, so the card and the service agree on whether
+    the lock still binds — the worker's sweep runs on a timer, and up to a tick
+    can pass between a claim ageing out and the row being cleared.
+    """
+    if not rules.claim_is_live(getattr(run, 'review_claimed_at', None)):
+        return ''
+    holder = getattr(run, 'review_claimed_by', None)
+    if holder is None:
+        return ''
+    return rules.display_name(holder)
 
 
 def live_race_color(status) -> str:

@@ -281,6 +281,10 @@ class AuditActions:
     # own allowance, because it bypasses that allowance entirely.
     ASYNC_QUALIFIER_REATTEMPT_GRANTED = 'async_qualifier.reattempt_granted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+    # Reversing a settled verdict. Distinct from the first one because it is the
+    # rarer, more contestable act: it changes an outcome the runner was already
+    # told about, and "who overturned this, and why" is the question an appeal asks.
+    ASYNC_QUALIFIER_RUN_REVIEW_OVERRIDDEN = 'async_qualifier.run_review_overridden'
     # Async Qualifier live races (PR 10). Create/open/cancel are tenant-internal
     # scheduling (event-less); recording the finished race captures runs and DOES
     # emit an event (see EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED).

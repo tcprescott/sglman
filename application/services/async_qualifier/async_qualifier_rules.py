@@ -39,6 +39,11 @@ CLOCK_GRACE_SECONDS = 120
 # ordinary, while a dropped H segment is off by an hour or more.
 IMPLAUSIBLE_DRIFT_SECONDS = 15 * 60
 
+# How long a reviewer's claim on a queue card holds before the worker releases it.
+# Long enough to watch a VoD through, short enough that a closed tab does not
+# park a run out of everyone else's reach for the rest of the qualifier.
+REVIEW_CLAIM_TTL = timedelta(hours=2)
+
 
 def validate_counts(runs_per_pool: int, allowed_reattempts: int) -> Tuple[int, int]:
     if runs_per_pool < 1:
@@ -119,6 +124,35 @@ def _column_value(value: Any) -> str:
     """``.values()`` hands back the enum on some backends and the raw string on
     others, so both are normalised before comparison."""
     return value.value if hasattr(value, 'value') else str(value)
+
+
+def review_status_label(status: AsyncQualifierReviewStatus) -> str:
+    """A review status as a sentence would say it — ``approved``, not ``APPROVED``.
+
+    The enum's raw value leaks into user-facing copy otherwise, which is how a
+    reviewer ends up reading "already AsyncQualifierReviewStatus.APPROVED".
+    """
+    return {
+        AsyncQualifierReviewStatus.PENDING: 'awaiting review',
+        AsyncQualifierReviewStatus.APPROVED: 'approved',
+        AsyncQualifierReviewStatus.REJECTED: 'rejected',
+    }.get(status, str(getattr(status, 'value', status)))
+
+
+def claim_is_live(
+    claimed_at: Optional[datetime], now: Optional[datetime] = None
+) -> bool:
+    """Whether a review claim still holds, or has aged past :data:`REVIEW_CLAIM_TTL`.
+
+    Read here as well as swept by the worker, so a claim that expired since the
+    last tick does not block the next reviewer for up to a minute.
+    """
+    if claimed_at is None:
+        return False
+    if claimed_at.tzinfo is None:
+        claimed_at = claimed_at.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return now - claimed_at < REVIEW_CLAIM_TTL
 
 
 def display_name(user: User) -> str:

@@ -253,6 +253,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # runner's own reattempt above, and audited for the same reason (who voided
     # what, and why). No subscriber cares that a pool slot reopened.
     AuditActions.ASYNC_QUALIFIER_REATTEMPT_GRANTED,
+    # Overturning a settled verdict. Not eventless in the usual sense: it publishes
+    # ASYNC_QUALIFIER_RUN_REVIEWED with ``override: True``, because to a subscriber
+    # this *is* a review — the run's status changed and the same payload describes
+    # it. Only the audit trail needs the distinction, since "who overturned this,
+    # and from what" is the question an appeal asks. A second EventType would split
+    # one external fact across two names subscribers must both match on.
+    AuditActions.ASYNC_QUALIFIER_RUN_REVIEW_OVERRIDDEN,
     # Async Qualifier live races (PR 10): recording the finished race emits
     # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
     # scheduling no external subscriber needs.

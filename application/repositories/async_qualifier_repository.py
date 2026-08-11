@@ -8,6 +8,7 @@ row-lock helper the draw transaction needs — which is data access (a SELECT �
 FOR UPDATE), not business logic.
 """
 
+from datetime import datetime
 from typing import Any, Collection, Dict, List, Optional, Set
 
 from tortoise.expressions import Q
@@ -223,6 +224,45 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         ).prefetch_related(
             'user', 'permalink__pool', 'review_claimed_by', 'review_notes__author',
         ).order_by('finished_at')
+
+    async def settle_review(
+        self,
+        run_id: int,
+        *,
+        expect: AsyncQualifierReviewStatus,
+        **changes: Any,
+    ) -> int:
+        """Write a verdict only if the run still carries ``expect``. Rows affected.
+
+        A compare-and-set, because "read the row, decide, write it back" lets two
+        reviewers who opened the same card both commit: the second read happens
+        before the first write, so neither sees the other. Postgres re-evaluates a
+        conditional ``UPDATE``'s predicate after taking the row lock, so the
+        second writer's ``review_status`` no longer matches and it affects zero
+        rows — a stale read that loses instead of silently overwriting.
+
+        Zero is a normal answer, not an error; the caller decides what it means.
+        """
+        return await scoped(
+            AsyncQualifierRun.filter(id=run_id, review_status=expect)
+        ).update(**changes)
+
+    @staticmethod
+    async def list_stale_claims_all(cutoff: datetime) -> List[AsyncQualifierRun]:
+        """Runs still claimed for review since before ``cutoff``, across all tenants.
+
+        Deliberately unscoped, like :meth:`list_in_progress_all`: the worker has no
+        tenant of its own, so it does one cross-tenant scan and re-enters each run's
+        own ``tenant_scope`` before touching it.
+
+        A claim is a courtesy lock on a queue card, and nothing releases it if the
+        reviewer closes the tab — so without this sweep a run nobody is looking at
+        reads as "someone has this" for the rest of the qualifier.
+        """
+        return await AsyncQualifierRun.filter(
+            review_claimed_at__lt=cutoff,
+            review_claimed_by_id__not_isnull=True,
+        ).prefetch_related('tenant').order_by('review_claimed_at')
 
     async def list_approved_finished_for_permalink(self, permalink_id: int) -> List[AsyncQualifierRun]:
         """Approved, finished, non-voided runs on a permalink — the par inputs."""

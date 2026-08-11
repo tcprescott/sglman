@@ -23,6 +23,7 @@ from application.services import (
 from application.services.async_qualifier.async_qualifier_rules import ClaimVerdict, classify_claim
 from application.utils.duration import format_hms
 from application.utils.timezone import parse_local_datetime
+from pages.admin_tabs.admin_qualifiers.live_races import build_live_tab
 from pages.admin_tabs.admin_qualifiers.shared import (
     BOARD_COLUMNS,
     BOARD_PAGE,
@@ -37,10 +38,10 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     RUNS_PAGE,
     RUNS_TAB,
     board_rows,
+    claim_holder,
     enum_value,
     existing_notes,
     fmt,
-    live_race_color,
     other_runs_summary,
     run_rows,
     short_url,
@@ -65,7 +66,7 @@ async def admin_qualifiers_page() -> None:
         # survives a rebuild so a verdict does not throw the reviewer back to Pools.
         'tab': POOLS_TAB, 'loaded': set(), 'errors': {}, 'queue_shown': QUEUE_PAGE_SIZE,
         'pools': [], 'presets': [], 'live_races': [], 'queue': [], 'queue_context': {},
-        'runs': [], 'board': [],
+        'runs': [], 'board': [], 'viewer_id': None,
     }
 
     # name → the refreshable that renders it. Filled in once the views are defined
@@ -103,6 +104,9 @@ async def admin_qualifiers_page() -> None:
         state['queue'] = await service.list_review_queue(current, qid)
         state['queue_context'] = await service.review_queue_context(current, qid, state['queue'])
         state['queue_shown'] = QUEUE_PAGE_SIZE
+        # Whose claims count as "mine" on the cards. Stashed rather than re-read
+        # per card: the view is sync and cannot await.
+        state['viewer_id'] = current.id if current is not None else None
 
     async def _fetch_runs(current, qid) -> None:
         state['runs'] = await service.list_runs(current, qid)
@@ -347,6 +351,14 @@ async def admin_qualifiers_page() -> None:
             return True
         return False
 
+    # The one tab whose service and external system are its own; built here rather
+    # than inline because it needs the loaders defined above.
+    live_view = build_live_tab(
+        state=state, service=live_race_service, current=_current,
+        reload_tabs=reload_open_tabs, placeholder=_tab_placeholder,
+        notify_error=notify_error,
+    )
+
     async def _close_manage() -> None:
         state['managing'] = None
         await load_shell()
@@ -478,92 +490,6 @@ async def admin_qualifiers_page() -> None:
         await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
 
     @ui.refreshable
-    def live_view() -> None:
-        if state.get('shell') is None or _tab_placeholder(LIVE_TAB):
-            return
-        pools = state['pools']
-        with ui.row().classes('items-center'):
-            ui.button('New Live Race', icon='add',
-                      on_click=lambda: _open_live_race_dialog(pools)
-                      ).props('color=primary')
-        ui.label(
-            'A live race runs a pool permalink synchronously on racetime; each '
-            'entrant\'s result is captured as an approved, par-scored run.'
-        ).classes('text-caption text-grey')
-        if not pools:
-            ui.label('Add a pool first, then schedule a live race for it.').classes('text-grey')
-            return
-        if not state['live_races']:
-            ui.label("No live races scheduled. Start one when you're ready.").classes('text-grey')
-        for lr in state['live_races']:
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(lr.match_title).classes('text-subtitle1')
-                    ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
-                    ui.badge(f'pool: {lr.pool.name}', color='grey')
-                    ui.space()
-                    # A cancelled race is over: offering to open a room for it invites
-                    # a click that only produces a refusal.
-                    if not lr.racetime_slug and enum_value(lr.status) != 'cancelled':
-                        ui.button('Open room', icon='meeting_room',
-                                  on_click=lambda lid=lr.id: _open_room(lid)
-                                  ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda lid=lr.id: _cancel_live_race(lid)
-                              ).props('flat round color=negative').tooltip('Cancel')
-                if lr.racetime_slug:
-                    ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
-
-    def _open_live_race_dialog(pools) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
-            ui.label('New Live Race').classes('text-h6')
-            title_in = ui.input('Race title').classes('w-full')
-            pool_options = {p.id: p.name for p in pools}
-            pool_in = ui.select(pool_options, label='Pool',
-                                value=pools[0].id if pools else None).classes('w-full')
-            permalink_options = {None: '(assign later)'}
-            for p in pools:
-                for pl in p.permalinks:
-                    permalink_options[pl.id] = f'{p.name}: {pl.url[:48]}'
-            permalink_in = ui.select(permalink_options, label='Permalink (optional)',
-                                     value=None).classes('w-full')
-
-            async def submit():
-                try:
-                    await live_race_service.create_live_race(
-                        await _current(), int(pool_in.value),
-                        match_title=title_in.value, permalink_id=permalink_in.value,
-                    )
-                    ui.notify('Live race scheduled', color='positive')
-                    dialog.close()
-                    await reload_open_tabs(LIVE_TAB)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-
-            with ui.row().classes('justify-end w-full'):
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Create', icon='add', on_click=submit).props('color=primary')
-        dialog.open()
-
-    async def _open_room(live_race_id: int) -> None:
-        try:
-            await live_race_service.open_room(await _current(), live_race_id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Room opened', color='positive')
-        await reload_open_tabs(LIVE_TAB)
-
-    async def _cancel_live_race(live_race_id: int) -> None:
-        try:
-            await live_race_service.cancel_live_race(await _current(), live_race_id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Live race cancelled', color='positive')
-        await reload_open_tabs(LIVE_TAB)
-
-    @ui.refreshable
     def queue_view() -> None:
         if state.get('shell') is None or _tab_placeholder(QUEUE_TAB):
             return
@@ -574,23 +500,44 @@ async def admin_qualifiers_page() -> None:
         shown = min(state['queue_shown'], len(queue))
         with ui.row().classes('items-center w-full'):
             ui.label(f'{len(queue)} awaiting review').classes('text-caption text-grey-7')
+        me = state.get('viewer_id')
         for run in queue[:shown]:
             runner = run.user.display_name or run.user.username
             pool_name = run.permalink.pool.name if run.permalink and run.permalink.pool else '—'
+            holder = claim_holder(run)
+            mine = run.review_claimed_by_id == me
             with ui.card().classes('w-full'):
                 with ui.row().classes('items-center full-width'):
                     ui.label(runner).classes('text-subtitle1')
                     ui.badge(format_hms(run.elapsed_seconds), color='blue')
                     ui.badge(pool_name, color='grey')
-                    if run.review_claimed_by_id:
-                        ui.badge('claimed', color='orange')
+                    if holder:
+                        ui.badge('you have this' if mine else f'{holder} has this',
+                                 color='orange' if mine else 'negative')
                     ui.space()
-                    ui.button('Approve', icon='check',
-                              on_click=lambda r=run: _open_review_dialog(r, True)
-                              ).props('flat color=positive')
-                    ui.button('Reject', icon='close',
-                              on_click=lambda r=run: _open_review_dialog(r, False)
-                              ).props('flat color=negative')
+                    # A claim is a real lock since F5, so the card offers the way in
+                    # and the way out — a lock nobody can release is a stuck run.
+                    if holder and not mine:
+                        ui.button('Release', icon='lock_open',
+                                  on_click=lambda r=run: _release_claim(r)
+                                  ).props('flat color=warning').tooltip(
+                            f'{holder} claimed this. Release it if they are done.')
+                    elif not holder:
+                        ui.button('Claim', icon='lock',
+                                  on_click=lambda r=run: _claim_run(r)
+                                  ).props('flat color=primary')
+                    approve = ui.button('Approve', icon='check',
+                                        on_click=lambda r=run: _open_review_dialog(r, True)
+                                        ).props('flat color=positive')
+                    reject = ui.button('Reject', icon='close',
+                                       on_click=lambda r=run: _open_review_dialog(r, False)
+                                       ).props('flat color=negative')
+                    if holder and not mine:
+                        # The service refuses either verdict; saying so before the
+                        # click beats a notification after it.
+                        for button in (approve, reject):
+                            button.disable()
+                            button.tooltip(f'{holder} is reviewing this run.')
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
                              f'Timed {format_hms(run.measured_seconds)}').classes(
@@ -619,6 +566,20 @@ async def admin_qualifiers_page() -> None:
     def _show_more_queue() -> None:
         state['queue_shown'] += QUEUE_PAGE_SIZE
         queue_view.refresh()
+
+    async def _claim_run(run) -> None:
+        try:
+            await service.claim_run(await _current(), run.id)
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+        await load_tab(QUEUE_TAB, force=True)
+
+    async def _release_claim(run) -> None:
+        try:
+            await service.release_claim(await _current(), run.id)
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+        await load_tab(QUEUE_TAB, force=True)
 
     def _open_review_dialog(run, approved: bool) -> None:
         """One dialog for both verdicts so the two paths cannot drift.
@@ -693,8 +654,48 @@ async def admin_qualifiers_page() -> None:
         sticky_header(table)
         table.add_slot('body-cell-actions', f'<q-td :props="props">{GRANT_ACTION}</q-td>')
         table.on('grant', lambda e: _open_grant_dialog(by_id.get(e.args.get('id'))))
+        table.on('override', lambda e: _open_override_dialog(by_id.get(e.args.get('id'))))
         enable_mobile_grid(table, columns, actions=GRANT_ACTION,
                            table_key=TableKeys.ADMIN_QUALIFIERS)
+
+    def _open_override_dialog(run) -> None:
+        """Reverse a settled verdict — the only surface that can, since the queue
+        holds only pending runs."""
+        if run is None:
+            return
+        runner = run.user.display_name or run.user.username
+        was = enum_value(run.review_status)
+        approve = was != 'approved'
+        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+            ui.label(f'Change the verdict on {runner}’s run').classes('text-h6')
+            ui.label(
+                f'This run is {was}. Overturning it {"approves" if approve else "rejects"} '
+                'it instead, tells the runner their earlier result changed, and records '
+                'who changed it.'
+            ).classes('text-caption text-grey')
+            reason_in = ui.textarea('Reason (shown to the runner)').classes('w-full').props('rows=3')
+
+            async def submit() -> None:
+                try:
+                    await service.review_run(
+                        await _current(), run.id, approved=approve,
+                        note=reason_in.value, override=True,
+                    )
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify('Verdict changed', color='positive')
+                dialog.close()
+                await reload_open_tabs(RUNS_TAB, BOARD_TAB, QUEUE_TAB)
+
+            with ui.row().classes('justify-end w-full'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                confirm = ui.button(
+                    f'{"Approve" if approve else "Reject"} instead', icon='gavel',
+                    on_click=submit,
+                ).props('color=warning')
+                confirm.bind_enabled_from(reason_in, 'value', lambda v: bool((v or '').strip()))
+        dialog.open()
 
     def _open_grant_dialog(run) -> None:
         if run is None:

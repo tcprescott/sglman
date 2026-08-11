@@ -140,6 +140,22 @@ blocked** — an admin who ran the qualifier cannot approve their own run. Live 
 qualifier races are the deliberate exception: they skip sign-off entirely and are
 written `APPROVED`, because a racetime result is self-attributing.
 
+**The claim is a lock, and the verdict is a compare-and-set.** Three ways two
+reviewers collide on one run, and what each gets:
+
+| Collision | Outcome |
+|---|---|
+| One holds the claim | The other is refused **by name** ("Ana has claimed this run for review"). Claim/Release sit on the queue card, either reviewer may release, and the expiry worker sweeps a claim older than `REVIEW_CLAIM_TTL` (2h) so a closed tab cannot park a run |
+| The run is already settled | Refused, unless the caller passes `override=True`. Reversing a verdict is legitimate; doing it indistinguishably from a first verdict is not |
+| Both commit at once | `settle_review` writes only while the run still carries the status the reviewer read, so the second writer affects zero rows and loses. Its note is written in the same transaction, so a losing verdict leaves **nothing** — no note, no DM, no half-applied outcome |
+
+An **override** needs a reason, audits under its own action
+(`async_qualifier.run_review_overridden`, with the previous status in the details),
+and DMs the runner that their earlier result *changed* rather than arriving in the
+shape of a first verdict. The only surface that offers it is the admin **Runs** tab's
+"Change verdict" action — the review queue holds pending runs only, so a settled one
+is unreachable from it.
+
 **A rejection needs a reason; an approval does not.** `review_run` refuses a rejection
 with a blank note, before it writes anything — rejection is the branch that owes the
 runner an explanation. The reason is stored as a run note and reaches the runner twice:
