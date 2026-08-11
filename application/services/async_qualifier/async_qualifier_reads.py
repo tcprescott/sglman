@@ -160,6 +160,7 @@ class PlayerReadsMixin:
     def is_results_public(self, qualifier: AsyncQualifier, now: Optional[datetime] = None) -> bool:
         return rules.is_results_public(qualifier, now)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_leaderboard(
         self, actor: Optional[User], qualifier_id: int
     ) -> List[LeaderboardEntry]:
