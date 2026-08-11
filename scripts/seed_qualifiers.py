@@ -33,7 +33,8 @@ from models import (
 async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     """Async Qualifier fixtures (PR 9): **two** qualifiers.
 
-    The open one has three pools (one preset-tied, one live-race), permalinks, and
+    The open one has four pools (one preset-tied, one live-race, one tied to a preset
+    that cannot roll), permalinks, and
     runs across every state a reviewer or runner can meet — approved+scored (sets
     par), pending (the reviewer queue), rejected-with-a-note, forfeited, and voided
     by a reattempt — so the admin Qualifiers tab, reviewer queue, Runs tab and the
@@ -72,6 +73,19 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     )
     bonus, _ = await AsyncQualifierPool.get_or_create(
         qualifier=qualifier, name="Bonus Pool", tenant=tenant,
+    )
+    # A pool tied to a preset that *cannot* roll: dk64r generates asynchronously, so
+    # the Pools tab must say so on the card instead of offering a Roll button that
+    # only fails after the click. Without this fixture that refusal is unreachable
+    # in dev, which is how it went unnoticed long enough to become a finding.
+    async_preset, _ = await Preset.get_or_create(
+        name="DK64 Async", randomizer="dk64r", tenant=tenant,
+        defaults={"settings": {"preset": "dev"},
+                  "description": "Rolls asynchronously — cannot fill a qualifier pool."},
+    )
+    await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Async-Randomizer Pool", tenant=tenant,
+        defaults={"preset": async_preset},
     )
 
     async def _permalink(pool: AsyncQualifierPool, url: str) -> AsyncQualifierPermalink:

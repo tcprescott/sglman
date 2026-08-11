@@ -380,6 +380,30 @@ def window_reason(qualifier: AsyncQualifier, now: Optional[datetime] = None) -> 
     return None
 
 
+class WindowState(str, Enum):
+    """Where a qualifier stands in its own window, as one word.
+
+    Derived, never stored: the columns are ``is_active`` plus the two dates, and
+    which of the three this makes true changes with the clock and with nobody's
+    involvement. What *is* stored is the last state a subscriber was told about
+    (``AsyncQualifier.window_state_notified``), so the crossing is announced once.
+    """
+
+    PENDING = 'pending'    # active, but ``opens_at`` is still ahead
+    OPEN = 'open'          # runs may be drawn right now
+    CLOSED = 'closed'      # past ``closes_at``, or switched inactive
+
+
+def window_state(qualifier: AsyncQualifier, now: Optional[datetime] = None) -> WindowState:
+    """The qualifier's window as a state, from the same predicate the runner sees."""
+    reason = window_reason(qualifier, now)
+    if reason is None:
+        return WindowState.OPEN
+    if reason is RunUnavailableReason.NOT_OPEN_YET:
+        return WindowState.PENDING
+    return WindowState.CLOSED
+
+
 class ClaimVerdict(str, Enum):
     """How a claimed finish time stands against the server-measured wall clock."""
 

@@ -103,6 +103,26 @@ atomic, row-locked transaction — there is no "look at the seed, then decide". 
 transaction is what enforces one active run per player, the `runs_per_pool` cap, and
 permalink no-repeat.
 
+**A permalink must be a link, and a paste says what it skipped.** Everything downstream
+rests on the seed opening, and reveal being start means a mangled URL costs a *run*, not
+a click: the slot is spent the moment it is handed over. So `add_permalink`,
+`add_permalinks_bulk` and `update_permalink` all validate through
+`rules.permalink_url_error` — http(s) with a host, deliberately no further, because a
+permalink points at whichever randomizer site rolled it. The paste path skips a bad line
+instead of failing the batch and returns `BulkPermalinkAdd(created, rejected)` with the
+1-based input line and the reason; the dialog reports each one and keeps the refused
+lines so the two that came across mangled can be fixed without re-finding the twenty
+that did not. `POST /pools/{id}/permalinks/bulk` returns the same two lists.
+
+**Rolling is offered only where it can work.** `roll_refusal` is shared between the page
+and the service, so a pool whose preset belongs to an asynchronous randomizer says so on
+the card rather than after the click — the roll dialog holds a count field and nothing
+that could change the preset, so its only exit was Cancel. Rolls are serial and
+synchronous (each seed is a call to the generator), which the dialog says out loud, and
+the batch is capped at `MAX_ROLL_COUNT` (25) — enforced by the field as well as the
+service, since `ui.number(max=…)` marks a field invalid and submits the value anyway.
+One seed can be edited or removed on its own from the Pools tab.
+
 **Imbalance-forcing fairness.** The draw picks a permalink at random, *unless* the
 pool's play-count spread has crossed `draw_imbalance_threshold`, at which point it
 forces the least-played one. Pure randomness leaves permalinks with wildly different
@@ -209,6 +229,18 @@ in the review queue — without it a reviewer cannot reach the very run the reme
 Both paths audit (`async_qualifier.run_reattempted` / `.reattempt_granted`) and the
 grant DMs the runner, because their pool availability changed without their doing
 anything.
+
+**The window is an event, not an edit.** A subscriber wants to hear "qualifying is open",
+and the `PATCH` that set `opens_at` weeks earlier is no substitute for it — the state it
+schedules arrives later, with no request in flight, and may never arrive at all if the
+date moves again. `sync_window_state` publishes `async_qualifier.opened` /
+`async_qualifier.closed` once per crossing: from the worker tick that observes the clock,
+and from the service when an admin's own edit crosses it immediately (switching a
+qualifier off is the one crossing the worker cannot see, since an inactive qualifier
+leaves its scan). `window_state_notified` is the stamp that makes it once rather than
+per tick, closing is announced only for a qualifier that was open, and there is no audit
+row to pair with because nobody performed it. Run **forfeited** and **reattempted** are
+events too, for the same reason `run_expired` already was: they move a standing.
 
 **Why a run cannot be started, specifically.** `get_player_pools` returns an empty list
 for five different situations, and the page used to collapse them into *"No pools

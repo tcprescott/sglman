@@ -88,9 +88,19 @@ async def _tick() -> None:
         describe=lambda run: f'stale review claim on qualifier run {getattr(run, "id", None)}',
     )
 
-    async def _nudge(qualifier) -> None:
+    async def _watch(qualifier) -> None:
+        """Two things per active qualifier: its window, and its review queue.
+
+        The window crossing belongs to a worker because nobody performs it — the
+        clock reaches ``opens_at`` and qualifying is open, with no request in flight
+        to notice. An admin's own edit is synced by the service instead, so a
+        qualifier activated into its own window announces itself without waiting.
+        """
         if not await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS):
             return  # tenant has async qualifiers disabled
+        crossed = await service.sync_window_state(qualifier, now=now)
+        if crossed is not None:
+            logger.info('qualifier %s window is now %s', qualifier.id, crossed.value)
         sent = await service.notify_review_backlog(qualifier, now=now)
         if sent:
             logger.info('told %s reviewer(s) about the queue on qualifier %s',
@@ -98,10 +108,10 @@ async def _tick() -> None:
 
     await for_each_tenant_scoped(
         backlogs,
-        _nudge,
+        _watch,
         tenant_id_of=tenant_id_of,
         logger=logger,
-        describe=lambda q: f'review backlog on qualifier {getattr(q, "id", None)}',
+        describe=lambda q: f'window and review backlog on qualifier {getattr(q, "id", None)}',
     )
 
 

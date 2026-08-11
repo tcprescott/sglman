@@ -41,6 +41,11 @@ class AsyncQualifier(Model):
     # not a setting, which is why it is a column rather than a ``config`` key: it
     # is what stops a reminder becoming a message per tick.
     review_backlog_notified_at = fields.DatetimeField(null=True)
+    # The last window state subscribers were told about ('pending'/'open'/'closed').
+    # Worker state for the same reason as the line above: the state itself is derived
+    # from the dates and the clock, and this is what makes the crossing announce once
+    # rather than every tick. NULL means nothing has been announced yet.
+    window_state_notified = fields.CharField(max_length=16, null=True)
     admins = fields.ManyToManyField(
         'models.User', related_name='admin_async_qualifiers', through='AsyncQualifierAdmins'
     )

@@ -21,7 +21,7 @@ drives these; nothing else should.
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Awaitable, Callable, Optional
 
-from application.events import EventType
+from application.events import Event, EventType, event_bus
 from application.feature_flags import requires_feature
 from application.services.async_qualifier import async_qualifier_notifications as notifications
 from application.services.async_qualifier import async_qualifier_rules as rules
@@ -174,6 +174,51 @@ class RunExpiryMixin:
         return await notifications.notify_review_queue_waiting(
             reviewers, qualifier, waiting=waiting, oldest_hours=hours,
         )
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def sync_window_state(
+        self, qualifier: AsyncQualifier, *, now: Optional[datetime] = None
+    ) -> Optional[rules.WindowState]:
+        """Publish a window crossing once, if one has happened. The new state, or None.
+
+        Nothing published when a qualifier opened or closed, so a webhook subscriber
+        could not learn the one thing about a qualifier it would most want to
+        announce. The edit that *set* the dates is no substitute: it is a PATCH with
+        a field list, usually weeks earlier, and the state it schedules may never
+        arrive (the admin can move the date again).
+
+        Which means there is no actor and no audit row to pair with — the clock did
+        this — so it publishes on the bus directly, the ``SERVICE_HEALTH_ALERT``
+        shape rather than ``write_and_publish``.
+
+        Two asymmetries in what counts as news, both deliberate:
+
+        - **Closing is only news if we said it opened.** A qualifier created inactive,
+          or one whose window ended before anyone was watching, is recorded silently.
+        - **Opening is news however it happens** — the clock reaching ``opens_at``, or
+          an admin activating a qualifier whose window is already current.
+
+        Idempotent: the state is stamped, so a worker tick that changes nothing
+        publishes nothing.
+        """
+        state = rules.window_state(qualifier, now)
+        previous = qualifier.window_state_notified
+        if previous == state.value:
+            return None
+        await self.repository.update(qualifier, window_state_notified=state.value)
+        if state is rules.WindowState.OPEN or (
+            state is rules.WindowState.CLOSED and previous == rules.WindowState.OPEN.value
+        ):
+            event_type = (EventType.ASYNC_QUALIFIER_OPENED if state is rules.WindowState.OPEN
+                          else EventType.ASYNC_QUALIFIER_CLOSED)
+            event_bus.publish(Event.create(event_type, {
+                'qualifier_id': qualifier.id,
+                'name': qualifier.name,
+                'event_name': qualifier.event_name,
+                'opens_at': qualifier.opens_at.isoformat() if qualifier.opens_at else None,
+                'closes_at': qualifier.closes_at.isoformat() if qualifier.closes_at else None,
+            }))
+        return state
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def release_stale_claim(self, run: AsyncQualifierRun) -> AsyncQualifierRun:

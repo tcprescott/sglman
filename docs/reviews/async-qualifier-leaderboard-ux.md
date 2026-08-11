@@ -287,7 +287,7 @@ shows `Started == Finished` and a blank Timed column; and an entrant with no
 linked `User` is recorded in the audit detail only, with no surface listing
 unmatched handles for staff to fix.
 
-### F11 · Query patterns that will bite again as a qualifier grows
+### F11 · Query patterns that will bite again as a qualifier grows — *shipped*
 
 - `_pool_usage` issues about 5.5 queries per pool — **22 for four pools** —
   because `draw_candidates`, `async_seed_count` and the per-pool count each go to
@@ -300,7 +300,7 @@ unmatched handles for staff to fix.
   outside any transaction, and re-reads pool and qualifier on every call. A
   failure part-way leaves a fresh par beside stale scores.
 
-### F12 · How seeds get into a pool
+### F12 · How seeds get into a pool — *shipped*
 
 Rolling works: a preset-tied pool created through the UI rolled three ALTTPR
 seeds with provenance recorded, and a dk64r preset was refused with the right
@@ -326,7 +326,7 @@ message. The edges are the problem.
   live-race flag — all three exist on the service and over REST, none is reachable
   from the page, so a single bad seed can only be fixed by deleting the pool.
 
-### F13 · The API's unbounded reads and missing rank
+### F13 · The API's unbounded reads and missing rank — *shipped*
 
 `GET /async-qualifiers/{id}/runs` returns all **3,129 runs in one 1.66 MB
 response** (0.27 s). The leaderboard endpoint is a bare 499-element array
@@ -338,7 +338,7 @@ a bogus id, 403 on writes with the read-only token, and **404 on all four
 cross-tenant reads** (`{id}`, `/leaderboard`, `/pools`, `/runs` with the
 `second`-tenant token).
 
-### F14 · Qualifier lifecycle events are never published
+### F14 · Qualifier lifecycle events are never published — *shipped*
 
 Four `EventType` members cover run submitted, reviewed, expired and live-race
 recorded. Nothing publishes when a qualifier is created, opened, updated, closed
@@ -411,7 +411,39 @@ per hour spent.
 | 3 | F4, F10 | **Shipped**, bar F10's reconcile control (see below). What the board counts, and the live-race path. |
 | 4 | F5, F6 | **Shipped.** Review integrity and the flag hole. |
 | 5 | F7, F8, F9 | **Shipped.** The information both sides are missing. |
-| 6 | F11, F12, F13, F14, F10's reconcile control | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
+| 6 | F11, F12, F13, F14 | **Shipped.** Query fat, seed authoring, the API's unbounded runs read, lifecycle events. |
+| 7 | F10's record-and-reconcile control, the unmatched-handle list | Open. Needs racetime transport work `MOCK_RACETIME` cannot exercise. |
+
+### What wave 6 changed
+
+| Measure | Before | After |
+|---|---|---|
+| `get_run_availability` queries, 1 / 4 / 12 pools | 7 / 19 / 51 | **5 / 5 / 5** |
+| Play counts per permalink (the draw's fairness input) | every run's `permalink_id` read, tallied in Python | one `GROUP BY` |
+| A player's spent reattempts | `list_for_user` with two prefetched relations, then a filter | one `COUNT` |
+| Par recompute | one UPDATE per approved run, outside any transaction | one transaction, one `bulk_update` |
+| `GET /{id}/runs` on a 500-player qualifier | 3,129 runs, 1.66 MB, no way to ask for fewer | one page (default 100, max 500) + `total` |
+| `not-a-url-at-all`, `ftp://weird/x`, `javascript:alert(1)` pasted | all three became clickable permalinks | refused, each naming its line |
+| A paste of 7 lines where 2 are mangled | "Added 5 permalink(s)" | the 5, plus "line 3: … ; line 6: …" and the 2 lines kept in the box |
+| Roll on a pool whose preset is asynchronous | a button, refused after the click, in a dialog that could not change the preset | not offered; the card says why |
+| 40 typed into the roll count | field marks itself invalid, submits 40 anyway, service refuses | clamped to 25, with the reason |
+| Fixing one bad permalink | delete the pool it sits in | edit or remove that seed |
+| A subscriber learning a qualifier opened | nothing published, ever | `async_qualifier.opened` once, at the crossing |
+| A forfeited or voided run | audit-only, though `run_expired` was already an event | both published |
+
+**The query-shape test is the point of the first row.** `tests/test_query_budget.py`
+asserts the *shape* — same count for 1 pool and 4 — rather than the number, so a
+per-pool loop reintroduced anywhere fails rather than merely getting slower.
+
+**Two things worth recording about the events.** The window crossings have **no
+`AuditActions` mirror**, which is unusual here and deliberate: an audit row records who
+did something, and nobody performs an opening. And pool/permalink authoring stays
+audit-only not by omission but because a permalink *is* the seed — publishing one to
+every subscriber the moment it is added would hand out the pool the lockdown protects.
+
+**A deploy must not announce openings that already happened.** Migration 71 stamps every
+existing qualifier's current window state, so the first worker tick after this ships has
+nothing to report. Without it, every open qualifier reads as newly open once.
 
 ### What wave 5 changed
 
