@@ -121,7 +121,7 @@ rebuilds, the tab panel resets to Pools, so a reviewer is thrown out of the queu
 after each verdict and must scroll back up a 54,000-pixel page to re-enter it.
 Confirmed in the browser: after approving, the page read `Add Pool`.
 
-### F4 · Four ways the board misreports, and a fifth found under probe
+### F4 · Four ways the board misreports, and a fifth found under probe — *shipped*
 
 The formulas are right; the slot bookkeeping around them is not.
 
@@ -253,7 +253,7 @@ Nothing tells a moderator a run is waiting either. `submit_run` audits and
 publishes an event; no DM or notification reaches the reviewer set. The queue is
 pull-only, and the only way to discover work is to open a 4.4-second drill-down.
 
-### F10 · The live-race capture path has three defects
+### F10 · The live-race capture path has three defects — *shipped, bar the reconcile control*
 
 Live races are the second path that writes a scored, approved run, and it
 bypasses review by design. The design is sound and was confirmed: still-racing
@@ -408,10 +408,27 @@ per hour spent.
 |---|---|---|
 | 1 | F1, F2 | **Shipped.** Pagination and the projected leaderboard read. |
 | 2 | F3 | **Shipped.** The moderator loop — per-tab loaders and a preserved tab. |
-| 3 | F4, F10 | Open. Everything that changes what the board says, including the live-race path. The four decisions above settle it. |
+| 3 | F4, F10 | **Shipped**, bar F10's reconcile control (see below). What the board counts, and the live-race path. |
 | 4 | F5, F6 | Open. Review integrity and the flag hole. |
 | 5 | F7, F8, F9 | Open. The information both sides are missing. |
-| 6 | F11, F12, F13, F14 | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
+| 6 | F11, F12, F13, F14, F10's reconcile control | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
+
+### What wave 3 changed, measured
+
+| Measure | Before | After |
+|---|---|---|
+| `Dev Async Qualifier` board, one live-only pool of three | `slots 1/6`, `estimate 600.00` | **`slots 2/4`, `estimate 200.00`** |
+| Stress board entries | 499 | **500** (F4d: the entrant who only forfeited) |
+| Entrants with every slot spent whose `estimate` exceeded `actual` | 26 of 26 | **0 of 26** |
+| Shared ranks on a 500-player board | none — ties rendered 1, 2, 3 | **5 ties share a rank, and the next skips** |
+| Rejected or voided runs carrying a stale score | 22 in the dev database | **0** (cleared going forward, plus migration 68's backfill) |
+| `get_leaderboard` on 500 players | 21 ms | 44 ms — it now reads spent slots too, still 4× better than the 170 ms it started at |
+
+**Deferred, with the reason.** F10's manual record-and-reconcile control and its
+unmatched-handle list are the half of that finding that needs racetime transport
+work `MOCK_RACETIME` cannot exercise, so they moved to wave 6 rather than shipping
+unverified. Everything else in F10 is in: the cap check, the null-permalink refusal,
+and the cancelled-room transition.
 
 ### What waves 1 and 2 measured, after
 
