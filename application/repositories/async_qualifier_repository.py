@@ -8,7 +8,7 @@ row-lock helper the draw transaction needs â€” which is data access (a SELECT â€
 FOR UPDATE), not business logic.
 """
 
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Collection, Dict, List, Optional, Set
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
@@ -170,7 +170,7 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         )
 
     async def outcome_tally_for_users(
-        self, qualifier_id: int, user_ids: Sequence[int]
+        self, qualifier_id: int, user_ids: Collection[int]
     ) -> Dict[int, Dict[str, int]]:
         """Per-user run outcome counts, for the reviewer's "other runs" context line.
 
