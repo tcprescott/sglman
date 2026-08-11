@@ -23,6 +23,7 @@ from api.schemas.async_qualifiers import (
     LeaderboardEntryResponse,
     MyQualifierRunResponse,
     PermalinkBulkRequest,
+    PermalinkBulkResponse,
     PermalinkCreateRequest,
     PermalinkRollRequest,
     PermalinkUpdateRequest,
@@ -31,6 +32,7 @@ from api.schemas.async_qualifiers import (
     QualifierCreateRequest,
     QualifierUpdateRequest,
     ReattemptRequest,
+    RejectedPermalinkLine,
     ReviewRequest,
     StartRunRequest,
     SubmitRunRequest,
@@ -253,14 +255,27 @@ async def add_permalink(pool_id: int, body: PermalinkCreateRequest, actor: User 
 
 @router.post(
     "/pools/{pool_id}/permalinks/bulk",
-    response_model=List[AsyncQualifierPermalinkResponse],
+    response_model=PermalinkBulkResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add many permalinks to a pool",
 )
 async def add_permalinks_bulk(
     pool_id: int, body: PermalinkBulkRequest, actor: User = Depends(require_write_actor),
 ):
-    return await AsyncQualifierService().add_permalinks_bulk(actor, pool_id, urls=body.urls)
+    """Add one permalink per usable line, and report the lines that were not.
+
+    A line that is not an http(s) URL is skipped rather than failing the whole
+    paste, and comes back in ``rejected`` with its position and the reason — a
+    count alone made a typo indistinguishable from a success.
+    """
+    result = await AsyncQualifierService().add_permalinks_bulk(actor, pool_id, urls=body.urls)
+    return PermalinkBulkResponse(
+        created=[AsyncQualifierPermalinkResponse.model_validate(p) for p in result.created],
+        rejected=[
+            RejectedPermalinkLine(line=number, value=value, reason=reason)
+            for number, value, reason in result.rejected
+        ],
+    )
 
 
 @router.post(

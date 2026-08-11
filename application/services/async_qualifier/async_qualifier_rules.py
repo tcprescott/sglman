@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Mapping, Optional, Sequence, Tuple
+from urllib.parse import urlparse
 
 from application.services.async_qualifier.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
 from application.utils.duration import format_hms
@@ -47,6 +48,11 @@ REVIEW_BACKLOG_AGE = timedelta(hours=6)
 # real scale takes thousands of runs; one DM per run would train every reviewer to
 # mute the bot, which is worse than the silence this replaces.
 REVIEW_BACKLOG_REMINDER = timedelta(hours=24)
+
+# A seed permalink is a link a runner opens in a browser, so nothing else counts.
+# An allow-list rather than a "has a scheme" check because ``javascript:`` and
+# ``data:`` both render as a clickable link in the admin page.
+_PERMALINK_SCHEMES = ('http', 'https')
 
 # How long a reviewer's claim on a queue card holds before the worker releases it.
 # Long enough to watch a VoD through, short enough that a closed tab does not
@@ -112,6 +118,48 @@ def imbalance_threshold(qualifier: AsyncQualifier) -> int:
         if isinstance(value, int) and value >= 1:
             return value
     return DEFAULT_IMBALANCE_THRESHOLD
+
+
+def permalink_url_error(url: str) -> Optional[str]:
+    """Why this string cannot be a seed permalink, or ``None`` if it can.
+
+    Returns the reason rather than raising so the paste-many path can report every
+    bad line at once instead of failing on the first. The bar is deliberately low —
+    an http(s) URL with a host — because a permalink points at whichever
+    randomizer site rolled it and there is no list of those to check against. What
+    it does catch is the everyday accident: a truncated paste, a bare seed hash, a
+    spreadsheet cell that came across with its label attached.
+
+    Worth the check because **reveal is start**: a runner drawn a typo'd permalink
+    has already spent their slot on a seed that will not open, and no amount of
+    admin apology gives the slot back.
+    """
+    value = (url or '').strip()
+    if not value:
+        return "Permalink URL is required"
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return f"{_quote(value)} is not a URL"
+    if parsed.scheme.lower() not in _PERMALINK_SCHEMES:
+        return f"{_quote(value)} must start with http:// or https://"
+    if not parsed.hostname:
+        return f"{_quote(value)} has no host — check the paste"
+    return None
+
+
+def validate_permalink_url(url: str) -> str:
+    """The stripped URL, or ``ValueError`` naming what is wrong with it."""
+    error = permalink_url_error(url)
+    if error is not None:
+        raise ValueError(error)
+    return url.strip()
+
+
+def _quote(value: str) -> str:
+    """A pasted line, short enough to read back inside one notification."""
+    shown = value if len(value) <= 60 else f'{value[:57]}…'
+    return f"'{shown}'"
 
 
 def run_scores(row: Mapping[str, Any]) -> bool:

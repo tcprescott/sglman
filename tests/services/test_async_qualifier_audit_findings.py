@@ -15,14 +15,15 @@ these tests encode those answers rather than the current behaviour:
 - live-race and self-paced runs share **one board**, with slot counting fixed (F4a),
 - a runner's Score **coarsens to three bands** while the window is open (F7).
 
-Each still-open finding is marked ``xfail(strict=True)`` so the suite stays green
-today and *fails loudly the moment a fix lands without the marker being removed* —
-which is the reminder to delete the marker rather than the test. A test with no
-marker is one whose finding has shipped; it now guards the fix.
+Each still-open finding was marked ``xfail(strict=True)`` so the suite stayed green
+while the finding was open and *failed loudly the moment a fix landed without the
+marker being removed* — the reminder to delete the marker rather than the test. A
+test with no marker is one whose finding has shipped; it now guards the fix.
 
 Waves 1 and 2 (F1-F3) were performance and had no assertions here. Wave 3 closed
-F4a-e and F10a-b; wave 4 closed F5 (all three) and F6. Still xfailing: F12 (two
-cases).
+F4a-e and F10a-b; wave 4 closed F5 (all three) and F6; wave 6 closed F12's pair.
+**No marker is left**: every finding this file pins has shipped, so every test
+here now guards a fix rather than predicting one.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -409,7 +410,6 @@ async def test_a_live_race_with_no_permalink_refuses_to_record(db):
 
 # =========================================================== F12 · permalinks
 
-@pytest.mark.xfail(strict=True, reason='F12 — no URL validation on any permalink entry path')
 async def test_permalink_entry_refuses_a_value_that_is_not_an_http_url(db):
     """Because reveal equals start, a typo'd permalink costs a runner their slot."""
     service = AsyncQualifierService()
@@ -422,18 +422,22 @@ async def test_permalink_entry_refuses_a_value_that_is_not_an_http_url(db):
         await service.add_permalink(staff, pool.id, url='javascript:alert(1)')
 
 
-@pytest.mark.xfail(strict=True, reason='F12 — the bulk path reports only what it took')
 async def test_bulk_permalinks_reports_the_lines_it_skipped(db):
-    """A typo is indistinguishable from a success when only a count comes back."""
+    """A typo is indistinguishable from a success when only a count comes back.
+
+    The return shape changed with the fix — a bare list cannot carry the report —
+    so this reads ``created`` where the finding measured the list itself.
+    """
     service = AsyncQualifierService()
     staff = await _staff(970010, 'reviewer_i')
     _, pool = await _open_qualifier(service, staff)
 
-    created = await service.add_permalinks_bulk(staff, pool.id, urls=[
+    result = await service.add_permalinks_bulk(staff, pool.id, urls=[
         'https://alttpr.com/en/h/good-one', 'not-a-url-at-all',
         'https://alttpr.com/en/h/good-two',
     ])
-    urls = [p.url for p in created]
+    assert [(n, line) for n, line, _ in result.rejected] == [(2, 'not-a-url-at-all')]
+    urls = [p.url for p in result.created]
     assert urls == ['https://alttpr.com/en/h/good-one', 'https://alttpr.com/en/h/good-two'], (
         f'only real URLs should become permalinks, got {urls}'
     )

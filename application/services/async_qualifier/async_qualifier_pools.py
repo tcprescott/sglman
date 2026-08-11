@@ -10,11 +10,13 @@ Mixed into :class:`AsyncQualifierService` — the same composition
 for the run lifecycle and review, which is where its rules actually live.
 """
 
-from typing import List, Optional, Sequence
+from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple
 
 from application.errors import NotFoundError, require_found
 from application.feature_flags import requires_feature
 from application.services.async_qualifier import async_qualifier_access as access
+from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.audit_service import AuditActions
 from application.services.seedgen_service import SeedGenerationService
 from application.tenant_context import require_tenant_id
@@ -23,12 +25,55 @@ from models import (
     AsyncQualifierPool,
     FeatureFlag,
     GeneratedSeeds,
+    Preset,
     User,
 )
 
 # A single roll takes on the order of a minute per seed against a live generator,
 # so a batch is bounded to something an admin can wait out in one page load.
 MAX_ROLL_COUNT = 25
+
+
+@dataclass(frozen=True)
+class BulkPermalinkAdd:
+    """What a paste-many produced: the permalinks, and the lines that were not.
+
+    The count alone was the whole answer before, which made a typo indistinguishable
+    from a success — paste seven lines, hear "added five", and the two that were
+    dropped are yours to find. ``rejected`` carries the 1-based input line so the
+    admin can go straight to it.
+    """
+
+    created: List[AsyncQualifierPermalink]
+    rejected: List[Tuple[int, str, str]]   # line number, the line, why it was refused
+
+    @property
+    def summary(self) -> str:
+        """One sentence naming every refused line — the notification's body."""
+        added = f'Added {len(self.created)} permalink(s)'
+        if not self.rejected:
+            return added
+        lines = '; '.join(f'line {n}: {why}' for n, _, why in self.rejected)
+        return f'{added}, skipped {len(self.rejected)} — {lines}'
+
+
+def roll_refusal(preset: Optional[Preset]) -> Optional[str]:
+    """Why this preset cannot fill a pool by rolling, or ``None`` if it can.
+
+    Shared with the page so the Roll button can say so before it is pressed. The
+    refusal used to arrive only after clicking, in a dialog whose only field was a
+    count — nothing there can change the preset, so the only exit was Cancel.
+    """
+    if preset is None:
+        return "Pool has no preset to roll from"
+    if preset.randomizer in SeedGenerationService.ASYNC_RANDOMIZERS:
+        # Task-queue backends are not wired into this batch yet. Each roll would
+        # take minutes and complete independently, which breaks the "abort with
+        # nothing half-written" property roll_permalinks relies on — a pool would
+        # sit part-filled with no way to tell a slow roll from a lost one.
+        return (f"'{preset.randomizer}' rolls seeds asynchronously and cannot "
+                "fill a qualifier pool yet. Pick a preset for another randomizer.")
+    return None
 
 
 class PoolManagementMixin:
@@ -125,9 +170,7 @@ class PoolManagementMixin:
     ) -> AsyncQualifierPermalink:
         pool = await self._require_pool(pool_id)
         await self._ensure_pool_admin(actor, pool)
-        url = (url or '').strip()
-        if not url:
-            raise ValueError("Permalink URL is required")
+        url = rules.validate_permalink_url(url)
         permalink = await self.permalink_repository.create(
             pool_id=pool_id, url=url, notes=(notes or '').strip() or None, live_race=live_race
         )
@@ -140,22 +183,33 @@ class PoolManagementMixin:
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def add_permalinks_bulk(
         self, actor: Optional[User], pool_id: int, *, urls: Sequence[str]
-    ) -> List[AsyncQualifierPermalink]:
-        """Paste-many: add one permalink per non-blank line."""
+    ) -> BulkPermalinkAdd:
+        """Paste-many: one permalink per usable line, and a report on the rest.
+
+        A bad line is skipped rather than aborting the paste, because the common
+        case is twenty good lines and one that came across mangled — refusing all
+        twenty makes the admin re-paste, and taking all twenty-one puts a seed that
+        will not open in front of a runner.
+        """
         pool = await self._require_pool(pool_id)
         await self._ensure_pool_admin(actor, pool)
         created: List[AsyncQualifierPermalink] = []
-        for raw in urls:
+        rejected: List[Tuple[int, str, str]] = []
+        for number, raw in enumerate(urls, start=1):
             url = (raw or '').strip()
             if not url:
+                continue
+            error = rules.permalink_url_error(url)
+            if error is not None:
+                rejected.append((number, url, error))
                 continue
             created.append(await self.permalink_repository.create(pool_id=pool_id, url=url))
         if created:
             await self.audit_service.write_log(
                 actor, AuditActions.ASYNC_QUALIFIER_PERMALINK_ADDED,
-                {'pool_id': pool_id, 'count': len(created)},
+                {'pool_id': pool_id, 'count': len(created), 'skipped': len(rejected)},
             )
-        return created
+        return BulkPermalinkAdd(created=created, rejected=rejected)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def roll_permalinks(
@@ -164,21 +218,14 @@ class PoolManagementMixin:
         """Roll ``count`` fresh seeds from the pool's preset into permalinks."""
         pool = require_found(await self.pool_repository.get_with_permalinks(pool_id), "Pool")
         await self._ensure_pool_admin(actor, pool)
-        if pool.preset is None:
-            raise ValueError("Pool has no preset to roll from")
+        # Re-checked here and not only in the picker: a pool created before DK64
+        # became asynchronous can already point at one.
+        preset = pool.preset
+        refusal = roll_refusal(preset)
+        if refusal is not None or preset is None:
+            raise ValueError(refusal or "Pool has no preset to roll from")
         if count < 1 or count > MAX_ROLL_COUNT:
             raise ValueError(f"Roll count must be between 1 and {MAX_ROLL_COUNT}")
-        # Task-queue backends are not wired into this batch yet. Each roll would
-        # take minutes and complete independently, which breaks the "abort with
-        # nothing half-written" property below — a pool would sit part-filled
-        # with no way to tell a slow roll from a lost one. Refused here rather
-        # than only in the preset picker, because a pool created before DK64
-        # became asynchronous can already point at one.
-        if pool.preset.randomizer in SeedGenerationService.ASYNC_RANDOMIZERS:
-            raise ValueError(
-                f"'{pool.preset.randomizer}' rolls seeds asynchronously and cannot "
-                "fill a qualifier pool yet. Pick a preset for another randomizer."
-            )
         # A keyed randomizer raises on the first roll when this community has not
         # configured its credential — before any permalink row is created, so the
         # batch aborts with nothing half-written.
@@ -186,7 +233,7 @@ class PoolManagementMixin:
         created: List[AsyncQualifierPermalink] = []
         for _ in range(count):
             call = await seedgen.generate_seed_call(
-                pool.preset.randomizer, pool.preset, surface='qualifier',
+                preset.randomizer, preset, surface='qualifier',
             )
             # Same provenance record a match seed gets: the pool records which
             # preset it rolls from, but only the snapshot records what that preset
@@ -195,7 +242,7 @@ class PoolManagementMixin:
                 tenant_id=require_tenant_id(),
                 seed_url=call.value.url,
                 seed_info=f"Rolled for qualifier pool {pool_id}",
-                randomizer=pool.preset.randomizer,
+                randomizer=preset.randomizer,
                 preset_id=pool.preset_id,  # type: ignore[attr-defined]
                 settings_snapshot=call.value.settings,
                 rolled_by_id=actor.id if actor is not None else None,
@@ -224,10 +271,7 @@ class PoolManagementMixin:
         await self._ensure_permalink_admin(actor, permalink)
         changes: dict = {}
         if url is not None:
-            url = url.strip()
-            if not url:
-                raise ValueError("Permalink URL is required")
-            changes['url'] = url
+            changes['url'] = rules.validate_permalink_url(url)
         if notes is not None:
             changes['notes'] = notes.strip() or None
         if live_race is not None:

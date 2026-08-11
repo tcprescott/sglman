@@ -51,7 +51,7 @@ async def test_concurrent_draws_for_one_player_open_exactly_one_run(db):
     staff = await User.create(discord_id=900_101, username='staffy')
     await UserRole.create(user=staff, role=Role.STAFF, tenant_id=1)
     qualifier, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2', 'u3'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2', 'https://seed.test/u3'])
     player = await User.create(discord_id=900_102, username='racer')
 
     results = await asyncio.gather(
@@ -81,7 +81,7 @@ async def test_concurrent_draws_for_different_players_both_succeed(db):
     staff = await User.create(discord_id=900_201, username='staffy')
     await UserRole.create(user=staff, role=Role.STAFF, tenant_id=1)
     qualifier, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2', 'u3', 'u4'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2', 'https://seed.test/u3', 'https://seed.test/u4'])
     one = await User.create(discord_id=900_202, username='racer1')
     two = await User.create(discord_id=900_203, username='racer2')
 

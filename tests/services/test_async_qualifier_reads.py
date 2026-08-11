@@ -60,7 +60,7 @@ async def test_leaderboard_read_is_projected_but_scores_the_same_board(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2', 'u3'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2', 'https://seed.test/u3'])
 
     fast = await _player(900101, 'fast_runner', display_name='Fast Runner')
     slow = await _player(900102, 'slow_runner')
@@ -101,7 +101,7 @@ async def test_review_queue_context_counts_only_the_queues_runners(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
 
     queued = await _player(900111, 'queued_runner')
     other = await _player(900112, 'unrelated_runner')
@@ -129,7 +129,7 @@ async def test_review_queue_context_requires_qualifier_admin(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900121, 'outsider')
     run = await service.start_run(player, q.id, pool.id)
     await _submit(service, player, run, 1200)

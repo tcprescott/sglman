@@ -23,9 +23,9 @@ from application.services import (
 )
 from application.services.async_qualifier.async_qualifier_rules import display_name
 from application.tenant_context import require_tenant_id, tenant_scope
-from application.utils.duration import format_hms
 from application.utils.timezone import parse_local_datetime
 from pages.admin_tabs.admin_qualifiers.live_races import build_live_tab
+from pages.admin_tabs.admin_qualifiers.pools import build_pools_tab
 from pages.admin_tabs.admin_qualifiers.review_queue import build_queue_tab
 from pages.admin_tabs.admin_qualifiers.reviewers import build_reviewers_tab
 from pages.admin_tabs.admin_qualifiers.shared import (
@@ -34,7 +34,6 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     BOARD_TAB,
     GRANT_ACTION,
     LIVE_TAB,
-    POOL_PERMALINK_PREVIEW,
     POOLS_TAB,
     QUEUE_PAGE_SIZE,
     QUEUE_TAB,
@@ -416,8 +415,13 @@ async def admin_qualifiers_page(
             return True
         return False
 
-    # The one tab whose service and external system are its own; built here rather
-    # than inline because it needs the loaders defined above.
+    # Each tab is its own module, built here rather than inline because every one of
+    # them needs the loaders defined above.
+    pools_view = build_pools_tab(
+        state=state, service=service, current=_current,
+        reload_tabs=reload_open_tabs, placeholder=_tab_placeholder,
+        notify_error=notify_error,
+    )
     live_view = build_live_tab(
         state=state, service=live_race_service, current=_current,
         reload_tabs=reload_open_tabs, placeholder=_tab_placeholder,
@@ -440,133 +444,6 @@ async def admin_qualifiers_page(
     async def _close_manage() -> None:
         state['managing'] = None
         await load_shell()
-
-    @ui.refreshable
-    def pools_view() -> None:
-        if state.get('shell') is None or _tab_placeholder(POOLS_TAB):
-            return
-        qid = state['managing']
-        preset_options = {p.id: f'{p.randomizer}/{p.name}' for p in state['presets']}
-        with ui.row().classes('items-center'):
-            ui.button('Add Pool', icon='add',
-                      on_click=lambda: _open_pool_dialog(qid, preset_options)).props('color=primary')
-        if not state['pools']:
-            ui.label('No pools yet — add one, then paste or roll permalinks.').classes('text-grey')
-        for pool in state['pools']:
-            permalinks = list(pool.permalinks)
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(pool.name).classes('text-subtitle1')
-                    ui.badge(f'{len(permalinks)} permalink(s)', color='blue')
-                    if pool.preset:
-                        ui.badge(f'preset: {pool.preset.randomizer}/{pool.preset.name}', color='grey')
-                    ui.space()
-                    ui.button('Add permalinks', icon='playlist_add',
-                              on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
-                              ).props('flat color=primary')
-                    if pool.preset:
-                        ui.button('Roll', icon='casino',
-                                  on_click=lambda pid=pool.id: _open_roll_dialog(pid)
-                                  ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda pid=pool.id: _delete_pool(pid)
-                              ).props('flat round color=negative').tooltip('Delete pool')
-                for pl in permalinks[:POOL_PERMALINK_PREVIEW]:
-                    _permalink_row(pl)
-                # A pool holds as many seeds as the organiser rolled, and every one
-                # of them is a row of widgets. The tail is there when it is wanted.
-                rest = permalinks[POOL_PERMALINK_PREVIEW:]
-                if rest:
-                    with ui.expansion(f'Show {len(rest)} more permalink(s)'
-                                      ).classes('w-full text-caption'):
-                        for pl in rest:
-                            _permalink_row(pl)
-
-    def _permalink_row(pl) -> None:
-        with ui.row().classes('items-center'):
-            ui.badge('live' if pl.live_race else 'async',
-                     color='purple' if pl.live_race else 'teal')
-            ui.link(pl.url, pl.url, new_tab=True).classes('text-caption')
-            if pl.par_time:
-                ui.badge(f'par {format_hms(pl.par_time)}', color='green')
-
-    def _open_pool_dialog(qid: int, preset_options: dict) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
-            ui.label('Add Pool').classes('text-h6')
-            name_in = ui.input('Pool name').classes('w-full')
-            options = {None: '(no preset)', **preset_options}
-            preset_in = ui.select(options, label='Preset (optional)', value=None).classes('w-full')
-
-            async def submit():
-                try:
-                    await service.create_pool(await _current(), qid,
-                                              name=name_in.value, preset_id=preset_in.value)
-                    ui.notify('Pool added', color='positive')
-                    dialog.close()
-                    # A pool is a slot per entrant, so the board's totals move too.
-                    await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-
-            with ui.row().classes('justify-end w-full'):
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Add', icon='add', on_click=submit).props('color=primary')
-        dialog.open()
-
-    def _open_permalinks_dialog(pool_id: int) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
-            ui.label('Add Permalinks').classes('text-h6')
-            ui.label('One URL per line.').classes('text-caption text-grey')
-            urls_in = ui.textarea('Permalink URLs').classes('w-full font-mono').props('rows=8')
-
-            async def submit():
-                lines = (urls_in.value or '').splitlines()
-                try:
-                    created = await service.add_permalinks_bulk(await _current(), pool_id, urls=lines)
-                    ui.notify(f'Added {len(created)} permalink(s)', color='positive')
-                    dialog.close()
-                    # A pool that had only live-race seeds becomes runnable, which
-                    # is a board change as well as a pool one.
-                    await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-
-            with ui.row().classes('justify-end w-full'):
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Add', icon='add', on_click=submit).props('color=primary')
-        dialog.open()
-
-    def _open_roll_dialog(pool_id: int) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[26rem]'):
-            ui.label('Roll Permalinks').classes('text-h6')
-            count_in = ui.number('How many', value=5, min=1, max=25, precision=0).classes('w-full')
-
-            async def submit():
-                try:
-                    created = await service.roll_permalinks(
-                        await _current(), pool_id, count=int(count_in.value or 1))
-                    ui.notify(f'Rolled {len(created)} permalink(s)', color='positive')
-                    dialog.close()
-                    await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-
-            with ui.row().classes('justify-end w-full'):
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Roll', icon='casino', on_click=submit).props('color=primary')
-        dialog.open()
-
-    async def _delete_pool(pool_id: int) -> None:
-        try:
-            await service.delete_pool(await _current(), pool_id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Pool deleted', color='positive')
-        # Deleting a pool cascades its permalinks and detaches their runs, so the
-        # runs list and the board both move.
-        await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
-
 
     @ui.refreshable
     def runs_view() -> None:

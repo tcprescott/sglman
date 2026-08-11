@@ -130,6 +130,27 @@ class PermalinkBulkRequest(BaseModel):
     urls: List[str] = Field(default_factory=list)
 
 
+class RejectedPermalinkLine(BaseModel):
+    """One line a paste-many refused, and why."""
+
+    line: int                # 1-based position in the submitted ``urls``
+    value: str
+    reason: str
+
+
+class PermalinkBulkResponse(BaseModel):
+    """What a paste-many produced, including the lines it would not take.
+
+    An envelope rather than the bare array this endpoint used to return, for the
+    same reason the page reports line by line: a caller that hears "5 created" for
+    7 submitted lines has no way to learn which 2 were dropped, and a permalink is
+    revealed to a runner at the moment their slot is spent.
+    """
+
+    created: List[AsyncQualifierPermalinkResponse]
+    rejected: List[RejectedPermalinkLine] = Field(default_factory=list)
+
+
 class PermalinkRollRequest(BaseModel):
     count: int
 

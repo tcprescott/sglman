@@ -180,10 +180,17 @@ class TestAdminManagement:
 
             bulk = await c.post(
                 f'/api/async-qualifiers/pools/{pool_id}/permalinks/bulk',
-                json={'urls': ['https://example.com/a', '', 'https://example.com/b']},
+                json={'urls': ['https://example.com/a', '', 'not-a-url',
+                               'https://example.com/b']},
             )
             assert bulk.status_code == 201
-            assert len(bulk.json()) == 2
+            body = bulk.json()
+            assert [p['url'] for p in body['created']] == [
+                'https://example.com/a', 'https://example.com/b',
+            ]
+            # A bad line is reported with its position rather than silently dropped:
+            # line 3 of the submitted list, blank line included in the count.
+            assert [(r['line'], r['value']) for r in body['rejected']] == [(3, 'not-a-url')]
 
             upd = await c.patch(
                 f'/api/async-qualifiers/permalinks/{permalink_id}', json={'notes': 'seeded'},
