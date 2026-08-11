@@ -31,10 +31,8 @@ from application.services.async_qualifier.async_qualifier_scoring import (
 )
 from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from models import (
-    AsyncQualifierPermalink,
     AsyncQualifierReviewStatus,
     AsyncQualifierRun,
-    AsyncQualifierRunStatus,
     Role,
     User,
     UserRole,
