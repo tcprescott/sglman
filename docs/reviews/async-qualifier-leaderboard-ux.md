@@ -410,8 +410,30 @@ per hour spent.
 | 2 | F3 | **Shipped.** The moderator loop — per-tab loaders and a preserved tab. |
 | 3 | F4, F10 | **Shipped**, bar F10's reconcile control (see below). What the board counts, and the live-race path. |
 | 4 | F5, F6 | **Shipped.** Review integrity and the flag hole. |
-| 5 | F7, F8, F9 | Open. The information both sides are missing. |
+| 5 | F7, F8, F9 | **Shipped.** The information both sides are missing. |
 | 6 | F11, F12, F13, F14, F10's reconcile control | Open. Query fat, seed authoring, the API's unbounded runs read, events. |
+
+### What wave 5 changed
+
+| Measure | Before | After |
+|---|---|---|
+| A runner's own score while the window is open | exact — `elapsed 5,400 s · score 100.00` solves to par 5,400 s | **a band** (under / near / above par) |
+| `GET /{id}/me/runs` | the same exact score | `score: null` + `score_band`, on its own schema |
+| An in-progress run's deadline | on no screen (0 hits for `deadline`/`expir` in either page) | on the card, with a live countdown |
+| The seed a run played | reviewer's card only | on the runner's own row |
+| A granted void's reason | DM only | on the row, saying which of the two voided it |
+| An automatic forfeit vs a chosen one | indistinguishable (`expired_at` read by neither page) | "Forfeited (ran out of time)" |
+| Enum values on screen | `in_progress`, `disqualified`, and a running run reading "pending" | words, and "—" until there is a verdict |
+| Editing a qualifier's reviewer set | an API token | a Reviewers tab |
+| Discovering that runs are waiting | open a drill-down and look | a count on the tab, plus one backlog DM per day past a 6h wait |
+
+**Two things this wave found that the audit had not.** A voided run kept whatever
+verdict it held — and a forfeit is written *approved* — so a run that had stopped
+counting read "Approved"; it now reads "Voided". And `_seed_closed_qualifier` was
+**defined and never called**, so the fixture its own docstring calls "the only way a
+player can see a leaderboard in dev" had never existed — which also made the
+exact-score half of this wave's own change unreachable in dev. Both are the
+*capabilities nobody wired* theme again, once in a page and once in the seed.
 
 ### What wave 4 changed
 

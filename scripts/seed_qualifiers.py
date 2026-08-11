@@ -81,8 +81,13 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
         return pl
 
     p1 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-1")
-    p1b = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
+    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
     await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
+    # Its own seed rather than one of the three above: every one of those already
+    # carries a run below, and an ``.exists()`` guard keyed on the permalink would
+    # find that run and skip this one — silently, which is how the backlog fixture
+    # first failed to appear at all.
+    p_stale = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-4")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-1")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
 
@@ -133,14 +138,13 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
             )
 
     # A second pending run, submitted long enough ago to trip the backlog nudge
-    # (``rules.REVIEW_BACKLOG_AGE``), on the pool's second seed so it does not
-    # collide with the run above. The queue needs both states to be worth looking
+    # (``rules.REVIEW_BACKLOG_AGE``), on a seed of its own. The queue needs both states to be worth looking
     # at in dev: one submission just arrived, one has gone unworked for hours.
     if runner_b is not None and not await AsyncQualifierRun.filter(
-        qualifier=qualifier, user=runner_b, permalink=p1b,
+        qualifier=qualifier, user=runner_b, permalink=p_stale,
     ).exists():
         await AsyncQualifierRun.create(
-            tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p1b,
+            tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p_stale,
             status=AsyncQualifierRunStatus.FINISHED,
             review_status=AsyncQualifierReviewStatus.PENDING,
             started_at=now - timedelta(hours=11), finished_at=now - timedelta(hours=9),
@@ -274,6 +278,11 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
                 status=AsyncQualifierRunStatus.PENDING,
                 review_status=AsyncQualifierReviewStatus.PENDING,
             )
+
+    # Defined below and never called until now, so the fixture its own docstring
+    # calls "the only way a player can see a leaderboard in dev" did not exist —
+    # and with it the exact-score half of the score lockdown was unreachable too.
+    await _seed_closed_qualifier(tenant)
 
 
 async def _seed_closed_qualifier(tenant: Tenant) -> None:

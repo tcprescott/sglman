@@ -72,6 +72,21 @@ def _seed_cell(run) -> str:
     return url if len(url) <= 44 else f'{url[:44]}…'
 
 
+def _review_cell(run) -> str:
+    """What the Review column says, which is not always the review status.
+
+    Two cases where the raw value misleads. An in-progress run is ``PENDING`` too,
+    which read as "a reviewer has this" before anything had been submitted. And a
+    voided run keeps whatever verdict it had — a forfeit is written approved — so a
+    run that stopped counting was reading "Approved".
+    """
+    if run.reattempted:
+        return 'Voided'
+    if run.status.value == 'in_progress':
+        return '—'
+    return REVIEW_LABELS.get(run.review_status.value, run.review_status.value)
+
+
 def _score_cell(run, exact: bool):
     """The exact score once results are public; the band while they are not."""
     if exact:
@@ -82,14 +97,17 @@ def _score_cell(run, exact: bool):
 
 
 def _void_reason(run) -> str:
-    """Why this run stopped counting, when a reviewer is the one who voided it.
+    """Why this run stopped counting, and which of the two voided it.
 
-    ``reattempt_reason`` went out by DM and never appeared on the page the runner
-    comes back to, so a granted void read as an unexplained "(reattempted)".
+    A granted void's ``reattempt_reason`` went out by DM and never appeared on the
+    page the runner comes back to, so it read as an unexplained "(reattempted)".
+    A self-spent one is echoed back for the same reason a receipt is: the runner
+    typed it, possibly weeks ago.
     """
-    if not (run.reattempted and run.reattempt_was_granted and run.reattempt_reason):
+    if not (run.reattempted and run.reattempt_reason):
         return ''
-    return f'Voided by a reviewer — {run.reattempt_reason}'
+    who = 'Voided by a reviewer' if run.reattempt_was_granted else 'You voided this'
+    return f'{who} — {run.reattempt_reason}'
 
 
 def _words(seconds: int) -> str:
@@ -385,10 +403,7 @@ def create() -> None:
                     'pool': r.pool_name + (' (voided)' if r.reattempted else ''),
                     'seed': _seed_cell(r),
                     'status': status,
-                    # An in-progress run is PENDING in the column too, which read as
-                    # "a reviewer has this" before anyone had submitted anything.
-                    'review': (REVIEW_LABELS.get(r.review_status.value, r.review_status.value)
-                               if r.status.value != 'in_progress' else '—'),
+                    'review': _review_cell(r),
                     'time': format_hms(r.elapsed_seconds),
                     'score': _score_cell(r, exact_scores),
                     'note': _void_reason(r) or r.latest_note,

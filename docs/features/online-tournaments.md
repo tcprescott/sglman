@@ -149,12 +149,38 @@ reviewers collide on one run, and what each gets:
 | The run is already settled | Refused, unless the caller passes `override=True`. Reversing a verdict is legitimate; doing it indistinguishably from a first verdict is not |
 | Both commit at once | `settle_review` writes only while the run still carries the status the reviewer read, so the second writer affects zero rows and loses. Its note is written in the same transaction, so a losing verdict leaves **nothing** — no note, no DM, no half-applied outcome |
 
+A qualifier's `admins` are edited on the drill-down's **Reviewers** tab. The queue
+signals its own backlog rather than waiting to be looked at: once the oldest pending
+run has waited `REVIEW_BACKLOG_AGE` (6h), the expiry worker DMs the reviewer set — the
+qualifier's own admins, else whoever holds `QUALIFIER_ADMIN` — at most once per
+`REVIEW_BACKLOG_REMINDER` (24h), stamping `review_backlog_notified_at` before sending.
+Deliberately a backlog reminder and not one DM per submission: a qualifier at real
+scale takes thousands of runs. The DM lands on the queue itself
+(`/admin/qualifiers?qualifier=<id>&tab=queue`), and the pending count rides on the tab
+label so it is visible without opening it.
+
 An **override** needs a reason, audits under its own action
 (`async_qualifier.run_review_overridden`, with the previous status in the details),
 and DMs the runner that their earlier result *changed* rather than arriving in the
 shape of a first verdict. The only surface that offers it is the admin **Runs** tab's
 "Change verdict" action — the review queue holds pending runs only, so a settled one
 is unreachable from it.
+
+**A runner sees a band, not a number, while the window is open.** An exact score is
+exactly solvable for the seed's par — `score = (2 − elapsed/par) × 100` rearranges to
+`par = elapsed / (2 − score/100)`, and the runner knows their own elapsed time — so
+publishing it during the window hands out the number the lockdown exists to hide.
+`list_user_runs` therefore returns an `OwnRun` projection rather than the model:
+`score` is `None` until results are public and `score_band` (`under` / `near` /
+`above` par) stands in. The fast side was already banded by the `SCORE_MAX` cap, so
+the slow edge mirrors it at 95. `GET /{id}/me/runs` is a **separate schema** from the
+reviewer's `/{id}/runs` for the same reason — fixing only the page would move the leak
+one API call away. The band still bounds par, which is an accepted trade.
+
+The same projection carries what the run surface used to withhold although the record
+held it: the deadline an in-progress run auto-forfeits at, the seed played (so a runner
+disputing a verdict can cite it), the reason behind a void and which of the two spent
+it, and `expired_at` — so the clock's forfeit reads differently from a chosen one.
 
 **A rejection needs a reason; an approval does not.** `review_run` refuses a rejection
 with a blank note, before it writes anything — rejection is the branch that owes the

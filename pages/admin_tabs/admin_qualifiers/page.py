@@ -92,7 +92,7 @@ async def admin_qualifiers_page(
         'tab': POOLS_TAB, 'loaded': set(), 'errors': {}, 'queue_shown': QUEUE_PAGE_SIZE,
         'pools': [], 'presets': [], 'live_races': [], 'queue': [], 'queue_context': {},
         'runs': [], 'board': [], 'viewer_id': None,
-        'reviewers': [], 'reviewer_options': {},
+        'reviewers': [], 'reviewer_options': {}, 'pending': 0,
     }
 
     # name → the refreshable that renders it. Filled in once the views are defined
@@ -129,6 +129,7 @@ async def admin_qualifiers_page(
 
     async def _fetch_queue(current, qid) -> None:
         state['queue'] = await service.list_review_queue(current, qid)
+        state['pending'] = len(state['queue'])
         state['queue_context'] = await service.review_queue_context(current, qid, state['queue'])
         state['queue_shown'] = QUEUE_PAGE_SIZE
         # Whose claims count as "mine" on the cards. Stashed rather than re-read
@@ -178,10 +179,17 @@ async def admin_qualifiers_page(
         else:
             try:
                 with tenant_scope(tenant_id):
+                    current = await _current()
                     state['shell'] = {
-                        'qualifier': await service.get_qualifier(await _current(), qid)}
+                        'qualifier': await service.get_qualifier(current, qid)}
+                    # Two scalars, so the tab strip can carry the pending count on
+                    # arrival. Reading it from the queue tab's own data would show 0
+                    # until someone opened that tab, which is the moment the count
+                    # stops being news.
+                    state['pending'] = await service.count_pending_review(current, qid)
             except (ValueError, PermissionError) as e:
                 state['shell'] = {'error': str(e)}
+                state['pending'] = 0
         with client:
             detail_view.refresh()
         if state.get('shell') and not state['shell'].get('error'):
@@ -371,7 +379,7 @@ async def admin_qualifiers_page(
                 # The label carries the pending count while the name stays the key
                 # every loader and ``state['tab']`` are addressed by. Nothing told a
                 # moderator work was waiting without opening the tab first.
-                waiting = len(state['queue']) if name == QUEUE_TAB else 0
+                waiting = state['pending'] if name == QUEUE_TAB else 0
                 ui.tab(name, label=f'{name} ({waiting})' if waiting else name)
         # Selecting a tab is what fetches it, so the drill-down opens on one read
         # instead of seven. The value comes from state so a rebuild lands back where
@@ -693,6 +701,7 @@ async def admin_qualifiers_page(
         QUEUE_TAB: queue_view,
         RUNS_TAB: runs_view,
         BOARD_TAB: board_view,
+        REVIEWERS_TAB: reviewers_view,
     })
 
     # ------------------------------------------------------------------ shell

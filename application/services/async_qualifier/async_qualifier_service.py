@@ -409,6 +409,19 @@ class AsyncQualifierService(PoolManagementMixin, PlayerReadsMixin, RunExpiryMixi
         return await self.run_repository.list_pending_review(qualifier_id)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def count_pending_review(self, actor: Optional[User], qualifier_id: int) -> int:
+        """How many runs await review — the number on the tab, not the queue itself.
+
+        The drill-down loads one tab at a time, so a count taken from the loaded
+        queue reads 0 until someone opens that tab, which is the moment it stops
+        being worth telling them.
+        """
+        qualifier = await self._require_qualifier(qualifier_id)
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
+        waiting, _ = await self.run_repository.pending_review_backlog(qualifier_id)
+        return waiting
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def review_queue_context(
         self, actor: Optional[User], qualifier_id: int, runs: Sequence[AsyncQualifierRun]
     ) -> dict:
