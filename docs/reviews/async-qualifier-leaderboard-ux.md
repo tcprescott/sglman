@@ -425,6 +425,25 @@ Not a performance wave, so the table is behaviour rather than milliseconds.
 | Two verdicts committed simultaneously | both succeeded, leaving contradictory notes and two DMs | `settle_review` is a compare-and-set, so the second loses on its stale read and leaves nothing — its note is in the same transaction |
 | `get_leaderboard` with the feature off | returned the whole board | `FeatureDisabledError` |
 
+**Two things only the browser found**, both in wave 4's own new code:
+
+- A mutation that reloads several tabs awaits them in sequence in one handler,
+  where the tenant contextvar is unset — so `get_current_tenant_id` falls back to
+  `app.storage.client`, which is not reachable that far into the chain.
+  Instrumented, the override's three reloads read tenant **1, 1, then None**, and
+  a None tenant makes every feature flag read as off, so the third tab rendered
+  *"the Async Qualifiers feature is not enabled for this community"* on a
+  community that has it enabled. Latent before this wave (the existing verdict
+  path reloads only two tabs) and reachable the moment a third was added. The
+  loaders now bind the page-build tenant explicitly, which is what
+  `pages/brackets.py` already does, with the same reasoning written beside it.
+- A `disable()`d Quasar flat button keeps its colour at 0.7 opacity, so the greyed
+  verdict buttons on a claimed run read as live: click Approve, nothing happens,
+  and the reason is in a tooltip. The card now offers no verdict buttons at all in
+  that state — Release is the only thing that reviewer can do, so it is the only
+  thing shown. **Generalisable: `aria-disabled` being correct is not the same as
+  the control looking unavailable.**
+
 The gating hook now also catches the *shape* of F6 rather than that one instance: a
 class that guards the flag anywhere is held to guarding every public async method.
 Sweeping the other flagged subsystems with that rule found 24 gaps of the same kind

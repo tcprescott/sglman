@@ -127,7 +127,9 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   controls — so one bad seed can only be fixed by deleting its pool. The pattern
   worth noting is that the *docs* described the claim as a lock, which is how an
   unwired capability survives review: prose asserted it, and nothing probed it.
-  (`reattempt_run` and `review_run`'s `note` were the same finding and are
+  (The claim is now a real lock with Claim/Release on the card, an expiry sweep,
+  and a service that refuses another reviewer by name.
+  `reattempt_run` and `review_run`'s `note` were the same finding and are
   now wired, which is what the fix for it looks like. `TenantService.bootstrap_staff`
   was the costliest instance — the only way to give a new community its first
   admin, wired to nothing — and now has a button on `/platform`.) `LinkSectionConfig`'s
@@ -210,6 +212,26 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   fixing N instances of a defect, ask what the N+1th will do, and fix *that*
   instead — either by changing the default or by making the hook that already
   enforces `table_key` also enforce a bound.
+
+- **A disabled control that does not look disabled is worse than no control.**
+  Quasar keeps a flat button's colour at 0.7 opacity when disabled, so a greyed
+  Approve reads as live: the reviewer clicks it, nothing happens, and the reason
+  sits in a tooltip they never hover. `aria-disabled` being correct is not the
+  same as the control looking unavailable. When an action is unavailable *because
+  someone else holds it*, showing only what the reader can actually do — here,
+  Release — beats dimming what they cannot.
+
+- **"Read the ambient context" fails silently at the end of a chain.** The tenant
+  resolves from a contextvar, then falls back to the NiceGUI client stash. In a
+  handler that awaits several reloads in sequence the stash stops being reachable
+  partway through: measured 1, 1, then **None** across three tab reloads. A None
+  tenant makes every feature flag read as off, so the third tab told a community
+  its enabled feature was disabled. The bug scales with the length of the chain,
+  which is why it stayed hidden while mutations reloaded only two tabs — and a
+  fallback returning `None` rather than raising is what let it stay quiet.
+  `pages/brackets.py` had already hit this and binds the tenant explicitly; the
+  lesson is to do that wherever a handler outlives one await, rather than waiting
+  for someone to add a third.
 
 - **A convention only half the app honours.** `{'hidden': True}` on a column is
   this repo's own invention. The mobile-card renderer honoured it; Quasar, which
