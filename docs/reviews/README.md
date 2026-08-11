@@ -9,6 +9,7 @@ the truth and git history keeps the rationale.
 
 | Evaluation | Scope | Headline finding |
 |---|---|---|
+| [async-qualifier-leaderboard-ux.md](async-qualifier-leaderboard-ux.md) | The whole qualifier lifecycle and both leaderboards, at 500 players / 6,260 runs | The scoring formulas are exact (32/32 hand-checked); nothing in the subsystem paginates, so the admin Runs tab is a 151,156 px page, and review has no concurrency control — two reviewers verdicting one run both commit and DM the runner contradictory results |
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
 
@@ -119,7 +120,14 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   volunteer draft stay silent on purpose.
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
-  surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
+  surface. The qualifier audit found four more in one subsystem: `claim_run` and
+  `release_claim` (the queue renders a "claimed" badge no browser user can ever
+  set), `add_admin`/`remove_admin`/`list_admins` (a qualifier's reviewer set is
+  editable only with an API token), and the per-permalink edit/delete/live-race
+  controls — so one bad seed can only be fixed by deleting its pool. The pattern
+  worth noting is that the *docs* described the claim as a lock, which is how an
+  unwired capability survives review: prose asserted it, and nothing probed it.
+  (`reattempt_run` and `review_run`'s `note` were the same finding and are
   now wired, which is what the fix for it looks like. `TenantService.bootstrap_staff`
   was the costliest instance — the only way to give a new community its first
   admin, wired to nothing — and now has a button on `/platform`.) `LinkSectionConfig`'s
@@ -191,6 +199,18 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   turned up My Crew's `acknowledge` and `withdraw`, which read `context.client`
   from *inside* the task — where it raises — so a volunteer's Confirm and
   Withdraw had never worked from the page built to give them one.
+- **A fix applied per-instance leaves the default that caused it.** The table UX
+  audit added real pagination to the three unbounded family boards. It did not
+  change what an unpaginated table *defaults* to, and `page_size` still resolves
+  to `0` — which Quasar reads as "every row" — whenever `ui.table` is built
+  without `pagination=`. So the four qualifier tables authored afterwards
+  inherited exactly the bug that audit closed, and the worst of them now puts
+  3,129 rows and 43,714 DOM nodes into a **151,156-pixel** page whose tab strip
+  has scrolled a hundred and fifty metres out of reach. Worth generalising: after
+  fixing N instances of a defect, ask what the N+1th will do, and fix *that*
+  instead — either by changing the default or by making the hook that already
+  enforces `table_key` also enforce a bound.
+
 - **A convention only half the app honours.** `{'hidden': True}` on a column is
   this repo's own invention. The mobile-card renderer honoured it; Quasar, which
   has no such property, painted the column anyway — so seven admin tables led
