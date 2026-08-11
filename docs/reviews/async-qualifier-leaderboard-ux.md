@@ -443,7 +443,25 @@ every subscriber the moment it is added would hand out the pool the lockdown pro
 
 **A deploy must not announce openings that already happened.** Migration 71 stamps every
 existing qualifier's current window state, so the first worker tick after this ships has
-nothing to report. Without it, every open qualifier reads as newly open once.
+nothing to report. Without it, every open qualifier reads as newly open once. Confirmed in
+the running app: the first tick after the migration logged nothing, and only a *driven*
+crossing produced `qualifier 1 window is now closed` — once, not once per tick.
+
+**Both halves were driven end to end rather than unit-tested and hoped for.** The
+`opened` event reached a real webhook subscriber (a local sink armed on the dev webhook)
+with `{qualifier_id, name, event_name, opens_at, closes_at}` and a `200` delivery row. The
+paged runs endpoint answered the 3,129-run stress qualifier in **53 KB** (was 1.66 MB)
+with `total: 3129`, refused `limit=501` and `limit=0` with `422`, and still 401s
+unauthenticated and 404s under the other tenant's token. The REST bulk path reported
+`ftp://weird/x` and `alttpr.com/no-scheme` as lines 3 and 5, and a single
+`javascript:alert(1)` came back `400`.
+
+**The browser found one more defect of its own** — the fourth wave in a row where it
+found something 5,600 tests did not. The paste dialog is built inside the Pools tab's
+`@ui.refreshable` slot, so reloading the tab **destroys the dialog**: harmless while the
+dialog always closed first, and fatal the moment it was meant to stay open holding the
+refused lines. It now reloads once on `hide` instead. Worth generalising: *a refresh
+disposes of everything created in that slot, including a dialog you want to keep.*
 
 ### What wave 5 changed
 

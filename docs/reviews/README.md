@@ -233,6 +233,26 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   lesson is to do that wherever a handler outlives one await, rather than waiting
   for someone to add a third.
 
+- **A refresh disposes of what was built in its slot, dialogs included.** A dialog
+  opened from an `@ui.refreshable` view lives in that view's slot, so refreshing
+  the view destroys the dialog mid-use. Harmless for years because every dialog
+  closed before triggering its reload; the moment one was *meant* to stay open —
+  a paste report holding the lines it refused, so the admin can fix them — the
+  dialog vanished and took the unsaved text with it. Reload on the dialog's own
+  `hide` instead. Worth grepping for: any handler that both keeps a dialog open
+  and refreshes the view that owns it.
+
+- **A validator that rejects nothing is not a validator, and a count is not a
+  report.** Three permalink entry paths stripped whitespace and stored the rest,
+  so `javascript:alert(1)` became a clickable link — but the everyday cost was
+  worse than the exotic one: reveal is start in this subsystem, so a typo'd seed
+  spends a runner's slot on a URL that will not open. The paste path made it
+  invisible on top of that, answering seven submitted lines with "added five".
+  Two rules fall out. Validate at the *service*, since the page is not the only
+  caller (the REST bulk endpoint took the same junk). And when a batch partly
+  fails, name each failure with its input position — a total is only actionable
+  when it matches what was sent.
+
 - **A convention only half the app honours.** `{'hidden': True}` on a column is
   this repo's own invention. The mobile-card renderer honoured it; Quasar, which
   has no such property, painted the column anyway — so seven admin tables led

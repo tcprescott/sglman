@@ -173,6 +173,12 @@ def build_pools_tab(
         dialog.open()
 
     def _open_permalinks_dialog(pool_id: int) -> None:
+        # Whether anything landed, so the reload happens once, on close. This dialog
+        # is built inside the refreshable's slot, so refreshing the tab **destroys
+        # it** — which is fine when it has already closed and fatal when it is meant
+        # to stay open holding the lines that were refused.
+        added = {'any': False}
+
         with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
             ui.label('Add Permalinks').classes('text-h6')
             ui.label('One http(s) URL per line.').classes('text-caption text-grey')
@@ -192,13 +198,19 @@ def build_pools_tab(
                           color='warning' if result.rejected else 'positive',
                           multi_line=True, timeout=0 if result.rejected else None,
                           close_button='OK' if result.rejected else False)
+                added['any'] = added['any'] or bool(result.created)
                 if result.rejected:
                     urls_in.value = '\n'.join(line for _, line, _ in result.rejected)
-                else:
-                    dialog.close()
+                    return
+                dialog.close()
+
+            async def closed():
                 # A pool that had only live-race seeds becomes runnable, which is a
                 # board change as well as a pool one.
-                await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
+                if added['any']:
+                    await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
+
+            dialog.on('hide', closed)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
