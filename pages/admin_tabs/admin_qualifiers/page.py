@@ -21,6 +21,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.services.async_qualifier.async_qualifier_rules import ClaimVerdict, classify_claim
+from application.tenant_context import require_tenant_id, tenant_scope
 from application.utils.duration import format_hms
 from application.utils.timezone import parse_local_datetime
 from pages.admin_tabs.admin_qualifiers.live_races import build_live_tab
@@ -59,6 +60,9 @@ async def admin_qualifiers_page() -> None:
     live_race_service = AsyncQualifierLiveRaceService()
     preset_service = PresetService()
     client = context.client
+    # Captured at page build, where a request tenant is guaranteed; every
+    # later handler re-binds it rather than re-resolving.
+    tenant_id = require_tenant_id()
     state: dict = {
         'qualifiers': [], 'managing': None, 'shell': None, 'list_error': None,
         # The drill-down loads one tab at a time. 'loaded' is which tabs have their
@@ -80,7 +84,8 @@ async def admin_qualifiers_page() -> None:
 
     async def load_list() -> None:
         try:
-            state['qualifiers'] = await service.list_qualifiers(await _current())
+            with tenant_scope(tenant_id):
+                state['qualifiers'] = await service.list_qualifiers(await _current())
             state['list_error'] = None
         except PermissionError as e:
             state['qualifiers'] = []
@@ -138,7 +143,9 @@ async def admin_qualifiers_page() -> None:
             state['shell'] = None
         else:
             try:
-                state['shell'] = {'qualifier': await service.get_qualifier(await _current(), qid)}
+                with tenant_scope(tenant_id):
+                    state['shell'] = {
+                        'qualifier': await service.get_qualifier(await _current(), qid)}
             except (ValueError, PermissionError) as e:
                 state['shell'] = {'error': str(e)}
         with client:
@@ -159,7 +166,16 @@ async def admin_qualifiers_page() -> None:
         if not force and name in state['loaded']:
             return
         try:
-            await _FETCH[name](await _current(), qid)
+            # Scope the reads explicitly rather than leaning on the client-stash
+            # fallback, the same reason pages/brackets.py does: the tenant
+            # contextvar is unset in a handler, so `get_current_tenant_id` falls
+            # back to `app.storage.client`, which is not reachable across a chain
+            # of awaited reloads in one handler. Measured: a mutation reloading
+            # three tabs read tenant 1, 1, then None — and a None tenant makes
+            # every feature flag read as off, so the third tab rendered "the Async
+            # Qualifiers feature is not enabled for this community".
+            with tenant_scope(tenant_id):
+                await _FETCH[name](await _current(), qid)
             state['errors'].pop(name, None)
         except (ValueError, PermissionError) as e:
             state['errors'][name] = str(e)
@@ -518,26 +534,26 @@ async def admin_qualifiers_page() -> None:
                     # A claim is a real lock since F5, so the card offers the way in
                     # and the way out — a lock nobody can release is a stuck run.
                     if holder and not mine:
+                        # No verdict buttons at all, rather than disabled ones. A
+                        # `disable()`d Quasar flat button keeps its colour at 0.7
+                        # opacity, which reads as live: the reviewer clicks Approve,
+                        # nothing happens, and the reason is hidden in a tooltip.
+                        # Release is the only thing they can actually do here.
                         ui.button('Release', icon='lock_open',
                                   on_click=lambda r=run: _release_claim(r)
                                   ).props('flat color=warning').tooltip(
-                            f'{holder} claimed this. Release it if they are done.')
-                    elif not holder:
-                        ui.button('Claim', icon='lock',
-                                  on_click=lambda r=run: _claim_run(r)
-                                  ).props('flat color=primary')
-                    approve = ui.button('Approve', icon='check',
-                                        on_click=lambda r=run: _open_review_dialog(r, True)
-                                        ).props('flat color=positive')
-                    reject = ui.button('Reject', icon='close',
-                                       on_click=lambda r=run: _open_review_dialog(r, False)
-                                       ).props('flat color=negative')
-                    if holder and not mine:
-                        # The service refuses either verdict; saying so before the
-                        # click beats a notification after it.
-                        for button in (approve, reject):
-                            button.disable()
-                            button.tooltip(f'{holder} is reviewing this run.')
+                            f'{holder} is reviewing this run. Release it if they are done.')
+                    else:
+                        if not holder:
+                            ui.button('Claim', icon='lock',
+                                      on_click=lambda r=run: _claim_run(r)
+                                      ).props('flat color=primary')
+                        ui.button('Approve', icon='check',
+                                  on_click=lambda r=run: _open_review_dialog(r, True)
+                                  ).props('flat color=positive')
+                        ui.button('Reject', icon='close',
+                                  on_click=lambda r=run: _open_review_dialog(r, False)
+                                  ).props('flat color=negative')
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
                              f'Timed {format_hms(run.measured_seconds)}').classes(
