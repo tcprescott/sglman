@@ -11,6 +11,7 @@ from application.services.async_qualifier import async_qualifier_rules as rules
 from application.utils.duration import format_hms
 from application.utils.timezone import format_local_display
 from models import AsyncQualifierReviewStatus, AsyncQualifierRunStatus
+from theme.qualifier_copy import REVIEW_LABELS, STATUS_LABELS
 
 __all__ = [
     'BOARD_COLUMNS',
@@ -23,6 +24,7 @@ __all__ = [
     'POOL_PERMALINK_PREVIEW',
     'QUEUE_PAGE_SIZE',
     'QUEUE_TAB',
+    'REVIEWERS_TAB',
     'RUNS_COLUMNS',
     'RUNS_PAGE',
     'RUNS_TAB',
@@ -32,8 +34,10 @@ __all__ = [
     'fmt',
     'live_race_color',
     'other_runs_summary',
+    'review_label',
     'run_rows',
     'short_url',
+    'status_label',
 ]
 
 
@@ -61,6 +65,7 @@ LIVE_TAB = 'Live Races'
 QUEUE_TAB = 'Review Queue'
 RUNS_TAB = 'Runs'
 BOARD_TAB = 'Leaderboard'
+REVIEWERS_TAB = 'Reviewers'
 
 # Client-side paging over rows already loaded, matching the family boards. Absent
 # a pagination prop, ``page_size`` resolves to 0 — Quasar's "every row" — and a
@@ -114,6 +119,26 @@ BOARD_COLUMNS: Sequence[Dict[str, Any]] = [
 ]
 
 
+def status_label(run) -> str:
+    """A run's state as a sentence would say it, with an expiry called out.
+
+    ``expired_at`` exists to tell an automatic forfeit from a chosen one and was
+    read by no surface, so the two were indistinguishable on screen.
+    """
+    if getattr(run, 'expired_at', None) is not None:
+        return 'Forfeited (ran out of time)'
+    value = enum_value(run.status)
+    return STATUS_LABELS.get(value, value)
+
+
+def review_label(run) -> str:
+    """A run's review state, or '—' while there is nothing to review yet."""
+    if enum_value(run.status) == 'in_progress':
+        return '—'
+    value = enum_value(run.review_status)
+    return REVIEW_LABELS.get(value, value)
+
+
 def run_rows(runs) -> list:
     """The admin Runs tab's rows — every run, because a forfeit never reaches the
     review queue and this is the only place a mis-clicked one can be found."""
@@ -122,8 +147,10 @@ def run_rows(runs) -> list:
             'id': run.id,
             'player': run.user.display_name or run.user.username,
             'pool': (run.permalink.pool.name if run.permalink and run.permalink.pool else '—'),
-            'status': enum_value(run.status) + (' (voided)' if run.reattempted else ''),
-            'review': enum_value(run.review_status),
+            # Humanised rather than the raw enum: both tables were rendering the
+            # database's vocabulary at people.
+            'status': status_label(run) + (' (voided)' if run.reattempted else ''),
+            'review': review_label(run),
             'claimed': format_hms(run.elapsed_seconds),
             'timed': format_hms(run.measured_seconds),
             'score': '' if run.score is None else round(run.score, 1),

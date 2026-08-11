@@ -32,12 +32,18 @@ from models import (
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
     FeatureFlag,
+    Role,
     User,
 )
 
 if TYPE_CHECKING:  # typing only — importing these at runtime would cycle
-    from application.repositories import AsyncQualifierRunRepository
+    from application.repositories import AsyncQualifierRepository, AsyncQualifierRunRepository
     from application.services.audit_service import AuditService
+
+
+def _aware(value: datetime) -> datetime:
+    """Naive datetimes are stored as UTC, so read them back that way."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 class RunExpiryMixin:
@@ -49,6 +55,7 @@ class RunExpiryMixin:
     must satisfy rather than leaving it implicit in the attribute accesses.
     """
 
+    repository: 'AsyncQualifierRepository'
     run_repository: 'AsyncQualifierRunRepository'
     audit_service: 'AuditService'
     _require_qualifier: Callable[[int], Awaitable[AsyncQualifier]]
@@ -125,6 +132,48 @@ class RunExpiryMixin:
         )
         await notifications.notify_run_expiring(run, deadline)
         return run
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def notify_review_backlog(
+        self, qualifier: AsyncQualifier, *, now: Optional[datetime] = None
+    ) -> int:
+        """Tell the reviewer set about a queue nobody has worked. DMs sent.
+
+        The queue used to be pull-only: ``submit_run`` audits and publishes an
+        event, and nothing reached a human — so the only way to discover work was
+        to open the drill-down and look.
+
+        Deliberately a backlog reminder rather than a DM per submission. Which
+        people get it: the qualifier's own ``admins`` if it has any, else whoever
+        holds ``QUALIFIER_ADMIN`` — the role that gates this surface. Not community
+        STAFF at large, who can also review but have not taken it on.
+
+        Stamps before sending, the same rule as the expiry warning: a delivery
+        failure or a restart mid-send must not turn one reminder into one per tick.
+        """
+        now = now or datetime.now(timezone.utc)
+        waiting, oldest = await self.run_repository.pending_review_backlog(qualifier.id)
+        if not waiting or not rules.backlog_is_worth_reporting(
+            oldest, qualifier.review_backlog_notified_at, now,
+        ):
+            return 0
+        reviewers = await qualifier.admins.all()
+        if not reviewers:
+            from application.services.user_service import UserService
+            reviewers = await UserService().get_community_people(
+                role=Role.QUALIFIER_ADMIN, has_discord=True,
+            )
+        if not reviewers:
+            # Nobody to tell. Left unstamped on purpose: the moment a reviewer is
+            # added, they should hear about the backlog that was already there.
+            return 0
+        await self.repository.update(qualifier, review_backlog_notified_at=now)
+        # ``oldest`` is non-None here: ``backlog_is_worth_reporting`` returns False
+        # for a None one, which the guard above already acted on.
+        hours = max(1, int((now - _aware(oldest)).total_seconds() // 3600))  # type: ignore[arg-type]
+        return await notifications.notify_review_queue_waiting(
+            reviewers, qualifier, waiting=waiting, oldest_hours=hours,
+        )
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def release_stale_claim(self, run: AsyncQualifierRun) -> AsyncQualifierRun:

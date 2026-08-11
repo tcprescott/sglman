@@ -34,6 +34,7 @@ from application.utils.app_links import (
     SCHEDULE,
     USERS,
     VOL_SCHEDULE,
+    admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
     home_url,
@@ -190,3 +191,10 @@ async def admin_volunteer_schedule(
 async def admin_users(*, label: str = 'Review the request') -> Optional[DMLink]:
     """The Users tab, where join requests are approved or denied."""
     return await link_for(label, admin_url(USERS))
+
+
+async def admin_qualifier_queue(
+    qualifier_id: int, *, label: str = 'Open the review queue',
+) -> Optional[DMLink]:
+    """One qualifier's review queue, open on arrival — the control, not the page."""
+    return await link_for(label, admin_qualifier_queue_url(qualifier_id))

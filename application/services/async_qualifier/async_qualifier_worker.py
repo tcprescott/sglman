@@ -22,7 +22,7 @@ TICK_SECONDS = 60
 
 
 async def _tick() -> None:
-    from application.repositories import AsyncQualifierRunRepository
+    from application.repositories import AsyncQualifierRepository, AsyncQualifierRunRepository
     from application.services.async_qualifier import async_qualifier_rules as rules
     from application.services.async_qualifier.async_qualifier_service import (
         AsyncQualifierService,
@@ -38,7 +38,11 @@ async def _tick() -> None:
     stale_claims = await AsyncQualifierRunRepository.list_stale_claims_all(
         now - rules.REVIEW_CLAIM_TTL
     )
-    if not candidates and not stale_claims:
+    # Qualifiers whose queue might have gone unworked. Cheap to enumerate (a
+    # community runs a handful), and the per-qualifier read behind the decision is
+    # two scalars.
+    backlogs = await AsyncQualifierRepository.list_active_all()
+    if not candidates and not stale_claims and not backlogs:
         return
 
     service = AsyncQualifierService()
@@ -82,6 +86,22 @@ async def _tick() -> None:
         tenant_id_of=tenant_id_of,
         logger=logger,
         describe=lambda run: f'stale review claim on qualifier run {getattr(run, "id", None)}',
+    )
+
+    async def _nudge(qualifier) -> None:
+        if not await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS):
+            return  # tenant has async qualifiers disabled
+        sent = await service.notify_review_backlog(qualifier, now=now)
+        if sent:
+            logger.info('told %s reviewer(s) about the queue on qualifier %s',
+                        sent, qualifier.id)
+
+    await for_each_tenant_scoped(
+        backlogs,
+        _nudge,
+        tenant_id_of=tenant_id_of,
+        logger=logger,
+        describe=lambda q: f'review backlog on qualifier {getattr(q, "id", None)}',
     )
 
 

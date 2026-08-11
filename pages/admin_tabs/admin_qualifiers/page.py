@@ -18,13 +18,16 @@ from application.services import (
     AsyncQualifierLiveRaceService,
     AsyncQualifierService,
     PresetService,
+    UserService,
     get_user_from_discord_id,
 )
-from application.services.async_qualifier.async_qualifier_rules import ClaimVerdict, classify_claim
+from application.services.async_qualifier.async_qualifier_rules import display_name
 from application.tenant_context import require_tenant_id, tenant_scope
 from application.utils.duration import format_hms
 from application.utils.timezone import parse_local_datetime
 from pages.admin_tabs.admin_qualifiers.live_races import build_live_tab
+from pages.admin_tabs.admin_qualifiers.review_queue import build_queue_tab
+from pages.admin_tabs.admin_qualifiers.reviewers import build_reviewers_tab
 from pages.admin_tabs.admin_qualifiers.shared import (
     BOARD_COLUMNS,
     BOARD_PAGE,
@@ -35,17 +38,14 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     POOLS_TAB,
     QUEUE_PAGE_SIZE,
     QUEUE_TAB,
+    REVIEWERS_TAB,
     RUNS_COLUMNS,
     RUNS_PAGE,
     RUNS_TAB,
     board_rows,
-    claim_holder,
     enum_value,
-    existing_notes,
     fmt,
-    other_runs_summary,
     run_rows,
-    short_url,
 )
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
@@ -54,8 +54,29 @@ from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, row_count_label, search_input, sticky_header
 
+# Deep-link tab keys → the tab names the drill-down is addressed by. Short slugs
+# rather than the labels themselves, so a DM's URL does not carry "Review%20Queue"
+# and does not break when a label is reworded.
+_DEEP_LINK_TABS = {
+    'queue': QUEUE_TAB,
+    'pools': POOLS_TAB,
+    'runs': RUNS_TAB,
+    'board': BOARD_TAB,
+    'live': LIVE_TAB,
+    'reviewers': REVIEWERS_TAB,
+}
 
-async def admin_qualifiers_page() -> None:
+
+async def admin_qualifiers_page(
+    qualifier: int | None = None,
+    open_tab: str | None = None,
+) -> None:
+    """The staff surface. ``qualifier``/``open_tab`` come from a notification link.
+
+    The "runs are waiting" DM points here, and a DM outlives the thing it points
+    at — so a qualifier id that no longer resolves says so rather than silently
+    landing on the list, which would read as a broken button.
+    """
     service = AsyncQualifierService()
     live_race_service = AsyncQualifierLiveRaceService()
     preset_service = PresetService()
@@ -71,6 +92,7 @@ async def admin_qualifiers_page() -> None:
         'tab': POOLS_TAB, 'loaded': set(), 'errors': {}, 'queue_shown': QUEUE_PAGE_SIZE,
         'pools': [], 'presets': [], 'live_races': [], 'queue': [], 'queue_context': {},
         'runs': [], 'board': [], 'viewer_id': None,
+        'reviewers': [], 'reviewer_options': {},
     }
 
     # name → the refreshable that renders it. Filled in once the views are defined
@@ -113,6 +135,17 @@ async def admin_qualifiers_page() -> None:
         # per card: the view is sync and cannot await.
         state['viewer_id'] = current.id if current is not None else None
 
+    async def _fetch_reviewers(current, qid) -> None:
+        state['reviewers'] = await service.list_admins(current, qid)
+        already = {p.id for p in state['reviewers']}
+        # The community's own people, minus whoever is already on the roster. The
+        # picker's default, not an authorization rule — ``add_admin`` gates that.
+        state['reviewer_options'] = {
+            person.id: display_name(person)
+            for person in await UserService().get_community_people()
+            if person.id not in already
+        }
+
     async def _fetch_runs(current, qid) -> None:
         state['runs'] = await service.list_runs(current, qid)
 
@@ -123,6 +156,7 @@ async def admin_qualifiers_page() -> None:
         POOLS_TAB: _fetch_pools,
         LIVE_TAB: _fetch_live,
         QUEUE_TAB: _fetch_queue,
+        REVIEWERS_TAB: _fetch_reviewers,
         RUNS_TAB: _fetch_runs,
         BOARD_TAB: _fetch_board,
     }
@@ -332,8 +366,13 @@ async def admin_qualifiers_page() -> None:
             ui.space()
             ui.button(icon='close', on_click=_close_manage).props('flat round').tooltip('Close')
         with ui.tabs().classes('w-full') as tabs:
-            for name in (POOLS_TAB, LIVE_TAB, QUEUE_TAB, RUNS_TAB, BOARD_TAB):
-                ui.tab(name)
+            for name in (POOLS_TAB, LIVE_TAB, QUEUE_TAB, RUNS_TAB, BOARD_TAB,
+                         REVIEWERS_TAB):
+                # The label carries the pending count while the name stays the key
+                # every loader and ``state['tab']`` are addressed by. Nothing told a
+                # moderator work was waiting without opening the tab first.
+                waiting = len(state['queue']) if name == QUEUE_TAB else 0
+                ui.tab(name, label=f'{name} ({waiting})' if waiting else name)
         # Selecting a tab is what fetches it, so the drill-down opens on one read
         # instead of seven. The value comes from state so a rebuild lands back where
         # the reviewer was.
@@ -349,6 +388,8 @@ async def admin_qualifiers_page() -> None:
                 runs_view()
             with ui.tab_panel(BOARD_TAB):
                 board_view()
+            with ui.tab_panel(REVIEWERS_TAB):
+                reviewers_view()
 
     async def _select_tab(name) -> None:
         name = getattr(name, 'name', name)
@@ -371,6 +412,19 @@ async def admin_qualifiers_page() -> None:
     # than inline because it needs the loaders defined above.
     live_view = build_live_tab(
         state=state, service=live_race_service, current=_current,
+        reload_tabs=reload_open_tabs, placeholder=_tab_placeholder,
+        notify_error=notify_error,
+    )
+    queue_view = build_queue_tab(
+        state=state, service=service, current=_current,
+        reload_tabs=reload_open_tabs,
+        # Claim and Release change the card without settling anything, so the queue
+        # is re-read rather than patched in place the way a verdict is.
+        reload_queue=lambda: load_tab(QUEUE_TAB, force=True),
+        placeholder=_tab_placeholder, notify_error=notify_error, client=client,
+    )
+    reviewers_view = build_reviewers_tab(
+        state=state, service=service, current=_current,
         reload_tabs=reload_open_tabs, placeholder=_tab_placeholder,
         notify_error=notify_error,
     )
@@ -505,142 +559,6 @@ async def admin_qualifiers_page() -> None:
         # runs list and the board both move.
         await reload_open_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
 
-    @ui.refreshable
-    def queue_view() -> None:
-        if state.get('shell') is None or _tab_placeholder(QUEUE_TAB):
-            return
-        queue = state['queue']
-        if not queue:
-            ui.label('No runs awaiting review.').classes('text-grey')
-            return
-        shown = min(state['queue_shown'], len(queue))
-        with ui.row().classes('items-center w-full'):
-            ui.label(f'{len(queue)} awaiting review').classes('text-caption text-grey-7')
-        me = state.get('viewer_id')
-        for run in queue[:shown]:
-            runner = run.user.display_name or run.user.username
-            pool_name = run.permalink.pool.name if run.permalink and run.permalink.pool else '—'
-            holder = claim_holder(run)
-            mine = run.review_claimed_by_id == me
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(runner).classes('text-subtitle1')
-                    ui.badge(format_hms(run.elapsed_seconds), color='blue')
-                    ui.badge(pool_name, color='grey')
-                    if holder:
-                        ui.badge('you have this' if mine else f'{holder} has this',
-                                 color='orange' if mine else 'negative')
-                    ui.space()
-                    # A claim is a real lock since F5, so the card offers the way in
-                    # and the way out — a lock nobody can release is a stuck run.
-                    if holder and not mine:
-                        # No verdict buttons at all, rather than disabled ones. A
-                        # `disable()`d Quasar flat button keeps its colour at 0.7
-                        # opacity, which reads as live: the reviewer clicks Approve,
-                        # nothing happens, and the reason is hidden in a tooltip.
-                        # Release is the only thing they can actually do here.
-                        ui.button('Release', icon='lock_open',
-                                  on_click=lambda r=run: _release_claim(r)
-                                  ).props('flat color=warning').tooltip(
-                            f'{holder} is reviewing this run. Release it if they are done.')
-                    else:
-                        if not holder:
-                            ui.button('Claim', icon='lock',
-                                      on_click=lambda r=run: _claim_run(r)
-                                      ).props('flat color=primary')
-                        ui.button('Approve', icon='check',
-                                  on_click=lambda r=run: _open_review_dialog(r, True)
-                                  ).props('flat color=positive')
-                        ui.button('Reject', icon='close',
-                                  on_click=lambda r=run: _open_review_dialog(r, False)
-                                  ).props('flat color=negative')
-                with ui.row().classes('items-center gap-2'):
-                    ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
-                             f'Timed {format_hms(run.measured_seconds)}').classes(
-                        'text-caption text-grey')
-                    if classify_claim(run.elapsed_seconds or 0,
-                                      run.measured_seconds) is ClaimVerdict.IMPLAUSIBLE:
-                        drift = run.measured_seconds - (run.elapsed_seconds or 0)
-                        ui.badge(f'drift {format_hms(drift)}', color='orange').tooltip(
-                            'The runner confirmed this time against their own timer.')
-                ui.label(f'Started {fmt(run.started_at)} · Finished {fmt(run.finished_at)}').classes(
-                    'text-caption text-grey')
-                if run.permalink:
-                    ui.link(f'Permalink played: {short_url(run.permalink.url)}',
-                            run.permalink.url, new_tab=True).classes('text-caption')
-                if run.runner_vod_url:
-                    ui.link('VoD', run.runner_vod_url, new_tab=True).classes('text-caption')
-                others = other_runs_summary(state['queue_context'], run)
-                if others:
-                    ui.label(others).classes('text-caption text-grey')
-                for note in existing_notes(run):
-                    ui.label(f'Note — {note}').classes('text-caption text-italic')
-        if shown < len(queue):
-            ui.button(f'Show {min(QUEUE_PAGE_SIZE, len(queue) - shown)} more',
-                      icon='expand_more', on_click=_show_more_queue).props('flat color=primary')
-
-    def _show_more_queue() -> None:
-        state['queue_shown'] += QUEUE_PAGE_SIZE
-        queue_view.refresh()
-
-    async def _claim_run(run) -> None:
-        try:
-            await service.claim_run(await _current(), run.id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-        await load_tab(QUEUE_TAB, force=True)
-
-    async def _release_claim(run) -> None:
-        try:
-            await service.release_claim(await _current(), run.id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-        await load_tab(QUEUE_TAB, force=True)
-
-    def _open_review_dialog(run, approved: bool) -> None:
-        """One dialog for both verdicts so the two paths cannot drift.
-
-        A rejection's reason is required — the service refuses one without, and
-        what the reviewer types is what the runner is told.
-        """
-        verb = 'Approve' if approved else 'Reject'
-        runner = run.user.display_name or run.user.username
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
-            ui.label(f'{verb} {runner}\u2019s run').classes('text-h6')
-            note_in = ui.textarea(
-                'Note (optional)' if approved else 'Reason (shown to the runner)'
-            ).classes('w-full').props('rows=3')
-
-            async def submit() -> None:
-                try:
-                    await service.review_run(
-                        await _current(), run.id, approved=approved, note=note_in.value,
-                    )
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-                    return
-                ui.notify('Run approved' if approved else 'Run rejected', color='positive')
-                dialog.close()
-                # A settled run leaves the queue by definition, so drop its card
-                # rather than re-reading the queue to be told the same thing. The
-                # reviewer keeps their place and the next card is already there.
-                state['queue'] = [r for r in state['queue'] if r.id != run.id]
-                with client:
-                    queue_view.refresh()
-                # The verdict recomputes that permalink's par and rescores every
-                # approved run on it, so these two really did change.
-                await reload_open_tabs(BOARD_TAB, RUNS_TAB)
-
-            with ui.row().classes('justify-end w-full'):
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                confirm = ui.button(f'{verb} run', icon='check' if approved else 'close',
-                                    on_click=submit)
-                confirm.props(f'color={"positive" if approved else "negative"}')
-                if not approved:
-                    # Belt as well as braces: the service is the authority, but a
-                    # disabled button explains the rule before the click.
-                    confirm.bind_enabled_from(note_in, 'value', lambda v: bool((v or '').strip()))
-        dialog.open()
 
     @ui.refreshable
     def runs_view() -> None:
@@ -793,3 +711,16 @@ async def admin_qualifiers_page() -> None:
 
     await load_list()
     wire_tab_refresh('Qualifiers', load_list)
+
+    if qualifier is not None:
+        if any(q.id == qualifier for q in state['qualifiers']):
+            state['tab'] = _DEEP_LINK_TABS.get((open_tab or '').lower(), POOLS_TAB)
+            state['managing'] = qualifier
+            await load_shell()
+        else:
+            # Deleted, or in another community, or this viewer cannot administer it.
+            # A link that quietly does nothing reads as a broken app.
+            ui.notify(
+                'That qualifier is no longer available — it may have been deleted.',
+                color='warning',
+            )

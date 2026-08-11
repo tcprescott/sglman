@@ -106,3 +106,33 @@ def qualifier_reattempt_granted_dm(
     if qualifier_url:
         blocks.append(f"[Start your next run]({qualifier_url})")
     return "\n\n".join(blocks)
+
+
+def qualifier_review_queue_dm(
+    qualifier_name: str,
+    *,
+    waiting: int,
+    oldest_hours: int,
+    queue_url: str = '',
+) -> str:
+    """Tell a reviewer that runs have been waiting, and for how long.
+
+    Deliberately *not* one DM per submission. A qualifier at real scale takes
+    thousands of runs, and a message per run would train every reviewer to mute
+    the bot — which is worse than the silence this replaces. So it reports the
+    backlog, once the oldest run has waited long enough to be worth interrupting
+    someone for, and repeats no more often than the reminder interval.
+
+    Leads with the wait rather than the count: a runner cannot start their next
+    run in that pool until this one is settled, so age is the thing that hurts.
+    """
+    plural = '' if waiting == 1 else 's'
+    hours = f"{oldest_hours} hour" + ('' if oldest_hours == 1 else 's')
+    blocks = [
+        f"**{qualifier_name}** has {waiting} run{plural} awaiting review — the "
+        f"oldest has been waiting {hours}.",
+        "A runner cannot start their next run in that pool until it is settled.",
+    ]
+    if queue_url:
+        blocks.append(f"[Open the review queue]({queue_url})")
+    return "\n\n".join(blocks)

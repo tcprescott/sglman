@@ -21,6 +21,7 @@ REPORTS = 'reports'
 VOL_SCHEDULE = 'vol-schedule'
 CHALLONGE = 'challonge'
 USERS = 'users'
+QUALIFIERS = 'qualifiers'
 
 # Home tab slugs.
 HOME_PLAYER = 'player'
@@ -47,6 +48,17 @@ def _query(params: dict) -> str:
 def admin_url(section: Optional[str] = None, **params) -> str:
     """Build ``/admin[/<section>][?…]``, dropping empty params."""
     return f"{'/admin/' + section if section else '/admin'}{_query(params)}"
+
+
+def admin_qualifier_queue_url(qualifier_id: int) -> str:
+    """The review queue of one qualifier, open on arrival.
+
+    The queue is the control, not the page: landing a reviewer on
+    ``/admin/qualifiers`` leaves them to find the qualifier among several, click
+    Manage, and then find the tab — three steps between a "runs are waiting" DM
+    and the runs.
+    """
+    return admin_url(QUALIFIERS, qualifier=qualifier_id, tab='queue')
 
 
 def home_url(section: Optional[str] = None, **params) -> str:

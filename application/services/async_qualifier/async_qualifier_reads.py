@@ -11,24 +11,106 @@ the file-length guideline. Reads only: nothing here writes or audits.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, Awaitable, Callable, List, Optional
 
 from application.feature_flags import requires_feature
 from application.services.async_qualifier import async_qualifier_access as access
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_scoring import (
     LeaderboardEntry,
+    ScoreBand,
     ScoredRun,
     build_leaderboard,
+    score_band,
 )
 from application.utils.timezone import format_local_display
 from models import (
     AsyncQualifier,
     AsyncQualifierPool,
+    AsyncQualifierReviewStatus,
     AsyncQualifierRun,
+    AsyncQualifierRunStatus,
     FeatureFlag,
     User,
 )
+
+if TYPE_CHECKING:  # typing only — importing these at runtime would cycle
+    from application.repositories import (
+        AsyncQualifierPoolRepository,
+        AsyncQualifierRepository,
+        AsyncQualifierRunRepository,
+    )
+    from application.services.async_qualifier.async_qualifier_draw import AsyncQualifierDraw
+
+
+@dataclass(frozen=True)
+class OwnRun:
+    """One of the caller's own runs, as the caller is allowed to see it.
+
+    A projection rather than the model, for two reasons the audit found the hard
+    way. **The exact score is exactly solvable for par** — the runner knows their
+    own elapsed, so ``par = elapsed / (2 - score/100)`` — which defeats the
+    active-window lockdown; here it is ``None`` until results are public and only
+    ``score_band`` is offered. And the model carries **less** than the runner
+    needs: the seed they played, why a reviewer voided a run, and whether a
+    forfeit was theirs or the clock's were all on the record and on no screen.
+
+    Returning a frozen projection rather than masking the model is deliberate: a
+    model with its score nulled for display is one `save()` away from writing that
+    null back.
+    """
+
+    id: int
+    pool_name: str
+    permalink_url: Optional[str]
+    status: AsyncQualifierRunStatus
+    review_status: AsyncQualifierReviewStatus
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    deadline: Optional[datetime]        # when an in-progress run auto-forfeits
+    elapsed_seconds: Optional[int]
+    measured_seconds: Optional[int]
+    runner_vod_url: Optional[str]
+    reattempted: bool
+    reattempt_reason: Optional[str]
+    reattempt_was_granted: bool         # a reviewer voided it, not the runner
+    expired_at: Optional[datetime]      # the clock forfeited it, nobody chose to
+    score: Optional[float]              # None while the window hides exact scores
+    score_band: Optional[ScoreBand]
+    notes: List[str]
+
+    @property
+    def is_reattemptable(self) -> bool:
+        """Whether spending a reattempt on this run would do anything."""
+        return not self.reattempted and self.status in _REATTEMPTABLE
+
+    @property
+    def was_expired(self) -> bool:
+        return self.expired_at is not None
+
+    @property
+    def latest_note(self) -> str:
+        """The most recent reviewer note — the reason behind the current verdict."""
+        return self.notes[-1] if self.notes else ''
+
+    @property
+    def awaits_review(self) -> bool:
+        """Whether a review verdict is a thing this run is still waiting for.
+
+        An in-progress run is ``PENDING`` in the column too, which read as "a
+        reviewer is looking at this" when nobody had anything to look at yet.
+        """
+        return (self.status == AsyncQualifierRunStatus.FINISHED
+                and self.review_status == AsyncQualifierReviewStatus.PENDING)
+
+
+# Terminal states a reattempt can free the slot of — an in-progress run is
+# finished or forfeited first.
+_REATTEMPTABLE = frozenset({
+    AsyncQualifierRunStatus.FINISHED,
+    AsyncQualifierRunStatus.FORFEIT,
+    AsyncQualifierRunStatus.DISQUALIFIED,
+})
 
 
 @dataclass(frozen=True)
@@ -47,7 +129,19 @@ class RunAvailability:
 
 
 class PlayerReadsMixin:
-    """The competitor-facing reads. Requires the host's repositories and ``draw``."""
+    """The competitor-facing reads.
+
+    The members below are supplied by :class:`AsyncQualifierService`, which composes
+    this mixin. Declared (annotation only, so nothing shadows the real ones at
+    runtime) to state the contract a composer must satisfy — the same shape
+    :class:`RunExpiryMixin` uses.
+    """
+
+    repository: 'AsyncQualifierRepository'
+    pool_repository: 'AsyncQualifierPoolRepository'
+    run_repository: 'AsyncQualifierRunRepository'
+    draw: 'AsyncQualifierDraw'
+    _require_qualifier: Callable[[int], Awaitable[AsyncQualifier]]
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_open_qualifiers(self) -> List[AsyncQualifier]:
@@ -109,8 +203,54 @@ class PlayerReadsMixin:
         )
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def list_user_runs(self, user: User, qualifier_id: int) -> List[AsyncQualifierRun]:
-        return await self.run_repository.list_for_user(qualifier_id, user.id)
+    async def list_user_runs(self, user: User, qualifier_id: int) -> List[OwnRun]:
+        """The caller's own runs, projected to what they may see and need.
+
+        Returns :class:`OwnRun` rather than the model so the score lockdown cannot
+        be forgotten by a caller — the web page and ``GET /{id}/me/runs`` share
+        this one decision instead of each reading ``run.score`` and hoping.
+        """
+        qualifier = await self._require_qualifier(qualifier_id)
+        exact = self.is_results_public(qualifier)
+        runs = await self.run_repository.list_for_user(qualifier_id, user.id)
+        return [self._own_run(run, qualifier, exact_scores=exact) for run in runs]
+
+    def _own_run(
+        self, run: AsyncQualifierRun, qualifier: AsyncQualifier, *, exact_scores: bool
+    ) -> OwnRun:
+        pool = run.permalink.pool if run.permalink and run.permalink.pool else None
+        return OwnRun(
+            id=run.id,
+            pool_name=pool.name if pool else '—',
+            # The seed is on the reviewer's card and was on no screen the runner
+            # could reach, so a runner disputing a verdict could not cite it.
+            permalink_url=run.permalink.url if run.permalink else None,
+            status=run.status,
+            review_status=run.review_status,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+            deadline=(rules.run_deadline(qualifier, run.started_at)
+                      if run.status == AsyncQualifierRunStatus.IN_PROGRESS else None),
+            elapsed_seconds=run.elapsed_seconds,
+            measured_seconds=run.measured_seconds,
+            runner_vod_url=run.runner_vod_url,
+            reattempted=run.reattempted,
+            reattempt_reason=run.reattempt_reason,
+            # ``reattempt_granted_by`` set means a reviewer voided it rather than
+            # the runner spending their own allowance — a different thing to be
+            # told, and the page said neither.
+            # ``<fk>_id`` is generated by Tortoise at runtime, invisible to mypy.
+            reattempt_was_granted=run.reattempt_granted_by_id is not None,  # type: ignore[attr-defined]
+            expired_at=run.expired_at,
+            score=run.score if exact_scores else None,
+            score_band=score_band(run.score),
+            notes=[
+                n.note for n in sorted(
+                    (n for n in getattr(run, 'review_notes', []) or [] if n.note),
+                    key=lambda n: (n.created_at, n.id),
+                )
+            ],
+        )
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_active_run(self, user: User, qualifier_id: int) -> Optional[AsyncQualifierRun]:

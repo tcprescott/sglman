@@ -17,6 +17,7 @@ from application.services.async_qualifier.async_qualifier_rules import (
     ClaimVerdict,
     classify_claim,
     measure_elapsed,
+    run_deadline,
 )
 from application.utils.duration import format_hms, parse_hms
 from application.utils.timezone import format_local_display
@@ -25,7 +26,14 @@ from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
-from theme.qualifier_copy import BOARD_EXPLAINER, SCORE_EXPLAINER
+from theme.qualifier_copy import (
+    BAND_EXPLAINER,
+    BAND_LABELS,
+    BOARD_EXPLAINER,
+    REVIEW_LABELS,
+    SCORE_EXPLAINER,
+    STATUS_LABELS,
+)
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, row_count_label, search_input, sticky_header
 
@@ -33,10 +41,6 @@ from theme.tables.preferences import TableKeys, row_count_label, search_input, s
 def _fmt(dt) -> str:
     return format_local_display(dt) if dt else '—'
 
-
-# Run states a reattempt can void — an in-progress run is finished or forfeited
-# first, which is what reattempt_run enforces.
-_TERMINAL_STATUSES = {'finished', 'forfeit', 'disqualified'}
 
 # Client-side paging over rows already loaded, matching the family boards
 # (theme/tables/match.py). Without an explicit pagination prop, page_size resolves
@@ -56,17 +60,36 @@ _REATTEMPT_ACTION = '''
 '''
 
 
-def _latest_note(run) -> str:
-    """The most recent reviewer note on a run — the reason behind its verdict.
+def _seed_cell(run) -> str:
+    """Which permalink this run played, shortened.
 
-    Not a disclosure change: ``get_run_notes`` already lets a run's own owner read
-    its notes. The page simply never asked.
+    On the reviewer's card since PR 9 and on no screen the runner could reach, so
+    a runner disputing a verdict could not cite the seed they were given.
     """
-    notes = [n for n in (getattr(run, 'review_notes', None) or []) if getattr(n, 'note', '')]
-    if not notes:
+    url = run.permalink_url or ''
+    if not url:
+        return '—'
+    return url if len(url) <= 44 else f'{url[:44]}…'
+
+
+def _score_cell(run, exact: bool):
+    """The exact score once results are public; the band while they are not."""
+    if exact:
+        return '' if run.score is None else round(run.score, 1)
+    if run.score_band is None:
         return ''
-    latest = max(notes, key=lambda n: (n.created_at, n.id))
-    return latest.note
+    return BAND_LABELS.get(run.score_band.value, run.score_band.value)
+
+
+def _void_reason(run) -> str:
+    """Why this run stopped counting, when a reviewer is the one who voided it.
+
+    ``reattempt_reason`` went out by DM and never appeared on the page the runner
+    comes back to, so a granted void read as an unexplained "(reattempted)".
+    """
+    if not (run.reattempted and run.reattempt_was_granted and run.reattempt_reason):
+        return ''
+    return f'Voided by a reviewer — {run.reattempt_reason}'
 
 
 def _words(seconds: int) -> str:
@@ -194,12 +217,27 @@ def create() -> None:
                 if run.permalink:
                     ui.link('Your permalink (open the seed)', run.permalink.url, new_tab=True)
                 elapsed_label = ui.label('Elapsed: 0:00:00').classes('text-h6')
+                # The run auto-forfeits at this deadline and the card used to count
+                # up with no hint a countdown existed — the runner's only warning
+                # was a DM an hour out, which is no help to anyone who missed it.
+                deadline = run_deadline(qualifier, run.started_at)
+                remaining_label = None
+                if deadline is not None:
+                    ui.label(f'Auto-forfeits at {_fmt(deadline)} if you have not '
+                             'submitted or forfeited by then.').classes('text-caption text-warning')
+                    remaining_label = ui.label('').classes('text-caption text-warning')
 
                 def _tick():
                     measured = measure_elapsed(run.started_at)
                     if measured is None:
                         return
                     elapsed_label.text = f'Elapsed: {format_hms(measured)}'
+                    if remaining_label is not None and deadline is not None:
+                        left = int((deadline - datetime.now(timezone.utc)).total_seconds())
+                        remaining_label.text = (
+                            f'{format_hms(left)} left' if left > 0
+                            else 'Past the deadline — it will be forfeited on the next check.'
+                        )
 
                 ui.timer(1.0, _tick)
 
@@ -314,14 +352,19 @@ def create() -> None:
                 ui.label('You have no runs yet.').classes('text-grey')
                 return
             can_reattempt = window_open and allowance.remaining > 0
+            exact_scores = service.is_results_public(qualifier)
             columns: list[dict] = [
                 {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left',
                  'sortable': True},
+                {'name': 'seed', 'label': 'Seed', 'field': 'seed', 'align': 'left'},
                 {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
                 {'name': 'review', 'label': 'Review', 'field': 'review', 'sortable': True},
                 # HH:MM:SS is zero-padded, so a lexical sort is a chronological one.
                 {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
-                {'name': 'score', 'label': 'Score', 'field': 'score', 'sortable': True},
+                # Exact once the qualifier closes; a band while it is open, because a
+                # number and your own elapsed solve for the seed's par.
+                {'name': 'score', 'label': 'Score' if exact_scores else 'Against par',
+                 'field': 'score', 'sortable': True},
                 # Capped and wrapping: a full rejection reason is the longest text
                 # on the row, and left to itself it pushes the row action off the
                 # right edge of a desktop table.
@@ -332,17 +375,24 @@ def create() -> None:
                 columns.append({'name': 'actions', 'label': '', 'field': 'actions'})
             rows = []
             for r in runs:
-                pool_name = r.permalink.pool.name if r.permalink and r.permalink.pool else '—'
-                status = r.status.value if hasattr(r.status, 'value') else str(r.status)
+                status = STATUS_LABELS.get(r.status.value, r.status.value)
+                if r.was_expired:
+                    # The column exists precisely to tell these two apart, and no
+                    # page read it — an automatic forfeit looked like a chosen one.
+                    status = 'Forfeited (ran out of time)'
                 rows.append({
                     'id': r.id,
-                    'pool': pool_name + (' (reattempted)' if r.reattempted else ''),
+                    'pool': r.pool_name + (' (voided)' if r.reattempted else ''),
+                    'seed': _seed_cell(r),
                     'status': status,
-                    'review': r.review_status.value if hasattr(r.review_status, 'value') else str(r.review_status),
+                    # An in-progress run is PENDING in the column too, which read as
+                    # "a reviewer has this" before anyone had submitted anything.
+                    'review': (REVIEW_LABELS.get(r.review_status.value, r.review_status.value)
+                               if r.status.value != 'in_progress' else '—'),
                     'time': format_hms(r.elapsed_seconds),
-                    'score': '' if r.score is None else round(r.score, 1),
-                    'note': _latest_note(r),
-                    'reattemptable': not r.reattempted and status in _TERMINAL_STATUSES,
+                    'score': _score_cell(r, exact_scores),
+                    'note': _void_reason(r) or r.latest_note,
+                    'reattemptable': r.is_reattemptable,
                 })
             table = ui.table(columns=columns, rows=rows, row_key='id',
                              pagination=_RUNS_PAGE).classes('w-full wiz-table')
@@ -354,7 +404,8 @@ def create() -> None:
                                    table_key=TableKeys.QUALIFIERS_LIST)
             else:
                 enable_mobile_grid(table, columns, table_key=TableKeys.QUALIFIERS_LIST)
-            ui.label(SCORE_EXPLAINER).classes('text-caption text-grey')
+            ui.label(SCORE_EXPLAINER if exact_scores else BAND_EXPLAINER).classes(
+                'text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
             with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):

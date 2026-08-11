@@ -16,6 +16,7 @@ the inputs from repositories and applies the results.
 """
 
 from dataclasses import dataclass, replace
+from enum import Enum
 from typing import Collection, Dict, List, Optional, Sequence
 
 # Score bounds and the reference multipliers behind ``(2 - elapsed/par) * 100``.
@@ -47,6 +48,42 @@ def compute_score(elapsed_seconds: Optional[int], par_seconds: Optional[int]) ->
         return None
     raw = (2 - elapsed_seconds / par_seconds) * 100
     return max(SCORE_MIN, min(SCORE_MAX, raw))
+
+
+class ScoreBand(str, Enum):
+    """A score coarsened to three outcomes, for the active-window lockdown.
+
+    An exact score is exactly solvable for par: ``score = (2 - elapsed/par) * 100``
+    rearranges to ``par = elapsed / (2 - score/100)``, and the runner knows their
+    own elapsed. Publishing it during the window hands every runner the par the
+    lockdown exists to hide — measured on the real fixture, ``elapsed 5,400 s ·
+    score 100.00`` solves to par 5,400 s exactly.
+
+    The band still bounds par (``NEAR`` means within the tolerance either way),
+    which is a deliberate, accepted trade: the runner learns roughly where they
+    stand without being handed the number.
+    """
+
+    UNDER = 'under'   # comfortably faster than par
+    NEAR = 'near'     # within the tolerance of par, either side
+    ABOVE = 'above'   # slower than par
+
+
+# The fast side is already banded by the ``SCORE_MAX`` cap — every run 5% or more
+# under par scores exactly 105 — so the slow edge mirrors it rather than inventing
+# a second tolerance.
+NEAR_PAR_FLOOR = 2 * 100 - SCORE_MAX   # 95.0
+
+
+def score_band(score: Optional[float]) -> Optional[ScoreBand]:
+    """Which band a score falls in, or None when there is no score to band."""
+    if score is None:
+        return None
+    if score >= SCORE_MAX:
+        return ScoreBand.UNDER
+    if score >= NEAR_PAR_FLOOR:
+        return ScoreBand.NEAR
+    return ScoreBand.ABOVE
 
 
 @dataclass(frozen=True)

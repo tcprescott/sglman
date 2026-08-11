@@ -39,6 +39,15 @@ CLOCK_GRACE_SECONDS = 120
 # ordinary, while a dropped H segment is off by an hour or more.
 IMPLAUSIBLE_DRIFT_SECONDS = 15 * 60
 
+# How long the oldest pending run must have waited before the reviewer set is
+# interrupted about it. Below this, a queue is just a queue: submissions arrive and
+# get worked, and a DM would be noise.
+REVIEW_BACKLOG_AGE = timedelta(hours=6)
+# And how often that reminder may repeat while the backlog persists. A qualifier at
+# real scale takes thousands of runs; one DM per run would train every reviewer to
+# mute the bot, which is worse than the silence this replaces.
+REVIEW_BACKLOG_REMINDER = timedelta(hours=24)
+
 # How long a reviewer's claim on a queue card holds before the worker releases it.
 # Long enough to watch a VoD through, short enough that a closed tab does not
 # park a run out of everyone else's reach for the rest of the qualifier.
@@ -137,6 +146,32 @@ def review_status_label(status: AsyncQualifierReviewStatus) -> str:
         AsyncQualifierReviewStatus.APPROVED: 'approved',
         AsyncQualifierReviewStatus.REJECTED: 'rejected',
     }.get(status, str(getattr(status, 'value', status)))
+
+
+def backlog_is_worth_reporting(
+    oldest_finished_at: Optional[datetime],
+    last_notified_at: Optional[datetime],
+    now: Optional[datetime] = None,
+) -> bool:
+    """Whether the reviewer set should be told about this queue right now.
+
+    Two gates, and both matter: the oldest run has waited past
+    :data:`REVIEW_BACKLOG_AGE` (so a healthy queue stays silent), and the last
+    reminder is older than :data:`REVIEW_BACKLOG_REMINDER` (so a backlog nobody
+    clears does not send one DM a minute).
+    """
+    if oldest_finished_at is None:
+        return False
+    now = now or datetime.now(timezone.utc)
+    if oldest_finished_at.tzinfo is None:
+        oldest_finished_at = oldest_finished_at.replace(tzinfo=timezone.utc)
+    if now - oldest_finished_at < REVIEW_BACKLOG_AGE:
+        return False
+    if last_notified_at is None:
+        return True
+    if last_notified_at.tzinfo is None:
+        last_notified_at = last_notified_at.replace(tzinfo=timezone.utc)
+    return now - last_notified_at >= REVIEW_BACKLOG_REMINDER
 
 
 def claim_is_live(

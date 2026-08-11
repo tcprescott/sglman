@@ -20,6 +20,7 @@ from api.schemas.async_qualifiers import (
     AsyncQualifierResponse,
     AsyncQualifierReviewNoteResponse,
     AsyncQualifierRunResponse,
+    MyQualifierRunResponse,
     LeaderboardEntryResponse,
     PermalinkBulkRequest,
     PermalinkCreateRequest,
@@ -134,10 +135,17 @@ async def get_leaderboard(qualifier_id: int, actor: User = Depends(require_api_a
 
 @router.get(
     "/{qualifier_id}/me/runs",
-    response_model=List[AsyncQualifierRunResponse],
+    response_model=List[MyQualifierRunResponse],
     summary="The caller's runs in a qualifier",
 )
 async def list_my_runs(qualifier_id: int, actor: User = Depends(require_api_actor)):
+    """The caller's own runs, in the caller's own projection.
+
+    Narrower than the reviewer's ``/{id}/runs`` on purpose: an exact score plus
+    the caller's own elapsed time solves for the seed's par, which the
+    active-window lockdown exists to hide, so ``score`` is null and ``score_band``
+    stands in until the qualifier closes.
+    """
     await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().list_user_runs(actor, qualifier_id)
 

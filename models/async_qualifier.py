@@ -37,6 +37,10 @@ class AsyncQualifier(Model):
     allowed_reattempts = fields.IntField(default=0)
     config = fields.JSONField(null=True)
     is_active = fields.BooleanField(default=True)
+    # When the reviewer set was last told the queue had a backlog. Worker state,
+    # not a setting, which is why it is a column rather than a ``config`` key: it
+    # is what stops a reminder becoming a message per tick.
+    review_backlog_notified_at = fields.DatetimeField(null=True)
     admins = fields.ManyToManyField(
         'models.User', related_name='admin_async_qualifiers', through='AsyncQualifierAdmins'
     )

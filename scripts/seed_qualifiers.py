@@ -81,7 +81,7 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
         return pl
 
     p1 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-1")
-    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
+    p1b = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
     await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-1")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
@@ -131,6 +131,21 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
                 tenant=tenant, run=run_b, author=staff,
                 note="VOD checked through the halfway split; finish looks clean.",
             )
+
+    # A second pending run, submitted long enough ago to trip the backlog nudge
+    # (``rules.REVIEW_BACKLOG_AGE``), on the pool's second seed so it does not
+    # collide with the run above. The queue needs both states to be worth looking
+    # at in dev: one submission just arrived, one has gone unworked for hours.
+    if runner_b is not None and not await AsyncQualifierRun.filter(
+        qualifier=qualifier, user=runner_b, permalink=p1b,
+    ).exists():
+        await AsyncQualifierRun.create(
+            tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p1b,
+            status=AsyncQualifierRunStatus.FINISHED,
+            review_status=AsyncQualifierReviewStatus.PENDING,
+            started_at=now - timedelta(hours=11), finished_at=now - timedelta(hours=9),
+            elapsed_seconds=5700, measured_seconds=7200,
+        )
 
     # The states the review/reattempt surfaces are about, none of which the two
     # runs above produce: a rejection carrying its reason (the runs table's

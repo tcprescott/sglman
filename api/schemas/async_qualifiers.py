@@ -170,6 +170,43 @@ class AsyncQualifierRunResponse(BaseModel):
     updated_at: datetime
 
 
+class MyQualifierRunResponse(BaseModel):
+    """One of the caller's own runs — a narrower projection than the admin view.
+
+    Separate from :class:`AsyncQualifierRunResponse` because the two audiences are
+    not the same. An exact ``score`` is exactly solvable for the seed's par (the
+    caller knows their own ``elapsed_seconds``), so it is withheld while the
+    qualifier is open and ``score_band`` stands in; a reviewer reading
+    ``/{id}/runs`` still gets the number. The projection also carries what the
+    runner needs and the model alone did not spell out: the seed played, the
+    deadline an in-progress run dies at, and whether a void was a reviewer's.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pool_name: str
+    permalink_url: Optional[str] = None
+    status: AsyncQualifierRunStatus
+    review_status: AsyncQualifierReviewStatus
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    # When an in-progress run auto-forfeits; null once it is no longer running.
+    deadline: Optional[datetime] = None
+    elapsed_seconds: Optional[int] = None
+    measured_seconds: Optional[int] = None
+    runner_vod_url: Optional[str] = None
+    reattempted: bool
+    reattempt_reason: Optional[str] = None
+    reattempt_was_granted: bool
+    # Set when the expiry worker forfeited the run rather than the runner choosing to.
+    expired_at: Optional[datetime] = None
+    # Null while the qualifier is open — read ``score_band`` then.
+    score: Optional[float] = None
+    score_band: Optional[str] = None
+    notes: List[str] = []
+
+
 class StartRunRequest(BaseModel):
     pool_id: int
 

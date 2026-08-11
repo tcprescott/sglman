@@ -81,8 +81,21 @@ class TestColumns:
 class TestRowBuilders:
     def test_a_voided_run_says_so_in_its_status(self):
         row = run_rows([_run(reattempted=True)])[0]
-        assert row['status'] == 'finished (voided)'
+        # Humanised since F8 — the raw enum was the database's vocabulary.
+        assert row['status'] == 'Finished (voided)'
         assert row['grantable'] is False, 'an already-voided run offers nothing'
+
+    def test_an_expired_run_is_distinguishable_from_a_chosen_forfeit(self):
+        """``expired_at`` exists to tell the two apart and no surface read it."""
+        chosen = run_rows([_run(status='forfeit')])[0]
+        expired = run_rows([_run(status='forfeit', expired_at=object())])[0]
+        assert chosen['status'] == 'Forfeited'
+        assert expired['status'] == 'Forfeited (ran out of time)'
+
+    def test_an_in_progress_run_has_no_review_verdict_to_show(self):
+        """It was rendering 'pending', which read as "a reviewer has this"."""
+        assert run_rows([_run(status='in_progress')])[0]['review'] == '—'
+        assert run_rows([_run(review_status='approved')])[0]['review'] == 'Approved'
 
     def test_an_in_progress_run_is_not_grantable(self):
         assert run_rows([_run(status='in_progress')])[0]['grantable'] is False

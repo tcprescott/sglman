@@ -9,7 +9,7 @@ FOR UPDATE), not business logic.
 """
 
 from datetime import datetime
-from typing import Any, Collection, Dict, List, Optional, Set
+from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 
 from tortoise.expressions import Q
 
@@ -48,6 +48,19 @@ class AsyncQualifierRepository(TenantScopedRepository[AsyncQualifier]):
 
     async def list_active(self) -> List[AsyncQualifier]:
         return await scoped(AsyncQualifier.filter(is_active=True)).order_by('-created_at')
+
+    @staticmethod
+    async def list_active_all() -> List[AsyncQualifier]:
+        """Every active qualifier, **across all tenants** — for the worker.
+
+        Deliberately unscoped, like ``list_in_progress_all``: the worker has no
+        tenant of its own, so it scans once and re-enters each qualifier's own
+        ``tenant_scope`` before touching it. A community runs a handful of these,
+        so no age filter is needed to keep the set small.
+        """
+        return await AsyncQualifier.filter(is_active=True).prefetch_related(
+            'tenant', 'admins',
+        ).order_by('id')
 
 
 class AsyncQualifierPoolRepository(TenantScopedRepository[AsyncQualifierPool]):
@@ -246,6 +259,24 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         return await scoped(
             AsyncQualifierRun.filter(id=run_id, review_status=expect)
         ).update(**changes)
+
+    async def pending_review_backlog(self, qualifier_id: int) -> Tuple[int, Optional[datetime]]:
+        """How many runs await review here, and when the oldest was submitted.
+
+        Two scalars rather than the runs themselves: the worker only needs to
+        decide whether to interrupt anyone, and a real qualifier's queue is
+        hundreds of rows it would then throw away.
+        """
+        rows = await scoped(
+            AsyncQualifierRun.filter(
+                qualifier_id=qualifier_id,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.PENDING,
+                reattempted=False,
+            )
+        ).order_by('finished_at').values('finished_at')
+        oldest = next((r['finished_at'] for r in rows if r['finished_at'] is not None), None)
+        return len(rows), oldest
 
     @staticmethod
     async def list_stale_claims_all(cutoff: datetime) -> List[AsyncQualifierRun]:

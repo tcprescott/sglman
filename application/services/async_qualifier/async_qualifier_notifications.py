@@ -13,19 +13,21 @@ the Discord service.
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Iterable, Optional
 
 from application.services import notification_links
+from application.utils.app_links import admin_qualifier_queue_url
 from application.utils.discord_embeds import time_field
 from application.utils.discord_messages import DMLink
 from application.utils.discord_messages_qualifier import (
     qualifier_reattempt_granted_dm,
+    qualifier_review_queue_dm,
     qualifier_run_expired_dm,
     qualifier_run_expiring_dm,
     qualifier_run_reviewed_dm,
 )
 from application.utils.tenant_urls import tenant_url
-from models import AsyncQualifierRun
+from models import AsyncQualifier, AsyncQualifierRun, User
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +120,43 @@ def _qualifier_url(run: AsyncQualifierRun) -> str:
     # Always a string: ``tenant_url`` returns one, and a run with no tenant gets
     # '' so the message builders simply omit the link.
     return tenant_url(run.tenant, f'/qualifiers/{run.qualifier_id}') if run.tenant else ''  # type: ignore[attr-defined]
+
+
+async def notify_review_queue_waiting(
+    reviewers: Iterable[User],
+    qualifier: AsyncQualifier,
+    *,
+    waiting: int,
+    oldest_hours: int,
+) -> int:
+    """Tell each reviewer the queue has a backlog. Returns how many DMs went out.
+
+    The one notification on this surface aimed at staff rather than a runner, and
+    the reason the queue stopped being pull-only. A reviewer with no Discord id is
+    skipped silently — the Reviewers tab badges them so somebody can notice.
+    """
+    # The worker hands over a qualifier it listed with ``tenant`` prefetched, but a
+    # caller that loaded it any other way leaves the relation a queryset — and a
+    # link built from that yields ``'QuerySet' object has no attribute 'slug'``.
+    await qualifier.fetch_related('tenant')
+    path = admin_qualifier_queue_url(qualifier.id)
+    link = notification_links.link_for_tenant(qualifier.tenant, 'Open the review queue', path)
+    url = tenant_url(qualifier.tenant, path) if qualifier.tenant else ''
+    message = qualifier_review_queue_dm(
+        qualifier.name, waiting=waiting, oldest_hours=oldest_hours, queue_url=url,
+    )
+    sent = 0
+    from application.services.discord.discord_service import DiscordService
+    service = DiscordService()
+    for reviewer in reviewers:
+        if not reviewer.discord_id or reviewer.is_placeholder:
+            continue
+        try:
+            await service.send_dm(int(reviewer.discord_id), message, link=link)
+            sent += 1
+        except Exception:
+            logger.debug("Failed to DM review-queue notification", exc_info=True)
+    return sent
 
 
 def _qualifier_link(run: AsyncQualifierRun, label: str) -> Optional[DMLink]:

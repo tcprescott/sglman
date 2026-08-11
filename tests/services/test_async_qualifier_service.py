@@ -555,8 +555,11 @@ async def test_runner_runs_carry_their_review_notes(db):
     _, _, run = await _pending_run(service, staff, player)
     await service.review_run(staff, run.id, approved=False, note='VoD ends early.')
 
+    # ``list_user_runs`` projects to ``OwnRun`` since F7, which carries the notes
+    # as text, oldest first, plus ``latest_note`` for the column that shows one.
     runs = await service.list_user_runs(player, run.qualifier_id)
-    assert [n.note for n in runs[0].review_notes] == ['VoD ends early.']
+    assert runs[0].notes == ['VoD ends early.']
+    assert runs[0].latest_note == 'VoD ends early.'
 
 
 async def test_rejection_dm_includes_the_reason(db, captured_dms):
