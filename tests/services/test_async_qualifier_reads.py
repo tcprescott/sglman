@@ -78,9 +78,13 @@ async def test_leaderboard_read_is_projected_but_scores_the_same_board(db):
     await _submit(service, slow, pending, 1250)   # left pending on purpose
 
     rows = await service.run_repository.list_scored_for_leaderboard(q.id)
-    assert all(set(row) == {'user_id', 'score', 'permalink__pool_id',
-                            'user__display_name', 'user__username'} for row in rows)
-    assert len(rows) == 3, 'only finished + approved + scored runs reach the board'
+    assert all(set(row) == {'user_id', 'score', 'status', 'review_status',
+                            'permalink__pool_id', 'user__display_name',
+                            'user__username'} for row in rows)
+    assert len(rows) == 3, (
+        'the three approved finishers reach the board; the pending run does not, '
+        'because a run still awaiting a verdict has not spent its slot'
+    )
 
     board = await service.get_leaderboard(staff, q.id)
     by_name = {e.username: e for e in board}

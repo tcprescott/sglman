@@ -75,3 +75,103 @@ class TestLeaderboard:
             scored_runs=[ScoredRun(1, 'a', 99, 100.0)],
         )
         assert entries == []
+
+
+class TestOpenPools:
+    """A pool nobody self-paced could draw from counts only for whoever raced it."""
+
+    def test_a_closed_pool_does_not_inflate_everyone_else(self):
+        board = build_leaderboard(
+            pool_ids=[10, 20], runs_per_pool=1, open_pool_ids=[10],
+            scored_runs=[ScoredRun(1, 'Async Only', 10, 100.0)],
+        )
+        assert board[0].slots_total == 1, 'only the open pool is theirs to fill'
+        assert board[0].estimate == board[0].actual
+
+    def test_a_closed_pool_counts_for_the_racer_who_filled_it(self):
+        board = build_leaderboard(
+            pool_ids=[10, 20], runs_per_pool=1, open_pool_ids=[10],
+            scored_runs=[ScoredRun(1, 'Both', 10, 100.0), ScoredRun(1, 'Both', 20, 90.0)],
+        )
+        assert board[0].slots_total == 2
+        assert board[0].actual == 190.0
+
+    def test_omitting_open_pool_ids_keeps_every_pool_open(self):
+        # The no-live-races case, and the signature the 12 original tests use.
+        board = build_leaderboard(
+            pool_ids=[10, 20], runs_per_pool=1,
+            scored_runs=[ScoredRun(1, 'A', 10, 100.0)],
+        )
+        assert board[0].slots_total == 2
+
+    def test_an_open_pool_id_outside_pool_ids_is_ignored(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1, open_pool_ids=[10, 999],
+            scored_runs=[ScoredRun(1, 'A', 10, 100.0)],
+        )
+        assert board[0].slots_total == 1
+
+
+class TestCompetitionRanks:
+    def test_a_clean_board_ranks_one_two_three(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1,
+            scored_runs=[ScoredRun(1, 'A', 10, 100.0), ScoredRun(2, 'B', 10, 90.0),
+                         ScoredRun(3, 'C', 10, 80.0)],
+        )
+        assert [e.rank for e in board] == [1, 2, 3]
+
+    def test_a_tie_shares_a_rank_and_the_next_one_skips(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1,
+            scored_runs=[ScoredRun(1, 'A', 10, 100.0), ScoredRun(2, 'B', 10, 100.0),
+                         ScoredRun(3, 'C', 10, 100.0), ScoredRun(4, 'D', 10, 50.0)],
+        )
+        assert [e.rank for e in board] == [1, 1, 1, 4], (
+            'three tied on 100 all rank 1, and the next distinct total is 4th'
+        )
+
+    def test_everyone_tied_shares_first(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1,
+            scored_runs=[ScoredRun(i, chr(64 + i), 10, 10.0) for i in (1, 2, 3)],
+        )
+        assert [e.rank for e in board] == [1, 1, 1]
+
+    def test_a_single_entrant_ranks_first(self):
+        board = build_leaderboard(pool_ids=[10], runs_per_pool=1,
+                                  scored_runs=[ScoredRun(1, 'A', 10, 1.0)])
+        assert board[0].rank == 1
+
+    def test_an_empty_board_has_no_ranks_to_assign(self):
+        assert build_leaderboard(pool_ids=[10], runs_per_pool=1, scored_runs=[]) == []
+
+
+class TestSpentSlotZeros:
+    """The service passes a spent-but-unscoreable slot in as a zero; check the maths."""
+
+    def test_a_zero_fills_its_slot_without_moving_the_total(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=2,
+            scored_runs=[ScoredRun(1, 'A', 10, 100.0), ScoredRun(1, 'A', 10, 0.0)],
+        )
+        assert board[0].actual == 100.0
+        assert board[0].slots_filled == 2
+        assert board[0].estimate == 100.0, (
+            'with both slots spent there is nothing left to project onto'
+        )
+
+    def test_a_player_who_only_spent_zeros_ranks_last_rather_than_vanishing(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1,
+            scored_runs=[ScoredRun(1, 'Scored', 10, 50.0), ScoredRun(2, 'Zeroed', 10, 0.0)],
+        )
+        assert [(e.username, e.actual, e.rank) for e in board] == [
+            ('Scored', 50.0, 1), ('Zeroed', 0.0, 2)]
+
+    def test_the_per_pool_cap_keeps_the_best_when_a_zero_competes(self):
+        board = build_leaderboard(
+            pool_ids=[10], runs_per_pool=1,
+            scored_runs=[ScoredRun(1, 'A', 10, 0.0), ScoredRun(1, 'A', 10, 80.0)],
+        )
+        assert board[0].actual == 80.0 and board[0].slots_filled == 1

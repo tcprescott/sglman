@@ -408,5 +408,9 @@ class RaceRoomLifecycle:
             await service.record_finish(live_race, event.entrants)
             await self.service.room_repository.update(room, status=RaceRoomStatus.FINISHED)
         elif event.status == RaceRoomStatus.CANCELLED:
+            # The race itself, not only its room: without this the qualifier's live
+            # race stays at scheduled or in-progress with nothing to distinguish it
+            # from one still to come.
+            await service.mark_cancelled(live_race)
             await self.service.room_repository.update(room, status=RaceRoomStatus.CANCELLED)
         return True

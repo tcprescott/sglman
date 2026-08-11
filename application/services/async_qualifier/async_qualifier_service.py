@@ -693,12 +693,19 @@ class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
         )
         if note:
             await self.note_repository.create(run_id=run.id, author_id=actor.id, note=note)
-        run = await self.run_repository.update(
-            run,
-            review_status=new_status,
-            reviewed_by_id=actor.id,
-            reviewed_at=datetime.now(timezone.utc),
-        )
+        changes: dict = {
+            'review_status': new_status,
+            'reviewed_by_id': actor.id,
+            'reviewed_at': datetime.now(timezone.utc),
+        }
+        if not approved:
+            # Cleared here rather than in the recompute below, which by definition no
+            # longer sees this run: it rescores the approved set, and a rejection has
+            # just left it. Without this the row keeps the score it held while
+            # approved — the board filters it out, but the runner's own table renders
+            # "rejected" beside a number, and REST and MCP report it too.
+            changes['score'] = None
+        run = await self.run_repository.update(run, **changes)
         # Recompute the permalink's par from the (now-updated) approved set, then
         # rescore every approved run on it — this run included.
         if run.permalink_id is not None:
@@ -783,6 +790,10 @@ class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
         run = await self.run_repository.update(
             run, reattempted=True, reattempt_reason=reason,
             reattempt_granted_by_id=granted_by.id if granted_by is not None else None,
+            # A voided run counts for nothing, so it must not keep the score it had.
+            # The recompute below rescores the permalink's approved set, which this
+            # run has just left, so it would never be reached there.
+            score=None,
         )
         if run.permalink_id is not None:
             await self.draw.recompute_par_and_scores(run.permalink_id)

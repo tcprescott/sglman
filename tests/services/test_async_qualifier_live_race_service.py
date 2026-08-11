@@ -11,8 +11,10 @@ from application.services.async_qualifier.async_qualifier_live_race_service impo
 from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from application.services.race_room_service import RaceRoomLifecycle
 from models import (
+    AsyncQualifierLiveRace,
     AsyncQualifierLiveRaceStatus,
     AsyncQualifierReviewStatus,
+    AsyncQualifierRun,
     AsyncQualifierRunStatus,
     RaceRoomStatus,
     RacetimeBot,
@@ -189,3 +191,115 @@ async def test_lifecycle_routes_finished_room_to_capture(db):
     assert runs[0].status == AsyncQualifierRunStatus.FINISHED
     await room.refresh_from_db()
     assert room.status == RaceRoomStatus.FINISHED
+
+
+async def test_record_finish_refuses_a_race_with_no_permalink(db):
+    """"(assign later)" used to capture runs that could never score.
+
+    They were written with ``permalink_id`` NULL, the par recompute was skipped, and
+    the entrants were absent from the board with nothing explaining why.
+    """
+    qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
+    staff = await _staff()
+    q, pool, _, _ = await _live_race(qsvc, lrsvc, staff)
+    await _racer(930101, 'unlucky', 'rt-unlucky')
+
+    race = await lrsvc.create_live_race(staff, pool.id, match_title='No seed',
+                                        permalink_id=None)
+    with pytest.raises(ValueError, match='permalink'):
+        await lrsvc.record_finish(race, [
+            RaceEntrant(user_id='rt-unlucky', display_name='unlucky',
+                        status=EntrantStatus.DONE, finish_time=1000, place=1),
+        ], actor=staff)
+    assert await AsyncQualifierRun.filter(live_race_id=race.id).count() == 0, (
+        'nothing may be written when the results cannot be scored'
+    )
+
+
+async def test_a_second_live_race_over_the_pool_cap_is_recorded_as_voided(db):
+    """``runs_per_pool`` is enforced in ``start_run``, which a live race skips.
+
+    Decided with the maintainer: record it voided rather than counting it and then
+    dropping the surplus silently at scoring time.
+    """
+    qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
+    staff = await _staff()
+    q, pool, first, race_one = await _live_race(qsvc, lrsvc, staff)
+    assert q.runs_per_pool == 1, 'fixture precondition'
+    racer = await _racer(930111, 'twice', 'rt-twice')
+    entrant = RaceEntrant(user_id='rt-twice', display_name='twice',
+                          status=EntrantStatus.DONE, finish_time=1000, place=1)
+
+    await lrsvc.record_finish(race_one, [entrant], actor=staff)
+    second = await qsvc.add_permalink(staff, pool.id, url='https://x/live-2',
+                                      live_race=True)
+    race_two = await lrsvc.create_live_race(staff, pool.id, match_title='R2',
+                                            permalink_id=second.id)
+    await lrsvc.record_finish(race_two, [entrant], actor=staff)
+
+    runs = await AsyncQualifierRun.filter(qualifier_id=q.id, user_id=racer.id).order_by('id')
+    assert len(runs) == 2, 'both results are kept'
+    assert runs[0].reattempted is False, 'the first is within the cap'
+    assert runs[1].reattempted is True, 'the second is over it, so it is voided'
+    assert runs[1].reattempt_reason, 'and the racer is owed a reason'
+    assert runs[1].score is None, 'a voided run carries no score'
+
+
+async def test_re_recording_the_same_race_does_not_void_its_own_run(db):
+    """Re-recording must be idempotent: the racer's own prior run from this race is
+    already in the pool count, so it is discounted before the cap is compared."""
+    qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
+    staff = await _staff()
+    q, _, _, race = await _live_race(qsvc, lrsvc, staff)
+    await _racer(930121, 'again', 'rt-again')
+    entrant = RaceEntrant(user_id='rt-again', display_name='again',
+                          status=EntrantStatus.DONE, finish_time=1000, place=1)
+
+    await lrsvc.record_finish(race, [entrant], actor=staff)
+    await lrsvc.record_finish(race, [entrant], actor=staff)
+
+    runs = await AsyncQualifierRun.filter(live_race_id=race.id)
+    assert len(runs) == 1, 'the same race writes one run per racer, not one per record'
+    assert runs[0].reattempted is False, 're-recording must not void the run it updates'
+
+
+async def test_a_cancelled_room_cancels_the_race(db):
+    """The handler used to update only the room, leaving the race indistinguishable
+    from one still to come."""
+    qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
+    staff = await _staff()
+    await _authorized_bot()
+    _, _, _, lr = await _live_race(qsvc, lrsvc, staff)
+    lr = await lrsvc.open_room(staff, lr.id)
+
+    room = await RacetimeRoom.get(slug=lr.racetime_slug)
+    await RaceRoomLifecycle().handle_event(room, RaceRoomEvent(
+        slug=room.slug, category=room.category, status=RaceRoomStatus.CANCELLED,
+        entrants=[],
+    ))
+
+    lr = await AsyncQualifierLiveRace.get(id=lr.id)
+    assert lr.status is AsyncQualifierLiveRaceStatus.CANCELLED
+    room = await RacetimeRoom.get(id=room.id)
+    assert room.status is RaceRoomStatus.CANCELLED, 'the room still moves too'
+
+
+async def test_cancelling_a_room_after_the_results_are_in_leaves_them_alone(db):
+    qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
+    staff = await _staff()
+    await _authorized_bot()
+    _, _, _, lr = await _live_race(qsvc, lrsvc, staff)
+    lr = await lrsvc.open_room(staff, lr.id)
+    await _racer(930131, 'done', 'rt-done')
+    await lrsvc.record_finish(lr, [
+        RaceEntrant(user_id='rt-done', display_name='done',
+                    status=EntrantStatus.DONE, finish_time=1000, place=1),
+    ], actor=staff)
+
+    lr = await AsyncQualifierLiveRace.get(id=lr.id)
+    await lrsvc.mark_cancelled(lr)
+
+    lr = await AsyncQualifierLiveRace.get(id=lr.id)
+    assert lr.status is AsyncQualifierLiveRaceStatus.FINISHED, (
+        'cancelling the room afterwards does not un-score captured runs'
+    )

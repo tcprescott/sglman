@@ -171,8 +171,15 @@ class PlayerReadsMixin:
             )
         pools = await self.pool_repository.list_for_qualifier(qualifier_id)
         pool_ids = [p.id for p in pools]
-        # Filtered and projected in SQL: the board needs four scalars per scored run,
-        # not a hydrated run with its user and pool attached.
+        # A pool with no self-paced permalink is not a slot anyone failed to fill —
+        # it is one they were never offered, so it counts only for whoever raced it.
+        # The same predicate get_run_availability already trusts.
+        open_pool_ids = [
+            p.id for p in pools
+            if any(not link.live_race for link in p.permalinks)
+        ]
+        # Filtered and projected in SQL: the board needs a few scalars per run, not a
+        # hydrated run with its user and pool attached.
         rows = await self.run_repository.list_scored_for_leaderboard(qualifier_id)
         scored = [
             ScoredRun(
@@ -180,12 +187,16 @@ class PlayerReadsMixin:
                 username=rules.display_name_of(
                     row['user__display_name'], row['user__username'], row['user_id']),
                 pool_id=row['permalink__pool_id'],
-                score=row['score'],
+                # A spent-but-unscoreable slot is a realised zero, not a gap: the
+                # runner cannot refill it, so it must not leave their estimate
+                # projected over ground they can never make up.
+                score=row['score'] if rules.run_scores(row) else 0.0,
             )
             for row in rows
         ]
         # Deterministic input order → stable ties (scoring keeps insertion order).
         scored.sort(key=lambda s: (s.username.lower(), s.user_id))
         return build_leaderboard(
-            pool_ids=pool_ids, runs_per_pool=qualifier.runs_per_pool, scored_runs=scored
+            pool_ids=pool_ids, runs_per_pool=qualifier.runs_per_pool, scored_runs=scored,
+            open_pool_ids=open_pool_ids,
         )

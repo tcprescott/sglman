@@ -15,9 +15,14 @@ these tests encode those answers rather than the current behaviour:
 - live-race and self-paced runs share **one board**, with slot counting fixed (F4a),
 - a runner's Score **coarsens to three bands** while the window is open (F7).
 
-Marked ``xfail(strict=True)`` so the suite stays green today and *fails loudly the
-moment a fix lands without the marker being removed* — which is the reminder to
-delete the marker rather than the test.
+Each still-open finding is marked ``xfail(strict=True)`` so the suite stays green
+today and *fails loudly the moment a fix lands without the marker being removed* —
+which is the reminder to delete the marker rather than the test. A test with no
+marker is one whose finding has shipped; it now guards the fix.
+
+Waves 1 and 2 (F1-F3) were performance and had no assertions here. Wave 3 closed
+F4a-e and F10a-b, so those markers are gone and their tests pass. Still xfailing:
+F5 (three cases), F6, and F12 (two cases).
 """
 
 from datetime import datetime, timedelta, timezone
@@ -85,7 +90,6 @@ async def _approved_run(service, staff, player, qualifier, pool, seconds):
 
 # ============================================================ F4a · live pools
 
-@pytest.mark.xfail(strict=True, reason='F4a — get_leaderboard counts live-race-only pools')
 async def test_leaderboard_ignores_a_live_race_only_pool(db):
     """A pool a self-paced runner can never draw from must not contribute slots.
 
@@ -119,7 +123,6 @@ async def test_leaderboard_ignores_a_live_race_only_pool(db):
 
 # ======================================================== F4b · spent slots
 
-@pytest.mark.xfail(strict=True, reason='F4b — a forfeited slot is invisible to the board')
 async def test_a_forfeited_slot_counts_as_a_realised_zero(db):
     """Decided with the maintainer: a slot the player cannot refill counts as zero.
 
@@ -152,7 +155,6 @@ async def test_a_forfeited_slot_counts_as_a_realised_zero(db):
 
 # ============================================================== F4c · tie ranks
 
-@pytest.mark.xfail(strict=True, reason='F4c — build_leaderboard emits no rank, so three surfaces derive it')
 async def test_build_leaderboard_emits_competition_ranks(db):
     """Equal scores must share a rank, and the rank must come from one place.
 
@@ -175,7 +177,6 @@ async def test_build_leaderboard_emits_competition_ranks(db):
 
 # ==================================================== F4d · zero-score entrants
 
-@pytest.mark.xfail(strict=True, reason='F4d — an entrant with no approved run is absent')
 async def test_an_entrant_who_scored_nothing_is_ranked_last_not_omitted(db):
     """"I came last" and "I am not on the list" are different messages."""
     service = AsyncQualifierService()
@@ -201,7 +202,6 @@ async def test_an_entrant_who_scored_nothing_is_ranked_last_not_omitted(db):
 
 # ======================================================== F4e · stale scores
 
-@pytest.mark.xfail(strict=True, reason='F4e — rejecting a run leaves its score on the row')
 async def test_rejecting_a_run_clears_its_score(db):
     """The recompute only rescores the approved set, so a rejected run keeps its score.
 
@@ -224,7 +224,6 @@ async def test_rejecting_a_run_clears_its_score(db):
     assert run.score is None, f'a rejected run must not carry a score, got {run.score}'
 
 
-@pytest.mark.xfail(strict=True, reason='F4e — voiding a run leaves its score on the row')
 async def test_a_reattempted_run_clears_its_score(db):
     service = AsyncQualifierService()
     staff = await _staff()
@@ -341,7 +340,6 @@ async def test_get_leaderboard_refuses_when_the_feature_is_disabled(db):
 
 # ============================================================ F10a · live races
 
-@pytest.mark.xfail(strict=True, reason='F10a — record_finish never checks runs_per_pool')
 async def test_a_live_race_run_over_the_pool_cap_is_recorded_as_voided(db):
     """Decided with the maintainer: record it voided rather than dropping it silently.
 
@@ -386,7 +384,6 @@ async def test_a_live_race_run_over_the_pool_cap_is_recorded_as_voided(db):
     assert runs[1].reattempt_reason, 'and a voided run owes the racer a reason'
 
 
-@pytest.mark.xfail(strict=True, reason='F10b — record_finish captures unscoreable runs')
 async def test_a_live_race_with_no_permalink_refuses_to_record(db):
     """"(assign later)" produces runs that score None forever and never reach the board."""
     from application.services.async_qualifier.async_qualifier_live_race_service import (

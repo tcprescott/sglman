@@ -125,10 +125,16 @@ def run_rows(runs) -> list:
 
 
 def board_rows(entries) -> list:
+    """Rank comes from the scoring function rather than from row position.
+
+    Three surfaces used to derive it from an ``enumerate`` index and the REST schema
+    had none at all, so a tie rendered 1, 2, 3 in input order. One derivation now,
+    shared by everything that shows a board.
+    """
     return [
-        {'rank': i + 1, 'user': e.username, 'actual': e.actual,
+        {'rank': e.rank, 'user': e.username, 'actual': e.actual,
          'estimate': e.estimate, 'slots': f'{e.slots_filled}/{e.slots_total}'}
-        for i, e in enumerate(entries)
+        for e in entries
     ]
 
 
@@ -177,4 +183,5 @@ def live_race_color(status) -> str:
         'pending': 'blue',
         'in_progress': 'orange',
         'finished': 'green',
+        'cancelled': 'negative',
     }.get(enum_value(status), 'grey')

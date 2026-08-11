@@ -10,6 +10,8 @@ FOR UPDATE), not business logic.
 
 from typing import Any, Collection, Dict, List, Optional, Set
 
+from tortoise.expressions import Q
+
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
@@ -143,14 +145,22 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         ).prefetch_related('user', 'permalink__pool').order_by('created_at')
 
     async def list_scored_for_leaderboard(self, qualifier_id: int) -> List[Dict[str, Any]]:
-        """The four scalars per run the board actually scores with.
+        """Every run that occupies a leaderboard slot, projected to scalars.
+
+        Two kinds of row: a scored, approved finisher, and a slot the runner spent
+        on an outcome that can never score — a forfeit (chosen or expired), a
+        disqualification, or a rejected submission. The second kind is why the
+        filter is not simply "approved and finished": those slots are consumed and
+        unrefillable, so they belong on the board as realised zeros rather than
+        vanishing and leaving the runner's estimate projected over ground they
+        cannot make up.
 
         The board used to come from :meth:`list_valid_for_qualifier`, which filters
         on ``reattempted`` alone and prefetches ``user`` and ``permalink__pool`` for
         every row — so a fifth of the rows were built as full ORM objects and
-        discarded by a Python status check, and each survivor contributed a user id,
-        a name, a pool id and a score. Pushing the status filters into SQL and asking
-        for values instead of models is the same board an order of magnitude cheaper.
+        discarded by a Python status check. Pushing the filters into SQL and asking
+        for values instead of models is the same board an order of magnitude
+        cheaper.
 
         Ordered so ties on the board are stable and reproducible, which the pure
         scoring function relies on rather than re-deriving.
@@ -159,13 +169,20 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
             AsyncQualifierRun.filter(
                 qualifier_id=qualifier_id,
                 reattempted=False,
-                status=AsyncQualifierRunStatus.FINISHED,
-                review_status=AsyncQualifierReviewStatus.APPROVED,
-                score__not_isnull=True,
                 permalink_id__not_isnull=True,
+            ).filter(
+                # A scored finisher, or a slot the runner spent on an outcome that
+                # cannot score. Both fill a slot; only the first adds to the total.
+                Q(status=AsyncQualifierRunStatus.FINISHED,
+                  review_status=AsyncQualifierReviewStatus.APPROVED,
+                  score__not_isnull=True)
+                | Q(status__in=[AsyncQualifierRunStatus.FORFEIT,
+                                AsyncQualifierRunStatus.DISQUALIFIED])
+                | Q(status=AsyncQualifierRunStatus.FINISHED,
+                    review_status=AsyncQualifierReviewStatus.REJECTED)
             )
         ).order_by('user_id').values(
-            'user_id', 'score', 'permalink__pool_id',
+            'user_id', 'score', 'status', 'review_status', 'permalink__pool_id',
             'user__display_name', 'user__username',
         )
 

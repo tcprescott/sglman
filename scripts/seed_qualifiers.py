@@ -220,8 +220,8 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
 
     # A live-race pool (PR 10): a live-flagged permalink plus one race per
     # lifecycle state, so the admin Live Races sub-tab shows a race to open a room
-    # for, one waiting in an opened room, one racing, and one whose results have
-    # been captured back into runs.
+    # for, one waiting in an opened room, one racing, one whose results have been
+    # captured back into runs, and one the racetime room cancelled instead.
     live_pool, _ = await AsyncQualifierPool.get_or_create(
         qualifier=qualifier, name="Live Race Pool", tenant=tenant,
     )
@@ -230,6 +230,7 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
         (2, "Dev Live Race — Room Open", AsyncQualifierLiveRaceStatus.PENDING),
         (3, "Dev Live Race — Racing", AsyncQualifierLiveRaceStatus.IN_PROGRESS),
         (4, "Dev Live Race — Results In", AsyncQualifierLiveRaceStatus.FINISHED),
+        (5, "Dev Live Race — Called Off", AsyncQualifierLiveRaceStatus.CANCELLED),
     ]
     for index, match_title, status in live_race_specs:
         permalink, _ = await AsyncQualifierPermalink.get_or_create(

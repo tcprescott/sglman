@@ -367,13 +367,19 @@ class AsyncQualifierLiveRaceStatus(str, Enum):
 
     ``SCHEDULED`` before a room opens, ``PENDING`` once a room exists but the race
     has not started, ``IN_PROGRESS`` while racing, ``FINISHED`` once the entrants'
-    results are captured into runs.
+    results are captured into runs, ``CANCELLED`` when the racetime room was
+    cancelled instead of raced.
+
+    ``CANCELLED`` exists because the inbound handler used to update only the
+    ``RacetimeRoom`` on a cancellation, leaving the race stuck at scheduled or
+    in-progress and indistinguishable from one still to come.
     """
 
     SCHEDULED = 'scheduled'
     PENDING = 'pending'
     IN_PROGRESS = 'in_progress'
     FINISHED = 'finished'
+    CANCELLED = 'cancelled'
 
 
 class JoinRequestStatus(str, Enum):

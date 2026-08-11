@@ -205,6 +205,10 @@ class AsyncQualifierReviewNoteResponse(BaseModel):
 class LeaderboardEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    # Competition rank: equal totals share one, then it skips. Present so a client
+    # does not have to infer it from array position, which is how the web pages and
+    # the MCP tool each ended up deriving it differently.
+    rank: int
     user_id: int
     username: str
     actual: float

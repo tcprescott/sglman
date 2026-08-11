@@ -72,7 +72,8 @@ class TestColumns:
                 continue
             assert column['field'] in run_row, f"{column['field']} is never populated"
         board_row = board_rows([SimpleNamespace(
-            username='A', actual=1.0, estimate=2.0, slots_filled=1, slots_total=2)])[0]
+            rank=1, username='A', actual=1.0, estimate=2.0,
+            slots_filled=1, slots_total=2)])[0]
         for column in BOARD_COLUMNS:
             assert column['field'] in board_row
 
@@ -95,10 +96,12 @@ class TestRowBuilders:
     def test_a_detached_permalink_falls_back_rather_than_raising(self):
         assert run_rows([_run(permalink=None)])[0]['pool'] == '—'
 
-    def test_board_rows_number_from_one(self):
-        entries = [SimpleNamespace(username=n, actual=0.0, estimate=0.0,
-                                   slots_filled=0, slots_total=1) for n in 'AB']
-        assert [r['rank'] for r in board_rows(entries)] == [1, 2]
+    def test_board_rows_carry_the_rank_the_scoring_function_emitted(self):
+        # Not the row's position: equal totals share a rank, so a board of two tied
+        # players is 1, 1 and the builder must not renumber it.
+        entries = [SimpleNamespace(rank=1, username=n, actual=5.0, estimate=5.0,
+                                   slots_filled=1, slots_total=1) for n in 'AB']
+        assert [r['rank'] for r in board_rows(entries)] == [1, 1]
 
 
 class TestOtherRunsSummary:

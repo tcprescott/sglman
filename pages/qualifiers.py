@@ -403,15 +403,19 @@ def create() -> None:
                 # player cannot see; the admin board has always had it.
                 {'name': 'slots', 'label': 'Slots', 'field': 'slots'},
             ]
+            # Rank comes from the scoring function, not from position: equal totals
+            # share it, so a three-way tie reads 1, 1, 3 rather than 1, 2, 3 in
+            # whatever order the input happened to arrive.
             rows = [
-                {'rank': i + 1, 'user': e.username, 'actual': e.actual, 'estimate': e.estimate,
-                 'slots': f'{e.slots_filled}/{e.slots_total}'}
-                for i, e in enumerate(entries)
+                {'rank': e.rank, 'user': e.username, 'actual': e.actual,
+                 'estimate': e.estimate, 'slots': f'{e.slots_filled}/{e.slots_total}'}
+                for e in entries
             ]
             # Built before the table so it renders above it; filled in after, once
             # there is a table to bind to.
             toolbar = ui.row().classes('items-center w-full')
-            table = ui.table(columns=columns, rows=rows, row_key='rank',
+            # Keyed by player, not by rank: ranks are now shared on a tie.
+            table = ui.table(columns=columns, rows=rows, row_key='user',
                              pagination=_BOARD_PAGE).classes('w-full wiz-table')
             # A paged board hides the row you came to read, so the search box is
             # part of the pagination rather than an extra: it is how a competitor

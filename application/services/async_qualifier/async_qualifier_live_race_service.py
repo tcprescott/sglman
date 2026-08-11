@@ -25,7 +25,7 @@ authz. Audits every transition; the captured-finish emits
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 from application.errors import require_found
 from application.events import EventType
@@ -183,12 +183,29 @@ class AsyncQualifierLiveRaceService:
 
     # =============================================================== capture
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def mark_in_progress(self, live_race: AsyncQualifierLiveRace) -> AsyncQualifierLiveRace:
         """Move a live race to IN_PROGRESS (driven by the room's start event)."""
         if live_race.status == AsyncQualifierLiveRaceStatus.FINISHED:
             return live_race
         return await self.repository.update(
             live_race, status=AsyncQualifierLiveRaceStatus.IN_PROGRESS
+        )
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def mark_cancelled(self, live_race: AsyncQualifierLiveRace) -> AsyncQualifierLiveRace:
+        """Move a live race to CANCELLED (driven by the room's cancellation event).
+
+        The inbound handler used to update only the ``RacetimeRoom``, leaving the race
+        at scheduled or in-progress forever — indistinguishable from one still to
+        come, and with no admin control to resolve it. A race whose results were
+        already captured is left alone: cancelling the room afterwards does not
+        un-score the runs.
+        """
+        if live_race.status == AsyncQualifierLiveRaceStatus.FINISHED:
+            return live_race
+        return await self.repository.update(
+            live_race, status=AsyncQualifierLiveRaceStatus.CANCELLED
         )
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
@@ -210,14 +227,25 @@ class AsyncQualifierLiveRaceService:
         """
         if any(e.status == EntrantStatus.IN_PROGRESS for e in entrants):
             raise ValueError("An entrant is still racing — record again once the race finishes")
+        if live_race.permalink_id is None:
+            # Recording without one produced runs with permalink_id NULL: no par to
+            # score against, the recompute skipped, and the entrants invisible on the
+            # board forever with nothing saying why. The dialog offers "(assign
+            # later)", so later is now.
+            raise ValueError(
+                "This race has no permalink assigned, so its results cannot be scored. "
+                "Assign one to the race, then record again."
+            )
         actor = actor or await UserService().get_system_user()
         qualifier = await self._require_qualifier(await self._qualifier_id_of(live_race))
         now = datetime.now(timezone.utc)
 
         existing = {r.user_id: r for r in await self.run_repository.list_for_live_race(live_race.id)}
         by_rtid = await self._users_by_racetime_id(entrants)
+        over_cap = await self._over_pool_cap(live_race, qualifier, by_rtid.values(), existing)
         captured: List[AsyncQualifierRun] = []
         unmatched: List[str] = []
+        voided: List[int] = []
         for entrant in entrants:
             user = by_rtid.get(entrant.user_id)
             if user is None:
@@ -239,6 +267,19 @@ class AsyncQualifierLiveRaceService:
                 reviewed_by_id=actor.id,
                 reviewed_at=now,
             )
+            if user.id in over_cap:
+                # Recorded, but voided: the result is in the racer's history and on
+                # their own table, and never reaches par or the board. Scoring it
+                # would give a live racer more attempts than a self-paced one.
+                fields.update(
+                    reattempted=True,
+                    reattempt_reason=(
+                        f'Recorded for history only: this racer had already used all '
+                        f'{qualifier.runs_per_pool} of their runs in this pool.'
+                    ),
+                    score=None,
+                )
+                voided.append(user.id)
             run = existing.get(user.id)
             if run is not None:
                 run = await self.run_repository.update(run, **fields)
@@ -253,11 +294,10 @@ class AsyncQualifierLiveRaceService:
                 )
             captured.append(run)
 
-        if live_race.permalink_id is not None:
-            await self.qualifier_service.recompute_par_and_scores(live_race.permalink_id)
-            # Recompute scores sibling run instances, so reload the captured runs
-            # to return their post-score state.
-            captured = await self.run_repository.list_for_live_race(live_race.id)
+        await self.qualifier_service.recompute_par_and_scores(live_race.permalink_id)
+        # Recompute scores sibling run instances, so reload the captured runs
+        # to return their post-score state.
+        captured = await self.run_repository.list_for_live_race(live_race.id)
 
         live_race = await self.repository.update(
             live_race, status=AsyncQualifierLiveRaceStatus.FINISHED
@@ -267,6 +307,7 @@ class AsyncQualifierLiveRaceService:
             'qualifier_id': qualifier.id,
             'captured': len(captured),
             'unmatched_handles': unmatched,
+            'voided_over_pool_cap': voided,
         }
         await self.audit_service.write_and_publish(
             actor, AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail,
@@ -275,6 +316,35 @@ class AsyncQualifierLiveRaceService:
         return captured
 
     # ============================================================= internals
+
+    async def _over_pool_cap(
+        self,
+        live_race: AsyncQualifierLiveRace,
+        qualifier: AsyncQualifier,
+        users: Iterable[User],
+        existing: dict,
+    ) -> set:
+        """Which racers' runs in this race would exceed the pool's ``runs_per_pool``.
+
+        ``runs_per_pool`` is enforced in ``start_run``, which a live race never goes
+        through — so a racer entering two races in a one-run pool ended up holding two
+        counting runs, with the surplus dropped silently at scoring time.
+
+        Idempotent with re-recording: this racer's own run from *this* race is already
+        in the pool count, so it is discounted before comparing.
+        """
+        cap = max(1, qualifier.runs_per_pool)
+        over = set()
+        for user in users:
+            used = await self.run_repository.count_valid_runs_for_user_in_pool(
+                live_race.pool_id, user.id,  # type: ignore[attr-defined]
+            )
+            prior = existing.get(user.id)
+            if prior is not None and not prior.reattempted:
+                used -= 1
+            if used >= cap:
+                over.add(user.id)
+        return over
 
     async def _users_by_racetime_id(self, entrants: List[RaceEntrant]) -> dict:
         ids = {e.user_id for e in entrants if e.user_id}

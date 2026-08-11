@@ -9,11 +9,16 @@ sibling helpers.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Optional, Sequence, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from application.services.async_qualifier.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
 from application.utils.duration import format_hms
-from models import AsyncQualifier, User
+from models import (
+    AsyncQualifier,
+    AsyncQualifierReviewStatus,
+    AsyncQualifierRunStatus,
+    User,
+)
 
 DEFAULT_IMBALANCE_THRESHOLD = 2
 
@@ -93,6 +98,27 @@ def imbalance_threshold(qualifier: AsyncQualifier) -> int:
         if isinstance(value, int) and value >= 1:
             return value
     return DEFAULT_IMBALANCE_THRESHOLD
+
+
+def run_scores(row: Mapping[str, Any]) -> bool:
+    """Whether a leaderboard row is a scoring finisher rather than a spent slot.
+
+    Reads the projected ``.values()`` row the board is built from, not a model.
+    Everything the query returns occupies a slot; only an approved finisher with a
+    score contributes to the total. A forfeit, an expiry, a disqualification and a
+    rejected submission are all realised zeros.
+    """
+    status = _column_value(row.get('status'))
+    review = _column_value(row.get('review_status'))
+    return (status == AsyncQualifierRunStatus.FINISHED.value
+            and review == AsyncQualifierReviewStatus.APPROVED.value
+            and row.get('score') is not None)
+
+
+def _column_value(value: Any) -> str:
+    """``.values()`` hands back the enum on some backends and the raw string on
+    others, so both are normalised before comparison."""
+    return value.value if hasattr(value, 'value') else str(value)
 
 
 def display_name(user: User) -> str:

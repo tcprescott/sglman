@@ -502,7 +502,9 @@ async def admin_qualifiers_page() -> None:
                     ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
                     ui.badge(f'pool: {lr.pool.name}', color='grey')
                     ui.space()
-                    if not lr.racetime_slug:
+                    # A cancelled race is over: offering to open a room for it invites
+                    # a click that only produces a refusal.
+                    if not lr.racetime_slug and enum_value(lr.status) != 'cancelled':
                         ui.button('Open room', icon='meeting_room',
                                   on_click=lambda lid=lr.id: _open_room(lid)
                                   ).props('flat color=primary')
@@ -736,7 +738,8 @@ async def admin_qualifiers_page() -> None:
         columns = list(BOARD_COLUMNS)
         rows = board_rows(entries)
         toolbar = ui.row().classes('items-center w-full')
-        table = ui.table(columns=columns, rows=rows, row_key='rank',
+        # Keyed by player, not by rank: ranks are now shared on a tie.
+        table = ui.table(columns=columns, rows=rows, row_key='user',
                          pagination=BOARD_PAGE).classes('w-full wiz-table')
         with toolbar:
             search_input(table, placeholder='Find a player…')
