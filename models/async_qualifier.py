@@ -37,6 +37,15 @@ class AsyncQualifier(Model):
     allowed_reattempts = fields.IntField(default=0)
     config = fields.JSONField(null=True)
     is_active = fields.BooleanField(default=True)
+    # When the reviewer set was last told the queue had a backlog. Worker state,
+    # not a setting, which is why it is a column rather than a ``config`` key: it
+    # is what stops a reminder becoming a message per tick.
+    review_backlog_notified_at = fields.DatetimeField(null=True)
+    # The last window state subscribers were told about ('pending'/'open'/'closed').
+    # Worker state for the same reason as the line above: the state itself is derived
+    # from the dates and the clock, and this is what makes the crossing announce once
+    # rather than every tick. NULL means nothing has been announced yet.
+    window_state_notified = fields.CharField(max_length=16, null=True)
     admins = fields.ManyToManyField(
         'models.User', related_name='admin_async_qualifiers', through='AsyncQualifierAdmins'
     )
@@ -205,6 +214,10 @@ class AsyncQualifierRun(Model):
             ('user',),                       # "my runs"
             ('permalink',),                  # par recompute
             ('status', 'started_at'),        # expiry worker's cross-tenant scan
+            # The leaderboard's own filter. ('qualifier', 'review_status') covers the
+            # queue but not this one, which also constrains reattempted and status —
+            # the four columns that decide whether a run scores at all.
+            ('qualifier', 'reattempted', 'status', 'review_status'),
         )
 
 
@@ -258,6 +271,13 @@ class AsyncQualifierLiveRace(Model):
     status = fields.CharEnumField(
         AsyncQualifierLiveRaceStatus, default=AsyncQualifierLiveRaceStatus.SCHEDULED, max_length=20
     )
+    # Racetime handles the last capture could not turn into a run: no ``User`` linked
+    # to the account, or racetime calling them finished without sending a time. Stored
+    # rather than left in the audit detail because it is a **to-do for staff**: nobody
+    # reads the audit log looking for work, so such a racer simply never appeared, with
+    # no surface saying so. Cleared when a later capture records everyone.
+    # mypy cannot infer a JSONField's type parameter, as with every sibling here.
+    unmatched_handles = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

@@ -9,7 +9,9 @@ methods that call it.
 
 import secrets
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Collection, Iterable, List, Optional
+
+from tortoise.transactions import in_transaction
 
 from application.repositories import (
     AsyncQualifierPermalinkRepository,
@@ -23,6 +25,7 @@ from models import (
     AsyncQualifier,
     AsyncQualifierPermalink,
     AsyncQualifierPool,
+    AsyncQualifierRun,
 )
 
 
@@ -42,6 +45,17 @@ class AsyncQualifierDraw:
         self.permalink_repository = permalink_repository
         self.run_repository = run_repository
 
+    @staticmethod
+    def drawable(
+        permalinks: Iterable[AsyncQualifierPermalink], played_ids: Collection[int]
+    ) -> List[AsyncQualifierPermalink]:
+        """The one definition of "this player may still draw this seed".
+
+        Pure, so a caller holding the pool's permalinks already (the availability
+        read prefetches them for every pool) does not have to re-read them to ask.
+        """
+        return [p for p in permalinks if not p.live_race and p.id not in played_ids]
+
     async def draw_candidates(
         self, pool: AsyncQualifierPool, user_id: int
     ) -> List[AsyncQualifierPermalink]:
@@ -49,16 +63,26 @@ class AsyncQualifierDraw:
         already played by them (no-repeat)."""
         permalinks = await self.permalink_repository.list_for_pool(pool.id)
         played = await self.run_repository.played_permalink_ids_for_user_in_pool(pool.id, user_id)
-        return [p for p in permalinks if not p.live_race and p.id not in played]
+        return self.drawable(permalinks, played)
 
-    async def async_seed_count(self, pool: AsyncQualifierPool) -> int:
+    @staticmethod
+    def async_seeds(pool: AsyncQualifierPool) -> int:
         """How many of a pool's permalinks a self-paced runner could ever draw.
 
-        Distinct from :meth:`draw_candidates`, which excludes the ones this player
+        Distinct from :meth:`drawable`, which also excludes the ones this player
         already played. A pool whose permalinks are all live-race has none — and
         must not be reported as "you have played every seed", which is what an
         exhausted-but-drawable pool means.
+
+        Reads the pool's prefetched ``permalinks``; the repository's pool reads all
+        prefetch them.
         """
+        # A prefetched ReverseRelation iterates; mypy only sees the descriptor.
+        links: Iterable[AsyncQualifierPermalink] = pool.permalinks  # type: ignore[assignment]
+        return sum(1 for p in links if not p.live_race)
+
+    async def async_seed_count(self, pool: AsyncQualifierPool) -> int:
+        """:meth:`async_seeds` for a pool whose permalinks are not loaded."""
         permalinks = await self.permalink_repository.list_for_pool(pool.id)
         return sum(1 for p in permalinks if not p.live_race)
 
@@ -81,7 +105,14 @@ class AsyncQualifierDraw:
 
     async def recompute_par_and_scores(self, permalink_id: int) -> None:
         """Recompute a permalink's par from its approved finished runs and
-        rescore every one of them (par shifts as runs are reviewed/voided)."""
+        rescore every one of them (par shifts as runs are reviewed/voided).
+
+        The par and the scores derived from it are written in **one transaction**.
+        They were a bare sequence of updates before, so a failure part-way — a lost
+        connection on the fortieth of fifty rows — left a fresh par standing beside
+        stale scores, which is the one state nothing downstream can detect: every
+        row looks individually plausible.
+        """
         permalink = await self.permalink_repository.get_by_id(permalink_id)
         if permalink is None:
             return
@@ -89,13 +120,23 @@ class AsyncQualifierDraw:
         elapsed = [r.elapsed_seconds for r in approved if r.elapsed_seconds]
         sample = rules.par_sample_size(await self._qualifier_for_permalink(permalink))
         par = compute_par(elapsed, sample)
-        await self.permalink_repository.update(
-            permalink, par_time=par, par_updated_at=datetime.now(timezone.utc)
-        )
+        rescored = []
         for run in approved:
             score = compute_score(run.elapsed_seconds, par)
             if score != run.score:
-                await self.run_repository.update(run, score=score)
+                # None when the permalink has no par yet — a nullable column mypy
+                # reads as non-optional.
+                run.score = score  # type: ignore[assignment]
+                rescored.append(run)
+        async with in_transaction():
+            await self.permalink_repository.update(
+                permalink, par_time=par, par_updated_at=datetime.now(timezone.utc)
+            )
+            if rescored:
+                # One statement rather than one per run: a permalink at real scale
+                # holds hundreds of approved runs and every review re-scores all of
+                # them, inside the request the reviewer is waiting on.
+                await AsyncQualifierRun.bulk_update(rescored, fields=['score'])
 
     async def _qualifier_for_permalink(
         self, permalink: AsyncQualifierPermalink

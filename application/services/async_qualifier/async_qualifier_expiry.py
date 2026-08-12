@@ -21,7 +21,7 @@ drives these; nothing else should.
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Awaitable, Callable, Optional
 
-from application.events import EventType
+from application.events import Event, EventType, event_bus
 from application.feature_flags import requires_feature
 from application.services.async_qualifier import async_qualifier_notifications as notifications
 from application.services.async_qualifier import async_qualifier_rules as rules
@@ -32,12 +32,18 @@ from models import (
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
     FeatureFlag,
+    Role,
     User,
 )
 
 if TYPE_CHECKING:  # typing only — importing these at runtime would cycle
-    from application.repositories import AsyncQualifierRunRepository
+    from application.repositories import AsyncQualifierRepository, AsyncQualifierRunRepository
     from application.services.audit_service import AuditService
+
+
+def _aware(value: datetime) -> datetime:
+    """Naive datetimes are stored as UTC, so read them back that way."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 class RunExpiryMixin:
@@ -49,6 +55,7 @@ class RunExpiryMixin:
     must satisfy rather than leaving it implicit in the attribute accesses.
     """
 
+    repository: 'AsyncQualifierRepository'
     run_repository: 'AsyncQualifierRunRepository'
     audit_service: 'AuditService'
     _require_qualifier: Callable[[int], Awaitable[AsyncQualifier]]
@@ -125,3 +132,104 @@ class RunExpiryMixin:
         )
         await notifications.notify_run_expiring(run, deadline)
         return run
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def notify_review_backlog(
+        self, qualifier: AsyncQualifier, *, now: Optional[datetime] = None
+    ) -> int:
+        """Tell the reviewer set about a queue nobody has worked. DMs sent.
+
+        The queue used to be pull-only: ``submit_run`` audits and publishes an
+        event, and nothing reached a human — so the only way to discover work was
+        to open the drill-down and look.
+
+        Deliberately a backlog reminder rather than a DM per submission. Which
+        people get it: the qualifier's own ``admins`` if it has any, else whoever
+        holds ``QUALIFIER_ADMIN`` — the role that gates this surface. Not community
+        STAFF at large, who can also review but have not taken it on.
+
+        Stamps before sending, the same rule as the expiry warning: a delivery
+        failure or a restart mid-send must not turn one reminder into one per tick.
+        """
+        now = now or datetime.now(timezone.utc)
+        waiting, oldest = await self.run_repository.pending_review_backlog(qualifier.id)
+        if not waiting or not rules.backlog_is_worth_reporting(
+            oldest, qualifier.review_backlog_notified_at, now,
+        ):
+            return 0
+        reviewers = await qualifier.admins.all()
+        if not reviewers:
+            from application.services.user_service import UserService
+            reviewers = await UserService().get_community_people(
+                role=Role.QUALIFIER_ADMIN, has_discord=True,
+            )
+        if not reviewers:
+            # Nobody to tell. Left unstamped on purpose: the moment a reviewer is
+            # added, they should hear about the backlog that was already there.
+            return 0
+        await self.repository.update(qualifier, review_backlog_notified_at=now)
+        # ``oldest`` is non-None here: ``backlog_is_worth_reporting`` returns False
+        # for a None one, which the guard above already acted on.
+        hours = max(1, int((now - _aware(oldest)).total_seconds() // 3600))  # type: ignore[arg-type]
+        return await notifications.notify_review_queue_waiting(
+            reviewers, qualifier, waiting=waiting, oldest_hours=hours,
+        )
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def sync_window_state(
+        self, qualifier: AsyncQualifier, *, now: Optional[datetime] = None
+    ) -> Optional[rules.WindowState]:
+        """Publish a window crossing once, if one has happened. The new state, or None.
+
+        Nothing published when a qualifier opened or closed, so a webhook subscriber
+        could not learn the one thing about a qualifier it would most want to
+        announce. The edit that *set* the dates is no substitute: it is a PATCH with
+        a field list, usually weeks earlier, and the state it schedules may never
+        arrive (the admin can move the date again).
+
+        Which means there is no actor and no audit row to pair with — the clock did
+        this — so it publishes on the bus directly, the ``SERVICE_HEALTH_ALERT``
+        shape rather than ``write_and_publish``.
+
+        Two asymmetries in what counts as news, both deliberate:
+
+        - **Closing is only news if we said it opened.** A qualifier created inactive,
+          or one whose window ended before anyone was watching, is recorded silently.
+        - **Opening is news however it happens** — the clock reaching ``opens_at``, or
+          an admin activating a qualifier whose window is already current.
+
+        Idempotent: the state is stamped, so a worker tick that changes nothing
+        publishes nothing.
+        """
+        state = rules.window_state(qualifier, now)
+        previous = qualifier.window_state_notified
+        if previous == state.value:
+            return None
+        await self.repository.update(qualifier, window_state_notified=state.value)
+        if state is rules.WindowState.OPEN or (
+            state is rules.WindowState.CLOSED and previous == rules.WindowState.OPEN.value
+        ):
+            event_type = (EventType.ASYNC_QUALIFIER_OPENED if state is rules.WindowState.OPEN
+                          else EventType.ASYNC_QUALIFIER_CLOSED)
+            event_bus.publish(Event.create(event_type, {
+                'qualifier_id': qualifier.id,
+                'name': qualifier.name,
+                'event_name': qualifier.event_name,
+                'opens_at': qualifier.opens_at.isoformat() if qualifier.opens_at else None,
+                'closes_at': qualifier.closes_at.isoformat() if qualifier.closes_at else None,
+            }))
+        return state
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def release_stale_claim(self, run: AsyncQualifierRun) -> AsyncQualifierRun:
+        """Drop a review claim that has aged out, so the run returns to the queue.
+
+        The counterpart of ``release_claim`` with no reviewer behind it: unaudited
+        and un-notified, because nobody decided anything — a lock simply expired.
+        Idempotent, so a run swept twice is a no-op rather than a second write.
+        """
+        if run.review_claimed_by_id is None:  # type: ignore[attr-defined]
+            return run
+        return await self.run_repository.update(
+            run, review_claimed_by_id=None, review_claimed_at=None,
+        )

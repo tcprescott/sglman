@@ -15,10 +15,13 @@ from api.dependencies import ServiceErrorRoute, require_api_actor, require_write
 from api.schemas.async_qualifier_live_races import (
     LiveRaceCreateRequest,
     LiveRaceResponse,
+    ManualRecordRequest,
+    PermalinkAssignRequest,
     RunResponse,
 )
 from application.errors import require_found
 from application.services import AsyncQualifierLiveRaceService
+from application.services.async_qualifier.async_qualifier_live_race_service import ManualResult
 from application.tenant_context import require_tenant_id
 from models import AsyncQualifierLiveRace, User
 
@@ -77,6 +80,26 @@ async def create_live_race(payload: LiveRaceCreateRequest, actor: User = Depends
 
 
 @router.post(
+    "/{live_race_id}/permalink",
+    response_model=LiveRaceResponse,
+    summary="Set the permalink a live race is run on",
+)
+async def assign_permalink(
+    live_race_id: int, payload: PermalinkAssignRequest, actor: User = Depends(require_write_actor),
+):
+    """Choose the pool permalink whose par the race's results are scored against.
+
+    Refused once the race has runs: they were captured against the old permalink,
+    and par is per permalink, so moving the race would score them against a seed
+    nobody in it played.
+    """
+    await _load_live_race_or_404(live_race_id)
+    return await AsyncQualifierLiveRaceService().assign_permalink(
+        actor, live_race_id, payload.permalink_id,
+    )
+
+
+@router.post(
     "/{live_race_id}/open-room",
     response_model=LiveRaceResponse,
     summary="Open a racetime room for the live race",
@@ -84,6 +107,29 @@ async def create_live_race(payload: LiveRaceCreateRequest, actor: User = Depends
 async def open_room(live_race_id: int, actor: User = Depends(require_write_actor)):
     await _load_live_race_or_404(live_race_id)
     return await AsyncQualifierLiveRaceService().open_room(actor, live_race_id)
+
+
+@router.post(
+    "/{live_race_id}/record",
+    response_model=List[RunResponse],
+    summary="Record a live race's results by hand",
+)
+async def record_manually(
+    live_race_id: int, payload: ManualRecordRequest, actor: User = Depends(require_write_actor),
+):
+    """Capture results a human asserts, when racetime's own event never arrived.
+
+    Everything downstream is the racetime path's: the permalink requirement, the
+    per-pool cap (a racer over it is recorded voided), the par recompute, and the
+    race moving to FINISHED. Audited as a manual record so the trail says who typed
+    it; subscribers get the ordinary recorded event with ``manual: true``.
+    """
+    await _load_live_race_or_404(live_race_id)
+    return await AsyncQualifierLiveRaceService().record_manual_finish(
+        actor, live_race_id,
+        [ManualResult(user_id=r.user_id, status=r.status, elapsed_seconds=r.elapsed_seconds)
+         for r in payload.results],
+    )
 
 
 @router.delete(

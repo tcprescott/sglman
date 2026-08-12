@@ -9,6 +9,8 @@ the truth and git history keeps the rationale.
 
 | Evaluation | Scope | Headline finding |
 |---|---|---|
+| [2026-08-code-quality-drift.md](2026-08-code-quality-drift.md) | The whole tree at `ce73311` — DRY, convention divergence and the correctness bugs the drift exposes | The mechanical invariants are clean because of `.claude/scripts/`, and everything the hooks do not watch has drifted: the whole-tree sweep **cannot fire `check_dry_regressions` at all** and reports clean over 56 hits, and the manual live-race record erases the "these racers matched nobody" to-do while the card above the button tells the admin to do exactly that |
+| [async-qualifier-leaderboard-ux.md](async-qualifier-leaderboard-ux.md) | The whole qualifier lifecycle and both leaderboards, at 500 players / 6,260 runs | The scoring formulas are exact (32/32 hand-checked); nothing in the subsystem paginates, so the admin Runs tab is a 151,156 px page, and review has no concurrency control — two reviewers verdicting one run both commit and DM the runner contradictory results |
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
 
@@ -119,7 +121,16 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   volunteer draft stay silent on purpose.
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
-  surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
+  surface. The qualifier audit found four more in one subsystem: `claim_run` and
+  `release_claim` (the queue renders a "claimed" badge no browser user can ever
+  set), `add_admin`/`remove_admin`/`list_admins` (a qualifier's reviewer set is
+  editable only with an API token), and the per-permalink edit/delete/live-race
+  controls — so one bad seed can only be fixed by deleting its pool. The pattern
+  worth noting is that the *docs* described the claim as a lock, which is how an
+  unwired capability survives review: prose asserted it, and nothing probed it.
+  (The claim is now a real lock with Claim/Release on the card, an expiry sweep,
+  and a service that refuses another reviewer by name.
+  `reattempt_run` and `review_run`'s `note` were the same finding and are
   now wired, which is what the fix for it looks like. `TenantService.bootstrap_staff`
   was the costliest instance — the only way to give a new community its first
   admin, wired to nothing — and now has a button on `/platform`.) `LinkSectionConfig`'s
@@ -191,6 +202,58 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   turned up My Crew's `acknowledge` and `withdraw`, which read `context.client`
   from *inside* the task — where it raises — so a volunteer's Confirm and
   Withdraw had never worked from the page built to give them one.
+- **A fix applied per-instance leaves the default that caused it.** The table UX
+  audit added real pagination to the three unbounded family boards. It did not
+  change what an unpaginated table *defaults* to, and `page_size` still resolves
+  to `0` — which Quasar reads as "every row" — whenever `ui.table` is built
+  without `pagination=`. So the four qualifier tables authored afterwards
+  inherited exactly the bug that audit closed, and the worst of them now puts
+  3,129 rows and 43,714 DOM nodes into a **151,156-pixel** page whose tab strip
+  has scrolled a hundred and fifty metres out of reach. Worth generalising: after
+  fixing N instances of a defect, ask what the N+1th will do, and fix *that*
+  instead — either by changing the default or by making the hook that already
+  enforces `table_key` also enforce a bound.
+
+- **A disabled control that does not look disabled is worse than no control.**
+  Quasar keeps a flat button's colour at 0.7 opacity when disabled, so a greyed
+  Approve reads as live: the reviewer clicks it, nothing happens, and the reason
+  sits in a tooltip they never hover. `aria-disabled` being correct is not the
+  same as the control looking unavailable. When an action is unavailable *because
+  someone else holds it*, showing only what the reader can actually do — here,
+  Release — beats dimming what they cannot.
+
+- **"Read the ambient context" fails silently at the end of a chain.** The tenant
+  resolves from a contextvar, then falls back to the NiceGUI client stash. In a
+  handler that awaits several reloads in sequence the stash stops being reachable
+  partway through: measured 1, 1, then **None** across three tab reloads. A None
+  tenant makes every feature flag read as off, so the third tab told a community
+  its enabled feature was disabled. The bug scales with the length of the chain,
+  which is why it stayed hidden while mutations reloaded only two tabs — and a
+  fallback returning `None` rather than raising is what let it stay quiet.
+  `pages/brackets.py` had already hit this and binds the tenant explicitly; the
+  lesson is to do that wherever a handler outlives one await, rather than waiting
+  for someone to add a third.
+
+- **A refresh disposes of what was built in its slot, dialogs included.** A dialog
+  opened from an `@ui.refreshable` view lives in that view's slot, so refreshing
+  the view destroys the dialog mid-use. Harmless for years because every dialog
+  closed before triggering its reload; the moment one was *meant* to stay open —
+  a paste report holding the lines it refused, so the admin can fix them — the
+  dialog vanished and took the unsaved text with it. Reload on the dialog's own
+  `hide` instead. Worth grepping for: any handler that both keeps a dialog open
+  and refreshes the view that owns it.
+
+- **A validator that rejects nothing is not a validator, and a count is not a
+  report.** Three permalink entry paths stripped whitespace and stored the rest,
+  so `javascript:alert(1)` became a clickable link — but the everyday cost was
+  worse than the exotic one: reveal is start in this subsystem, so a typo'd seed
+  spends a runner's slot on a URL that will not open. The paste path made it
+  invisible on top of that, answering seven submitted lines with "added five".
+  Two rules fall out. Validate at the *service*, since the page is not the only
+  caller (the REST bulk endpoint took the same junk). And when a batch partly
+  fails, name each failure with its input position — a total is only actionable
+  when it matches what was sent.
+
 - **A convention only half the app honours.** `{'hidden': True}` on a column is
   this repo's own invention. The mobile-card renderer honoured it; Quasar, which
   has no such property, painted the column anyway — so seven admin tables led

@@ -375,7 +375,7 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 | [`admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py) | Racetime | Reusable race-room profile CRUD (`SYNC_ADMIN`/STAFF) via `RaceRoomProfileService`; the bots themselves are platform-managed on `/platform` |
 | [`admin_speedgaming.py`](../../pages/admin_tabs/admin_speedgaming.py) | SpeedGaming | SG→app schedule ETL: event-link CRUD + "Sync now" (`SYNC_ADMIN`) — see [online-tournaments.md](../features/online-tournaments.md) |
 | [`admin_discord_events.py`](../../pages/admin_tabs/admin_discord_events.py) | Discord Events | Per-tournament Discord Scheduled Events opt-in + "Sync now" (`SYNC_ADMIN`) |
-| [`admin_qualifiers.py`](../../pages/admin_tabs/admin_qualifiers.py) | Qualifiers | Async-qualifier authoring (pools/permalinks), the reviewer queue, and a Live Races sub-tab (`QUALIFIER_ADMIN`) — see [online-tournaments.md](../features/online-tournaments.md#async-qualifiers) |
+| [`admin_qualifiers/`](../../pages/admin_tabs/admin_qualifiers/) | Qualifiers | Async-qualifier authoring (pools/permalinks), the reviewer queue, and a Live Races sub-tab (`QUALIFIER_ADMIN`) — see [online-tournaments.md](../features/online-tournaments.md#async-qualifiers). A package: `page` owns the state and the **per-tab loaders**, `shared` the columns and paging bounds, and one module per tab whose content is substantial: `pools` (seed authoring — URL validation, the per-line paste report, per-permalink edit/remove, and the Roll refusal shown before the button), `review_queue` (the reviewer's cards and the claim lock), `reviewers` (the roster), `live_races` (the one tab backed by its own service and an external system) |
 | [`admin_service_health.py`](../../pages/admin_tabs/admin_service_health.py) | Service Health | Read-only subset of the platform health board for the tenant's own services (STAFF) |
 | [`admin_features.py`](../../pages/admin_tabs/admin_features.py) | Features | Per-tenant feature-flag enable/disable (STAFF) — see [feature-flags.md](../features/feature-flags.md) |
 | [`admin_theme.py`](../../pages/admin_tabs/admin_theme.py) | Appearance | Per-tenant brand colours (STAFF); see [per-tenant theme](#per-tenant-theme-colours) |
@@ -892,6 +892,19 @@ hidden, and a config that would leave nothing visible is discarded wholesale.
 A new table needs a `table_key` or a `# table-prefs: exempt — <reason>` comment;
 [`check_table_prefs.py`](../../.claude/scripts/check_table_prefs.py) and
 `tests/theme/test_table_preferences_coverage.py` enforce both halves.
+
+**A table with no `pagination=` renders every row it is given.** `page_size` falls
+back to whatever the table was constructed with, and `ui.table(...)` with no
+`pagination` argument means `0` — which Quasar reads as *all rows*, and
+`hide-pagination` then removes even the footer that would offer a page size. This is
+not theoretical: the async-qualifier Runs tab shipped that way and put 3,129 rows and
+43,714 DOM nodes into a **151,156-pixel** page, with the drill-down's own tab strip
+scrolled far out of reach. Pass `pagination={'rowsPerPage': 25, 'page': 1}` (the
+family boards' value) on any table whose row count is not bounded by construction,
+and pair it with [`search_input`](../../theme/tables/preferences.py) — paging hides
+the row someone came to read, so search is part of the bound rather than an extra.
+Nothing enforces this yet; the guardrail that already checks `table_key` is the
+natural place for it.
 
 ### Responsive tables — the mobile grid rule
 

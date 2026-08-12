@@ -281,13 +281,25 @@ class AuditActions:
     # own allowance, because it bypasses that allowance entirely.
     ASYNC_QUALIFIER_REATTEMPT_GRANTED = 'async_qualifier.reattempt_granted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+    # Reversing a settled verdict. Distinct from the first one because it is the
+    # rarer, more contestable act: it changes an outcome the runner was already
+    # told about, and "who overturned this, and why" is the question an appeal asks.
+    ASYNC_QUALIFIER_RUN_REVIEW_OVERRIDDEN = 'async_qualifier.run_review_overridden'
     # Async Qualifier live races (PR 10). Create/open/cancel are tenant-internal
     # scheduling (event-less); recording the finished race captures runs and DOES
     # emit an event (see EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED).
     ASYNC_QUALIFIER_LIVE_RACE_CREATED = 'async_qualifier.live_race_created'
     ASYNC_QUALIFIER_LIVE_RACE_OPENED = 'async_qualifier.live_race_opened'
+    # Choosing (or changing) the seed a race is run on. Its own action because it
+    # decides which permalink's par the results are scored against.
+    ASYNC_QUALIFIER_LIVE_RACE_PERMALINK_ASSIGNED = 'async_qualifier.live_race_permalink_assigned'
     ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
+    # Staff typing the results in because the room's event never arrived. Distinct
+    # from the line above for the same reason a review override is distinct from a
+    # review: a human asserting a result is the more contestable act, and "who typed
+    # this" is what an appeal asks. Subscribers get the ordinary recorded event.
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED_MANUALLY = 'async_qualifier.live_race_recorded_manually'
 
     # Native brackets (docs/features/brackets.md). Bracket/entrant lifecycle and the
     # match/advancement/stage events the lifecycle drives. Actor is a human STAFF

@@ -11,6 +11,7 @@ def qualifier_run_reviewed_dm(
     approved: bool,
     reason: str = '',
     qualifier_url: str = '',
+    overridden: bool = False,
 ) -> str:
     """The verdict on a submitted run, the reason behind it, and a way back.
 
@@ -18,9 +19,18 @@ def qualifier_run_reviewed_dm(
     that reason is the whole message: told only "your run was rejected", a runner
     has nothing to act on and nothing to appeal. An approval keeps it short and
     includes the reviewer's note only when one was left.
+
+    An overturned verdict says so. Arriving in the shape of a first verdict, a
+    reversal reads as a duplicate DM — the runner scrolls up, sees the opposite
+    result, and cannot tell which one is current.
     """
     verb = 'approved' if approved else 'rejected'
-    blocks = [f"Your **{qualifier_name}** qualifier run was {verb}."]
+    blocks = [
+        f"A reviewer changed the verdict on your **{qualifier_name}** qualifier "
+        f"run: it is now {verb}."
+        if overridden else
+        f"Your **{qualifier_name}** qualifier run was {verb}."
+    ]
     if reason:
         blocks.append(f"Reason: {reason}")
     if qualifier_url:
@@ -95,4 +105,34 @@ def qualifier_reattempt_granted_dm(
     blocks.append("Your previous run no longer counts, and the pool slot is free again.")
     if qualifier_url:
         blocks.append(f"[Start your next run]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
+def qualifier_review_queue_dm(
+    qualifier_name: str,
+    *,
+    waiting: int,
+    oldest_hours: int,
+    queue_url: str = '',
+) -> str:
+    """Tell a reviewer that runs have been waiting, and for how long.
+
+    Deliberately *not* one DM per submission. A qualifier at real scale takes
+    thousands of runs, and a message per run would train every reviewer to mute
+    the bot — which is worse than the silence this replaces. So it reports the
+    backlog, once the oldest run has waited long enough to be worth interrupting
+    someone for, and repeats no more often than the reminder interval.
+
+    Leads with the wait rather than the count: a runner cannot start their next
+    run in that pool until this one is settled, so age is the thing that hurts.
+    """
+    plural = '' if waiting == 1 else 's'
+    hours = f"{oldest_hours} hour" + ('' if oldest_hours == 1 else 's')
+    blocks = [
+        f"**{qualifier_name}** has {waiting} run{plural} awaiting review — the "
+        f"oldest has been waiting {hours}.",
+        "A runner cannot start their next run in that pool until it is settled.",
+    ]
+    if queue_url:
+        blocks.append(f"[Open the review queue]({queue_url})")
     return "\n\n".join(blocks)

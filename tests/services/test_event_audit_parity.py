@@ -230,11 +230,16 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.DISCORD_EVENT_SYNC_COMPLETED,
     AuditActions.DISCORD_EVENT_SYNC_FAILED,
     AuditActions.DISCORD_EVENT_SETTINGS_UPDATED,
-    # Async Qualifiers (PR 9): the run submitted/reviewed outcomes DO emit events
-    # (see EventType.ASYNC_QUALIFIER_RUN_*). The rest are audit-only — qualifier/
-    # pool/permalink authoring and the per-qualifier admin grants are tenant-
-    # internal config, and run_started/forfeited/reattempted are player run-state
-    # churn no external subscriber needs (submitted/reviewed already cover review).
+    # Async Qualifiers (PR 9): every audited action that moves a *standing* emits an
+    # event (see EventType.ASYNC_QUALIFIER_*), and the window's own crossings are
+    # published without an audit row at all — nobody performs an opening, so there is
+    # no actor to record. What stays audit-only is below.
+    #
+    # Qualifier and pool/permalink authoring, plus the per-qualifier admin grants:
+    # tenant-internal config. The permalinks are also the reason this is a decision
+    # rather than an oversight — a permalink *is* the seed, revealed to a runner only
+    # when their slot is spent, so shipping its URL to every webhook subscriber the
+    # moment it is added would hand out the pool.
     AuditActions.ASYNC_QUALIFIER_CREATED,
     AuditActions.ASYNC_QUALIFIER_UPDATED,
     AuditActions.ASYNC_QUALIFIER_DELETED,
@@ -246,19 +251,36 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_PERMALINK_ADDED,
     AuditActions.ASYNC_QUALIFIER_PERMALINK_UPDATED,
     AuditActions.ASYNC_QUALIFIER_PERMALINK_DELETED,
+    # Drawing a seed promises nothing — the run may finish, expire or be voided, and
+    # each of those is its own event. A draw is the only run action with no standing
+    # to move, which is why it is the only one still here.
     AuditActions.ASYNC_QUALIFIER_RUN_STARTED,
-    AuditActions.ASYNC_QUALIFIER_RUN_FORFEITED,
-    AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
-    # A reviewer's override of a runner's mis-click: the same shape as the
-    # runner's own reattempt above, and audited for the same reason (who voided
-    # what, and why). No subscriber cares that a pool slot reopened.
+    # A reviewer voiding a runner's run publishes ASYNC_QUALIFIER_RUN_REATTEMPTED
+    # with ``granted: True``: to a subscriber it is the same external fact as the
+    # runner spending their own allowance — a run voided, a slot reopened. The audit
+    # keeps the two apart because only one of them costs an allowance.
     AuditActions.ASYNC_QUALIFIER_REATTEMPT_GRANTED,
+    # Overturning a settled verdict. Not eventless in the usual sense: it publishes
+    # ASYNC_QUALIFIER_RUN_REVIEWED with ``override: True``, because to a subscriber
+    # this *is* a review — the run's status changed and the same payload describes
+    # it. Only the audit trail needs the distinction, since "who overturned this,
+    # and from what" is the question an appeal asks. A second EventType would split
+    # one external fact across two names subscribers must both match on.
+    AuditActions.ASYNC_QUALIFIER_RUN_REVIEW_OVERRIDDEN,
     # Async Qualifier live races (PR 10): recording the finished race emits
     # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
-    # scheduling no external subscriber needs.
+    # scheduling no external subscriber needs. Choosing the seed is the same kind of
+    # act: it decides which permalink's par the results will be scored against, and
+    # the results themselves are what subscribers hear about.
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_PERMALINK_ASSIGNED,
+    # Staff recording a race by hand publishes ASYNC_QUALIFIER_LIVE_RACE_RECORDED with
+    # ``manual: True`` — the same external fact, a race captured into scored runs. Only
+    # the audit needs the distinction, since only there does it matter that a human
+    # asserted the results rather than racetime reporting them.
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED_MANUALLY,
     # Feature-flag administration: the super-admin availability grant is
     # platform-level (tenant=NULL, so a tenant-scoped webhook reaches zero
     # subscribers) and the tenant enable/disable toggle is internal

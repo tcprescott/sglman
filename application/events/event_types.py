@@ -109,6 +109,19 @@ class EventType:
     # it changes a standing on nobody's instruction — a subscriber tracking
     # entrants needs to hear that one just went to zero.
     ASYNC_QUALIFIER_RUN_EXPIRED = 'async_qualifier.run_expired'
+    # The two other ways a slot's outcome changes: the runner giving up on a run,
+    # and a voided one handing the slot back. Both move a standing, which is the
+    # test these have to pass and `run_started` does not — a draw promises nothing.
+    ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
+    ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
+    # The qualifier's own window, as a state transition rather than an edit: a
+    # subscriber wants "qualifying is open" — the announcement a Discord
+    # integration would most want to make — not the seven-field PATCH that set the
+    # date weeks earlier. Published by the worker that observes the crossing (and
+    # by the service when an admin's edit crosses it immediately), so there is no
+    # actor and no audit row to pair with: nobody performed the opening.
+    ASYNC_QUALIFIER_OPENED = 'async_qualifier.opened'
+    ASYNC_QUALIFIER_CLOSED = 'async_qualifier.closed'
 
     # Async Qualifier live races (PR 10; mirrors AuditActions). A live race whose
     # entrants' results were captured into runs is a domain event a subscriber can
@@ -192,7 +205,9 @@ class EventType:
         DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
         SERVICE_HEALTH_ALERT,
         ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
-        ASYNC_QUALIFIER_RUN_EXPIRED,
+        ASYNC_QUALIFIER_RUN_EXPIRED, ASYNC_QUALIFIER_RUN_FORFEITED,
+        ASYNC_QUALIFIER_RUN_REATTEMPTED,
+        ASYNC_QUALIFIER_OPENED, ASYNC_QUALIFIER_CLOSED,
         ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
         BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,

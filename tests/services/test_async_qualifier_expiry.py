@@ -42,7 +42,7 @@ async def _open_qualifier(service, staff, **config):
 
 async def _drawn_run(service, staff, player, *, age: timedelta, **config):
     q, pool = await _open_qualifier(service, staff, **config)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     run = await service.start_run(player, q.id, pool.id)
     await AsyncQualifierRun.filter(id=run.id).update(
         started_at=datetime.now(timezone.utc) - age,

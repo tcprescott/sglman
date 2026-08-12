@@ -82,6 +82,8 @@ def build_admin_tabs(
     match_id: int | None = None,
     day: str | None = None,
     reschedule_request: int | None = None,
+    qualifier: int | None = None,
+    qualifier_tab: str | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -153,7 +155,11 @@ def build_admin_tabs(
         tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
         tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
     if (is_staff or access.is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
-        tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play', 'content': admin_qualifiers_page})
+        # The "runs are waiting" DM lands here with a qualifier and a tab, so a
+        # reviewer arrives at the queue rather than at a list to go and search.
+        tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play',
+                     'content': (admin_qualifiers_page, (),
+                                 {'qualifier': qualifier, 'open_tab': qualifier_tab})})
     if (is_staff or access.is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
         tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'group': 'Online play', 'content': admin_racetime_page})
     if (is_staff or access.is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
@@ -214,6 +220,8 @@ def create() -> None:
         match_id: int | None = None,
         day: str | None = None,
         reschedule_request: int | None = None,
+        qualifier: int | None = None,
+        tab: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -289,6 +297,7 @@ def create() -> None:
         tabs = build_admin_tabs(
             access, live, reports_kwargs, setup_steps, base_path,
             match_id=match_id, day=day, reschedule_request=reschedule_request,
+            qualifier=qualifier, qualifier_tab=tab,
         )
 
         base_layout = BaseLayout(

@@ -231,7 +231,10 @@ async def get_async_qualifier_leaderboard(
     )
     return [
         LeaderboardRow(
-            rank=rank,
+            # The service's own rank, not this loop's index: equal totals share one,
+            # and three surfaces deriving it separately is how a tie came to read
+            # 1, 2, 3 in alphabetical order.
+            rank=entry.rank,
             user_id=entry.user_id,
             name=entry.username,
             actual=entry.actual,
@@ -239,7 +242,7 @@ async def get_async_qualifier_leaderboard(
             slots_filled=entry.slots_filled,
             slots_total=entry.slots_total,
         )
-        for rank, entry in enumerate(entries, start=1)
+        for entry in entries
     ]
 
 

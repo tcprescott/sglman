@@ -130,6 +130,27 @@ class PermalinkBulkRequest(BaseModel):
     urls: List[str] = Field(default_factory=list)
 
 
+class RejectedPermalinkLine(BaseModel):
+    """One line a paste-many refused, and why."""
+
+    line: int                # 1-based position in the submitted ``urls``
+    value: str
+    reason: str
+
+
+class PermalinkBulkResponse(BaseModel):
+    """What a paste-many produced, including the lines it would not take.
+
+    An envelope rather than the bare array this endpoint used to return, for the
+    same reason the page reports line by line: a caller that hears "5 created" for
+    7 submitted lines has no way to learn which 2 were dropped, and a permalink is
+    revealed to a runner at the moment their slot is spent.
+    """
+
+    created: List[AsyncQualifierPermalinkResponse]
+    rejected: List[RejectedPermalinkLine] = Field(default_factory=list)
+
+
 class PermalinkRollRequest(BaseModel):
     count: int
 
@@ -170,6 +191,57 @@ class AsyncQualifierRunResponse(BaseModel):
     updated_at: datetime
 
 
+class AsyncQualifierRunPage(BaseModel):
+    """One page of a qualifier's runs, and how many there are in total.
+
+    The same envelope ``GET /audit-logs`` uses. An envelope rather than a bare array
+    because the array had no bound: a 500-player qualifier answered with 3,129 runs
+    in one 1.66 MB body, and a caller wanting the ten most recent could not say so.
+    """
+
+    total: int
+    limit: int
+    offset: int
+    items: List[AsyncQualifierRunResponse]
+
+
+class MyQualifierRunResponse(BaseModel):
+    """One of the caller's own runs — a narrower projection than the admin view.
+
+    Separate from :class:`AsyncQualifierRunResponse` because the two audiences are
+    not the same. An exact ``score`` is exactly solvable for the seed's par (the
+    caller knows their own ``elapsed_seconds``), so it is withheld while the
+    qualifier is open and ``score_band`` stands in; a reviewer reading
+    ``/{id}/runs`` still gets the number. The projection also carries what the
+    runner needs and the model alone did not spell out: the seed played, the
+    deadline an in-progress run dies at, and whether a void was a reviewer's.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pool_name: str
+    permalink_url: Optional[str] = None
+    status: AsyncQualifierRunStatus
+    review_status: AsyncQualifierReviewStatus
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    # When an in-progress run auto-forfeits; null once it is no longer running.
+    deadline: Optional[datetime] = None
+    elapsed_seconds: Optional[int] = None
+    measured_seconds: Optional[int] = None
+    runner_vod_url: Optional[str] = None
+    reattempted: bool
+    reattempt_reason: Optional[str] = None
+    reattempt_was_granted: bool
+    # Set when the expiry worker forfeited the run rather than the runner choosing to.
+    expired_at: Optional[datetime] = None
+    # Null while the qualifier is open — read ``score_band`` then.
+    score: Optional[float] = None
+    score_band: Optional[str] = None
+    notes: List[str] = []
+
+
 class StartRunRequest(BaseModel):
     pool_id: int
 
@@ -205,6 +277,10 @@ class AsyncQualifierReviewNoteResponse(BaseModel):
 class LeaderboardEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    # Competition rank: equal totals share one, then it skips. Present so a client
+    # does not have to infer it from array position, which is how the web pages and
+    # the MCP tool each ended up deriving it differently.
+    rank: int
     user_id: int
     username: str
     actual: float

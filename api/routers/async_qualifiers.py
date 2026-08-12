@@ -8,7 +8,7 @@ list are ungated by design (a valid token is still required). Every read uses th
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api._helpers import load_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
@@ -19,9 +19,12 @@ from api.schemas.async_qualifiers import (
     AsyncQualifierPublicResponse,
     AsyncQualifierResponse,
     AsyncQualifierReviewNoteResponse,
+    AsyncQualifierRunPage,
     AsyncQualifierRunResponse,
     LeaderboardEntryResponse,
+    MyQualifierRunResponse,
     PermalinkBulkRequest,
+    PermalinkBulkResponse,
     PermalinkCreateRequest,
     PermalinkRollRequest,
     PermalinkUpdateRequest,
@@ -30,6 +33,7 @@ from api.schemas.async_qualifiers import (
     QualifierCreateRequest,
     QualifierUpdateRequest,
     ReattemptRequest,
+    RejectedPermalinkLine,
     ReviewRequest,
     StartRunRequest,
     SubmitRunRequest,
@@ -41,6 +45,12 @@ from application.tenant_context import require_tenant_id
 from models import AsyncQualifier, User
 
 router = APIRouter(prefix="/async-qualifiers", tags=["Async qualifiers"], route_class=ServiceErrorRoute)
+
+# One page of runs, and the most a caller may ask for at once. A 500-player
+# qualifier holds a few thousand runs, so the unbounded read this replaces was a
+# 1.66 MB body every time.
+RUNS_PAGE_DEFAULT = 100
+RUNS_PAGE_MAX = 500
 
 
 async def _load_qualifier_or_404(qualifier_id: int) -> AsyncQualifier:
@@ -116,11 +126,32 @@ async def list_review_queue(qualifier_id: int, actor: User = Depends(require_api
 
 @router.get(
     "/{qualifier_id}/runs",
-    response_model=List[AsyncQualifierRunResponse],
-    summary="Every run in the qualifier (admin)",
+    response_model=AsyncQualifierRunPage,
+    summary="Runs in the qualifier, newest first (admin)",
 )
-async def list_runs(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    return await AsyncQualifierService().list_runs(actor, qualifier_id)
+async def list_runs(
+    qualifier_id: int,
+    limit: int = Query(RUNS_PAGE_DEFAULT, ge=1, le=RUNS_PAGE_MAX,
+                       description="Maximum runs to return."),
+    offset: int = Query(0, ge=0),
+    actor: User = Depends(require_api_actor),
+):
+    """One page of runs, plus the qualifier's total.
+
+    Paginated because it was not: a 500-player qualifier answered this with 3,129
+    runs in a 1.66 MB body, every time, and a caller that wanted the ten most recent
+    had no way to say so. ``total`` is how many exist, not how many came back.
+    """
+    service = AsyncQualifierService()
+    return AsyncQualifierRunPage(
+        total=await service.count_runs(actor, qualifier_id),
+        limit=limit,
+        offset=offset,
+        items=[
+            AsyncQualifierRunResponse.model_validate(run)
+            for run in await service.list_runs(actor, qualifier_id, limit=limit, offset=offset)
+        ],
+    )
 
 
 @router.get(
@@ -134,10 +165,17 @@ async def get_leaderboard(qualifier_id: int, actor: User = Depends(require_api_a
 
 @router.get(
     "/{qualifier_id}/me/runs",
-    response_model=List[AsyncQualifierRunResponse],
+    response_model=List[MyQualifierRunResponse],
     summary="The caller's runs in a qualifier",
 )
 async def list_my_runs(qualifier_id: int, actor: User = Depends(require_api_actor)):
+    """The caller's own runs, in the caller's own projection.
+
+    Narrower than the reviewer's ``/{id}/runs`` on purpose: an exact score plus
+    the caller's own elapsed time solves for the seed's par, which the
+    active-window lockdown exists to hide, so ``score`` is null and ``score_band``
+    stands in until the qualifier closes.
+    """
     await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().list_user_runs(actor, qualifier_id)
 
@@ -245,14 +283,27 @@ async def add_permalink(pool_id: int, body: PermalinkCreateRequest, actor: User 
 
 @router.post(
     "/pools/{pool_id}/permalinks/bulk",
-    response_model=List[AsyncQualifierPermalinkResponse],
+    response_model=PermalinkBulkResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add many permalinks to a pool",
 )
 async def add_permalinks_bulk(
     pool_id: int, body: PermalinkBulkRequest, actor: User = Depends(require_write_actor),
 ):
-    return await AsyncQualifierService().add_permalinks_bulk(actor, pool_id, urls=body.urls)
+    """Add one permalink per usable line, and report the lines that were not.
+
+    A line that is not an http(s) URL is skipped rather than failing the whole
+    paste, and comes back in ``rejected`` with its position and the reason — a
+    count alone made a typo indistinguishable from a success.
+    """
+    result = await AsyncQualifierService().add_permalinks_bulk(actor, pool_id, urls=body.urls)
+    return PermalinkBulkResponse(
+        created=[AsyncQualifierPermalinkResponse.model_validate(p) for p in result.created],
+        rejected=[
+            RejectedPermalinkLine(line=number, value=value, reason=reason)
+            for number, value, reason in result.rejected
+        ],
+    )
 
 
 @router.post(

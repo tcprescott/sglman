@@ -614,6 +614,7 @@ class ChallongeService:
     # ------------------------------------------------------------------
     # Pushing results back to Challonge
     # ------------------------------------------------------------------
+    # feature-gate: exempt — the soft integration point; see the docstring below.
     async def push_result_if_linked(self, match: Match, actor: Optional[User]) -> bool:
         """Push the result only when the match mirrors a Challonge match.
 

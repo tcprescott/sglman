@@ -8,7 +8,14 @@ surfaces must not explain the same column differently — a reviewer answering
 Presentation-only: strings, no logic.
 """
 
-__all__ = ['BOARD_EXPLAINER', 'SCORE_EXPLAINER']
+__all__ = [
+    'BAND_EXPLAINER',
+    'BAND_LABELS',
+    'BOARD_EXPLAINER',
+    'REVIEW_LABELS',
+    'SCORE_EXPLAINER',
+    'STATUS_LABELS',
+]
 
 # The two anchors a competitor reasons with (100 = par, 105 = the cap), not the
 # formula. Par moves because it is the mean of the fastest approved runs on a
@@ -24,3 +31,33 @@ BOARD_EXPLAINER = (
     "Score is your realised total — unrun slots count zero. Estimate projects your unrun "
     "slots at your own average, so a partial entrant isn't understated. Ranking is by Score."
 )
+
+# While the qualifier is open a runner sees a band rather than a number, because a
+# number is exactly solvable for the seed's par. The labels say which side of par
+# they landed on and nothing more precise.
+BAND_LABELS = {
+    'under': 'Under par',
+    'near': 'Near par',
+    'above': 'Above par',
+}
+
+BAND_EXPLAINER = (
+    "Exact scores appear once this qualifier closes. Until then you see which side of "
+    "each seed's par you landed on — a number would tell you the par itself, which is "
+    "hidden while other people are still running."
+)
+
+# Raw enum values were rendering straight onto both tables — `in_progress`,
+# `disqualified` — which is the database's vocabulary, not a competitor's.
+STATUS_LABELS = {
+    'in_progress': 'Running',
+    'finished': 'Finished',
+    'forfeit': 'Forfeited',
+    'disqualified': 'Disqualified',
+}
+
+REVIEW_LABELS = {
+    'pending': 'Awaiting review',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+}

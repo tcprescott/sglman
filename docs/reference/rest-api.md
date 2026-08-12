@@ -256,6 +256,11 @@ Self-paced permalink-pool qualifiers (mixed auth: admin reads/writes gate
 are public-but-authenticated; the leaderboard is hidden while the window is open for non-admins).
 - **Reads:** `GET /async-qualifiers` · `/open` · `/{id}` · `/{id}/public` · `/{id}/admins` · `/{id}/pools` · `/{id}/pools/available` · `/{id}/review-queue` · `/{id}/leaderboard` · `/{id}/me/runs` · `/{id}/me/active-run` · `/runs/{run_id}/notes`.
 - **Qualifier/admin/pool/permalink writes:** `POST /async-qualifiers` · `PATCH`/`DELETE /{id}`; `POST`/`DELETE /{id}/admins[/{user_id}]`; `POST /{id}/pools`, `PATCH`/`DELETE /pools/{pool_id}`; `POST /pools/{pool_id}/permalinks` (+ `/bulk`, `/roll`), `PATCH`/`DELETE /permalinks/{permalink_id}`.
+  Every permalink write validates the URL (http(s) with a host) and 400s otherwise —
+  a runner's slot is spent the moment a permalink is revealed, so a typo costs a run.
+  `/bulk` skips a bad line rather than failing the batch and answers
+  `{created: [...], rejected: [{line, value, reason}]}`, where `line` is the 1-based
+  position in the submitted `urls`.
 - **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
   `submit` 400s when the claimed `elapsed_seconds` exceeds the wall clock since the
   server stamped `started_at` — a run cannot have taken longer than it has existed.
@@ -264,15 +269,19 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
   beside the runner's claim.
 - **Review:** `POST /runs/{run_id}/claim|release|review` · `POST /runs/{run_id}/grant-reattempt`
   (admin; voids a runner's terminal run ignoring their `allowed_reattempts`, reason
-  required) · `GET /{qualifier_id}/runs` (admin; every run, since the review queue holds
-  only finished+pending rows and a forfeit is written straight to approved).
+  required) · `GET /{qualifier_id}/runs?limit=&offset=` (admin; the review queue holds
+  only finished+pending rows and a forfeit is written straight to approved, so this is
+  the read that reaches one). **Paginated** — `limit` 1–500 (default 100), `offset`
+  default 0 — returning `{total, limit, offset, items}`, the same envelope as
+  `GET /audit-logs`. Newest first, ordered `-created_at, -id` so a page boundary is
+  stable across two runs created in the same second.
   `review` 400s on a rejection with a blank `note` — the reason is stored as a run note
   and DM'd to the runner. An approval's note stays optional.
 
 ### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
 - `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
-- `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
+- `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `POST /{id}/record` · `DELETE /{id}` (cancel). The room's own lifecycle events (`mark_in_progress`, the inbound `record_finish`) are **not** exposed — they arrive from racetime. `/{id}/record` is the manual counterpart, for when that event never came: a body of `{results: [{user_id, status, elapsed_seconds?}]}` where `status` is `finished` (time required), `forfeit` or `disqualified` (time ignored). It applies the same rules as the racetime path — no permalink is a 400, a racer over the pool cap is recorded voided, par recomputes, the race moves to FINISHED — and audits as a manual record. `GET /{id}` reports `unmatched_handles`: racetime accounts the last capture could not match, whose results were therefore not recorded.
 
 ### Brackets (`/api/brackets`) · `brackets.py`
 Native tournament brackets. Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate in `BracketService` — **Staff** everywhere except `POST /matches/{id}/games`, which also accepts the tournament's admins and the matchup's own two entrants (in a bracket-run tournament the bracket is the only way a player schedules at all). Thin wrappers over the service; schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py). Behaviour — formats, advancement, roster rules, series semantics, who may schedule — is documented in [brackets.md](../features/brackets.md).

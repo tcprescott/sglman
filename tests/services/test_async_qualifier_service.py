@@ -75,12 +75,12 @@ async def test_draw_reveals_permalink_and_blocks_second_active(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900011, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
     assert run.status == AsyncQualifierRunStatus.IN_PROGRESS
-    assert run.permalink is not None and run.permalink.url in {'u1', 'u2'}
+    assert run.permalink is not None and run.permalink.url in {'https://seed.test/u1', 'https://seed.test/u2'}
 
     # Second concurrent draw blocked while one is active.
     with pytest.raises(ValueError):
@@ -91,7 +91,7 @@ async def test_no_repeat_and_runs_per_pool_cap(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900012, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -105,7 +105,7 @@ async def test_no_repeat_permalink_across_runs(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=3)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900013, 'p1')
 
     seen = set()
@@ -113,7 +113,7 @@ async def test_no_repeat_permalink_across_runs(db):
         run = await service.start_run(player, q.id, pool.id)
         seen.add(run.permalink.url)
         await _submit(service, player, run, 1000)
-    assert seen == {'u1', 'u2'}          # both distinct permalinks drawn
+    assert seen == {'https://seed.test/u1', 'https://seed.test/u2'}   # both drawn
     # pool exhausted (2 permalinks, both played)
     with pytest.raises(ValueError):
         await service.start_run(player, q.id, pool.id)
@@ -123,7 +123,7 @@ async def test_submit_then_review_scores_and_sets_par(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900014, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -140,7 +140,7 @@ async def test_self_review_blocked(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     # staff is also the runner and a qualifier admin → self-review must be blocked
     await service.add_admin(staff, q.id, staff)
     run = await service.start_run(staff, q.id, pool.id)
@@ -153,7 +153,7 @@ async def test_forfeit_is_terminal_and_scores_zero(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900015, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -169,7 +169,7 @@ async def test_reattempt_requires_reason_and_is_limited(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900016, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -193,7 +193,7 @@ async def test_leaderboard_locked_down_while_active(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900017, 'p1')
     run = await service.start_run(player, q.id, pool.id)
     await _submit(service, player, run, 1200)
@@ -216,7 +216,7 @@ async def test_submit_and_review_publish_events(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900018, 'p1')
 
     seen = []
@@ -236,7 +236,7 @@ async def test_submit_stores_the_server_measured_duration(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900030, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -252,7 +252,7 @@ async def test_submit_refuses_a_claim_longer_than_the_run_has_existed(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900031, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -272,7 +272,7 @@ async def test_submit_accepts_an_implausible_claim_and_still_records_it(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900032, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -290,7 +290,7 @@ async def test_submit_tolerates_a_run_with_no_started_at(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900033, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -305,7 +305,7 @@ async def test_submit_tolerates_a_run_with_no_started_at(db):
 
 async def _pending_run(service, staff, player, *, seconds=1200):
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     run = await service.start_run(player, q.id, pool.id)
     await _submit(service, player, run, seconds)
     return q, pool, run
@@ -391,7 +391,7 @@ async def test_reattempt_allowance_counts_spent_and_remaining(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900050, 'p1')
 
     fresh = await service.get_reattempt_allowance(player, q.id)
@@ -410,7 +410,7 @@ async def test_reattempt_frees_the_pool_slot_for_a_new_draw(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900051, 'p1')
 
     first = await service.start_run(player, q.id, pool.id)
@@ -431,7 +431,7 @@ async def test_grant_reattempt_requires_qualifier_admin(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900052, 'p1')
     other = await _player(900053, 'p2')
 
@@ -448,7 +448,7 @@ async def test_grant_reattempt_requires_a_reason(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900054, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -465,7 +465,7 @@ async def test_grant_reattempt_ignores_the_runners_allowance(db, captured_dms):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=0)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900055, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -489,7 +489,7 @@ async def test_grant_reattempt_frees_the_slot_after_a_forfeit(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=0)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900056, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -507,7 +507,7 @@ async def test_grant_reattempt_refreshes_par_and_scores(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     fast = await _player(900057, 'fast')
 
     run = await service.start_run(fast, q.id, pool.id)
@@ -524,7 +524,7 @@ async def test_grant_reattempt_refuses_an_in_progress_run(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900058, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -536,7 +536,7 @@ async def test_list_runs_requires_qualifier_admin(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900059, 'p1')
     run = await service.start_run(player, q.id, pool.id)
     await service.forfeit_run(player, run.id)
@@ -555,8 +555,11 @@ async def test_runner_runs_carry_their_review_notes(db):
     _, _, run = await _pending_run(service, staff, player)
     await service.review_run(staff, run.id, approved=False, note='VoD ends early.')
 
+    # ``list_user_runs`` projects to ``OwnRun`` since F7, which carries the notes
+    # as text, oldest first, plus ``latest_note`` for the column that shows one.
     runs = await service.list_user_runs(player, run.qualifier_id)
-    assert [n.note for n in runs[0].review_notes] == ['VoD ends early.']
+    assert runs[0].notes == ['VoD ends early.']
+    assert runs[0].latest_note == 'VoD ends early.'
 
 
 async def test_rejection_dm_includes_the_reason(db, captured_dms):
@@ -583,7 +586,7 @@ async def test_review_queue_carries_existing_notes(db):
     staff = await _staff()
     player = await _player(900062, 'p1')
     q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
 
     first = await service.start_run(player, q.id, pool.id)
     await _submit(service, player, first, 1200)
@@ -603,7 +606,7 @@ async def test_availability_lists_pools_when_a_run_can_be_started(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900070, 'p1')
 
     availability = await service.get_run_availability(player, q.id)
@@ -665,7 +668,7 @@ async def test_availability_reports_permalinks_exhausted(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=3)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     player = await _player(900074, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -681,7 +684,7 @@ async def test_availability_reports_all_slots_used(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1', 'https://seed.test/u2'])
     player = await _player(900075, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
@@ -696,7 +699,7 @@ async def test_availability_asks_an_anonymous_visitor_to_sign_in(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
 
     availability = await service.get_run_availability(None, q.id)
     assert availability.reason is rules.RunUnavailableReason.ANONYMOUS
@@ -725,9 +728,9 @@ async def test_availability_ignores_a_live_race_only_pool(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff, runs_per_pool=1)
-    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/u1'])
     live_pool = await service.create_pool(staff, q.id, name='Live Races')
-    live = await service.add_permalink(staff, live_pool.id, url='live-1')
+    live = await service.add_permalink(staff, live_pool.id, url='https://seed.test/live-1')
     await service.update_permalink(staff, live.id, live_race=True)
     player = await _player(900077, 'p1')
 
@@ -743,7 +746,7 @@ async def test_availability_reports_no_pools_when_only_live_races_exist(db):
     service = AsyncQualifierService()
     staff = await _staff()
     q, pool = await _open_qualifier(service, staff)
-    live = await service.add_permalink(staff, pool.id, url='live-1')
+    live = await service.add_permalink(staff, pool.id, url='https://seed.test/live-1')
     await service.update_permalink(staff, live.id, live_race=True)
     player = await _player(900078, 'p1')
 

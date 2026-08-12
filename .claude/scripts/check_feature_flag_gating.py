@@ -47,6 +47,54 @@ ENTRY_SURFACE_GLOBS = (
 REGISTRY = REPO / 'application' / 'feature_flags.py'
 ENUM = REPO / 'models' / 'enums.py'
 
+# The two sanctioned carve-outs stay legal by saying so beside the method: a soft
+# integration point called from an unrelated flow, and a public entry a sibling
+# service calls. See docs/features/feature-flags.md.
+_EXEMPT_RE = re.compile(r'feature-gate:\s*exempt|noqa:\s*feature-gate', re.IGNORECASE)
+
+# Gaps that predate the uneven-enforcement rule (half 2b below). These are *holes*,
+# not carve-outs — every one is a public service method reachable with its flag off
+# — so they are listed here rather than marked exempt in the source, where a reader
+# would take the comment as a decision. The rule fires only on gaps outside this
+# ledger, the same shape as scripts/guardrail_baseline.json: deleting an entry is
+# always safe, so it can only shrink. Recorded by the sweep in
+# docs/reviews/async-qualifier-leaderboard-ux.md (F6).
+KNOWN_GAPS: dict[str, set[str]] = {
+    'application/services/challonge_service.py': {
+        'ChallongeService.get_valid_access_token',
+    },
+    'application/services/equipment_service.py': {
+        'EquipmentService.current_loan',
+    },
+    'application/services/feedback_service.py': {
+        'FeedbackService.mark_reviewed',
+    },
+    'application/services/triforce_text_service.py': {
+        'TriforceTextService.get_balanced_text',
+        'TriforceTextService.get_random_text',
+    },
+    'application/services/volunteer/volunteer_schedule_service.py': {
+        'VolunteerScheduleService.acknowledge',
+        'VolunteerScheduleService.assign',
+        'VolunteerScheduleService.assignments_for_user',
+        'VolunteerScheduleService.check_in',
+        'VolunteerScheduleService.confirm_assignment',
+        'VolunteerScheduleService.count_drafts',
+        'VolunteerScheduleService.create_shift',
+        'VolunteerScheduleService.delete_shift',
+        'VolunteerScheduleService.find_assignment',
+        'VolunteerScheduleService.generate_day_shifts',
+        'VolunteerScheduleService.get_assignment',
+        'VolunteerScheduleService.get_shift',
+        'VolunteerScheduleService.list_shifts_for_window',
+        'VolunteerScheduleService.release',
+        'VolunteerScheduleService.request_acknowledgment',
+        'VolunteerScheduleService.reset_all_shifts',
+        'VolunteerScheduleService.unassign',
+        'VolunteerScheduleService.update_shift',
+    },
+}
+
 
 def _read(path: Path) -> str:
     try:
@@ -116,6 +164,58 @@ def _guards_flag(source: str, member: str) -> bool:
         or re.search(rf'ensure_enabled\(\s*FeatureFlag\.{member}\b', source)
         or re.search(rf'is_enabled\(\s*FeatureFlag\.{member}\b', source)
     )
+
+
+def _unguarded_siblings(path: Path, member: str) -> list[str]:
+    """Public async methods that sit in a *guarded class* without a guard of their own.
+
+    The precise shape of the hole this catches: ``get_leaderboard`` lived in a class
+    where every sibling carried ``@requires_feature``, and the flag stayed off for it
+    alone. ``_guards_flag``'s any-method test cannot see that — one decorator
+    anywhere in the file satisfies it — so a gap *inside* a gated service was
+    invisible.
+
+    The rule is deliberately narrow: only a class that already guards something is
+    held to guarding everything. A class with no guards at all is an internal
+    collaborator (``AsyncQualifierDraw``, called only by the service that is gated)
+    or a deliberate carve-out, and the hook has nothing useful to say about it —
+    holding those to the same rule produced mostly false positives when measured.
+
+    Opt a method out with ``# feature-gate: exempt — <reason>`` beside it, which is
+    how the two sanctioned carve-outs stay legal: a soft integration point called
+    from an unrelated flow, and a public entry a sibling service calls. Gaps that
+    predate the rule live in :data:`KNOWN_GAPS` instead, so it can be enforced for
+    new code without a sweep of five unrelated subsystems landing first.
+    """
+    src = _read(path)
+    if not src:
+        return []
+    try:
+        tree = ast.parse(src, filename=str(path))
+    except SyntaxError:
+        return []
+    lines = src.split('\n')
+    guard = rf'FeatureFlag\.{member}\b'
+    known = KNOWN_GAPS.get(path.relative_to(REPO).as_posix(), set())
+    gaps: list[str] = []
+    for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
+        methods = [m for m in cls.body
+                   if isinstance(m, ast.AsyncFunctionDef) and not m.name.startswith('_')]
+        decorated = [
+            m for m in methods
+            if any(re.search(guard, ast.get_source_segment(src, d) or '')
+                   for d in m.decorator_list)
+        ]
+        if not decorated:
+            continue
+        for fn in methods:
+            if fn in decorated or f'{cls.name}.{fn.name}' in known:
+                continue
+            near = '\n'.join(lines[max(0, fn.lineno - 4):fn.lineno + 2])
+            if _EXEMPT_RE.search(near):
+                continue
+            gaps.append(f'{cls.name}.{fn.name} (line {fn.lineno})')
+    return gaps
 
 
 def _entry_surface_hits(member: str) -> list[str]:
@@ -194,6 +294,24 @@ def audit() -> list[str]:
                     f"      @requires_feature(FeatureFlag.{member})\n"
                     f"      async def do_the_thing(...): ...\n"
                     f"    The UI hiding the feature is not enough; the service must refuse it."
+                )
+                continue
+
+            # --- half 2b: no gap *inside* a guarded class --------------
+            for path in files:
+                gaps = _unguarded_siblings(path, member)
+                if not gaps:
+                    continue
+                listing = '\n'.join(f'      {g}' for g in gaps)
+                problems.append(
+                    f"FeatureFlag.{member} is enforced unevenly in "
+                    f"{path.relative_to(REPO).as_posix()}.\n"
+                    f"    These siblings sit in a class that guards the flag but carry no guard\n"
+                    f"    themselves, so the flag is off for them alone:\n"
+                    f"{listing}\n"
+                    f"    Add @requires_feature(FeatureFlag.{member}), or mark the method\n"
+                    f"    '# feature-gate: exempt — <reason>' if it is one of the two carve-outs\n"
+                    f"    (a soft integration point, or a public entry a sibling service calls)."
                 )
     return problems
 

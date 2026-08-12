@@ -164,6 +164,64 @@ class TestPlayerBoardQueryBudget:
         )
 
 
+class TestQualifierAvailabilityQueryBudget:
+    """``get_run_availability`` — what the player's qualifier page opens on.
+
+    Its shape is per *pool* rather than per row, which is why it belongs here as its
+    own class: the audit measured about five and a half queries a pool (22 for four
+    pools), because the candidate list, the seed count and the spent count each went
+    to the database separately and the first two re-read permalinks the pool read had
+    already prefetched.
+    """
+
+    SMALL, LARGE = 1, 4
+    # Measured 5 flat — the qualifier, its pools with permalinks prefetched, this
+    # player's played permalinks, their spent counts, and the flag resolution behind
+    # the service's own gate. Before the batch it was 7 / 19 / 51 for 1 / 4 / 12
+    # pools, which is the shape this class exists to keep from coming back.
+    CEILING = 7
+
+    async def _count_for(self, pools: int, *, discord_id: int) -> int:
+        from application.services.async_qualifier.async_qualifier_service import (
+            AsyncQualifierService,
+        )
+        from models import Role, UserRole
+
+        service = AsyncQualifierService()
+        staff = await User.create(discord_id=discord_id, username=f"qbudget{discord_id}")
+        await UserRole.create(user=staff, role=Role.STAFF, tenant_id=1)
+        now = datetime.now(timezone.utc)
+        qualifier = await service.create_qualifier(
+            staff, name=f"Budget Q {pools}", opens_at=now - timedelta(days=1),
+            closes_at=now + timedelta(days=1), runs_per_pool=1,
+        )
+        for i in range(pools):
+            pool = await service.create_pool(staff, qualifier.id, name=f"Pool {i}")
+            await service.add_permalink(
+                staff, pool.id, url=f"https://seed.test/{discord_id}-{i}")
+        player = await User.create(discord_id=discord_id + 1, username=f"qplayer{discord_id}")
+
+        with count_queries() as tally:
+            result = await service.get_run_availability(player, qualifier.id)
+        assert len(result.pools) == pools, "fixture did not produce the expected pools"
+        return tally["n"]
+
+    async def test_query_count_does_not_grow_with_pool_count(self):
+        small = await self._count_for(self.SMALL, discord_id=940_100)
+        large = await self._count_for(self.LARGE, discord_id=940_200)
+        assert small == large, (
+            f"get_run_availability issued {small} queries for {self.SMALL} pool(s) and "
+            f"{large} for {self.LARGE} — the count scales with pools, so the "
+            f"per-pool loop is back. Batch the reads in _pool_usage instead."
+        )
+
+    async def test_query_count_stays_under_the_ceiling(self):
+        count = await self._count_for(self.LARGE, discord_id=940_300)
+        assert count <= self.CEILING, (
+            f"get_run_availability issued {count} queries (budget {self.CEILING})."
+        )
+
+
 class TestTheGuardItself:
     """The counter has to actually see queries, or every budget above is vacuous."""
 

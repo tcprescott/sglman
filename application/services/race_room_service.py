@@ -33,7 +33,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
-from application.utils.racetime_entrants import unmatched_handle
+from application.utils.racetime_entrants import is_scored_finish, unmatched_handle
 from models import (
     Match,
     MatchPlayers,
@@ -239,10 +239,7 @@ class RaceRoomService:
                 if rtid:
                     by_rtid[rtid] = mp
 
-        finishers = [
-            e for e in entrants
-            if e.status == EntrantStatus.DONE and e.finish_time is not None
-        ]
+        finishers = [e for e in entrants if is_scored_finish(e)]
         finishers.sort(key=lambda e: (e.place if e.place is not None else e.finish_time))
 
         seen: set = set()
@@ -408,5 +405,9 @@ class RaceRoomLifecycle:
             await service.record_finish(live_race, event.entrants)
             await self.service.room_repository.update(room, status=RaceRoomStatus.FINISHED)
         elif event.status == RaceRoomStatus.CANCELLED:
+            # The race itself, not only its room: without this the qualifier's live
+            # race stays at scheduled or in-progress with nothing to distinguish it
+            # from one still to come.
+            await service.mark_cancelled(live_race)
             await self.service.room_repository.update(room, status=RaceRoomStatus.CANCELLED)
         return True

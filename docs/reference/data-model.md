@@ -302,7 +302,11 @@ before a synchronous start (the live-race path).
 
 Lifecycle of a synchronous racetime qualifier race: `SCHEDULED` = `'scheduled'`
 (before a room opens) → `PENDING` = `'pending'` (room open, not started) →
-`IN_PROGRESS` = `'in_progress'` → `FINISHED` = `'finished'` (results captured into runs).
+`IN_PROGRESS` = `'in_progress'` → `FINISHED` = `'finished'` (results captured into runs),
+or `CANCELLED` = `'cancelled'` when the racetime room was cancelled instead of raced.
+`CANCELLED` exists because the inbound handler used to update only the `RacetimeRoom`,
+leaving the race indistinguishable from one still to come; a race already `FINISHED`
+is never moved to it, since cancelling the room afterwards does not un-score its runs.
 
 ### `JoinRequestStatus`
 
@@ -1438,6 +1442,8 @@ validated-JSON `config` blob (`par_sample_size`, `draw_imbalance_threshold`,
 | `allowed_reattempts` | `IntField` | default 0 | Reattempt budget per player |
 | `config` | `JSONField` | null | Validated by `validate_async_qualifier_config` |
 | `is_active` | `BooleanField` | default `True` | Closing it (or passing `closes_at`) lifts the info lockdown |
+| `review_backlog_notified_at` | `DatetimeField` | null | Worker state: when the reviewer set was last DM'd about an unworked queue |
+| `window_state_notified` | `CharField(16)` | null | Worker state: the last window state (`pending`/`open`/`closed`) published as an event, so a crossing announces once |
 | `admins` | M2M → `User` | through `AsyncQualifierAdmins` | The reviewer set (self-review blocked) |
 
 #### `AsyncQualifierPool`
@@ -1500,7 +1506,11 @@ A synchronous racetime race whose entrants' results are captured into
 `episode` (→ `SpeedGamingEpisode`, `SET_NULL`); `match_title`; a globally-unique
 nullable `racetime_slug` that mirrors the `RacetimeRoom.slug` (so the shared
 inbound-event handler routes the room's events to the qualifier capture path when
-`RacetimeRoom.match_id` is null); and an `AsyncQualifierLiveRaceStatus` enum.
+`RacetimeRoom.match_id` is null); an `AsyncQualifierLiveRaceStatus` enum; and
+`unmatched_handles` (JSON, null) — racetime accounts the last capture could not match
+to a `User`, kept here rather than only in the audit detail because it is a to-do for
+staff (link the account, record again), and cleared when a later capture matches
+everyone.
 Indexes on `tenant`, `pool`.
 
 ### Native brackets
@@ -1698,7 +1708,7 @@ Consult the source for full signatures.
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` |
 | `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` |
 | `RandomizerCredentialRepository` | [`randomizer_credential_repository.py`](../../application/repositories/randomizer_credential_repository.py) | `RandomizerCredential` | `list_all`, `get_by_natural_key`, `upsert`, `delete_by_natural_key`, `configured_pairs` |
-| `AsyncQualifierRepository`, `AsyncQualifierPoolRepository`, `AsyncQualifierPermalinkRepository`, `AsyncQualifierRunRepository`, `AsyncQualifierLiveRaceRepository`, `AsyncQualifierReviewNoteRepository` (one module) | [`async_qualifier_repository.py`](../../application/repositories/async_qualifier_repository.py) | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | Qualifier/pool/permalink/run CRUD + `list_active`, `get_with_relations`/`get_with_permalinks`; draw support `lock_user_for_draw` (SELECT … FOR UPDATE), `get_active_for_user`, `played_permalink_ids_for_user_in_pool`, `valid_run_counts_by_permalink_for_pool`; scoring/review `list_valid_for_qualifier`, `list_approved_finished_for_permalink`, `list_pending_review`; live races `get_by_racetime_slug`, `list_for_live_race` |
+| `AsyncQualifierRepository`, `AsyncQualifierPoolRepository`, `AsyncQualifierPermalinkRepository`, `AsyncQualifierRunRepository`, `AsyncQualifierLiveRaceRepository`, `AsyncQualifierReviewNoteRepository` (one module) | [`async_qualifier_repository.py`](../../application/repositories/async_qualifier_repository.py) | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | Qualifier/pool/permalink/run CRUD + `list_active`, `get_with_relations`/`get_with_permalinks`; draw support `lock_user_for_draw` (SELECT … FOR UPDATE), `get_active_for_user`, `played_permalink_ids_for_user_in_pool`, `valid_run_counts_by_permalink_for_pool` (a `GROUP BY`); the availability read's batched pair `played_permalink_ids_for_user_by_pool` / `valid_run_counts_for_user_by_pool` (keyed by pool, one query each whatever the pool count) and `count_self_spent_reattempts`; scoring/review `list_scored_for_leaderboard` (the board's projected read — scoring finishers *and* spent-but-unscoreable slots), `list_valid_for_qualifier`, `list_approved_finished_for_permalink`, `list_pending_review`, `outcome_tally_for_users`, `list_for_qualifier(limit=, offset=)` + `count_for_qualifier` (the API's paged runs read); live races `get_by_racetime_slug`, `list_for_live_race` |
 | `RacetimeBotRepository` | [`racetime_bot_repository.py`](../../application/repositories/racetime_bot_repository.py) | `RacetimeBot`, `RacetimeBotTenant` | **Global — never tenant-scoped** (bots managed on `/platform` with explicit ids). bots `list_all`, `list_active`, `get_by_id`, `get_by_category`, `create`, `update`, `delete`; SUPER_ADMIN authorization grants `get_grant`, `list_grants_for_bot`, `create_grant`, `set_grant_active`, `delete_grant`, `list_active_for_tenant(tenant_id)` (explicit id, no ambient scope) |
 | `RacetimeRoomRepository` | [`racetime_room_repository.py`](../../application/repositories/racetime_room_repository.py) | `RacetimeRoom` | Scoped `get_by_id`, `get_by_match`, `list_all`, `create`, `update`; **unscoped routing** `get_by_slug` (inbound racetime events carry only the slug → resolve slug→room→tenant with no ambient scope, like the API-token-hash lookup); worker scans `list_open_all`, `matches_due_for_auto_open(window_start, window_end)` |
 | `RaceRoomProfileRepository` | [`race_room_profile_repository.py`](../../application/repositories/race_room_profile_repository.py) | `RaceRoomProfile` | `list_all`, `get_by_id`, `get_by_name`, `create`, `update`, `delete` |

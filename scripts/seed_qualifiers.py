@@ -33,7 +33,8 @@ from models import (
 async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     """Async Qualifier fixtures (PR 9): **two** qualifiers.
 
-    The open one has three pools (one preset-tied, one live-race), permalinks, and
+    The open one has four pools (one preset-tied, one live-race, one tied to a preset
+    that cannot roll), permalinks, and
     runs across every state a reviewer or runner can meet — approved+scored (sets
     par), pending (the reviewer queue), rejected-with-a-note, forfeited, and voided
     by a reattempt — so the admin Qualifiers tab, reviewer queue, Runs tab and the
@@ -73,6 +74,19 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     bonus, _ = await AsyncQualifierPool.get_or_create(
         qualifier=qualifier, name="Bonus Pool", tenant=tenant,
     )
+    # A pool tied to a preset that *cannot* roll: dk64r generates asynchronously, so
+    # the Pools tab must say so on the card instead of offering a Roll button that
+    # only fails after the click. Without this fixture that refusal is unreachable
+    # in dev, which is how it went unnoticed long enough to become a finding.
+    async_preset, _ = await Preset.get_or_create(
+        name="DK64 Async", randomizer="dk64r", tenant=tenant,
+        defaults={"settings": {"preset": "dev"},
+                  "description": "Rolls asynchronously — cannot fill a qualifier pool."},
+    )
+    await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Async-Randomizer Pool", tenant=tenant,
+        defaults={"preset": async_preset},
+    )
 
     async def _permalink(pool: AsyncQualifierPool, url: str) -> AsyncQualifierPermalink:
         pl, _ = await AsyncQualifierPermalink.get_or_create(
@@ -83,6 +97,11 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     p1 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-1")
     await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
     await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
+    # Its own seed rather than one of the three above: every one of those already
+    # carries a run below, and an ``.exists()`` guard keyed on the permalink would
+    # find that run and skip this one — silently, which is how the backlog fixture
+    # first failed to appear at all.
+    p_stale = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-4")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-1")
     await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
 
@@ -131,6 +150,20 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
                 tenant=tenant, run=run_b, author=staff,
                 note="VOD checked through the halfway split; finish looks clean.",
             )
+
+    # A second pending run, submitted long enough ago to trip the backlog nudge
+    # (``rules.REVIEW_BACKLOG_AGE``), on a seed of its own. The queue needs both states to be worth looking
+    # at in dev: one submission just arrived, one has gone unworked for hours.
+    if runner_b is not None and not await AsyncQualifierRun.filter(
+        qualifier=qualifier, user=runner_b, permalink=p_stale,
+    ).exists():
+        await AsyncQualifierRun.create(
+            tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p_stale,
+            status=AsyncQualifierRunStatus.FINISHED,
+            review_status=AsyncQualifierReviewStatus.PENDING,
+            started_at=now - timedelta(hours=11), finished_at=now - timedelta(hours=9),
+            elapsed_seconds=5700, measured_seconds=7200,
+        )
 
     # The states the review/reattempt surfaces are about, none of which the two
     # runs above produce: a rejection carrying its reason (the runs table's
@@ -220,29 +253,41 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
 
     # A live-race pool (PR 10): a live-flagged permalink plus one race per
     # lifecycle state, so the admin Live Races sub-tab shows a race to open a room
-    # for, one waiting in an opened room, one racing, and one whose results have
-    # been captured back into runs.
+    # for, one waiting in an opened room, one racing, one whose results have been
+    # captured back into runs, and one the racetime room cancelled instead.
     live_pool, _ = await AsyncQualifierPool.get_or_create(
         qualifier=qualifier, name="Live Race Pool", tenant=tenant,
     )
+    # The last spec keeps its permalink NULL: "(assign later)" is a normal way to
+    # schedule a race, and it is the state the Set permalink control and the "cannot
+    # be scored" caption exist for.
     live_race_specs = [
-        (1, "Dev Live Qualifier Race", AsyncQualifierLiveRaceStatus.SCHEDULED),
-        (2, "Dev Live Race — Room Open", AsyncQualifierLiveRaceStatus.PENDING),
-        (3, "Dev Live Race — Racing", AsyncQualifierLiveRaceStatus.IN_PROGRESS),
-        (4, "Dev Live Race — Results In", AsyncQualifierLiveRaceStatus.FINISHED),
+        (1, "Dev Live Qualifier Race", AsyncQualifierLiveRaceStatus.SCHEDULED, True),
+        (2, "Dev Live Race — Room Open", AsyncQualifierLiveRaceStatus.PENDING, True),
+        (3, "Dev Live Race — Racing", AsyncQualifierLiveRaceStatus.IN_PROGRESS, True),
+        (4, "Dev Live Race — Results In", AsyncQualifierLiveRaceStatus.FINISHED, True),
+        (5, "Dev Live Race — Called Off", AsyncQualifierLiveRaceStatus.CANCELLED, True),
+        (6, "Dev Live Race — Seed To Pick", AsyncQualifierLiveRaceStatus.SCHEDULED, False),
     ]
-    for index, match_title, status in live_race_specs:
+    for index, match_title, status, seeded in live_race_specs:
         permalink, _ = await AsyncQualifierPermalink.get_or_create(
             pool=live_pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-live-{index}",
             tenant=tenant, defaults={"live_race": True},
         )
-        if not await AsyncQualifierLiveRace.filter(
-            pool=live_pool, match_title=match_title
-        ).exists():
-            await AsyncQualifierLiveRace.create(
-                tenant=tenant, pool=live_pool, permalink=permalink,
-                match_title=match_title, status=status,
-            )
+        race, _ = await AsyncQualifierLiveRace.get_or_create(
+            pool=live_pool, match_title=match_title, tenant=tenant,
+            defaults={"permalink": permalink if seeded else None, "status": status},
+        )
+        # The finished race carries an entrant nobody could match, which is the state
+        # the "link their account, then record again" to-do exists for — invisible in
+        # dev without a fixture that has one. Set on every run rather than only at
+        # creation: a `defaults=` value never reaches a row that already exists, which
+        # is how the last fixture added here silently failed to appear.
+        wanted = (["MysteryRacer"] if status == AsyncQualifierLiveRaceStatus.FINISHED
+                  else None)
+        if race.unmatched_handles != wanted:
+            race.unmatched_handles = wanted
+            await race.save()
         # ``PENDING`` is the one run status the self-paced flow never writes: it
         # belongs to a live race, where the runs exist before anyone starts. It
         # only makes sense beside the race whose room is open.
@@ -258,6 +303,11 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
                 status=AsyncQualifierRunStatus.PENDING,
                 review_status=AsyncQualifierReviewStatus.PENDING,
             )
+
+    # Defined below and never called until now, so the fixture its own docstring
+    # calls "the only way a player can see a leaderboard in dev" did not exist —
+    # and with it the exact-score half of the score lockdown was unreachable too.
+    await _seed_closed_qualifier(tenant)
 
 
 async def _seed_closed_qualifier(tenant: Tenant) -> None:

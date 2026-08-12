@@ -180,10 +180,17 @@ class TestAdminManagement:
 
             bulk = await c.post(
                 f'/api/async-qualifiers/pools/{pool_id}/permalinks/bulk',
-                json={'urls': ['https://example.com/a', '', 'https://example.com/b']},
+                json={'urls': ['https://example.com/a', '', 'not-a-url',
+                               'https://example.com/b']},
             )
             assert bulk.status_code == 201
-            assert len(bulk.json()) == 2
+            body = bulk.json()
+            assert [p['url'] for p in body['created']] == [
+                'https://example.com/a', 'https://example.com/b',
+            ]
+            # A bad line is reported with its position rather than silently dropped:
+            # line 3 of the submitted list, blank line included in the count.
+            assert [(r['line'], r['value']) for r in body['rejected']] == [(3, 'not-a-url')]
 
             upd = await c.patch(
                 f'/api/async-qualifiers/permalinks/{permalink_id}', json={'notes': 'seeded'},
@@ -365,7 +372,15 @@ class TestRunLifecycle:
             queue = await c.get(f'/api/async-qualifiers/{qid}/review-queue')
             assert queue.json() == []
             runs = await c.get(f'/api/async-qualifiers/{qid}/runs')
-            assert [r['id'] for r in runs.json()] == [run_id]
+            page = runs.json()
+            assert [r['id'] for r in page['items']] == [run_id]
+            assert (page['total'], page['offset']) == (1, 0)
+
+            # A page past the end is empty and still reports the total, so a client
+            # paging through knows it has reached the end rather than guessing.
+            beyond = await c.get(f'/api/async-qualifiers/{qid}/runs?limit=1&offset=5')
+            assert beyond.json()['items'] == []
+            assert beyond.json()['total'] == 1
 
             blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
                                  json={'reason': ' '})

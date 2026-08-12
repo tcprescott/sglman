@@ -9,11 +9,17 @@ sibling helpers.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Optional, Sequence, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple
+from urllib.parse import urlparse
 
 from application.services.async_qualifier.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
 from application.utils.duration import format_hms
-from models import AsyncQualifier, User
+from models import (
+    AsyncQualifier,
+    AsyncQualifierReviewStatus,
+    AsyncQualifierRunStatus,
+    User,
+)
 
 DEFAULT_IMBALANCE_THRESHOLD = 2
 
@@ -33,6 +39,25 @@ CLOCK_GRACE_SECONDS = 120
 # about it. Generous on purpose: finishing and submitting twenty minutes later is
 # ordinary, while a dropped H segment is off by an hour or more.
 IMPLAUSIBLE_DRIFT_SECONDS = 15 * 60
+
+# How long the oldest pending run must have waited before the reviewer set is
+# interrupted about it. Below this, a queue is just a queue: submissions arrive and
+# get worked, and a DM would be noise.
+REVIEW_BACKLOG_AGE = timedelta(hours=6)
+# And how often that reminder may repeat while the backlog persists. A qualifier at
+# real scale takes thousands of runs; one DM per run would train every reviewer to
+# mute the bot, which is worse than the silence this replaces.
+REVIEW_BACKLOG_REMINDER = timedelta(hours=24)
+
+# A seed permalink is a link a runner opens in a browser, so nothing else counts.
+# An allow-list rather than a "has a scheme" check because ``javascript:`` and
+# ``data:`` both render as a clickable link in the admin page.
+_PERMALINK_SCHEMES = ('http', 'https')
+
+# How long a reviewer's claim on a queue card holds before the worker releases it.
+# Long enough to watch a VoD through, short enough that a closed tab does not
+# park a run out of everyone else's reach for the rest of the qualifier.
+REVIEW_CLAIM_TTL = timedelta(hours=2)
 
 
 def validate_counts(runs_per_pool: int, allowed_reattempts: int) -> Tuple[int, int]:
@@ -95,8 +120,137 @@ def imbalance_threshold(qualifier: AsyncQualifier) -> int:
     return DEFAULT_IMBALANCE_THRESHOLD
 
 
+def permalink_url_error(url: str) -> Optional[str]:
+    """Why this string cannot be a seed permalink, or ``None`` if it can.
+
+    Returns the reason rather than raising so the paste-many path can report every
+    bad line at once instead of failing on the first. The bar is deliberately low —
+    an http(s) URL with a host — because a permalink points at whichever
+    randomizer site rolled it and there is no list of those to check against. What
+    it does catch is the everyday accident: a truncated paste, a bare seed hash, a
+    spreadsheet cell that came across with its label attached.
+
+    Worth the check because **reveal is start**: a runner drawn a typo'd permalink
+    has already spent their slot on a seed that will not open, and no amount of
+    admin apology gives the slot back.
+    """
+    value = (url or '').strip()
+    if not value:
+        return "Permalink URL is required"
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return f"{_quote(value)} is not a URL"
+    if parsed.scheme.lower() not in _PERMALINK_SCHEMES:
+        return f"{_quote(value)} must start with http:// or https://"
+    if not parsed.hostname:
+        return f"{_quote(value)} has no host — check the paste"
+    return None
+
+
+def validate_permalink_url(url: str) -> str:
+    """The stripped URL, or ``ValueError`` naming what is wrong with it."""
+    error = permalink_url_error(url)
+    if error is not None:
+        raise ValueError(error)
+    return url.strip()
+
+
+def _quote(value: str) -> str:
+    """A pasted line, short enough to read back inside one notification."""
+    shown = value if len(value) <= 60 else f'{value[:57]}…'
+    return f"'{shown}'"
+
+
+def run_scores(row: Mapping[str, Any]) -> bool:
+    """Whether a leaderboard row is a scoring finisher rather than a spent slot.
+
+    Reads the projected ``.values()`` row the board is built from, not a model.
+    Everything the query returns occupies a slot; only an approved finisher with a
+    score contributes to the total. A forfeit, an expiry, a disqualification and a
+    rejected submission are all realised zeros.
+    """
+    status = _column_value(row.get('status'))
+    review = _column_value(row.get('review_status'))
+    return (status == AsyncQualifierRunStatus.FINISHED.value
+            and review == AsyncQualifierReviewStatus.APPROVED.value
+            and row.get('score') is not None)
+
+
+def _column_value(value: Any) -> str:
+    """``.values()`` hands back the enum on some backends and the raw string on
+    others, so both are normalised before comparison."""
+    return value.value if hasattr(value, 'value') else str(value)
+
+
+def review_status_label(status: AsyncQualifierReviewStatus) -> str:
+    """A review status as a sentence would say it — ``approved``, not ``APPROVED``.
+
+    The enum's raw value leaks into user-facing copy otherwise, which is how a
+    reviewer ends up reading "already AsyncQualifierReviewStatus.APPROVED".
+    """
+    return {
+        AsyncQualifierReviewStatus.PENDING: 'awaiting review',
+        AsyncQualifierReviewStatus.APPROVED: 'approved',
+        AsyncQualifierReviewStatus.REJECTED: 'rejected',
+    }.get(status, str(getattr(status, 'value', status)))
+
+
+def backlog_is_worth_reporting(
+    oldest_finished_at: Optional[datetime],
+    last_notified_at: Optional[datetime],
+    now: Optional[datetime] = None,
+) -> bool:
+    """Whether the reviewer set should be told about this queue right now.
+
+    Two gates, and both matter: the oldest run has waited past
+    :data:`REVIEW_BACKLOG_AGE` (so a healthy queue stays silent), and the last
+    reminder is older than :data:`REVIEW_BACKLOG_REMINDER` (so a backlog nobody
+    clears does not send one DM a minute).
+    """
+    if oldest_finished_at is None:
+        return False
+    now = now or datetime.now(timezone.utc)
+    if oldest_finished_at.tzinfo is None:
+        oldest_finished_at = oldest_finished_at.replace(tzinfo=timezone.utc)
+    if now - oldest_finished_at < REVIEW_BACKLOG_AGE:
+        return False
+    if last_notified_at is None:
+        return True
+    if last_notified_at.tzinfo is None:
+        last_notified_at = last_notified_at.replace(tzinfo=timezone.utc)
+    return now - last_notified_at >= REVIEW_BACKLOG_REMINDER
+
+
+def claim_is_live(
+    claimed_at: Optional[datetime], now: Optional[datetime] = None
+) -> bool:
+    """Whether a review claim still holds, or has aged past :data:`REVIEW_CLAIM_TTL`.
+
+    Read here as well as swept by the worker, so a claim that expired since the
+    last tick does not block the next reviewer for up to a minute.
+    """
+    if claimed_at is None:
+        return False
+    if claimed_at.tzinfo is None:
+        claimed_at = claimed_at.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return now - claimed_at < REVIEW_CLAIM_TTL
+
+
 def display_name(user: User) -> str:
-    return user.display_name or user.username or f"User {user.id}"
+    return display_name_of(user.display_name, user.username, user.id)
+
+
+def display_name_of(
+    display: Optional[str], username: Optional[str], user_id: int
+) -> str:
+    """The same fallback as :func:`display_name`, from columns rather than a model.
+
+    The leaderboard reads its rows with ``.values()`` — four scalars per scored run
+    instead of a hydrated ``User`` — so it needs the rule without the object.
+    """
+    return display or username or f"User {user_id}"
 
 
 def ensure_window_open(qualifier: AsyncQualifier) -> None:
@@ -224,6 +378,30 @@ def window_reason(qualifier: AsyncQualifier, now: Optional[datetime] = None) -> 
     if qualifier.closes_at is not None and now >= qualifier.closes_at:
         return RunUnavailableReason.CLOSED
     return None
+
+
+class WindowState(str, Enum):
+    """Where a qualifier stands in its own window, as one word.
+
+    Derived, never stored: the columns are ``is_active`` plus the two dates, and
+    which of the three this makes true changes with the clock and with nobody's
+    involvement. What *is* stored is the last state a subscriber was told about
+    (``AsyncQualifier.window_state_notified``), so the crossing is announced once.
+    """
+
+    PENDING = 'pending'    # active, but ``opens_at`` is still ahead
+    OPEN = 'open'          # runs may be drawn right now
+    CLOSED = 'closed'      # past ``closes_at``, or switched inactive
+
+
+def window_state(qualifier: AsyncQualifier, now: Optional[datetime] = None) -> WindowState:
+    """The qualifier's window as a state, from the same predicate the runner sees."""
+    reason = window_reason(qualifier, now)
+    if reason is None:
+        return WindowState.OPEN
+    if reason is RunUnavailableReason.NOT_OPEN_YET:
+        return WindowState.PENDING
+    return WindowState.CLOSED
 
 
 class ClaimVerdict(str, Enum):

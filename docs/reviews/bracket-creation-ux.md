@@ -153,8 +153,9 @@ mobile card. No pencil, no trash, no row-click handler in 666 lines.
 `api/routers/brackets.py:178-193`. The page's own docstring advertises the
 missing capability: *"author its bracket stages (create/edit/delete while
 DRAFT)"* (`admin_brackets.py:4`). The house convention is the opposite —
-[`admin_qualifiers.py:108-113`](../../pages/admin_tabs/admin_qualifiers.py#L108)
-puts Manage + edit + delete on every row.
+[`admin_qualifiers/page.py`](../../pages/admin_tabs/admin_qualifiers/page.py)
+(`admin_qualifiers.py:108-113` when this was written) puts Manage + edit + delete
+on every row.
 
 Worse: `update_bracket`'s signature is `(actor, bracket_id, name, stage_order,
 config)`. **Format is not editable by any surface.** And the resulting deadlock
