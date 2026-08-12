@@ -253,7 +253,7 @@ Nothing tells a moderator a run is waiting either. `submit_run` audits and
 publishes an event; no DM or notification reaches the reviewer set. The queue is
 pull-only, and the only way to discover work is to open a 4.4-second drill-down.
 
-### F10 · The live-race capture path has three defects — *shipped, bar the reconcile control*
+### F10 · The live-race capture path has three defects — *shipped*
 
 Live races are the second path that writes a scored, approved run, and it
 bypasses review by design. The design is sound and was confirmed: still-racing
@@ -277,14 +277,16 @@ explaining why.
 **F10c — a cancelled room strands the race.** The handler's `CANCELLED` branch
 ([`race_room_service.py:~410`](../../application/services/race_room_service.py))
 updates the `RacetimeRoom` and leaves the `AsyncQualifierLiveRace` untouched, so
-it sits at scheduled or in-progress forever. There is no manual
+it sits at scheduled or in-progress forever. There was no manual
 record-or-reconcile control in the admin page or in REST — `record_finish` is
-reachable only from the inbound racetime FINISHED event — so a missed event has
-no remedy.
+reachable only from the inbound racetime FINISHED event — so a missed event had
+no remedy. Wave 7 added the recording half (staff assert the results, through the
+same capture); *reconciling* against racetime's own copy still needs a race-data
+fetch that does not exist.
 
-Two smaller ones: `started_at` is stamped at record time, so every live-race run
-shows `Started == Finished` and a blank Timed column; and an entrant with no
-linked `User` is recorded in the audit detail only, with no surface listing
+Two smaller ones, both wave 7: `started_at` was stamped at record time, so every
+live-race run showed `Started == Finished` and a blank Timed column; and an entrant
+with no linked `User` was recorded in the audit detail only, with no surface listing
 unmatched handles for staff to fix.
 
 ### F11 · Query patterns that will bite again as a qualifier grows — *shipped*
@@ -412,7 +414,56 @@ per hour spent.
 | 4 | F5, F6 | **Shipped.** Review integrity and the flag hole. |
 | 5 | F7, F8, F9 | **Shipped.** The information both sides are missing. |
 | 6 | F11, F12, F13, F14 | **Shipped.** Query fat, seed authoring, the API's unbounded runs read, lifecycle events. |
-| 7 | F10's record-and-reconcile control, the unmatched-handle list | Open. Needs racetime transport work `MOCK_RACETIME` cannot exercise. |
+| 7 | F10's record-and-reconcile control, the unmatched-handle list, the live-race clock | **Shipped.** A manual record rather than a racetime re-fetch, which is the part transport blocks. |
+
+### What wave 7 changed
+
+| Measure | Before | After |
+|---|---|---|
+| A racetime FINISHED event that never arrived | the race stuck, its entrants unscored, no remedy in the page or REST | **Record results** on the card, and `POST /live-races/{id}/record` |
+| An entrant whose racetime account matched nobody | one line in the audit detail; the racer simply never appeared | named on the card with the remedy, and cleared when a later capture matches everyone |
+| A live-race run's clock | `Started == Finished`, Timed blank, every run | one race start for everyone, each finisher's own finish, Timed showing the raced time |
+| A hand-typed finish with no time | — | refused, naming the field |
+| A hand-typed time against a forfeit | — | dropped rather than stored beside a zero |
+
+**A manual record, not a racetime re-fetch.** The audit deferred this as transport
+work, and half of it was: there is no on-demand "fetch this race's data" client, so
+*reconciling* against racetime is still out of reach. But the remedy a missed event
+actually needs is for staff to be able to say what happened — and that is entirely
+local. `record_manual_finish` funnels into the same `_capture` as the racetime path,
+so the permalink requirement, the pool cap (a racer over it is recorded voided), the
+par recompute and the FINISHED transition all still apply. A hand-recorded race is
+indistinguishable downstream from one the room delivered, which is the property worth
+having: the alternative is a second capture path that drifts.
+
+Audited under its own action and published as the ordinary recorded event with
+`manual: true` — the review-override shape from wave 4, reused because the question is
+the same. One external fact; two acts worth telling apart in the trail.
+
+**The unmatched handle was a to-do filed in a log.** Nobody reads the audit log
+looking for work, so a racer whose account was not linked was dropped from the results
+with nothing anywhere saying so. It is on the race now, and on its card, with the fix
+named: link the account, record again.
+
+**The clock fix is small and was invisible for the same reason as F8's five facts** —
+the data was there and no screen showed it. Everyone in a race starts together, and
+the slowest finisher can only just have finished, so the start is `now − max(elapsed)`;
+each finisher's `finished_at` is their own start plus their own time, and
+`measured_seconds` carries the raced time, since here the racetime clock *is* the
+measurement rather than evidence against a runner's claim.
+
+**Verified in the running app:** 15 browser assertions (the unmatched handle named on
+the card, Record results offered on an unfinished race and withheld from a cancelled
+one, a finisher with no time refused, a forfeit hiding its time field, two racers
+captured, the race reading finished, the run's duration on the Runs tab, 470 px
+mobile, no console errors) plus the REST path — `200` with `elapsed == measured == 4200`
+and `started`/`finished` 70 minutes apart, `400` for a finisher with no time, `403`
+read-only, `404` cross-tenant.
+
+**The seed caught the same trap twice.** A new fixture field inside `defaults=` never
+reaches a row that already exists, so `unmatched_handles` was invisible in an
+already-seeded dev database — exactly how wave 5's backlog run first failed to appear.
+It is set on every seed run now, not only at creation.
 
 ### What wave 6 changed
 

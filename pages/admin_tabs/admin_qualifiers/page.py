@@ -91,7 +91,7 @@ async def admin_qualifiers_page(
         'tab': POOLS_TAB, 'loaded': set(), 'errors': {}, 'queue_shown': QUEUE_PAGE_SIZE,
         'pools': [], 'presets': [], 'live_races': [], 'queue': [], 'queue_context': {},
         'runs': [], 'board': [], 'viewer_id': None,
-        'reviewers': [], 'reviewer_options': {}, 'pending': 0,
+        'reviewers': [], 'reviewer_options': {}, 'pending': 0, 'racer_options': {},
     }
 
     # name → the refreshable that renders it. Filled in once the views are defined
@@ -120,6 +120,13 @@ async def admin_qualifiers_page(
 
     async def _fetch_live(current, qid) -> None:
         state['live_races'] = await live_race_service.list_live_races(current, qid)
+        # Who a hand-recorded result may be attributed to. The community's own
+        # people, like every other person picker — a live race is raced by members,
+        # and the global User table is not this page's business.
+        state['racer_options'] = {
+            person.id: display_name(person)
+            for person in await UserService().get_community_people()
+        }
         if POOLS_TAB not in state['loaded']:
             # The New Live Race dialog picks a pool and one of its permalinks, so
             # this tab cannot render its own control without them.

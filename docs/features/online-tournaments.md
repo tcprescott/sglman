@@ -230,6 +230,32 @@ Both paths audit (`async_qualifier.run_reattempted` / `.reattempt_granted`) and 
 grant DMs the runner, because their pool availability changed without their doing
 anything.
 
+**A missed racetime event has a remedy.** `record_finish` is reachable only from the
+inbound FINISHED event, so a dropped connection, a bot restart mid-race or a room
+closed by hand used to leave the race stuck and its entrants unscored with nothing
+anywhere able to fix it. `record_manual_finish` (the Live Races tab's **Record
+results**, and `POST /async-qualifiers/live-races/{id}/record`) lets staff assert the
+results instead, and funnels through the *same* capture: the permalink requirement,
+the per-pool cap, the par recompute and the FINISHED transition all still apply, so a
+hand-recorded race is indistinguishable downstream from one the room delivered.
+Audited under its own action for the same reason a review override is —
+"who typed this" is what an appeal asks — while subscribers get the ordinary
+`live_race_recorded` event with `manual: true`.
+
+**An unmatched racetime handle is a to-do, not a log line.** An entrant whose account
+matched no local user was mentioned only in the audit detail, which is not a place
+anyone looks for work — so that racer simply never appeared in the results. The
+handles now sit on the race (`unmatched_handles`) and on its card, with the remedy
+named: link the account, then record the race again. Recording again clears them.
+
+**A live-race run has a duration.** Every captured run stamped `started_at` at
+*record* time, so all of them read Started == Finished with a blank Timed column.
+Everyone in a race starts at the same instant, and the slowest finisher can only just
+have finished, so the start is derived as `now − max(elapsed)`: each finisher's
+`finished_at` is their own start plus their own time, and `measured_seconds` carries
+the raced time (the racetime clock *is* the measurement here — there is no runner's
+claim to hold it against, which is what it means for a self-paced run).
+
 **The window is an event, not an edit.** A subscriber wants to hear "qualifying is open",
 and the `PATCH` that set `opens_at` weeks earlier is no substitute for it — the state it
 schedules arrives later, with no request in flight, and may never arrive at all if the

@@ -273,6 +273,11 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
+    # Staff recording a race by hand publishes ASYNC_QUALIFIER_LIVE_RACE_RECORDED with
+    # ``manual: True`` — the same external fact, a race captured into scored runs. Only
+    # the audit needs the distinction, since only there does it matter that a human
+    # asserted the results rather than racetime reporting them.
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED_MANUALLY,
     # Feature-flag administration: the super-admin availability grant is
     # platform-level (tenant=NULL, so a tenant-scoped webhook reaches zero
     # subscribers) and the tenant enable/disable toggle is internal

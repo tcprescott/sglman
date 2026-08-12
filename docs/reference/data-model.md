@@ -1506,7 +1506,11 @@ A synchronous racetime race whose entrants' results are captured into
 `episode` (→ `SpeedGamingEpisode`, `SET_NULL`); `match_title`; a globally-unique
 nullable `racetime_slug` that mirrors the `RacetimeRoom.slug` (so the shared
 inbound-event handler routes the room's events to the qualifier capture path when
-`RacetimeRoom.match_id` is null); and an `AsyncQualifierLiveRaceStatus` enum.
+`RacetimeRoom.match_id` is null); an `AsyncQualifierLiveRaceStatus` enum; and
+`unmatched_handles` (JSON, null) — racetime accounts the last capture could not match
+to a `User`, kept here rather than only in the audit detail because it is a to-do for
+staff (link the account, record again), and cleared when a later capture matches
+everyone.
 Indexes on `tenant`, `pool`.
 
 ### Native brackets

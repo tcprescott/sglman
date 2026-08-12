@@ -24,8 +24,9 @@ authz. Audits every transition; the captured-finish emits
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Iterable, List, Optional
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Iterable, List, Optional, Sequence
 
 from application.errors import require_found
 from application.events import EventType
@@ -39,7 +40,10 @@ from application.repositories import (
     RacetimeRoomRepository,
 )
 from application.services.async_qualifier import async_qualifier_access as access
-from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
+from application.services.async_qualifier.async_qualifier_service import (
+    MAX_RUN_SECONDS,
+    AsyncQualifierService,
+)
 from application.services.audit_service import AuditActions, AuditService
 from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService
@@ -68,6 +72,32 @@ _ENTRANT_TO_RUN_STATUS = {
     EntrantStatus.DID_NOT_FINISH: AsyncQualifierRunStatus.FORFEIT,
     EntrantStatus.DISQUALIFIED: AsyncQualifierRunStatus.DISQUALIFIED,
 }
+
+# What a human may assert about a racer — the same three outcomes racetime reports.
+# In-progress is not one of them: a race being recorded by hand is over.
+_MANUAL_STATUSES = frozenset(_ENTRANT_TO_RUN_STATUS.values())
+
+
+@dataclass(frozen=True)
+class ManualResult:
+    """One racer's outcome as staff typed it, for :meth:`record_manual_finish`."""
+
+    user_id: int
+    status: AsyncQualifierRunStatus
+    elapsed_seconds: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class CapturedResult:
+    """One racer's outcome with their ``User`` already resolved.
+
+    The shape both capture paths converge on, so the racetime event and the manual
+    control cannot end up applying different rules to the same result.
+    """
+
+    user: User
+    status: AsyncQualifierRunStatus
+    elapsed_seconds: Optional[int]
 
 
 class AsyncQualifierLiveRaceService:
@@ -222,11 +252,97 @@ class AsyncQualifierLiveRaceService:
         records the outcome (done→finished, dnf→forfeit, dq→disqualified) with the
         reported elapsed time, and writes the run ``APPROVED`` (live-race runs skip
         review). Refuses to record while any entrant is still racing so a partial
-        room never scores. Entrants with no linked ``User`` are surfaced in the
-        audit detail for staff reconcile.
+        room never scores. Entrants with no linked ``User`` are recorded on the race
+        as ``unmatched_handles`` for staff to reconcile.
         """
         if any(e.status == EntrantStatus.IN_PROGRESS for e in entrants):
             raise ValueError("An entrant is still racing — record again once the race finishes")
+        by_rtid = await self._users_by_racetime_id(entrants)
+        resolved: List[CapturedResult] = []
+        unmatched: List[str] = []
+        for entrant in entrants:
+            user = by_rtid.get(entrant.user_id)
+            if user is None:
+                unmatched.append(unmatched_handle(entrant))
+                continue
+            run_status = _ENTRANT_TO_RUN_STATUS.get(entrant.status)
+            if run_status is None:
+                continue
+            resolved.append(CapturedResult(
+                user=user,
+                status=run_status,
+                elapsed_seconds=(entrant.finish_time
+                                 if run_status == AsyncQualifierRunStatus.FINISHED else None),
+            ))
+        return await self._capture(
+            live_race, resolved, actor=actor, unmatched=unmatched, manual=False,
+        )
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def record_manual_finish(
+        self,
+        actor: Optional[User],
+        live_race_id: int,
+        results: Sequence['ManualResult'],
+    ) -> List[AsyncQualifierRun]:
+        """Record a live race's results by hand, for when the room's event never came.
+
+        ``record_finish`` is reachable only from the inbound racetime FINISHED event,
+        so a dropped connection, a bot restart mid-race or a room closed by hand left
+        the race stuck and its entrants unscored with **no remedy anywhere** — not in
+        the admin page and not over REST. This is that remedy: staff assert the
+        results and everything downstream behaves identically, because it funnels
+        through the same capture (the permalink requirement, the pool cap, the
+        par recompute, the FINISHED transition).
+
+        Audited under its own action, the same reasoning as a review override: a
+        human asserting a result is a more contestable act than racetime reporting
+        one, and "who typed this" is the question an appeal asks. Subscribers get the
+        usual recorded event with ``manual: True``, since to them it is the same fact.
+        """
+        live_race, _ = await self._require_live_race_admin(actor, live_race_id)
+        if not results:
+            raise ValueError("Add at least one racer's result")
+        resolved: List[CapturedResult] = []
+        seen: set = set()
+        for result in results:
+            if result.user_id in seen:
+                raise ValueError("A racer can only appear once in one race")
+            seen.add(result.user_id)
+            if result.status not in _MANUAL_STATUSES:
+                raise ValueError("A result must be finished, forfeit or disqualified")
+            elapsed = result.elapsed_seconds
+            if result.status == AsyncQualifierRunStatus.FINISHED:
+                if not elapsed or elapsed <= 0:
+                    raise ValueError("A finisher needs a finish time")
+                if elapsed > MAX_RUN_SECONDS:
+                    raise ValueError("That finish time is longer than a week — check the value")
+            else:
+                # A forfeit or DQ has no time to record, and keeping one entered by
+                # mistake would put a scoreable-looking number on a zero run.
+                elapsed = None
+            user = require_found(await UserService().get_user_by_id(result.user_id), "Racer")
+            resolved.append(CapturedResult(
+                user=user, status=result.status, elapsed_seconds=elapsed,
+            ))
+        return await self._capture(
+            live_race, resolved, actor=actor, unmatched=[], manual=True,
+        )
+
+    async def _capture(
+        self,
+        live_race: AsyncQualifierLiveRace,
+        resolved: List['CapturedResult'],
+        *,
+        actor: Optional[User],
+        unmatched: List[str],
+        manual: bool,
+    ) -> List[AsyncQualifierRun]:
+        """Write resolved results as approved runs, par-score, and record the capture.
+
+        Shared by the racetime event and the manual control so the two cannot drift:
+        whichever way a result arrives, the same rules decide whether it scores.
+        """
         if live_race.permalink_id is None:
             # Recording without one produced runs with permalink_id NULL: no par to
             # score against, the recompute skipped, and the entrants invisible on the
@@ -239,30 +355,35 @@ class AsyncQualifierLiveRaceService:
         actor = actor or await UserService().get_system_user()
         qualifier = await self._require_qualifier(await self._qualifier_id_of(live_race))
         now = datetime.now(timezone.utc)
+        # Everyone in a race starts at the same instant, and the old code stamped
+        # ``now`` as every run's start — so each one read Started == Finished with a
+        # blank Timed column, and no live-race run had a duration on any screen. The
+        # slowest finisher can only just have finished, so the race began at least
+        # their elapsed time ago.
+        times = [r.elapsed_seconds for r in resolved if r.elapsed_seconds]
+        started_at = now - timedelta(seconds=max(times)) if times else now
 
         existing = {r.user_id: r for r in await self.run_repository.list_for_live_race(live_race.id)}
-        by_rtid = await self._users_by_racetime_id(entrants)
-        over_cap = await self._over_pool_cap(live_race, qualifier, by_rtid.values(), existing)
-        captured: List[AsyncQualifierRun] = []
-        unmatched: List[str] = []
+        over_cap = await self._over_pool_cap(
+            live_race, qualifier, [r.user for r in resolved], existing,
+        )
         voided: List[int] = []
-        for entrant in entrants:
-            user = by_rtid.get(entrant.user_id)
-            if user is None:
-                unmatched.append(unmatched_handle(entrant))
-                continue
-            run_status = _ENTRANT_TO_RUN_STATUS.get(entrant.status)
-            if run_status is None:
-                continue
-            elapsed = entrant.finish_time if run_status == AsyncQualifierRunStatus.FINISHED else None
+        for result in resolved:
+            user, run_status, elapsed = result.user, result.status, result.elapsed_seconds
             # A non-finisher (forfeit/DQ) scores zero immediately; a finisher is
             # scored by the par recompute below.
             score = None if run_status == AsyncQualifierRunStatus.FINISHED else 0.0
             fields = dict(
                 status=run_status,
                 review_status=AsyncQualifierReviewStatus.APPROVED,
-                finished_at=now,
+                # A finisher's own finish is their start plus their time; a
+                # non-finisher's is when the race was recorded.
+                finished_at=started_at + timedelta(seconds=elapsed) if elapsed else now,
                 elapsed_seconds=elapsed,
+                # The racetime clock *is* the measurement here — there is no runner's
+                # claim to hold it against, which is what it means elsewhere — so the
+                # Timed column shows the raced time rather than a dash.
+                measured_seconds=elapsed,
                 score=score,
                 reviewed_by_id=actor.id,
                 reviewed_at=now,
@@ -282,17 +403,16 @@ class AsyncQualifierLiveRaceService:
                 voided.append(user.id)
             run = existing.get(user.id)
             if run is not None:
-                run = await self.run_repository.update(run, **fields)
+                await self.run_repository.update(run, started_at=started_at, **fields)
             else:
-                run = await self.run_repository.create(
+                await self.run_repository.create(
                     qualifier_id=qualifier.id,
                     user_id=user.id,
                     permalink_id=live_race.permalink_id,
                     live_race_id=live_race.id,
-                    started_at=now,
+                    started_at=started_at,
                     **fields,
                 )
-            captured.append(run)
 
         await self.qualifier_service.recompute_par_and_scores(live_race.permalink_id)
         # Recompute scores sibling run instances, so reload the captured runs
@@ -300,7 +420,11 @@ class AsyncQualifierLiveRaceService:
         captured = await self.run_repository.list_for_live_race(live_race.id)
 
         live_race = await self.repository.update(
-            live_race, status=AsyncQualifierLiveRaceStatus.FINISHED
+            live_race,
+            status=AsyncQualifierLiveRaceStatus.FINISHED,
+            # Cleared when nobody is left unmatched, so the card's to-do disappears
+            # once the accounts are linked and the race is recorded again.
+            unmatched_handles=unmatched or None,
         )
         detail = {
             'live_race_id': live_race.id,
@@ -310,8 +434,12 @@ class AsyncQualifierLiveRaceService:
             'voided_over_pool_cap': voided,
         }
         await self.audit_service.write_and_publish(
-            actor, AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail,
+            actor,
+            (AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED_MANUALLY if manual
+             else AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED),
+            detail,
             EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
+            event_extra={'manual': manual},
         )
         return captured
 

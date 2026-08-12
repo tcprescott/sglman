@@ -271,6 +271,13 @@ class AsyncQualifierLiveRace(Model):
     status = fields.CharEnumField(
         AsyncQualifierLiveRaceStatus, default=AsyncQualifierLiveRaceStatus.SCHEDULED, max_length=20
     )
+    # Racetime handles the last capture could not match to a ``User``. Stored rather
+    # than left in the audit detail because it is a **to-do for staff**: nobody reads
+    # the audit log looking for work, so a racer whose account is not linked simply
+    # never appeared, with no surface saying so. Cleared when a later capture matches
+    # everyone.
+    # mypy cannot infer a JSONField's type parameter, as with every sibling here.
+    unmatched_handles = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

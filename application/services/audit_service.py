@@ -292,6 +292,11 @@ class AuditActions:
     ASYNC_QUALIFIER_LIVE_RACE_OPENED = 'async_qualifier.live_race_opened'
     ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
+    # Staff typing the results in because the room's event never arrived. Distinct
+    # from the line above for the same reason a review override is distinct from a
+    # review: a human asserting a result is the more contestable act, and "who typed
+    # this" is what an appeal asks. Subscribers get the ordinary recorded event.
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED_MANUALLY = 'async_qualifier.live_race_recorded_manually'
 
     # Native brackets (docs/features/brackets.md). Bracket/entrant lifecycle and the
     # match/advancement/stage events the lifecycle drives. Actor is a human STAFF

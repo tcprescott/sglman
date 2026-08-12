@@ -270,13 +270,20 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
             pool=live_pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-live-{index}",
             tenant=tenant, defaults={"live_race": True},
         )
-        if not await AsyncQualifierLiveRace.filter(
-            pool=live_pool, match_title=match_title
-        ).exists():
-            await AsyncQualifierLiveRace.create(
-                tenant=tenant, pool=live_pool, permalink=permalink,
-                match_title=match_title, status=status,
-            )
+        race, _ = await AsyncQualifierLiveRace.get_or_create(
+            pool=live_pool, match_title=match_title, tenant=tenant,
+            defaults={"permalink": permalink, "status": status},
+        )
+        # The finished race carries an entrant nobody could match, which is the state
+        # the "link their account, then record again" to-do exists for — invisible in
+        # dev without a fixture that has one. Set on every run rather than only at
+        # creation: a `defaults=` value never reaches a row that already exists, which
+        # is how the last fixture added here silently failed to appear.
+        wanted = (["MysteryRacer"] if status == AsyncQualifierLiveRaceStatus.FINISHED
+                  else None)
+        if race.unmatched_handles != wanted:
+            race.unmatched_handles = wanted
+            await race.save()
         # ``PENDING`` is the one run status the self-paced flow never writes: it
         # belongs to a live race, where the runs exist before anyone starts. It
         # only makes sense beside the race whose room is open.
