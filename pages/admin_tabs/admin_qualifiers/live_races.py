@@ -182,8 +182,13 @@ def build_live_tab(
                      'as an approved run, par-scored exactly as the room’s own results '
                      'would have been.').classes('text-caption text-grey')
             if race.unmatched_handles:
-                ui.label('Racers whose racetime account is not linked here cannot be '
-                         'recorded — link it on Admin → Users first.'
+                # Named as a picker question rather than "cannot be recorded", which
+                # was only ever true of the unlinked half: a racer racetime finished
+                # without timing is linked, in the picker, and typing their time in
+                # here is exactly the remedy.
+                ui.label('A racer reaches this picker only once they have an account '
+                         'here. If one of the outstanding racers is missing, link '
+                         'their racetime account on Admin → Users first.'
                          ).classes('text-caption text-orange')
             holder = ui.column().classes('w-full gap-1')
 
