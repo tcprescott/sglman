@@ -309,6 +309,10 @@ work".
 ids of the users actually recorded — `unmatched=list(live_race.unmatched_handles
 or [])` filtered by what was captured.
 
+_[Fixed in `573fef2` — `_handles_still_outstanding` matches on racetime username
+or account id, whichever the stored handle holds, and leaves a handle it cannot
+attribute standing.]_
+
 ### T2.2 A blank racer row is dropped and the toast counts the rest as success — **medium** · [new, `ce73311`]
 
 `pages/admin_tabs/admin_qualifiers/live_races.py:187-212`:
@@ -333,6 +337,9 @@ is not.]_
 
 **Fix:** collect the skipped row positions and name them, the way
 `add_permalinks_bulk`'s summary does.
+
+_[Fixed in `573fef2` — a pure `missing_racer_message` refuses the submit and names
+the rows, so the wording is testable without building the dialog.]_
 
 ### T2.3 Two MCP reads answer `null` for the field the caller asked for — **high** · [pre-existing]
 
@@ -457,6 +464,9 @@ shows the runner is absent from the board entirely when this is their only run.]
 **Fix:** put the finisher predicate in `application/utils/racetime_entrants.py`
 and use it in both paths; a DONE entrant with no time belongs on the
 staff-reconcile route, not in an approved row.
+
+_[Fixed in `573fef2` — `is_scored_finish` is the shared predicate both paths now
+call, and the entrant goes on the to-do the record dialog resolves.]_
 
 ### T3.2 The bracket schedulability guard is duplicated, and the copy the comment warns about is the one missing the check — **high** · [pre-existing]
 
@@ -923,6 +933,12 @@ The admin types every racer and every finish time, presses Record, and gets a
 refusal. `lr.permalink_id` is a loaded column, so the gate is knowable at render
 time — as the `Open room` button one line above demonstrates.
 
+_[Fixed in `573fef2`. Gating the button was half of it: the refusal tells the admin
+to assign a permalink, and **nothing anywhere could** — no page control, no REST
+route, so "(assign later)" had no later. Adds `assign_permalink` (refused for
+another pool's permalink, and once runs exist, since par is per permalink), a Set
+permalink control in that state, and the REST peer.]_
+
 ### T5.13 Authorization refusals typed as `ValueError`, and "not found" too — **high** · [mixed]
 
 `api/dependencies.py:222-238` maps `PermissionError` to 403, `NotFoundError` to
@@ -1275,6 +1291,12 @@ together with T5.18, the `update_shift` overlap re-check that makes it reachable
 Small diffs with clear tests; each one currently misleads someone making a
 decision.
 
+_[`573fef2` shipped the four `ce73311` findings ahead of their waves, since they
+were one commit old and share a file: T2.1 and T3.1 from this wave, plus T5.12 and
+T2.2 from wave 6. Guarded by
+`tests/services/test_async_qualifier_live_race_drift_findings.py`. Wave 2's
+remainder — T4.1 with T5.18 — is untouched.]_
+
 **Wave 3 — close the gates.**
 T5.1 flag enforcement in `RaceRoomService` · T5.2 `load_community_user_or_404` ·
 T5.3 push the enrollment gate into the service · T5.5 bound the two lists ·
@@ -1295,8 +1317,9 @@ T6.8/T6.9 the two CI lanes that can pass silently.
 
 **Wave 6 — presentation honesty.**
 T5.7 revert the refused switch · T5.8 the twelve confirmations ·
-T5.15 the qualifier window prefill · T5.12 the knowable precondition ·
-T2.2 name the skipped row · T5.14 the two quiet deep links ·
+T5.15 the qualifier window prefill · ~~T5.12 the knowable precondition~~ ·
+~~T2.2 name the skipped row~~ (both shipped in `573fef2`) · T5.14 the two quiet
+deep links ·
 T2.4 the silent truncation · T4.12/T4.13/T4.14 the dialog and card primitives.
 
 **Wave 7 — housekeeping.**
