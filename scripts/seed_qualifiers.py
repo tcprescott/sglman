@@ -258,21 +258,25 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     live_pool, _ = await AsyncQualifierPool.get_or_create(
         qualifier=qualifier, name="Live Race Pool", tenant=tenant,
     )
+    # The last spec keeps its permalink NULL: "(assign later)" is a normal way to
+    # schedule a race, and it is the state the Set permalink control and the "cannot
+    # be scored" caption exist for.
     live_race_specs = [
-        (1, "Dev Live Qualifier Race", AsyncQualifierLiveRaceStatus.SCHEDULED),
-        (2, "Dev Live Race — Room Open", AsyncQualifierLiveRaceStatus.PENDING),
-        (3, "Dev Live Race — Racing", AsyncQualifierLiveRaceStatus.IN_PROGRESS),
-        (4, "Dev Live Race — Results In", AsyncQualifierLiveRaceStatus.FINISHED),
-        (5, "Dev Live Race — Called Off", AsyncQualifierLiveRaceStatus.CANCELLED),
+        (1, "Dev Live Qualifier Race", AsyncQualifierLiveRaceStatus.SCHEDULED, True),
+        (2, "Dev Live Race — Room Open", AsyncQualifierLiveRaceStatus.PENDING, True),
+        (3, "Dev Live Race — Racing", AsyncQualifierLiveRaceStatus.IN_PROGRESS, True),
+        (4, "Dev Live Race — Results In", AsyncQualifierLiveRaceStatus.FINISHED, True),
+        (5, "Dev Live Race — Called Off", AsyncQualifierLiveRaceStatus.CANCELLED, True),
+        (6, "Dev Live Race — Seed To Pick", AsyncQualifierLiveRaceStatus.SCHEDULED, False),
     ]
-    for index, match_title, status in live_race_specs:
+    for index, match_title, status, seeded in live_race_specs:
         permalink, _ = await AsyncQualifierPermalink.get_or_create(
             pool=live_pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-live-{index}",
             tenant=tenant, defaults={"live_race": True},
         )
         race, _ = await AsyncQualifierLiveRace.get_or_create(
             pool=live_pool, match_title=match_title, tenant=tenant,
-            defaults={"permalink": permalink, "status": status},
+            defaults={"permalink": permalink if seeded else None, "status": status},
         )
         # The finished race carries an entrant nobody could match, which is the state
         # the "link their account, then record again" to-do exists for — invisible in

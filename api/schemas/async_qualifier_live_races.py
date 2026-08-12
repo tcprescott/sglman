@@ -23,8 +23,9 @@ class LiveRaceResponse(BaseModel):
     status: AsyncQualifierLiveRaceStatus
     permalink_id: Optional[int] = None
     episode_id: Optional[int] = None
-    # Racetime handles the last capture could not match to a user — staff's to-do
-    # list, and the reason a racer can be missing from the results.
+    # Racetime handles the last capture could not turn into a run — no linked user,
+    # or a finish racetime reported with no time. Staff's to-do list, and the reason
+    # a racer can be missing from the results.
     unmatched_handles: Optional[List[str]] = None
     created_at: datetime
 
@@ -34,6 +35,16 @@ class LiveRaceCreateRequest(BaseModel):
     match_title: str
     permalink_id: Optional[int] = None
     episode_id: Optional[int] = None
+
+
+class PermalinkAssignRequest(BaseModel):
+    """Set the pool permalink a scheduled race is run on.
+
+    The counterpart to ``permalink_id: null`` on creation — without it a race
+    scheduled before its seed was chosen could never be recorded at all.
+    """
+
+    permalink_id: int
 
 
 class ManualResultRequest(BaseModel):

@@ -11,7 +11,7 @@ factory takes those as parameters and returns the refreshable view — the same
 closure-over-page-state shape the sibling tabs have inline, just in its own file.
 """
 
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Optional, Sequence
 
 from nicegui import ui
 
@@ -35,6 +35,21 @@ _OUTCOME_STATUS = {
     'Forfeited': AsyncQualifierRunStatus.FORFEIT,
     'Disqualified': AsyncQualifierRunStatus.DISQUALIFIED,
 }
+
+
+def missing_racer_message(positions: Sequence[int]) -> Optional[str]:
+    """Refusal naming the record-dialog rows with no racer picked, or ``None`` if all are.
+
+    A blank row used to be skipped silently and the remaining rows reported as a
+    success, so a racer the admin meant to record just went missing. Module-level
+    and pure so the wording is testable without building the dialog.
+    """
+    if not positions:
+        return None
+    which = ', '.join(str(p) for p in positions)
+    if len(positions) == 1:
+        return f'No racer picked on row {which}. Choose one, or remove the row.'
+    return f'No racer picked on rows {which}. Choose them, or remove the rows.'
 
 
 def build_live_tab(
@@ -79,29 +94,46 @@ def build_live_tab(
                         ui.button('Open room', icon='meeting_room',
                                   on_click=lambda lid=lr.id: _open_room(lid)
                                   ).props('flat color=primary')
-                    # Offered on a finished race too: re-recording is idempotent, and
-                    # a race whose results came in with someone unmatched is exactly
-                    # the case that needs recording again.
                     if enum_value(lr.status) != 'cancelled':
-                        ui.button('Record results', icon='edit_note',
-                                  on_click=lambda race=lr: _open_record_dialog(race)
-                                  ).props('flat color=primary')
+                        if lr.permalink_id is None:
+                            # The capture refuses outright without a permalink, and
+                            # "(assign later)" makes that a normal state — so offer
+                            # the control that fixes it instead of a Record button
+                            # that can only end in a refusal.
+                            ui.button('Set permalink', icon='link',
+                                      on_click=lambda race=lr: _open_permalink_dialog(race)
+                                      ).props('flat color=primary')
+                        else:
+                            # Offered on a finished race too: re-recording is
+                            # idempotent, and a race whose results came in with
+                            # someone unmatched is exactly the case that needs
+                            # recording again.
+                            ui.button('Record results', icon='edit_note',
+                                      on_click=lambda race=lr: _open_record_dialog(race)
+                                      ).props('flat color=primary')
                     ui.button(icon='delete',
                               on_click=lambda lid=lr.id: _cancel_live_race(lid)
                               ).props('flat round color=negative').tooltip('Cancel')
                 if lr.racetime_slug:
                     ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
-                # The to-do the audit log used to keep to itself: whoever raced under
-                # these handles has no local account linked, so their result was
-                # dropped and nothing said so.
+                if lr.permalink_id is None:
+                    ui.label('No permalink assigned, so results cannot be scored. '
+                             'Set one before the race runs.'
+                             ).classes('text-caption text-orange')
+                # The to-do the audit log used to keep to itself: these racers came out
+                # of the room with no run, and nothing said so.
                 if lr.unmatched_handles:
                     with ui.column().classes('gap-0'):
                         with ui.row().classes('items-center text-caption text-orange'):
                             ui.icon('person_off')
-                            ui.label(f'{len(lr.unmatched_handles)} racetime account(s) matched '
-                                     'nobody here: ' + ', '.join(lr.unmatched_handles))
-                        ui.label('Their results were not recorded. Link the account on '
-                                 'Admin → Users, then record this race again.'
+                            ui.label(f'{len(lr.unmatched_handles)} racer(s) could not be '
+                                     'recorded: ' + ', '.join(lr.unmatched_handles))
+                        # Two causes, and the admin cannot tell them apart from the
+                        # handle alone: no linked account, or racetime calling them
+                        # finished without sending a time. Both remedies named.
+                        ui.label('Either their racetime account is not linked here — link '
+                                 'it on Admin → Users and record the race again — or type '
+                                 'the result in with Record results.'
                                  ).classes('text-caption text-grey')
 
     def _open_live_race_dialog(pools) -> None:
@@ -183,10 +215,14 @@ def build_live_tab(
                 ui.button('Add racer', icon='person_add', on_click=add_row).props('flat')
 
             async def submit():
+                # The service is strict about every other input; so is the page.
+                refusal = missing_racer_message(
+                    [i for i, entry in enumerate(rows, start=1) if not entry['person'].value])
+                if refusal:
+                    notify_error(ValueError(refusal))
+                    return
                 results = []
                 for entry in rows:
-                    if not entry['person'].value:
-                        continue
                     finished = entry['outcome'].value == _FINISHED
                     seconds = None
                     if finished:
@@ -217,6 +253,40 @@ def build_live_tab(
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Record', icon='save', on_click=submit).props('color=primary')
+        dialog.open()
+
+    def _open_permalink_dialog(race) -> None:
+        """Assign the seed a race is run on — the "later" that "(assign later)" promised."""
+        options = {pl.id: pl.url[:64] for p in state['pools'] if p.id == race.pool_id
+                   for pl in p.permalinks}
+
+        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+            ui.label(f'Set permalink — {race.match_title}').classes('text-h6')
+            if not options:
+                ui.label('This pool has no permalinks yet. Add one on the Pools tab '
+                         'first.').classes('text-caption text-orange')
+            else:
+                ui.label('Results are scored against this seed’s par, so it has to be '
+                         'the one the racers actually play.').classes('text-caption text-grey')
+            permalink_in = ui.select(options, label='Permalink').classes('w-full')
+
+            async def submit():
+                if not permalink_in.value:
+                    notify_error(ValueError('Pick a permalink.'))
+                    return
+                try:
+                    await service.assign_permalink(
+                        await current(), race.id, int(permalink_in.value))
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify('Permalink assigned', color='positive')
+                dialog.close()
+                await reload_tabs(LIVE_TAB)
+
+            with ui.row().classes('justify-end w-full'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Save', icon='save', on_click=submit).props('color=primary')
         dialog.open()
 
     async def _open_room(live_race_id: int) -> None:

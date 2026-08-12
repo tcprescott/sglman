@@ -290,6 +290,9 @@ class AuditActions:
     # emit an event (see EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED).
     ASYNC_QUALIFIER_LIVE_RACE_CREATED = 'async_qualifier.live_race_created'
     ASYNC_QUALIFIER_LIVE_RACE_OPENED = 'async_qualifier.live_race_opened'
+    # Choosing (or changing) the seed a race is run on. Its own action because it
+    # decides which permalink's par the results are scored against.
+    ASYNC_QUALIFIER_LIVE_RACE_PERMALINK_ASSIGNED = 'async_qualifier.live_race_permalink_assigned'
     ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
     # Staff typing the results in because the room's event never arrived. Distinct

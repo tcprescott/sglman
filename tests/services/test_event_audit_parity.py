@@ -269,10 +269,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_RUN_REVIEW_OVERRIDDEN,
     # Async Qualifier live races (PR 10): recording the finished race emits
     # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
-    # scheduling no external subscriber needs.
+    # scheduling no external subscriber needs. Choosing the seed is the same kind of
+    # act: it decides which permalink's par the results will be scored against, and
+    # the results themselves are what subscribers hear about.
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_PERMALINK_ASSIGNED,
     # Staff recording a race by hand publishes ASYNC_QUALIFIER_LIVE_RACE_RECORDED with
     # ``manual: True`` — the same external fact, a race captured into scored runs. Only
     # the audit needs the distinction, since only there does it matter that a human

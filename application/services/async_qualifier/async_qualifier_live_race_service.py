@@ -48,7 +48,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
-from application.utils.racetime_entrants import unmatched_handle
+from application.utils.racetime_entrants import is_scored_finish, unmatched_handle
 from models import (
     AsyncQualifier,
     AsyncQualifierLiveRace,
@@ -98,6 +98,32 @@ class CapturedResult:
     user: User
     status: AsyncQualifierRunStatus
     elapsed_seconds: Optional[int]
+
+
+def _handles_still_outstanding(
+    stored: Optional[Sequence[str]], resolved: Sequence['CapturedResult'],
+) -> List[str]:
+    """The race's outstanding handles, minus the racers now recorded by hand.
+
+    The manual path never sees the racetime entrant list, so it cannot recompute
+    the to-do the way ``record_finish`` does. Passing an empty list instead — what
+    it used to do — cleared the whole to-do, hiding racers who still had no run
+    while the card that sent the admin here promised the opposite. So carry the
+    stored handles forward, dropping only those that belong to someone this record
+    actually captured.
+
+    Matched on racetime username and account id, because ``unmatched_handle`` stores
+    whichever of the two racetime reported. A handle that matches neither stays on
+    the list: leaving a to-do standing costs an admin a second look, and clearing
+    one wrongly costs a racer their run.
+    """
+    recorded = {
+        handle.casefold()
+        for result in resolved
+        for handle in (result.user.racetime_username, result.user.racetime_user_id)
+        if handle
+    }
+    return [h for h in (stored or []) if h.casefold() not in recorded]
 
 
 class AsyncQualifierLiveRaceService:
@@ -164,6 +190,41 @@ class AsyncQualifierLiveRaceService:
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
             {'live_race_id': live_race.id, 'pool_id': pool_id, 'qualifier_id': qualifier.id},
+        )
+        return live_race
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def assign_permalink(
+        self, actor: Optional[User], live_race_id: int, permalink_id: int,
+    ) -> AsyncQualifierLiveRace:
+        """Point a race at the pool permalink it is raced on.
+
+        ``create_live_race`` offers "(assign later)" and until now there was no
+        later: no page control and no REST route set one, so a permalink-less race
+        could never be recorded — ``_capture`` refuses — and that refusal named an
+        action which existed nowhere.
+
+        Refused once the race has runs, because par is computed per permalink:
+        moving the race would leave its captured runs scored against a seed nobody
+        in it raced.
+        """
+        live_race, qualifier = await self._require_live_race_admin(actor, live_race_id)
+        permalink = await self.permalink_repository.get_by_id(permalink_id)
+        if permalink is None or permalink.pool_id != live_race.pool_id:  # type: ignore[attr-defined]
+            raise ValueError("Permalink does not belong to this race's pool")
+        if live_race.permalink_id == permalink_id:
+            return live_race
+        if await self.run_repository.list_for_live_race(live_race.id):
+            raise ValueError(
+                "This race's results are already recorded against its permalink. "
+                "Schedule a new race to use a different one."
+            )
+        live_race = await self.repository.update(live_race, permalink_id=permalink_id)
+        await self.audit_service.write_log(
+            actor,  # type: ignore[arg-type]
+            AuditActions.ASYNC_QUALIFIER_LIVE_RACE_PERMALINK_ASSIGNED,
+            {'live_race_id': live_race.id, 'qualifier_id': qualifier.id,
+             'permalink_id': permalink_id},
         )
         return live_race
 
@@ -252,8 +313,9 @@ class AsyncQualifierLiveRaceService:
         records the outcome (done→finished, dnf→forfeit, dq→disqualified) with the
         reported elapsed time, and writes the run ``APPROVED`` (live-race runs skip
         review). Refuses to record while any entrant is still racing so a partial
-        room never scores. Entrants with no linked ``User`` are recorded on the race
-        as ``unmatched_handles`` for staff to reconcile.
+        room never scores. An entrant this cannot turn into a scoreable run — no
+        linked ``User``, or a finish racetime reported without a time — is recorded
+        on the race as ``unmatched_handles`` for staff to resolve by hand.
         """
         if any(e.status == EntrantStatus.IN_PROGRESS for e in entrants):
             raise ValueError("An entrant is still racing — record again once the race finishes")
@@ -267,6 +329,14 @@ class AsyncQualifierLiveRaceService:
                 continue
             run_status = _ENTRANT_TO_RUN_STATUS.get(entrant.status)
             if run_status is None:
+                continue
+            if run_status == AsyncQualifierRunStatus.FINISHED and not is_scored_finish(entrant):
+                # Writing this one anyway approved a run with no elapsed time: par
+                # cannot score it, the board drops the row entirely, and the racer's
+                # pool slot is spent on a result nobody can see. The match recorder
+                # has always filtered this entrant; so does this one now, and the
+                # handle goes on the to-do so staff can type the real time in.
+                unmatched.append(unmatched_handle(entrant))
                 continue
             resolved.append(CapturedResult(
                 user=user,
@@ -326,7 +396,9 @@ class AsyncQualifierLiveRaceService:
                 user=user, status=result.status, elapsed_seconds=elapsed,
             ))
         return await self._capture(
-            live_race, resolved, actor=actor, unmatched=[], manual=True,
+            live_race, resolved, actor=actor,
+            unmatched=_handles_still_outstanding(live_race.unmatched_handles, resolved),
+            manual=True,
         )
 
     async def _capture(
@@ -335,13 +407,16 @@ class AsyncQualifierLiveRaceService:
         resolved: List['CapturedResult'],
         *,
         actor: Optional[User],
-        unmatched: List[str],
+        unmatched: Sequence[str],
         manual: bool,
     ) -> List[AsyncQualifierRun]:
         """Write resolved results as approved runs, par-score, and record the capture.
 
         Shared by the racetime event and the manual control so the two cannot drift:
         whichever way a result arrives, the same rules decide whether it scores.
+
+        ``unmatched`` replaces the race's whole to-do list, so a caller passes the
+        racers it could not record — every one of them, not just the ones it noticed.
         """
         if live_race.permalink_id is None:
             # Recording without one produced runs with permalink_id NULL: no par to
@@ -422,9 +497,12 @@ class AsyncQualifierLiveRaceService:
         live_race = await self.repository.update(
             live_race,
             status=AsyncQualifierLiveRaceStatus.FINISHED,
-            # Cleared when nobody is left unmatched, so the card's to-do disappears
-            # once the accounts are linked and the race is recorded again.
-            unmatched_handles=unmatched or None,
+            # Whatever the calling path could not turn into a run, and nothing else:
+            # the racetime capture recomputes the list from the entrants, the manual
+            # one carries forward what it did not record. Empty clears the card's
+            # to-do, which is why neither path may pass empty as a shorthand for
+            # "I did not look".
+            unmatched_handles=list(unmatched) or None,
         )
         detail = {
             'live_race_id': live_race.id,

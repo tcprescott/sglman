@@ -33,7 +33,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
-from application.utils.racetime_entrants import unmatched_handle
+from application.utils.racetime_entrants import is_scored_finish, unmatched_handle
 from models import (
     Match,
     MatchPlayers,
@@ -239,10 +239,7 @@ class RaceRoomService:
                 if rtid:
                     by_rtid[rtid] = mp
 
-        finishers = [
-            e for e in entrants
-            if e.status == EntrantStatus.DONE and e.finish_time is not None
-        ]
+        finishers = [e for e in entrants if is_scored_finish(e)]
         finishers.sort(key=lambda e: (e.place if e.place is not None else e.finish_time))
 
         seen: set = set()
