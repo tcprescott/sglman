@@ -9,6 +9,7 @@ the truth and git history keeps the rationale.
 
 | Evaluation | Scope | Headline finding |
 |---|---|---|
+| [2026-08-code-quality-drift.md](2026-08-code-quality-drift.md) | The whole tree at `ce73311` — DRY, convention divergence and the correctness bugs the drift exposes | The mechanical invariants are clean because of `.claude/scripts/`, and everything the hooks do not watch has drifted: the whole-tree sweep **cannot fire `check_dry_regressions` at all** and reports clean over 56 hits, and the manual live-race record erases the "these racers matched nobody" to-do while the card above the button tells the admin to do exactly that |
 | [async-qualifier-leaderboard-ux.md](async-qualifier-leaderboard-ux.md) | The whole qualifier lifecycle and both leaderboards, at 500 players / 6,260 runs | The scoring formulas are exact (32/32 hand-checked); nothing in the subsystem paginates, so the admin Runs tab is a 151,156 px page, and review has no concurrency control — two reviewers verdicting one run both commit and DM the runner contradictory results |
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
