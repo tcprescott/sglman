@@ -49,6 +49,12 @@ def in_tests(norm: str) -> bool:
     }
 
 
+def in_presentation(norm: str) -> bool:
+    if "/tests/" in norm or os.path.basename(norm) == "notify.py":
+        return False
+    return "/pages/" in norm or "/theme/" in norm or norm.endswith("frontend.py")
+
+
 def anywhere(norm: str) -> bool:
     return os.path.basename(norm) != "environment.py" and "/tests/" not in norm
 
@@ -86,6 +92,20 @@ RULES = [
         "Inline `raise ValueError('… not found')` in a service.\n"
         "  Use require_found(obj, 'Label') / NotFoundError (application/errors.py) —\n"
         "  the API layer then 404s correctly instead of 400 (audit §2A.6).",
+    ),
+    Rule(
+        "permission-error-amber",
+        in_presentation,
+        re.compile(
+            r"except[^\n]*PermissionError[^\n]*:[\s\S]{0,300}?"
+            r"ui\.notify\((?:[^()]|\([^()]*\))*color\s*=\s*['\"]warning['\"]"
+        ),
+        "A PermissionError painted amber.\n"
+        "  theme/notify.py exists to prevent this inversion: a PermissionError is a\n"
+        "  refusal and shows red (`negative`); amber is for a user-facing ValueError.\n"
+        "  Call notify_error(e) — it reads the actual exception type at runtime, so\n"
+        "  it is also the right fix for `except (ValueError, PermissionError)`\n"
+        "  (audit §T4.4).",
     ),
     Rule(
         "env-truthiness-literal",
@@ -165,6 +185,18 @@ def proposed_content(payload: dict) -> tuple[str, str, str] | None:
             old = fh.read()
     except OSError:
         old = ""
+
+    # A CI replay states both sides explicitly, because the "before" side is not
+    # on disk to read: in a sweep the file already contains its violations, so
+    # comparing it against itself nets zero and the check reports clean. An
+    # empty string is the honest baseline for a whole-tree run — every
+    # occurrence is net-new against nothing. This short-circuits the Edit
+    # substring test below, which a replay can never satisfy: a whole base
+    # revision is not a substring of the file it became. Absent for a real tool
+    # call, where the on-disk file IS the before side.
+    if "old_content" in tool_input:
+        new = tool_input.get("new_string") or tool_input.get("content") or ""
+        return file_path, tool_input.get("old_content") or "", new
 
     if tool_name == "Write":
         return file_path, old, tool_input.get("content", "")

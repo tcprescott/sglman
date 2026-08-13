@@ -295,6 +295,7 @@ removed, each message naming the shared primitive that replaced the shape:
 | `while True:` + `asyncio.sleep` in a service | `run_worker_loop` / `BackgroundLoop` | §2A.3 |
 | `raise NotImplementedError` in services/repos | `ValueError('… not yet implemented')` | §1.3 |
 | local `utc`/`make_user`/`app`/`two_tenants`/`stub_discord_queue`/`bypass_auth` in a test module | `tests/factories.py` / conftest | §2D.2–2D.6 |
+| `except …PermissionError…:` + amber `ui.notify` in `pages/`/`theme/` | `notify_error(e)` (`theme/notify.py`) — a refusal shows red | §T4.4 |
 
 **Net-new counting** (the reusable idiom for guarding a pattern that still has
 legacy occurrences): the hook computes the *proposed* file content (Write's
@@ -304,6 +305,16 @@ editing a legacy file never blocks; adding one more occurrence anywhere always
 does — so a rule can ship the day the extraction lands instead of waiting for a
 zero baseline. Fails open on malformed payloads, unreadable files, or an Edit
 whose `old_string` doesn't match (that Edit fails anyway).
+
+**A CI replay states the before side explicitly** via `old_content`, and without
+it this check could not fire in CI *at all* — in either mode. `--all` handed it
+`old_string=""`, which it read as "the Edit itself will fail, nothing to judge";
+under `--changed` a whole base revision is not a *substring* of the file it
+became, so it bailed the same way. The sweep reported **clean** over the hits the
+2026-08 drift audit had measured at 56 across 52 files, including eight live
+`_load_*_or_404` router preloads — a check that cannot fire is worse than no
+check, because the green is evidence. Net-new counting still governs the editor
+path, where the on-disk file *is* the before side.
 
 ### Slow test fixtures — `scripts/check_fixture_cost.py` (PreToolUse: Write|Edit)
 The test suite's wall time is dominated by per-test **fixture setup**, not by
@@ -777,25 +788,30 @@ so either run it from the repo root or spell the script path out in full.
 
 ---
 
-## Why we did **not** add ruff
+## Static analysis outside the hook chain
 
-We considered a `ruff check --select ASYNC` hook (ruff 0.15.8 is already
-installed at `/root/.local/bin/ruff`) and **decided against it**:
+Two tools run in CI rather than as hooks, and knowing what they already cover
+keeps a new hook from re-implementing them.
 
-- **Overlap.** Ruff's `ASYNC` ruleset overlaps `enforce_async_safety.py`, which
-  already blocks the common event-loop blockers. The marginal gain (catching
-  blocking calls beyond the three hardcoded patterns) didn't justify a new
-  dependency in the hook chain.
-- **Fragility as a self-contained hook.** A hook calling a globally-installed
-  `ruff` works in this environment but silently does nothing where ruff isn't on
-  PATH — an inconsistent guardrail.
-- **Cost of doing it "properly."** Full integration means adding `ruff` to
-  `pyproject.toml` dev deps + a `ruff.toml` + a CI step. That's a broader
-  project/tooling change (affects all contributors and CI), and `poetry run
-  ruff` here hits the project's `^3.12` vs the env's 3.11 mismatch, making it
-  finicky to land.
+**ruff** — a dev dependency in `pyproject.toml`, configured in `[tool.ruff.lint]`,
+and a blocking `lint` job (`poetry run ruff check .`). Rules: `F`/`E9` (unused
+imports, undefined names, runtime syntax errors), `ASYNC`, `B` (bugbear), `I`
+(import order), `RUF`. `UP` (pyupgrade) is deliberately off — ~3.7k findings of
+pure style that would rewrite most of the tree and bury the next real diff.
+`migrations/` is excluded as hand-written SQL in strings.
 
-**If revisited:** the right move is full integration (pyproject dep + config +
-CI lint step) so linting is consistent for everyone — not a hook leaning on an
-ad-hoc local binary. Until then, the regex `enforce_async_safety.py` covers the
-high-value cases.
+This README used to carry a "Why we did **not** add ruff" section; the decision
+was reversed and it argued against the setup that now exists. Its one durable
+point survives the reversal: ruff's `ASYNC` ruleset overlaps
+`enforce_async_safety.py`, so keep that hook for the patterns ruff does not
+model, and for the fact that a hook blocks at **write** time while a lint job
+reports after a push.
+
+**mypy** — `scripts/mypy_ratchet.py` in CI: a per-file error ledger
+(`scripts/mypy_baseline.json`) where a file that *gains* errors fails, so the
+count can only shrink. Same shape as `guardrail_baseline.json`.
+
+Neither belongs in the hook chain. A hook shelling out to a globally-installed
+binary silently does nothing wherever that binary is absent, which is worse than
+no guardrail — the design principles above are what a hook has to satisfy, and
+"depends on the machine" fails the first one.

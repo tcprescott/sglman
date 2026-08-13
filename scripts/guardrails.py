@@ -81,9 +81,7 @@ FILE_CHECKS = [
 CHANGED_ONLY_CHECKS = {"enforce_migration_safety"}
 
 # Whole-repo checks: run once, with no file payload.
-REPO_CHECKS = [
-    "check_seed_coverage",
-]
+REPO_CHECKS: list[str] = []
 
 # Deliberately not replayed here, each with the reason. Data rather than a
 # comment because ``tests/test_guardrail_ci_parity.py`` reads it: every script in
@@ -97,6 +95,12 @@ EXCLUDED_CHECKS = {
     "check_migration_drift": (
         "reads the working tree, which is clean in CI — the `migrations` job "
         "proves the chain applies to a real PostgreSQL instead"
+    ),
+    "check_seed_coverage": (
+        "same shape as check_migration_drift: it reads `git diff HEAD` and "
+        "untracked files for newly added models, and a checkout has neither, so "
+        "listing it as a repo check ran it as a guaranteed no-op — "
+        "tests/test_seed_coverage.py runs the real seed instead"
     ),
 }
 
@@ -177,6 +181,14 @@ def check_file(name: str, path: str, base: str | None) -> tuple[int, str]:
     revision and whose ``new_string`` is the whole current file: the
     content-reading checks see the finished file, the net-new checks see both
     sides, and the checks that read from disk are unaffected either way.
+
+    ``old_content`` states the before side explicitly for the net-new checks.
+    Without it they cannot fire in CI at all — and did not, in either mode:
+    ``--all`` hands them ``old_string=""``, which they read as "the Edit itself
+    will fail, nothing to judge", and under ``--changed`` the base revision is
+    not a *substring* of the current file, so they bail the same way. The sweep
+    reported clean over 56 real hits, including eight live ``_load_*_or_404``
+    router preloads, the exact shape one of the rules forbids.
     """
     head = read(ROOT / path)
     if head is None:
@@ -188,6 +200,7 @@ def check_file(name: str, path: str, base: str | None) -> tuple[int, str]:
             "old_string": base_content(path, base),
             "new_string": head,
             "content": head,
+            "old_content": base_content(path, base),
         },
     })
 

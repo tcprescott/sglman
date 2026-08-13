@@ -54,7 +54,7 @@ from _hook_paths import anchor
 
 anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
-READ_ROOTS = {"filter", "get", "get_or_none", "all", "first", "exists"}
+READ_ROOTS = {"filter", "get", "get_or_none", "all", "first", "exists", "exclude"}
 WRITE_ROOTS = {"create", "get_or_create", "update_or_create"}
 # Terms of art, plus an explicit opt-out in the shape the other hooks use.
 # `global` used to be here and was the loosest possible hatch: an ordinary

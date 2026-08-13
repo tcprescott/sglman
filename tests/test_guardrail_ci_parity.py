@@ -163,6 +163,45 @@ def test_every_check_is_wired_on_the_right_event() -> None:
     )
 
 
+def _int_literal(script: str, name: str) -> int:
+    tree = ast.parse((SCRIPTS / script).read_text())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == name for t in node.targets
+        ):
+            return int(node.value.value)  # type: ignore[attr-defined]
+    raise AssertionError(f"{script} no longer defines {name}")
+
+
+def _hook_timeout(stem: str) -> int:
+    config = json.loads(SETTINGS.read_text())
+    for groups in config["hooks"].values():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                if f"/{stem}.py" in hook.get("command", ""):
+                    return int(hook["timeout"])
+    raise AssertionError(f"{stem} is not wired in settings.json")
+
+
+def test_test_runners_time_out_before_the_harness_kills_them() -> None:
+    """The runner must reach its own timeout branch, not be killed mid-run.
+
+    Both runners treat a pytest timeout as a failure — "result UNKNOWN; this is
+    not a pass" — and exit 2. That branch is only reachable if pytest gives up
+    before the harness does. Raise PYTEST_TIMEOUT past the hook's timeout and
+    the harness kills the process first, which reads as a silent pass: exactly
+    the failure the branch was written to prevent.
+    """
+    for stem in ("run_related_tests", "run_full_tests"):
+        internal = _int_literal(f"{stem}.py", "PYTEST_TIMEOUT")
+        harness = _hook_timeout(stem)
+        assert harness - internal >= 10, (
+            f"{stem}: pytest gets {internal}s but the harness kills the hook at "
+            f"{harness}s, so its own timeout branch can never run. Raise the "
+            f"timeout in .claude/settings.json alongside PYTEST_TIMEOUT."
+        )
+
+
 def _tuple_literal(script: str, name: str) -> set[str]:
     """Read a module-level tuple of strings without importing the script.
 
