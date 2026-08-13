@@ -88,26 +88,41 @@ def check_registry(tree: ast.AST) -> list[str]:
     return problems
 
 
+def _event_type_arg(call: ast.Call, position: int) -> ast.AST | None:
+    for kw in call.keywords:
+        if kw.arg == "event_type":
+            return kw.value
+    if len(call.args) > position:
+        return call.args[position]
+    return None
+
+
 def check_literals(tree: ast.AST) -> list[tuple[int, str]]:
-    """Event.create('literal', ...) calls outside the registry."""
+    """String-literal event types at a call site, outside the registry.
+
+    Two shapes publish an event. ``Event.create('literal', …)`` is the bare bus
+    call; ``audit_service.write_and_publish(actor, action, details, 'literal')``
+    is the audit-paired one CLAUDE.md prescribes, whose fourth positional is the
+    event type. A literal in either publishes an event that no ``EventType``
+    member names, so it never reaches the webhook UI multiselect or validation.
+    """
     out = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        if not (
-            isinstance(func, ast.Attribute)
-            and func.attr == "create"
+        if not isinstance(func, ast.Attribute):
+            continue
+        if (
+            func.attr == "create"
             and isinstance(func.value, ast.Name)
             and func.value.id == "Event"
         ):
+            arg = _event_type_arg(node, 0)
+        elif func.attr == "write_and_publish":
+            arg = _event_type_arg(node, 3)
+        else:
             continue
-        arg = None
-        for kw in node.keywords:
-            if kw.arg == "event_type":
-                arg = kw.value
-        if arg is None and node.args:
-            arg = node.args[0]
         if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
             out.append((node.lineno, arg.value))
     return out

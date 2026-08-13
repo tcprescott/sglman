@@ -7,6 +7,7 @@ return the updated match).
 from typing import Optional
 
 from api.schemas.matches import MatchResponse
+from application.tenant_context import require_tenant_id
 from models import Match
 
 MATCH_PREFETCH = (
@@ -32,6 +33,16 @@ def serialize_match(match: Match) -> MatchResponse:
 
 
 async def load_match_response(match_id: int) -> Optional[MatchResponse]:
-    """Reload a match with all relations and serialize it, or None if absent."""
-    match = await Match.filter(id=match_id).prefetch_related(*MATCH_PREFETCH).first()
+    """Reload a match with all relations and serialize it, or None if absent.
+
+    Scoped to the caller's tenant even though every current caller reloads an id
+    a scoped service call just authorized: the id arrives as a raw path
+    parameter, so a future caller that skips that step would otherwise read
+    across tenants.
+    """
+    match = (
+        await Match.filter(id=match_id, tenant_id=require_tenant_id())
+        .prefetch_related(*MATCH_PREFETCH)
+        .first()
+    )
     return serialize_match(match) if match else None

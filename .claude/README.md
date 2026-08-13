@@ -82,12 +82,14 @@ including in any hook added later.
 ### Architecture / layering — `scripts/enforce_architecture.py` (PreToolUse: Write|Edit)
 Enforces the three-layer boundary (Presentation → Service → Repository):
 
-- Presentation (`pages/`, `theme/`, `frontend.py`, `api/`, `discordbot/`) **must not**
-  import from `application.repositories`, and **must not reach through** a service to
-  its repository — the content regex catches `service.repository.foo(...)` and
-  `self.x_repository.bar(...)` (the attribute must *end* in `repository`, so names
-  like `repository_url` never match). The reach-through form is exactly the
-  stage-dialog `AttributeError` shape from the 2026-07 audit §1.1.
+- Presentation (`pages/`, `theme/`, `frontend.py`, `api/`, `discordbot/`, `mcpserver/`)
+  **must not** import from `application.repositories`, and **must not reach through** a
+  service to its repository — the content regex catches `service.repository.foo(...)`,
+  `self.x_repository.bar(...)` and the shorter `.repo` / `.episode_repo` naming the
+  SpeedGaming and Discord-reconciler services actually use. The attribute must *end* in
+  `repo` or `repository`, so `repository_url`, `repo_url` and `reposition(...)` never
+  match. The reach-through form is exactly the stage-dialog `AttributeError` shape from
+  the 2026-07 audit §1.1.
 - `application/repositories/` **must not** import from `application.services`, any
   presentation surface (`pages`, `theme`, `api`, `discordbot`, `frontend`), or `nicegui`.
 - `application/services/` **must not** import `nicegui` — **except** files in
@@ -135,12 +137,18 @@ already lives in `hooks/doc-reminder.sh`.)
 CLAUDE.md: pass `actor: User` explicitly — never guard an audit call with
 `if actor:` (a swallowed actor silently drops the audit entry). AST-based: flags an
 `if` whose test is an `actor` truthiness/`is None` check **when its body contains a
-`write_log(...)` call** (narrow, to avoid flagging unrelated `if actor:`). Skips
-`tests/`, `/.claude/`, `audit_service.py`.
+`write_log(...)` or `write_and_publish(...)` call** (narrow, to avoid flagging
+unrelated `if actor:`). Skips `tests/`, `/.claude/`, `audit_service.py`.
 
 ### No ORM writes in the UI — `scripts/enforce_no_orm_writes.py` (PostToolUse: Write|Edit)
 Presentation may **read** for display but must not **write** to the DB.
-AST-based, scoped to presentation files. Flags a write-method call whose
+AST-based, scoped to the **same** presentation set `enforce_architecture` uses —
+`pages/`, `theme/`, `frontend.py`, `api/`, `discordbot/`, `mcpserver/`. The two
+disagreed for a while (this one guarded only `pages/` and `theme/`), so a
+`Match.filter(...).update(...)` in a REST router was rejected by neither while the
+identical line in `pages/` was; `tests/test_guardrail_ci_parity.py` now pins them
+together. `tests/` is skipped — `tests/api/` mirrors the surface it covers, and a test
+builds its own fixtures. Flags a write-method call whose
 receiver chain is rooted at a **known Tortoise model** (names loaded from the
 `models/` package — or a legacy `models.py` — at runtime):
 
@@ -174,6 +182,14 @@ other destructive rules stay unconditional.
 AST-based. Flags `…write_log(actor, "match.created")` — an audit action passed
 as a string literal — and requires an `AuditActions.*` constant instead. Skips
 `tests/` and `audit_service.py` itself.
+
+**Both audit call shapes count.** `action` sits at positional index 1 in
+`write_log(actor, action, details)` and in `write_and_publish(actor, action,
+details, event_type)` alike. All three audit/event checks used to match only
+`write_log`, which aimed them at the shape the codebase is migrating *away* from:
+CLAUDE.md prescribes `write_and_publish` for an audited change and
+`check_dry_regressions` blocks hand-rolling the `write_log` + `event_bus.publish`
+pair, so every new audited mutation landed in the blind spot.
 
 ### Slot-context in background tasks — `scripts/check_slot_context.py` (PostToolUse: Write|Edit)
 CLAUDE.md > NiceGUI patterns: a coroutine run via `background_tasks.create(...)`
@@ -375,18 +391,27 @@ whose value is a hardcoded string literal. Low false-positive bias: requires the
 literal to be ≥12 chars and not a placeholder (`your…`, `changeme`, `example`,
 `<…>`, …). Skips `tests/`, `/.claude/`, and `.env.example`.
 
-### Tenant scoping in repositories and services — `scripts/check_tenant_scoping.py` (PostToolUse: Write|Edit)
+### Tenant scoping — `scripts/check_tenant_scoping.py` (PostToolUse: Write|Edit)
 CLAUDE.md > Multitenancy: there is no auto-scoping manager, so a forgotten
 `scoped(...)` is a **silent cross-tenant leak**. AST-based, covering
-`application/repositories/*.py` and `application/services/**.py` (skips
-`_tenant.py`, `__init__.py`). Discovers
+`application/repositories/*.py`, `application/services/**.py` and the **entry
+surfaces** `pages/`, `theme/`, `api/`, `discordbot/`, `mcpserver/` (skips
+`_tenant.py`, `__init__.py`, `tests/`). The entry surfaces are in scope precisely
+because CLAUDE.md lets them query models directly — a sanctioned load-or-404 that
+forgets `tenant_id=require_tenant_id()` reads across tenants, which is how
+`api/_match_view.py` came to reload a match by raw path id with no tenant filter.
+Discovers
 tenant-scoped models at runtime (any `Model` subclass in `models/` with a
 `tenant` field), then flags a read root (`Model.filter/get/get_or_none/all/
 first/exists`) that is neither inside a `scoped(...)` call nor passing a
 `tenant*` kwarg, and a write root (`create`/`get_or_create`/`update_or_create`)
 with no `tenant*` kwarg (checks `defaults={...}` keys too). Escape hatches match
 the convention `_tenant.py` documents: a function whose source says
-**"cross-tenant"**, **"unscoped"**, or **"global"** is exempt, and
+**"cross-tenant"**, **"unscoped"**, or **"tenant-scope: exempt — &lt;reason&gt;"** is
+exempt. Bare **"global"** used to be a marker and is not one any more: it is an
+ordinary English word, matched as a substring over the whole function, appearing
+26 times in `application/repositories/` for unrelated reasons ("the global OAuth
+token"), so any new scoped method in those files inherited a silent exemption.
 `EXEMPT_MODELS` (`TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant`)
 covers junction tables where the tenant FK is the row's *subject*, not a scoping
 stamp.
@@ -406,10 +431,13 @@ CLAUDE.md > Event publishing: `EventType` names are an **external webhook
 contract** and `EventType.ALL` drives the webhook UI multiselect + validation.
 Two modes: (1) editing `application/events/event_types.py` → checks every
 string constant is in `ALL`, every `ALL` entry is a defined constant, and no
-two constants share a wire value; (2) any other non-test file → flags
-`Event.create('literal', ...)` (mirror of `check_audit_actions.py` — the event
-would publish but be invisible to the UI/validation). Fails open if the class
-shape changes beyond what it parses. Skips `tests/`, `/.claude/`.
+two constants share a wire value; (2) any other non-test file → flags a
+string-literal event type at a call site, in either publishing shape —
+`Event.create('literal', ...)` (the bare bus call) and the fourth positional of
+`audit_service.write_and_publish(actor, action, details, 'literal')` (the
+audit-paired one CLAUDE.md prescribes). Mirror of `check_audit_actions.py`: the
+event would publish but be invisible to the UI/validation. Fails open if the
+class shape changes beyond what it parses. Skips `tests/`, `/.claude/`.
 
 ### Feature-flag double gating — `scripts/check_feature_flag_gating.py` (PostToolUse: Write|Edit)
 CLAUDE.md > Feature flags: gating is **two obligations**, and doing only the first is

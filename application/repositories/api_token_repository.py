@@ -93,6 +93,9 @@ class ApiTokenRepository:
 
         GLOBAL by design, exactly like ``get_by_hash``: a refresh exchange
         arrives with no tenant context and OAuth tokens belong to no tenant.
+
+        tenant-scope: exempt — OAuth tokens carry tenant=NULL and the exchange
+        has no tenant in scope to filter on.
         """
         return await ApiToken.get_or_none(
             refresh_token_hash=refresh_hash, origin=ApiTokenOrigin.OAUTH.value
@@ -132,6 +135,9 @@ class ApiTokenRepository:
         tokens, so a user can revoke their MCP connections from any community
         they belong to. Ownership is still enforced by the service — this only
         bounds *which rows are addressable*, never *whose*.
+
+        tenant-scope: exempt — the scoping is the ``Q`` OR above, which the
+        check reads as an unscoped filter.
         """
         return await ApiToken.filter(
             Q(tenant_id=current_tenant_id()) | Q(tenant_id=None), id=token_id
@@ -143,6 +149,9 @@ class ApiTokenRepository:
 
         GLOBAL by design (token_hash is globally unique) — the caller sets tenant
         context from the resolved token afterwards.
+
+        tenant-scope: exempt — this read is what *establishes* the tenant, so
+        there is none to filter on yet.
 
         ``oauth_client`` is prefetched too: an unfetched FK is a lazy QuerySet,
         not None, so any caller reading ``token.oauth_client.client_id`` on an
@@ -158,6 +167,9 @@ class ApiTokenRepository:
 
         This tenant's PATs plus the user's global OAuth tokens, so the profile
         page shows every credential they can revoke from wherever they are.
+
+        tenant-scope: exempt — the scoping is the ``Q`` OR above, which the
+        check reads as an unscoped filter.
         """
         return await ApiToken.filter(
             Q(tenant_id=current_tenant_id()) | Q(tenant_id=None),
