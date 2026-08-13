@@ -17,6 +17,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO / ".claude" / "scripts"
 SETTINGS = REPO / ".claude" / "settings.json"
+README = REPO / ".claude" / "README.md"
 
 
 def _load_runner():
@@ -95,4 +96,20 @@ def test_every_check_is_wired_as_a_hook() -> None:
     assert not orphans, (
         "These .claude/scripts/ checks are not wired into .claude/settings.json, "
         f"so they never fire during a Claude session: {orphans}"
+    )
+
+
+def test_every_check_is_documented() -> None:
+    """The third leg: a check nobody can read about is a check nobody maintains.
+
+    ``.claude/README.md`` is where an author goes to learn what already fires
+    before writing a new rule — so an undocumented check gets re-implemented, or
+    silently worked around when it blocks an edit and its message is the only
+    explanation on offer. Four checks had drifted out of it before this test.
+    """
+    prose = README.read_text()
+    undocumented = sorted(s for s in _script_stems() if s not in prose)
+    assert not undocumented, (
+        "These .claude/scripts/ checks are wired up but absent from "
+        f".claude/README.md, so nothing tells an author they exist: {undocumented}"
     )
