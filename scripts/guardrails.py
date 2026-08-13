@@ -47,6 +47,7 @@ BASELINE_PATH = ROOT / "scripts" / "guardrail_baseline.json"
 
 # Per-file checks: each is handed one path at a time.
 FILE_CHECKS = [
+    "check_api_route_auth",
     "check_audit_actions",
     "check_audit_actor",
     "check_dry_regressions",

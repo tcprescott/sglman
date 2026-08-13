@@ -33,8 +33,22 @@ from _hook_paths import anchor
 anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
 
+def is_conventional(norm: str) -> bool:
+    """A ``*_service.py`` / ``*_repository.py`` module — the named-class shape."""
+    return norm.endswith("_service.py") or norm.endswith("_repository.py")
+
+
 def package_for(norm: str) -> str | None:
-    """Return the package dir for an eligible service/repository source path."""
+    """Return the package dir for an eligible service/repository source path.
+
+    Any public module under the two layers counts, not only the ``*_service.py``
+    / ``*_repository.py`` filenames. The suffix rule matched the class-bearing
+    modules and missed everything else — the mixins, the helper modules — which
+    is where the export was actually forgotten: `notification_links.py`,
+    `discord_member_events.py`, `async_qualifier_expiry.py` and the station mixin
+    each needed a follow-up commit to export it, and the hook was silent for all
+    four because none of the filenames ends in `_service.py`.
+    """
     base = os.path.basename(norm)
     if base == "__init__.py" or not base.endswith(".py"):
         return None
@@ -45,11 +59,43 @@ def package_for(norm: str) -> str | None:
     # would invert the convention.
     if base.startswith("_"):
         return None
-    if norm.endswith("_service.py") and "application/services/" in f"/{norm}":
-        return os.path.dirname(norm)
-    if norm.endswith("_repository.py") and "application/repositories/" in f"/{norm}":
-        return os.path.dirname(norm)
-    return None
+    slashed = f"/{norm}"
+    if (
+        "/application/services/" not in slashed
+        and "/application/repositories/" not in slashed
+    ):
+        return None
+    package_dir = os.path.dirname(norm)
+    # The same convention one level up: a `_bracket/`-style private subpackage.
+    if any(part.startswith("_") for part in package_dir.split("/")[-2:]):
+        return None
+    init_path = os.path.join(package_dir, "__init__.py")
+    if not os.path.isfile(init_path):
+        return None
+    # A barrel that imports its siblings dynamically already exports everything;
+    # there is no literal name to look for. `bracket_engines/` does this, and
+    # session-start.sh honours the same convention.
+    try:
+        with open(init_path, encoding="utf-8") as fh:
+            if "iter_modules" in fh.read():
+                return None
+    except OSError:
+        return None
+    return package_dir
+
+
+def public_top_level_names(source: str) -> set[str]:
+    """Public classes and functions defined at module level."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        and not node.name.startswith("_")
+    }
 
 
 def expected_class_name(norm: str) -> str:
@@ -141,14 +187,31 @@ def main() -> None:
     cls = primary_class(source, expected)
 
     stem = os.path.basename(norm)[:-3]
+    accepted = {stem}
     if cls is None:
         has_layer_class, has_public_fn = module_shape(source)
-        if has_layer_class or not has_public_fn:
-            sys.exit(0)  # acronym-cased primary, or nothing exportable
-        required, fix = stem, f"Add `from . import {stem}` and list '{stem}' in __all__"
-        what = f"functional module '{stem}'"
+        if is_conventional(norm):
+            if has_layer_class or not has_public_fn:
+                sys.exit(0)  # acronym-cased primary, or nothing exportable
+            fix = f"Add `from . import {stem}` and list '{stem}' in __all__"
+            what = f"functional module '{stem}'"
+        else:
+            # A module outside the naming convention: a mixin, a helper, a set of
+            # functions. Any one of its public names standing in for it is the
+            # export — `notification_links` by stem, `StationAssignmentMixin` by
+            # class — so accept whichever the package chose.
+            names = public_top_level_names(source)
+            if not names:
+                sys.exit(0)
+            accepted |= names
+            fix = (
+                f"Add `from .{stem} import <name>` (or `from . import {stem}`) "
+                f"and list it in __all__"
+            )
+            what = f"module '{stem}'"
     else:
-        required, fix = cls, f"Add `from .{stem} import {cls}` and list it in __all__"
+        accepted = {cls}
+        fix = f"Add `from .{stem} import {cls}` and list it in __all__"
         what = cls
 
     init_path = os.path.join(package_dir, "__init__.py")
@@ -158,7 +221,7 @@ def main() -> None:
     except OSError:
         sys.exit(0)
 
-    if required not in imported or required not in all_names:
+    if not (accepted & imported & all_names):
         print(
             f"EXPORT CONVENTION VIOLATION in '{file_path}':\n"
             f"  {what} is defined but not exported from '{init_path}'.\n"

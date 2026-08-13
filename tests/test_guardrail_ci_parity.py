@@ -105,6 +105,7 @@ def test_every_check_is_wired_as_a_hook() -> None:
 # sixteen, because an AST check would then read the pre-edit file — or, for a
 # Write to a new path, no file at all — and silently pass.
 EXPECTED_WIRING = {
+    "check_api_route_auth": {("PostToolUse", "Write|Edit")},
     "check_audit_actions": {("PostToolUse", "Write|Edit")},
     "check_audit_actor": {("PostToolUse", "Write|Edit")},
     "check_dry_regressions": {("PreToolUse", "Write|Edit")},

@@ -368,8 +368,9 @@ splitting modules along the three-layer pattern. Skips `migrations/`
 ### Layer exports — `scripts/check_layer_exports.py` (PostToolUse: Write|Edit)
 CLAUDE.md "Adding a new feature" step 4 requires exporting new services/repos from
 each package's `__init__.py`; forgetting it means `from application.services import
-FooService` fails at import. AST-based, scoped to `application/services/*_service.py`
-and `application/repositories/*_repository.py`. Two branches:
+FooService` fails at import. AST-based, scoped to **every public module** under
+`application/services/**` and `application/repositories/**` whose package has an
+`__init__.py`. Three branches:
 
 - **Class module**: the filename-derived PascalCase class (`discord_service` →
   `DiscordService`) must be imported **and** in `__all__` of the sibling `__init__.py`.
@@ -378,10 +379,22 @@ and `application/repositories/*_repository.py`. Two branches:
   (`from . import stem`) and listed in `__all__`. This closes the gap that let
   `oauth_handoff_service.py` go unexported for weeks of session-start DOC/EXPORT
   GAP noise.
+- **Anything else public in the two layers** (a mixin, a helper module, a set of
+  functions): the stem **or any public top-level name** it defines must be imported
+  and in `__all__` — whichever the package chose. The suffix rule used to bound the
+  whole check, so it matched the class-bearing modules and missed exactly where the
+  export was forgotten: `notification_links.py`, `discord_member_events.py`,
+  `async_qualifier_expiry.py` and the station mixin each needed a follow-up commit,
+  four in twelve days, with the hook silent every time. 191 modules are now in scope
+  and the tree lands clean.
 
-Skips the `__init__.py` files themselves; fails open on read/parse errors. Known
-deliberate miss: acronym-cased primaries (`SpeedGamingETLService` vs the derived
-`SpeedgamingEtlService`) are invisible to both branches.
+Skips the `__init__.py` files themselves, underscore-prefixed modules **and
+`_bracket/`-style private subpackages**, and barrels that import their siblings
+dynamically (`iter_modules` — `bracket_engines/`, the convention `session-start.sh`
+already honours). Fails open on read/parse errors. Known deliberate miss:
+acronym-cased primaries (`SpeedGamingETLService` vs the derived
+`SpeedgamingEtlService`) are invisible to the class branch — though such a module
+now falls to the third branch, which accepts the real class name.
 
 ### Hardcoded secrets — `scripts/check_secret_leak.py` (PostToolUse: Write|Edit)
 Secrets must come from `os.environ` / `os.getenv`, never be committed as literals.
@@ -425,6 +438,25 @@ auto-stamp means no test can see it. That is how the enrolment write in
 elsewhere), instance `obj.save()`, queries built outside these two layers.
 Measured **0 false positives** across all 40 repository files and all 108
 service files.
+
+### REST endpoint authorization — `scripts/check_api_route_auth.py` (PostToolUse: Write|Edit)
+Auth in this API is **per-endpoint, not global**: the aggregating router in
+`api/__init__.py` carries only `rate_limit` and `tenant_context_scope`, so a route
+inherits no actor requirement from being mounted. Two mistakes follow, and neither is
+visible in review — the endpoint works perfectly for the author, who holds a staff
+read-write token. (1) A route with no `require_*` dependency is world-readable behind
+nothing but the IP rate limiter. (2) A POST/PUT/PATCH/DELETE taking a **read-side**
+dependency (`require_api_actor`, `require_admin`, `require_staff`,
+`require_super_admin`) is writable by a token its owner deliberately marked read-only —
+the `_write` variants exist for this and differ by one suffix.
+
+AST-based, scoped to `api/routers/*.py`. Reads the actor dependency from the function's
+own parameters **or** from a router-level `APIRouter(dependencies=[Depends(require_…)])`,
+so both styles pass. `require_feature(...)` is not an actor — it gates a flag and
+authorizes nobody. Two deliberately open endpoints are in `ALLOWLIST`: `health.health`
+(a liveness probe) and `web_push.rotate` (a push service reissuing an endpoint proves
+itself with the old endpoint + auth and has no token to send). The convention was 100%
+observed across all 37 routers and enforced by nothing.
 
 ### EventType registry & literals — `scripts/check_event_types.py` (PostToolUse: Write|Edit)
 CLAUDE.md > Event publishing: `EventType` names are an **external webhook
@@ -627,6 +659,26 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   (`render_surface.py`) and reproducing Discord's DM chrome, with a tenant-safety
   / duplicate-field / spacing / embeds UX checklist. Use to review what the bot
   sends.
+- **`skills/worker-validation/`** — the background-worker counterpart. Eight
+  workers tick between 5s and 300s and `BackgroundLoop` swallows every failure
+  into one `"<name> tick failed"` log line, so a broken tick is indistinguishable
+  from an idle one; five have no test naming them. `scripts/run_worker_tick.py`
+  awaits a worker's `_tick` once and **re-raises**, plus the checklist that
+  matters — seed the state and assert it moved, run with the feature flag off
+  (a worker skips the tenant, it does not raise), run with two tenants for the
+  `tenant_scope` fan-out, grep the log rather than trusting an exit code, and
+  tick twice for idempotence.
+- **`skills/ux-audit/`** — the repo's most-repeated workflow, and the last to get
+  a skill: audit one flow end to end against the running app and write it up in
+  `docs/reviews/`. Broader than `/ui-validation`, which confirms one change
+  renders. It encodes the order (read the `AuthService` gates and service
+  refusals *before* the page — most findings are a surface disagreeing with the
+  service, and the service is usually right), the role sweep off
+  `seed_support.USER_SPECS`, two browser contexts for a transition, and the one
+  habit that separates it from a screenshot sweep: **read the server log across
+  each click**, because a dead button looks exactly like a working one. Eleven of
+  fifteen admin Refresh buttons were dead and a screenshot sweep passed all
+  eleven.
 - **`agents/architecture-reviewer.md`** — a read-only review subagent for the
   **judgment** calls the mechanical hooks can't make: business logic at the
   wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in
