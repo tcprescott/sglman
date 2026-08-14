@@ -44,7 +44,7 @@ NICEGUI_ALLOWLIST = {"auth_service.py"}
 # repository attribute directly (`self.stage_repository.get_all()` — the
 # exact bug class of the stage dialog AttributeError, audit §1.1). The
 # attribute must END in `repository`, so names like `repository_url` never match.
-REACHTHROUGH_RE = re.compile(r"\.\s*(\w*repository)\s*\.\s*\w+\s*\(")
+REACHTHROUGH_RE = re.compile(r"\.\s*(\w*_?repo(?:sitory)?)\s*\.\s*\w+\s*\(")
 
 # Module prefixes that mark the presentation surface, for the upward-import rules.
 PRESENTATION_MODULES = ("pages", "theme", "frontend", "api", "discordbot", "mcpserver")

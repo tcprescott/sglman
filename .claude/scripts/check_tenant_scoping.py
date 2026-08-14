@@ -54,9 +54,16 @@ from _hook_paths import anchor
 
 anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
-READ_ROOTS = {"filter", "get", "get_or_none", "all", "first", "exists"}
+READ_ROOTS = {"filter", "get", "get_or_none", "all", "first", "exists", "exclude"}
 WRITE_ROOTS = {"create", "get_or_create", "update_or_create"}
-EXEMPT_MARKERS = ("cross-tenant", "unscoped", "global")
+# Terms of art, plus an explicit opt-out in the shape the other hooks use.
+# `global` used to be here and was the loosest possible hatch: an ordinary
+# English word, matched as a substring anywhere in a function's source, that
+# then exempted every query in that function. It appears 26 times across
+# application/repositories/ for unrelated reasons ("the global OAuth token",
+# "global_default"), so a new scoped method added to any of those files
+# inherited a silent exemption.
+EXEMPT_MARKERS = ("cross-tenant", "unscoped", "tenant-scope: exempt")
 # tenant is the subject of these rows (which tenants does X belong to / may X
 # act in), not a scoping stamp — reads legitimately span or select tenants.
 EXEMPT_MODELS = {"TenantMembership", "TenantJoinRequest", "RacetimeBotTenant"}
@@ -204,7 +211,16 @@ def main() -> None:
     norm = file_path.replace("\\", "/")
     in_repository = "/application/repositories/" in norm
     in_service = "/application/services/" in norm
-    if (not in_repository and not in_service) or "/.claude/" in norm:
+    # CLAUDE.md sanctions a read-only load-or-404 model lookup at an entry
+    # surface, and requires it to hand-scope:
+    #   Tournament.get_or_none(id=x, tenant_id=require_tenant_id())
+    # An unscoped one there reads across tenants, so the surfaces that are
+    # allowed to query directly are exactly the ones that need checking.
+    is_test = "/tests/" in norm or norm.startswith("tests/")
+    in_entry = not is_test and any(
+        f"/{d}/" in norm for d in ("pages", "theme", "api", "discordbot", "mcpserver")
+    )
+    if (not in_repository and not in_service and not in_entry) or "/.claude/" in norm:
         sys.exit(0)
     if norm.endswith(("/_tenant.py", "/__init__.py")):
         sys.exit(0)
@@ -252,8 +268,9 @@ def main() -> None:
                 f"TENANT SCOPING VIOLATION in '{file_path}' (line {line}):\n"
                 f"  {model}.{method}(...) on a tenant-scoped model without tenant scoping.\n"
                 f"{fix}\n"
-                f"  If this query is deliberately cross-tenant, say so: put 'cross-tenant' or\n"
-                f"  'unscoped' in the enclosing function's docstring or a comment (see\n"
+                f"  If this query is deliberately cross-tenant, say so in the enclosing\n"
+                f"  function's docstring or a comment: 'cross-tenant', 'unscoped', or\n"
+                f"  'tenant-scope: exempt — <reason>' (see\n"
                 f"  application/repositories/_tenant.py).",
                 file=sys.stderr,
             )

@@ -2,12 +2,19 @@
 """
 PostToolUse hook: block direct ORM writes from the presentation layer.
 
-CLAUDE.md allows read-only ORM lookups in pages/ and theme/ for display, but
-*writes* must go through a service (which calls a repository). This inspects the
-resulting file after a Write/Edit and rejects a write whose call chain is rooted
-at a known Tortoise model class — e.g. `Match.create(...)` or
+CLAUDE.md allows read-only ORM lookups in the presentation layer for display,
+but *writes* must go through a service (which calls a repository). This inspects
+the resulting file after a Write/Edit and rejects a write whose call chain is
+rooted at a known Tortoise model class — e.g. `Match.create(...)` or
 `Tournament.filter(id=x).delete()`. Reads such as `.filter().order_by()` are
 left alone because they don't terminate in a write method.
+
+"Presentation" here means the same set `enforce_architecture.classify()` uses.
+CLAUDE.md is explicit that `api/`, `discordbot/` and `mcpserver/` are peers of
+the web UI — entry surfaces that may do read-only load-or-404 lookups and
+nothing more — and those surfaces already build `Match.filter(id=…,
+tenant_id=require_tenant_id())` roots, so appending `.update(...)` is one method
+call away.
 
 Exit 0 = clean / not applicable; exit 2 = violation (stderr explains).
 """
@@ -33,9 +40,20 @@ WRITE_TERMINALS = {
 }
 
 
+# Kept in step with enforce_architecture.PRESENTATION_MODULES by
+# tests/test_guardrail_ci_parity.py — the two drifted apart once already.
+PRESENTATION_DIRS = ("pages", "theme", "api", "discordbot", "mcpserver")
+
+
 def is_presentation(path: str) -> bool:
     norm = path.replace("\\", "/")
-    return "/pages/" in norm or "/theme/" in norm or norm.endswith("frontend.py")
+    # `tests/api/` and `tests/pages/` mirror the surfaces they cover, so a bare
+    # directory match claims them. A test builds its own fixtures by design.
+    if "/tests/" in norm or norm.startswith("tests/"):
+        return False
+    if norm.endswith("frontend.py"):
+        return True
+    return any(f"/{d}/" in norm or norm.startswith(f"{d}/") for d in PRESENTATION_DIRS)
 
 
 def find_models_source(start_path: str) -> str | None:
@@ -148,7 +166,7 @@ def main() -> None:
             print(
                 f"ARCHITECTURE VIOLATION in '{file_path}' (line {line}):\n"
                 f"  Direct ORM write from the presentation layer: {model}.{method}(...)\n"
-                f"  pages/ and theme/ may read for display, but must not write to the DB.\n"
+                f"  An entry surface may read for display, but must not write to the DB.\n"
                 f"  Fix: move this write into a service method (which calls the repository).",
                 file=sys.stderr,
             )

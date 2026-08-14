@@ -44,13 +44,18 @@ def is_actor_test(test: ast.AST) -> bool:
     return False
 
 
+# Both audit call shapes count — `write_and_publish` is the one CLAUDE.md
+# prescribes for an audited change, so new mutations land there.
+AUDIT_CALLS = {"write_log", "write_and_publish"}
+
+
 def body_writes_log(nodes: list[ast.stmt]) -> bool:
     for stmt in nodes:
         for node in ast.walk(stmt):
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "write_log"
+                and node.func.attr in AUDIT_CALLS
             ):
                 return True
     return False
