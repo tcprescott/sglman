@@ -178,6 +178,28 @@ nothing. An **unset** marker counts as local — the exemption has to be opted i
 never inferred. `tests/test_hook_safe_commands.py` pins both halves, and asserts the
 other destructive rules stay unconditional.
 
+#### The permission allowlist beside it — `settings.json` › `permissions.allow`
+
+The two are easy to confuse and do opposite jobs. This hook decides what **may
+run**; the allowlist decides only what runs **without a prompt**. They are
+independent systems: a permission rule skips the prompt, it does not skip
+PreToolUse hooks, so every entry in the allowlist is still handed to
+`enforce_safe_commands.py` first. `git status && rm -rf …` is allowlisted at its
+prefix and blocked anyway — the probe for that lives in the commit that added the
+list.
+
+The list is deliberately narrow: read-only git inspection, and the project's own
+runners (`pytest`, `ruff check`, `mypy`, the guardrail sweep, the seeds, the
+worker tick). Nothing that rewrites history, boots a server, installs system
+packages, or reaches the network — those keep their prompt even though the hook
+would also catch the worst of them, because two independent gates is the point.
+
+Rules use the `Bash(cmd:*)` **prefix** form rather than `Bash(cmd *)` wildcard,
+so a bare `git status` matches as well as `git status --short`; the wildcard form
+requires something after the space. Personal additions belong in
+`.claude/settings.local.json` (gitignored), which layers over this file — this one
+is committed and applies to everyone.
+
 ### Audit-action constants — `scripts/check_audit_actions.py` (PostToolUse: Write|Edit)
 AST-based. Flags `…write_log(actor, "match.created")` — an audit action passed
 as a string literal — and requires an `AuditActions.*` constant instead. Skips

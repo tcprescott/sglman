@@ -1,4 +1,29 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git blame:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git merge-base:*)",
+      "Bash(poetry run pytest:*)",
+      "Bash(poetry run ruff check:*)",
+      "Bash(poetry run mypy:*)",
+      "Bash(poetry run aerich migrate:*)",
+      "Bash(poetry run python scripts/guardrails.py:*)",
+      "Bash(poetry run python scripts/mypy_ratchet.py:*)",
+      "Bash(poetry run python scripts/seed_dev.py:*)",
+      "Bash(poetry run python scripts/run_worker_tick.py:*)",
+      "Bash(poetry run python scripts/set_feature_flags.py:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(nproc)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
