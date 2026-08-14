@@ -23,6 +23,8 @@ sys.path.insert(0, os.getcwd())
 
 from application.utils import discord_embeds as e
 from application.utils import discord_messages as m
+from application.utils import discord_messages_crew as mc
+from application.utils import discord_messages_volunteer as mv
 
 # Representative sample data (two players → "A vs B"; a stage; an Eastern time).
 P = ["Player One", "Player Two"]
@@ -56,21 +58,21 @@ NOTIFICATIONS = [
     ("Crew signup invitation (subscribers)", "[Sign up as Commentator] [Sign up as Tracker]",
      m.scheduled_dm(T, WHEN, player_names=P, stage_name=STAGE)),
     ("Crew approved", "[Acknowledge]",
-     m.crew_assignment_dm("commentator", "Player One vs Player Two", WHEN, STAGE, P)),
+     mc.crew_assignment_dm("commentator", "Player One vs Player Two", WHEN, STAGE, P)),
     ("Seed generated", "(no buttons)",
      m.seed_dm("Player One", T, "https://alttpr.com/en/h/abcd1234",
                player_names=P, scheduled_at_display=WHEN, stage_name=STAGE)),
     ("Volunteer shift assigned", "[Acknowledge]",
-     m.volunteer_assignment_dm(*SHIFT)),
+     mv.volunteer_assignment_dm(*SHIFT)),
     ("Volunteer shift reminder", "[Acknowledge]",
-     m.volunteer_reminder_dm(*SHIFT)),
+     mv.volunteer_reminder_dm(*SHIFT)),
 ]
 
 EPHEMERAL = [
-    ("crew signup", m.crew_signup_confirmation("commentator", "Player One vs Player Two")),
+    ("crew signup", mc.crew_signup_confirmation("commentator", "Player One vs Player Two")),
     ("match ack", m.match_ack_confirmation("Player One vs Player Two")),
-    ("crew ack", m.crew_ack_confirmation("commentator", "Player One vs Player Two")),
-    ("volunteer ack", m.volunteer_ack_confirmation("Race Proctor")),
+    ("crew ack", mc.crew_ack_confirmation("commentator", "Player One vs Player Two")),
+    ("volunteer ack", mv.volunteer_ack_confirmation("Race Proctor")),
     ("unwatch (was watching)", m.unwatch_confirmation("Player One vs Player Two", True)),
     ("unwatch (was not)", m.unwatch_confirmation("Player One vs Player Two", False)),
     ("no account", m.MSG_NO_ACCOUNT),

@@ -4,7 +4,8 @@ Discord crew signup interaction handler and view factory.
 
 import discord
 
-from application.utils.discord_messages import crew_signup_confirmation, msg_unexpected_error
+from application.utils.discord_messages import msg_unexpected_error
+from application.utils.discord_messages_crew import crew_signup_confirmation
 from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
 CUSTOM_ID_PREFIX = 'crew_signup'

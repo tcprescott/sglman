@@ -1528,12 +1528,18 @@ Notable members:
 - **Shared constants:** `MSG_NO_ACCOUNT`, `MSG_UNEXPECTED_ERROR_MATCH`, `MSG_UNEXPECTED_ERROR_CREW`.
 - **Match scheduling DMs** (sent by `MatchScheduleService`/`MatchService`): `scheduled_dm`, `rescheduled_dm`, `acknowledgment_request_dm`, `checked_in_dm`, `state_changed_dm`, `stream_candidate_dm`, `seed_dm`.
 - **Stage DMs** (`MatchService.assign_stage`, `stage_reminder`): `stage_assigned_dm`, `stage_cleared_dm`, `stage_reminder_dm`.
-- **Crew DMs** (`CrewService`): `crew_assignment_dm`, `crew_approval_withdrawn_dm`.
-- **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_unassigned_dm`, `volunteer_shift_changed_dm`, `volunteer_released_dm` (to the coordinators), `volunteer_ack_confirmation`.
-- **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `crew_ack_confirmation`, `crew_signup_confirmation`, `unwatch_confirmation`.
+- **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `unwatch_confirmation`.
 - **`DMLink(label, url)`** — a DM's call-to-action route, rendered by `send_dm` as a Discord link button and used as the web-push mirror's tap target. Built by [`notification_links.py`](#notification_linkspy), never inline: the URL must be absolute, since a DM is read outside any request context.
 
-The async-qualifier builders live in a sibling module, `discord_messages_qualifier.py`, split out when this one passed the 800-line budget; the same "no message text inline" rule applies to it.
+This module holds the match lifecycle. Every other domain has a sibling of its own, moved out as the module kept crossing the 800-line budget; the same "no message text inline" rule applies to each:
+
+| Module | Domain | Members |
+|---|---|---|
+| `discord_messages_crew.py` | Crew (`CrewService`, `discordbot/crew_*.py`) | `crew_assignment_dm`, `crew_approval_withdrawn_dm`, `crew_withdrawn_dm`, `crew_ack_confirmation`, `crew_signup_confirmation` |
+| `discord_messages_volunteer.py` | Volunteer shifts (`VolunteerScheduleService`, `volunteer_reminder`, `discordbot/volunteer_acknowledgment.py`) | `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_unassigned_dm`, `volunteer_shift_changed_dm`, `volunteer_released_dm` (to the coordinators), `volunteer_ack_confirmation` |
+| `discord_messages_qualifier.py` | Async qualifiers | `qualifier_run_reviewed_dm`, and the reattempt/expiry copy |
+| `discord_messages_reschedule.py` | Reschedule requests | the ask to staff, the nudge to the opponent, the answer back |
+| `discord_messages_tenant.py` | Community join requests (`TenantMembershipService`) | `join_requested_dm`, `join_decided_dm` |
 
 All builders are pure functions returning `str`; optional fields passed as `None`/`''` are omitted from the rendered message.
 

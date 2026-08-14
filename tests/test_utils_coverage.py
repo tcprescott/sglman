@@ -12,6 +12,8 @@ import pytest
 
 from application.utils import discord_embeds as de
 from application.utils import discord_messages as dm
+from application.utils import discord_messages_crew as dm_crew
+from application.utils import discord_messages_volunteer as dm_vol
 from application.utils import easter_eggs, environment, qrcode_util
 from application.utils.http_headers import header_safe
 
@@ -376,7 +378,7 @@ class TestStreamCandidateAndSeedDms:
 
 class TestCrewAssignmentDm:
     def test_all_fields(self):
-        msg = dm.crew_assignment_dm(
+        msg = dm_crew.crew_assignment_dm(
             'Commentator', 'Grand Final', 'noon', 'Stage 2', ['A', 'B'],
         )
         assert "You're confirmed as Commentator for this match!" in msg
@@ -387,7 +389,7 @@ class TestCrewAssignmentDm:
         assert msg.endswith('Please click below to acknowledge your assignment.')
 
     def test_optional_fields_suppressed(self):
-        msg = dm.crew_assignment_dm('Tracker', None, '', None, None)
+        msg = dm_crew.crew_assignment_dm('Tracker', None, '', None, None)
         assert "You're confirmed as Tracker for this match!" in msg
         assert '**Match:**' not in msg
         assert '**Players:**' not in msg
@@ -399,7 +401,7 @@ class TestCrewWithdrawnDm:
     """The DM to whoever owns the crew when an approved member drops out."""
 
     def test_names_the_person_and_the_match(self):
-        msg = dm.crew_withdrawn_dm(
+        msg = dm_crew.crew_withdrawn_dm(
             'commentator', 'Player Three', 'Grand Final', 'noon', 'Stage 2', ['A', 'B'],
         )
         assert '**Player Three** has withdrawn as commentator.' in msg
@@ -409,7 +411,7 @@ class TestCrewWithdrawnDm:
 
     def test_hours_notice_reads_as_urgency(self):
         def notice(hours):
-            return dm.crew_withdrawn_dm(
+            return dm_crew.crew_withdrawn_dm(
                 'tracker', 'Ann', None, '', None, None, hours_notice=hours,
             ).splitlines()[0]
 
@@ -422,34 +424,34 @@ class TestCrewWithdrawnDm:
         assert notice(-2.0).endswith('already past its scheduled time.')
 
     def test_no_notice_when_the_match_is_unscheduled(self):
-        msg = dm.crew_withdrawn_dm('tracker', 'Ann', None, '', None, None)
+        msg = dm_crew.crew_withdrawn_dm('tracker', 'Ann', None, '', None, None)
         assert msg.splitlines()[0] == '**Ann** has withdrawn as tracker.'
 
 
 class TestVolunteerDms:
     def test_shift_lines_with_label(self):
-        lines = dm._volunteer_shift_lines('Runner', 'Booth A', 'start', 'end')
+        lines = dm_vol._volunteer_shift_lines('Runner', 'Booth A', 'start', 'end')
         assert lines[0] == '**Position:** Runner — Booth A'
         assert '**Start:** start' in lines
         assert '**End:** end' in lines
 
     def test_shift_lines_without_label(self):
-        lines = dm._volunteer_shift_lines('Runner', None, '', '')
+        lines = dm_vol._volunteer_shift_lines('Runner', None, '', '')
         assert lines == ['**Position:** Runner']
 
     def test_assignment_dm(self):
-        msg = dm.volunteer_assignment_dm('Runner', 'Booth A', 'start', 'end')
+        msg = dm_vol.volunteer_assignment_dm('Runner', 'Booth A', 'start', 'end')
         assert msg.startswith("You've been scheduled for a volunteer shift")
         assert '**Position:** Runner — Booth A' in msg
         assert msg.endswith('Please click below to acknowledge your shift.')
 
     def test_reminder_dm(self):
-        msg = dm.volunteer_reminder_dm('Runner', None, 'start', 'end')
+        msg = dm_vol.volunteer_reminder_dm('Runner', None, 'start', 'end')
         assert msg.startswith('⏰ Reminder')
         assert '**Position:** Runner' in msg
 
     def test_ack_confirmation(self):
-        assert dm.volunteer_ack_confirmation('Runner') == \
+        assert dm_vol.volunteer_ack_confirmation('Runner') == \
             'Thanks! Your **Runner** shift is acknowledged.'
 
 
@@ -521,22 +523,22 @@ class TestEphemeralReplies:
         assert dm.match_ack_confirmation('') == "You've acknowledged your match. Thanks!"
 
     def test_crew_ack_with_players(self):
-        msg = dm.crew_ack_confirmation('Commentator', 'A vs B')
+        msg = dm_crew.crew_ack_confirmation('Commentator', 'A vs B')
         assert msg == "You're confirmed for Commentator (A vs B). Thanks!"
 
     def test_crew_ack_without_players(self):
-        msg = dm.crew_ack_confirmation('Commentator', '')
+        msg = dm_crew.crew_ack_confirmation('Commentator', '')
         assert msg == "You're confirmed for Commentator. Thanks!"
 
     def test_crew_signup_with_players(self):
-        msg = dm.crew_signup_confirmation('Tracker', 'A vs B')
+        msg = dm_crew.crew_signup_confirmation('Tracker', 'A vs B')
         assert msg == (
             "You're signed up as **Tracker** for the match (A vs B). "
             "An admin will confirm it shortly."
         )
 
     def test_crew_signup_without_players(self):
-        msg = dm.crew_signup_confirmation('Tracker', '')
+        msg = dm_crew.crew_signup_confirmation('Tracker', '')
         assert msg == "You're signed up as **Tracker**. An admin will confirm it shortly."
 
     def test_unwatch_was_watching(self):

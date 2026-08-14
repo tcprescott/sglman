@@ -6,10 +6,8 @@ import logging
 
 import discord
 
-from application.utils.discord_messages import (
-    crew_ack_confirmation,
-    msg_unexpected_error,
-)
+from application.utils.discord_messages import msg_unexpected_error
+from application.utils.discord_messages_crew import crew_ack_confirmation
 from discordbot._ack_common import (
     DMInteractionError,
     SendFn,

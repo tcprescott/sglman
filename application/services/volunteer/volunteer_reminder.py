@@ -42,7 +42,7 @@ async def _tick() -> None:
     from application.services.system_config_service import SystemConfigService
     from application.services.tenant_service import TenantService
     from application.utils.discord_embeds import time_field, volunteer_embed
-    from application.utils.discord_messages import volunteer_reminder_dm
+    from application.utils.discord_messages_volunteer import volunteer_reminder_dm
     from models import FeatureFlag
 
     now = datetime.now(timezone.utc)

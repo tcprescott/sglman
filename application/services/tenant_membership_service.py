@@ -29,7 +29,7 @@ from application.utils.discord_embeds import (
     COLOR_JOIN_REQUEST,
     notification_embed,
 )
-from application.utils.discord_messages import join_decided_dm, join_requested_dm
+from application.utils.discord_messages_tenant import join_decided_dm, join_requested_dm
 from models import JoinRequestStatus, Role, TenantJoinRequest, User
 
 

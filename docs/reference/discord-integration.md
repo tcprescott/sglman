@@ -31,7 +31,8 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, the `import discordbot` registration hook, queue and worker start/stop in the FastAPI lifespan |
 | [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | Notification fan-out coroutines |
-| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | Plain-text DM builders (public functions) + ephemeral confirmation strings |
+| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | Plain-text DM builders (public functions) + ephemeral confirmation strings, for the match lifecycle |
+| `discord_messages_crew.py` / `_volunteer.py` / `_qualifier.py` / `_reschedule.py` / `_tenant.py` | The same builders for every other domain — one sibling module each |
 | [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) | Embed-card builders (`match_embed`, `state_changed_embed`, `matchup_ready_embed`, `volunteer_embed`, `notification_embed`, `time_field`, `COLOR_*`) |
 | [`application/services/crew_service.py`](../../application/services/crew_service.py) | Crew approval → crew acknowledgment DM |
 
