@@ -155,6 +155,8 @@
   "pages/home_tabs/brackets.py": 2,
   "pages/home_tabs/stage_timeline.py": 6,
   "pages/platform.py": 5,
+  "pages/platform_bots.py": 2,
+  "pages/platform_feature_groups.py": 2,
   "pages/service_health_view.py": 1,
   "pages/static_brackets.py": 1,
   "pages/volunteer.py": 1,
