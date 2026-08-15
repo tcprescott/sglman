@@ -45,6 +45,8 @@
   "application/services/crew_service.py": 18,
   "application/services/discord/discord_event_reconciler_service.py": 1,
   "application/services/discord/discord_event_sync_service.py": 2,
+  "application/services/discord/discord_guild_ops.py": 4,
+  "application/services/discord/discord_scheduled_events.py": 2,
   "application/services/discord/discord_service.py": 8,
   "application/services/equipment_service.py": 2,
   "application/services/feature_flag_service.py": 10,

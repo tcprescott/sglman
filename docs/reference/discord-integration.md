@@ -10,7 +10,9 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 
 | File | Contents |
 |---|---|
-| [`application/services/discord/discord_service.py`](../../application/services/discord/discord_service.py) | `get_discord_bot()` singleton factory, the handler/view-factory registries, `DiscordService`, `MockDiscordService`, mock selection |
+| [`application/services/discord/discord_service.py`](../../application/services/discord/discord_service.py) | `get_discord_bot()` singleton factory, the handler/view-factory registries, the DM surface of `DiscordService` / `MockDiscordService`, mock selection |
+| [`application/services/discord/discord_guild_ops.py`](../../application/services/discord/discord_guild_ops.py) | `GuildOpsMixin` + `MockGuildOpsMixin` — guild, role and member reads/writes |
+| [`application/services/discord/discord_scheduled_events.py`](../../application/services/discord/discord_scheduled_events.py) | `ScheduledEventsMixin` + `MockScheduledEventsMixin` — the Scheduled Events wrappers the reconciler drives |
 | [`application/services/discord/discord_member_events.py`](../../application/services/discord/discord_member_events.py) | The `GUILD_MEMBER_*` listeners' bodies: `sync_member_roles` and `sync_member_avatar` |
 | [`application/services/discord/discord_queue.py`](../../application/services/discord/discord_queue.py) | Outbound send queue: `start()`, `stop()`, `enqueue()` over the shared `CoroutineQueue` |
 | [`application/utils/coroutine_queue.py`](../../application/utils/coroutine_queue.py) | `CoroutineQueue` + `bind_module_state` — the serial-worker primitive `discord_queue` is one instance of |
@@ -170,7 +172,7 @@ Caller pattern: `from application.services.discord.discord_service import Discor
 
 ### MockDiscordService
 
-`MockDiscordService` (same file) mirrors the public surface exactly. Selection happens once at import time via the `DiscordService = MockDiscordService` rebinding shown above — callers never branch on mock mode themselves.
+`MockDiscordService` (same file, composing the mock mixin each split-out module carries) mirrors the public surface exactly. Selection happens once at import time via the `DiscordService = MockDiscordService` rebinding shown above — callers never branch on mock mode themselves.
 
 - The five button variants delegate to the single `send_dm` stub, which **prints to stdout** (`[MOCK Discord DM] -> <user_id>: <message> [embed: <title>]`) and returns `(True, "Message sent (mock)")`, so notification code paths run end-to-end without Discord.
 - `get_bot()` returns `None`.

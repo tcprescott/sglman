@@ -404,7 +404,9 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 | `get_guild_summary(guild_id)` | `(bool, {id, name} \| str)` | Name of a guild the bot can see (renders the connected-server label; confirms bot presence). |
 | `member_can_manage_guild(guild_id, user_id)` | `(bool, bool \| str)` | Whether a user is owner / Administrator / has Manage Server. **Fails closed** (`ok=False`) if the bot can't determine it. The authority check behind `DiscordLinkService`. |
 
-**`MockDiscordService`** mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/discord.md#mock-mode) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
+The methods from `list_guilds` down live in **`discord_guild_ops.py`** (`GuildOpsMixin`) and the scheduled-event wrappers in **`discord_scheduled_events.py`** (`ScheduledEventsMixin`), both composed into `DiscordService` the way `StationAssignmentMixin` is composed into `MatchService`; `discord_service.py` itself keeps the DM surface and the bot singleton. Each module carries its own mock mixin (`MockGuildOpsMixin`, `MockScheduledEventsMixin`) beside the real one — a mirror kept in another file drifts, and it drifts in the one mode nobody runs the tests in.
+
+**`MockDiscordService`** composes those mock mixins and mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/discord.md#mock-mode) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
 
 ### discord_member_events.py — module functions
 
