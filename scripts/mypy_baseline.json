@@ -182,5 +182,6 @@
   "theme/dialog/volunteer_position_dialog.py": 1,
   "theme/dialog/volunteer_profile_dialog.py": 1,
   "theme/dialog/volunteer_shift_dialog.py": 2,
+  "theme/tables/match_filters.py": 6,
   "theme/tables/match_lifecycle.py": 3
 }

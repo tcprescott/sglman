@@ -16,7 +16,8 @@ import ast
 import inspect
 from pathlib import Path
 
-from theme.tables.match import DEFAULT_STATE_FILTER, MatchTableView
+from theme.tables.match import MatchTableView
+from theme.tables.match_filters import DEFAULT_STATE_FILTER
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -105,14 +106,14 @@ def test_the_four_storage_keys_are_distinct():
 
 def test_default_state_filter_is_used_when_nothing_is_stored(monkeypatch):
     stored = {}
-    monkeypatch.setattr('theme.tables.match.tenant_session_get',
+    monkeypatch.setattr('theme.tables.match_filters.tenant_session_get',
                         lambda key, default=None: stored.get(key, default))
     view = _view('admin_schedule', ['Scheduled', 'Finished'])
     assert view._stored_or_default_states() == ['Scheduled', 'Finished']
 
 
 def test_shared_default_applies_when_the_view_declares_none(monkeypatch):
-    monkeypatch.setattr('theme.tables.match.tenant_session_get',
+    monkeypatch.setattr('theme.tables.match_filters.tenant_session_get',
                         lambda key, default=None: default)
     view = _view('proctor', None)
     assert view._stored_or_default_states() == list(DEFAULT_STATE_FILTER)
@@ -120,7 +121,7 @@ def test_shared_default_applies_when_the_view_declares_none(monkeypatch):
 
 def test_a_stored_value_beats_the_default(monkeypatch):
     stored = {'admin_schedule:state_filter': ['Confirmed']}
-    monkeypatch.setattr('theme.tables.match.tenant_session_get',
+    monkeypatch.setattr('theme.tables.match_filters.tenant_session_get',
                         lambda key, default=None: stored.get(key, default))
     view = _view('admin_schedule', ['Scheduled', 'Finished'])
     assert view._stored_or_default_states() == ['Confirmed']
@@ -130,7 +131,7 @@ def test_another_boards_stored_value_does_not_leak(monkeypatch):
     """The regression that matters: the proctor board keeps its own default
     even after the admin board stored something else."""
     stored = {'admin_schedule:state_filter': ['Confirmed']}
-    monkeypatch.setattr('theme.tables.match.tenant_session_get',
+    monkeypatch.setattr('theme.tables.match_filters.tenant_session_get',
                         lambda key, default=None: stored.get(key, default))
     assert _view('proctor')._stored_or_default_states() == list(DEFAULT_STATE_FILTER)
 
@@ -165,7 +166,7 @@ def test_badge_counts_a_state_filter_moved_off_the_boards_default():
 
 def test_all_dates_is_the_default_and_narrows_nothing():
     """Nothing may be hidden until the operator asks for it."""
-    from theme.tables.match import ALL_DAYS, DAY_SCOPES, day_scope_window
+    from theme.tables.match_filters import ALL_DAYS, DAY_SCOPES, day_scope_window
 
     assert DAY_SCOPES[0] == ALL_DAYS
     assert day_scope_window(ALL_DAYS) is None
@@ -173,7 +174,7 @@ def test_all_dates_is_the_default_and_narrows_nothing():
 
 
 def test_today_is_one_local_day_wide():
-    from theme.tables.match import day_scope_window
+    from theme.tables.match_filters import day_scope_window
 
     start, end = day_scope_window('Today')
     assert (end - start) == 24 * 3600
@@ -181,7 +182,7 @@ def test_today_is_one_local_day_wide():
 
 def test_tomorrow_starts_where_today_ends():
     """Half-open and adjacent, so no match falls between the two scopes."""
-    from theme.tables.match import day_scope_window
+    from theme.tables.match_filters import day_scope_window
 
     _today_start, today_end = day_scope_window('Today')
     tomorrow_start, _tomorrow_end = day_scope_window('Tomorrow')
@@ -189,7 +190,7 @@ def test_tomorrow_starts_where_today_ends():
 
 
 def test_the_week_scope_starts_today_and_runs_seven_days():
-    from theme.tables.match import day_scope_window
+    from theme.tables.match_filters import day_scope_window
 
     today_start, _today_end = day_scope_window('Today')
     week_start, week_end = day_scope_window('Next 7 days')
@@ -202,7 +203,7 @@ def test_the_day_filter_counts_toward_the_mobile_badge():
     was added for."""
     from types import SimpleNamespace
 
-    from theme.tables.match import ALL_DAYS
+    from theme.tables.match_filters import ALL_DAYS
 
     view = _view('admin_schedule', DEFAULT_STATE_FILTER)
     view.state_filter = SimpleNamespace(value=list(DEFAULT_STATE_FILTER))
