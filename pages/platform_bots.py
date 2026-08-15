@@ -13,6 +13,7 @@ from nicegui import ui
 
 from application.services import RacetimeBotService, TenantService
 from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor
+from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _bot_service = RacetimeBotService()
@@ -141,7 +142,7 @@ async def _restart_bot(actor, table, row) -> None:
     try:
         await get_racetime_manager().restart(actor, row['id'])
     except (ValueError, PermissionError) as e:
-        ui.notify(str(e), color='warning')
+        notify_error(e)
         return
     ui.notify('Bot connection restarting', color='positive')
     await _refresh_bots(table)
@@ -177,7 +178,7 @@ def _open_bot_create_dialog(actor, table) -> None:
                     is_active=active.value,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Bot created', color='positive')
             dialog.close()
@@ -207,7 +208,7 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
                     is_active=active.value,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Bot updated', color='positive')
             dialog.close()
@@ -217,7 +218,7 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
             try:
                 await _bot_service.delete_bot(actor, bot.id)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Bot deleted', color='positive')
             dialog.close()
@@ -246,7 +247,7 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
                 else:
                     await _bot_service.revoke_tenant(actor, bot_id, tenant_id)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Updated', color='positive')
 

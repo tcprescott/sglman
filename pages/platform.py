@@ -34,6 +34,7 @@ from pages.platform_feature_groups import (
 from pages.platform_shared import ACTIVE_ICON_SLOT
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
+from theme.notify import notify_error
 from theme.tables.preferences import (
     TableKeys,
     customize_table,
@@ -271,7 +272,7 @@ def _open_create_dialog(actor, table) -> None:
                     domain=(domain.value or None), discord_guild_id=guild_id,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Tenant created', color='positive')
             dialog.close()
@@ -314,7 +315,7 @@ async def _open_edit_dialog(actor, table, row) -> None:
                     is_active=active.value,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Tenant updated', color='positive')
             dialog.close()

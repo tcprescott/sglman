@@ -17,6 +17,7 @@ from application.feature_flags import all_specs, spec_for
 from application.services import FeatureFlagService, TenantService
 from models import FeatureFlag
 from pages.platform_shared import current_actor
+from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 
@@ -111,7 +112,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
         try:
             await service.assign_tenant_group(actor, tenant_id, group_id or None)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Tier assigned — reopen to see updated availability', color='positive')
 
@@ -120,7 +121,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
         try:
             await service.set_availability(actor, tenant_id, FeatureFlag(flag_value), mapped)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Updated', color='positive')
 
@@ -199,7 +200,7 @@ def _open_group_create_dialog(actor, table) -> None:
                     description=description.value, is_default=is_default.value,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Group created', color='positive')
             dialog.close()
@@ -228,7 +229,7 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
                     description=description.value, is_default=is_default.value,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Group updated', color='positive')
             dialog.close()
@@ -244,7 +245,7 @@ async def _delete_group(actor, table, row) -> None:
     try:
         await FeatureFlagService().delete_group(actor, row['id'])
     except (ValueError, PermissionError) as e:
-        ui.notify(str(e), color='warning')
+        notify_error(e)
         return
     ui.notify('Group deleted; its tenants fell back to the default', color='positive')
     await _refresh_groups(table)

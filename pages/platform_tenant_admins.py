@@ -13,6 +13,7 @@ to.
 from nicegui import ui
 
 from application.services import TenantService, UserService
+from theme.notify import notify_error
 
 
 async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> None:
@@ -63,7 +64,7 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
             try:
                 await TenantService.bootstrap_staff(actor, tenant_id, user)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify(f'Granted STAFF in {tenant_name}', color='positive')
             select.value = None
