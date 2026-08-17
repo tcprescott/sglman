@@ -520,7 +520,7 @@ class VolunteerScheduleService:
         """Best-effort Discord DM asking the volunteer to confirm. Never raises."""
         from application.services.tenant_service import TenantService
         from application.utils.discord_embeds import time_field, volunteer_embed
-        from application.utils.discord_messages import volunteer_assignment_dm
+        from application.utils.discord_messages_volunteer import volunteer_assignment_dm
 
         discord_id = getattr(user, 'discord_id', None)
         if not discord_id or not getattr(user, 'dm_notifications', True):
@@ -553,7 +553,7 @@ class VolunteerScheduleService:
         """Best-effort Discord DM telling a volunteer they are off a shift. Never raises."""
         from application.services.tenant_service import TenantService
         from application.utils.discord_embeds import time_field, volunteer_embed
-        from application.utils.discord_messages import volunteer_unassigned_dm
+        from application.utils.discord_messages_volunteer import volunteer_unassigned_dm
 
         discord_id = getattr(user, 'discord_id', None)
         if not discord_id or not getattr(user, 'dm_notifications', True):
@@ -584,7 +584,7 @@ class VolunteerScheduleService:
         """Best-effort DM re-asking a volunteer to confirm a moved shift. Never raises."""
         from application.services.tenant_service import TenantService
         from application.utils.discord_embeds import time_field, volunteer_embed
-        from application.utils.discord_messages import volunteer_shift_changed_dm
+        from application.utils.discord_messages_volunteer import volunteer_shift_changed_dm
 
         discord_id = getattr(user, 'discord_id', None)
         if not discord_id or not getattr(user, 'dm_notifications', True):
@@ -623,7 +623,7 @@ class VolunteerScheduleService:
         from application.repositories import UserRoleRepository
         from application.services.tenant_service import TenantService
         from application.utils.discord_embeds import time_field, volunteer_embed
-        from application.utils.discord_messages import volunteer_released_dm
+        from application.utils.discord_messages_volunteer import volunteer_released_dm
         from models import Role
 
         recipients: Dict[int, User] = {}

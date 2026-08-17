@@ -5,8 +5,9 @@ hands a player a permalink from the pool, ``async_qualifier_scoring`` ranks the
 submitted runs, ``async_qualifier_access`` decides who may see a run before the
 window closes, ``async_qualifier_config``/``_rules`` validate the per-qualifier
 settings, ``async_qualifier_pools`` authors the pools and permalinks runs are
-drawn from, and ``async_qualifier_expiry`` + ``async_qualifier_worker`` between
-them forfeit a run the player drew and abandoned. Gated by
+drawn from, ``async_qualifier_review`` is the reviewer's queue (claim, decide,
+notes), and ``async_qualifier_expiry`` + ``async_qualifier_worker`` between them
+forfeit a run the player drew and abandoned. Gated by
 ``FeatureFlag.ASYNC_QUALIFIERS``.
 """
 
@@ -16,6 +17,7 @@ from application.services.async_qualifier import (
     async_qualifier_notifications,
     async_qualifier_pools,
     async_qualifier_reads,
+    async_qualifier_review,
     async_qualifier_scoring,
     async_qualifier_worker,
 )
@@ -43,6 +45,7 @@ __all__ = [
     'async_qualifier_notifications',
     'async_qualifier_pools',
     'async_qualifier_reads',
+    'async_qualifier_review',
     'async_qualifier_scoring',
     'async_qualifier_worker',
     'validate_async_qualifier_config',

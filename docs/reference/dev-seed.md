@@ -137,6 +137,10 @@ also how the files stay under the 800-line budget.
 | `seed_crew.py` | Commentator/tracker signups — one row per crew state, including the approved-but-unacknowledged one that is the only fixture rendering the Acknowledge control |
 | `seed_online.py` | Racetime bots/rooms, presets, SpeedGaming, Discord events |
 | `seed_qualifiers.py` | Async qualifiers, open and closed |
+| `seed_access.py` | Memberships and per-tenant role grants — including the two fixtures defined by an absence, which is why it is the one module that deletes |
+| `seed_venue.py` | Stages, the numbered station pool, and every system-config key |
+| `seed_tokens.py` | The deterministic dev bearers and room-screen tokens, each with its revoked/read-only twin |
+| `seed_discord.py` | Guild-role mappings, both shapes, plus the grants a sync would leave behind |
 | `seed_brackets.py`, `seed_challonge.py`, `seed_volunteers.py`, `seed_equipment.py`, `seed_observability.py`, `seed_fledgling.py` | Their namesakes |
 
 ## What the fixtures deliberately do not do

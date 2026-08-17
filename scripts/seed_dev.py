@@ -29,15 +29,12 @@ from tortoise import Tortoise
 from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.mcp_auth_service import READ_SCOPE, WRITE_SCOPE
-from application.services.room_token_service import hash_token
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_local, parse_local_datetime
 from models import (
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
-    DiscordRoleMapping,
-    DiscordTournamentGrant,
     FeatureFlag,
     FeatureFlagGroup,
     JoinRequestStatus,
@@ -45,27 +42,22 @@ from models import (
     PlayerAvailability,
     RacetimeBot,
     Role,
-    RoleSource,
-    RoomToken,
     Stage,
-    Station,
-    StationSide,
-    SystemConfiguration,
     Tenant,
     TenantFeatureFlag,
     TenantJoinRequest,
-    TenantMembership,
     Tournament,
-    TournamentGrant,
     TournamentPlayers,
     TriforceText,
     User,
     UserRole,
     VolunteerAvailabilityStatus,
 )
+from scripts.seed_access import seed_access_for_tenant
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_crew import seed_crew_for_tenant
+from scripts.seed_discord import seed_discord_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_match_day import seed_match_day_for_tenant
@@ -89,6 +81,8 @@ from scripts.seed_support import (
     backfill,
     fixture_discord_id,
 )
+from scripts.seed_tokens import seed_tokens_for_tenant
+from scripts.seed_venue import seed_venue_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 
 # Two dev tenants. Tenant A reuses the migration's ``default`` slug; on a fresh
@@ -250,153 +244,15 @@ async def seed_for_tenant(
     script mirrors that contract.
     """
     with tenant_scope(tenant.id):
-        for uname, u in users.items():
-            # Every scoped user is a member of this tenant, bar the two fixtures
-            # that exist to be absent: local_only is the "member of one community
-            # and not another" case, outsider the "member of nothing at all" one,
-            # which is what the membership gate's join page needs to be reachable
-            # in dev.
-            if uname == 'outsider' or (uname == 'local_only' and tenant.slug != 'default'):
-                # Deleted, not merely skipped: these two fixtures are defined by
-                # an *absence*, and a create-only seed can never converge one —
-                # a stale row from an earlier fixture layout would leave them
-                # members here and quietly stop proving anything.
-                await TenantMembership.filter(user=u, tenant=tenant).delete()
-                continue
-            await TenantMembership.get_or_create(user=u, tenant=tenant)
+        # --- Memberships + roles (scripts/seed_access.py) ----------------
+        await seed_access_for_tenant(tenant, users)
 
-        # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
-        # qualified + available pool seeded further down so the Vol. Roster tab and
-        # the auto-scheduler actually have an assignable pool to show
-        # (VolunteerProfileService.assignable_volunteers filters on Role.VOLUNTEER).
-        role_grants = [
-            ("staff_user", Role.STAFF),
-            ("proctor_user", Role.PROCTOR),
-            ("sm_user", Role.STREAM_MANAGER),
-            ("player_one", Role.TRIFORCE_SUBMITTER),
-            ("proctor_user", Role.VOLUNTEER),
-            ("sm_user", Role.VOLUNTEER),
-            ("player_one", Role.VOLUNTEER),
-            ("player_two", Role.VOLUNTEER),
-            ("player_three", Role.VOLUNTEER),
-            ("player_four", Role.VOLUNTEER),
-            # Deliberately the only grant vc_user gets: a coordinator with no
-            # staff role. cc_user gets no role row at all — crew coordination is
-            # a per-tournament relation, granted below.
-            ("vc_user", Role.VOLUNTEER_COORDINATOR),
-            # One holder each for the three online-tournament admin roles, and
-            # nothing else: the Presets tab, the sync config (SpeedGaming /
-            # racetime / Discord events) and the qualifier review queue each gate
-            # on one of these, and a surface that gates on staff-ness instead
-            # looks correct until the delegate it was written for logs in.
-            ("preset_mgr", Role.PRESET_MANAGER),
-            ("sync_user", Role.SYNC_ADMIN),
-            ("qual_admin", Role.QUALIFIER_ADMIN),
-            # The same rule applied to the four roles whose only holders also held
-            # VOLUNTEER (proctor_user, sm_user, player_one): with nothing holding
-            # them alone, a surface that means to gate on PROCTOR but gates on
-            # VOLUNTEER — or the reverse — passed in dev either way.
-            ("proctor_only", Role.PROCTOR),
-            ("sm_only", Role.STREAM_MANAGER),
-            ("triforce_sub", Role.TRIFORCE_SUBMITTER),
-            ("volunteer_only", Role.VOLUNTEER),
-        ]
-        if tenant.slug == "default":
-            # Deliberately one tenant only — a role grant implies membership, so
-            # a user who holds nothing in tenant B and is a member of nothing
-            # there must be absent from tenant B's pickers.
-            role_grants.append(("local_only", Role.VOLUNTEER))
-        # Roles the guild-role sync granted rather than a staff member: the
-        # DiscordRoleMapping fixtures below map this guild's "Volunteers" role
-        # onto VOLUNTEER, and these are the rows that mapping would produce.
-        # ``RoleSource`` is what the role table's "granted by" column reads, and
-        # what a re-sync is allowed to revoke — a seed where every grant is
-        # MANUAL cannot show either.
-        discord_sourced = {("player_three", Role.VOLUNTEER), ("player_four", Role.VOLUNTEER)}
-        for uname, role in role_grants:
-            await UserRole.get_or_create(
-                user=users[uname], role=role, tenant=tenant,
-                defaults={
-                    "granted_by": None,
-                    "source": (
-                        RoleSource.DISCORD if (uname, role) in discord_sourced
-                        else RoleSource.MANUAL
-                    ),
-                },
-            )
-        print(
-            f"    [{tenant.slug}] roles ok"
-            + (" (local_only is a VOLUNTEER here and nowhere else)"
-               if tenant.slug == "default" else " (local_only holds nothing here)")
-        )
-
-        # Stages
-        for name, url in [
-            ("Stage 1", "https://twitch.tv/wizzrobe"),
-            ("Stage 2", "https://twitch.tv/wizzrobe2"),
-            ("Stage 3", "https://twitch.tv/wizzrobe3"),
-        ]:
-            await Stage.get_or_create(
-                name=name, tenant=tenant,
-                defaults={"stream_url": url, "is_active": True},
-            )
-        print(f"    [{tenant.slug}] stages ok")
-
-        # Venue station pool — two banks facing into the middle of the room.
-        # Only tenant A defines one: a community with no stations keeps the
-        # historical free-text station field, and tenant B is that fixture.
-        if tenant.slug == "default":
-            # Sided and numbered so the check-in draw has a room to work with:
-            # six a side, neighbours one apart, more than the live matches
-            # occupy. Station 13 has no layout — the "no side set" fixture.
-            layout = (
-                [(f"{n}", "North wall", StationSide.LEFT, n) for n in range(1, 7)]
-                + [(f"{n}", "South wall", StationSide.RIGHT, n - 6) for n in range(7, 13)]
-                + [("13", "Overflow", None, None)]
-            )
-            for idx, (nm, section, side, pos) in enumerate(layout):
-                await Station.get_or_create(
-                    name=nm, tenant=tenant,
-                    defaults={"section": section, "side": side,
-                              "position": pos, "sort_order": idx},
-                )
-            print(f"    [{tenant.slug}] stations ok")
-        else:
-            print(f"    [{tenant.slug}] stations skipped (free-text fallback fixture)")
-
-        # System configuration — every key SystemConfigService reads, because a
-        # key the seed omits is a Settings-tab field that reads as "not
-        # configured" in dev and a code path (venue hours, the reminder lead, the
-        # station-label format) that only ever runs on its fallback.
+        # --- Stages, stations, system config (scripts/seed_venue.py) -----
+        # The three-day window the venue hours, the volunteer fixtures and
+        # player availability all describe.
         today = now_local().date()
         event_days = [today + timedelta(days=d) for d in range(3)]
-        venue_hours = {
-            event_days[0].isoformat(): {"open": "10:00", "close": "23:00"},
-            event_days[1].isoformat(): {"open": "09:00", "close": "23:00"},
-            event_days[2].isoformat(): {"open": "09:00", "close": "20:00"},
-        }
-        config_specs = [
-            ("event_start_date", today.isoformat()),
-            ("event_end_date", (today + timedelta(days=2)).isoformat()),
-            ("max_concurrent_players", "12"),
-            ("max_concurrent_stages", "3"),
-            ("volunteer_reminder_lead_minutes", "90"),
-            ("volunteer_comp_tiers", "8, 12, 16"),
-            ("tournament_hours_by_date", json.dumps(venue_hours, sort_keys=True)),
-            # Tenant A's stations are the numbered pool seeded below, so it
-            # enforces numeric labels; tenant B has no station pool and keeps the
-            # free-text default — the two halves of the same setting.
-            ("station_format", "numeric" if tenant.slug == "default" else "free"),
-            # Both halves of the join-page preview: tenant B publishes today's
-            # matches to non-members, tenant A keeps the gate closed. A dev
-            # signed out of both sees the two versions of the same door.
-            ("join_page_match_preview", "true" if tenant.slug == "second" else "false"),
-        ]
-        for key, val in config_specs:
-            await SystemConfiguration.get_or_create(
-                name=key, tenant=tenant, defaults={"value": val},
-            )
-        print(f"    [{tenant.slug}] system config ok")
+        await seed_venue_for_tenant(tenant, today, event_days)
 
         # Tournament
         staff = users["staff_user"]
@@ -553,43 +409,8 @@ async def seed_for_tenant(
         # --- Equipment lending (scripts/seed_equipment.py) -------------------
         equipment = await seed_equipment_for_tenant(tenant, users, staff, now)
 
-        # --- API tokens ------------------------------------------------------
-        # Deterministic dev bearer strings, one pair per tenant, so REST
-        # endpoints resolve to the right tenant. Non-secret fixtures; only the
-        # SHA-256 hash is stored, exactly like production.
-        dev_bearer = f"wizzrobe_pat_devseed_{tenant.slug}_local_only_do_not_use"
-        if not await ApiToken.filter(user=staff, name="Dev Seed Token", tenant=tenant).exists():
-            await ApiToken.create(
-                user=staff, name="Dev Seed Token", tenant=tenant,
-                token_hash=hashlib.sha256(dev_bearer.encode()).hexdigest(),
-                token_prefix=dev_bearer[:17], read_only=False,
-            )
-        ro_bearer = f"wizzrobe_pat_devseedro_{tenant.slug}_local_only_do_not"
-        if not await ApiToken.filter(user=staff, name="Dev Read-Only Token", tenant=tenant).exists():
-            await ApiToken.create(
-                user=staff, name="Dev Read-Only Token", tenant=tenant,
-                token_hash=hashlib.sha256(ro_bearer.encode()).hexdigest(),
-                token_prefix=ro_bearer[:17], read_only=True,
-            )
-        print(f"    [{tenant.slug}] api tokens ok (dev bearer: {dev_bearer})")
-
-        # --- Tournament room screens -----------------------------------------
-        # A live token per tenant plus a revoked one, so the settings list shows
-        # both states and /ui-validation can open the seeds board without a
-        # login. Deterministic like the bearers above and just as non-secret.
-        room_token = f"wizzrobe_room_devseed_{tenant.slug}_local_only_do_not_use"
-        await RoomToken.get_or_create(
-            token_hash=hash_token(room_token),
-            defaults={"label": "Room A desk PC", "tenant": tenant, "created_by": staff},
-        )
-        await RoomToken.get_or_create(
-            token_hash=hash_token(f"{room_token}_retired"),
-            defaults={
-                "label": "Old laptop (retired)", "tenant": tenant,
-                "created_by": staff, "revoked_at": now,
-            },
-        )
-        print(f"    [{tenant.slug}] room tokens ok (/room/{room_token}/seeds)")
+        # --- API + room tokens (scripts/seed_tokens.py) -------------------
+        await seed_tokens_for_tenant(tenant, staff, now)
 
 
         # --- Triforce texts --------------------------------------------------
@@ -611,49 +432,8 @@ async def seed_for_tenant(
             )
         print(f"    [{tenant.slug}] triforce texts ok")
 
-        # --- Discord role mappings ------------------------------------------
-        # Each tenant maps its own guild's roles onto app roles.
-        guild_id = tenant.discord_guild_id
-        role_mapping_specs = [
-            (2000000000000000001, "Wizzrobe Staff", Role.STAFF),
-            (2000000000000000002, "Proctors", Role.PROCTOR),
-            (2000000000000000003, "Stream Managers", Role.STREAM_MANAGER),
-            (2000000000000000004, "Volunteers", Role.VOLUNTEER),
-        ]
-        for discord_role_id, discord_role_name, app_role in role_mapping_specs:
-            await DiscordRoleMapping.get_or_create(
-                guild_id=guild_id, discord_role_id=discord_role_id, app_role=app_role,
-                tenant=tenant, defaults={"discord_role_name": discord_role_name},
-            )
-        # The other shape of mapping: a guild role onto one tournament's grants
-        # rather than a community-wide role. Both live in the same table and the
-        # admin tab renders them side by side, so the seed needs one of each.
-        for discord_role_id, discord_role_name, grant in [
-            (2000000000000000005, "Event Admins", TournamentGrant.TOURNAMENT_ADMIN),
-            (2000000000000000006, "Crew Leads", TournamentGrant.CREW_COORDINATOR),
-        ]:
-            await DiscordRoleMapping.get_or_create(
-                guild_id=guild_id, discord_role_id=discord_role_id,
-                tournament_grant=grant, tournament=tournament, tenant=tenant,
-                defaults={"discord_role_name": discord_role_name},
-            )
-        # And the provenance rows sync would leave behind, so the "a re-sync may
-        # take this back" state sits next to a hand-made grant that it may not:
-        # staff holds both grants manually, these two came from the guild roles.
-        for uname, grant in [
-            ("player_three", TournamentGrant.CREW_COORDINATOR),
-            ("player_four", TournamentGrant.TOURNAMENT_ADMIN),
-        ]:
-            relation = (
-                tournament.admins if grant == TournamentGrant.TOURNAMENT_ADMIN
-                else tournament.crew_coordinators
-            )
-            await relation.add(users[uname])
-            await DiscordTournamentGrant.get_or_create(
-                tournament=tournament, user=users[uname], grant=grant,
-                defaults={"tenant": tenant},
-            )
-        print(f"    [{tenant.slug}] discord role mappings ok")
+        # --- Discord role mappings (scripts/seed_discord.py) ------------
+        await seed_discord_for_tenant(tenant, tournament, users)
 
         # --- Challonge mirror (scripts/seed_challonge.py) --------------------
         await seed_challonge_for_tenant(

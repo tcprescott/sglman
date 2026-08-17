@@ -5,32 +5,28 @@ Handles Discord-related operations like sending DMs.
 """
 
 import logging
-from datetime import datetime
-from typing import Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Awaitable, Callable, Dict, Optional, Tuple
 
 import discord
 from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
+from application.services.discord.discord_guild_ops import (
+    GuildOpsMixin,
+    MockGuildOpsMixin,
+)
 from application.services.discord.discord_member_events import (
     sync_member_avatar,
     sync_member_roles,
 )
+from application.services.discord.discord_scheduled_events import (
+    MockScheduledEventsMixin,
+    ScheduledEventsMixin,
+)
 from application.services.web_push_service import WebPushService
 from application.utils.discord_messages import DMLink
-from application.utils.mocks import mock_discord_data
 
 logger = logging.getLogger(__name__)
-
-
-def _description_or_missing(description: Optional[str]) -> str:
-    """Truncate a scheduled-event description, or ``MISSING`` when it is empty.
-
-    discord.py omits ``description`` from the payload only when the argument is
-    ``MISSING``; passing ``None`` puts a literal JSON ``null`` on the wire, which
-    *clears* an existing description instead of leaving it untouched.
-    """
-    return (description or '')[:1000] or discord.utils.MISSING
 
 
 def _mirror_dm_to_web_push(
@@ -173,8 +169,14 @@ def get_discord_bot() -> commands.Bot:
     return _bot_instance
 
 
-class DiscordService:
-    """Service for Discord-related operations."""
+class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
+    """Service for Discord-related operations.
+
+    This module owns the DM surface — the one path every notification flows
+    through. Guild/role reads and writes and the Scheduled Events wrappers are
+    mixed in from their own modules; ``MockDiscordService`` composes the mock
+    twin of each, so the two surfaces cannot drift apart.
+    """
     
     def __init__(self) -> None:
         self._bot = get_discord_bot()
@@ -308,366 +310,8 @@ class DiscordService:
         """Get the Discord bot instance."""
         return self._bot
 
-    async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        """
-        Retrieve the list of guilds (servers) the bot is currently connected to.
 
-        Returns:
-            Tuple[success, data]
-            - On success: (True, [{"id": int, "name": str}, ...])
-            - On failure: (False, error_message)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            guilds = self._bot.guilds  # cached list of Guild objects
-            data = [{"id": g.id, "name": g.name} for g in guilds]
-            return True, data
-        except Exception as e:
-            return False, f"Failed to retrieve guilds: {e!s}"
-
-    async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        """
-        Retrieve all roles for a given guild.
-
-        Args:
-            guild_id: The Discord guild ID (snowflake)
-
-        Returns:
-            Tuple[success, data]
-            - On success: (True, [{"id": int, "name": str}, ...])
-            - On failure: (False, error_message)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            guild = self._bot.get_guild(guild_id)
-            if guild is None:
-                try:
-                    guild = await self._bot.fetch_guild(guild_id)
-                except discord.NotFound:
-                    return False, "Guild not found"
-                except discord.Forbidden:
-                    return False, "Insufficient permissions to access this guild"
-
-            roles_list: List[discord.Role]
-            try:
-                # Prefer explicit fetch to ensure complete/updated role list
-                roles_list = await guild.fetch_roles()
-            except Exception:
-                roles_list = list(getattr(guild, "roles", []))
-
-            data = [{"id": r.id, "name": r.name} for r in roles_list]
-            return True, data
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while retrieving roles: {e!s}"
-        except Exception as e:
-            return False, f"Failed to retrieve roles: {e!s}"
-
-    async def _modify_role(
-        self, guild_id: int, user_id: int, role_id: int, reason: Optional[str], *, add: bool,
-    ) -> Tuple[bool, str]:
-        """Add or remove a guild role for a member, depending on ``add``."""
-        gerund = "adding" if add else "removing"
-        past = "added to" if add else "removed from"
-        verb = "add" if add else "remove"
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
-            if guild is None:
-                return False, "Guild not found"
-
-            member = guild.get_member(user_id)
-            if member is None:
-                try:
-                    member = await guild.fetch_member(user_id)
-                except discord.NotFound:
-                    return False, "Member not found in guild"
-
-            role = guild.get_role(role_id)
-            if role is None:
-                try:
-                    roles_list = await guild.fetch_roles()
-                    role = next((r for r in roles_list if r.id == role_id), None)
-                except Exception:
-                    role = None
-
-            if role is None:
-                return False, "Role not found in guild"
-
-            if add:
-                await member.add_roles(role, reason=reason)
-            else:
-                await member.remove_roles(role, reason=reason)
-            return True, f"Role {past} user"
-        except discord.Forbidden:
-            return False, "Bot lacks permissions or role hierarchy prevents this action"
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while {gerund} role: {e!s}"
-        except Exception as e:
-            return False, f"Failed to {verb} role: {e!s}"
-
-    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
-        """
-        Add a role to a user in a given guild.
-
-        Args:
-            guild_id: Target guild ID
-            user_id: Target user ID (member)
-            role_id: Role ID to add
-            reason: Optional audit log reason
-
-        Returns:
-            (success, message)
-        """
-        return await self._modify_role(guild_id, user_id, role_id, reason, add=True)
-
-    async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
-        """
-        Remove a role from a user in a given guild.
-
-        Args:
-            guild_id: Target guild ID
-            user_id: Target user ID (member)
-            role_id: Role ID to remove
-            reason: Optional audit log reason
-
-        Returns:
-            (success, message)
-        """
-        return await self._modify_role(guild_id, user_id, role_id, reason, add=False)
-
-    async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
-        """
-        Retrieve the set of Discord role IDs a member currently holds in a guild.
-
-        Returns:
-            Tuple[success, data]
-            - On success: (True, {role_id, ...}); the ``@everyone`` role is excluded.
-            - When the user is not a member of the guild: (True, set())
-            - On a hard failure (bot not ready, API error): (False, error_message)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
-            if guild is None:
-                return False, "Guild not found"
-
-            member = guild.get_member(user_id)
-            if member is None:
-                try:
-                    member = await guild.fetch_member(user_id)
-                except discord.NotFound:
-                    return True, set()
-
-            # Exclude @everyone, whose role id equals the guild id.
-            return True, {r.id for r in member.roles if r.id != guild_id}
-        except discord.Forbidden:
-            return False, "Bot lacks permissions to read guild members"
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while reading member roles: {e!s}"
-        except Exception as e:
-            return False, f"Failed to read member roles: {e!s}"
-
-    async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
-        """Return ``{"id", "name"}`` for a guild the bot can see, else an error.
-
-        Used to render the connected server's name and to confirm the bot is
-        actually in the guild after a link.
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-            guild = self._bot.get_guild(guild_id)
-            if guild is None:
-                try:
-                    guild = await self._bot.fetch_guild(guild_id)
-                except discord.NotFound:
-                    return False, "The bot is not in this server."
-                except discord.Forbidden:
-                    return False, "Insufficient permissions to access this guild"
-            return True, {"id": guild.id, "name": guild.name}
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while reading guild: {e!s}"
-        except Exception as e:
-            return False, f"Failed to read guild: {e!s}"
-
-    async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
-        """Whether ``user_id`` may administer ``guild_id`` (owner / Administrator / Manage Server).
-
-        This is the authorization proof for linking a tenant to a Discord server:
-        only a member who could add the bot in the first place passes. Requires
-        the bot to be in the guild (it is, right after the bot-auth flow) and the
-        members intent (enabled). Returns ``(True, bool)`` on a definitive answer,
-        ``(False, error)`` when the bot cannot determine it (not ready, not in the
-        guild, API error) so callers fail closed rather than treating an error as
-        authorized.
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-            guild = self._bot.get_guild(guild_id)
-            if guild is None:
-                try:
-                    guild = await self._bot.fetch_guild(guild_id)
-                except discord.NotFound:
-                    return False, "The bot is not in this server."
-                except discord.Forbidden:
-                    return False, "The bot cannot access this server."
-            if user_id == guild.owner_id:
-                return True, True
-            member = guild.get_member(user_id)
-            if member is None:
-                try:
-                    member = await guild.fetch_member(user_id)
-                except discord.NotFound:
-                    # Not a member of the guild → cannot administer it.
-                    return True, False
-            perms = member.guild_permissions
-            return True, bool(perms.administrator or perms.manage_guild)
-        except discord.Forbidden:
-            return False, "Bot lacks permissions to read guild members"
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while checking permissions: {e!s}"
-        except Exception as e:
-            return False, f"Failed to check permissions: {e!s}"
-
-    # --- Scheduled events (PR 8) --------------------------------------------
-    # The Discord Events reconciler mirrors Wizzrobe's schedule into the tenant
-    # guild's Scheduled Events. These are thin, fail-closed wrappers over the
-    # discord.py scheduled-event API; the reconciler owns idempotency (it tracks
-    # which events it created via ``DiscordScheduledEvent`` rows).
-
-    async def _get_guild(self, guild_id: int) -> Optional["discord.Guild"]:
-        guild = self._bot.get_guild(guild_id)
-        if guild is None:
-            try:
-                guild = await self._bot.fetch_guild(guild_id)
-            except (discord.NotFound, discord.Forbidden):
-                return None
-        return guild
-
-    async def _scheduled_event_op(
-        self,
-        guild_id: int,
-        op: Callable[["discord.Guild"], Awaitable[Tuple[bool, Union[int, str]]]],
-        *,
-        gerund: str,
-        verb: str,
-    ) -> Tuple[bool, Union[int, str]]:
-        """Run a guild-scoped scheduled-event ``op`` with the shared guard + error tail.
-
-        Applies the not-connected preamble, resolves the guild (via ``_get_guild``,
-        returning "not in this server" when absent), then delegates to ``op(guild)``
-        and maps the discord.py exception tail to a ``(False, message)`` tuple.
-        ``gerund``/``verb`` name the action for the error text (e.g. 'creating'/'create').
-        """
-        try:
-            if self._bot is None or not self._bot.is_ready():
-                return False, "Discord bot is not connected."
-            guild = await self._get_guild(guild_id)
-            if guild is None:
-                return False, "The bot is not in this server."
-            return await op(guild)
-        except discord.Forbidden:
-            return False, "Bot lacks permission to manage events in this server."
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while {gerund} event: {e!s}"
-        except Exception as e:
-            return False, f"Failed to {verb} event: {e!s}"
-
-    async def create_scheduled_event(
-        self,
-        guild_id: int,
-        *,
-        name: str,
-        start_time: "datetime",
-        end_time: "datetime",
-        description: Optional[str] = None,
-        location: str = 'Stream',
-    ) -> Tuple[bool, Union[int, str]]:
-        """Create an external Scheduled Event; return ``(True, event_id)`` or an error."""
-        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
-            event = await guild.create_scheduled_event(
-                name=name[:100],
-                start_time=start_time,
-                end_time=end_time,
-                description=_description_or_missing(description),
-                entity_type=discord.EntityType.external,
-                privacy_level=discord.PrivacyLevel.guild_only,
-                location=location[:100],
-            )
-            return True, int(event.id)
-
-        return await self._scheduled_event_op(guild_id, _op, gerund="creating", verb="create")
-
-    async def edit_scheduled_event(
-        self,
-        guild_id: int,
-        event_id: int,
-        *,
-        name: str,
-        start_time: "datetime",
-        end_time: "datetime",
-        description: Optional[str] = None,
-        location: str = 'Stream',
-    ) -> Tuple[bool, str]:
-        """Edit an existing Scheduled Event to match the current schedule."""
-        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
-            event = guild.get_scheduled_event(event_id)
-            if event is None:
-                try:
-                    event = await guild.fetch_scheduled_event(event_id)
-                except discord.NotFound:
-                    return False, "Scheduled event not found."
-            await event.edit(
-                name=name[:100],
-                start_time=start_time,
-                end_time=end_time,
-                description=_description_or_missing(description),
-                entity_type=discord.EntityType.external,
-                location=location[:100],
-            )
-            return True, "Event updated."
-
-        return await self._scheduled_event_op(guild_id, _op, gerund="editing", verb="edit")
-
-    async def delete_scheduled_event(self, guild_id: int, event_id: int) -> Tuple[bool, str]:
-        """Cancel (delete) a Scheduled Event. Treats an already-gone event as success."""
-        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
-            event = guild.get_scheduled_event(event_id)
-            if event is None:
-                try:
-                    event = await guild.fetch_scheduled_event(event_id)
-                except discord.NotFound:
-                    return True, "Event already removed."
-            await event.delete()
-            return True, "Event cancelled."
-
-        return await self._scheduled_event_op(guild_id, _op, gerund="deleting", verb="delete")
-
-
-class MockDiscordService:
+class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
     """Stub Discord service for local development without a real bot.
 
     Mirrors the public surface of DiscordService. Methods log to stdout and
@@ -721,58 +365,6 @@ class MockDiscordService:
     def get_bot(self) -> None:
         return None
 
-    async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        return True, mock_discord_data.all_guilds()
-
-    async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        return True, mock_discord_data.roles_for(guild_id)
-
-    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
-        print(f"[MOCK Discord] add_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
-        return True, "Role added (mock)"
-
-    async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
-        print(f"[MOCK Discord] remove_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
-        return True, "Role removed (mock)"
-
-    async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
-        print(f"[MOCK Discord] get_member_role_ids guild={guild_id} user={user_id}")
-        return True, mock_discord_data.member_role_ids(guild_id, user_id)
-
-    async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
-        print(f"[MOCK Discord] get_guild_summary guild={guild_id}")
-        return True, {"id": guild_id, "name": mock_discord_data.guild(guild_id)["name"]}
-
-    async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
-        print(f"[MOCK Discord] member_can_manage_guild guild={guild_id} user={user_id}")
-        return True, mock_discord_data.user_can_manage(guild_id, user_id)
-
-    async def create_scheduled_event(
-        self, guild_id: int, *, name: str, start_time: "datetime", end_time: "datetime",
-        description: Optional[str] = None, location: str = 'Stream',
-    ) -> Tuple[bool, Union[int, str]]:
-        event_id = mock_discord_data.create_scheduled_event(
-            guild_id, name=name, start_time=start_time, end_time=end_time,
-            description=description, location=location,
-        )
-        print(f"[MOCK Discord] create_scheduled_event guild={guild_id} name={name!r} -> {event_id}")
-        return True, event_id
-
-    async def edit_scheduled_event(
-        self, guild_id: int, event_id: int, *, name: str, start_time: "datetime",
-        end_time: "datetime", description: Optional[str] = None, location: str = 'Stream',
-    ) -> Tuple[bool, str]:
-        ok = mock_discord_data.edit_scheduled_event(
-            event_id, guild_id=guild_id, name=name, start_time=start_time,
-            end_time=end_time, description=description, location=location,
-        )
-        print(f"[MOCK Discord] edit_scheduled_event guild={guild_id} event={event_id} ok={ok}")
-        return (True, "Event updated.") if ok else (False, "Scheduled event not found.")
-
-    async def delete_scheduled_event(self, guild_id: int, event_id: int) -> Tuple[bool, str]:
-        mock_discord_data.delete_scheduled_event(event_id)
-        print(f"[MOCK Discord] delete_scheduled_event guild={guild_id} event={event_id}")
-        return True, "Event cancelled."
 
 
 from application.utils.mocks.mock_discord import is_mock_discord
