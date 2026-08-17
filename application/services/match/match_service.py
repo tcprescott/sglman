@@ -5,8 +5,8 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
 from application.events import Event, EventType, event_bus, match_live
@@ -27,8 +27,10 @@ from application.services.discord import discord_queue
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
+from application.services.match.match_acknowledgment import MatchAcknowledgmentMixin
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
+from application.services.match.match_reads import MatchReadsMixin
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
@@ -40,24 +42,20 @@ from application.services.system_config_service import SystemConfigService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
-    local_day_bounds,
     parse_local_datetime,
     timezone_label,
     to_local,
 )
 from models import (
     Match,
-    MatchAcknowledgment,
-    MatchPlayers,
-    Stage,
     Tournament,
     User,
 )
 
 
 class MatchService(
-    CancellationMixin, MatchRequestMixin, MatchReviewMixin, StationAssignmentMixin,
-    StationDrawMixin,
+    CancellationMixin, MatchAcknowledgmentMixin, MatchReadsMixin, MatchRequestMixin,
+    MatchReviewMixin, StationAssignmentMixin, StationDrawMixin,
 ):
     """Service for match-related business operations."""
 
@@ -96,99 +94,6 @@ class MatchService(
             match_id, prefetch_relations=prefetch_relations
         )
         return require_found(match, f"Match {match_id}")
-
-    async def get_match_by_id(self, match_id: int) -> Optional[Match]:
-        return await self.repository.get_by_id(match_id)
-
-    async def get_by_id(
-        self, match_id: int, prefetch_relations: bool = True
-    ) -> Optional[Match]:
-        """Read-only load-or-None lookup for presentation/bot callers.
-
-        Exposed so entry surfaces (pages/, api/, discordbot/) never reach
-        through ``match_service.repository`` for a simple read.
-        """
-        return await self.repository.get_by_id(match_id, prefetch_relations=prefetch_relations)
-
-    async def get_match_players(self, match: Match) -> List[MatchPlayers]:
-        return await self.repository.get_players(match)
-
-    async def get_player_names(self, match_id: int) -> str:
-        """Comma-joined preferred names of a match's players (``''`` if none)."""
-        players = await self.repository.get_players(match_id)
-        return ', '.join(p.user.preferred_name for p in players) if players else ''
-
-    async def list_acknowledgments(self, match: Match) -> List[MatchAcknowledgment]:
-        return await self.ack_repository.list_for_match(match)
-
-    async def get_all_matches_for_schedule(self) -> List[Match]:
-        """
-        Get all matches for the public schedule view.
-
-        Returns:
-            List of matches with all related data prefetched
-        """
-        return await self.repository.get_all_for_schedule()
-
-    async def get_matches_for_date(
-        self,
-        target_date: date,
-        exclude_finished: bool = True,
-        require_stage: bool = True
-    ) -> List[Match]:
-        """
-        Get all matches for a specific date with optional filters.
-
-        "That day" is resolved on the **display clock**, so a schedule board shows
-        the day its reader means. The repository takes instants; deciding which
-        instants make up a day is the rule that lives here.
-
-        Args:
-            target_date: The date to fetch matches for
-            exclude_finished: If True, exclude matches that are finished
-            require_stage: If True, only include matches with a stage
-
-        Returns:
-            List of matches with all related data prefetched
-        """
-        start, end = local_day_bounds(target_date, target_date)
-        return await self.repository.scheduled_between(
-            start, end, exclude_finished, require_stage
-        )
-
-    async def group_matches_by_stage(
-        self,
-        matches: List[Match]
-    ) -> Dict[int, Tuple[Stage, List[Match]]]:
-        """
-        Group matches by their stage.
-
-        Args:
-            matches: List of matches to group (must have stage prefetched)
-
-        Returns:
-            Dict mapping stage_id to tuple of (Stage, list of matches)
-        """
-        matches_by_stage: Dict[int, Tuple[Stage, List[Match]]] = {}
-
-        for match in matches:
-            if match.stage_id not in matches_by_stage:
-                matches_by_stage[match.stage_id] = (match.stage, [])
-            matches_by_stage[match.stage_id][1].append(match)
-
-        return matches_by_stage
-
-    async def get_matches_for_player(self, discord_id: str) -> List[Match]:
-        """
-        Get all matches for a specific player by their Discord ID.
-
-        Args:
-            discord_id: Discord ID of the player
-
-        Returns:
-            List of matches where the player is participating
-        """
-        return await self.repository.get_for_player(discord_id)
 
     async def create_match(
         self,
@@ -695,40 +600,6 @@ class MatchService(
         match_live.publish(match.id)
 
         return match
-
-    async def acknowledge_match(self, match_id: int, user: User) -> MatchAcknowledgment:
-        """Mark a match as acknowledged by the given player.
-
-        Only current players of the match may acknowledge.
-        """
-        match = await self._require_match(match_id, prefetch_relations=False)
-
-        players = await self.repository.get_players(match)
-        if not any(p.user_id == user.id for p in players):
-            raise ValueError("You are not a participant of this match.")
-
-        existing = await self.ack_repository.get(match, user)
-        if existing and existing.acknowledged_at is not None:
-            raise ValueError("You have already acknowledged this match.")
-
-        ack = await self.ack_repository.upsert(match, user, acknowledged=True, auto=False)
-        await self.audit_service.write_and_publish(
-            user,
-            AuditActions.MATCH_ACKNOWLEDGED,
-            {'match_id': match.id, 'tournament_id': match.tournament_id},
-            EventType.MATCH_ACKNOWLEDGED,
-            event_extra={'user_id': user.id},
-        )
-        match_live.publish(match.id)
-        return ack
-
-    async def _seed_acknowledgments(
-        self,
-        match: Match,
-        player_ids: List[int],
-        actor: Optional[User],
-    ) -> None:
-        await self.participants.seed_acknowledgments(match, player_ids, actor)
 
     async def assert_within_tournament_hours(
         self, scheduled_at: datetime, tournament_id: Optional[int],

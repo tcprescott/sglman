@@ -16,9 +16,11 @@ from application.services.match import stage_reminder
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
+from application.services.match.match_acknowledgment import MatchAcknowledgmentMixin
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_display_service import MatchDisplayService
 from application.services.match.match_participants import MatchParticipants
+from application.services.match.match_reads import MatchReadsMixin
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_request_guard import assert_player_requests_allowed
 from application.services.match.match_review import MatchReviewMixin
@@ -39,8 +41,10 @@ from application.services.match.match_watcher_service import MatchWatcherService
 
 __all__ = [
     'CancellationMixin',
+    'MatchAcknowledgmentMixin',
     'MatchDisplayService',
     'MatchParticipants',
+    'MatchReadsMixin',
     'MatchRequestMixin',
     'MatchReviewMixin',
     'MatchScheduleService',
