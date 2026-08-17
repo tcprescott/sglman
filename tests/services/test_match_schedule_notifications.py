@@ -28,7 +28,7 @@ from models import (
     Tracker,
 )
 from tests.factories import utc
-from tests.services._match_schedule_setup import build_service, make_user
+from tests.services._match_schedule_setup import build_service, make_dm_user
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ class TestNotifyMatchCrew:
     async def test_approved_commentator_gets_plain_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(111, name="c"), approved=True)
+        await Commentator.create(match=m, user=await make_dm_user(111, name="c"), approved=True)
 
         await service.notify_match_crew(m, "hello crew")
 
@@ -50,7 +50,7 @@ class TestNotifyMatchCrew:
     async def test_approved_tracker_gets_plain_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Tracker.create(match=m, user=await make_user(112, name="tr"), approved=True)
+        await Tracker.create(match=m, user=await make_dm_user(112, name="tr"), approved=True)
 
         await service.notify_match_crew(m, "hi")
 
@@ -59,7 +59,7 @@ class TestNotifyMatchCrew:
     async def test_watcher_gets_unwatch_button_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchWatcher.create(match=m, user=await make_user(222, name="w"))
+        await MatchWatcher.create(match=m, user=await make_dm_user(222, name="w"))
 
         await service.notify_match_crew(m, "watch msg")
 
@@ -69,7 +69,7 @@ class TestNotifyMatchCrew:
     async def test_player_who_is_crew_is_excluded(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        u = await make_user(333, name="pc")
+        u = await make_dm_user(333, name="pc")
         await MatchPlayers.create(match=m, user=u)
         await Commentator.create(match=m, user=u, approved=True)
 
@@ -81,7 +81,7 @@ class TestNotifyMatchCrew:
     async def test_unapproved_crew_skipped(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(444, name="pending"), approved=False)
+        await Commentator.create(match=m, user=await make_dm_user(444, name="pending"), approved=False)
 
         await service.notify_match_crew(m, "hi")
 
@@ -90,7 +90,7 @@ class TestNotifyMatchCrew:
     async def test_opted_out_crew_skipped(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(555, name="mute", dm=False), approved=True)
+        await Commentator.create(match=m, user=await make_dm_user(555, name="mute", dm=False), approved=True)
 
         await service.notify_match_crew(m, "hi")
 
@@ -99,7 +99,7 @@ class TestNotifyMatchCrew:
     async def test_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(666, name="c"), approved=True)
+        await Commentator.create(match=m, user=await make_dm_user(666, name="c"), approved=True)
         service.discord_service.send_dm = AsyncMock(return_value=(False, "blocked"))
 
         # A failed DM is logged, not raised.
@@ -110,7 +110,7 @@ class TestNotifyMatchCrew:
     async def test_unexpected_exception_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(777, name="c"), approved=True)
+        await Commentator.create(match=m, user=await make_dm_user(777, name="c"), approved=True)
         service.discord_service.send_dm = AsyncMock(side_effect=RuntimeError("kaboom"))
 
         # Outer try/except must swallow the send error.
@@ -125,7 +125,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_sends_ack_button_to_pending_player(self, service, db):
         m = await self._setup_match()
-        player = await make_user(111, name="alice")
+        player = await make_dm_user(111, name="alice")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
 
@@ -137,7 +137,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_rescheduled_flag_still_sends(self, service, db):
         m = await self._setup_match(stage=False)
-        player = await make_user(112, name="bob")
+        player = await make_dm_user(112, name="bob")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
 
@@ -147,7 +147,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_already_acknowledged_is_skipped(self, service, db):
         m = await self._setup_match()
-        player = await make_user(113, name="carol")
+        player = await make_dm_user(113, name="carol")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=utc(2025, 1, 15, 20, 0))
 
@@ -157,7 +157,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_opted_out_player_is_skipped(self, service, db):
         m = await self._setup_match()
-        player = await make_user(114, name="dave", dm=False)
+        player = await make_dm_user(114, name="dave", dm=False)
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
 
@@ -167,7 +167,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_dm_failure_is_swallowed(self, service, db):
         m = await self._setup_match()
-        player = await make_user(115, name="erin")
+        player = await make_dm_user(115, name="erin")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
         service.discord_service.send_dm_with_acknowledgment_button = AsyncMock(return_value=(False, "blocked"))
@@ -178,7 +178,7 @@ class TestNotifyAcknowledgmentRequest:
 
     async def test_unexpected_exception_is_swallowed(self, service, db):
         m = await self._setup_match()
-        player = await make_user(116, name="fred")
+        player = await make_dm_user(116, name="fred")
         await MatchPlayers.create(match=m, user=player)
         await MatchAcknowledgment.create(match=m, user=player, acknowledged_at=None)
         service.discord_service.send_dm_with_acknowledgment_button = AsyncMock(side_effect=RuntimeError("x"))
@@ -193,7 +193,7 @@ class TestNotifyMatchParticipantsBranches:
     async def test_approved_tracker_receives_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Tracker.create(match=m, user=await make_user(444, name="tr"), approved=True)
+        await Tracker.create(match=m, user=await make_dm_user(444, name="tr"), approved=True)
 
         await service.notify_match_participants(m, "hi")
 
@@ -202,7 +202,7 @@ class TestNotifyMatchParticipantsBranches:
     async def test_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(445, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(445, name="p"))
         service.discord_service.send_dm = AsyncMock(return_value=(False, "blocked"))
 
         await service.notify_match_participants(m, "hi")
@@ -212,7 +212,7 @@ class TestNotifyMatchParticipantsBranches:
     async def test_unexpected_exception_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(446, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(446, name="p"))
         service.discord_service.send_dm = AsyncMock(side_effect=RuntimeError("kaboom"))
 
         await service.notify_match_participants(m, "hi")
@@ -222,7 +222,7 @@ class TestNotifySubscriberFailurePaths:
     async def test_tournament_subscriber_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        sub = await make_user(555, name="sub")
+        sub = await make_dm_user(555, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.ALL,
         )
@@ -239,7 +239,7 @@ class TestNotifySubscriberFailurePaths:
     async def test_stream_candidate_subscriber_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        sub = await make_user(556, name="sub")
+        sub = await make_dm_user(556, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES,
         )
@@ -256,7 +256,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
     async def test_approved_commentator_receives_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await Commentator.create(match=m, user=await make_user(211, name="c"), approved=True)
+        await Commentator.create(match=m, user=await make_dm_user(211, name="c"), approved=True)
 
         await service.notify_match_participants(m, "hi")
 
@@ -265,7 +265,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
     async def test_watcher_receives_unwatch_button(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchWatcher.create(match=m, user=await make_user(212, name="w"))
+        await MatchWatcher.create(match=m, user=await make_dm_user(212, name="w"))
 
         await service.notify_match_participants(m, "hi")
 
@@ -278,7 +278,7 @@ class TestNotifyStreamCandidateSubscribersExtra:
         t = await Tournament.create(name="T")
         sr = await Stage.create(name="Stage 1")
         m = await Match.create(tournament=t, stage=sr)
-        sub = await make_user(700, name="sub")
+        sub = await make_dm_user(700, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES,
         )
@@ -290,7 +290,7 @@ class TestNotifyStreamCandidateSubscribersExtra:
     async def test_send_raising_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        sub = await make_user(701, name="sub")
+        sub = await make_dm_user(701, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES,
         )
@@ -303,7 +303,7 @@ class TestNotifyTournamentSubscribersScheduledExtra:
     async def test_send_raising_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        sub = await make_user(710, name="sub")
+        sub = await make_dm_user(710, name="sub")
         await TournamentNotificationPreference.create(
             user=sub, tournament=t, match_notifications=MatchNotificationLevel.ALL,
         )
@@ -317,7 +317,7 @@ class TestNotifyMatchScheduledFanOut:
         t = await Tournament.create(name="T")
         sr = await Stage.create(name="Stage 1")
         m = await Match.create(tournament=t, stage=sr, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(811, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(811, name="p"))
 
         captured = []
         import application.services.discord.discord_queue as dq
@@ -341,7 +341,7 @@ class TestNotifyMatchScheduledFanOut:
     async def test_stream_candidate_adds_fourth_enqueue(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(812, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(812, name="p"))
 
         captured = []
         import application.services.discord.discord_queue as dq
@@ -365,7 +365,7 @@ class TestNotifyMatchScheduledFanOut:
     async def test_notify_stream_candidate_enqueues_subscriber_fanout(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(813, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(813, name="p"))
 
         captured = []
         import application.services.discord.discord_queue as dq
@@ -384,9 +384,9 @@ class TestCollectNotifiedDiscordIds:
     async def test_appends_unique_tracker_id(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(111, name="p"))
-        await Commentator.create(match=m, user=await make_user(222, name="c"), approved=True)
-        await Tracker.create(match=m, user=await make_user(333, name="tr"), approved=True)
+        await MatchPlayers.create(match=m, user=await make_dm_user(111, name="p"))
+        await Commentator.create(match=m, user=await make_dm_user(222, name="c"), approved=True)
+        await Tracker.create(match=m, user=await make_dm_user(333, name="tr"), approved=True)
 
         ids = await service._collect_notified_discord_ids(m)
 
@@ -395,8 +395,8 @@ class TestCollectNotifiedDiscordIds:
     async def test_unapproved_tracker_excluded(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(111, name="p"))
-        await Tracker.create(match=m, user=await make_user(999, name="tr"), approved=False)
+        await MatchPlayers.create(match=m, user=await make_dm_user(111, name="p"))
+        await Tracker.create(match=m, user=await make_dm_user(999, name="tr"), approved=False)
 
         ids = await service._collect_notified_discord_ids(m)
 

@@ -16,6 +16,7 @@ from application.services.audit_service import AuditService
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.seedgen_service import SeedGenerationService
 from models import MatchPlayers, Role, User, UserRole
+from tests.factories import make_user
 
 
 def build_service() -> MatchScheduleService:
@@ -37,20 +38,27 @@ def build_service() -> MatchScheduleService:
     return svc
 
 
-async def make_user(discord_id, *, name="u", dm=True):
-    return await User.create(
-        discord_id=discord_id, username=name, display_name=name.upper(), dm_notifications=dm,
+async def make_dm_user(discord_id, *, name="u", dm=True) -> User:
+    """A user with a display name and an explicit DM opt-in.
+
+    Every notifier under test branches on ``dm_notifications``, and the DM text
+    is built from ``preferred_name``, so both have to be set deliberately rather
+    than left on the model default. The row itself comes from the shared
+    ``tests.factories`` user factory.
+    """
+    return await make_user(
+        discord_id, name, display_name=name.upper(), dm_notifications=dm,
     )
 
 
 async def make_staff(discord_id=9000):
-    user = await make_user(discord_id, name="staff")
+    user = await make_dm_user(discord_id, name="staff")
     await UserRole.create(user=user, role=Role.STAFF)
     return user
 
 
 async def make_proctor(discord_id=9001):
-    user = await make_user(discord_id, name="proctor")
+    user = await make_dm_user(discord_id, name="proctor")
     await UserRole.create(user=user, role=Role.PROCTOR)
     return user
 

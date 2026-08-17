@@ -25,9 +25,9 @@ from models import (
 from tests.factories import utc
 from tests.services._match_schedule_setup import (
     build_service,
+    make_dm_user,
     make_proctor,
     make_staff,
-    make_user,
     record_winner,
 )
 
@@ -72,7 +72,7 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(1, name="alice"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="alice"))
         service.seedgen_service.generate_seed_call = AsyncMock(
             return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
         )
@@ -98,7 +98,7 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(3, name="alice"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(3, name="alice"))
         service.seedgen_service.generate_seed_call = AsyncMock(
             return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
         )
@@ -137,7 +137,7 @@ class TestGenerateSeed:
         assert await GeneratedSeeds.all().count() == 0
 
     async def test_returns_permission_error_for_non_privileged_actor(self, service, db):
-        actor = await make_user(2, name="nobody")
+        actor = await make_dm_user(2, name="nobody")
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
         service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled("url"))
@@ -192,7 +192,7 @@ class TestGenerateSeed:
         m = await Match.create(tournament=t)
         # A player, because the roll is gated on having someone to DM the seed to
         # and this test is about what happens once generation is actually reached.
-        await MatchPlayers.create(match=m, user=await make_user(4, name="alice"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(4, name="alice"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
@@ -209,7 +209,7 @@ class TestGenerateSeed:
         staff = await make_staff(discord_id=9200)
         t = await Tournament.create(name="T", seed_generator="dk64r")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(21, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(21, name="p"))
         monkeypatch_submit = AsyncMock(return_value=_submission("up-42"))
         service.seedgen_service.submit_async_roll = monkeypatch_submit
 
@@ -246,7 +246,7 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
-        await MatchPlayers.create(match=m, user=await make_user(5, name="alice"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(5, name="alice"))
         service.seedgen_service.generate_seed_call = AsyncMock(side_effect=RuntimeError("boom"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
@@ -281,7 +281,7 @@ class TestConfirmMatchChallongePush:
         t = await Tournament.create(name="T")
         now = datetime.now(UTC)
         m = await Match.create(tournament=t, seated_at=now, started_at=now, finished_at=now)
-        await MatchPlayers.create(match=m, user=await make_user(1, name="w"), finish_rank=1)
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="w"), finish_rank=1)
         stub = MagicMock()
         stub.push_result_if_linked = AsyncMock(return_value=True)
         monkeypatch.setattr("application.services.challonge_service.ChallongeService", lambda: stub)
@@ -297,7 +297,7 @@ class TestConfirmMatchChallongePush:
         t = await Tournament.create(name="T")
         now = datetime.now(UTC)
         m = await Match.create(tournament=t, seated_at=now, started_at=now, finished_at=now)
-        await MatchPlayers.create(match=m, user=await make_user(2, name="w"), finish_rank=1)
+        await MatchPlayers.create(match=m, user=await make_dm_user(2, name="w"), finish_rank=1)
         stub = MagicMock()
         stub.push_result_if_linked = AsyncMock(side_effect=RuntimeError("challonge down"))
         monkeypatch.setattr("application.services.challonge_service.ChallongeService", lambda: stub)
@@ -317,7 +317,7 @@ class TestLifecycleTransitions:
         staff = await make_staff()
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        player = await MatchPlayers.create(match=m, user=await make_user(1, name="p"))
+        player = await MatchPlayers.create(match=m, user=await make_dm_user(1, name="p"))
 
         await service.seat_match(m, staff)
         await service.start_match(m, staff)
@@ -408,7 +408,7 @@ class TestConfirmIsAdminOnly:
     async def _live_match(self):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(1, name="p"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="p"))
         return m
 
     async def test_proctor_cannot_confirm(self, service, db):
@@ -460,9 +460,9 @@ class TestSeedDmDispatch:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(1, name="alice"))
-        await MatchPlayers.create(match=m, user=await make_user(2, name="bob", dm=False))
-        await MatchPlayers.create(match=m, user=await make_user(3, name="carol"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="alice"))
+        await MatchPlayers.create(match=m, user=await make_dm_user(2, name="bob", dm=False))
+        await MatchPlayers.create(match=m, user=await make_dm_user(3, name="carol"))
         service.seedgen_service.generate_seed_call = AsyncMock(
             return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
         )
