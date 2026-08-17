@@ -312,7 +312,7 @@ poetry run pytest --cov=application --cov=api --cov=middleware --cov-report=term
 (`UserRepository.update_discord_info` used to accept non-field
 `discriminator`/`avatar` arguments and silently drop them on save. It now takes
 `username` and `avatar` — the two Discord-sourced fields the row stores — and
-`tests/test_repositories_coverage.py` pins that a `discriminator` is still
+`tests/test_user_repositories_coverage.py` pins that a `discriminator` is still
 rejected and that the avatar hash actually lands.)
 
 ## Continuous integration
