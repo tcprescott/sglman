@@ -680,7 +680,7 @@ Collaborators: `RescheduleRequestRepository`, `MatchRepository`,
 
 ### player_availability_service.py — PlayerAvailabilityService
 
-Self-service availability for any logged-in player — unlike volunteer availability there is no role or opt-in gate. A user's windows are replaced wholesale on each save. Windows carry a `VolunteerAvailabilityStatus` (`AVAILABLE`/`PREFERRED`/`UNAVAILABLE`). Audited under `player_availability.*`.
+Self-service availability for any logged-in player — unlike volunteer availability there is no role gate. A user's windows are replaced wholesale on each save. Windows carry a `VolunteerAvailabilityStatus` (`AVAILABLE`/`PREFERRED`/`UNAVAILABLE`). Audited under `player_availability.*`.
 
 **Read opt-out, and that is the one thing that differs from the volunteer service.** A player is available for any stretch no window covers, so the windows they save are the times they *cannot* play (`UNAVAILABLE`) or would rather (`PREFERRED`); an `AVAILABLE` window states the default and constrains nothing (the player editor does not offer it). Both static readers pass `DEFAULT_STATUS = AVAILABLE` as the `default` argument to `availability_windows`; the volunteer service passes nothing, keeping `None` for "not declared".
 
@@ -1288,14 +1288,9 @@ Collaborators: `VolunteerProfileRepository`, `AuditService`.
 
 ### volunteer_availability_service.py — VolunteerAvailabilityService
 
-Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. It reads **opt-in**: no `default` is passed, so an undeclared stretch is `None` and the shift picker treats it as no availability at all. Two further differences:
+Self-service availability for anyone reaching the volunteer hub, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. It reads **opt-in**: no `default` is passed, so an undeclared stretch is `None` and the shift picker treats it as no availability at all. `set_windows` has no opt-in gate — the `VOLUNTEER`/`PROCTOR`/`STAFF` role on `/volunteer` is the guard, and stray rows from a user who is not in the pool are inert because the coordinator picker reads the opted-in roster. One further difference: writes are audited `volunteer.availability_updated` (not `player_availability.updated`).
 
-| Difference | |
-|---|---|
-| Opt-in gate | `set_windows` requires an active volunteer opt-in and raises `ValueError` otherwise. |
-| Audit action | Writes are audited `volunteer.availability_updated` (not `player_availability.updated`). |
-
-Collaborators: `VolunteerAvailabilityRepository`, `VolunteerProfileRepository`, `AuditService`, `availability_windows`.
+Collaborators: `VolunteerAvailabilityRepository`, `AuditService`, `availability_windows`.
 
 ### volunteer_position_service.py — VolunteerPositionService
 

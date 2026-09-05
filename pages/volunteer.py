@@ -30,9 +30,9 @@ def create() -> None:
         tabs = []
         # The two self-service tabs read the *signed-in* user's own availability
         # and shifts, so they are safe (and empty) for someone who volunteers for
-        # nothing; saving availability still requires a volunteer opt-in, which
-        # the service enforces. This tab is when you can *work*, and it is
-        # opt-in — the player one on Home is when you can't *play*, opt-out.
+        # nothing; the role gate above is the only guard on saving availability.
+        # This tab is when you can *work*, and it is opt-in — the player one on
+        # Home is when you can't *play*, opt-out.
         if is_volunteer or is_staff:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})

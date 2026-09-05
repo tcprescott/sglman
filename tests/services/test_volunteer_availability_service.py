@@ -36,7 +36,6 @@ def make_window(starts_hour, ends_hour, status=VolunteerAvailabilityStatus.AVAIL
 def service():
     svc = object.__new__(VolunteerAvailabilityService)
     svc.repository = MagicMock()
-    svc.profile_repository = MagicMock()
     svc.audit_service = make_audit_double()
     return svc
 
@@ -130,15 +129,7 @@ class TestEffectiveSegments:
 
 
 class TestSetWindows:
-    async def test_raises_when_not_opted_in(self, service):
-        service.profile_repository.get_for_user = AsyncMock(return_value=None)
-        user = SimpleNamespace(id=1)
-        with pytest.raises(ValueError, match='Opt in'):
-            await service.set_windows(user, [])
-
     async def test_raises_when_window_end_before_start(self, service):
-        profile = SimpleNamespace(opted_in_at=datetime.now(UTC))
-        service.profile_repository.get_for_user = AsyncMock(return_value=profile)
         user = SimpleNamespace(id=1)
         bad_window = (_dt(12), _dt(8), VolunteerAvailabilityStatus.AVAILABLE, None)
         with pytest.raises(ValueError, match='end after'):

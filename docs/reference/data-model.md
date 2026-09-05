@@ -1116,7 +1116,7 @@ A single checkout of an `Equipment` asset. The open loan (`checked_in_at` is nul
 
 ### Volunteering
 
-Onsite-volunteer subsystem: opt-in profiles, coordinator-defined positions and shifts, assignments, qualifications, and availability. Coordinated via the `VolunteerScheduleService` / `VolunteerAutoscheduleService` family; gated by `VOLUNTEER_COORDINATOR` (or Staff) for management, with self-service opt-in/availability for any logged-in user. See [services.md](services.md).
+Onsite-volunteer subsystem: opt-in profiles, coordinator-defined positions and shifts, assignments, qualifications, and availability. Coordinated via the `VolunteerScheduleService` / `VolunteerAutoscheduleService` family; gated by `VOLUNTEER_COORDINATOR` (or Staff) for management, with self-service opt-in for any logged-in user and availability for anyone holding a volunteer role. See [services.md](services.md).
 
 #### `VolunteerProfile`
 
@@ -1207,7 +1207,7 @@ A window an opted-in volunteer self-declares (UTC). Read by the coordinator pick
 
 #### `PlayerAvailability`
 
-A window a player spoke for (UTC). Unlike volunteer availability there is no opt-in/role gate, and the rows read **opt-out**: a player is available for the whole event, and a row is a time they *cannot* play (`UNAVAILABLE`) or would rather (`PREFERRED`). No rows means fully available. Used for match-time suggestions (see [`MatchSuggestionService`](services.md)). Migration `64_…_player_availability_opt_out` cleared the `AVAILABLE` and `UNAVAILABLE` rows written under the old opt-in meaning, keeping `PREFERRED` (which means the same thing either way).
+A window a player spoke for (UTC). Unlike volunteer availability there is no role gate, and the rows read **opt-out**: a player is available for the whole event, and a row is a time they *cannot* play (`UNAVAILABLE`) or would rather (`PREFERRED`). No rows means fully available. Used for match-time suggestions (see [`MatchSuggestionService`](services.md)). Migration `64_…_player_availability_opt_out` cleared the `AVAILABLE` and `UNAVAILABLE` rows written under the old opt-in meaning, keeping `PREFERRED` (which means the same thing either way).
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|

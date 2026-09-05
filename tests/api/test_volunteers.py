@@ -459,10 +459,9 @@ class TestSelfService:
             assert resp.status_code == 200
             assert resp.json() == []
 
-    async def test_set_availability_success_after_opt_in(self, db, app):
+    async def test_set_availability_success(self, db, app):
         actor, raw = await create_user_token(username='vol')
         async with client_for(app, raw) as c:
-            await c.post('/api/volunteers/me/opt-in', json={})
             put = await c.put(
                 '/api/volunteers/me/availability',
                 json={'windows': [{
@@ -481,7 +480,7 @@ class TestSelfService:
             listed = await c.get('/api/volunteers/me/availability')
             assert len(listed.json()) == 1
 
-    async def test_set_availability_without_opt_in_bad_request(self, db, app):
+    async def test_set_availability_without_opt_in_allowed(self, db, app):
         _, raw = await create_user_token(username='vol')
         async with client_for(app, raw) as c:
             put = await c.put(
@@ -491,7 +490,8 @@ class TestSelfService:
                     'ends_at': iso(2025, 10, 8, 14),
                 }]},
             )
-            assert put.status_code == 400
+            assert put.status_code == 200
+            assert len(put.json()) == 1
 
     async def test_set_availability_read_only_token_forbidden(self, db, app):
         _, raw = await create_user_token(username='vol', read_only=True)

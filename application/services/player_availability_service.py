@@ -2,7 +2,7 @@
 Player Availability Service - Business Logic Layer
 
 Self-service availability for any logged-in player. Unlike volunteer availability,
-this has no role or opt-in gate — any authenticated user may say when they cannot play.
+this sits behind no role gate — any authenticated user may say when they cannot play.
 
 **Player availability is opt-out.** A player who has said nothing is available for
 the whole event; the windows they save are the times they *cannot* play (plus, as

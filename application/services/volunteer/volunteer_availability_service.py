@@ -1,8 +1,8 @@
 """
 Volunteer Availability Service - Business Logic Layer
 
-Self-service availability for opted-in volunteers, plus lookups the coordinator
-picker uses to flag who is available for a given shift.
+Self-service availability for anyone with a volunteer role, plus lookups the
+coordinator picker uses to flag who is available for a given shift.
 """
 
 from datetime import datetime
@@ -10,10 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
 
-from application.repositories import (
-    VolunteerAvailabilityRepository,
-    VolunteerProfileRepository,
-)
+from application.repositories import VolunteerAvailabilityRepository
 from application.services import availability_windows
 from application.services.audit_service import AuditActions, AuditService
 from models import User, VolunteerAvailability, VolunteerAvailabilityStatus
@@ -24,7 +21,6 @@ class VolunteerAvailabilityService:
 
     def __init__(self) -> None:
         self.repository = VolunteerAvailabilityRepository()
-        self.profile_repository = VolunteerProfileRepository()
         self.audit_service = AuditService()
 
     async def availability_for(self, user: User) -> List[VolunteerAvailability]:
@@ -36,10 +32,6 @@ class VolunteerAvailabilityService:
         windows: Sequence[Tuple[datetime, datetime, VolunteerAvailabilityStatus, Optional[str]]],
     ) -> List[VolunteerAvailability]:
         """Replace the user's availability with the supplied windows (self-service)."""
-        profile = await self.profile_repository.get_for_user(user)
-        if not profile or profile.opted_in_at is None:
-            raise ValueError("Opt in to volunteering before setting your availability.")
-
         for starts_at, ends_at, _status, _note in windows:
             if ends_at <= starts_at:
                 raise ValueError("Each availability window must end after it starts.")

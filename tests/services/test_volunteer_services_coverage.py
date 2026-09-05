@@ -8,7 +8,7 @@ in-memory SQLite ``db`` fixture with the real services and the real
 """
 
 import itertools
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import pytest
 
@@ -24,13 +24,11 @@ from models import (
     VolunteerAvailability,
     VolunteerAvailabilityStatus,
     VolunteerPosition,
-    VolunteerProfile,
     VolunteerQualification,
     VolunteerShift,
 )
 from tests.factories import utc
 
-UTC = timezone.utc
 
 _next_discord_id = itertools.count(500000)
 
@@ -310,12 +308,8 @@ class TestAssignAvailabilityWarning:
 
 
 class TestSetWindows:
-    async def _opt_in(self, user):
-        await VolunteerProfile.create(user=user, opted_in_at=datetime.now(UTC))
-
-    async def test_creates_windows_for_opted_in_user(self, db):
+    async def test_creates_windows_without_an_opt_in(self, db):
         vol = await _volunteer('setter')
-        await self._opt_in(vol)
         svc = VolunteerAvailabilityService()
         windows = [
             (utc(2026, 10, 4, 8), utc(2026, 10, 4, 12), VolunteerAvailabilityStatus.AVAILABLE, 'morning'),
@@ -331,7 +325,6 @@ class TestSetWindows:
 
     async def test_replaces_existing_windows(self, db):
         vol = await _volunteer('replacer')
-        await self._opt_in(vol)
         await VolunteerAvailability.create(
             user=vol, starts_at=utc(2026, 10, 4, 6), ends_at=utc(2026, 10, 4, 7),
             status=VolunteerAvailabilityStatus.AVAILABLE,
@@ -349,7 +342,6 @@ class TestSetWindows:
 
     async def test_empty_windows_clears_availability(self, db):
         vol = await _volunteer('clearer')
-        await self._opt_in(vol)
         await VolunteerAvailability.create(
             user=vol, starts_at=utc(2026, 10, 4, 6), ends_at=utc(2026, 10, 4, 7),
             status=VolunteerAvailabilityStatus.AVAILABLE,
