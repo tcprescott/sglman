@@ -75,7 +75,7 @@ class EditorMode:
 
     def label(self, status) -> str:
         if status is None:
-            return 'No availability'
+            return 'Not stated'
         return self.status_options.get(status.value) or _STATUS_OPTIONS.get(
             status.value, str(status),
         )
