@@ -286,6 +286,90 @@ checkbox — the offer read where the decision is made.
 
 No feature flag: a community whose players never offer a match never sees it.
 
+## Harder settings opt-in
+
+A tournament can name a second, harder preset beside its standard one
+(`Tournament.hard_preset`, set in the tournament dialog under *Seeds &
+randomizer*). Each player in a match can privately opt into it. The match rolls
+the harder preset only when **every** player has opted in, and until then no
+player can learn whether anyone else did.
+
+That secrecy is the feature, not an implementation detail of it. If one player
+could see the other's pending opt-in, opting in would become a challenge to
+answer and declining would become a refusal to meet it — and the reason to offer
+harder settings at all is that two people both want them, not that one dared the
+other. So a lone opt-in notifies nobody, publishes no event, and appears on no
+surface but its owner's. It simply lapses when the seed rolls.
+
+**What that promises, precisely.** A player who has not opted in learns nothing
+— that is the property the feature rests on. A player who *has* opted in learns
+the outcome, because agreement is announced and its absence is informative; they
+can conclude their opponent is not in. That is unavoidable once someone commits,
+since they have to find out what they are playing. It also means a player
+willing to opt in and withdraw straight away can probe the other's answer
+invisibly. Closing that would mean adding friction to withdrawal, which the
+window deliberately does not have. So the guarantee is asymmetric by design:
+absolute for the player who has not committed, outcome-only for the one who has.
+
+Four things follow, and each is load-bearing.
+
+- **One read, and it answers about the caller.** `my_state` (and its bulk
+  sibling `board_states`) is the only read any page, router or bot may call.
+  `everyone_in` is computed only for a caller who opted in themselves, so it
+  cannot become a way to ask about the opponent. A player whose opponent opted
+  in and a player whose opponent did not see byte-identical state.
+- **Audited, not published.** The individual opt-in writes
+  `match.hard_preset_opted_in` / `_withdrawn` to the audit log and stops there;
+  the eventless-ledger entry in `tests/services/test_event_audit_parity.py`
+  records why. A webhook subscriber is an arbitrary outside listener. Only
+  `match.hard_preset_agreed` / `_agreement_revoked` — the states the players
+  themselves already know — reach the event bus.
+- **Agreement is derived, never stored.** It is the opt-in set equalling the
+  player set, recomputed on read, so a roster change re-answers the question
+  instead of leaving a stale yes behind. A match with no players is never
+  unanimous, or an empty roster would satisfy it vacuously.
+- **The window shuts at the seed roll.** Both opting in and withdrawing are
+  refused once `Match.generated_seed` exists, because from then on
+  `GeneratedSeeds.preset` is the record of what was actually played. In practice
+  that means the choice closes when the race room opens, since the auto-opener
+  rolls in the same tick.
+
+**Which preset a match actually rolls** is decided in one place,
+`MatchHardPresetService.resolve_preset`, called by `generate_seed`:
+
+1. `Match.preset_override == HARD` → the tournament's hard preset;
+2. `Match.preset_override == STANDARD` → the tournament's standard preset;
+3. every player opted in → the hard preset;
+4. otherwise → the standard preset.
+
+**Staff can overrule it per match**, in either direction, from the admin match
+dialog's *Seed settings* select. That is deliberately visible — it is staff's
+decision about the match and the players are DMed — and it still reveals
+nothing, because forcing the harder preset says nothing about who had opted in.
+Existing opt-ins survive an override, so clearing it restores what the players
+had chosen rather than discarding agreements staff never asked to destroy. The
+override is refused after the roll, like the players' own choice.
+
+**A roster change can break an agreement** the remaining players were already
+told about. `MatchService.update_match` reads `is_unanimous` *before* it rewrites
+the roster and hands the answer to `drop_for_removed_players`, because
+afterwards a swapped-in player has no opt-in row and every broken agreement
+would look like one that never existed. The resulting DM names no one: nobody in
+that conversation backed out.
+
+**Where it appears.**
+
+| Surface | What it shows |
+|---|---|
+| Player board (Home → Your Schedule) | A `Settings` column: a `bolt` toggle for a player in the match, a `gavel` chip when staff overrode it, and the preset name once the match has rolled it. Renders nothing at all when the tournament offers no hard preset. |
+| Mobile card | A labelled button in the actions row — *Harder settings*, *Opted in — waiting*, or *Playing &lt;preset&gt;*. |
+| `HardPresetDialog` | The explanation and the two buttons. A dialog rather than a bare toggle: a switch whose effect depends on an answer you are not allowed to see needs a sentence before it is flipped. Opened by the board cell, by `?hard=<match_id>`, and by the DM's link button. |
+| Discord | An offer DM when the match is scheduled, carrying **one** button chosen from the reader's own answer (*Play the harder preset* or *Back out*) — the only DM in the app whose button differs per recipient. Replies are ephemeral. Agreement, breakage and staff overrides each get their own DM to the whole match. |
+| Admin match dialog | The *Seed settings* override select. It shows what will be rolled, never who asked for it. |
+
+No feature flag. The feature is dormant until a tournament has a hard preset,
+which is what keeps it invisible to every community that has not configured one.
+
 ## Reschedule requests
 
 Players never move or cancel their own matches. They **ask**, and someone who
@@ -402,5 +486,6 @@ community sets per tournament.
 | `MatchWatcher` | user × match watch subscriptions |
 | `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
 | `MatchRescheduleRequest` | a player's ask to move or cancel a match; kind, proposed time, reason, status, and staff's decision |
+| `MatchHardPresetOptIn` | one player's private agreement to the tournament's harder preset; unanimity is derived from the set, never stored |
 
 Field-level detail: [reference/data-model.md](../reference/data-model.md).

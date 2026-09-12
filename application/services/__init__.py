@@ -53,7 +53,9 @@ from .help_service import HelpService
 from .identity_link_service import IdentityLinkProvider, IdentityLinkService
 from .match import (
     CancellationMixin,
+    HardPresetState,
     MatchDisplayService,
+    MatchHardPresetService,
     MatchParticipants,
     MatchScheduleService,
     MatchService,
@@ -137,11 +139,13 @@ __all__ = [
     'EventInfoService',
     'FeatureFlagService',
     'FeedbackService',
+    'HardPresetState',
     'HelpService',
     'HoursSummary',
     'IdentityLinkProvider',
     'IdentityLinkService',
     'MatchDisplayService',
+    'MatchHardPresetService',
     'MatchParticipants',
     'MatchRescheduleService',
     'MatchScheduleService',

@@ -55,6 +55,7 @@ from .enums import (
     FeedbackStatus,
     JoinRequestStatus,
     MatchNotificationLevel,
+    PresetOverride,
     ProviderTaskStatus,
     RaceRoomStatus,
     RescheduleRequestKind,
@@ -74,6 +75,7 @@ from .match import (
     Commentator,
     Match,
     MatchAcknowledgment,
+    MatchHardPresetOptIn,
     MatchPlayers,
     MatchRescheduleRequest,
     MatchStreamVolunteer,
@@ -185,6 +187,7 @@ __all__ = [
     'JoinRequestStatus',
     'Match',
     'MatchAcknowledgment',
+    'MatchHardPresetOptIn',
     'MatchNotificationLevel',
     'MatchPlayers',
     'MatchRescheduleRequest',
@@ -196,6 +199,7 @@ __all__ = [
     # volunteer
     'PlayerAvailability',
     'Preset',
+    'PresetOverride',
     'ProviderTask',
     'ProviderTaskStatus',
     # racetime

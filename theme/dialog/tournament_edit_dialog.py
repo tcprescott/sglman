@@ -296,6 +296,27 @@ class TournamentDialog:
                             'No presets yet — add one under Online Play → Presets, '
                             'or import a randomizer\'s published presets there.'
                         ).classes('text-caption text-grey')
+
+                    # The opt-in harder preset. Same option list, same 0
+                    # sentinel; the service refuses a pairing whose randomizers
+                    # disagree, because the winning preset is what names the
+                    # randomizer at roll time.
+                    hard_preset_options = {0: '— None (no harder option) —'}
+                    hard_preset_options.update(
+                        {p.id: f'{p.randomizer} / {p.name}' for p in presets}
+                    )
+                    default_hard = (
+                        self.tournament.hard_preset_id
+                        if self.tournament and self.tournament.hard_preset_id else 0
+                    )
+                    hard_preset_input = ui.select(
+                        hard_preset_options, label='Harder Preset (opt-in)',
+                        value=default_hard,
+                    ).classes('input-full-width').props(
+                        'hint="Players can privately opt into this instead. A match only '
+                        'rolls it when every player opted in, and nobody is told who did '
+                        'unless all of them did."'
+                    )
                     # A tournament configured before the preset became the only
                     # control still rolls on its stored generator. Say so, because
                     # saving without a preset is what turns that off.
@@ -531,6 +552,7 @@ class TournamentDialog:
                                 stage_reminder_minutes=int(stage_reminder_input.value or 0),
                                 allow_player_match_requests=allow_requests_checkbox.value,
                                 preset_id=(preset_input.value or None),
+                                hard_preset_id=(hard_preset_input.value or None),
                                 actor=actor,
                                 **days_kwargs,
                                 **signup_kwargs,
@@ -557,6 +579,7 @@ class TournamentDialog:
                             stage_reminder_minutes=int(stage_reminder_input.value or 0),
                             allow_player_match_requests=allow_requests_checkbox.value,
                             preset_id=(preset_input.value or None),
+                            hard_preset_id=(hard_preset_input.value or None),
                             actor=actor,
                             **days_kwargs,
                             **signup_kwargs,

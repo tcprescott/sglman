@@ -335,6 +335,9 @@ class TestNotifyMatchScheduledFanOut:
         assert enqueued == {
             "MatchNotificationMixin.notify_acknowledgment_request",
             "MatchNotificationMixin.notify_match_crew",
+            # The harder-settings offer rides the same fan-out: being given a
+            # match is when a player first has settings to decide about.
+            "MatchHardPresetService.send_offer",
             "MatchNotificationMixin.notify_tournament_subscribers_scheduled",
         }
 
@@ -354,10 +357,13 @@ class TestNotifyMatchScheduledFanOut:
         enqueued = {c.cr_code.co_qualname for c in captured}
         for coro in captured:
             coro.close()
-        # The stream-candidate branch adds the subscriber fan-out as the 4th enqueue.
+        # The stream-candidate branch adds the subscriber fan-out on top.
         assert enqueued == {
             "MatchNotificationMixin.notify_acknowledgment_request",
             "MatchNotificationMixin.notify_match_crew",
+            # The harder-settings offer rides the same fan-out: being given a
+            # match is when a player first has settings to decide about.
+            "MatchHardPresetService.send_offer",
             "MatchNotificationMixin.notify_tournament_subscribers_scheduled",
             "MatchNotificationMixin.notify_stream_candidate_subscribers",
         }

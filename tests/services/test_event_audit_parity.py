@@ -68,6 +68,13 @@ _EVENT_CANDIDATES = frozenset({
 
 # Deliberately never webhooked: security-sensitive, internal plumbing, or noise.
 _EXCLUDED_BY_DESIGN = frozenset({
+    # One player's private opt-in to a match's harder preset. Excluded because
+    # the feature is the secrecy: a lone opt-in must reach nobody, and a webhook
+    # subscriber is an arbitrary outside listener. The unanimous result *is*
+    # published (MATCH_HARD_PRESET_AGREED), which is the point at which the
+    # players themselves are told.
+    AuditActions.MATCH_HARD_PRESET_OPTED_IN,
+    AuditActions.MATCH_HARD_PRESET_WITHDRAWN,
     # Personal watch toggles — high volume, no domain interest.
     AuditActions.MATCH_WATCHER_ADDED,
     AuditActions.MATCH_WATCHER_REMOVED,
