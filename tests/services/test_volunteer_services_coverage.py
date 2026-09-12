@@ -8,7 +8,7 @@ in-memory SQLite ``db`` fixture with the real services and the real
 """
 
 import itertools
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -28,7 +28,6 @@ from models import (
     VolunteerShift,
 )
 from tests.factories import utc
-
 
 _next_discord_id = itertools.count(500000)
 
