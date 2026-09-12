@@ -338,6 +338,21 @@ class MatchRepository:
         )
 
     @staticmethod
+    async def get_by_ids_with_presets(match_ids) -> List[Match]:
+        """The named matches with their tournament's two presets attached.
+
+        For the player board's hard-preset column, which needs both preset names
+        and the roster for every visible row — one query rather than one per row.
+        """
+        ids = list(match_ids)
+        if not ids:
+            return []
+        return await scoped(Match.filter(id__in=ids)).prefetch_related(
+            'tournament', 'tournament__preset', 'tournament__hard_preset',
+            'players', 'players__user',
+        )
+
+    @staticmethod
     async def get_all_for_schedule() -> List[Match]:
         """
         Get all matches for the public schedule view, ordered by scheduled time.

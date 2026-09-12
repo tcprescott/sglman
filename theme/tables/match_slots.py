@@ -142,6 +142,46 @@ STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-
     '__ACTIONABLE__', STREAM_VOLUNTEER_ACTIONABLE,
 )
 
+# The player's private opt-in to the tournament's harder preset. Deliberately
+# says nothing about anybody else until everybody is in: an "opted in" mark and a
+# "waiting on the others" mark would be the same leak, since a player who is in
+# and sees neither could only be seeing the other player's answer.
+#
+# Three renderings, in the order the template tests them: staff's override (the
+# decision is made and is not theirs), an agreed match (everyone is in, so the
+# preset name is public between them), and the choice itself. A row whose
+# tournament offers no harder preset renders nothing at all, which is what keeps
+# the column invisible to every community that does not use the feature.
+HARD_PRESET_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <template v-if="props.row._hard_offered && props.row.players && props.row.players.some(p => p.discord_id == __DID__)">
+        <span v-if="props.row._hard_override" class="wiz-chip wiz-chip--candidate">
+            <q-icon name="gavel" size="12px" />{{ props.row._hard_override_name }}
+            <q-tooltip>Staff set this match to {{ props.row._hard_override_name }}.</q-tooltip>
+        </span>
+        <span v-else-if="props.row._hard_agreed && props.row._hard_locked"
+              class="wiz-chip wiz-chip--confirmed">
+            <q-icon name="bolt" size="12px" />{{ props.row._hard_name }}
+            <q-tooltip>This match rolled {{ props.row._hard_name }}.</q-tooltip>
+        </span>
+        <q-btn v-else-if="!props.row._hard_locked"
+               :icon="props.row._hard_agreed ? 'bolt' : (props.row._hard_opted_in ? 'hourglass_top' : 'bolt')"
+               :color="props.row._hard_opted_in ? 'primary' : 'grey'"
+               size="sm" flat round
+               @click="$parent.$emit('open_hard_preset', props.row)">
+            <q-tooltip v-if="props.row._hard_agreed">
+                Everyone opted in — this match plays {{ props.row._hard_name }}.
+            </q-tooltip>
+            <q-tooltip v-else-if="props.row._hard_opted_in">
+                You opted in to {{ props.row._hard_name }}. Nobody is told unless everyone does.
+            </q-tooltip>
+            <q-tooltip v-else>
+                Play this match on {{ props.row._hard_name }} instead, if everyone agrees.
+            </q-tooltip>
+        </q-btn>
+    </template>
+</q-td>'''
+
+
 # The player's "ask staff to change this" control. Rendered only for a player
 # *in* the match, on a match that has not begun, and only when the service says
 # a request is actually possible (``_can_reschedule``) — the tournament may have
@@ -602,6 +642,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             '__DID__', discord_id_js,
         ))
         table.add_slot('body-cell-reschedule', RESCHEDULE_SLOT.replace(
+            '__DID__', discord_id_js,
+        ))
+        table.add_slot('body-cell-hard_preset', HARD_PRESET_SLOT.replace(
             '__DID__', discord_id_js,
         ))
 

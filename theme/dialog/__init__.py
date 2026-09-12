@@ -3,6 +3,7 @@ from theme.dialog.checkout_dialog import CheckoutDialog, open_checkout, quick_ch
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.equipment_dialog import EquipmentDialog
 from theme.dialog.feedback_dialog import FeedbackDialog
+from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_result_dialog import MatchResultDialog
 from theme.dialog.qr_label_dialog import QrLabelDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
@@ -19,6 +20,7 @@ __all__ = [
     'ConfirmationDialog',
     'EquipmentDialog',
     'FeedbackDialog',
+    'HardPresetDialog',
     'MatchResultDialog',
     'QrLabelDialog',
     'RescheduleDecisionDialog',

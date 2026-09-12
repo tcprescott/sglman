@@ -14,7 +14,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`application/services/_seedgen_dk64r.py`](../../application/services/_seedgen_dk64r.py) | `DK64RBackend`: every DK64R call — settings conversion, submit/poll, and the published preset catalogue |
 | [`application/services/_seedgen_types.py`](../../application/services/_seedgen_types.py) | `RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll` |
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
-| [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |
+| [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Tournament.hard_preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed`, `Match.preset_override` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | The Seed Preset select on the tournament create/edit dialog |
 | [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
 | [`pages/admin_tabs/admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py), [`theme/tables/match.py`](../../theme/tables/match.py) | The per-row **Generate** button and its `roll` event handling |
@@ -35,7 +35,9 @@ The admin Settings tab lists each tournament's `seed_generator` read-only.
 ### Generation flow
 
 1. The admin Schedule tab's match table shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set and no seed exists yet ([`theme/tables/match.py`](../../theme/tables/match.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `on_generate_seed` in [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py).
-2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the randomizer + preset — `tournament.preset` (its `randomizer` + `settings`) when the FK is set, else the legacy `tournament.seed_generator` string with no preset — and dispatches `SeedGenerationService.generate_seed(randomizer, preset)`.
+2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the preset through `MatchHardPresetService.resolve_preset(match)` and takes the randomizer from it (falling back to the legacy `tournament.seed_generator` string with no preset), and dispatches `SeedGenerationService.generate_seed(randomizer, preset)`.
+
+   **Which preset that is, is the players' answer as much as the tournament's.** In order: staff's per-match `Match.preset_override`; else `tournament.hard_preset` when every player opted into it; else `tournament.preset`. This is the only place the question is asked, and asking it here is what closes the opt-in window — from that line on, the settings are what `GeneratedSeeds` records rather than what anyone picks. See [match-participation.md](../features/match-participation.md#harder-settings-opt-in).
 3. The returned string is persisted as a [`GeneratedSeeds`](../../models/tournament.py) row and linked from the match:
 
    | `GeneratedSeeds` field | Value |

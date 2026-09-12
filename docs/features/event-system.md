@@ -41,7 +41,7 @@ between "called off" and "shouldn't have existed".
 
 | Family | Published by |
 |---|---|
-| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py`, `match_review.py`, `match_stream_volunteer_service.py` |
+| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py`, `match_review.py`, `match_stream_volunteer_service.py`, `match_hard_preset_service.py`. The hard-preset service is the one that deliberately publishes **less** than it audits: `match.hard_preset_agreed` / `_agreement_revoked` and the staff `match.preset_override_*` go out, but an individual player's opt-in does not. The feature rests on a lone opt-in reaching nobody, and a webhook subscriber is an arbitrary outside listener — so the opt-in stays audit-only, recorded in the eventless ledger in `tests/services/test_event_audit_parity.py` |
 | `crew.*` | `crew_service.py` |
 | `volunteer.*` | `volunteer/volunteer_schedule_service.py` |
 | `bracket.*` | the `_bracket/` mixins (generation, advancement, completion, multistage, scheduling, series) |

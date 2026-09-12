@@ -376,6 +376,14 @@ class AdminMatchDialog(BaseMatchDialog):
                             'advisory, tick the box above to make it a candidate.'
                         ).classes('text-caption st-pending')
 
+                # Staff's own answer to "which preset does this match roll",
+                # offered only where there is a second preset to choose between
+                # and the seed is still unrolled. Deliberately says nothing about
+                # who opted in: the players' answers are theirs, and forcing the
+                # harder preset here is a decision about the match rather than a
+                # reply to them.
+                preset_override_select = await self._render_preset_override()
+
                 selected_bracket_match = await bracket_link.render_select(
                     self.bracket_service, selected_tournament,
                     brackets_live=brackets_live,
@@ -412,6 +420,11 @@ class AdminMatchDialog(BaseMatchDialog):
                     await self._render_racetime_room_section()
 
             async def submit():
+                # Before the edit below, which may rewrite the roster: the
+                # override is about the match, and the service refuses it once a
+                # seed exists either way.
+                if not await self._save_preset_override(preset_override_select):
+                    return
                 tournament_id = selected_tournament.value
                 stage_id = selected_stage.value
                 date_value = date.value

@@ -64,6 +64,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-participation.md](../features/match-participation.md) |
 | `MatchRescheduleService` | [match_reschedule_service.py](../../application/services/match_reschedule_service.py) | Players asking staff to move or call off their match; approving performs the change | [match-participation.md](../features/match-participation.md#reschedule-requests) |
+| `MatchHardPresetService` | [match_hard_preset_service.py](../../application/services/match/match_hard_preset_service.py) | Players privately opting into a match's harder preset; resolves which preset a roll uses | [match-participation.md](../features/match-participation.md#harder-settings-opt-in) |
 | `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services; the `default` argument is what makes one opt-out and the other opt-in | — |
@@ -630,6 +631,44 @@ writes `Match.is_stream_candidate`, which stays the decision of whoever
 | `names_by_match(match_ids)` / `names_for_match(match)` | `dict[int, list[str]]` / `list[str]` | Who offered, for staff. The batched form is one query for a whole board — `MatchDisplayService` calls it once per refresh and puts `stream_volunteers` on each row. |
 
 Collaborators: `MatchStreamVolunteerRepository`, `MatchRepository`, `AuditService`.
+
+### match_hard_preset_service.py — MatchHardPresetService
+
+Players privately opting into a tournament's harder preset. A match rolls
+`Tournament.hard_preset` only when **every** current player has opted in, and
+until then no player can learn whether anyone else did — the secrecy is the
+feature, not a detail of it. Feature doc:
+[match-participation.md](../features/match-participation.md#harder-settings-opt-in).
+
+Three consequences shape the surface below:
+
+- `my_state` / `board_states` are the **only** reads a page, router or bot may
+  call, and both answer about the caller alone. `everyone_in` is computed only
+  for a caller who opted in themselves, so it can never become a way to ask
+  about the opponent.
+- The individual opt-in is **audited but not published**. A webhook subscriber
+  is an arbitrary outside listener; the audit log is staff reading their own
+  community's history. Only the unanimous result reaches the event bus.
+- Agreement is **derived**, never stored, so a roster change re-answers it.
+
+| Method | Returns | Description |
+|---|---|---|
+| `opt_in(match_id, user)` / `withdraw(match_id, user)` | `HardPresetState` | The player's own choice (idempotent). `ValueError` for a non-player, a tournament with no hard preset, a rolled seed, or a match staff have overridden. Audits `match.hard_preset_opted_in` / `_withdrawn`; publishes nothing. |
+| `my_state(match, user)` | `HardPresetState` | What this viewer may know about one match. A non-player (staff, spectator) gets the tournament's shape and the override, never anybody's opt-in. |
+| `board_states(user, match_ids)` | `dict[int, HardPresetState]` | The same answer for a whole board in three queries. Omits matches this viewer does not play in, and matches whose tournament offers no hard preset. |
+| `resolve_preset(match)` | `Preset \| None` | Which preset this match rolls: staff's override, else the hard preset when everyone opted in, else the tournament's standard one. Called by `generate_seed` at roll time — the one moment the answer matters, and the moment the window shuts. |
+| `set_override(match_id, override, actor)` | `Match` | Staff choosing the match's preset themselves, or handing it back (`None`). Refused after the seed is rolled. Keeps existing opt-ins, so clearing restores what the players chose. Audits + emits `match.preset_override_set` / `_cleared`, and DMs the players. |
+| `send_offer(match)` | `None` | The invitation DM, enqueued from the scheduling fan-out. Each recipient's button carries their own next move, so nothing about anyone else's answer can be read off it. Skipped once the seed exists. |
+| `is_unanimous(match)` | `bool` | Whether every current player has opted in. Public so a caller about to rewrite the roster can capture the answer *before* it does. |
+| `drop_for_removed_players(match, remaining_ids, actor, *, was_unanimous)` | `None` | Deletes departing players' rows and announces a broken agreement. `was_unanimous` must be read before the roster changed: afterwards a swapped-in player has no row, so every broken agreement would look like one that never existed. |
+
+`HardPresetState` is a frozen dataclass projection (`offered`, `opted_in`,
+`everyone_in`, `locked`, `override`, `preset_name`, `standard_preset_name`),
+deliberately not a model or queryset — a surface handed rows could render
+somebody else's, and the leak would be one template edit away.
+
+Collaborators: `MatchHardPresetRepository`, `MatchRepository`, `AuditService`,
+`_hard_preset_notifications`.
 
 ### match_reschedule_service.py — MatchRescheduleService
 

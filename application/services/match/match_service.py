@@ -29,6 +29,7 @@ from application.services.match.bracket_result_guard import (
 )
 from application.services.match.match_acknowledgment import MatchAcknowledgmentMixin
 from application.services.match.match_cancellation import CancellationMixin
+from application.services.match.match_hard_preset_service import MatchHardPresetService
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_reads import MatchReadsMixin
 from application.services.match.match_request import MatchRequestMixin
@@ -70,6 +71,7 @@ class MatchService(
         self.ack_repository = MatchAcknowledgmentRepository()
         self.audit_service = AuditService()
         self.match_schedule_service = MatchScheduleService()
+        self.hard_preset_service = MatchHardPresetService()
 
     @property
     def participants(self) -> MatchParticipants:
@@ -368,7 +370,21 @@ class MatchService(
             await self.repository.update(match, **update_fields)
 
         if player_ids is not None:
+            # Read before the roster is rewritten: afterwards a swapped-in
+            # player has no opt-in row, so a broken agreement would be
+            # indistinguishable from one that never existed.
+            await match.fetch_related(
+                'tournament', 'tournament__hard_preset', 'tournament__preset',
+                'players',
+            )
+            was_unanimous = await self.hard_preset_service.is_unanimous(match)
             await self.participants.sync_players(match, player_ids, tournament_id or match.tournament_id)
+            # A player who just left the roster must stop counting toward the
+            # hard-preset agreement, and a swap can break an agreement the
+            # remaining players were already told about.
+            await self.hard_preset_service.drop_for_removed_players(
+                match, player_ids, actor, was_unanimous=was_unanimous,
+            )
 
         if commentator_ids is not None:
             await self.participants.sync_crew(match, commentator_ids, self.commentator_repository)
