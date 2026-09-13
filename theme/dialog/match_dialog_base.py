@@ -669,30 +669,25 @@ class BaseMatchDialog:
         )
         return select
 
-    async def _save_preset_override(self, select) -> bool:
+    async def _save_preset_override(self, select) -> None:
         """Apply the override picker, if the dialog rendered one.
 
-        Returns ``False`` when the service refused, so the caller abandons the
-        save rather than reporting a success the match did not get.
+        Raises ``ValueError`` when the service refuses, which the submit ladder
+        already knows how to surface — rather than reporting a success the match
+        did not get.
+
+        Called *after* the rest of the edit has been written, never before. The
+        override is not just a column: setting it audits, publishes an event and
+        DMs both players. Doing that first meant a later validation failure left
+        the players told about settings on a save the admin was told had failed.
         """
         if select is None or not self.match:
-            return True
+            return
         chosen = select.value or None
         override = PresetOverride(chosen) if chosen else None
         if override == self.match.preset_override:
-            return True
+            return
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if actor is None:
-            # Abandon the save rather than report success for a setting that was
-            # never written — the same failure the row handlers surface.
-            ui.notify(
-                "We couldn't find your account. Try logging in again.",
-                color='warning',
-            )
-            return False
-        try:
-            await MatchHardPresetService().set_override(self.match.id, override, actor)
-        except ValueError as e:
-            notify_error(e)
-            return False
-        return True
+            raise ValueError("We couldn't find your account. Try logging in again.")
+        await MatchHardPresetService().set_override(self.match.id, override, actor)

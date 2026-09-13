@@ -47,9 +47,11 @@ point ``GeneratedSeeds.preset`` is the record of what was actually played, and a
 choice about settings that are already decided is not a choice.
 """
 
+import asyncio
 import logging
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Set
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set
+from weakref import WeakValueDictionary
 
 from application.errors import require_found
 from application.events import EventType
@@ -106,6 +108,46 @@ class HardPresetState:
         if self.override is not None:
             return self.override == PresetOverride.HARD
         return self.everyone_in
+
+
+@dataclass(frozen=True)
+class HardPresetSnapshot:
+    """A match's opt-in situation as it stood before an edit rewrote it.
+
+    Every field here stops being readable the moment the edit lands: the roster
+    is replaced, and a reassignment swaps the tournament whose preset the
+    players were agreeing to. So :meth:`MatchHardPresetService.reconcile_edit`
+    cannot work any of it out afterwards — it has to be handed this.
+    """
+
+    tournament_id: int = 0
+    hard_preset_id: Optional[int] = None
+    hard_preset_name: str = ''
+    standard_preset_name: str = ''
+    unanimous: bool = False
+    opted_in: Set[int] = field(default_factory=set)
+
+
+_agreement_locks: 'WeakValueDictionary[int, asyncio.Lock]' = WeakValueDictionary()
+
+
+def _agreement_lock(match_id: int) -> asyncio.Lock:
+    """Serialise one match's crossing of the unanimity line.
+
+    Two players sending their last opt-in at the same moment would each read a
+    set that is not yet complete, then each find it complete on the re-check,
+    and the agreement would be audited, published and DMed twice. The app runs
+    a single worker (docs/scaling-roadmap.md), so an in-process lock settles it;
+    a second process would need the transition to move into the database.
+
+    Weak values because the caller holds the lock for as long as it needs it,
+    which is exactly how long the registry should keep the entry.
+    """
+    lock = _agreement_locks.get(match_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _agreement_locks[match_id] = lock
+    return lock
 
 
 class MatchHardPresetService:
@@ -265,30 +307,32 @@ class MatchHardPresetService:
     # -- player actions ----------------------------------------------------
 
     async def opt_in(self, match_id: int, user: User) -> HardPresetState:
-        match = await self._require_open_match(match_id, user)
-        was_unanimous = await self._is_unanimous(match)
-        _, created = await self.repository.get_or_create(match=match, user=user)
-        if created:
-            # write_log, not write_and_publish: see the module docstring. An
-            # event here would hand a lone opt-in to every webhook subscriber.
-            await self.audit_service.write_log(
-                user, AuditActions.MATCH_HARD_PRESET_OPTED_IN, {'match_id': match_id},
-            )
-        if not was_unanimous:
-            await self._settle_agreement(match, user, became=True)
-        return await self.my_state(match, user)
+        async with _agreement_lock(match_id):
+            match = await self._require_open_match(match_id, user)
+            was_unanimous = await self._is_unanimous(match)
+            _, created = await self.repository.get_or_create(match=match, user=user)
+            if created:
+                # write_log, not write_and_publish: see the module docstring. An
+                # event here would hand a lone opt-in to every webhook subscriber.
+                await self.audit_service.write_log(
+                    user, AuditActions.MATCH_HARD_PRESET_OPTED_IN, {'match_id': match_id},
+                )
+            if not was_unanimous:
+                await self._settle_agreement(match, user, became=True)
+            return await self.my_state(match, user)
 
     async def withdraw(self, match_id: int, user: User) -> HardPresetState:
-        match = await self._require_open_match(match_id, user)
-        was_unanimous = await self._is_unanimous(match)
-        removed = await self.repository.delete_by_match_and_user(match=match, user=user)
-        if removed:
-            await self.audit_service.write_log(
-                user, AuditActions.MATCH_HARD_PRESET_WITHDRAWN, {'match_id': match_id},
-            )
-        if was_unanimous:
-            await self._settle_agreement(match, user, became=False)
-        return await self.my_state(match, user)
+        async with _agreement_lock(match_id):
+            match = await self._require_open_match(match_id, user)
+            was_unanimous = await self._is_unanimous(match)
+            removed = await self.repository.delete_by_match_and_user(match=match, user=user)
+            if removed:
+                await self.audit_service.write_log(
+                    user, AuditActions.MATCH_HARD_PRESET_WITHDRAWN, {'match_id': match_id},
+                )
+            if was_unanimous:
+                await self._settle_agreement(match, user, became=False)
+            return await self.my_state(match, user)
 
     async def _settle_agreement(self, match: Match, actor: User, *, became: bool) -> None:
         """Audit, publish and announce a crossing of the unanimity line.
@@ -301,6 +345,32 @@ class MatchHardPresetService:
         if now_unanimous != became:
             return
 
+        tournament = match.tournament
+        standard = getattr(tournament, 'preset', None)
+        await self._record_transition(
+            match, actor, became=became,
+            preset_id=tournament.hard_preset_id,
+            preset_name=tournament.hard_preset.name,
+            standard_preset_name=standard.name if standard is not None else '',
+            actor_backed_out=True,
+        )
+
+    async def _record_transition(
+        self, match: Match, actor: User, *, became: bool,
+        preset_id: Optional[int], preset_name: str, standard_preset_name: str,
+        recipients: Optional[List[User]] = None,
+        actor_backed_out: bool = False,
+    ) -> None:
+        """Audit, publish and announce a crossing of the unanimity line.
+
+        The one place the line is ever recorded as crossed, so a player's own
+        opt-in and a staff roster edit cannot drift into telling different
+        stories about the same event.
+
+        The preset is passed rather than read off the match because a match that
+        just moved tournaments would otherwise name the preset it is heading
+        *to* in a message about the one it just lost.
+        """
         action = (
             AuditActions.MATCH_HARD_PRESET_AGREED if became
             else AuditActions.MATCH_HARD_PRESET_AGREEMENT_REVOKED
@@ -311,15 +381,23 @@ class MatchHardPresetService:
         )
         await self.audit_service.write_and_publish(
             actor, action,
-            {'match_id': match.id, 'preset_id': match.tournament.hard_preset_id},
+            {'match_id': match.id, 'preset_id': preset_id},
             event,
             event_extra={'tournament_id': match.tournament_id},  # type: ignore[attr-defined]
         )
-        await self._announce(match, actor, became=became)
+        await self._announce(
+            match, actor, became=became,
+            preset_name=preset_name,
+            standard_preset_name=standard_preset_name,
+            recipients=recipients,
+            actor_backed_out=actor_backed_out,
+        )
 
     async def _announce(
-        self, match: Match, actor: User, *, became: bool, roster_changed: bool = False,
+        self, match: Match, actor: User, *, became: bool,
+        preset_name: str, standard_preset_name: str,
         recipients: Optional[List[User]] = None,
+        actor_backed_out: bool = False,
     ) -> None:
         """DM the players that the match's settings just changed hands.
 
@@ -344,16 +422,13 @@ class MatchHardPresetService:
         discord_queue.enqueue(notify_hard_preset_agreement(
             match_id=match.id,
             tournament_name=match.tournament.name,
-            preset_name=match.tournament.hard_preset.name,
-            standard_preset_name=(
-                match.tournament.preset.name
-                if getattr(match.tournament, 'preset', None) is not None else ''
-            ),
+            preset_name=preset_name,
+            standard_preset_name=standard_preset_name,
             recipients=recipients,
             agreed=became,
-            # Empty for a roster change, where naming the actor would credit
-            # staff's edit to a player who did not back out of anything.
-            actor_name='' if roster_changed else actor.preferred_name,
+            # Empty for a staff edit, where naming the actor would credit their
+            # change to a player who did not back out of anything.
+            actor_name=actor.preferred_name if actor_backed_out else '',
         ))
 
     async def send_offer(self, match: Match) -> None:
@@ -380,14 +455,21 @@ class MatchHardPresetService:
                 'tournament', 'tournament__hard_preset', 'players', 'players__user',
             )
             hard = getattr(match.tournament, 'hard_preset', None)
-            if hard is None or match.generated_seed_id is not None:  # type: ignore[attr-defined]
+            if (
+                hard is None
+                or match.generated_seed_id is not None  # type: ignore[attr-defined]
+                or match.preset_override is not None
+            ):
+                # Same three refusals as ``_require_open_match``. Offering a
+                # choice whose button would be refused is worse than no DM:
+                # the reader is told they may decide something they may not.
                 return
             opted_in = await self.repository.user_ids_for_match(match.id)
             await notify_hard_preset_invite(
                 match_id=match.id,
                 tournament_name=match.tournament.name,
                 preset_name=hard.name,
-                recipients=[p.user for p in match.players],  # type: ignore[attr-defined]
+                recipients=[p.user for p in match.players],
                 opted_in_ids=list(opted_in),
             )
         except Exception:
@@ -456,61 +538,97 @@ class MatchHardPresetService:
 
     # -- roster maintenance ------------------------------------------------
 
-    async def is_unanimous(self, match: Match) -> bool:
-        """Whether every current player has opted in.
+    async def snapshot(self, match: Match) -> HardPresetSnapshot:
+        """Capture the opt-in situation before an edit rewrites it.
 
-        Public so a caller about to rewrite the roster can capture the answer
-        *before* it does — see :meth:`drop_for_removed_players`.
+        Must be called *before* the write. Afterwards a swapped-in player has no
+        opt-in row, so a broken agreement is indistinguishable from one that
+        never existed, and a reassigned match no longer knows which tournament's
+        harder preset its players had agreed to.
         """
-        return await self._is_unanimous(match)
+        await match.fetch_related(
+            'tournament', 'tournament__hard_preset', 'tournament__preset', 'players',
+        )
+        hard = getattr(match.tournament, 'hard_preset', None)
+        standard = getattr(match.tournament, 'preset', None)
+        return HardPresetSnapshot(
+            tournament_id=match.tournament_id,  # type: ignore[attr-defined]
+            hard_preset_id=match.tournament.hard_preset_id,
+            hard_preset_name=hard.name if hard is not None else '',
+            standard_preset_name=standard.name if standard is not None else '',
+            unanimous=await self._is_unanimous(match),
+            opted_in=await self.repository.user_ids_for_match(match.id),
+        )
 
-    async def drop_for_removed_players(
-        self, match: Match, remaining_user_ids: Sequence[int], actor: User,
-        *, was_unanimous: bool,
+    async def reconcile_edit(
+        self, match: Match, before: HardPresetSnapshot, actor: User,
     ) -> None:
-        """Delete opt-ins belonging to players who just left the match.
+        """Re-answer the agreement after a match edit, and say so if it moved.
 
-        A departing player's row must not keep counting toward unanimity, and a
-        roster edit can cross the unanimity line in *either* direction: a swap
-        breaks an agreement the remaining players were told about, and dropping
-        the one holdout from a match completes one nobody announced.
+        Every path that rewrites a match's roster or its tournament goes through
+        here, because both can change the answer without anybody opting in or
+        out. Two cases, and they are not the same:
 
-        ``was_unanimous`` must be read with :meth:`is_unanimous` *before* the
-        roster was rewritten. It cannot be recomputed here: by the time this
-        runs the new players are already in the match without opt-in rows, so
-        every broken agreement would look like one that never existed, and the
-        players who were told the harder preset was on would never be told it
-        was off.
+        * **The match moved** to another tournament, or its tournament's harder
+          preset changed underneath it. Every opt-in is discarded: the players
+          agreed to a named preset, and consent to one set of settings is not
+          consent to whichever settings the match lands on next.
+        * **The roster changed.** A departing player's row stops counting, which
+          can cross the unanimity line in either direction — a swap breaks an
+          agreement the remaining players were told about, and dropping the one
+          holdout completes one nobody announced.
         """
-        if match.tournament.hard_preset_id is None:
+        await match.fetch_related(
+            'tournament', 'tournament__hard_preset', 'tournament__preset',
+            'players', 'players__user',
+        )
+        moved = (
+            match.tournament_id != before.tournament_id  # type: ignore[attr-defined]
+            or match.tournament.hard_preset_id != before.hard_preset_id
+        )
+        if moved:
+            await self._discard_all(match, before, actor)
             return
-        opted_in = await self.repository.user_ids_for_match(match.id)
-        removed = opted_in - set(remaining_user_ids)
-        for user_id in removed:
+
+        if before.hard_preset_id is None:
+            return
+
+        remaining = self._player_ids(match)
+        for user_id in before.opted_in - remaining:
             await self.repository.delete_for_user_in_match(match.id, user_id)
 
-        await match.fetch_related('players', 'players__user')
         now_unanimous = await self._is_unanimous(match)
-        if now_unanimous == was_unanimous:
+        if now_unanimous == before.unanimous:
             return
+        await self._record_transition(
+            match, actor, became=now_unanimous,
+            preset_id=before.hard_preset_id,
+            preset_name=before.hard_preset_name,
+            standard_preset_name=before.standard_preset_name,
+            recipients=self._roster_change_recipients(
+                match, now_unanimous, before.opted_in,
+            ),
+        )
 
-        action = (
-            AuditActions.MATCH_HARD_PRESET_AGREED if now_unanimous
-            else AuditActions.MATCH_HARD_PRESET_AGREEMENT_REVOKED
-        )
-        event = (
-            EventType.MATCH_HARD_PRESET_AGREED if now_unanimous
-            else EventType.MATCH_HARD_PRESET_AGREEMENT_REVOKED
-        )
-        await self.audit_service.write_and_publish(
-            actor, action,
-            {'match_id': match.id, 'reason': 'roster_changed'},
-            event,
-            event_extra={'tournament_id': match.tournament_id},  # type: ignore[attr-defined]
-        )
-        await self._announce(
-            match, actor, became=now_unanimous, roster_changed=True,
-            recipients=self._roster_change_recipients(match, now_unanimous, opted_in),
+    async def _discard_all(
+        self, match: Match, before: HardPresetSnapshot, actor: User,
+    ) -> None:
+        """Drop every opt-in because the match is no longer the one agreed to.
+
+        Silent unless an agreement existed, and then told only to the players
+        who were party to it and are still here — told in the *old* tournament's
+        words, since that is the preset they lost.
+        """
+        for user_id in before.opted_in:
+            await self.repository.delete_for_user_in_match(match.id, user_id)
+        if not before.unanimous or before.hard_preset_id is None:
+            return
+        await self._record_transition(
+            match, actor, became=False,
+            preset_id=before.hard_preset_id,
+            preset_name=before.hard_preset_name,
+            standard_preset_name=before.standard_preset_name,
+            recipients=self._roster_change_recipients(match, False, before.opted_in),
         )
 
     @staticmethod

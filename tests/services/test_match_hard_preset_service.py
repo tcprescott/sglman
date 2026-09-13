@@ -52,6 +52,15 @@ async def _presets():
     return standard, hard
 
 
+async def _tournament_with_hard_preset():
+    """A second tournament to move a match into; returns it and its standard."""
+    standard, hard = await _presets()
+    tournament = await Tournament.create(
+        name='Elsewhere', preset=standard, hard_preset=hard,
+    )
+    return tournament, standard
+
+
 async def _match(*, offers_hard=True, players=2, seeded=False):
     standard, hard = await _presets()
     tournament = await Tournament.create(
@@ -342,9 +351,10 @@ class TestRosterChanges:
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
 
-        await service.drop_for_removed_players(
-            match, [p1.id], staff, was_unanimous=True,
-        )
+        before = await service.snapshot(match)
+        await MatchPlayers.filter(match=match, user=p2).delete()
+        await match.fetch_related('players')
+        await service.reconcile_edit(match, before, staff)
 
         assert not await MatchHardPresetOptIn.filter(match=match, user=p2).exists()
 
@@ -359,13 +369,12 @@ class TestRosterChanges:
         await service.opt_in(match.id, p2)
         captured_events.clear()
 
+        before = await service.snapshot(match)
         replacement = await make_user(discord_id=next(_discord_ids), username='sub')
         await MatchPlayers.filter(match=match, user=p2).delete()
         await MatchPlayers.create(match=match, user=replacement)
         await match.fetch_related('players')
-        await service.drop_for_removed_players(
-            match, [p1.id, replacement.id], staff, was_unanimous=True,
-        )
+        await service.reconcile_edit(match, before, staff)
 
         assert [e.event_type for e in captured_events] == [
             EventType.MATCH_HARD_PRESET_AGREEMENT_REVOKED,
@@ -382,23 +391,146 @@ class TestRosterChanges:
         await service.opt_in(match.id, p2)
         captured_events.clear()
 
-        await service.drop_for_removed_players(
-            match, [p1.id, p2.id], staff, was_unanimous=True,
-        )
+        before = await service.snapshot(match)
+        await service.reconcile_edit(match, before, staff)
 
         assert captured_events == []
 
 
-class TestRosterChangeSecrecy:
-    """A roster edit must not tell a new player what the old ones chose."""
+class TestOffering:
+    """The offer DM must promise only a choice the reader can actually make."""
 
-    async def test_a_newly_added_player_is_not_told_the_others_had_agreed(
+    @staticmethod
+    def _spy(monkeypatch):
+        from application.services.match import _hard_preset_notifications as notif
+
+        sent = []
+
+        async def fake(**kwargs):
+            sent.append(kwargs)
+
+        monkeypatch.setattr(notif, 'notify_hard_preset_invite', fake)
+        return sent
+
+    async def test_an_overridden_match_is_not_offered(
+        self, db, stub_discord_queue, monkeypatch,
+    ):
+        """Staff already decided; the button would be refused, so the DM lies."""
+        sent = self._spy(monkeypatch)
+        match, _ = await _match()
+        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        await MatchHardPresetService().set_override(
+            match.id, PresetOverride.STANDARD, staff,
+        )
+        await match.refresh_from_db()
+
+        await MatchHardPresetService().send_offer(match)
+
+        assert sent == []
+
+    async def test_an_ordinary_match_is_offered(
+        self, db, stub_discord_queue, monkeypatch,
+    ):
+        sent = self._spy(monkeypatch)
+        match, _ = await _match()
+
+        await MatchHardPresetService().send_offer(match)
+
+        assert len(sent) == 1
+
+
+class TestConcurrentAgreement:
+    async def test_two_simultaneous_last_opt_ins_agree_once(
+        self, db, stub_discord_queue, captured_events, monkeypatch,
+    ):
+        """Both players read a set that is not yet complete, then both find it
+        complete. Without serialisation the agreement is audited, published and
+        DMed twice.
+
+        The yield is forced rather than hoped for: the interleaving depends on
+        where the driver happens to suspend, so a plain ``gather`` passes
+        against the unlocked code too and pins nothing.
+        """
+        import asyncio
+
+        from application.repositories import MatchHardPresetRepository
+
+        original = MatchHardPresetRepository.user_ids_for_match
+
+        async def yielding(match_id):
+            await asyncio.sleep(0)
+            return await original(match_id)
+
+        monkeypatch.setattr(
+            MatchHardPresetRepository, 'user_ids_for_match', staticmethod(yielding),
+        )
+
+        match, (p1, p2, p3) = await _match(players=3)
+        service = MatchHardPresetService()
+        await service.opt_in(match.id, p1)
+        captured_events.clear()
+        stub_discord_queue.clear()
+
+        await asyncio.gather(
+            service.opt_in(match.id, p2),
+            service.opt_in(match.id, p3),
+        )
+
+        agreed = [
+            e for e in captured_events
+            if e.event_type == EventType.MATCH_HARD_PRESET_AGREED
+        ]
+        assert len(agreed) == 1
+        assert len(stub_discord_queue) == 1
+
+
+class TestTournamentReassignment:
+    """Consent is to a named preset, not to whichever one the match lands on."""
+
+    async def test_moving_the_match_discards_every_opt_in(
         self, db, stub_discord_queue,
     ):
-        """The added player never held a row, so the agreement is not theirs to
-        hear about — and hearing it would name their opponents' opt-ins and
-        mark them the sole holdout, which is the pressure the whole feature
-        exists to prevent."""
+        match, (p1, p2) = await _match()
+        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        service = MatchHardPresetService()
+        await service.opt_in(match.id, p1)
+        await service.opt_in(match.id, p2)
+
+        before = await service.snapshot(match)
+        other, _ = await _tournament_with_hard_preset()
+        match.tournament_id = other.id
+        await match.save()
+        await match.fetch_related('tournament', 'tournament__hard_preset', 'players')
+        await service.reconcile_edit(match, before, staff)
+
+        assert not await MatchHardPresetOptIn.filter(match=match).exists()
+
+    async def test_the_new_tournaments_hard_preset_is_not_rolled(
+        self, db, stub_discord_queue,
+    ):
+        """The bug this pins: the agreement used to survive the move, so the
+        match rolled a harder preset nobody had ever been shown."""
+        match, (p1, p2) = await _match()
+        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        service = MatchHardPresetService()
+        await service.opt_in(match.id, p1)
+        await service.opt_in(match.id, p2)
+
+        before = await service.snapshot(match)
+        other, other_standard = await _tournament_with_hard_preset()
+        match.tournament_id = other.id
+        await match.save()
+        await match.fetch_related(
+            'tournament', 'tournament__hard_preset', 'tournament__preset', 'players',
+        )
+        await service.reconcile_edit(match, before, staff)
+
+        assert (await service.resolve_preset(match)).name == other_standard.name
+
+    async def test_the_players_are_told_in_the_old_tournaments_words(
+        self, db, stub_discord_queue,
+    ):
+        """The DM names the preset they lost, not the one they never chose."""
         match, (p1, p2) = await _match()
         staff = await make_user(discord_id=next(_discord_ids), username='staff')
         service = MatchHardPresetService()
@@ -406,42 +538,39 @@ class TestRosterChangeSecrecy:
         await service.opt_in(match.id, p2)
         stub_discord_queue.clear()
 
-        newcomer = await make_user(discord_id=next(_discord_ids), username='newcomer')
-        await MatchPlayers.create(match=match, user=newcomer)
-        await match.fetch_related('players')
-        await service.drop_for_removed_players(
-            match, [p1.id, p2.id, newcomer.id], staff, was_unanimous=True,
+        before = await service.snapshot(match)
+        other, _ = await _tournament_with_hard_preset()
+        match.tournament_id = other.id
+        await match.save()
+        await match.fetch_related(
+            'tournament', 'tournament__hard_preset', 'tournament__preset', 'players',
         )
+        await service.reconcile_edit(match, before, staff)
 
         assert len(stub_discord_queue) == 1
-        recipients = stub_discord_queue[0].cr_frame.f_locals['recipients']
-        names = {u.preferred_name for u in recipients}
-        assert names == {p1.preferred_name, p2.preferred_name}
-        assert newcomer.preferred_name not in names
+        named = stub_discord_queue[0].cr_frame.f_locals['preset_name']
+        assert named == before.hard_preset_name
 
-    async def test_dropping_the_holdout_completes_the_agreement(
+    async def test_a_move_with_no_agreement_says_nothing(
         self, db, stub_discord_queue, captured_events,
     ):
-        """The mirror case: a shrink can create unanimity, and what a match
-        rolls must not change without an event or a word to the players."""
-        match, (p1, p2) = await _match()
+        match, (p1, _p2) = await _match()
         staff = await make_user(discord_id=next(_discord_ids), username='staff')
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         captured_events.clear()
         stub_discord_queue.clear()
 
-        await MatchPlayers.filter(match=match, user=p2).delete()
-        await match.fetch_related('players')
-        await service.drop_for_removed_players(
-            match, [p1.id], staff, was_unanimous=False,
-        )
+        before = await service.snapshot(match)
+        other, _ = await _tournament_with_hard_preset()
+        match.tournament_id = other.id
+        await match.save()
+        await match.fetch_related('tournament', 'tournament__hard_preset', 'players')
+        await service.reconcile_edit(match, before, staff)
 
-        assert [e.event_type for e in captured_events] == [
-            EventType.MATCH_HARD_PRESET_AGREED,
-        ]
-        assert len(stub_discord_queue) == 1
-        assert (await service.resolve_preset(match)).name.startswith('Hard Mode')
+        assert captured_events == []
+        assert stub_discord_queue == []
+        assert not await MatchHardPresetOptIn.filter(match=match).exists()
 
 
 class TestBoardStates:

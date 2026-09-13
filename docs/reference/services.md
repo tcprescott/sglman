@@ -659,8 +659,8 @@ Three consequences shape the surface below:
 | `resolve_preset(match)` | `Preset \| None` | Which preset this match rolls: staff's override, else the hard preset when everyone opted in, else the tournament's standard one. Called by `generate_seed` at roll time — the one moment the answer matters, and the moment the window shuts. |
 | `set_override(match_id, override, actor)` | `Match` | Staff choosing the match's preset themselves, or handing it back (`None`). Refused after the seed is rolled. Keeps existing opt-ins, so clearing restores what the players chose. Audits + emits `match.preset_override_set` / `_cleared`, and DMs the players. |
 | `send_offer(match)` | `None` | The invitation DM, enqueued from the scheduling fan-out. Each recipient's button carries their own next move, so nothing about anyone else's answer can be read off it. Skipped once the seed exists. |
-| `is_unanimous(match)` | `bool` | Whether every current player has opted in. Public so a caller about to rewrite the roster can capture the answer *before* it does. |
-| `drop_for_removed_players(match, remaining_ids, actor, *, was_unanimous)` | `None` | Deletes departing players' rows and announces a broken agreement. `was_unanimous` must be read before the roster changed: afterwards a swapped-in player has no row, so every broken agreement would look like one that never existed. |
+| `snapshot(match)` | `HardPresetSnapshot` | The opt-in situation as it stands, captured *before* an edit. Must be taken before the write: afterwards a swapped-in player has no row and a reassigned match no longer knows which tournament's preset was agreed to. |
+| `reconcile_edit(match, before, actor)` | `None` | Re-answers the agreement after the write. A roster change drops departing players' rows and announces a crossing of the unanimity line in either direction; a move to another tournament (or a changed `hard_preset`) discards every opt-in, telling any agreement's players in the old tournament's words. |
 
 `HardPresetState` is a frozen dataclass projection (`offered`, `opted_in`,
 `everyone_in`, `locked`, `override`, `preset_name`, `standard_preset_name`),

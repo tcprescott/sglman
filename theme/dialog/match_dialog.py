@@ -420,11 +420,6 @@ class AdminMatchDialog(BaseMatchDialog):
                     await self._render_racetime_room_section()
 
             async def submit():
-                # Before the edit below, which may rewrite the roster: the
-                # override is about the match, and the service refuses it once a
-                # seed exists either way.
-                if not await self._save_preset_override(preset_override_select):
-                    return
                 tournament_id = selected_tournament.value
                 stage_id = selected_stage.value
                 date_value = date.value
@@ -464,6 +459,9 @@ class AdminMatchDialog(BaseMatchDialog):
                         self.bracket_service, selected_bracket_match,
                         self.match.id, linked_bracket_match_id,
                     )
+                    # Last: it DMs both players about the match's settings, so
+                    # it must not fire for an edit that then fails to save.
+                    await self._save_preset_override(preset_override_select)
 
                 async def do_create():
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))

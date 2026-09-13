@@ -366,25 +366,21 @@ class MatchService(
         if clear_seed:
             update_fields['generated_seed'] = None
 
+        # Before any write: both a roster rewrite and a reassignment destroy the
+        # information the opt-in agreement has to be re-answered from.
+        hard_preset_before = await self.hard_preset_service.snapshot(match)
+
         if update_fields:
             await self.repository.update(match, **update_fields)
 
         if player_ids is not None:
-            # Read before the roster is rewritten: afterwards a swapped-in
-            # player has no opt-in row, so a broken agreement would be
-            # indistinguishable from one that never existed.
-            await match.fetch_related(
-                'tournament', 'tournament__hard_preset', 'tournament__preset',
-                'players',
-            )
-            was_unanimous = await self.hard_preset_service.is_unanimous(match)
             await self.participants.sync_players(match, player_ids, tournament_id or match.tournament_id)
-            # A player who just left the roster must stop counting toward the
-            # hard-preset agreement, and a swap can break an agreement the
-            # remaining players were already told about.
-            await self.hard_preset_service.drop_for_removed_players(
-                match, player_ids, actor, was_unanimous=was_unanimous,
-            )
+
+        # After both: a swap can break an agreement the remaining players were
+        # told about, dropping the one holdout can complete one, and moving the
+        # match discards every opt-in, since the players agreed to a named
+        # preset rather than to whichever one the match lands on next.
+        await self.hard_preset_service.reconcile_edit(match, hard_preset_before, actor)
 
         if commentator_ids is not None:
             await self.participants.sync_crew(match, commentator_ids, self.commentator_repository)

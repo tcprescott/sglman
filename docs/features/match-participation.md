@@ -348,14 +348,41 @@ decision about the match and the players are DMed — and it still reveals
 nothing, because forcing the harder preset says nothing about who had opted in.
 Existing opt-ins survive an override, so clearing it restores what the players
 had chosen rather than discarding agreements staff never asked to destroy. The
-override is refused after the roll, like the players' own choice.
+override is refused after the roll, like the players' own choice, and an
+overridden match is never sent the offer DM — its button would be refused, and a
+message promising a choice the reader cannot make is worse than no message.
 
-**A roster change can break an agreement** the remaining players were already
-told about. `MatchService.update_match` reads `is_unanimous` *before* it rewrites
-the roster and hands the answer to `drop_for_removed_players`, because
-afterwards a swapped-in player has no opt-in row and every broken agreement
-would look like one that never existed. The resulting DM names no one: nobody in
-that conversation backed out.
+The admin dialog applies the override **last**, after the rest of the edit has
+saved. Setting it audits, publishes and DMs both players; doing that first meant
+a later validation failure left the players told about settings on a save the
+admin was told had failed.
+
+**A match edit re-answers the agreement**, through one pair of calls. Every path
+that rewrites a roster or reassigns a match — `MatchService.update_match` and the
+SpeedGaming ETL's roster replace — takes a `MatchHardPresetService.snapshot`
+*before* the write and calls `reconcile_edit` after it. The snapshot is not an
+optimisation: afterwards a swapped-in player has no opt-in row, so every broken
+agreement would look like one that never existed, and a reassigned match no
+longer knows which tournament's preset its players had agreed to.
+
+Two cases, and they are not the same.
+
+- **The roster changed.** A departing player's row stops counting, which can
+  cross the unanimity line either way: a swap breaks an agreement the remaining
+  players were told about, and dropping the one holdout completes one nobody had
+  announced. The resulting DM names no one, because nobody in that conversation
+  backed out. It goes only to players who already held a row — telling a
+  newly added player that an agreement lapsed would hand them both facts the
+  feature withholds.
+- **The match moved** to another tournament, or its tournament's hard preset
+  changed underneath it. Every opt-in is discarded. Consent is to a named
+  preset; it is not consent to whichever settings the match lands on next. If an
+  agreement existed, its players are told in the *old* tournament's words —
+  naming the preset they lost, not the one they never chose.
+
+The ETL matters here more than it looks: those are the rosters that change with
+nobody in the app touching them, so a stale row would come back opted in to a
+roster its owner never saw.
 
 **Where it appears.**
 

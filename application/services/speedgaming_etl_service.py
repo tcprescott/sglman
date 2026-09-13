@@ -246,7 +246,7 @@ class SpeedGamingETLService:
         else:
             await MatchRepository.update(match, scheduled_at=when, title=title)
 
-        await self._sync_match_players(match, link.tournament_id, resolved_players)
+        await self._sync_match_players(match, link.tournament_id, resolved_players, actor=actor)
 
         await self.episode_repo.update(
             episode, sync_status=SyncStatus.SYNCED, synced_at=now,
@@ -361,7 +361,7 @@ class SpeedGamingETLService:
         )
 
     async def _sync_match_players(
-        self, match: Match, tournament_id: int, users: List[User]
+        self, match: Match, tournament_id: int, users: List[User], *, actor: User
     ) -> None:
         """Reconcile a sourced match's players to the resolved SG set.
 
@@ -376,11 +376,22 @@ class SpeedGamingETLService:
         button for the player, and an admin dialog that reported nobody
         assigned. Reconciling preserves the answers already given, which is what
         lets a poll that runs every few minutes do this at all.
+
+        Hard-preset opt-ins are reconciled on the same footing: these are the
+        matches whose rosters change without anybody in the app touching them,
+        so a player dropped upstream would otherwise keep counting toward an
+        agreement, and one dropped and re-added would come back already opted
+        in to a roster they never saw.
         """
+        from application.services.match import MatchHardPresetService
+
         participants = self._participants()
+        hard_preset_service = MatchHardPresetService()
         user_ids = [user.id for user in users]
+        before = await hard_preset_service.snapshot(match)
         await participants.sync_players(match, user_ids, tournament_id)
         await participants.reconcile_acknowledgments(match, user_ids)
+        await hard_preset_service.reconcile_edit(match, before, actor)
 
     # ------------------------------------------------------------ reconciliation
 
