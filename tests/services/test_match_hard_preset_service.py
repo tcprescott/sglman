@@ -21,7 +21,9 @@ from models import (
     MatchPlayers,
     Preset,
     PresetOverride,
+    Role,
     Tournament,
+    UserRole,
 )
 from tests.factories import make_user, utc
 
@@ -50,6 +52,13 @@ async def _presets():
         settings={'mode': 'open', 'pool': 'hard'},
     )
     return standard, hard
+
+
+async def _staff():
+    """A user who may actually edit a match — ``set_override`` gates on it."""
+    user = await make_user(discord_id=next(_discord_ids), username='staff')
+    await UserRole.create(user=user, role=Role.STAFF)
+    return user
 
 
 async def _tournament_with_hard_preset():
@@ -108,6 +117,19 @@ class TestOptingIn:
 
         with pytest.raises(ValueError, match='does not offer a harder preset'):
             await MatchHardPresetService().opt_in(match.id, p1)
+
+    async def test_a_player_cannot_overrule_their_own_match(
+        self, db, stub_discord_queue,
+    ):
+        """The gate is the service's, not the admin page's. Without it the only
+        thing between an actor and overruling two players' settings is whichever
+        surface happens to call this."""
+        match, (p1, _p2) = await _match()
+
+        with pytest.raises(PermissionError):
+            await MatchHardPresetService().set_override(
+                match.id, PresetOverride.HARD, p1,
+            )
 
     async def test_refused_once_the_seed_is_rolled(self, db, stub_discord_queue):
         """The window shuts at the roll, because the settings are then recorded."""
@@ -272,7 +294,7 @@ class TestResolvePreset:
 class TestStaffOverride:
     async def test_forcing_hard_beats_no_opt_ins(self, db, stub_discord_queue):
         match, _ = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
 
         await service.set_override(match.id, PresetOverride.HARD, staff)
@@ -285,7 +307,7 @@ class TestStaffOverride:
         self, db, stub_discord_queue,
     ):
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -299,7 +321,7 @@ class TestStaffOverride:
     async def test_an_override_keeps_the_opt_ins(self, db, stub_discord_queue):
         """Clearing it must restore what the players chose, not a blank slate."""
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -315,16 +337,29 @@ class TestStaffOverride:
         self, db, stub_discord_queue,
     ):
         match, (p1, _) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.set_override(match.id, PresetOverride.STANDARD, staff)
 
         with pytest.raises(ValueError, match='Staff have already chosen'):
             await service.opt_in(match.id, p1)
 
+    async def test_a_player_cannot_overrule_their_own_match(
+        self, db, stub_discord_queue,
+    ):
+        """The gate is the service's, not the admin page's. Without it the only
+        thing between an actor and overruling two players' settings is whichever
+        surface happens to call this."""
+        match, (p1, _p2) = await _match()
+
+        with pytest.raises(PermissionError):
+            await MatchHardPresetService().set_override(
+                match.id, PresetOverride.HARD, p1,
+            )
+
     async def test_refused_once_the_seed_is_rolled(self, db, stub_discord_queue):
         match, _ = await _match(seeded=True)
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
 
         with pytest.raises(ValueError, match='already been rolled'):
             await MatchHardPresetService().set_override(
@@ -335,7 +370,7 @@ class TestStaffOverride:
         self, db, stub_discord_queue,
     ):
         match, _ = await _match(offers_hard=False)
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
 
         with pytest.raises(ValueError, match='does not have a harder preset'):
             await MatchHardPresetService().set_override(
@@ -346,7 +381,7 @@ class TestStaffOverride:
 class TestRosterChanges:
     async def test_a_departing_player_stops_counting(self, db, stub_discord_queue):
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -363,7 +398,7 @@ class TestRosterChanges:
     ):
         """A stale yes must not survive the roster that produced it."""
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -385,7 +420,7 @@ class TestRosterChanges:
     ):
         """Only a broken agreement is announced, not every roster edit."""
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -418,7 +453,7 @@ class TestOffering:
         """Staff already decided; the button would be refused, so the DM lies."""
         sent = self._spy(monkeypatch)
         match, _ = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         await MatchHardPresetService().set_override(
             match.id, PresetOverride.STANDARD, staff,
         )
@@ -491,7 +526,7 @@ class TestTournamentReassignment:
         self, db, stub_discord_queue,
     ):
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -511,7 +546,7 @@ class TestTournamentReassignment:
         """The bug this pins: the agreement used to survive the move, so the
         match rolled a harder preset nobody had ever been shown."""
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -532,7 +567,7 @@ class TestTournamentReassignment:
     ):
         """The DM names the preset they lost, not the one they never chose."""
         match, (p1, p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         await service.opt_in(match.id, p2)
@@ -555,7 +590,7 @@ class TestTournamentReassignment:
         self, db, stub_discord_queue, captured_events,
     ):
         match, (p1, _p2) = await _match()
-        staff = await make_user(discord_id=next(_discord_ids), username='staff')
+        staff = await _staff()
         service = MatchHardPresetService()
         await service.opt_in(match.id, p1)
         captured_events.clear()

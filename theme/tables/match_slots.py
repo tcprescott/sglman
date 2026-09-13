@@ -155,12 +155,14 @@ STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-
 HARD_PRESET_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <template v-if="props.row._hard_offered && props.row.players && props.row.players.some(p => p.discord_id == __DID__)">
         <span v-if="props.row._hard_override" class="wiz-chip wiz-chip--candidate">
-            <q-icon name="gavel" size="12px" />{{ props.row._hard_override_name }}
+            <q-icon name="gavel" size="12px" />
+            <span class="wiz-chip--name">{{ props.row._hard_override_name }}</span>
             <q-tooltip>Staff set this match to {{ props.row._hard_override_name }}.</q-tooltip>
         </span>
         <span v-else-if="props.row._hard_agreed && props.row._hard_locked"
               class="wiz-chip wiz-chip--confirmed">
-            <q-icon name="bolt" size="12px" />{{ props.row._hard_name }}
+            <q-icon name="bolt" size="12px" />
+            <span class="wiz-chip--name">{{ props.row._hard_name }}</span>
             <q-tooltip>This match rolled {{ props.row._hard_name }}.</q-tooltip>
         </span>
         <q-btn v-else-if="!props.row._hard_locked"

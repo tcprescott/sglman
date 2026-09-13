@@ -9,7 +9,7 @@ computed from exactly that. The secrecy rule lives one layer up, in
 user ids to a surface. Adding a caller elsewhere would defeat the feature.
 """
 
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchHardPresetOptIn, User
@@ -17,12 +17,6 @@ from models import Match, MatchHardPresetOptIn, User
 
 class MatchHardPresetRepository:
     """Repository for hard-preset opt-in data access."""
-
-    @staticmethod
-    async def get_by_match_and_user(match: Match, user: User) -> Optional[MatchHardPresetOptIn]:
-        return await MatchHardPresetOptIn.get_or_none(
-            match=match, user=user, tenant_id=current_tenant_id(),
-        )
 
     @staticmethod
     async def has_opted_in(match_id: int, user_id: int) -> bool:

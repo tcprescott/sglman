@@ -60,6 +60,7 @@ from application.repositories import (
     MatchRepository,
 )
 from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
 from models import Match, Preset, PresetOverride, User
 
 logger = logging.getLogger(__name__)
@@ -240,10 +241,6 @@ class MatchHardPresetService:
             preset_name=base.preset_name,
             standard_preset_name=base.standard_preset_name,
         )
-
-    async def opted_in_match_ids(self, user: User, match_ids: List[int]) -> Set[int]:
-        """Which of these matches ``user`` has opted into — their own rows only."""
-        return await self.repository.opted_in_match_ids(user, match_ids)
 
     async def board_states(
         self, user: User, match_ids: List[int],
@@ -492,6 +489,14 @@ class MatchHardPresetService:
         agreements staff never asked to destroy.
         """
         match = await self._require_match(match_id)
+        # The same gate ``update_match`` puts on editing this match. Without it
+        # the only thing standing between an actor and overruling two players'
+        # settings — and DMing them about it — is whichever page happens to call
+        # this, which is not a gate at all for the next caller.
+        await AuthService.ensure(
+            await AuthService.can_crud_match(actor, match),
+            f"User cannot set the preset override on match {match_id}",
+        )
         if match.generated_seed_id is not None:  # type: ignore[attr-defined]
             raise ValueError(
                 'The seed for this match has already been rolled, so its settings are set.'
