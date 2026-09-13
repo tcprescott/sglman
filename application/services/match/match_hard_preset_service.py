@@ -424,6 +424,7 @@ class MatchHardPresetService:
             tournament_name=match.tournament.name,
             preset_name=preset_name,
             standard_preset_name=standard_preset_name,
+            when=match.scheduled_at,
             recipients=recipients,
             agreed=became,
             # Empty for a staff edit, where naming the actor would credit their
@@ -469,6 +470,7 @@ class MatchHardPresetService:
                 match_id=match.id,
                 tournament_name=match.tournament.name,
                 preset_name=hard.name,
+                when=match.scheduled_at,
                 recipients=[p.user for p in match.players],
                 opted_in_ids=list(opted_in),
             )
@@ -532,6 +534,7 @@ class MatchHardPresetService:
             match_id=match.id,
             tournament_name=match.tournament.name,
             preset_name=preset.name if preset is not None else '',
+            when=match.scheduled_at,
             recipients=[p.user for p in players],
             forced=override is not None,
         ))

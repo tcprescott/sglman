@@ -573,6 +573,69 @@ class TestTournamentReassignment:
         assert not await MatchHardPresetOptIn.filter(match=match).exists()
 
 
+class TestOverrideNotification:
+    """A call to action must land on a control the reader can actually use."""
+
+    @staticmethod
+    def _spy(monkeypatch):
+        from application.services import notification_links
+        from application.services.discord import discord_service as ds
+        from application.utils.discord_messages import DMLink
+
+        sent = []
+
+        async def fake_send_dm(self, discord_id, message, **kwargs):
+            sent.append(kwargs.get('link'))
+            return True, None
+
+        async def fake_hard(match_id, **kwargs):
+            return DMLink('Choose your settings', 'https://x.test/hard')
+
+        async def fake_match(match_id, **kwargs):
+            return DMLink('View your match', 'https://x.test/match')
+
+        monkeypatch.setattr(ds.DiscordService, 'send_dm', fake_send_dm)
+        monkeypatch.setattr(notification_links, 'player_hard_preset', fake_hard)
+        monkeypatch.setattr(notification_links, 'player_match', fake_match)
+        return sent
+
+    async def test_forcing_links_the_match_not_the_opt_in(
+        self, db, stub_discord_queue, monkeypatch,
+    ):
+        """Staff just took the choice away, so "Choose your settings" would open
+        a dialog that refuses the reader."""
+        from application.services.match._hard_preset_notifications import (
+            notify_hard_preset_override,
+        )
+
+        sent = self._spy(monkeypatch)
+        player = await make_user(discord_id=next(_discord_ids), username='p')
+
+        await notify_hard_preset_override(
+            match_id=1, tournament_name='T', preset_name='Hard Mode',
+            when=None, recipients=[player], forced=True,
+        )
+
+        assert [link.label for link in sent] == ['View your match']
+
+    async def test_handing_the_choice_back_links_the_opt_in(
+        self, db, stub_discord_queue, monkeypatch,
+    ):
+        from application.services.match._hard_preset_notifications import (
+            notify_hard_preset_override,
+        )
+
+        sent = self._spy(monkeypatch)
+        player = await make_user(discord_id=next(_discord_ids), username='p')
+
+        await notify_hard_preset_override(
+            match_id=1, tournament_name='T', preset_name='Hard Mode',
+            when=None, recipients=[player], forced=False,
+        )
+
+        assert [link.label for link in sent] == ['Choose your settings']
+
+
 class TestBoardStates:
     async def test_reports_only_the_viewers_own_rows(self, db, stub_discord_queue):
         match, (p1, p2) = await _match()

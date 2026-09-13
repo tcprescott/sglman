@@ -17,10 +17,11 @@ worker awaits them outside the enqueuing request's tenant scope.
 """
 
 import logging
-from typing import Sequence
+from datetime import datetime
+from typing import Optional, Sequence
 
 from application.services.discord.discord_service import DiscordService
-from application.utils.discord_embeds import COLOR_SEED, COLOR_STREAM, match_embed
+from application.utils.discord_embeds import COLOR_RESCHEDULED, COLOR_SEED, match_embed
 from application.utils.discord_messages import (
     hard_preset_agreed_dm,
     hard_preset_broken_dm,
@@ -37,6 +38,7 @@ async def notify_hard_preset_invite(
     match_id: int,
     tournament_name: str,
     preset_name: str,
+    when: Optional[datetime],
     recipients: Sequence[User],
     opted_in_ids: Sequence[int],
 ) -> None:
@@ -60,6 +62,7 @@ async def notify_hard_preset_invite(
             description=message,
             tournament=tournament_name,
             player_names=[u.preferred_name for u in recipients],
+            when=when,
         )
         link = await notification_links.player_hard_preset(match_id)
         already_in = set(opted_in_ids)
@@ -84,6 +87,7 @@ async def notify_hard_preset_agreement(
     tournament_name: str,
     preset_name: str,
     standard_preset_name: str,
+    when: Optional[datetime],
     recipients: Sequence[User],
     agreed: bool,
     actor_name: str,
@@ -105,13 +109,17 @@ async def notify_hard_preset_agreement(
                 tournament_name, preset_name, standard_preset_name, actor_name,
             )
             title = '↩️ Back to the standard settings'
-            color = COLOR_STREAM
+            # Not the stream gold: these same players get stream-candidate DMs,
+            # and a reader who has learned gold means "you may be on stream"
+            # should not have to re-read the title to tell the two apart.
+            color = COLOR_RESCHEDULED
         embed = match_embed(
             title=title,
             color=color,
             description=message,
             tournament=tournament_name,
             player_names=[u.preferred_name for u in recipients],
+            when=when,
         )
         link = await notification_links.player_match(match_id)
         for user in recipients:
@@ -135,6 +143,7 @@ async def notify_hard_preset_override(
     match_id: int,
     tournament_name: str,
     preset_name: str,
+    when: Optional[datetime],
     recipients: Sequence[User],
     forced: bool,
 ) -> None:
@@ -153,8 +162,15 @@ async def notify_hard_preset_override(
             description=message,
             tournament=tournament_name,
             player_names=[u.preferred_name for u in recipients],
+            when=when,
         )
-        link = await notification_links.player_hard_preset(match_id)
+        # A forced match has no choice left to make, so "Choose your settings"
+        # would land the reader on a dialog that refuses them. Only the handing
+        # back is a call to action.
+        link = (
+            await notification_links.player_match(match_id) if forced
+            else await notification_links.player_hard_preset(match_id)
+        )
         for user in recipients:
             if not user.dm_notifications or not user.discord_id:
                 continue

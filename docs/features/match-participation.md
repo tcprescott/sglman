@@ -391,7 +391,7 @@ roster its owner never saw.
 | Player board (Home → Your Schedule) | A `Settings` column: a `bolt` toggle for a player in the match, a `gavel` chip when staff overrode it, and the preset name once the match has rolled it. Renders nothing at all when the tournament offers no hard preset. |
 | Mobile card | A labelled button in the actions row — *Harder settings*, *Opted in — waiting*, or *Playing &lt;preset&gt;*. |
 | `HardPresetDialog` | The explanation and the two buttons. A dialog rather than a bare toggle: a switch whose effect depends on an answer you are not allowed to see needs a sentence before it is flipped. Opened by the board cell, by `?hard=<match_id>`, and by the DM's link button. |
-| Discord | An offer DM when the match is scheduled, carrying **one** button chosen from the reader's own answer (*Play the harder preset* or *Back out*) — the only DM in the app whose button differs per recipient. Replies are ephemeral. Agreement, breakage and staff overrides each get their own DM to the whole match. |
+| Discord | An offer DM when the match is scheduled, carrying **one** button chosen from the reader's own answer (*Play the harder preset* or *Back out*) — the only DM in the app whose button differs per recipient. Replies are ephemeral. Agreement, breakage and staff overrides each get their own DM to the whole match. The link button follows what the reader can still do: *Choose your settings* while the choice is theirs, *View your match* once staff have forced it. |
 | Admin match dialog | The *Seed settings* override select. It shows what will be rolled, never who asked for it. |
 
 No feature flag. The feature is dormant until a tournament has a hard preset,

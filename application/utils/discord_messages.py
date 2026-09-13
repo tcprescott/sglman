@@ -509,10 +509,14 @@ def hard_preset_override_dm(
 ) -> str:
     """Staff chose the match's settings, or handed the choice back."""
     if forced:
-        return (
-            f"Staff set your **{tournament_name}** match to **{preset_name}**.\n\n"
-            "That decides the settings for this match."
+        # A tournament with no standard preset resolves to no preset at all, and
+        # "set your match to ****" is worse than not naming it.
+        opening = (
+            f"Staff set your **{tournament_name}** match to **{preset_name}**."
+            if preset_name else
+            f"Staff chose the settings for your **{tournament_name}** match."
         )
+        return f"{opening}\n\nThat decides the settings for this match."
     return (
         f"Staff handed the settings for your **{tournament_name}** match back to "
         "the players.\n\n"
