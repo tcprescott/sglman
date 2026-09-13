@@ -6,6 +6,7 @@ from application.services import (
     BracketService,
     ChallongeService,
     FeatureFlagService,
+    MatchHardPresetService,
     MatchRescheduleService,
     MatchService,
     TournamentService,
@@ -16,6 +17,7 @@ from application.utils.timezone import format_local_display
 from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
+from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.notify import notify_error
@@ -53,6 +55,18 @@ def _report_stale_deep_link(deep_link: dict) -> None:
     """The same notice for the case where the viewer has no open matchups at all."""
     if deep_link.pop('matchup_id', None) is not None:
         _notify_stale_schedule_link()
+
+
+def _notify_stale_hard_preset_link() -> None:
+    """Say why a "Choose your settings" button did nothing.
+
+    The DM outlives the choice it offers: the seed may have rolled, staff may
+    have set the match themselves, or the roster may have changed. A page that
+    opens no dialog reads as a broken app, so the reason is said aloud.
+    """
+    ui.notify(
+        'The settings for that match are already decided.', color='warning',
+    )
 
 
 def _notify_stale_reschedule_link() -> None:
@@ -125,7 +139,7 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
 
 async def render_player_dashboard(
     schedule: int | None = None, reschedule: int | None = None,
-    match: int | None = None,
+    match: int | None = None, hard: int | None = None,
 ):
     """The player's own schedule.
 
@@ -141,6 +155,11 @@ async def render_player_dashboard(
     ``match`` narrows the board to one match, for the stage DMs' button. It
     stays a filter rather than a dialog because "which stage am I on" is
     answered by the row itself.
+
+    ``hard`` is a match id from the harder-settings DM, opening that match's
+    opt-in dialog. A dialog rather than a filter, because unlike the stage the
+    answer is not on the row: the row holds a small toggle whose whole meaning
+    is the explanation the dialog carries.
     """
     # Always set: home applies the membership gate before any tab is built, so a
     # signed-out visitor gets the join page and never reaches this section.
@@ -151,6 +170,7 @@ async def render_player_dashboard(
     viewer = await get_user_from_discord_id(discord_id)
     match_service = MatchService()
     reschedule_service = MatchRescheduleService()
+    hard_preset_service = MatchHardPresetService()
     challonge_service = ChallongeService()
     bracket_service = BracketService()
 
@@ -340,6 +360,11 @@ async def render_player_dashboard(
             # Beside Stream for the same reason: this viewer acting on their own
             # behalf rather than reading the match.
             {'name': 'reschedule', 'label': 'Change', 'field': 'reschedule'},
+            # Beside the other two for the same reason, and last of the three
+            # because it is the only one that is nobody else's business: the
+            # cell renders nothing at all unless this viewer's tournament offers
+            # a harder preset and this viewer is playing the match.
+            {'name': 'hard_preset', 'label': 'Settings', 'field': 'hard_preset'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
@@ -386,6 +411,26 @@ async def render_player_dashboard(
                 for row in rows:
                     _render_request_card(row, on_withdraw=requests_section.refresh)
 
+        async def _open_hard_preset(match_id: int) -> None:
+            """Open the harder-settings choice for one match, from its DM."""
+            if viewer is None:
+                _notify_stale_hard_preset_link()
+                return
+            match = await match_service.get_by_id(match_id)
+            if match is None:
+                _notify_stale_hard_preset_link()
+                return
+            states = await hard_preset_service.board_states(viewer, [match_id])
+            state = states.get(match_id)
+            if state is None:
+                _notify_stale_hard_preset_link()
+                return
+
+            async def after():
+                await table_view.refresh()
+
+            await HardPresetDialog(match, viewer, state, on_change=after).open()
+
         async def _open_reschedule(match_id: int) -> None:
             """Open the request form for one match, from the declined DM's button."""
             match = await match_service.get_by_id(match_id)
@@ -426,6 +471,8 @@ async def render_player_dashboard(
         await requests_section()
         if reschedule is not None:
             await _open_reschedule(int(reschedule))
+        if hard is not None:
+            await _open_hard_preset(int(hard))
         # No initial refresh here: MatchTableView._initial_load owns it, and runs
         # after the stored filters are restored rather than racing them.
 

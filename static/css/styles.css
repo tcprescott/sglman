@@ -311,6 +311,19 @@ body.body--dark {
     border: 1px solid color-mix(in srgb, var(--chip-c) 35%, transparent);
 }
 
+/* A chip carrying a name somebody else typed — a preset, a stage — must not set
+   its column's width. One long name on one row widened the player board's
+   Settings column to 253px, the widest on a ten-column board, and pushed the
+   control it holds past the horizontal fold. The full text stays in the
+   tooltip. */
+.wiz-chip--name {
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
 .wiz-chip--ok        { --chip-c: var(--status-ok); }
 .wiz-chip--pending   { --chip-c: var(--status-pending); }
 .wiz-chip--live      { --chip-c: var(--status-live); }

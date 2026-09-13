@@ -38,8 +38,10 @@ from models import (
     DiscordEventSource,
     DiscordScheduledEvent,
     Match,
+    MatchHardPresetOptIn,
     MatchPlayers,
     Preset,
+    PresetOverride,
     RaceRoomProfile,
     RaceRoomStatus,
     RacetimeBot,
@@ -287,6 +289,18 @@ async def _seed_presets(tenant: Tenant, staff: User) -> Preset:
     # OoT key, so dev demonstrates the per-tenant filter narrowing a selector (and
     # its dk64r preset staying editable without one). Dev rolls go through
     # MOCK_SEEDGEN, so these are never sent upstream.
+    # The opt-in "harder" preset the online tournament offers. Same randomizer
+    # as the standard one above, which the service requires: whichever preset
+    # wins at roll time is what names the randomizer.
+    await Preset.get_or_create(
+        name="ALTTPR Open — Hard Mode", tenant=tenant,
+        defaults={
+            "randomizer": "alttpr",
+            "settings": {"glitches": "none", "goal": "ganon", "mode": "open",
+                         "item_placement": "advanced", "item_pool": "hard"},
+            "description": "The open-mode settings with a hard item pool. Players opt into this.",
+        },
+    )
     wanted = all_specs() if tenant.slug == 'default' else credentials_for('ootr')
     for spec in wanted:
         await RandomizerCredential.get_or_create(
@@ -328,6 +342,14 @@ async def _seed_online_tournament(
         )
     if tournament.preset_id is None:
         tournament.preset = preset
+    # The harder preset players can privately opt into instead. Without one on a
+    # dev tournament the whole opt-in surface is invisible, which is what the
+    # feature does for a community that has not configured it — so the fixture
+    # has to supply it for the column to exist at all.
+    if tournament.hard_preset_id is None:
+        tournament.hard_preset = await Preset.get_or_none(
+            name="ALTTPR Open — Hard Mode", tenant=tenant,
+        )
     # The room profile the auto-opener applies to this tournament's rooms. It was
     # seeded but attached to nothing, so the "tournament → profile → room
     # settings" resolution every opened room goes through had no dev fixture —
@@ -389,12 +411,42 @@ async def _seed_online_matches(
         return match
 
     scheduled = await make_match("Online Scheduled Race", 2, players[0], players[1])
+    # One more upcoming race, so the board carries both halves of the opt-in and
+    # not just the agreed one: this is the state a player sees while their own
+    # answer is in and they cannot tell whether anyone else's is.
+    half = await make_match("Online Race — One Opt-In", 4, players[1], players[2])
+    # Staff's override, the state where the players' own control steps aside.
+    forced_hard = await make_match(
+        "Online Race — Staff Set Hard", 6, players[0], players[3],
+    )
     in_progress = await make_match(
         "Online Race In Progress", -1, players[2], players[3], started=True,
     )
     finished = await make_match(
         "Online Race Finished", -3, players[0], players[2], started=True, finished=True,
     )
+    # Hard-preset opt-ins, covering the three states the column renders:
+    # unanimous (both players in, still rollable), a single opt-in waiting on the
+    # other player, and a staff override that disregards both. The third match is
+    # left with no rows at all, which is the fourth state — the plain offer.
+    for match, opted_in in (
+        (scheduled, (players[0], players[1])),
+        (half, (players[1],)),
+    ):
+        for player in opted_in:
+            await MatchHardPresetOptIn.get_or_create(
+                match=match, user=player, tenant=tenant,
+            )
+    if in_progress.preset_override is None:
+        in_progress.preset_override = PresetOverride.STANDARD
+        await in_progress.save()
+    # The other direction of the same control. Both are seeded because they read
+    # differently on the board and in the DM, and the forced-hard one sits on an
+    # upcoming match so its control is still live to look at.
+    if forced_hard.preset_override is None:
+        forced_hard.preset_override = PresetOverride.HARD
+        await forced_hard.save()
+
     return scheduled, in_progress, finished
 
 

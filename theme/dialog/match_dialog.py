@@ -376,6 +376,14 @@ class AdminMatchDialog(BaseMatchDialog):
                             'advisory, tick the box above to make it a candidate.'
                         ).classes('text-caption st-pending')
 
+                # Staff's own answer to "which preset does this match roll",
+                # offered only where there is a second preset to choose between
+                # and the seed is still unrolled. Deliberately says nothing about
+                # who opted in: the players' answers are theirs, and forcing the
+                # harder preset here is a decision about the match rather than a
+                # reply to them.
+                preset_override_select = await self._render_preset_override()
+
                 selected_bracket_match = await bracket_link.render_select(
                     self.bracket_service, selected_tournament,
                     brackets_live=brackets_live,
@@ -451,6 +459,9 @@ class AdminMatchDialog(BaseMatchDialog):
                         self.bracket_service, selected_bracket_match,
                         self.match.id, linked_bracket_match_id,
                     )
+                    # Last: it DMs both players about the match's settings, so
+                    # it must not fire for an edit that then fails to save.
+                    await self._save_preset_override(preset_override_select)
 
                 async def do_create():
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))

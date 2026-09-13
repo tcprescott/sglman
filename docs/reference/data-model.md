@@ -103,6 +103,8 @@ erDiagram
     User ||--o{ MatchWatcher : "user"
     Match ||--o{ MatchStreamVolunteer : "match"
     User ||--o{ MatchStreamVolunteer : "user"
+    Match ||--o{ MatchHardPresetOptIn : "match"
+    User ||--o{ MatchHardPresetOptIn : "user"
     Match ||--o{ MatchRescheduleRequest : "match"
     User ||--o{ MatchRescheduleRequest : "requested_by"
 
@@ -222,6 +224,10 @@ Used by `TournamentNotificationPreference.match_notifications` (`max_length=30`,
 ### `VolunteerAvailabilityStatus`
 
 Used by both `VolunteerAvailability.status` and `PlayerAvailability.status` (`max_length=20`, default `AVAILABLE`). Drives the availability picker and the effective-availability overlap calculations in the volunteer/player availability services: `AVAILABLE` = `'available'`, `UNAVAILABLE` = `'unavailable'` (explicitly blocked out), `PREFERRED` = `'preferred'` (available and would prefer to be scheduled then). The same three values mean different things per subsystem: volunteer availability is opt-in, so an `AVAILABLE` row is the declaration that carries a volunteer's whole availability, while player availability is opt-out, so an `AVAILABLE` row restates the default and the player editor never writes one.
+
+### `PresetOverride`
+
+`HARD` | `STANDARD`, on `Match.preset_override`. Staff's answer to "which preset does this match roll", which beats the players' own. `NULL` — the normal case — means the players decide. A two-value enum rather than an FK to any preset: it answers the same question the opt-in answers, so it has the same two answers, and it can never name a preset from a different randomizer than the tournament's.
 
 ### `RescheduleRequestKind` / `RescheduleRequestStatus`
 
@@ -623,6 +629,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
 | `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments.md](../features/online-tournaments.md) |
 | `preset` | FK → `Preset` | null, `SET_NULL` | Seed-rolling preset; resolves the randomizer + settings for seed generation and overrides `seed_generator` when set. `related_name='tournaments'` |
+| `hard_preset` | FK → `Preset` | null, `SET_NULL` | The opt-in "harder" preset players can privately agree to instead. Must share `preset`'s randomizer and requires `preset` to be set (both enforced in `TournamentService`). Null = this tournament does not offer one, which is what keeps the whole opt-in surface invisible. `related_name='hard_tournaments'` |
 | `racetime_bot` | FK → `RacetimeBot` | null, `SET_NULL` | Selected racetime bot/category; validated against the tenant's authorization grants (`RacetimeBotTenant`). `related_name='tournaments'` |
 | `race_room_profile` | FK → `RaceRoomProfile` | null, `SET_NULL` | Reusable room settings applied when a room is opened. `related_name='tournaments'` |
 | `racetime_auto_create_rooms` | `BooleanField` | default `False` | Opt-in: auto-open a race room per scheduled match |
@@ -709,6 +716,7 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
 | `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |
+| `preset_override` | `PresetOverride` | null | Staff overruling the players' hard-preset choice for this one match, in either direction. Null = the players decide. Refused once the seed is rolled, after which `generated_seed.preset` is the record |
 | `speedgaming_episode` | O2O → `SpeedGamingEpisode` | null, `SET_NULL` | The canonical **source marker**: non-null = materialized by the SpeedGaming ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`) read-only in Wizzrobe (guard in `MatchService.update_match`). `SET_NULL` soft-detaches the match if its episode is purged. `related_name='match'` |
 
 Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); `players`, `commentators`, `trackers`, `watchers`, `stream_volunteers`, `racetime_room`, and `bracket_match_game` exist via the children's `related_name`s without class-level declarations.
@@ -763,6 +771,18 @@ A player putting their **own** match forward to be streamed. Advisory: it does n
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='stream_volunteers'` |
 
 Constraint: `unique_together ('user', 'match')`. Index on `match` (the composite is user-first, so the per-board fan-out lookup is otherwise uncovered).
+
+#### `MatchHardPresetOptIn`
+
+One player privately agreeing to play their match on `Tournament.hard_preset`. The match rolls the harder preset only when **every** current player holds a row; a lone opt-in is invisible to everyone but its owner and simply lapses when the seed rolls. Agreement is derived (opt-in set == player set) rather than stored, so a roster change re-answers it instead of leaving a stale yes behind. Nothing outside `MatchHardPresetService` may report who holds a row. See [match-participation.md](../features/match-participation.md#harder-settings-opt-in).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='hard_preset_opt_ins'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='hard_preset_opt_ins'` |
+| `opted_in_at` | datetime | `auto_now_add` | |
+
+Constraint: `unique_together ('match', 'user')`. Table `matchhardpresetoptin`.
 
 #### `MatchRescheduleRequest`
 
@@ -1674,6 +1694,7 @@ Consult the source for full signatures.
 | `MatchRepository` | [`match_repository.py`](../../application/repositories/match_repository.py) | `Match`, `MatchPlayers` | `get_by_id`, `get_all` (filters by tournaments, stages, upcoming-only = `finished_at IS NULL`, or the matches one user plays in; ordered by `scheduled_at`), `create`, `update`, `delete`, `add_player`, `remove_player`, `get_players`. Both getters prefetch `tournament`, `players(+user)`, `stage`, `generated_seed`, `commentators(+user)`, `trackers(+user)` unless asked not to |
 | `MatchWatcherRepository` | [`match_watcher_repository.py`](../../application/repositories/match_watcher_repository.py) | `MatchWatcher` | `get_by_id`, `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_watching`, `get_or_create` (idempotent watch), `delete`, `delete_by_match_and_user` |
 | `RescheduleRequestRepository` | [`reschedule_request_repository.py`](../../application/repositories/reschedule_request_repository.py) | `MatchRescheduleRequest` | `get_by_id` (prefetching), `list_pending` (the staff queue, oldest first), `list_for_match`, `list_for_user`, `get_pending_for`, `list_pending_for_match`, `pending_count`, `pending_match_ids`, `pending_match_ids_for_user`, `pending_by_match` (whole board in one query) |
+| `MatchHardPresetRepository` | [`match_hard_preset_repository.py`](../../application/repositories/match_hard_preset_repository.py) | `MatchHardPresetOptIn` | `get_by_match_and_user`, `has_opted_in`, `user_ids_for_match`, `user_ids_by_match` (whole board in one query), `opted_in_match_ids` (one viewer's own rows), `get_or_create`, `delete_by_match_and_user`, `delete_for_user_in_match` |
 | `MatchStreamVolunteerRepository` | [`match_stream_volunteer_repository.py`](../../application/repositories/match_stream_volunteer_repository.py) | `MatchStreamVolunteer` | `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_volunteer`, `names_by_match` (whole board in one query), `get_or_create`, `delete_by_match_and_user` |
 | `StationRepository` | [`station_repository.py`](../../application/repositories/station_repository.py) | `Station` | `get_all`, `get_active`, `active_names` (the assignable labels; empty = no pool defined), plus the `TenantScopedRepository` CRUD quartet |
 | `StageRepository` | [`stage_repository.py`](../../application/repositories/stage_repository.py) | `Stage` | `get_by_id`, `get_all`, `get_all_as_dict` (id → name for select options), `create`, `update`, `delete` |

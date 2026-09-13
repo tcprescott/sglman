@@ -35,6 +35,18 @@ class Tournament(Model):
     preset = fields.ForeignKeyField(
         'models.Preset', related_name='tournaments', null=True, on_delete=fields.SET_NULL
     )
+    # The opt-in "harder settings" preset. Null means the tournament does not
+    # offer one, which is what makes the whole opt-in feature dormant: with no
+    # hard preset there is nothing to opt into and the control never renders.
+    # Rolled only when every player in a match opted in (or staff overrode the
+    # match to ``PresetOverride.HARD``) — see ``MatchHardPresetOptIn``.
+    # ``TournamentService`` requires it to share ``preset``'s randomizer, since
+    # seed generation resolves the randomizer from whichever preset wins.
+    # Annotated where its siblings are not: the ORM builds this descriptor at
+    # runtime, so an untyped new field would add an error to the mypy ratchet.
+    hard_preset: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.Preset', related_name='hard_tournaments', null=True, on_delete=fields.SET_NULL
+    )
     # Racetime room automation (PR 3+). ``racetime_bot`` must be a category the
     # tenant is authorized for (enforced in the service); SET_NULL so revoking a
     # bot detaches its tournaments rather than deleting them. ``race_room_profile``

@@ -16,6 +16,7 @@ runs before any Discord interaction is dispatched or DM is sent.
 from application.services.discord.discord_service import (
     VIEW_CREW_ACK,
     VIEW_CREW_SIGNUP,
+    VIEW_HARD_PRESET,
     VIEW_MATCH_ACK,
     VIEW_RESCHEDULE_AGREE,
     VIEW_UNWATCH,
@@ -43,6 +44,13 @@ from discordbot.match_acknowledgment import (
 from discordbot.match_acknowledgment import (
     handle_match_acknowledgment_interaction,
     make_match_acknowledgment_view,
+)
+from discordbot.match_hard_preset import (
+    CUSTOM_ID_PREFIX as HARD_PRESET_PREFIX,
+)
+from discordbot.match_hard_preset import (
+    handle_hard_preset_interaction,
+    make_hard_preset_view,
 )
 from discordbot.reschedule_agreement import (
     CUSTOM_ID_PREFIX as RESCHEDULE_AGREE_PREFIX,
@@ -74,6 +82,7 @@ register_interaction_handler(CREW_ACK_PREFIX, handle_crew_acknowledgment_interac
 register_interaction_handler(VOLUNTEER_ACK_PREFIX, handle_volunteer_acknowledgment_interaction)
 register_interaction_handler(WATCH_PREFIX, handle_unwatch_interaction)
 register_interaction_handler(RESCHEDULE_AGREE_PREFIX, handle_reschedule_agree_interaction)
+register_interaction_handler(HARD_PRESET_PREFIX, handle_hard_preset_interaction)
 
 # DM view factories, keyed by the VIEW_* kinds the DM senders look up.
 register_view_factory(VIEW_CREW_SIGNUP, make_crew_signup_view)
@@ -82,3 +91,4 @@ register_view_factory(VIEW_CREW_ACK, make_crew_acknowledgment_view)
 register_view_factory(VIEW_VOLUNTEER_ACK, make_volunteer_acknowledgment_view)
 register_view_factory(VIEW_UNWATCH, make_unwatch_view)
 register_view_factory(VIEW_RESCHEDULE_AGREE, make_reschedule_agree_view)
+register_view_factory(VIEW_HARD_PRESET, make_hard_preset_view)

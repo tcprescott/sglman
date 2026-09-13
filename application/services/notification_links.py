@@ -38,6 +38,7 @@ from application.utils.app_links import (
     admin_reschedule_request_url,
     admin_url,
     home_url,
+    player_hard_preset_url,
     player_match_url,
     player_reschedule_url,
     player_schedule_url,
@@ -115,6 +116,18 @@ async def player_reschedule(
     move is a different time, so the button opens the form that takes one.
     """
     return await link_for(label, player_reschedule_url(match_id))
+
+
+async def player_hard_preset(
+    match_id: int, *, label: str = 'Choose your settings',
+) -> Optional[DMLink]:
+    """"Choose your settings" — the Player tab with this match's opt-in open.
+
+    The one route to an opt-in that is deliberately invisible everywhere else:
+    a reader who cannot find the control cannot use the feature, and the control
+    is a single cell on a nine-column board.
+    """
+    return await link_for(label, player_hard_preset_url(match_id))
 
 
 async def player_match(

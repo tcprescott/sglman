@@ -6,6 +6,7 @@ is not mounted; we attach only the api router to keep the test app
 lightweight and avoid the Discord bot startup.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -15,7 +16,10 @@ from models import (
     Commentator,
     GeneratedSeeds,
     Match,
+    MatchHardPresetOptIn,
     MatchPlayers,
+    Preset,
+    PresetOverride,
     Role,
     Stage,
     Tournament,
@@ -421,3 +425,49 @@ class TestMatchCrewEndpoint:
         _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
         async with client_for(app, raw) as c:
             assert (await c.get('/api/matches/9999/crew')).status_code == 404
+
+
+class TestHardPresetStaysOffTheApi:
+    """The opt-in must not become readable one API call away from the page.
+
+    The same failure the async-qualifier score banding had to avoid: fixing the
+    page alone leaves the leak reachable over REST. ``MatchResponse`` lists its
+    fields explicitly, so this is a pin on that list rather than a filter — if
+    somebody adds the field, this fails.
+    """
+
+    async def _match_with_an_opt_in(self):
+        standard = await Preset.create(
+            name='Standard', randomizer='alttpr', settings={'mode': 'open'},
+        )
+        hard = await Preset.create(
+            name='Hard Mode', randomizer='alttpr', settings={'pool': 'hard'},
+        )
+        tournament = await Tournament.create(
+            name='T', preset=standard, hard_preset=hard,
+        )
+        match = await Match.create(
+            tournament=tournament,
+            scheduled_at=datetime(2025, 1, 15, 19, 30, tzinfo=timezone.utc),
+            preset_override=PresetOverride.HARD,
+        )
+        opter = await User.create(discord_id=7701, username='opter')
+        other = await User.create(discord_id=7702, username='other')
+        await MatchPlayers.create(match=match, user=opter)
+        await MatchPlayers.create(match=match, user=other)
+        await MatchHardPresetOptIn.create(match=match, user=opter)
+        return match
+
+    async def test_the_match_read_carries_no_opt_in_field(self, db, app):
+        match = await self._match_with_an_opt_in()
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            body = (await c.get(f'/api/matches/{match.id}')).json()
+
+        serialized = json.dumps(body)
+        assert 'opted' not in serialized
+        assert 'hard_preset' not in serialized
+        assert 'preset_override' not in serialized
+        # The roster itself is public and stays so; what must not appear is any
+        # field distinguishing the player who opted in from the one who did not.
+        assert serialized.count('finish_rank') == 2

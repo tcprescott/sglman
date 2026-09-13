@@ -45,6 +45,15 @@ class EventType:
     # A player asking staff to move or call off their match. Worth publishing
     # separately from the match.rescheduled an approval also emits: a subscriber
     # wants to hear that someone *asked*, not only that the schedule moved.
+    # The match's players have unanimously opted into the harder preset, or a
+    # complete set has since broken. Only the unanimous state is published: the
+    # individual opt-ins that build up to it are audit-only, because a webhook
+    # subscriber is an outside listener and a lone opt-in must reach nobody.
+    MATCH_HARD_PRESET_AGREED = 'match.hard_preset_agreed'
+    MATCH_HARD_PRESET_AGREEMENT_REVOKED = 'match.hard_preset_agreement_revoked'
+    # Staff choosing a match's preset themselves, which overrides the above.
+    MATCH_PRESET_OVERRIDE_SET = 'match.preset_override_set'
+    MATCH_PRESET_OVERRIDE_CLEARED = 'match.preset_override_cleared'
     MATCH_RESCHEDULE_REQUESTED = 'match.reschedule_requested'
     MATCH_RESCHEDULE_AGREED = 'match.reschedule_agreed'
     MATCH_RESCHEDULE_APPROVED = 'match.reschedule_approved'
@@ -192,6 +201,8 @@ class EventType:
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         MATCH_FLAGGED_FOR_REVIEW, MATCH_REVIEW_CLEARED,
         MATCH_STREAM_VOLUNTEERED, MATCH_STREAM_VOLUNTEER_WITHDRAWN,
+        MATCH_HARD_PRESET_AGREED, MATCH_HARD_PRESET_AGREEMENT_REVOKED,
+        MATCH_PRESET_OVERRIDE_SET, MATCH_PRESET_OVERRIDE_CLEARED,
         MATCH_RESCHEDULE_REQUESTED, MATCH_RESCHEDULE_AGREED,
         MATCH_RESCHEDULE_APPROVED, MATCH_RESCHEDULE_DECLINED,
         MATCH_RESCHEDULE_WITHDRAWN,

@@ -26,6 +26,7 @@ from .feature_flag_group_repository import FeatureFlagGroupRepository
 from .feature_flag_repository import TenantFeatureFlagRepository
 from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
+from .match_hard_preset_repository import MatchHardPresetRepository
 from .match_repository import MatchRepository
 from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
@@ -84,6 +85,7 @@ __all__ = [
     'FeatureFlagGroupRepository',
     'FeedbackRepository',
     'MatchAcknowledgmentRepository',
+    'MatchHardPresetRepository',
     'MatchRepository',
     'MatchStreamVolunteerRepository',
     'MatchWatcherRepository',

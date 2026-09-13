@@ -1,7 +1,12 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import RescheduleRequestKind, RescheduleRequestStatus, StationSide
+from .enums import (
+    PresetOverride,
+    RescheduleRequestKind,
+    RescheduleRequestStatus,
+    StationSide,
+)
 
 
 class Match(Model):
@@ -23,6 +28,14 @@ class Match(Model):
     title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField(
         'models.GeneratedSeeds', related_name='matches', null=True, on_delete=fields.SET_NULL
+    )
+    # Staff overruling the players' hard-preset choice for this one match, in
+    # either direction (see ``PresetOverride``). Null is the normal case: the
+    # players decide. Set only while the seed is unrolled — afterwards
+    # ``generated_seed.preset`` is the record of what actually happened and this
+    # column would be a claim about a decision already made.
+    preset_override = fields.CharEnumField(
+        PresetOverride, max_length=16, null=True,
     )
     # Source marker for the SpeedGaming ETL (PR 7). Non-null = this Match was
     # materialized from an SG episode, which makes the ETL-owned fields
@@ -320,3 +333,44 @@ class MatchRescheduleRequest(Model):
         # a decline — exactly the retry the decline DM invites). The service
         # enforces it; the index below is what makes that check cheap.
         indexes = (('match', 'status'), ('status',))
+
+
+class MatchHardPresetOptIn(Model):
+    """One player privately agreeing to play their match on the harder preset.
+
+    The match rolls ``Tournament.hard_preset`` only when *every* one of its
+    current players has a row here. One player opting in alone changes nothing
+    and, crucially, tells nobody: the opt-in is secret until it is unanimous, so
+    that choosing the harder settings can never be read as a challenge, and
+    declining can never be read as backing down. Nothing outside
+    ``MatchHardPresetService`` may report who holds a row.
+
+    One row per player rather than a flag on the match, for the same reason
+    ``MatchStreamVolunteer`` is: the question is per person. Agreement is
+    *derived* (the opt-in set equals the player set) rather than stored, so a
+    roster change re-answers it instead of leaving a stale yes behind.
+
+    Rows stop mattering the moment the seed is rolled — ``GeneratedSeeds.preset``
+    is then the record of what was actually played — so the service refuses both
+    opting in and withdrawing from that point on.
+    """
+
+    id = fields.IntField(pk=True)
+    # Untyped FKs like every other model here; the three annotations keep the
+    # mypy ratchet flat for a new file (the ORM builds these descriptors at
+    # runtime, so mypy cannot infer them).
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='match_hard_preset_opt_ins', on_delete=fields.CASCADE
+    )
+    match: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Match', related_name='hard_preset_opt_ins', on_delete=fields.CASCADE
+    )
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='hard_preset_opt_ins', on_delete=fields.CASCADE
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('match', 'user'),)
+        table = 'matchhardpresetoptin'

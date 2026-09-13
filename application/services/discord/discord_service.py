@@ -95,6 +95,7 @@ VIEW_CREW_ACK = 'crew_ack'
 VIEW_VOLUNTEER_ACK = 'volunteer_ack'
 VIEW_UNWATCH = 'match_watch'
 VIEW_RESCHEDULE_AGREE = 'reschedule_agree'
+VIEW_HARD_PRESET = 'match_hard'
 
 InteractionHandler = Callable[[discord.Interaction], Awaitable[None]]
 ViewFactory = Callable[..., discord.ui.View]
@@ -276,6 +277,26 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
             embed=embed, link=link,
         )
 
+    async def send_dm_with_hard_preset_buttons(
+        self,
+        user_id: int,
+        message: str,
+        match_id: int,
+        opted_in: bool,
+        embed: Optional[discord.Embed] = None,
+        link: Optional[DMLink] = None,
+    ) -> Tuple[bool, str]:
+        """Send a DM with the harder-settings opt-in (or back-out) button.
+
+        ``opted_in`` picks which single button the DM carries, so the message
+        never shows a state the reader is not already in.
+        """
+        return await self.send_dm(
+            user_id, message,
+            lambda: _view_factories[VIEW_HARD_PRESET](match_id, opted_in),
+            embed=embed, link=link,
+        )
+
     async def send_dm_with_crew_acknowledgment_button(
         self,
         user_id: int,
@@ -351,6 +372,9 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_reschedule_agree_button(self, user_id: int, message: str, request_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed, link=link)
+
+    async def send_dm_with_hard_preset_buttons(self, user_id: int, message: str, match_id: int, opted_in: bool, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:

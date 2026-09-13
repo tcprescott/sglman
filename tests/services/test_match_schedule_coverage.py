@@ -15,11 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from application.services import MatchHardPresetService
 from models import (
     AuditLog,
     GeneratedSeeds,
     Match,
     MatchPlayers,
+    Preset,
+    PresetOverride,
     Tournament,
 )
 from tests.factories import utc
@@ -65,6 +68,89 @@ def _submission(provider_task_id: str, branch: str = 'stable'):
         settings={'branch': branch, 'generate_spoilerlog': False},
     )
 
+
+
+class TestHardPresetAtRollTime:
+    """Which preset the roll actually uses — the one moment the opt-in matters."""
+
+    async def _tournament_with_both_presets(self):
+        standard = await Preset.create(
+            name='Standard', randomizer='alttpr', settings={'mode': 'open'},
+        )
+        hard = await Preset.create(
+            name='Hard Mode', randomizer='alttpr', settings={'pool': 'hard'},
+        )
+        return await Tournament.create(
+            name='T', seed_generator='alttpr', preset=standard, hard_preset=hard,
+        ), standard, hard
+
+    async def _match_with_players(self, tournament, count=2):
+        match = await Match.create(
+            tournament=tournament, scheduled_at=utc(2025, 1, 15, 19, 30),
+        )
+        players = []
+        for i in range(count):
+            user = await make_dm_user(70 + i, name=f'hp{i}')
+            await MatchPlayers.create(match=match, user=user)
+            players.append(user)
+        await match.fetch_related('players')
+        return match, players
+
+    async def test_unanimous_opt_in_rolls_the_hard_preset(
+        self, service, db, stub_discord_queue,
+    ):
+        t, _, hard = await self._tournament_with_both_presets()
+        m, players = await self._match_with_players(t)
+        staff = await make_staff()
+        for player in players:
+            await MatchHardPresetService().opt_in(m.id, player)
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled('https://alttpr.com/h/hard'),
+        )
+
+        ok, _, _ = await service.generate_seed(m.id, staff)
+
+        assert ok is True
+        seed = await GeneratedSeeds.all().first()
+        assert seed.preset_id == hard.id
+
+    async def test_a_lone_opt_in_rolls_the_standard_preset(
+        self, service, db, stub_discord_queue,
+    ):
+        """The half-agreed match is the one that must not quietly get harder."""
+        t, standard, _ = await self._tournament_with_both_presets()
+        m, players = await self._match_with_players(t)
+        staff = await make_staff()
+        await MatchHardPresetService().opt_in(m.id, players[0])
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled('https://alttpr.com/h/std'),
+        )
+
+        ok, _, _ = await service.generate_seed(m.id, staff)
+
+        assert ok is True
+        seed = await GeneratedSeeds.all().first()
+        assert seed.preset_id == standard.id
+
+    async def test_a_staff_override_beats_a_unanimous_agreement(
+        self, service, db, stub_discord_queue,
+    ):
+        t, standard, _ = await self._tournament_with_both_presets()
+        m, players = await self._match_with_players(t)
+        staff = await make_staff()
+        hp = MatchHardPresetService()
+        for player in players:
+            await hp.opt_in(m.id, player)
+        await hp.set_override(m.id, PresetOverride.STANDARD, staff)
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled('https://alttpr.com/h/forced'),
+        )
+
+        ok, _, _ = await service.generate_seed(m.id, staff)
+
+        assert ok is True
+        seed = await GeneratedSeeds.all().first()
+        assert seed.preset_id == standard.id
 
 
 class TestGenerateSeed:

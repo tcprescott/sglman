@@ -29,6 +29,7 @@ from application.services.match.bracket_result_guard import (
 )
 from application.services.match.match_acknowledgment import MatchAcknowledgmentMixin
 from application.services.match.match_cancellation import CancellationMixin
+from application.services.match.match_hard_preset_service import MatchHardPresetService
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_reads import MatchReadsMixin
 from application.services.match.match_request import MatchRequestMixin
@@ -70,6 +71,7 @@ class MatchService(
         self.ack_repository = MatchAcknowledgmentRepository()
         self.audit_service = AuditService()
         self.match_schedule_service = MatchScheduleService()
+        self.hard_preset_service = MatchHardPresetService()
 
     @property
     def participants(self) -> MatchParticipants:
@@ -364,11 +366,21 @@ class MatchService(
         if clear_seed:
             update_fields['generated_seed'] = None
 
+        # Before any write: both a roster rewrite and a reassignment destroy the
+        # information the opt-in agreement has to be re-answered from.
+        hard_preset_before = await self.hard_preset_service.snapshot(match)
+
         if update_fields:
             await self.repository.update(match, **update_fields)
 
         if player_ids is not None:
             await self.participants.sync_players(match, player_ids, tournament_id or match.tournament_id)
+
+        # After both: a swap can break an agreement the remaining players were
+        # told about, dropping the one holdout can complete one, and moving the
+        # match discards every opt-in, since the players agreed to a named
+        # preset rather than to whichever one the match lands on next.
+        await self.hard_preset_service.reconcile_edit(match, hard_preset_before, actor)
 
         if commentator_ids is not None:
             await self.participants.sync_crew(match, commentator_ids, self.commentator_repository)

@@ -11,6 +11,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import (
     BracketService,
     CrewService,
+    MatchHardPresetService,
     MatchService,
     MatchStreamVolunteerService,
     MatchWatcherService,
@@ -24,7 +25,7 @@ from application.utils.timezone import (
     format_local_time,
     now_local,
 )
-from models import Match
+from models import Match, PresetOverride
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -620,3 +621,73 @@ class BaseMatchDialog:
 
     async def open(self):
         raise NotImplementedError("Subclasses must implement open()")
+
+    async def _render_preset_override(self):
+        """Staff choosing this match's preset themselves, in either direction.
+
+        Rendered only where the tournament actually offers a second preset and
+        the seed has not rolled — anywhere else there is nothing to choose
+        between, and a select with one real option is furniture. Both of those
+        facts come from ``MatchHardPresetService.my_state`` rather than being
+        re-derived here, so this dialog and the service that refuses the write
+        cannot drift on when the control is live.
+
+        It shows what will be rolled, never who asked for it. Staff read the
+        players' opt-ins nowhere in this dialog: whose choice it was is not
+        staff's business until it is unanimous, and by then it is simply what
+        the match is playing.
+        """
+        if not self.match:
+            return None
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        await self.match.fetch_related(
+            'tournament', 'tournament__preset', 'tournament__hard_preset', 'players',
+        )
+        state = await MatchHardPresetService().my_state(self.match, actor)
+        if not state.offered:
+            return None
+
+        standard_name = state.standard_preset_name or 'the standard preset'
+        if state.locked:
+            ui.label(
+                "The seed is rolled, so this match's settings are already decided."
+            ).classes('text-caption text-grey-6')
+            return None
+
+        options = {
+            '': f'Let the players decide (they get {standard_name} unless all opt in)',
+            PresetOverride.HARD.value: f'Force {state.preset_name}',
+            PresetOverride.STANDARD.value: f'Force {standard_name}',
+        }
+        current = state.override
+        select = ui.select(
+            options,
+            label='Seed settings',
+            value=current.value if current is not None else '',
+        ).classes('input-full-width').props(
+            'hint="Overrides the players\' own choice. They are DMed either way."'
+        )
+        return select
+
+    async def _save_preset_override(self, select) -> None:
+        """Apply the override picker, if the dialog rendered one.
+
+        Raises ``ValueError`` when the service refuses, which the submit ladder
+        already knows how to surface — rather than reporting a success the match
+        did not get.
+
+        Called *after* the rest of the edit has been written, never before. The
+        override is not just a column: setting it audits, publishes an event and
+        DMs both players. Doing that first meant a later validation failure left
+        the players told about settings on a save the admin was told had failed.
+        """
+        if select is None or not self.match:
+            return
+        chosen = select.value or None
+        override = PresetOverride(chosen) if chosen else None
+        if override == self.match.preset_override:
+            return
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        if actor is None:
+            raise ValueError("We couldn't find your account. Try logging in again.")
+        await MatchHardPresetService().set_override(self.match.id, override, actor)

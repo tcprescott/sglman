@@ -54,6 +54,21 @@ class AuditActions:
     # A player asking staff to move or call off their match, and what became of
     # it. The approval also writes the underlying match.updated / match.cancelled,
     # since approving *performs* the change rather than blessing it.
+    # One player privately agreeing to the tournament's harder preset, and
+    # taking it back. Audited because it decides what a match is played on, but
+    # deliberately NOT published as an event: a webhook subscriber is an
+    # arbitrary outside listener, and the whole feature rests on a lone opt-in
+    # reaching nobody. Only the unanimous result below is published.
+    MATCH_HARD_PRESET_OPTED_IN = 'match.hard_preset_opted_in'
+    MATCH_HARD_PRESET_WITHDRAWN = 'match.hard_preset_withdrawn'
+    # Everyone in the match has opted in (or somebody backed out of a set that
+    # was complete). Now public: at this point the players know, so there is
+    # nothing left to keep.
+    MATCH_HARD_PRESET_AGREED = 'match.hard_preset_agreed'
+    MATCH_HARD_PRESET_AGREEMENT_REVOKED = 'match.hard_preset_agreement_revoked'
+    # Staff overruling the players' choice for one match, in either direction.
+    MATCH_PRESET_OVERRIDE_SET = 'match.preset_override_set'
+    MATCH_PRESET_OVERRIDE_CLEARED = 'match.preset_override_cleared'
     MATCH_RESCHEDULE_REQUESTED = 'match.reschedule_requested'
     MATCH_RESCHEDULE_AGREED = 'match.reschedule_agreed'
     MATCH_RESCHEDULE_APPROVED = 'match.reschedule_approved'

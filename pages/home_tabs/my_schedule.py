@@ -33,8 +33,9 @@ async def my_schedule_tab(
     schedule: Optional[int] = None,
     reschedule: Optional[int] = None,
     match: Optional[int] = None,
+    hard: Optional[int] = None,
 ) -> None:
-    """The three deep-link params belong to the matches section and pass straight
+    """The four deep-link params belong to the matches section and pass straight
     through to it; see :func:`pages.home_tabs.player.render_player_dashboard` for
     what each one opens. They arrive here because the DMs that carry them predate
     this tab and address ``/home/player``, which resolves onto My Schedule via
@@ -44,7 +45,7 @@ async def my_schedule_tab(
 
     with ui.column().classes('page-container wiz-section-stack'):
         await render_player_dashboard(
-            schedule=schedule, reschedule=reschedule, match=match,
+            schedule=schedule, reschedule=reschedule, match=match, hard=hard,
         )
         await my_crew_tab()
         await availability_tab()

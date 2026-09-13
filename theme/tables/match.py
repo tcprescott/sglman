@@ -4,6 +4,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     MatchDisplayService,
+    MatchHardPresetService,
     MatchRescheduleService,
     MatchService,
     MatchStreamVolunteerService,
@@ -15,6 +16,10 @@ from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.export import csv_export_button
+from theme.tables.hard_preset_rows import (
+    apply_hard_preset_state,
+    carry_hard_preset_state,
+)
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_filters import (
     ALL_DAYS,
@@ -150,6 +155,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self.user_service = UserService()
         self.watcher_service = MatchWatcherService()
         self.stream_volunteer_service = MatchStreamVolunteerService()
+        self.hard_preset_service = MatchHardPresetService()
         self.reschedule_service = MatchRescheduleService()
         self._setup_ui()
 
@@ -270,6 +276,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             # Same reasoning as the two above: the dialog it opens renders into
             # this client's slot context.
             self.table.on('request_reschedule', self._handle_request_reschedule)
+            # Same reasoning again: it opens a dialog in this client's slot
+            # context, and its confirmation is a toast in this browser.
+            self.table.on('open_hard_preset', self._handle_open_hard_preset)
 
         # Bracket link: navigation only, so it needs no tenant rebind — and it
         # goes through ui.navigate.to precisely to pick up the tenant root_path.
@@ -409,10 +418,12 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         watched_ids = await self._fetch_watched_ids()
         volunteered_ids = await self._fetch_stream_volunteered_ids()
         requestable_ids, asked_ids = await self._fetch_reschedule_state()
+        hard_preset_states = await self._fetch_hard_preset_states(rows)
         stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
             row['_stream_volunteer'] = row.get('id') in volunteered_ids
+            apply_hard_preset_state(row, hard_preset_states.get(row.get('id')))
             row['_can_reschedule'] = row.get('id') in requestable_ids
             row['_reschedule_pending'] = row.get('id') in asked_ids
             if stage_options is not None:
@@ -480,6 +491,24 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             return set()
         return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
 
+    async def _fetch_hard_preset_states(self, rows) -> dict:
+        """This viewer's own hard-preset state for every visible row, in bulk.
+
+        Skipped entirely on a board with no ``hard_preset`` column — the admin
+        schedule and the proctor station render matches nobody is choosing
+        settings on, so the queries would buy nothing.
+        """
+        if not any(c.get('name') == 'hard_preset' for c in self.columns):
+            return {}
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            return {}
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            return {}
+        match_ids = [row.get('id') for row in rows if row.get('id') is not None]
+        return await self.hard_preset_service.board_states(user, match_ids)
+
     async def _fetch_reschedule_state(self) -> tuple:
         """``(requestable ids, already-asked ids)`` for this viewer, in bulk.
 
@@ -526,6 +555,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
         match_data['_stream_volunteer'] = self.table.rows[idx].get('_stream_volunteer', False)
+        carry_hard_preset_state(match_data, self.table.rows[idx])
         stage_options = self._stage_options()
         if stage_options is not None:
             match_data['stage_options'] = stage_options

@@ -20,6 +20,7 @@ from application.services import notification_links
 from application.services.discord import discord_queue
 from application.services.match._dm_context import _community_name, bracket_line_for
 from application.services.match._match_recipients import collect_match_recipients
+from application.services.match.match_hard_preset_service import MatchHardPresetService
 from application.tenant_context import require_tenant_id
 from application.utils.discord_embeds import (
     COLOR_RESCHEDULED,
@@ -448,6 +449,7 @@ class MatchNotificationMixin:
             bracket_line=bracket_line,
         ))
         discord_queue.enqueue(self.notify_match_crew(match, msg, embed))
+        discord_queue.enqueue(MatchHardPresetService().send_offer(match))
 
         # Collect IDs already notified to avoid duplicates in subscriber fan-out
         notified_ids = await self._collect_notified_discord_ids(match)

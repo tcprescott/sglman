@@ -31,6 +31,7 @@ from application.services.match._match_recipients import (  # noqa: F401  (re-ex
     collect_match_recipients,
 )
 from application.services.match._schedule_notifications import MatchNotificationMixin
+from application.services.match.match_hard_preset_service import MatchHardPresetService
 from application.services.match.match_status import has_recorded_result
 from application.services.seedgen_service import SeedGenerationService
 from application.tenant_context import require_tenant_id
@@ -125,6 +126,7 @@ class MatchScheduleService(MatchNotificationMixin):
         self.discord_service = DiscordService()
         self.seedgen_service = SeedGenerationService()
         self.audit_service = AuditService()
+        self.hard_preset_service = MatchHardPresetService()
 
     async def _transition(
         self,
@@ -329,7 +331,8 @@ class MatchScheduleService(MatchNotificationMixin):
         async with lock:
             try:
                 match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related(
-                    'tournament', 'tournament__preset', 'players', 'players__user', 'stage'
+                    'tournament', 'tournament__preset', 'tournament__hard_preset',
+                    'players', 'players__user', 'stage',
                 )
 
                 if not await AuthService.can_run_match(actor, match):
@@ -341,7 +344,14 @@ class MatchScheduleService(MatchNotificationMixin):
                 # Resolve which randomizer + settings to roll. A Preset FK wins
                 # when set (its randomizer + settings); otherwise fall back to the
                 # legacy ``seed_generator`` string (hard-coded settings).
-                preset = match.tournament.preset
+                #
+                # Which preset that is, is the players' answer as much as the
+                # tournament's: a match whose players all opted in rolls the
+                # harder preset, and staff can override either way. This is the
+                # only place that question is asked, and asking it here is what
+                # closes the opt-in window — from this line on, the settings are
+                # what ``GeneratedSeeds`` records rather than what anyone picks.
+                preset = await self.hard_preset_service.resolve_preset(match)
                 randomizer = preset.randomizer if preset is not None else match.tournament.seed_generator
 
                 if not randomizer:

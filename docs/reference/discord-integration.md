@@ -30,6 +30,7 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) | Volunteer shift Acknowledge button + handler (`volunteer_ack:`) |
 | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) | Unwatch button + handler (`match_watch:`) |
 | [`discordbot/reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) | The opponent's Agree button + handler (`reschedule_agree:`) |
+| [`discordbot/match_hard_preset.py`](../../discordbot/match_hard_preset.py) | The harder-settings opt-in / back-out button + handler (`match_hard:`) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, the `import discordbot` registration hook, queue and worker start/stop in the FastAPI lifespan |
 | [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | Notification fan-out coroutines |
@@ -121,6 +122,7 @@ Registered handler prefixes:
 | `volunteer_ack:` | [`volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) → `handle_volunteer_acknowledgment_interaction` |
 | `match_watch:` | [`watch_buttons.py`](../../discordbot/watch_buttons.py) → `handle_unwatch_interaction` |
 | `reschedule_agree:` | [`reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) → `handle_reschedule_agree_interaction` |
+| `match_hard:` | [`match_hard_preset.py`](../../discordbot/match_hard_preset.py) → `handle_hard_preset_interaction`. Two verbs, `match_hard:in:<match_id>` and `match_hard:out:<match_id>`; the pressed message's button is swapped for its opposite, so a second press is the way back rather than a repeat |
 
 Because dispatch is raw-prefix routing rather than registered `discord.ui.View` callbacks, **buttons keep working across bot restarts**: all state is encoded in the `custom_id`, nothing is held in memory, and no `bot.add_view()` persistent-view registration is needed. All views are built with `timeout=None`.
 
@@ -137,6 +139,7 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int, embed=None)` | DM with the volunteer shift Acknowledge button (`VIEW_VOLUNTEER_ACK`). |
 | `send_dm_with_unwatch_button` | `(user_id, message, match_id: int, embed=None)` | DM with the Unwatch button (`VIEW_UNWATCH`). |
 | `send_dm_with_reschedule_agree_button` | `(user_id, message, request_id: int, embed=None, link=None)` | DM with the opponent's Agree button (`VIEW_RESCHEDULE_AGREE`). |
+| `send_dm_with_hard_preset_buttons` | `(user_id, message, match_id: int, opted_in: bool, embed=None, link=None)` | DM with the harder-settings button (`VIEW_HARD_PRESET`). `opted_in` picks **which single button** the DM carries, so the message never shows a state the reader is not already in — the only sender whose view differs per recipient. |
 | `get_bot` | `()` (sync) | Returns the bot instance (or `None` in the mock). |
 | `list_guilds` | `()` | `(True, [{"id": int, "name": str}, ...])` from the bot's cached guild list. |
 | `list_guild_roles` | `(guild_id: int)` | Roles as `[{"id", "name"}]`. Resolves the guild via cache then `fetch_guild`; prefers `guild.fetch_roles()`, falls back to cached `guild.roles`. |
@@ -280,6 +283,9 @@ Ephemeral confirmation strings live in the same module: `crew_signup_confirmatio
 |---|---|---|---|
 | Match scheduled — player ack request | `MatchService.create_match` / `submit_match_request` → `notify_acknowledgment_request(match, rescheduled=False)` | `send_dm_with_acknowledgment_button` | Acknowledge |
 | Match rescheduled / players changed — ack request | `MatchService.update_match` → `notify_acknowledgment_request(match, rescheduled=<time changed>)` (acks re-seeded first) | `send_dm_with_acknowledgment_button` | Acknowledge |
+| Harder settings offered | same call sites → `MatchHardPresetService.send_offer(match)` (skipped when the tournament has no `hard_preset`, or the seed is already rolled) | `send_dm_with_hard_preset_buttons` | Play the harder preset **or** Back out — one, chosen from the reader's own answer |
+| Harder settings agreed / broken | `MatchHardPresetService` on the unanimity transition, and on a roster change that breaks one | `send_dm` via `notify_hard_preset_agreement` | Link only |
+| Match preset set by staff | `MatchHardPresetService.set_override` | `send_dm` via `notify_hard_preset_override` | Link only |
 | Scheduled/rescheduled — crew & watcher info | same call sites → `notify_match_crew(match, msg)` | `send_dm` (crew) / `send_dm_with_unwatch_button` (watchers) | Unwatch (watchers only) |
 | Crew signup invitation (subscribers) | same call sites → `notify_tournament_subscribers_scheduled(match, msg, notified_ids)` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Stream candidate alert | `MatchService.create_match` (flagged) / `set_stream_candidate(flag=True)` → `notify_stream_candidate_subscribers` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
