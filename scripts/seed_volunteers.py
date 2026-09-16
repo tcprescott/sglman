@@ -9,7 +9,8 @@ and tenant-stamped like every other seeded row.
 The seeded pool is deliberately assignable: the VOLUNTEER role grants in
 ``seed_dev.py`` mirror the opted-in + qualified + available users created here,
 so the Vol. Roster tab and the auto-scheduler have something real to show
-(``VolunteerProfileService.assignable_volunteers`` filters on ``Role.VOLUNTEER``).
+(``VolunteerProfileService.assignable_volunteers`` admits ``Role.VOLUNTEER`` and
+``Role.STAFF``).
 """
 
 from datetime import date, datetime, timedelta
