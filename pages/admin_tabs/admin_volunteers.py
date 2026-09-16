@@ -433,7 +433,8 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             qualified_ids = await qualification_service.get_qualified_user_ids_for_position(shift.position_id)
             # If no qualifications are defined for this position, treat everyone as eligible.
             has_qualifications = bool(qualified_ids)
-            picker_state = {'show_all': not has_qualifications, 'search': ''}
+            picker_state = {'show_all': not has_qualifications}
+            search_state = {'text': ''}
 
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
                 title = shift.position.name if shift.position else 'Shift'
@@ -447,7 +448,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
                 if pool:
                     def on_search_change(e) -> None:
-                        picker_state['search'] = (e.value or '').strip().lower()
+                        search_state['text'] = (e.value or '').strip().lower()
                         picker_list.refresh()
                     ui.input('Search by name', on_change=on_search_change) \
                         .props('dense clearable debounce=200 autofocus') \
@@ -466,11 +467,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     visible = [v for v in pool if v.id not in assigned_ids]
                     if not picker_state['show_all']:
                         visible = [v for v in visible if v.id in qualified_ids]
-                    if picker_state['search']:
-                        visible = [v for v in visible if picker_state['search'] in v.preferred_name.lower()]
+                    if search_state['text']:
+                        visible = [v for v in visible if search_state['text'] in v.preferred_name.lower()]
                     with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
                         if not visible:
-                            empty = ('No one matches that search.' if picker_state['search']
+                            empty = ('No one matches that search.' if search_state['text']
                                      else 'No qualified volunteers available.')
                             ui.label(empty).classes('italic-note')
                         for volunteer in visible:
