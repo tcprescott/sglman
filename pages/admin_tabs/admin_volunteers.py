@@ -509,8 +509,8 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     elif status == VolunteerAvailabilityStatus.UNAVAILABLE:
                         ui.badge('Unavailable', color='negative')
                     else:
-                        ui.badge('No availability', color='grey').props('outline') \
-                            .tooltip('Has not declared availability covering this shift')
+                        ui.badge('Not stated', color='grey').props('outline') \
+                            .tooltip('No availability window covers this shift')
 
                 async def do_assign(u=volunteer) -> None:
                     try:
