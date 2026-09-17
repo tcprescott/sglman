@@ -434,6 +434,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             # If no qualifications are defined for this position, treat everyone as eligible.
             has_qualifications = bool(qualified_ids)
             picker_state = {'show_all': not has_qualifications}
+            search_state = {'text': ''}
 
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
                 title = shift.position.name if shift.position else 'Shift'
@@ -442,8 +443,16 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     .classes('text-subtitle1 q-pa-sm')
                 ui.separator()
                 if not pool:
-                    ui.label('No volunteers in pool. Users must have the Volunteer role assigned.') \
+                    ui.label('No volunteers in pool. Users must have the Volunteer or Staff role assigned.') \
                         .classes('italic-note q-pa-md')
+
+                if pool:
+                    def on_search_change(e) -> None:
+                        search_state['text'] = (e.value or '').strip().lower()
+                        picker_list.refresh()
+                    ui.input('Search by name', on_change=on_search_change) \
+                        .props('dense clearable debounce=200 autofocus') \
+                        .classes('full-width q-px-sm q-pt-xs')
 
                 if has_qualifications:
                     with ui.row().classes('items-center q-px-sm q-pt-xs'):
@@ -458,9 +467,13 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     visible = [v for v in pool if v.id not in assigned_ids]
                     if not picker_state['show_all']:
                         visible = [v for v in visible if v.id in qualified_ids]
+                    if search_state['text']:
+                        visible = [v for v in visible if search_state['text'] in v.preferred_name.lower()]
                     with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
                         if not visible:
-                            ui.label('No qualified volunteers available.').classes('italic-note')
+                            empty = ('No one matches that search.' if search_state['text']
+                                     else 'No qualified volunteers available.')
+                            ui.label(empty).classes('italic-note')
                         for volunteer in visible:
                             is_qualified = volunteer.id in qualified_ids
                             status = VolunteerAvailabilityService.covers(
@@ -495,6 +508,9 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         ui.badge('Available', color='positive').props('outline')
                     elif status == VolunteerAvailabilityStatus.UNAVAILABLE:
                         ui.badge('Unavailable', color='negative')
+                    else:
+                        ui.badge('Not stated', color='grey').props('outline') \
+                            .tooltip('No availability window covers this shift')
 
                 async def do_assign(u=volunteer) -> None:
                     try:

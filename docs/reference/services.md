@@ -1321,7 +1321,7 @@ Opt-in lifecycle (self-service for any logged-in user) plus the assignable-volun
 | `opt_in(user, note=None)` | `VolunteerProfile` | Stamp `opted_in_at` (idempotent) and optionally set the note; audits `volunteer.opted_in`. |
 | `opt_out(user)` | `VolunteerProfile` | Clear `opted_in_at`; audits `volunteer.opted_out` only when it was set. |
 | `update_note(user, note)` | `VolunteerProfile` | Set the free-text note (no audit). |
-| `assignable_volunteers()` | `list[User]` | All opted-in users, ordered by preferred name. |
+| `assignable_volunteers()` | `list[User]` | All users holding the VOLUNTEER or STAFF role in the current tenant, ordered by preferred name. |
 
 Collaborators: `VolunteerProfileRepository`, `AuditService`.
 

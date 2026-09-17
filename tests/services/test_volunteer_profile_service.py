@@ -184,22 +184,29 @@ class TestAssignableVolunteers:
 
     async def test_returns_sorted_users(self, monkeypatch):
         import application.services.volunteer.volunteer_profile_service as mod
+        from models import Role
 
         alice = SimpleNamespace(id=1, preferred_name='Alice')
         bob = SimpleNamespace(id=2, preferred_name='Bob')
+        role_filters: list[dict] = []
+        user_filters: list[dict] = []
 
         class FakeUserRole:
             @staticmethod
-            def filter(**_kw):
+            def filter(**kw):
+                role_filters.append(kw)
+
                 class _QS:
                     @staticmethod
                     async def values_list(*_, **__):
-                        return [1, 2]
+                        # Bob holds both roles, so his id comes back twice.
+                        return [1, 2, 2]
                 return _QS()
 
         class FakeUser:
             @staticmethod
-            async def filter(**_kw):
+            async def filter(**kw):
+                user_filters.append(kw)
                 return [bob, alice]
 
         monkeypatch.setattr(mod, 'UserRole', FakeUserRole)
@@ -210,3 +217,5 @@ class TestAssignableVolunteers:
         result = await svc.assignable_volunteers()
         assert result[0].preferred_name == 'Alice'
         assert result[1].preferred_name == 'Bob'
+        assert set(role_filters[0]['role__in']) == {Role.VOLUNTEER, Role.STAFF}
+        assert user_filters[0]['id__in'] == {1, 2}

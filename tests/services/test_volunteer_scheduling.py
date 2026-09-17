@@ -36,6 +36,11 @@ async def _staff():
     return await _user('staff', roles=[Role.STAFF])
 
 
+async def _coordinator():
+    """An actor outside the assignable pool, for tests that count pool members."""
+    return await _user('coordinator', roles=[Role.VOLUNTEER_COORDINATOR])
+
+
 async def _opted_in_volunteer(name):
     return await _user(name, roles=[Role.VOLUNTEER])
 
@@ -424,7 +429,7 @@ async def test_autoschedule_load_balances(db):
 
 
 async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
-    staff = await _staff()
+    staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3)
     solo = await _opted_in_volunteer('solo')
@@ -447,7 +452,7 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
 
 async def test_does_not_repeat_the_sixteen_hour_draft(db):
     """The measured F2 failure: four consecutive 4-hour blocks to one person."""
-    staff = await _staff()
+    staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Check-in')
     for hour in (8, 12, 16, 20):
         await VolunteerShift.create(
@@ -467,7 +472,7 @@ async def test_does_not_repeat_the_sixteen_hour_draft(db):
 
 
 async def test_undeclared_volunteer_is_skipped_unless_opted_into(db):
-    staff = await _staff()
+    staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Check-in')
     await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     await _opted_in_volunteer('undeclared')
@@ -491,7 +496,7 @@ async def test_undeclared_volunteer_is_skipped_unless_opted_into(db):
 async def test_draft_audit_records_the_policy(db):
     from models import AuditLog
 
-    staff = await _staff()
+    staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Check-in')
     await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2)
     await _opted_in_volunteer('undeclared')
@@ -568,13 +573,18 @@ async def test_reminder_skips_far_future_shift(db, monkeypatch):
 
 # --- reminder pool / profile ---------------------------------------------
 
-async def test_assignable_pool_is_volunteer_role_users(db):
-    await _staff()
+async def test_assignable_pool_is_volunteer_or_staff_role_users(db):
+    staff = await _staff()
     with_role = await _opted_in_volunteer('withvolunteer')
-    # User without VOLUNTEER role -> excluded.
+    both = await _user('both', roles=[Role.VOLUNTEER, Role.STAFF])
+    # A role that is neither VOLUNTEER nor STAFF -> excluded.
+    proctor = await _user('proctor', roles=[Role.PROCTOR])
     no_role = await _user('norole')
 
     pool = await VolunteerProfileService().assignable_volunteers()
-    ids = {u.id for u in pool}
+    ids = [u.id for u in pool]
     assert with_role.id in ids
+    assert staff.id in ids
+    assert ids.count(both.id) == 1
+    assert proctor.id not in ids
     assert no_role.id not in ids
