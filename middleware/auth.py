@@ -83,7 +83,7 @@ _SECRET_PARAM_MARKERS = ('token', 'secret', 'password', 'code')
 def _tracked_params(kwargs: dict) -> dict:
     """The page's params, bounded and with any credential redacted.
 
-    Pure, and split out of :func:`_record_page_view` because that one swallows
+    Pure, and split out of :func:`record_page_view` because that one swallows
     every exception by design — a rule this important should be testable without
     a request context to raise inside.
     """
@@ -99,7 +99,7 @@ def _tracked_params(kwargs: dict) -> dict:
     return params
 
 
-def _record_page_view(path: str, kwargs: dict) -> None:
+def record_page_view(path: str, kwargs: dict) -> None:
     """Fire-and-forget a page-view telemetry row for an authenticated load.
 
     Reads the caller's session identity + browser id here (only valid during
@@ -226,7 +226,7 @@ def _tenant_page(
             # before any auth short-circuit. On a public page the visitor may be
             # anonymous, and the row is then attributed to the browser session
             # alone (no discord_id).
-            _record_page_view(view_path, kwargs)
+            record_page_view(view_path, kwargs)
 
             # Every @protected_page is a tenant page. If reached with no tenant
             # (a bare /admin on the platform host, not /t/<slug>/admin), 404.

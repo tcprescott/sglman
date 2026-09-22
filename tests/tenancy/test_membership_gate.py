@@ -32,7 +32,7 @@ def page_harness(monkeypatch):
     rendered = []
 
     monkeypatch.setattr(auth_module.ui, 'page', lambda *a, **kw: (lambda fn: fn))
-    monkeypatch.setattr(auth_module, '_record_page_view', lambda *a, **kw: None)
+    monkeypatch.setattr(auth_module, 'record_page_view', lambda *a, **kw: None)
     monkeypatch.setattr(auth_module, 'stash_client_tenant_id', lambda *_: None)
     monkeypatch.setattr(auth_module, 'stash_client_host_mode', lambda *_: None)
 

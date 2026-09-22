@@ -55,9 +55,12 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    contains `token`, `secret`, `password` or `code` is stored as `[redacted]`
    (`_tracked_params`). A route can record under a different path with
    `telemetry_path=` — the room-seeds board records `/room/seeds` so the token
-   never lands in `path`. Routes registered with a bare `@ui.page` — home (`/`,
-   `/home/*`), `/platform`, the auth and OAuth pages, the MCP consent screen —
-   bypass the wrapper and record no page view.
+   never lands in `path`. Home (`/`, `/home/*`) is a bare `@ui.page`, so it calls
+   `record_page_view('/home', …)` itself once a tenant is resolved, recording
+   every section under `/home` with the section and deep-link ids as params (the
+   platform community picker on the bare host records nothing). The other bare
+   `@ui.page` routes — `/platform`, the auth and OAuth pages, the MCP consent
+   screen — bypass the wrapper and record no page view.
 3. **Interactions** — `TelemetryService.track_interaction` is called for
    specific high-value actions. Currently wired: `report.viewed` in the
    reports dispatcher (fired only for an explicit `?report=` so a plain `/admin`

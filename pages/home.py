@@ -8,7 +8,7 @@ from application.tenant_context import (
     stash_client_host_mode,
     stash_client_tenant_id,
 )
-from middleware.auth import bind_display_timezone, enforce_membership
+from middleware.auth import bind_display_timezone, enforce_membership, record_page_view
 from pages.home_tabs.event import event_tab
 from pages.home_tabs.my_schedule import my_schedule_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
@@ -99,6 +99,12 @@ def create() -> None:
         if tid is None:
             await _render_platform_landing()
             return
+        # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
+        # home records its own: every section under one path, like the hubs.
+        record_page_view('/home', {
+            'section': section, 'schedule': schedule, 'reschedule': reschedule,
+            'match': match, 'hard': hard,
+        })
         # Stash the tenant onto the connection so websocket UI handlers resolve it.
         stash_client_tenant_id(tid)
         # Carry host mode too, so link-section buttons can hide on a custom domain.
