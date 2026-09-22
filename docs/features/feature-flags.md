@@ -5,8 +5,8 @@ exists **only** for a deliberately-gated feature — this is not a switch for ev
 feature in the app. Availability is driven by a **live group (tier)** with a
 per-tenant override on top, and the community controls enablement.
 
-- **Registry (code):** [`application/feature_flags.py`](../../application/feature_flags.py) — one `FeatureFlagSpec` per flag (label, description, category, `established`). Enum keys live in [`models.enums.FeatureFlag`](../../models/enums.py).
-- **Group (tier):** [`FeatureFlagGroup`](../../models/feature_flag.py) — a global, super-admin-defined bundle of flags (`name`, `flags`, `is_default`). A tenant points at one via `Tenant.feature_group`.
+- **Registry (code):** [`application/feature_flags.py`](../../application/feature_flags.py) — one `FeatureFlagSpec` per flag (label, description, category, `established`, `service_modules`), plus the `requires_feature` decorator. Enum keys live in [`models.enums.FeatureFlag`](../../models/enums.py).
+- **Group (tier):** [`FeatureFlagGroup`](../../models/feature_flag.py) — a global, super-admin-defined bundle of flags (`name`, `description`, `flags`, `is_default`). A tenant points at one via `Tenant.feature_group`.
 - **Override:** [`TenantFeatureFlag`](../../models/feature_flag.py) — one row per `(tenant, flag)`; `available`/`enabled` are **tri-state** (NULL = inherit, True/False = explicit).
 - **Service / repos:** [`FeatureFlagService`](../../application/services/feature_flag_service.py), [`TenantFeatureFlagRepository`](../../application/repositories/feature_flag_repository.py), [`FeatureFlagGroupRepository`](../../application/repositories/feature_flag_group_repository.py).
 
@@ -19,7 +19,7 @@ Availability is resolved live, override → group → default group:
 3. **Enable tier.** Whenever a flag is available it is **ON by default**; the community's STAFF may switch it off — a sticky per-tenant choice (the tri-state `enabled` column).
 
 ```
-effective_available = override.available if set, else (flag ∈ tenant-group ∪ default-group)
+effective_available = override.available if set, else (flag ∈ tenant's group, or the default group when ungrouped)
 effective_enabled   = override.enabled if set, else True when available
 is_enabled          = effective_available AND effective_enabled   ← what every gate reads
 ```
@@ -28,7 +28,9 @@ is_enabled          = effective_available AND effective_enabled   ← what every
 surface) rather than raising. A `TenantFeatureFlag` row left with both columns
 NULL carries no information and is deleted, so an override never lingers as a
 no-op. Deleting a group reassigns its tenants to ungrouped (→ default fallback);
-`is_default` is single (setting one clears the rest).
+`is_default` is single (setting one clears the rest), and deleting or un-defaulting
+the only default group is refused, since that would silently turn off every
+group-derived feature for ungrouped tenants.
 
 | Tier | Who | Controls | Where |
 |---|---|---|---|
@@ -47,13 +49,13 @@ than 3N queries. Concretely:
 
 | Surface | How |
 |---|---|
-| Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`. |
+| Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` (or `@public_page(..., feature=...)` for a signed-out surface) → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`, and the public `/brackets` and `/event-info` pages. |
 | Bare `@ui.page` routes | An OAuth leg that cannot use `@protected_page` (it serves a cross-host callback) checks the flag in the handler and redirects back — `pages/challonge_oauth.py`'s `_challonge_live`. Hiding the entry button is not enough; the URL stays reachable. |
 | Nav links to a gated page | The nav must not offer a link the gate will reject, or it dead-ends on a 404/403. The Volunteer entry resolves through `AuthService.can_view_volunteer` (flag **and** role), which `BaseLayout` calls when `show_volunteer` is left at its `None` default — one helper shared with the page's own gate so the two cannot drift. |
 | Admin tabs | `pages/admin.py` loads `FeatureFlagService().enabled_flags()` once and `and`-s the flag into each subsystem tab's condition. |
 | Home tabs | Home is **fixed at four tabs** on every community, so a flag never adds or removes one. It removes a *view* inside the Event switcher (`BRACKETS`, via `pages/home_tabs/event.py:available_views`), a *section* of My Schedule (`EQUIPMENT`), or a *button* on a Tournaments card (`TRIFORCE_TEXTS`). Availability and crew stay ungated — they feed crew signup too. |
 | REST API | `api/__init__.py` attaches `require_feature(FeatureFlag.X)` to each gated router's `include_router`; a disabled feature 404s. |
-| Auto workers | The racetime auto-open and SpeedGaming sync workers skip a tenant whose flag is off (a clean `is_enabled` check inside `tenant_scope`). Skipping, not raising: a loop over tenants must not die on the first one that lacks the feature. |
+| Auto workers | The SpeedGaming sync, volunteer-reminder and async-qualifier workers skip a tenant whose flag is off (a clean `is_enabled` check inside `tenant_scope`); the racetime auto-open worker has no check of its own because every room it opens goes through `RaceRoomService.auto_open_if_eligible`, which returns `None` when `RACETIME_ROOMS` is off. Skipping, not raising: a loop over tenants must not die on the first one that lacks the feature. |
 | **The owning service** | `@requires_feature(FeatureFlag.X)` (from `application.feature_flags`) on its public entry methods — every mutation, plus the top-level reads that return the feature's data. Not internal helpers or per-row getters. Raises `FeatureDisabledError`. Each flag names its owning module(s) in `FeatureFlagSpec.service_modules`, and `check_feature_flag_gating.py` fails the edit if one of them does not enforce the flag. |
 
 The admin **Features** tab itself is only role-gated (STAFF), never flag-gated —
@@ -79,11 +81,11 @@ the key is set, and rolling without one raises. See
 | `async_qualifiers` | Online tournaments | no (ships dark) | `/qualifiers`, admin Qualifiers tab, `/async-qualifiers*` API | `async_qualifier/` (`AsyncQualifierService`, `AsyncQualifierLiveRaceService`) |
 | `racetime_rooms` | Online tournaments | no | admin Racetime tab, race-room + profile API, auto-open worker | `race_room_service.py` (the worker delegates to it) |
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker | `speedgaming_sync_service.py`, `speedgaming_sync_worker.py` |
-| `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API | `bracket_service.py` |
-| `challonge` | Community | **yes** | admin Challonge tab (no REST router exists) | `challonge_service.py`; `push_result_if_linked` soft-skips |
-| `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs, `api/routers/equipment.py` | `equipment_service.py` |
+| `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, the home Event switcher's Brackets view, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API | `bracket_service.py` |
+| `challonge` | Community | **yes** | admin Challonge tab, the profile's Challonge link row (no REST router exists) | `challonge_service.py`; `push_result_if_linked` soft-skips |
+| `equipment` | Community | **yes** | `/equipment`, the My Schedule equipment section, admin Equipment tab, `api/routers/equipment.py` | `equipment_service.py` |
 | `volunteers` | Community | **yes** | `/volunteer` + its nav link, admin Vol. Roster/Schedule, `/volunteers` API | `volunteer/` (reminder worker skips) |
-| `triforce_texts` | Community | **yes** | home + admin Triforce tabs, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
+| `triforce_texts` | Community | **yes** | the Tournaments-card Triforce button, admin Triforce tab, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
 | `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card, `api/routers/feedback.py` | `feedback_service.py` |
 | `event_info` | Community | no (ships dark) | `/event-info*`, the drawer's Event Information item (`theme/base.py`); `help_icon` resolves the flag itself before reading a handbook snippet (no REST router exists) | `event_info_service.py` |
 | `payouts` | Operations | no (ships dark) | admin Payouts tab, the profile's Matcherino-handle card, `/tournaments/{id}/payouts` + `/prize-pool` API, the MCP `get_tournament_payouts` tool | `payout_service.py` |
