@@ -81,17 +81,21 @@ shape.
 ## The remaining hand-rolled pairs
 
 `check_dry_regressions.py` blocks a *new* `write_log` + `event_bus.publish`
-sequence (its regex only spans ~400 characters, so a pair split by more code
-slips past). Five sites still hand-roll the pair. The first three keep it because
-collapsing them into one call would change behaviour rather than just shape:
+sequence anywhere inside one function body. Three sites still hand-roll the
+pair, because collapsing them into one call would change behaviour rather than
+just shape:
 
 | Site | Why it stays |
 |---|---|
 | `CrewService.update_crew_approval` | audits **inside** `async with in_transaction()`, publishes outside it. `write_and_publish` would move the publish inside the transaction, where a subscriber could read pre-commit state. |
 | `CrewService.acknowledge_crew_assignment` | same transaction boundary. |
 | `VolunteerScheduleService.assign` | audits every assignment, publishes only when `not auto_generated` — an unpublished draft is deliberately silent. One call cannot express the conditional half. |
-| `MatchService.create_match` | audits `match.created`, then seeds acknowledgments and enqueues the scheduling fan-out, and only then publishes; the event payload is a subset of the audit details. Convertible with `event_details`, at the cost of publishing before the notification fan-out is enqueued. |
-| `MatchService.update_match` | audits `match.updated` for every edit but publishes `match.rescheduled` when the time moved and `match.updated` otherwise, after the ack reseed and hard-preset reconcile. |
+
+`MatchService.create_match` and `update_match` were the last two convertible
+ones. Both now use `write_and_publish` with `event_details`, so the event fires
+before the acknowledgment reseed and notification fan-out are enqueued. A time
+change on `update_match` audits `match.rescheduled`, matching the event it
+publishes; any other edit audits and publishes `match.updated`.
 
 If a future change moves the audit write out of the transaction, or makes the
 draft assignment publish too, convert the site then.

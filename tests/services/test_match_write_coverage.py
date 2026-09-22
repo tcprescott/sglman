@@ -18,9 +18,11 @@ import json
 import pytest
 
 from application.events import EventType, event_bus
+from application.services.audit_service import AuditActions
 from application.services.match.match_service import MatchService
 from application.services.system_config_service import KEY_TOURNAMENT_HOURS
 from models import (
+    AuditLog,
     Commentator,
     Match,
     MatchAcknowledgment,
@@ -287,6 +289,9 @@ class TestUpdateMatch:
         assert await TournamentPlayers.filter(tournament=t, user=carol).exists()
 
         assert EventType.MATCH_RESCHEDULED in [e.event_type for e in captured_events]
+        # The audit row names the same action the event does.
+        rows = await AuditLog.filter(action=AuditActions.MATCH_RESCHEDULED)
+        assert [json.loads(r.details)['match_id'] for r in rows] == [match.id]
 
     async def test_players_only_change_emits_update_event(self, service, db, captured_events):
         actor = await make_staff()
@@ -302,6 +307,7 @@ class TestUpdateMatch:
         types = [e.event_type for e in captured_events]
         assert EventType.MATCH_UPDATED in types
         assert EventType.MATCH_RESCHEDULED not in types
+        assert not await AuditLog.filter(action=AuditActions.MATCH_RESCHEDULED).exists()
 
     async def test_clear_timestamps_and_seed(self, service, db):
         actor = await make_staff()

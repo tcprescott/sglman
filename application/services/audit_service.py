@@ -24,6 +24,7 @@ class AuditActions:
     # Match lifecycle and CRUD
     MATCH_CREATED = 'match.created'
     MATCH_UPDATED = 'match.updated'
+    MATCH_RESCHEDULED = 'match.rescheduled'
     MATCH_DELETED = 'match.deleted'
     MATCH_CANCELLED = 'match.cancelled'
     MATCH_REQUESTED = 'match.requested'
@@ -52,7 +53,7 @@ class AuditActions:
     MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
     MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
     # A player asking staff to move or call off their match, and what became of
-    # it. The approval also writes the underlying match.updated / match.cancelled,
+    # it. The approval also writes the underlying match.rescheduled / match.cancelled,
     # since approving *performs* the change rather than blessing it.
     # One player privately agreeing to the tournament's harder preset, and
     # taking it back. Audited because it decides what a match is played on, but

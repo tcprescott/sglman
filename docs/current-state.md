@@ -35,9 +35,7 @@ Everything listed is **stable in production** unless marked otherwise.
   `CrewService.update_crew_approval` and `CrewService.acknowledge_crew_assignment`
   audit *inside* an `in_transaction()` block while publishing outside it, and
   `VolunteerScheduleService.assign` audits unconditionally but publishes only for
-  a non-draft assignment. `MatchService.create_match` and `update_match` also
-  still pair them by hand, with the scheduling notifications in between. The
-  rest were converted; the test-shape problem that had blocked them is fixed by `tests.factories.make_audit_double`, whose
+  a non-draft assignment. The rest were converted; the test-shape problem that had blocked them is fixed by `tests.factories.make_audit_double`, whose
   `write_and_publish` runs its real body against a mocked `write_log`, so a
   converted service still publishes under test.
 - **All mobile and dark-mode verification is emulated** (Playwright at 390×844 / 360×800 via `/ui-validation`); no physical-device pass has run. Specifically unverified on real hardware: the NiceGUI WebSocket lifecycle across screen lock / backgrounding / resume, and the native `type=date` / `type=time` pickers.

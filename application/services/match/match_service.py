@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus, match_live
+from application.events import EventType, match_live
 from application.repositories import (
     CommentatorRepository,
     MatchAcknowledgmentRepository,
@@ -201,7 +201,7 @@ class MatchService(
         for user in trackers:
             await self.tracker_repository.create(match=match, user=user, approved=True)
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_CREATED,
             {
@@ -210,6 +210,13 @@ class MatchService(
                 'player_ids': player_ids,
                 'commentator_ids': commentator_ids or [],
                 'tracker_ids': tracker_ids or [],
+                'is_stream_candidate': is_stream_candidate,
+            },
+            EventType.MATCH_CREATED,
+            event_details={
+                'match_id': match.id,
+                'tournament_id': tournament_id,
+                'player_ids': player_ids,
                 'is_stream_candidate': is_stream_candidate,
             },
         )
@@ -222,12 +229,6 @@ class MatchService(
         )
 
         match_live.publish(match.id, match_live.CREATED)
-        event_bus.publish(Event.create(EventType.MATCH_CREATED, {
-            'match_id': match.id,
-            'tournament_id': tournament_id,
-            'player_ids': player_ids,
-            'is_stream_candidate': is_stream_candidate,
-        }, actor))
 
         return match
 
@@ -398,13 +399,19 @@ class MatchService(
             audit_details['commentator_ids'] = commentator_ids
         if tracker_ids is not None:
             audit_details['tracker_ids'] = tracker_ids
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_UPDATED, audit_details,
-        )
-
         new_scheduled_at = update_fields.get('scheduled_at')
         scheduled_at_changed = bool(
             new_scheduled_at and old_scheduled_at and new_scheduled_at != old_scheduled_at
+        )
+        await self.audit_service.write_and_publish(
+            actor,
+            AuditActions.MATCH_RESCHEDULED if scheduled_at_changed else AuditActions.MATCH_UPDATED,
+            audit_details,
+            EventType.MATCH_RESCHEDULED if scheduled_at_changed else EventType.MATCH_UPDATED,
+            event_details={
+                'match_id': match.id, 'tournament_id': match.tournament_id,
+                'changed_fields': list(update_fields.keys()),
+            },
         )
 
         if scheduled_at_changed or players_changed:
@@ -421,12 +428,6 @@ class MatchService(
                 ))
 
         match_live.publish(match.id)
-        event_bus.publish(Event.create(
-            EventType.MATCH_RESCHEDULED if scheduled_at_changed else EventType.MATCH_UPDATED,
-            {'match_id': match.id, 'tournament_id': match.tournament_id,
-             'changed_fields': list(update_fields.keys())},
-            actor,
-        ))
 
         return match
 
