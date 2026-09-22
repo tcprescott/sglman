@@ -15,7 +15,7 @@ subscribers (presentation) can import it with no cycle.
 |---|---|
 | `event.py` | The immutable `Event` value object: `event_type`, `payload`, snapshotted `actor_id`/`actor_username`/`tenant_id`, `occurred_at` (UTC). `Event.create(type, payload, actor)` builds one; `to_wire()` is the JSON shape delivered to webhooks. |
 | `event_types.py` | `EventType` — the `object.verb` name registry (mirrors `AuditActions`). `EventType.ALL` drives the webhook UI multiselect + validation; `'*'` is the wildcard. |
-| `dispatch_queue.py` | A background worker (clone of `discord_queue`) that runs async subscribers off the request path. |
+| `dispatch_queue.py` | A background worker (its own instance of the shared `CoroutineQueue` from `application/utils/coroutine_queue.py`, separate from `discord_queue`) that runs async subscribers off the request path. |
 | `bus.py` | The core: `subscribe_sync`, `subscribe_async`, `unsubscribe`, `publish`. |
 | `match_live.py` | The narrow predecessor: `(match_id, change_type)` nudges to open UI views. Deliberately **not** re-exported from `__init__.py`, so reaching for it takes an explicit `from application.events import match_live` and can never be mistaken for the bus. |
 
@@ -25,6 +25,8 @@ subscribers (presentation) can import it with no cycle.
   non-blocking — schedule work, never await. This is the fast path for UI
   live-refresh; [`theme/brackets/live.py`](../../theme/brackets/live.py) is the
   live example, repainting a bracket on `BRACKET_*` and `MATCH_*` events.
+  [`pages/static_brackets.py`](../../pages/static_brackets.py) is the other one:
+  it drops its cached static bracket pages on any `bracket.*` / `match.*` event.
 - **Async** (`subscribe_async`) do I/O (webhook POSTs, the telemetry mirror).
   Their coroutine is scheduled onto the dispatch worker, wrapped in
   `tenant_scope(event.tenant_id)` so a subscriber can use scoped services.
@@ -41,15 +43,16 @@ between "called off" and "shouldn't have existed".
 
 | Family | Published by |
 |---|---|
-| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py`, `match_review.py`, `match_stream_volunteer_service.py`, `match_hard_preset_service.py`. The hard-preset service is the one that deliberately publishes **less** than it audits: `match.hard_preset_agreed` / `_agreement_revoked` and the staff `match.preset_override_*` go out, but an individual player's opt-in does not. The feature rests on a lone opt-in reaching nobody, and a webhook subscriber is an arbitrary outside listener — so the opt-in stays audit-only, recorded in the eventless ledger in `tests/services/test_event_audit_parity.py` |
+| `match.*` | `match/match_service.py`, `match_schedule_service.py`, `match_cancellation.py`, `match_request.py`, `match_review.py`, `match_acknowledgment.py`, `match_stations.py`, `match_stream_volunteer_service.py`, `match_hard_preset_service.py`; `match.reschedule_*` from `match_reschedule_service.py`, `match.seed_roll_failed` from `seed_roll_service.py`, and a racetime room's `match.result_recorded` from `race_room_service.py`. The hard-preset service is the one that deliberately publishes **less** than it audits: `match.hard_preset_agreed` / `_agreement_revoked` and the staff `match.preset_override_*` go out, but an individual player's opt-in does not. The feature rests on a lone opt-in reaching nobody, and a webhook subscriber is an arbitrary outside listener — so the opt-in stays audit-only, recorded in the eventless ledger in `tests/services/test_event_audit_parity.py` |
 | `crew.*` | `crew_service.py` |
 | `volunteer.*` | `volunteer/volunteer_schedule_service.py` |
-| `bracket.*` | the `_bracket/` mixins (generation, advancement, completion, multistage, scheduling, series) |
+| `bracket.*` | `bracket_service.py` (create, cancel, roster add/update/drop, entry retire) and the `_bracket/` mixins (generation, advancement, completion, multistage, scheduling, series) |
 | `race_room.*` | `race_room_service.py` |
 | `sg_sync.*` | `speedgaming_etl_service.py` |
 | `discord_event.*` | `discord/discord_event_reconciler_service.py` |
 | `async_qualifier.*` | `async_qualifier/`. Two groups. **Standings:** run submitted/reviewed/expired/forfeited/reattempted and live race recorded — every outcome that moves an entrant's total. (`run_started` is not one: a draw promises nothing. A reviewer's void publishes `run_reattempted` with `granted: True`, since to a subscriber it is the same fact as the runner spending their own allowance.) **The window:** `async_qualifier.opened` / `.closed`, published by `sync_window_state` — the worker observing the clock cross `opens_at`/`closes_at`, or the service when an admin's edit crosses it immediately. Those two have **no `AuditActions` mirror**, the `service_health.alert` shape: nobody performs an opening, so there is no actor to record, and `AsyncQualifier.window_state_notified` is what makes each crossing announce once. Qualifier/pool/permalink authoring stays audit-only — a permalink *is* the seed, revealed to a runner only when their slot is spent, so publishing one would hand out the pool |
 | `tournament.enrolled`, `tournament.withdrawn` | `_tournament_signup.py`'s `record_enrolment_change`, the one funnel every enrolment change goes through: the player's own signup, the tournament's roster dialog, the per-user admin dialog, and the auto-enrol that fires when staff schedule someone into a tournament they were not in. Split by direction because a roster mirror needs to know which way it moved, while the audit trail keeps one action for all four. One event per tournament rather than one per screen-level edit, so a staff roster change reaches a subscriber at the same granularity as a self-signup. Payload carries `tournament_id` and `user_id` as routing keys |
+| `tournament.prize_pool_updated`, `tournament.payout_updated` | `payout_service.py` — a changed pool or split moves what every placement is owed |
 | `service_health.alert` | `service_health_service.py` — platform-level (no tenant), so tenant-scoped webhooks never receive it |
 | `tenant.member_*`, `tenant.join_*` | `tenant_membership_service.py` — who belongs to a community and who is asking to, which is what an external roster subscriber mirrors (and what routes "someone wants in" to a staff channel). The rest of `tenant.*` stays audit-only: it is platform-level super-admin work a tenant's own subscriber cannot see |
 
@@ -75,18 +78,20 @@ shape.
 2. Publish it at the commit point — normally via `write_and_publish`.
 3. It is immediately selectable in the webhook admin multiselect.
 
-## The three remaining hand-rolled pairs
+## The remaining hand-rolled pairs
 
 `check_dry_regressions.py` blocks a *new* `write_log` + `event_bus.publish`
-sequence, and every site that could be converted has been. Three keep the pair,
-because collapsing them into one call would change behaviour rather than just
-shape:
+sequence (its regex only spans ~400 characters, so a pair split by more code
+slips past). Five sites still hand-roll the pair. The first three keep it because
+collapsing them into one call would change behaviour rather than just shape:
 
 | Site | Why it stays |
 |---|---|
-| `CrewService.set_approval` | audits **inside** `async with in_transaction()`, publishes outside it. `write_and_publish` would move the publish inside the transaction, where a subscriber could read pre-commit state. |
-| `CrewService.acknowledge` | same transaction boundary. |
+| `CrewService.update_crew_approval` | audits **inside** `async with in_transaction()`, publishes outside it. `write_and_publish` would move the publish inside the transaction, where a subscriber could read pre-commit state. |
+| `CrewService.acknowledge_crew_assignment` | same transaction boundary. |
 | `VolunteerScheduleService.assign` | audits every assignment, publishes only when `not auto_generated` — an unpublished draft is deliberately silent. One call cannot express the conditional half. |
+| `MatchService.create_match` | audits `match.created`, then seeds acknowledgments and enqueues the scheduling fan-out, and only then publishes; the event payload is a subset of the audit details. Convertible with `event_details`, at the cost of publishing before the notification fan-out is enqueued. |
+| `MatchService.update_match` | audits `match.updated` for every edit but publishes `match.rescheduled` when the time moved and `match.updated` otherwise, after the ack reseed and hard-preset reconcile. |
 
 If a future change moves the audit write out of the transaction, or makes the
 draft assignment publish too, convert the site then.

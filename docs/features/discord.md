@@ -11,11 +11,11 @@ DMs fire on match lifecycle transitions:
 
 | Event | Recipients |
 |---|---|
-| Scheduled | both players |
-| Confirmed | players, when the second player confirms a submitted match |
-| Seated / checked in | players and approved crew |
-| Started | watchers |
-| Finished | players and crew, with the result |
+| Scheduled / rescheduled | players (with Acknowledge), approved crew and watchers (info; watchers get Unwatch), tournament subscribers (with crew-signup buttons) |
+| Players changed, time unchanged | players only — a fresh Acknowledge request |
+| Harder preset offered | players, when the tournament has a `hard_preset` and the seed is not yet rolled |
+| Checked in / started / finished / confirmed | players, approved crew and watchers — one DM each via `notify_match_participants` |
+| Cancelled | players, approved crew and watchers, resolved before the row is deleted |
 | Stage assigned / cleared | players, approved crew, watchers |
 | Stage reminder | the same audience, `stage_reminder_minutes` before the match |
 | Stream candidate | tournament subscribers, with crew-signup buttons |
@@ -60,8 +60,13 @@ tenant costs the button, not the DM.
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
 | Stage assigned / cleared / reminder | View your match | `/home/player?match=<id>` — the player's own board, narrowed to that match |
+| Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |
+| Harder preset agreed / broken | View your match | `/home/player?match=<id>` |
+| Match preset set by staff / handed back | View your match · Choose your settings | the first when staff forced a preset, the second (`?hard=`) when the choice is the players' again |
+| Tournament signup confirmed | View tournaments | `/home/tournaments` |
 | Join approved (to requester) | Open the community | the tenant home |
 | Qualifier reviewed / expiring / expired / reattempt | Submit or forfeit · View the leaderboard · Start your next run | `/qualifiers/<id>` |
+| Qualifier review queue waiting (to reviewers) | Open the review queue | `/admin/qualifiers?qualifier=<id>&tab=queue` |
 
 A DM with no ask gets no button — checked in, cancelled, state changed, volunteer
 unassigned, and an **approved** reschedule (the match moved, and the reschedule
@@ -228,7 +233,7 @@ application, bot token, or network:
 - **Bot does not start** — `DISCORD_TOKEN` is not required.
 
 ```bash
-./start.sh mock                     # development + MOCK_DISCORD + MOCK_CHALLONGE + MOCK_SEEDGEN
+./start.sh mock                     # development + MOCK_DISCORD, MOCK_SEEDGEN, MOCK_CHALLONGE, MOCK_TWITCH, MOCK_RACETIME
 MOCK_DISCORD=true ./start.sh dev    # mock Discord only
 ```
 

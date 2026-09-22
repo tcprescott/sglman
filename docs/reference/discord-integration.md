@@ -23,7 +23,7 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`application/services/discord/discord_event_worker.py`](../../application/services/discord/discord_event_worker.py) | Background reconcile loop, gated by `DISCORD_EVENTS_SYNC_ENABLED` |
 | [`discordbot/__init__.py`](../../discordbot/__init__.py) | Registers every interaction handler and view factory with `discord_service` at import |
 | [`discordbot/_ack_common.py`](../../discordbot/_ack_common.py) | `run_dm_interaction` (the shared handler ladder), `make_acknowledged_view`, `send_ephemeral` |
-| [`discordbot/_tenant.py`](../../discordbot/_tenant.py) | `match_tenant_id` / `crew_tenant_id` / `assignment_tenant_id` — deliberately unscoped tenant discovery |
+| [`discordbot/_tenant.py`](../../discordbot/_tenant.py) | `match_tenant_id` / `crew_tenant_id` / `assignment_tenant_id` / `reschedule_request_tenant_id` — deliberately unscoped tenant discovery |
 | [`discordbot/crew_signup.py`](../../discordbot/crew_signup.py) | Crew signup buttons + handler (`crew_signup:`) |
 | [`discordbot/match_acknowledgment.py`](../../discordbot/match_acknowledgment.py) | Player Acknowledge button + handler (`match_ack:`) |
 | [`discordbot/crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) | Crew Acknowledge button + handler (`crew_ack:`) |
@@ -33,10 +33,11 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/match_hard_preset.py`](../../discordbot/match_hard_preset.py) | The harder-settings opt-in / back-out button + handler (`match_hard:`) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, the `import discordbot` registration hook, queue and worker start/stop in the FastAPI lifespan |
 | [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
-| [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | Notification fan-out coroutines |
-| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | Plain-text DM builders (public functions) + ephemeral confirmation strings, for the match lifecycle |
+| [`application/services/match/_schedule_notifications.py`](../../application/services/match/_schedule_notifications.py) | `MatchNotificationMixin` — the match notification fan-out coroutines, composed into `MatchScheduleService` |
+| [`application/services/notification_links.py`](../../application/services/notification_links.py) | `DMLink` builders (`player_schedule`, `player_match`, `player_hard_preset`, `admin_match`, …) — absolute, tenant-qualified, never raise |
+| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | `DMLink`, plain-text DM builders (public functions) + ephemeral confirmation strings, for the match lifecycle, stage calls and harder-preset flow |
 | `discord_messages_crew.py` / `_volunteer.py` / `_qualifier.py` / `_reschedule.py` / `_tenant.py` | The same builders for every other domain — one sibling module each |
-| [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) | Embed-card builders (`match_embed`, `state_changed_embed`, `matchup_ready_embed`, `volunteer_embed`, `notification_embed`, `time_field`, `COLOR_*`) |
+| [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) | Embed-card builders (`match_embed`, `state_changed_embed`, `matchup_ready_embed`, `stage_embed`, `volunteer_embed`, `notification_embed`, `time_field`, `COLOR_*`) |
 | [`application/services/crew_service.py`](../../application/services/crew_service.py) | Crew approval → crew acknowledgment DM |
 
 ## Architecture overview
@@ -50,7 +51,7 @@ The bot is a **discord.py `commands.Bot`** that lives inside the single Uvicorn 
 
 Degradation is graceful at every layer: when the bot is missing or not connected, every `DiscordService` method returns a `(False, reason)` tuple instead of raising, and the fan-out methods log the failure and move on.
 
-**The import cycle is inverted into a registry.** `discord_service.py` owns `_interaction_handlers` / `_view_factories` plus `register_interaction_handler(prefix, fn)` and `register_view_factory(kind, factory)` (keyed by the `VIEW_*` constants), and never imports `discordbot` at all. [`discordbot/__init__.py`](../../discordbot/__init__.py) registers all five handlers and all five view factories at import; `main.py`'s lifespan imports the package once. The dependency runs one way: `discordbot` → `application.services`. This mirrors `application/events/match_live.py`.
+**The import cycle is inverted into a registry.** `discord_service.py` owns `_interaction_handlers` / `_view_factories` plus `register_interaction_handler(prefix, fn)` and `register_view_factory(kind, factory)` (keyed by the `VIEW_*` constants), and never imports `discordbot` at all. [`discordbot/__init__.py`](../../discordbot/__init__.py) registers all seven handlers and all seven view factories at import; `main.py`'s lifespan imports the package once. The dependency runs one way: `discordbot` → `application.services`. This mirrors `application/events/match_live.py`.
 
 > **One Discord library, and it is discord.py.** Never add **py-cord** alongside it. The two are hard forks that both install into the same top-level `discord/` package — neither uninstalls the other, so whichever unpacks last silently owns the ~107 modules they share. This repo shipped both for a while, py-cord won, and `discord.EntityType` / `discord.PrivacyLevel` quietly stopped existing: every scheduled-event create/edit raised `AttributeError`, which `_scheduled_event_op`'s `except Exception` swallowed into a `(False, …)` tuple. The suite stayed green because that path is only ever reached through `MockDiscordService`. `TestDiscordLibraryIdentity` in [`tests/services/test_discord_service.py`](../../tests/services/test_discord_service.py) now asserts the `discord` package has exactly one provider, and `.claude/scripts/enforce_safe_commands.py` blocks `poetry add py-cord`.
 >
@@ -132,12 +133,12 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 
 | Method | Signature | Behavior |
 |---|---|---|
-| `send_dm` | `(user_id: int, message: str, view_factory=None, embed=None)` | Plain DM via `fetch_user(user_id)` + `user.send(...)`. `view_factory` is a zero-arg callable invoked just before the send; `embed`, when present, is sent **instead of** the plain content (Discord would otherwise show both) while `message` stays the web-push/fallback text. |
-| `send_dm_with_crew_buttons` | `(user_id, message, match_id: int, embed=None)` | DM with the two crew signup buttons (`VIEW_CREW_SIGNUP`). |
-| `send_dm_with_acknowledgment_button` | `(user_id, message, match_id: int, embed=None)` | DM with the player Acknowledge button (`VIEW_MATCH_ACK`). |
-| `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int, embed=None)` | DM with the crew Acknowledge button (`VIEW_CREW_ACK`). `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
-| `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int, embed=None)` | DM with the volunteer shift Acknowledge button (`VIEW_VOLUNTEER_ACK`). |
-| `send_dm_with_unwatch_button` | `(user_id, message, match_id: int, embed=None)` | DM with the Unwatch button (`VIEW_UNWATCH`). |
+| `send_dm` | `(user_id: int, message: str, view_factory=None, embed=None, link: DMLink = None)` | Plain DM via `fetch_user(user_id)` + `user.send(...)`. `view_factory` is a zero-arg callable invoked just before the send; `embed`, when present, is sent **instead of** the plain content (Discord would otherwise show both) while `message` stays the web-push/fallback text. `link` is appended to the view as a Discord link button (`_with_link_button`; a blank URL adds nothing) and becomes the web-push mirror's tap target. |
+| `send_dm_with_crew_buttons` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the two crew signup buttons (`VIEW_CREW_SIGNUP`). |
+| `send_dm_with_acknowledgment_button` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the player Acknowledge button (`VIEW_MATCH_ACK`). |
+| `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int, embed=None, link=None)` | DM with the crew Acknowledge button (`VIEW_CREW_ACK`). `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
+| `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int, embed=None, link=None)` | DM with the volunteer shift Acknowledge button (`VIEW_VOLUNTEER_ACK`). |
+| `send_dm_with_unwatch_button` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the Unwatch button (`VIEW_UNWATCH`). |
 | `send_dm_with_reschedule_agree_button` | `(user_id, message, request_id: int, embed=None, link=None)` | DM with the opponent's Agree button (`VIEW_RESCHEDULE_AGREE`). |
 | `send_dm_with_hard_preset_buttons` | `(user_id, message, match_id: int, opted_in: bool, embed=None, link=None)` | DM with the harder-settings button (`VIEW_HARD_PRESET`). `opted_in` picks **which single button** the DM carries, so the message never shows a state the reader is not already in — the only sender whose view differs per recipient. |
 | `get_bot` | `()` (sync) | Returns the bot instance (or `None` in the mock). |
@@ -177,7 +178,7 @@ Caller pattern: `from application.services.discord.discord_service import Discor
 
 `MockDiscordService` (same file, composing the mock mixin each split-out module carries) mirrors the public surface exactly. Selection happens once at import time via the `DiscordService = MockDiscordService` rebinding shown above — callers never branch on mock mode themselves.
 
-- The five button variants delegate to the single `send_dm` stub, which **prints to stdout** (`[MOCK Discord DM] -> <user_id>: <message> [embed: <title>]`) and returns `(True, "Message sent (mock)")`, so notification code paths run end-to-end without Discord.
+- The seven button variants delegate to the single `send_dm` stub, which **prints to stdout** (`[MOCK Discord DM] -> <user_id>: <message> [embed: <title>] [button: <label> -> <url>]`, the suffixes only when present — the link is the half of a DM mock mode can verify) and returns `(True, "Message sent (mock)")`, so notification code paths run end-to-end without Discord.
 - `get_bot()` returns `None`.
 - `list_guilds` / `list_guild_roles` / `get_member_role_ids` / `get_guild_summary` / `member_can_manage_guild` answer from `application/utils/mocks/mock_discord_data.py`; the role/event methods print a `[MOCK Discord] …` line and return success.
 
@@ -205,7 +206,7 @@ discord_queue.enqueue(self.match_schedule_service.notify_match_participants(matc
 return match   # caller does not wait for any DM
 ```
 
-What gets enqueued is usually a `MatchScheduleService.notify_*` fan-out coroutine, not an individual DM — the per-recipient loop and its own error logging run inside the worker. Variations: `MatchScheduleService.generate_seed` enqueues a locally defined `_send_seed_dms()` closure, and `CrewService._request_crew_acknowledgment` / `VolunteerScheduleService.assign` / `_bracket/notifications.py` enqueue single `DiscordService` calls directly.
+What gets enqueued is usually a `MatchScheduleService.notify_*` fan-out coroutine, not an individual DM — the per-recipient loop and its own error logging run inside the worker. Variations: `MatchScheduleService.generate_seed` enqueues a locally defined `_send_seed_dms()` closure, `_bracket/notifications.py` enqueues one `_send_matchup_ready(...)` coroutine per entrant, and `CrewService` / `VolunteerScheduleService` / the reschedule, signup and membership notifiers enqueue single `DiscordService` calls directly.
 
 Deliberate exception to the queue rule: the admin Send Message dialog ([`theme/dialog/send_message_dialog.py`](../../theme/dialog/send_message_dialog.py)) awaits `DiscordService.send_dm()` directly so the admin sees the result immediately in a `ui.notify`.
 
@@ -213,7 +214,7 @@ Because `stop()` cancels the worker without draining, anything still queued at s
 
 ## Interaction handlers (`discordbot/`)
 
-All views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s with static `custom_id`s and no callbacks — routing happens in `on_interaction`. Each module exposes its prefix as `CUSTOM_ID_PREFIX`.
+All views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s with static `custom_id`s and no callbacks — routing happens in `on_interaction`. A DM's `DMLink` is appended by `send_dm` as a link-style button, which has no `custom_id` and never reaches a handler. Each module exposes its prefix as `CUSTOM_ID_PREFIX`.
 
 | `custom_id` | Produced by | Service called | View swap on click? |
 |---|---|---|---|
@@ -223,6 +224,7 @@ All views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s
 | `volunteer_ack:<assignment_id>` | `make_volunteer_acknowledgment_view(assignment_id)` | `VolunteerScheduleService.acknowledge(assignment_id, user)` | Yes → `volunteer_ack:acknowledged` |
 | `match_watch:unwatch:<match_id>` | `make_unwatch_view(match_id)` | `MatchWatcherService.unwatch(match_id, user)` | No — the button stays live |
 | `reschedule_agree:agree:<request_id>` | `make_reschedule_agree_view(request_id)` | `MatchRescheduleService.record_opponent_agreement(request_id, user)` | No — agreement is advisory, and the confirmation says staff still decide |
+| `match_hard:in:<match_id>` / `match_hard:out:<match_id>` | `make_hard_preset_view(match_id, opted_in)` — one button, whichever the reader can do next | `MatchHardPresetService.opt_in` / `.withdraw(match_id, user)` | Yes → the opposite button, with the `player_hard_preset` link button rebuilt beside it |
 | `<prefix>:acknowledged` | `make_acknowledged_view(CUSTOM_ID_PREFIX)` — one shared factory in `_ack_common.py`, not redefined per module | — | Disabled placeholder; no handler action |
 
 ### The shared ladder (`_ack_common.py`)
@@ -230,20 +232,20 @@ All views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s
 Every handler supplies a `parse`, a `resolve_tenant`, a `not_found_message`, and a body to `run_dm_interaction`, which runs these steps in order:
 
 1. **Defer ephemerally** — extends Discord's 3-second interaction deadline. Every handler defers; a failed defer is logged and the reply falls back from `interaction.followup` to `interaction.response` (`send_ephemeral`).
-2. **Parse the `custom_id`** — raising `DMInteractionError` short-circuits with its text as the reply. Malformed → `Invalid interaction.`; non-integer id → `Invalid match ID.` / `Invalid crew ID.`; crew signup also validates the role token → `Invalid role.`.
+2. **Parse the `custom_id`** — raising `DMInteractionError` short-circuits with its text as the reply. Malformed → `Invalid interaction.`; non-integer id → `Invalid match ID.` / `Invalid crew ID.` / `Invalid assignment ID.` / `Invalid request ID.`; crew signup also validates the role token → `Invalid role.`.
 3. **Resolve the tenant** from the referenced entity; `None` replies with the module's `not_found_message` (e.g. `Match not found.`).
 4. **Inside `tenant_scope`, resolve the account** with `UserService().get_user_by_discord_id(str(interaction.user.id))`; a Discord user with no Wizzrobe account gets `MSG_NO_ACCOUNT`.
 5. **Run the body**, then reply ephemerally. A service `ValueError` is relayed **verbatim**; anything else is logged and answered with the module's generic retry message.
 
 Business rules live in the services, not the handlers — the "match already finished ⇒ crew signup closed" rule, for example, is raised as a `ValueError` from `CrewService.signup_crew` so the web UI and REST API enforce it identically.
 
-[`_tenant.py`](../../discordbot/_tenant.py) holds `match_tenant_id`, `crew_tenant_id`, and `assignment_tenant_id`. These are **deliberately unscoped global reads** — the sanctioned load-or-404 shape — because a DM button arrives with `interaction.guild_id is None` and the tenant has to be *discovered* from the referenced row before anything can be scoped to it. This is the one documented exception to the tenant-scoping rule in [multitenancy.md](../features/multitenancy.md).
+[`_tenant.py`](../../discordbot/_tenant.py) holds `match_tenant_id`, `crew_tenant_id`, `assignment_tenant_id`, and `reschedule_request_tenant_id`. These are **deliberately unscoped global reads** — the sanctioned load-or-404 shape — because a DM button arrives with `interaction.guild_id is None` and the tenant has to be *discovered* from the referenced row before anything can be scoped to it. This is the one documented exception to the tenant-scoping rule in [multitenancy.md](../features/multitenancy.md).
 
 Per-module notes beyond the table: the crew-signup reply is `crew_signup_confirmation(role, player_names)` and a duplicate signup surfaces the service's `User already signed up as <role>`; the three ack handlers edit the original DM's view to the disabled `Acknowledged` button (a failed edit only logs a warning); the Unwatch button rides along on lifecycle DMs to watchers — there is no "watch" button in Discord, watching starts from the web schedule.
 
 ## Message flows
 
-Outbound notifications are coroutines enqueued via `discord_queue.enqueue(...)` from [`match_service.py`](../../application/services/match/match_service.py), [`match_schedule_service.py`](../../application/services/match/match_schedule_service.py), [`match_cancellation.py`](../../application/services/match/match_cancellation.py), [`crew_service.py`](../../application/services/crew_service.py), and [`_bracket/notifications.py`](../../application/services/_bracket/notifications.py). The fan-out coroutines never raise: each skips recipients without a `discord_id` or with `User.dm_notifications` off, logs per-DM failures, and swallows unexpected errors.
+Outbound notifications are coroutines enqueued via `discord_queue.enqueue(...)` from [`match_service.py`](../../application/services/match/match_service.py), [`match_schedule_service.py`](../../application/services/match/match_schedule_service.py) and its [`_schedule_notifications.py`](../../application/services/match/_schedule_notifications.py) mixin, [`match_cancellation.py`](../../application/services/match/match_cancellation.py), [`match_hard_preset_service.py`](../../application/services/match/match_hard_preset_service.py), [`stage_reminder.py`](../../application/services/match/stage_reminder.py), [`crew_service.py`](../../application/services/crew_service.py), [`_reschedule_notifications.py`](../../application/services/_reschedule_notifications.py), [`_tournament_signup.py`](../../application/services/_tournament_signup.py), [`tenant_membership_service.py`](../../application/services/tenant_membership_service.py), the volunteer services, and [`_bracket/notifications.py`](../../application/services/_bracket/notifications.py). The fan-out coroutines never raise: each skips recipients without a `discord_id` or with `User.dm_notifications` off, logs per-DM failures, and swallows unexpected errors.
 
 Recipient selection helpers:
 
@@ -251,7 +253,8 @@ Recipient selection helpers:
 - `notify_match_crew` — approved crew + watchers, **excluding players** (players get the ack-request DM instead); watchers again get the Unwatch variant.
 - `notify_acknowledgment_request` — players with a pending `MatchAcknowledgment` row only.
 - `notify_match_cancelled` — the recipient set collected *before* the delete, since the match row is gone by send time.
-- `notify_tournament_subscribers_scheduled` / `notify_stream_candidate_subscribers` — tournament subscribers by notification level ([discord.md § Tournament notification preferences](../features/discord.md#tournament-notification-preferences)), minus `MatchService._collect_notified_discord_ids` (players + approved crew already DMed). The stream-candidate fan-out returns early if the match already has a stage.
+- `notify_stage_changed` / `notify_stage_reminder` — players + approved crew + watchers, via the shared `_notify_stage` body.
+- `notify_tournament_subscribers_scheduled` / `notify_stream_candidate_subscribers` — tournament subscribers by notification level ([discord.md § Tournament notification preferences](../features/discord.md#tournament-notification-preferences)), minus `MatchScheduleService._collect_notified_discord_ids` (players + approved crew already DMed). The stream-candidate fan-out returns early if the match already has a stage.
 
 ### DM message builders
 
@@ -262,20 +265,25 @@ Message text comes from **public functions** in [`discord_messages.py`](../../ap
 | `scheduled_dm` | New-match info DM (crew/subscribers) | Tournament name, players, scheduled time, stage |
 | `rescheduled_dm` | Reschedule info DM (crew/subscribers) | Tournament name, players, new time, stage |
 | `acknowledgment_request_dm` | Player ack request (scheduled/rescheduled variants via `rescheduled=`) | Match details plus optional stage and player names; ends with `Click **Acknowledge** below to confirm you've seen this.` |
+| `stage_assigned_dm` / `stage_cleared_dm` / `stage_reminder_dm` | Stage call, its retraction, and the pre-match nudge | Tournament, stage, players, time; says to play at the stage (or back in the tournament room) |
 | `checked_in_dm` | Seated transition | "checked in … about to begin" |
 | `cancelled_dm` | Match cancellation | Tournament, match descriptor, optional reason, and whether the bracket matchup is released to reschedule |
 | `state_changed_dm` | Started / Finished / Confirmed transitions | `Your match in **<tournament>** is now: **<state>**.` plus an optional info block |
 | `matchup_ready_dm` | Bracket matchup ready / re-book | Tournament, round, opponent (with seed), best-of, schedule URL |
 | `stream_candidate_dm` | Stream-candidate alert | Flag announcement + scheduled time + "Use the buttons below to sign up as crew." |
 | `seed_dm` | Seed generation | Greeting, match/tournament, seed URL |
+| `hard_preset_invite_dm` / `hard_preset_agreed_dm` / `hard_preset_broken_dm` / `hard_preset_override_dm` | Harder-preset offer, unanimity reached, unanimity broken, staff override | Tournament and preset names; the offer promises a lone opt-in stays private |
 | `crew_assignment_dm` | Crew approval DM | Crew type, match title, players, scheduled time, stage; ends with "Please click below to acknowledge your assignment." |
+| `crew_withdrawn_dm` | An approved crew member dropped out — **sent to the tournament's crew owners and the approver** | Who withdrew, hours of notice, the match block, "The slot is open again" |
 | `crew_approval_withdrawn_dm` | Crew approval withdrawn | Same detail block as the approval DM; opens with the withdrawal and ends with "Check with an admin if this looks wrong." No buttons |
 | `volunteer_assignment_dm` / `volunteer_reminder_dm` | Volunteer shift assigned / reminder | Position, label, shift start/end |
 | `volunteer_unassigned_dm` | Coordinator took a volunteer off a shift | Position, label, start/end; no acknowledgment button — there is nothing to confirm |
 | `volunteer_shift_changed_dm` | A shift a volunteer is on moved in time | Both windows (was → now), then "Tap **Acknowledge** to confirm you can still cover it." |
 | `volunteer_released_dm` | A volunteer gave a shift back — **sent to the coordinators**, not the volunteer | Who dropped it, the shift block, hours of notice, their reason, "This slot is open again." |
 
-Ephemeral confirmation strings live in the same module: `crew_signup_confirmation(role, player_names)`, `match_ack_confirmation`, `crew_ack_confirmation`, `volunteer_ack_confirmation`, `unwatch_confirmation(player_names, was_watching)`.
+The crew, volunteer, reschedule, qualifier and tenant builders live in the `discord_messages_*.py` siblings (`crew_*` in `_crew`, `volunteer_*` in `_volunteer`, `reschedule_requested_dm` / `reschedule_opponent_dm` / `reschedule_decided_dm` in `_reschedule`, `qualifier_*` in `_qualifier`, `join_requested_dm` / `join_decided_dm` in `_tenant`).
+
+Ephemeral confirmation strings sit beside their domain's builders: `match_ack_confirmation`, `unwatch_confirmation(player_names, was_watching)`, `hard_preset_opt_in_confirmation` and `hard_preset_withdraw_confirmation` in `discord_messages.py`; `crew_signup_confirmation(role, player_names)` and `crew_ack_confirmation` in `_crew`; `volunteer_ack_confirmation` in `_volunteer`; `reschedule_agree_confirmation` in `_reschedule`.
 
 ### Flow table
 
@@ -283,18 +291,22 @@ Ephemeral confirmation strings live in the same module: `crew_signup_confirmatio
 |---|---|---|---|
 | Match scheduled — player ack request | `MatchService.create_match` / `submit_match_request` → `notify_acknowledgment_request(match, rescheduled=False)` | `send_dm_with_acknowledgment_button` | Acknowledge |
 | Match rescheduled / players changed — ack request | `MatchService.update_match` → `notify_acknowledgment_request(match, rescheduled=<time changed>)` (acks re-seeded first) | `send_dm_with_acknowledgment_button` | Acknowledge |
-| Harder settings offered | same call sites → `MatchHardPresetService.send_offer(match)` (skipped when the tournament has no `hard_preset`, or the seed is already rolled) | `send_dm_with_hard_preset_buttons` | Play the harder preset **or** Back out — one, chosen from the reader's own answer |
+| Harder settings offered | `notify_match_scheduled` (create / request / time change) → `MatchHardPresetService.send_offer(match)` (skipped when the tournament has no `hard_preset`, the seed is already rolled, or staff set a `preset_override`) | `send_dm_with_hard_preset_buttons` | Play the harder preset **or** Back out — one, chosen from the reader's own answer |
 | Harder settings agreed / broken | `MatchHardPresetService` on the unanimity transition, and on a roster change that breaks one | `send_dm` via `notify_hard_preset_agreement` | Link only |
 | Match preset set by staff | `MatchHardPresetService.set_override` | `send_dm` via `notify_hard_preset_override` | Link only |
 | Scheduled/rescheduled — crew & watcher info | same call sites → `notify_match_crew(match, msg)` | `send_dm` (crew) / `send_dm_with_unwatch_button` (watchers) | Unwatch (watchers only) |
 | Crew signup invitation (subscribers) | same call sites → `notify_tournament_subscribers_scheduled(match, msg, notified_ids)` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Stream candidate alert | `MatchService.create_match` (flagged) / `set_stream_candidate(flag=True)` → `notify_stream_candidate_subscribers` | `send_dm_with_crew_buttons` | Sign up as Commentator / Tracker |
 | Crew approved — ack request | `CrewService.update_crew_approval(approved=True)` → `_request_crew_acknowledgment` | `send_dm_with_crew_acknowledgment_button` | Acknowledge |
-| Match seated (checked in) | `MatchScheduleService.seat_match` / `MatchService.seat_players` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
+| Match seated (checked in) | `MatchScheduleService.seat_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
 | Match started / finished / confirmed | `MatchScheduleService.start_match` / `finish_match` / `confirm_match` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) |
-| Match cancelled | `MatchCancellationService` → `notify_match_cancelled(recipients, message, embed)` (recipients collected before the delete) | `send_dm` | none |
-| Bracket matchup ready | `_bracket/notifications.py` → `_send_matchup_ready(...)` per entrant (opt-in only) | `send_dm` | none |
-| Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | none |
+| Match cancelled | `MatchService._cancel_match` (the `CancellationMixin` in `match_cancellation.py`) → `notify_match_cancelled(recipients, message, embed)` (recipients collected before the delete) | `send_dm` | none |
+| Stage assigned / cleared | `MatchService.assign_stage` → `notify_stage_changed` | `send_dm` | View your match (link) |
+| Stage reminder | `stage_reminder` loop → `notify_stage_reminder` | `send_dm` | View your match (link) |
+| Crew withdrew (approved) | `CrewService.undo_crew_signup` → `_notify_crew_withdrawal` (tournament crew owners + approver) | `send_dm` | Fill the slot (link) |
+| Crew approval withdrawn | `CrewService.update_crew_approval(approved=False)` → `_notify_crew_approval_withdrawn` | `send_dm` | none |
+| Bracket matchup ready | `_bracket/notifications.py` → `_send_matchup_ready(...)` per entrant (opt-in only) | `send_dm` | Pick a time (link) |
+| Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | Open your seed (link, off-site) |
 | Volunteer shift assigned — ack request | `VolunteerScheduleService.assign(notify=True)` | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Volunteer shift reminder | `volunteer_reminder` loop, per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Admin direct message | `SendMessageDialog.send` — awaited inline, **not** queued | `send_dm` | none |
