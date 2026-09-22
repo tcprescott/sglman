@@ -229,8 +229,8 @@ The public event schedule with crew signup.
 - A `MatchTableView` with `admin_controls=False`, `table_key=TableKeys.HOME_SCHEDULE`, `storage_key='home_schedule'` and `grid_breakpoint='lt.lg'`. Columns: Tournament, Scheduled At, State, Players, Stage, Generated Seed, Commentators, Trackers, Watch.
 - A match scheduled by a bracket shows a "<stage> · Game 2 of 3 · 1-0" link under the tournament name (`MatchDisplayService._bracket_ref`, rendered by `match_slots.py` / `match_grid.py`, handled by `_handle_open_bracket`). The series context comes off games the repository already prefetched, so it costs no extra query per row; the round *name* is deliberately absent, since naming a round needs the stage's whole graph. It emits `open_bracket` rather than carrying an `href`, so `ui.navigate.to` prepends the tenant `root_path`. Shared by every `MatchTableView`.
 - `extra_slots` supply read-only state cells (per-state icon + timestamp) and a truncating seed-link cell.
-- `on_edit` is wired to `UserMatchDialog` (refreshing the table on submit), but the board declares neither an `id` nor an `edit` column, so no cell or card emits `edit_match` and the dialog is unreachable from here.
-- Services: `MatchService.get_all_matches_for_schedule()`; the logged-in `discord_id` is read from `app.storage.user` and passed into `UserMatchDialog`.
+- Read-only for editing: no `on_edit`, and neither an `id` nor an `edit` column. Players edit their own matches from My Schedule.
+- Services: `MatchService.get_all_matches_for_schedule()`.
 
 ### On Air (`pages/home_tabs/stage_timeline.py`)
 
@@ -829,7 +829,6 @@ The largest UI component, used by the home Schedule and Player boards, the admin
 | `edit_result` | Change-winner pencil (`access.confirm`) | `on_edit_result(match_id)` |
 | `set_stage` | Stage-column select | `on_set_stage(match_id, stage)` — `stage` is a `Stage` id, `'candidate'`, or `None` |
 | `assign_stations` | Players-column button (admin + crud) | `on_assign_stations(match_id)` |
-| `edit_player` | — (a listener is registered, but no current slot or card template emits it) | would open `UserDialog` for that player |
 | `view_commentator` / `view_tracker` | Crew name link (admin + crud) | opens `UserDialog` for that crew member |
 | `toggle_commentator` / `toggle_tracker` | Crew approval toggle icon (admin + crud) | `ConfirmationDialog` (both directions) → `CrewService.update_crew_approval`, row refresh |
 | `signup_commentator` / `signup_tracker` | Sign Up button (non-admin) | `ConfirmationDialog` → `CrewService.signup_crew` |
