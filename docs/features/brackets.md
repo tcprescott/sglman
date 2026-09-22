@@ -320,7 +320,9 @@ per-game `BRACKET_GAME_SCHEDULED` /
 `BRACKET_GAME_COMPLETED` / `BRACKET_GAME_CANCELLED` plus
 `BRACKET_GAME_LINKED` / `BRACKET_GAME_UNLINKED` for the staff link/unlink of an
 existing `Match`, and `BRACKET_GAME_RELEASED` when a cancelled or deleted `Match`
-hands its slot back. Scheduling is the one write that is **not** Staff-only — see
+hands its slot back. Four actions are audit-only, with no event: `BRACKET_UPDATED`
+(stage config, round metadata, series length), `BRACKET_DELETED`, and the
+per-stage roster edits `BRACKET_ENTRY_ADDED` / `BRACKET_ENTRY_REMOVED`. Scheduling is the one write that is **not** Staff-only — see
 [Who may schedule](#who-may-schedule-and-the-manual-request-lockout). Method-level detail:
 [services.md → BracketService](../reference/services.md#bracket_servicepy--bracketservice).
 
@@ -361,8 +363,15 @@ transaction:
 - **Public pages** — `@public_page(..., feature=FeatureFlag.BRACKETS)` on both
   bracket routes (404 when off).
 - **Admin tab** — `is_staff and FeatureFlag.BRACKETS in live` in `pages/admin.py`.
+- **Static spectator routes** — an explicit `is_enabled(FeatureFlag.BRACKETS)`
+  check in [`pages/static_brackets.py`](../../pages/static_brackets.py) (404 when off).
 - **REST** — `require_feature(FeatureFlag.BRACKETS)` on the `/brackets` router
   mount (whole router 404s when off).
+- **Service** — `@requires_feature(FeatureFlag.BRACKETS)` on `BracketService`'s
+  public entry methods, so a caller that skips the surfaces above still gets a
+  `FeatureDisabledError`. The soft integration points called from match flows
+  (`advance_if_linked`, `release_game_if_linked`, `held_match_ids` in the race-room
+  worker) deliberately do not raise.
 
 ## Public access — anonymous, and reachable
 
@@ -455,7 +464,7 @@ bracket renderer that builds markup by hand instead of through `ui.label`, so
   no event announces (a card whose derived status turns "imminent" as the clock
   moves). A tenant-less event clears the cache outright rather than guessing.
 * *HTTP* — `Cache-Control: public, max-age=30, stale-while-revalidate=300` plus a
-  strong `ETag`, so the page's own 60s meta-refresh usually costs a 304 with no
+  strong `ETag`, so the page's own meta-refresh (60s on a stage, 300s on the stage index) usually costs a 304 with no
   body, and a CDN can absorb a burst without touching the app.
 
 `public` caching and NiceGUI's session cookie are incompatible, and NiceGUI mints
