@@ -39,6 +39,11 @@ async def _subscribed_user(discord_id: int = 1) -> User:
     await WebPushSubscription.create(user=user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH)
     return user
 
+async def _deliver(user: User, title: str = 't', body: str = 'b') -> int:
+    """Push to every device ``user`` subscribed, through the shared delivery path."""
+    subscriptions = await WebPushSubscription.filter(user=user)
+    return await WebPushService()._send_to_subscriptions(subscriptions, title=title, body=body)
+
 
 # ===========================================================================
 # WebhookService
@@ -411,14 +416,6 @@ class TestRemoveSubscription:
 
 
 class TestNotifyGating:
-    async def test_notify_user_noop_when_unconfigured(self, db, no_vapid_env):
-        user = await _subscribed_user()
-        assert await WebPushService().notify_user(user, title='t', body='b') == 0
-
-    async def test_notify_user_zero_without_subscriptions(self, db, vapid_env):
-        user = await _user(discord_id=7)
-        assert await WebPushService().notify_user(user, title='t', body='b') == 0
-
     async def test_send_to_subscriptions_zero_when_config_none(self, db, no_vapid_env):
         # Direct call models the is_configured/config race: a caller passed the
         # gate but the config resolved to None by delivery time.
@@ -444,7 +441,7 @@ class TestDeliveryPruneAndErrors:
             raise ValueError('bad p256dh point')
         monkeypatch.setattr('application.services.web_push_service.protocol.encrypt_payload', _boom)
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
         assert delivered == 0
         assert fake.calls == []  # encryption failed before any POST
         assert await WebPushSubscription.all().count() == 0  # pruned
@@ -453,7 +450,7 @@ class TestDeliveryPruneAndErrors:
         fake = fake_client(raise_exc=httpx.HTTPError('push service unreachable'))
         user = await _subscribed_user(discord_id=99)
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
         assert delivered == 0
         assert len(fake.calls) == 1
         assert await WebPushSubscription.all().count() == 1  # transient, not pruned
@@ -462,7 +459,7 @@ class TestDeliveryPruneAndErrors:
         fake = fake_client([500])
         user = await _subscribed_user(discord_id=99)
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
         assert delivered == 0
         assert len(fake.calls) == 1
         assert await WebPushSubscription.all().count() == 1

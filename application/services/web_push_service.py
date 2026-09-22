@@ -325,24 +325,6 @@ class WebPushService:
         except Exception:
             logger.exception('web push DM mirror failed for discord id %s', discord_id)
 
-    async def notify_user(
-        self,
-        user: User,
-        *,
-        title: str,
-        body: str,
-        navigate: Optional[str] = None,
-    ) -> int:
-        """Send a notification to every device ``user`` subscribed. Returns the delivered count."""
-        if not self.is_configured():
-            return 0
-        subscriptions = await self.repository.list_for_user(user)
-        if not subscriptions:
-            return 0
-        return await self._send_to_subscriptions(
-            subscriptions, title=title, body=self._plain_text(body), navigate=navigate
-        )
-
     # ----------------------------------------------------------- internals
 
     def _plain_text(self, message: str) -> str:
