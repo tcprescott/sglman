@@ -971,7 +971,7 @@ Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
 `volunteer_reminder_lead_minutes`, `volunteer_comp_tiers`,
 `tournament_hours_by_date`, `station_format`, and `join_page_match_preview`
 (the join page's today's-matches opt-in, default off — see
-[frontend.md](frontend.md#the-join-page)).
+[frontend.md](frontend.md#the-join-page-themejoin_pagepy)).
 
 #### `RoomToken`
 

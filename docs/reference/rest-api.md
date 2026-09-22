@@ -17,7 +17,7 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 
 ## Authentication
 
-**Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push)), whose only caller is a service worker with no session to present.
+**Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth--healthpy)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push--web_pushpy)), whose only caller is a service worker with no session to present.
 
 Generate a token on the home **Profile** tab (the *API tokens & AI clients* card), then send it on each request:
 
