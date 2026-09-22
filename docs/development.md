@@ -27,7 +27,7 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
 
    For a local loop you need `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` and `STORAGE_SECRET`, plus `DB_HOST`/`DB_PORT` (e.g. `localhost` / `5432`) when the app runs on your host rather than in the container — compose injects those two only for the app container, and [`migrations/tortoise_config.py`](../migrations/tortoise_config.py) raises at startup without them. The template ships `ENVIRONMENT=production`; change it to `development` or use `./start.sh mock`, which forces the whole mock set for you. Everything else — including which variables are safe to leave unset — is in the [deployment guide's environment table](deployment.md#environment-variables).
 
-3. Start PostgreSQL. Two options, both driven by [`docker-compose.yml`](../docker-compose.yml) (service names: `postgres`, `wizzrobe`):
+3. Start PostgreSQL. Two options, both driven by [`docker-compose.yml`](../docker-compose.yml) (service names: `postgres`, `redis`, `wizzrobe`):
 
    **Database only** — app runs on your host (the usual dev loop):
 
@@ -43,7 +43,7 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
    docker-compose up
    ```
 
-   This builds the image, waits for the postgres healthcheck, injects `DB_HOST=postgres` / `DB_PORT=5432` into the app container, and serves on port 8000. Data persists in the `postgres_data` volume.
+   This builds the image, waits for the postgres and redis healthchecks, injects `DB_HOST=postgres` / `DB_PORT=5432` and `NICEGUI_REDIS_URL=redis://redis:6379/0` into the app container, and serves on port 8000. Data persists in the `postgres_data` and `redis_data` volumes.
 
 4. Start the app on your host:
 
@@ -183,7 +183,7 @@ The script loads `.env` itself and connects using the same Tortoise config as th
 
 - **Tenant A** reuses the migration's `default` slug (on a fresh DB the additive backfill creates it empty and the script adopts it); **Tenant B** is a second community. Each gets a different feature tier (A → Full Access with one feature switched off; B → Online Tournaments with one force-granted exception) so the [feature-flag](features/feature-flags.md) states are visible.
 - **`fledgling`** ("Fledgling Community") is stopped part-way on purpose: `staff_user` holds STAFF and a membership, and there is **nothing else** — no tournament, no enrolment, no stage. Both other tenants pass the setup checklist, so without this one the Setup tab, `/platform`'s `1 of 3` readiness column and the disabled Tournament select would all be invisible in dev. Log in there to see the unready state; log in to `default` to confirm it disappears.
-- **Global (tenant-agnostic):** users, the feature-flag groups (Default / Online Tournaments / Full Access), and the racetime bots. Exactly one user — **`super_admin`** ("Platform Owner") — holds the global `SUPER_ADMIN` role and **no tenant role anywhere**, the fixture for `/platform` and for a platform admin acting inside a community they have no grants in. **Every per-tenant role has a holder who holds that role and nothing else** — `equip_manager`, `vc_user`, `preset_mgr`, `sync_user`, `qual_admin`, `proctor_only`, `sm_only`, `triforce_sub`, `volunteer_only`, plus `cc_user` as a crew coordinator with no role row at all (crew coordination is a per-tournament relation). `staff_user` holds `STAFF` **alone** for the same reason: it satisfies every predicate in the admin area, so a surface that gates on staff-ness where it means to gate on a capability looks correct until the delegate it was written for logs in. Drive admin checks as them, not only as staff — the rule is enforced in `tests/test_seed_coverage.py`. `local_only` holds a role in `default` and nothing in `second` (the fixture for per-community people scoping), and eight `racer_*` accounts exist only to fill a ten-entrant play-in start list, two of which also volunteer. Fixture discord ids are **derived from the username** (`scripts/seed_support.py`), never typed.
+- **Global (tenant-agnostic):** users, the feature-flag groups (Default / Online Tournaments / Full Access), the racetime bots, saved table layouts (`seed_preferences.py`), and an MCP OAuth client with a read-only and a write dev bearer. Exactly one user — **`super_admin`** ("Platform Owner") — holds the global `SUPER_ADMIN` role and **no tenant role anywhere**, the fixture for `/platform` and for a platform admin acting inside a community they have no grants in. **Every per-tenant role has a holder who holds that role and nothing else** — `equip_manager`, `vc_user`, `preset_mgr`, `sync_user`, `qual_admin`, `proctor_only`, `sm_only`, `triforce_sub`, `volunteer_only`, plus `cc_user` as a crew coordinator with no role row at all (crew coordination is a per-tournament relation). `staff_user` holds `STAFF` **alone** for the same reason: it satisfies every predicate in the admin area, so a surface that gates on staff-ness where it means to gate on a capability looks correct until the delegate it was written for logs in. Drive admin checks as them, not only as staff — the rule is enforced in `tests/test_seed_coverage.py`. `local_only` holds a role in `default` and nothing in `second` (the fixture for per-community people scoping), and eight `racer_*` accounts exist only to fill a ten-entrant play-in start list, two of which also volunteer. Fixture discord ids are **derived from the username** (`scripts/seed_support.py`), never typed.
 - **Per tenant (everything else is tenant-scoped):** stages, system config (every key `SystemConfigService` reads, including the venue hours, the volunteer reminder lead and the station-label format), four tournaments (below) with their matches + crew, volunteers and shifts, player availability, equipment, an API token (the printed **dev bearer** the `api-validation` skill uses), feedback, triforce texts, Discord role mappings, webhooks, and seeded audit-log + telemetry rows. Per-domain fixtures live in sibling modules called from inside the same `tenant_scope` — `seed_access.py`, `seed_venue.py`, `seed_matches.py`, `seed_match_day.py`, `seed_play_in.py`, `seed_crew.py`, `seed_volunteers.py`, `seed_equipment.py`, `seed_tokens.py`, `seed_discord.py`, `seed_observability.py`, `seed_brackets.py`, `seed_online.py`, `seed_qualifiers.py`, `seed_onsite.py`, `seed_challonge.py`, `seed_payouts.py`, with `seed_support.py` holding the fixture registry and the shared `backfill` helper — which is also how `seed_dev.py` stays under the 800-line budget.
 
 **The rules these fixtures follow — naming, the coverage bar, derived ids, convergence, states-vs-volume — are written down in [reference/dev-seed.md](reference/dev-seed.md) and enforced in `tests/test_seed_coverage.py`.** Read that before adding a fixture.
@@ -284,20 +284,23 @@ Layout:
 | `tests/mcp/` | MCP server: tool catalogue, its OAuth authorization server, and consent |
 | `tests/services/` | One suite per service, plus DB-backed gap-fill suites that exercise the async DB methods and error/notification branches the pure-function suites skip |
 | `tests/tenancy/` | Tenant context, middleware, URLs and session, plus every `*isolation*.py` leak test and the `test_leak_test_coverage.py` ratchet that keeps that set complete |
-| `tests/theme/` | Presentation logic that is pure Python (bracket layout maths) rather than Vue/Quasar markup |
+| `tests/theme/` | Presentation logic that is pure Python (bracket layout maths, board access, slot-template strings, dialog copy) rather than rendered Vue/Quasar |
+| `tests/pages/` | Page-module logic testable without a browser (MCP consent) |
+| `tests/postgres/` | Tests that only mean something on PostgreSQL — row locking, the migration advisory lock; they skip on SQLite (see [below](#running-the-suite-against-postgresql)) |
+| `tests/utils/` | `application/utils/` helpers (migration lock, seed provider) |
 | `tests/*.py` | Cross-cutting utility suites: timezone, CSV export, repositories, infra plumbing, error handlers, rate limiting, security hardening, schema bounds, seed coverage, … |
 
 Fixtures from the conftests:
 
 - [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture backed by **in-memory SQLite**. Tortoise is initialised once per worker; each test then restores a pristine template database (schema, the default tenant, its feature flags) through SQLite's backup API, so it starts with no leakage from prior tests. `seeded_db` layers a second template holding everything `scripts/seed_dev.py` creates. (SQLite catches logic errors but not PostgreSQL-specific query behavior.) See [Keeping it fast](#keeping-it-fast) for why it works this way.
-- `tests/services/conftest.py` — an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture (and later close) enqueued coroutines, so tests can assert that notifications were sent without a bot connection or "never awaited" warnings.
+- An autouse `stub_discord_queue` fixture (suite-wide, in `tests/conftest.py`) that monkeypatches `discord_queue.enqueue` to capture (and later close) enqueued coroutines, so tests can assert that notifications were sent without a bot connection or "never awaited" warnings.
 
 ### Known gaps
 
 Still not covered (intentionally — each needs live infra the SQLite suite can't provide):
 
 - Discord bot interaction handlers (`discordbot/`) — require a live Discord connection.
-- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests (see the `ui-validation` skill for driving these in a real browser). That skill's `scripts/ui_flag_sweep.sh` also covers the rendering gap the flag system leaves: an ungated page or tab that calls a feature-gated service and dies for a community without the feature.
+- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests in pytest. The CI `browser` job (below) walks a fixed set of surfaces; the `ui-validation` skill drives any of them locally. That skill's `scripts/ui_flag_sweep.sh` also covers the rendering gap the flag system leaves: an ungated page or tab that calls a feature-gated service and dies for a community without the feature.
 - OAuth flow (`middleware/auth.py`) — requires live Discord OAuth.
 - The network-backed clients — `application/utils/clients/challonge_client.py`, `twitch_client.py`, and the HTTP randomizer paths in `seedgen_service.py` (`_generate_alttpr`/`_generate_smmap`/`_generate_ootr`) — hit real external APIs; only their local/mocked paths are covered.
 - Most of `discord_service.py` — the parts that talk to a live bot connection.
@@ -336,7 +339,7 @@ the same thing that guarded the PR, and a `main` push runs it once rather than
 twice. Image publishing itself is described in [deployment.md](deployment.md).
 
 Two more workflows run on their own schedule: `security.yml` (pip-audit over the
-runtime dependencies, on every PR and weekly) and `guardrail-sweep.yml` (the
+runtime dependencies, on every PR, every push to `main`, and weekly) and `guardrail-sweep.yml` (the
 whole-tree guardrail run, weekly).
 
 ## Conventions & adding a feature
@@ -425,10 +428,12 @@ per-(check, file) count; a run fails only when a count *grows*. Deleting an entr
 is always safe, so the baseline shrinks on its own and only grows when somebody
 deliberately runs `--all --update-baseline`.
 
-Four scripts are deliberately excluded: `run_full_tests` and `run_related_tests`
-are test runners rather than checks, `enforce_safe_commands` guards Bash tool
-calls, and `check_migration_drift` reads the working tree — which is clean in CI,
-where the `migrations` job proves the chain applies to a real PostgreSQL instead.
+Five scripts are deliberately excluded (`EXCLUDED_CHECKS`): `run_full_tests` and
+`run_related_tests` are test runners rather than checks, `enforce_safe_commands`
+guards Bash tool calls, and `check_migration_drift` and `check_seed_coverage`
+read the working-tree diff — which is empty in CI, where the `migrations` job
+proves the chain applies and `tests/test_seed_coverage.py` runs the real seed
+instead.
 Everything else in `.claude/scripts/` runs here.
 
 ## Repository hygiene notes

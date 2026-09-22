@@ -178,7 +178,7 @@ The app is **logically multitenant**: one DB, a `tenant` FK on nearly every mode
 
 - **Repositories** scope reads and stamp writes via `application/repositories/_tenant.py`: `scoped(Match.filter(...))` for reads, `Match.create(..., tenant_id=current_tenant_id())` for writes. A direct model read in presentation/service code hand-scopes: `Tournament.get_or_none(id=x, tenant_id=require_tenant_id())`.
 - `require_tenant_id()` **raises** when no tenant is in scope — that loud failure is the safety net, not a bug to swallow. Any bot/worker/`background_tasks` path that touches scoped data must wrap it in `tenant_scope(tenant_id)` (`from application.tenant_context import tenant_scope`).
-- **Roles are per-tenant** (`UserRole.tenant`); `AuthService` checks evaluate within `get_current_tenant_id()`. `SUPER_ADMIN` is the one global role (`tenant=NULL`) and bypasses the per-tenant role gate. Gated `@protected_page`s authorize on tenant-scoped roles/tournament-admin/super-admin; role-less protected pages need only auth (no separate `TenantMembership` gate).
+- **Roles are per-tenant** (`UserRole.tenant`); `AuthService` checks evaluate within `get_current_tenant_id()`. `SUPER_ADMIN` is the one global role (`tenant=NULL`) and bypasses the per-tenant role gate. Every `@protected_page` runs the membership gate (`enforce_membership`: a non-member gets the join page; `SUPER_ADMIN` bypasses); gated ones then authorize on tenant-scoped roles/tournament-admin/super-admin.
 - When adding a tenant-scoped model: add the `tenant` FK, scope its repo, make formerly-global uniques composite with `tenant`, and add a leak test.
 
 Detail: [docs/features/multitenancy.md](docs/features/multitenancy.md).
@@ -243,7 +243,7 @@ await AuthService.get_roles(user)                   # set[Role]
 await AuthService.can_view_admin(user)              # any admin role / membership
 ```
 
-Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views). Detail: [docs/reference/authentication.md](docs/reference/authentication.md).
+Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views, `/help`, `/event-info`, `/room/{token}/seeds` and `/cat-facts`). A `@public_page` skips the membership gate. Detail: [docs/reference/authentication.md](docs/reference/authentication.md).
 
 ## NiceGUI patterns
 

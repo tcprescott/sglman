@@ -74,10 +74,11 @@ feature docs become the truth.
 
 | Doc | What it is |
 |---|---|
-| [plans/home-ux/](plans/home-ux/README.md) | Cutting the player-facing home from ten tabs to four. PR 1 (the nav restructure) has shipped; PR 2 — the join page's public preview, and a token-reachable seeds view for the tournament-room PC — is planned and not started |
+| [plans/home-ux/](plans/home-ux/README.md) | Cutting the player-facing home from ten tabs to four. Both PRs have shipped — PR 1 (the nav restructure) and PR 2 (the join page's public preview, and the token-reachable `/room/{token}/seeds` view for the tournament-room PC); the directory remains as a design record due for deletion |
 | [plans/match-runner/](plans/match-runner/README.md) | Making "how a match is run" a first-class type instead of a scattered `is_racetime` boolean, so a third race-management system can be added without touching sixteen call sites |
 | [plans/4-mmr-seedgen.md](plans/4-mmr-seedgen.md), [plans/5-wwr-seedgen.md](plans/5-wwr-seedgen.md) | Not plans — research notes on the two registered seed-generator stubs (`mmr`, `wwr`), how each was rolled by hand at SGL25, and what promoting it would cost. Read the relevant one before starting either |
 | [plans/pre-event-validation/](plans/pre-event-validation/README.md) | The manual test plan for everything the mocks and `/ui-validation` cannot reach — live Discord, real randomizers, racetime, push on real phones, PostgreSQL concurrency, deployment and load — plus the day-of runbook. Delete after the October event |
+| [plans/sahasrahbot-lessons/](plans/sahasrahbot-lessons/README.md) | Status tracker for the seven findings in [reviews/sahasrahbot-lessons.md](reviews/sahasrahbot-lessons.md): which shipped (the seed-provider envelope, seed provenance, abandoned-run expiry, racetime token refresh, config prerequisites) and why the rest are still open |
 | [reviews/](reviews/README.md) | UX evaluations, one flow each, measured against the running app — with the cross-cutting themes that recur across them |
 
 ## Conventions for this directory
