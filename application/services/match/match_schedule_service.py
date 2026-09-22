@@ -34,6 +34,7 @@ from application.services.match._schedule_notifications import MatchNotification
 from application.services.match.match_hard_preset_service import MatchHardPresetService
 from application.services.match.match_status import has_recorded_result
 from application.services.seedgen_service import SeedGenerationService
+from application.services.triforce_text_service import TriforceTextService
 from application.tenant_context import require_tenant_id
 from application.utils.discord_embeds import (
     COLOR_CHECKED_IN,
@@ -384,8 +385,12 @@ class MatchScheduleService(MatchNotificationMixin):
                 # Generate the seed. A keyed randomizer resolves this community's
                 # own credential inside the generator and raises when it is not
                 # configured; that surfaces below as "Error generating seed: …".
+                triforce_text = None
+                if self.seedgen_service.supports_triforce_texts(randomizer):
+                    triforce_text = await TriforceTextService().get_balanced_text(match.tournament)
+
                 call = await self.seedgen_service.generate_seed_call(
-                    randomizer, preset, surface='match',
+                    randomizer, preset, surface='match', triforce_text=triforce_text,
                 )
                 seed_url = call.value.url
 

@@ -143,6 +143,22 @@ class TestGenerateSeedPreset:
         settings = gen.await_args.kwargs['settings']
         assert isinstance(settings, dict) and settings
 
+    async def test_alttpr_embeds_triforce_text_without_touching_the_preset(self, service):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        preset = SimpleNamespace(randomizer='alttpr', settings={'mode': 'open'})
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/tf'))
+        with patch('application.services.seedgen_service.ALTTPR.generate', gen):
+            call = await service.generate_seed_call('alttpr', preset, triforce_text='hello')
+
+        sent = gen.await_args.kwargs['settings']
+        assert sent['texts']['end_triforce'] == '{NOBORDER}\nhello'
+        assert sent['mode'] == 'open'
+        # The snapshot records the text; the shared preset row does not keep it.
+        assert call.value.settings['texts']['end_triforce'] == '{NOBORDER}\nhello'
+        assert preset.settings == {'mode': 'open'}
+
 
 # ---------------------------------------------------------------------------
 # generate_seed — MOCK_SEEDGEN short-circuit (no network for any randomizer)

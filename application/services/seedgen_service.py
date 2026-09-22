@@ -7,6 +7,7 @@ Registers not-yet-implemented stubs: MMR, SMDASH, WWR.
 """
 
 import asyncio
+import copy
 import json
 import random
 import secrets
@@ -31,7 +32,6 @@ from application.services._seedgen_types import (
     RemotePreset,
     RolledSeed,
 )
-from application.tenant_context import require_tenant_id
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
 from application.utils.seed_provider import (
     PROVIDER_MAX_ATTEMPTS,
@@ -201,6 +201,7 @@ class SeedGenerationService(DK64RBackend):
         preset: Optional[Preset] = None,
         *,
         surface: Optional[str] = None,
+        triforce_text: Optional[str] = None,
     ) -> ProviderCall:
         """Roll a seed under the provider contract, returning it with its cost.
 
@@ -209,6 +210,9 @@ class SeedGenerationService(DK64RBackend):
         :class:`RolledSeed` (permalink + settings as sent) plus the attempt count
         and latency, which is what a ``GeneratedSeeds`` row records. Prefer this
         over :meth:`generate_seed` anywhere the roll is persisted.
+
+        ``triforce_text`` is embedded as the end-game text by the randomizers in
+        ``TRIFORCE_TEXT_RANDOMIZERS`` and ignored by the rest.
         """
         generator_map = {
             'alttpr': self._generate_alttpr,
@@ -237,7 +241,10 @@ class SeedGenerationService(DK64RBackend):
             )
 
         generator = generator_map[randomizer]
-        if randomizer in self.PRESET_AWARE_RANDOMIZERS:
+        if randomizer in self.TRIFORCE_TEXT_RANDOMIZERS:
+            def _run():
+                return generator(preset, triforce_text=triforce_text)
+        elif randomizer in self.PRESET_AWARE_RANDOMIZERS:
             def _run():
                 return generator(preset)
         else:
@@ -258,19 +265,28 @@ class SeedGenerationService(DK64RBackend):
         """A believable, unique permalink for MOCK_SEEDGEN mode."""
         return f"https://mock.seedgen.local/{randomizer}/{secrets.token_hex(8)}"
 
-    async def _generate_alttpr(self, preset: Optional[Preset] = None) -> RolledSeed:
+    async def _generate_alttpr(
+        self,
+        preset: Optional[Preset] = None,
+        *,
+        triforce_text: Optional[str] = None,
+    ) -> RolledSeed:
         """
         Generate an A Link to the Past Randomizer seed.
 
         Uses ``preset.settings`` when a preset is supplied; otherwise falls back
-        to the built-in ``casualboots`` settings (the historical default).
+        to the built-in ``casualboots`` settings (the historical default). A
+        ``triforce_text`` becomes the end-game text of this roll only.
         """
         if preset is not None:
-            settings = preset.settings
+            settings = copy.deepcopy(preset.settings)
         else:
             settings = yaml.safe_load(
                 await _read_bundled_preset("presets/alttpr/casualboots.yaml")
             )['settings']
+
+        if triforce_text:
+            settings.setdefault('texts', {})['end_triforce'] = "{NOBORDER}\n" + triforce_text
 
         seed = await ALTTPR.generate(
             settings=settings,
@@ -278,44 +294,6 @@ class SeedGenerationService(DK64RBackend):
         )
         return RolledSeed(url=seed.url, settings=settings)
 
-    async def generate_alttpr_for_tournament(
-        self,
-        tournament_id: int,
-        balanced: bool = True,
-    ) -> str:
-        """Generate an ALTTPR seed with a community triforce text embedded.
-
-        Selects an approved text from the tournament's pool (balanced by
-        default so every submitter is weighted equally). Falls back to a
-        plain seed when no approved texts exist.
-        """
-        from application.services.triforce_text_service import TriforceTextService
-        from models import Tournament
-
-        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
-        if tournament is None:
-            raise ValueError(f"Tournament {tournament_id} not found.")
-
-        preset = yaml.safe_load(
-            await _read_bundled_preset("presets/alttpr/casualboots.yaml")
-        )
-
-        service = TriforceTextService()
-        text = (
-            await service.get_balanced_text(tournament)
-            if balanced
-            else await service.get_random_text(tournament)
-        )
-        if text:
-            preset.setdefault('settings', {}).setdefault('texts', {})
-            preset['settings']['texts']['end_triforce'] = "{NOBORDER}\n" + text
-
-        seed = await ALTTPR.generate(
-            settings=preset['settings'],
-            endpoint='/api/customizer',
-        )
-        return seed.url
-    
     async def _generate_ff1r(self) -> RolledSeed:
         """
         Generate a Final Fantasy 1 Randomizer seed.

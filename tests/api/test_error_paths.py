@@ -400,7 +400,7 @@ class TestGenerateSeed:
         from application.services.seedgen_service import RolledSeed
         from application.utils.seed_provider import ProviderCall
 
-        async def _fake_generate_seed_call(self, randomizer, preset=None, *, surface=None):
+        async def _fake_generate_seed_call(self, randomizer, preset=None, *, surface=None, triforce_text=None):
             return ProviderCall(
                 value=RolledSeed(url='https://example.com/generated-seed'),
                 provider=randomizer, operation='generate_seed', surface=surface,
