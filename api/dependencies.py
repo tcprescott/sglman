@@ -141,7 +141,7 @@ async def require_write_actor(
 
 
 async def require_admin(actor: User = Depends(require_api_actor)) -> User:
-    """Authenticated user who can view the admin area (any global role or
+    """Authenticated user who can view the admin area (any admin role in this community or
     tournament admin/crew-coordinator membership)."""
     await AuthService.ensure(
         await AuthService.can_view_admin(actor), "Admin access required"
@@ -150,7 +150,7 @@ async def require_admin(actor: User = Depends(require_api_actor)) -> User:
 
 
 async def require_staff(actor: User = Depends(require_api_actor)) -> User:
-    """Authenticated user holding the global STAFF role."""
+    """Authenticated user holding STAFF in this community (or a super-admin)."""
     await AuthService.ensure(
         await AuthService.is_staff(actor), "Staff access required"
     )

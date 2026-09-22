@@ -152,7 +152,7 @@ async def update_user_tournaments(
     return {"detail": "Enrollments updated"}
 
 
-@router.post("/{user_id}/roles", summary="Grant a global role (Staff only)")
+@router.post("/{user_id}/roles", summary="Grant a community role (Staff only)")
 async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(require_write_actor)):
     target = await load_user_or_404(user_id)
     await UserService().grant_role(target, body.role, actor=actor)
@@ -162,7 +162,7 @@ async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(requ
 @router.delete(
     "/{user_id}/roles/{role}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Revoke a global role (Staff only)",
+    summary="Revoke a community role (Staff only)",
 )
 async def revoke_role(user_id: int, role: Role, actor: User = Depends(require_write_actor)):
     target = await load_user_or_404(user_id)

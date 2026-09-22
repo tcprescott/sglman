@@ -122,7 +122,7 @@ class RescheduleNotificationMixin:
         """Everyone who could actually answer this: STAFF ∪ the tournament's admins.
 
         ``_decidable`` gates on ``can_crud_match``, which admits the tournament's
-        own admin as well as global staff. DMing only STAFF meant that in a
+        own admin as well as the community's staff. DMing only STAFF meant that in a
         community where a tournament is run by a TA, nobody who owns it was told
         a request existed — it surfaced only if someone happened to open the
         board.

@@ -20,7 +20,7 @@ class UserListItem(BaseModel):
 
 
 class UserDetailResponse(UserListItem):
-    """Full user representation, including held global roles."""
+    """Full user representation, including the roles held in this community."""
 
     dm_notifications: bool
     roles: List[str] = []
