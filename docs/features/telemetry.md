@@ -18,8 +18,9 @@ Every row is one `TelemetryEvent` (append-only; see the
 
 | Column | Meaning |
 |---|---|
+| `tenant` | nullable FK (`SET_NULL`), stamped from the ambient tenant at write time — the event's tenant for domain rows, the page's for page views. `NULL` marks a platform-level row |
 | `category` | `page` (a page load), `interaction` (a curated UI action), or `domain` (a bus event) |
-| `event_type` | `page.view`, `report.viewed`, `report.exported`, or the `EventType` string for domain rows |
+| `event_type` | `page.view`, `report.viewed`, `table.preferences_saved` / `table.preferences_reset` / `table.preferences_reset_all`, or the `EventType` string for domain rows. `TelemetryEventType.REPORT_EXPORTED` (`report.exported`) is declared but nothing emits it yet |
 | `path` | the route/report the event happened on (null for domain events) |
 | `session_id` | the NiceGUI `app.storage.browser` id — lets a single user's activity be reconstructed as an ordered session |
 | `user` | resolved actor FK (`SET_NULL`); `username` is also snapshotted into `details` so attribution survives a user deletion |
@@ -45,16 +46,25 @@ honor the `TELEMETRY_ENABLED` kill-switch.
 2. **Page views** — the shared `protected_page` / `public_page` wrapper
    ([`middleware/auth.py`](../../middleware/auth.py)) records a `page.view` per
    page load, reading the session identity + browser id during page building and
-   handing the write to `background_tasks.create`. `protected_page` rows always
-   carry a user (`AuthMiddleware` redirects anyone else first); `public_page` rows
-   — the bracket views — may have a null `user`/`username` and are attributed to
-   `session_id` alone.
-3. **Interactions** — presentation code calls `TelemetryService.track_interaction`
-   for specific high-value actions. Currently wired: `report.viewed` in the
+   handing the write to `background_tasks.create` (rebound to the page's tenant
+   so the row is tenant-stamped). `protected_page` rows always carry a user
+   (`AuthMiddleware` redirects anyone else first); `public_page` rows — the
+   bracket views, `/help`, `/event-info`, `/cat-facts`, the room-seeds board —
+   may have a null `user`/`username` and are attributed to `session_id` alone.
+   Page params are bounded (15 keys, 120 chars each), and any param whose name
+   contains `token`, `secret`, `password` or `code` is stored as `[redacted]`
+   (`_tracked_params`). A route can record under a different path with
+   `telemetry_path=` — the room-seeds board records `/room/seeds` so the token
+   never lands in `path`. Routes registered with a bare `@ui.page` — home (`/`,
+   `/home/*`), `/platform`, the auth and OAuth pages, the MCP consent screen —
+   bypass the wrapper and record no page view.
+3. **Interactions** — `TelemetryService.track_interaction` is called for
+   specific high-value actions. Currently wired: `report.viewed` in the
    reports dispatcher (fired only for an explicit `?report=` so a plain `/admin`
-   load — where all tab panels render eagerly — does not manufacture a view).
-   To add another, call `track_interaction(event_type=…, path=…, discord_id=…,
-   session_id=…)` from the presentation layer, reading identity from
+   load does not manufacture a view), and the three `table.preferences_*`
+   events from `TablePreferenceService` when a viewer saves or resets a table
+   layout (`details` carries the `table_key`). To add another, call
+   `track_interaction(event_type=…, path=…, discord_id=…, session_id=…)` from the presentation layer, reading identity from
    `app.storage`.
 
 Telemetry has its own table rather than reusing either neighbour: `EventType.ALL`
@@ -75,6 +85,12 @@ selected date window:
   events, most-active users (with distinct sessions; click to filter).
 - **Raw event log** — filterable (category, path substring, user) and
   server-paginated, with expandable JSON details and CSV export.
+
+Reads are scoped to the current tenant in `TelemetryRepository` (`NULL`
+outside one, so the platform sees only platform rows). The same Staff-gated
+summary and leaderboards are exposed over REST (`GET /api/telemetry/summary`,
+`GET /api/telemetry/top?dimension=…`) and as the MCP tools `telemetry_summary`
+and `telemetry_top`.
 
 Aggregations run in the database (`GROUP BY` / `COUNT DISTINCT` via
 `TelemetryRepository`), never by loading the table into memory.
