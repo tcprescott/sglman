@@ -1,7 +1,7 @@
 # Current State
 
 Living status snapshot. Feature *behaviour* is documented in
-[docs/features/](README.md#feature-reference-docsfeatures); this page is only what
+[docs/features/](README.md#features-features); this page is only what
 works, what is deliberately unfinished, and what is known-broken. Start at the
 [documentation index](README.md).
 
@@ -30,24 +30,25 @@ Everything listed is **stable in production** unless marked otherwise.
 
 ## Known issues
 
-- **Three hand-rolled `write_log` + `event_bus.publish` pairs remain**, each for a
-  reason converting would break (see [event-system](features/event-system.md#the-three-remaining-hand-rolled-pairs)):
-  `CrewService.set_approval` and `CrewService.acknowledge` audit *inside* an
-  `in_transaction()` block while publishing outside it, and
+- **Hand-rolled `write_log` + `event_bus.publish` pairs remain.** Three are kept
+  for a reason converting would break (see [event-system](features/event-system.md#the-remaining-hand-rolled-pairs)):
+  `CrewService.update_crew_approval` and `CrewService.acknowledge_crew_assignment`
+  audit *inside* an `in_transaction()` block while publishing outside it, and
   `VolunteerScheduleService.assign` audits unconditionally but publishes only for
-  a non-draft assignment. The other 20 were converted; the test-shape problem that
-  had blocked them is fixed by `tests.factories.make_audit_double`, whose
+  a non-draft assignment. `MatchService.create_match` and `update_match` also
+  still pair them by hand, with the scheduling notifications in between. The
+  rest were converted; the test-shape problem that had blocked them is fixed by `tests.factories.make_audit_double`, whose
   `write_and_publish` runs its real body against a mocked `write_log`, so a
   converted service still publishes under test.
 - **All mobile and dark-mode verification is emulated** (Playwright at 390×844 / 360×800 via `/ui-validation`); no physical-device pass has run. Specifically unverified on real hardware: the NiceGUI WebSocket lifecycle across screen lock / backgrounding / resume, and the native `type=date` / `type=time` pickers.
 - **A restart signs every user out unless `NICEGUI_REDIS_URL` is set.** `app.storage.user` defaults to a file under `.nicegui/` inside the container, which goes wherever the container goes. Compose now runs a Redis and points the app at it, and a production boot without it logs a warning — but the deployment has to actually set it. This is the one item on the [single-worker list](scaling-roadmap.md#uvicorn---workers-n-is-not-the-goal) that configuration alone fixes; the other fifteen still pin the app to one process.
-- **Report filter changes trigger a full page reload** — `navigate_with_params` (`pages/admin_tabs/reports/shared.py`) calls `ui.navigate.to`, and all eight report pages route their filter handlers through it. Deferred: the fix means wrapping six report bodies in `@ui.refreshable` and swapping to `history.replace`, and the reward is modest against the regression risk on an admin-only surface that works. Measured (dev box, seeded `default`, one date-filter change instrumented from the change event to the row set rendering): **~1.2 s on crew and ~1.4 s on telemetry, one frame navigation, 29 HTTP requests.** It no longer costs the operator their place: `static/js/report-nav.js` records the scroll position per report and restores it on the next render of the same one (before: `scrollY 600 → 0` on both).
+- **Report filter changes trigger a full page reload** — `navigate_with_params` (`pages/admin_tabs/reports/shared.py`) calls `ui.navigate.to`, and all nine report pages route their filter handlers through it. Deferred: the fix means wrapping six report bodies in `@ui.refreshable` and swapping to `history.replace`, and the reward is modest against the regression risk on an admin-only surface that works. Measured (dev box, seeded `default`, one date-filter change instrumented from the change event to the row set rendering): **~1.2 s on crew and ~1.4 s on telemetry, one frame navigation, 29 HTTP requests.** It no longer costs the operator their place: `static/js/report-nav.js` records the scroll position per report and restores it on the next render of the same one (before: `scrollY 600 → 0` on both).
 
 ## Deliberately deferred
 
 Recorded so they read as decisions rather than gaps:
 
-- **In-app help covers the non-staff surfaces only.** The nine `/help` articles
+- **In-app help covers the non-staff surfaces only.** The ten `/help` articles
   are written for players, crew, volunteers and proctors; staff actions appear
   only from the outside ("staff approve your signup"). Admin → Schedule and every
   admin tab have no article and no help icons — a deliberate scope call, not an
@@ -111,7 +112,7 @@ Deliberately uncovered (each needs live infra): the Discord bot handlers, NiceGU
 rendering, the OAuth flow, and the network-backed clients. See
 [development](development.md).
 
-Four checks run alongside it in CI, each covering something the suite cannot:
+Five checks run alongside it in CI, each covering something the suite cannot:
 
 | Check | What it catches |
 |---|---|

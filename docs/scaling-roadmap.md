@@ -51,10 +51,10 @@ N>1 rather than merely duplicating work:
 | OAuth handoff nonce store | mint on A, claim on B → login fails; single-use stops being globally enforced |
 | Per-match seed lock | two processes roll a seed for the same match, last-writer-wins |
 | NiceGUI element trees + socket.io | no cross-process client manager |
-| `app.storage.user` | fixable — NiceGUI 3.12 ships `NICEGUI_REDIS_URL` → `RedisPersistentDict` |
+| `app.storage.user` | fixable by configuration — NiceGUI 3.12 ships `NICEGUI_REDIS_URL` → `RedisPersistentDict`; compose now runs a `redis` service and sets it, and `validate_session_storage()` refuses an unreachable one at boot |
 | ~~`aerich upgrade()` at boot~~ | **done** — `application/utils/migration_lock.py` wraps the upgrade in a `pg_advisory_lock` on a dedicated connection, built to the shape this document specifies below (own connection, own constant, no-op on SQLite). It was worth doing ahead of the rest: at one replica the race is still reachable through an overlapping deploy or a fast crash-loop, and a half-applied migration is the one failure here that damages data rather than degrading behaviour |
 
-The rest duplicate or degrade: the Discord gateway, racetime connections, the five
+The rest duplicate or degrade: the Discord gateway, racetime connections, the eight
 `BackgroundLoop` workers, the DM and dispatch queues, the API rate limiter
 (effective limit becomes N × configured), the service-health cache (N alert DMs per
 transition), and the tenant caches.
@@ -68,14 +68,14 @@ with a perf payoff, verifiable only via `/ui-validation` since slot templates ar
 invisible to pytest); the Schedule tab's query fan-out (prefetch in
 `MatchRepository`/`MATCH_PREFETCH`, not in the view); shell cost (`render_chrome`
 ≈14 %, of which `_render_drawer` ≈9 % — one `q-item` per tab, 24 on admin, paid by
-every page); and a queries-per-render regression guard.
+every page). The queries-per-render regression guard has shipped (`tests/test_query_budget.py`, [below](#measurement-discipline)).
 
 **Phase 2 — singleton ownership.** Buys no capacity; prerequisite for 3 and 4.
 "Fail fast if `workers>1`" cannot be implemented as written — a forked child cannot
 read its own worker count and uvicorn's `--workers` does not set `WEB_CONCURRENCY`,
 so there is no in-process value to assert on. The implementable equivalent asserts
 what is actually cared about: on startup take `pg_try_advisory_lock(<constant>)`;
-lock acquired ⇒ leader, start the Discord gateway, racetime runtime and the five
+lock acquired ⇒ leader, start the Discord gateway, racetime runtime and the eight
 workers; refused ⇒ follower, log a WARNING naming what it is skipping and start
 nothing, but **stay up as a warm standby**. Postgres is already a hard dependency.
 
@@ -123,8 +123,8 @@ NiceGUI does not wire up, so **if the deployment target cannot do sticky session
 this phase is not viable and render cost is the only lever**. Needs
 `NICEGUI_REDIS_URL` for session storage, and shared stores for the nonce store and
 seed lock first (they fail silently and wrongly) ahead of the rate limiter and
-tenant caches (which merely degrade). Redis is the first new infrastructure in the
-whole programme.
+tenant caches (which merely degrade). Redis already runs in compose for session
+storage, so these would reuse it rather than add infrastructure.
 
 ## Measurement discipline
 
@@ -184,4 +184,4 @@ All three are answerable from data already collected:
 
 1. **What is the real arrival pattern for 500?** The plan assumes a crowd (a race goes live, a bracket is published, a Discord announcement fires) because that is the hard case. If 500 is a slow accumulation over an evening, only memory needs sizing and Phase 4 may never be needed. Answerable from telemetry page-view timestamps.
 2. **How many tabs does one viewer open?** 500 connections is not 500 people if spectators keep the bracket and schedule side by side; this changes the sizing denominator.
-3. **Is Redis acceptable?** Required for shared session storage and the cleanest answer for the shared nonce and rate-limiter stores. If not, the ceiling is one web replica.
+3. **Is Redis acceptable in the real deployment?** Compose already runs it for session storage; the question is whether production does too. It is the cleanest answer for the shared nonce and rate-limiter stores. If not, the ceiling is one web replica.

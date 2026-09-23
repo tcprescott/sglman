@@ -106,7 +106,8 @@ All users share one asyncio loop, so a single blocking call freezes the app.
 - **Presentation only** (`pages/`, `theme/`, `frontend.py`): `asyncio.create_task(...)` / `ensure_future(...)` (→ `background_tasks.create(...)`). The Discord bot uses raw asyncio legitimately, so it's not checked here.
 
 ### Timezone safety — `scripts/enforce_datetime_safety.py` (PreToolUse: Write|Edit)
-All datetimes are stored in UTC and shown in US/Eastern, so a tz-naive value
+All datetimes are stored in UTC and shown on a per-request local clock (see
+[`docs/timezone-handling.md`](../docs/timezone-handling.md)), so a tz-naive value
 breaks the invariant. Content regex (like `enforce_async_safety.py`):
 
 - Blocked: `datetime.utcnow(...)` (always tz-naive) and **naive** `datetime.now()` /
@@ -316,6 +317,8 @@ removed, each message naming the shared primitive that replaced the shape:
 | literal truthy-env comparison | `env_flag(name)` (`environment.py`) | §3.2 |
 | `while True:` + `asyncio.sleep` in a service | `run_worker_loop` / `BackgroundLoop` | §2A.3 |
 | `raise NotImplementedError` in services/repos | `ValueError('… not yet implemented')` | §1.3 |
+| `write_log(...)` followed by `event_bus.publish(...)` in a service | `audit_service.write_and_publish(...)` | — |
+| a private `_audit_and_emit`/`_publish`/`_write` wrapper in a service | build the details dict, then `write_and_publish` | — |
 | local `utc`/`make_user`/`app`/`two_tenants`/`stub_discord_queue`/`bypass_auth` in a test module | `tests/factories.py` / conftest | §2D.2–2D.6 |
 | `except …PermissionError…:` + amber `ui.notify` in `pages/`/`theme/` | `notify_error(e)` (`theme/notify.py`) — a refusal shows red | §T4.4 |
 
@@ -645,19 +648,23 @@ entered by a route no diff covers. `scripts/guardrail_baseline.json` records
 accepted pre-existing hits per (check, file) so a run fails only when a count
 *grows*.
 
-Four scripts are deliberately not replayed, named with their reason in the
+Five scripts are deliberately not replayed, named with their reason in the
 runner's `EXCLUDED_CHECKS`: the two test runners, `enforce_safe_commands` (it
-guards Bash calls, which have no CI analogue), and `check_migration_drift` (it
-reads the working tree, clean in CI, where the `migrations` job proves the chain
-applies instead). `tests/test_guardrail_ci_parity.py` holds that line: every
+guards Bash calls, which have no CI analogue), and `check_migration_drift` and
+`check_seed_coverage` (both read the working-tree diff, empty in CI, where the
+`migrations` job proves the chain applies and `tests/test_seed_coverage.py` runs
+the real seed instead). `tests/test_guardrail_ci_parity.py` holds that line: every
 script here must be replayed or excluded-with-a-reason, and must be wired in
 `settings.json`. Without it a new check binds one author on one tool and nothing
 goes red — which is how `check_fixture_cost` sat out of CI for a while.
 
 ### Pre-existing doc automation — `hooks/*.sh`
-Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
-coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
-`doc-check.sh` runs at Stop. All three take `$REPO` from `hooks/_repo.sh`; being
+Not guardrails (advisory, never block): `install-deps.sh` runs `poetry sync` at
+session start on Claude Code on the web only (`CLAUDE_CODE_REMOTE=true`), so
+tests and the app run from the first turn; `session-start.sh` audits
+source-vs-doc coverage at session start; `doc-reminder.sh` nudges to update docs
+after edits; `doc-check.sh` runs at Stop. All four take `$REPO` from
+`hooks/_repo.sh`; being
 advisory, a bad root would have degraded them to silence rather than an error.
 
 ---

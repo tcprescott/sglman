@@ -73,6 +73,23 @@ another community's events. The reconciler's working set is only *this tenant's 
 from this tenant's link table belongs to someone else and is left untouched. Same
 isolation `DiscordRoleMapping.tenant` already gives role sync.
 
+## Background workers
+
+The five features run largely off timers, not requests. Each worker is a
+`run_worker_loop` module started from `main.py`'s lifespan; each item's work runs in
+its own `tenant_scope`, and a disabled feature is skipped per tenant rather than
+raising.
+
+| Worker | Tick | Started when | Per-tenant gate |
+|---|---|---|---|
+| `race_room_worker` — auto-opens racetime rooms `room_open_minutes_before` a match (opt-in via `racetime_auto_create_rooms`; later best-of-N games held until the earlier one ends) | 60s | `RACETIME_BOT_ENABLED` | `RACETIME_ROOMS` (in `RaceRoomService.auto_open_if_eligible`) |
+| `speedgaming_sync_worker` — runs the SG ETL for each active `SpeedGamingEventLink` on its `sync_interval_minutes` (default 15) | 60s | `SPEEDGAMING_SYNC_ENABLED` | `SPEEDGAMING_ETL` |
+| `discord_event_worker` — reconciles opted-in tournaments into linked guilds' Scheduled Events | 300s | `DISCORD_EVENTS_SYNC_ENABLED` | — |
+| `async_qualifier_worker` — warns then forfeits abandoned runs, sweeps stale review claims, sends backlog DMs, publishes window crossings | 60s | always | `ASYNC_QUALIFIERS` |
+| `seed_roll_worker` — polls task-queue seed rolls (`ProviderTask`); see [seed generation](../reference/seed-generation.md#asynchronous-rolls) | 5s | always | — |
+
+Workers act as the system user described above.
+
 ## Migrating a community off SahasrahBot
 
 These are one-way doors:

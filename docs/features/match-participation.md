@@ -59,9 +59,12 @@ the approval confirmation names what it found. Approval used to be decided from
 a dialog showing one line — the person's name — and no conflict check existed
 anywhere in the crew path.
 
-The REST crew endpoints return only `approved=True` rows — enforced by a Pydantic
-validator, so an unapproved signup is never exposed. Signup, approval and undo all
-audit through `AuditActions.CREW_SIGNUP_CREATED` / `CREW_APPROVAL_CHANGED`.
+`GET /matches/{id}` returns only `approved=True` crew — `serialize_match` in
+`api/_match_view.py` drops the rest, so an unapproved signup never leaks through the
+ordinary match read. The pending list is `GET /matches/{id}/crew`, behind
+`require_admin`. Signup, undo, approval and acknowledgment audit through
+`AuditActions.CREW_SIGNUP_CREATED` / `CREW_SIGNUP_REMOVED` / `CREW_APPROVAL_CHANGED` /
+`CREW_ACKNOWLEDGED`, each with the matching `crew.*` event.
 
 **A tournament can opt out of a role.** `Tournament.required_commentators` /
 `required_trackers` (Tournament edit → Entry & administration → Stream crew)
@@ -275,7 +278,7 @@ never stuck with a request they cannot unsay. Both directions audit
 (`match.stream_volunteered` / `match.stream_volunteer_withdrawn`) and publish the
 matching domain events.
 
-**Where it appears.** The player's own board (Home → Your Schedule) carries a
+**Where it appears.** The player's own board (Home → My Schedule) carries a
 `Stream` column beside `Watch`: a `videocam` toggle for a player in that match,
 and a count chip for anyone else. The mobile card carries a labelled *Offer for
 stream* button in its actions row and names the volunteers under the Stage line.
@@ -388,7 +391,7 @@ roster its owner never saw.
 
 | Surface | What it shows |
 |---|---|
-| Player board (Home → Your Schedule) | A `Settings` column: a `bolt` toggle for a player in the match, a `gavel` chip when staff overrode it, and the preset name once the match has rolled it. Renders nothing at all when the tournament offers no hard preset. |
+| Player board (Home → My Schedule) | A `Settings` column: a `bolt` toggle for a player in the match, a `gavel` chip when staff overrode it, and the preset name once the match has rolled it. Renders nothing at all when the tournament offers no hard preset. |
 | Mobile card | A labelled button in the actions row — *Harder settings*, *Opted in — waiting*, or *Playing &lt;preset&gt;*. |
 | `HardPresetDialog` | The explanation and the two buttons. A dialog rather than a bare toggle: a switch whose effect depends on an answer you are not allowed to see needs a sentence before it is flipped. Opened by the board cell, by `?hard=<match_id>`, and by the DM's link button. |
 | Discord | An offer DM when the match is scheduled, carrying **one** button chosen from the reader's own answer (*Play the harder preset* or *Back out*) — the only DM in the app whose button differs per recipient. Replies are ephemeral. Agreement, breakage and staff overrides each get their own DM to the whole match. The link button follows what the reader can still do: *Choose your settings* while the choice is theirs, *View your match* once staff have forced it. |
@@ -452,7 +455,7 @@ it were everyone's.
 
 | Who | Where | What it carries |
 |---|---|---|
-| The player | Home → Player, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
+| The player | Home → My Schedule, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
 | Staff | Admin → Schedule, the reschedule strip | *"2 reschedule requests waiting"* plus the first few named individually, each opening the decision dialog |
 
 The strip is **live**. Submitting, withdrawing, agreeing and declining all
@@ -508,10 +511,11 @@ community sets per tournament.
 
 | Model | Holds |
 |---|---|
-| `Commentator`, `Tracker` | crew signups; `approved` bool, `acknowledged_at` timestamp |
+| `Commentator`, `Tracker` | crew signups; `approved` bool, `approved_by` (SET_NULL), `acknowledged_at` timestamp |
 | `MatchAcknowledgment` | per-player acknowledgment state per match |
 | `MatchWatcher` | user × match watch subscriptions |
 | `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
+| `MatchStreamVolunteer` | one player's offer to have their match streamed; advisory, never the decision |
 | `MatchRescheduleRequest` | a player's ask to move or cancel a match; kind, proposed time, reason, status, and staff's decision |
 | `MatchHardPresetOptIn` | one player's private agreement to the tournament's harder preset; unanimity is derived from the set, never stored |
 

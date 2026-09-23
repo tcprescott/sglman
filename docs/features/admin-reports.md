@@ -19,6 +19,17 @@ date-range/tournament filters, the export button and the URL-param navigation.
 | Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
 | Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
 
+The **Reports** tab is shown to staff, tournament admins and crew coordinators
+(`pages/admin.py`); individual reports apply their own checks (Telemetry is
+Staff-only). A report behind a flag (`_REPORT_FEATURES` — today only
+`volunteers` → `VOLUNTEERS`) falls back to the dashboard when the flag is off.
+Opening a specific report records a `report.viewed` telemetry interaction. The
+same aggregations are reachable outside the page: REST under `/api/reports`
+(`/capacity-forecast`, `/stage-utilization`, `/match-operations`,
+`/crew-coverage`, `/matches-active-at`, `/tournament-health`,
+`/crew-participation-trends`, `/activity-trends`, `/volunteer-hour-trends`) and
+the matching read-only MCP tools.
+
 ## What "covered" means
 
 The crew-coverage report's **gap** flag and the tournament-health score's
@@ -40,8 +51,10 @@ match. A match with no tournament falls back to the defaults.
 that already owns the action, with that surface's own authorization, rather than
 duplicating a mutation into a read-only page. The admin tabs a report can link
 to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
-`?day=` — and every URL is built by `admin_url` in
-[`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py).
+`?day=` — and every URL is built by `admin_url`, re-exported for pages from
+[`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py) (the builders live in
+[`application/utils/app_links.py`](../../application/utils/app_links.py) so
+notifications can address the same routes).
 
 | Report | Row control leads to |
 |---|---|
@@ -70,7 +83,7 @@ subsystem call its owner (`VolunteerScheduleService`, `TelemetryService`,
 `AuditService`).
 
 **CSV exports escape formula injection.** `application/utils/csv_export.py`
-prefixes any cell starting with `=`, `+`, `-` or `@`; numerics are left alone
+prefixes a `'` to any cell whose first non-whitespace character is `=`, `+`, `-` or `@`; numerics are left alone
 (safe and expected in CSV). Covered by `tests/test_csv_export.py`.
 
 **Adding a report:** create `reports/my_report.py` rendering inside

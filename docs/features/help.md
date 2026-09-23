@@ -164,8 +164,8 @@ restores margin collapsing and lets the tuned margins set the rhythm. The
 article's copy is additionally capped at `56ch` (~80 characters) so a paragraph
 does not track the full width of a desktop monitor.
 
-**Entry point: the drawer.** The Help item sits above Feedback and is *not*
-gated on `self.user`, so a signed-out visitor on any framed public surface can
+**Entry point: the drawer.** The Help item sits below Event Information (when
+that flag is live) and above Feedback, and is *not* gated on `self.user`, so a signed-out visitor on any framed public surface can
 reach it. The real `/login` is a bare redirect to Discord with no page to hang a
 link on — the drawer is the way in.
 
@@ -195,12 +195,16 @@ their question.
 
 Wired at: Home → Event → Schedule (columns + states), My Schedule (crew
 statuses + approval + withdrawing; matches overview + check-in + the room +
-stages; availability), Profile → Notifications; the Submit Match dialog and its Suggest a time button;
+stages; availability — through the `help_topics=` of each
+[section panel](../reference/frontend.md#section-panels-themesectionpy)),
+Tournaments, Profile → Notifications; the player's match-request dialog and the
+Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result
 dialog's review flag; Home → On Air; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
-data.
+data (only the Volunteer tab passes one — Home's copy sits inside a section panel
+that already carries `player-availability`).
 
 ## Tests
 

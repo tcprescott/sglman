@@ -31,9 +31,13 @@ the real product is what surfaces truncation, wrapping and empty-column bugs.
 Two bars, both mechanical:
 
 - **Every tenant-scoped model** has at least one row for the default tenant.
-  Exempt a model in `EXEMPT` with a reason if it genuinely cannot be seeded
-  (`McpAuthorizationCode` — minted mid-flow and consumed seconds later — is the
-  shape that qualifies).
+  Exempt a model in `EXEMPT` with a reason if it genuinely cannot be seeded; the
+  dict is currently empty. A *new* model of any kind (global ones too) must also
+  be named in some `scripts/seed_*.py`, which the `check_seed_coverage.py` hook
+  checks at Stop — a model that cannot be seeded carries a
+  `# seed-exempt: Model — reason` comment instead. `McpAuthorizationCode` (global,
+  minted mid-flow and consumed seconds later) is the one such entry, in
+  `seed_dev.py`.
 - **Every value of every enum stored on a model** appears somewhere in the seeded
   database. Enum values are the states the schema itself names, so they are the
   set that can be checked without anyone maintaining a list. `EquipmentStatus.RETIRED`,
@@ -41,9 +45,11 @@ Two bars, both mechanical:
   bar was introduced — every one of them a state the UI renders differently.
 
 Exempt a `Model.field` in `ENUM_EXEMPT` only when seeding the missing values would
-be **wrong**, not merely awkward. The one current entry says a `DiscordRoleMapping`
-per `Role` would describe no real guild, and that mapping `SUPER_ADMIN` — a global
-role, not grantable per tenant — would be a bug.
+be **wrong**, not merely awkward. There are two entries. `DiscordRoleMapping.app_role`:
+a mapping per `Role` would describe no real guild, and mapping `SUPER_ADMIN` — a
+global role, not grantable per tenant — would be a bug. `PlayerAvailability.status`:
+player availability is opt-out, so no surface ever writes an `AVAILABLE` row
+(`VolunteerAvailability.status` covers the enum instead).
 
 Derived states that are not enums (match lifecycle, crew fully vs partly staffed,
 a roster that is empty, a title that is absent) are not mechanically checkable.
@@ -141,6 +147,7 @@ also how the files stay under the 800-line budget.
 | `seed_venue.py` | Stages, the numbered station pool, and every system-config key |
 | `seed_tokens.py` | The deterministic dev bearers and room-screen tokens, each with its revoked/read-only twin |
 | `seed_discord.py` | Guild-role mappings, both shapes, plus the grants a sync would leave behind |
+| `seed_preferences.py` | Saved table layouts (`UserTablePreference`, global) — one per shape the column reconciler handles, run beside `seed_users` rather than per tenant |
 | `seed_brackets.py`, `seed_challonge.py`, `seed_volunteers.py`, `seed_equipment.py`, `seed_observability.py`, `seed_fledgling.py` | Their namesakes |
 
 ## What the fixtures deliberately do not do

@@ -104,7 +104,7 @@ Ask whether the artifact has a single identifiable reader.
 one whose clock would be the right answer, so the community's is:
 
 - **Cached spectator pages** (`pages/static_brackets.py`) — one render, every viewer.
-- **Tournament operating hours** (`match_service._assert_within_tournament_hours`,
+- **Tournament operating hours** (`MatchService.assert_within_tournament_hours`,
   `match_suggestion_service`) — the community's rule, written in the community's
   clock. Resolving it per viewer would give two people opposite verdicts on the
   same instant.

@@ -2,25 +2,26 @@
 
 _The operations reference for deploying and running Wizzrobe: container topology, the authoritative environment-variable table, startup behavior, and runbook. Part of the [documentation index](README.md)._
 
-Wizzrobe ships as a single application container plus PostgreSQL, orchestrated by [`docker-compose.yml`](../docker-compose.yml). This page documents the current setup and operations.
+Wizzrobe ships as a single application container plus PostgreSQL and a Redis session store, orchestrated by [`docker-compose.yml`](../docker-compose.yml). This page documents the current setup and operations.
 
 ## Topology
 
-[`docker-compose.yml`](../docker-compose.yml) defines two services and one named volume:
+[`docker-compose.yml`](../docker-compose.yml) defines three services and two named volumes:
 
 ```
                         host :8000
                             │
 ┌───────────────────────────▼───────────────────────────────┐
-│ wizzrobe      build: . → image wizzrobe:latest                │
+│ wizzrobe    build: . → image wizzrobe:latest              │
 │             ./start.sh prod → uvicorn main:app --workers 1│
-│             FastAPI + NiceGUI + Discord bot + DM queue    │
-└───────────────────────────┬───────────────────────────────┘
-                            │ DB_HOST=postgres:5432 (compose network only)
-┌───────────────────────────▼───────────────────────────────┐
-│ postgres    postgres:16-alpine                            │
-│             volume postgres_data → /var/lib/postgresql/data│
-└────────────────────────────────────────────────────────────┘
+│             FastAPI + NiceGUI + Discord bot + workers     │
+└──────────────┬─────────────────────────────┬──────────────┘
+               │ DB_HOST=postgres:5432       │ NICEGUI_REDIS_URL=redis://redis:6379/0
+               │ (compose network only)      │ (compose network only)
+┌──────────────▼──────────────┐ ┌────────────▼──────────────┐
+│ postgres  postgres:16-alpine│ │ redis  redis:7-alpine     │
+│ volume postgres_data        │ │ volume redis_data → /data │
+└─────────────────────────────┘ └───────────────────────────┘
 ```
 
 ### `postgres` service
@@ -35,14 +36,27 @@ Wizzrobe ships as a single application container plus PostgreSQL, orchestrated b
 | Healthcheck | `pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-wizzrobe}` — interval 5s, timeout 5s, retries 10 |
 | Restart | `unless-stopped` |
 
+### `redis` service
+
+| Setting | Value |
+|---|---|
+| Image | `redis:7-alpine` |
+| Purpose | Holds `app.storage.user`, so a redeploy does not sign everyone out |
+| Command | `redis-server --save 60 1 --appendonly no` (periodic RDB snapshot, no AOF) |
+| Ports | none published |
+| Volume | `redis_data`, mounted at `/data` |
+| Healthcheck | `redis-cli ping` — interval 5s, timeout 5s, retries 10 |
+| Restart | `unless-stopped` |
+
 ### `wizzrobe` service
 
 | Setting | Value |
 |---|---|
 | Image | built from [`Dockerfile`](../Dockerfile) (`build: .`), tagged `wizzrobe:latest` |
-| Environment | everything in `.env` via `env_file`, plus `DB_HOST=postgres` and `DB_PORT=5432` injected by compose |
+| Environment | everything in `.env` via `env_file`, plus `DB_HOST=postgres`, `DB_PORT=5432` and `NICEGUI_REDIS_URL=redis://redis:6379/0` injected by compose |
 | Ports | `8000:8000` |
-| Startup order | `depends_on: postgres: condition: service_healthy` — the app only starts after the DB healthcheck passes |
+| Startup order | `depends_on` `postgres` and `redis`, both `condition: service_healthy` — the app only starts after both healthchecks pass |
+| Healthcheck | `GET http://localhost:8000/api/health` via `python -c urllib…` — interval 30s, timeout 5s, retries 3, start period 30s |
 | Restart | `unless-stopped` |
 
 ## Container image
@@ -54,14 +68,16 @@ Wizzrobe ships as a single application container plus PostgreSQL, orchestrated b
 1. `apt-get install build-essential libpq-dev` — compiler toolchain and PostgreSQL client headers for native wheels.
 2. `COPY pyproject.toml poetry.lock` then `pip install poetry`, `poetry config virtualenvs.create false`, `poetry install --only main --no-interaction --no-ansi`. **No virtualenv** (both `poetry run …` and plain `python` work in the container) and `--only main` (no pytest/ipython in the runtime image). Lockfiles are copied first so the dependency layer stays cached until `poetry.lock` changes.
 3. `COPY . .` — application code last, so code changes do not invalidate the dependency layer.
-4. `EXPOSE 8000`; `CMD ["./start.sh", "prod"]`.
+4. Creates an unprivileged `appuser` (uid 10001), owns `/app` to it and runs as that user.
+5. `EXPOSE 8000`; a `HEALTHCHECK` polling `/api/health` (same cadence as the compose one); `CMD ["./start.sh", "prod"]`.
 
 ### GHCR publishing
 
 [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) builds and pushes the image to GitHub Container Registry:
 
 - **Triggers:** every push to `main`, and tags matching `v*`.
-- **Image:** `ghcr.io/tcprescott/wizzrobe` (registry `ghcr.io`, name taken from `github.repository`).
+- **Gate:** the `build-and-push` job `needs` a `test` job that calls [`test.yml`](../.github/workflows/test.yml) via `workflow_call`, so an image is only built once the full CI suite passes ([development.md](development.md#continuous-integration)).
+- **Image:** `ghcr.io/<owner>/<repo>` — registry `ghcr.io`, name taken from `github.repository` (currently `ghcr.io/tcprescott/sglman`).
 - **Tag scheme** (`docker/metadata-action`):
 
 | Event | Resulting tags |
@@ -71,7 +87,7 @@ Wizzrobe ships as a single application container plus PostgreSQL, orchestrated b
 
 - Authenticates with the workflow `GITHUB_TOKEN` (`packages: write`); uses the GitHub Actions build cache (`cache-from`/`cache-to: type=gha`). No `platforms` are specified, so the image is built for the runner's platform (linux/amd64).
 
-The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: wizzrobe:latest` in the `wizzrobe` service with `image: ghcr.io/tcprescott/wizzrobe:<tag>`.
+The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: wizzrobe:latest` in the `wizzrobe` service with `image: ghcr.io/tcprescott/sglman:<tag>`.
 
 ## Environment variables
 
@@ -91,11 +107,11 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `DB_USERNAME` | production: yes | `''` | `migrations/tortoise_config.py`, `application/utils/environment.py`, `docker-compose.yml` | Compose refuses to start when unset (`:?`); blank aborts a production boot. |
 | `DB_PASSWORD` | production: yes | `''` | same as `DB_USERNAME` | Same enforcement. URL-encoded into the DSN, so special characters are safe. |
 | `ENVIRONMENT` | no | `development` | `application/utils/environment.py`, `frontend.py`, `migrations/tortoise_config.py` | `production` (stripped, lowercased) enables the strict checks below. `./start.sh prod` force-exports `production` and `./start.sh mock` forces `development`, overriding `.env`. No-cache static headers only when exactly `development`. |
-| `STORAGE_SECRET` | **yes, always** | — | `application/utils/environment.py`, `frontend.py`, `middleware/auth.py` | Signs the NiceGUI session holding auth state. Blank aborts startup in any environment; production also requires ≥32 characters. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
+| `STORAGE_SECRET` | **yes, always** | — | `application/utils/environment.py`, `frontend.py`, `pages/auth.py`, `application/services/oauth_handoff_service.py` | Signs the NiceGUI session holding auth state. Blank aborts startup in any environment; production also requires ≥32 characters. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `NICEGUI_REDIS_URL` | production: recommended | unset | `nicegui.storage`, `application/utils/environment.py`, `frontend.py` | Moves `app.storage.user` from a file inside the container into Redis, so a redeploy no longer signs every user out mid-event. Set by compose to `redis://redis:6379/0`. Unset → file-backed (`.nicegui/`), and a production boot logs a warning saying so. Set but unreachable → startup aborts rather than failing at the first login. |
 | `NICEGUI_REDIS_KEY_PREFIX` | no | `nicegui:` | `nicegui.storage` | Key namespace, so one Redis can serve more than one deployment. |
 | `LOG_LEVEL` | no | `INFO` | `main.py` | Root level for the application logger; separate from uvicorn's `--log-level`, which `start.sh` pins to `info`. |
-| `DISCORD_TOKEN` | yes, unless mock | — | `main.py`, `middleware/auth.py` | Bot token, also used by the OAuth API client. Unset → bot skipped with a warning and Discord features dead. |
+| `DISCORD_TOKEN` | yes, unless mock | — | `main.py`, `pages/auth.py`, `application/services/service_health_service.py` | Bot token, also used by the OAuth API client. Unset → bot skipped with a warning and Discord features dead. |
 | `DISCORD_CLIENT_ID` | yes, for real OAuth | — | `pages/auth.py` | Discord application client ID; derives `OAUTH_URL`. |
 | `DISCORD_CLIENT_SECRET` | yes, for real OAuth | — | `pages/auth.py` | OAuth authorization-code exchange. |
 | `BASE_URL` | no | `http://localhost:8000` | `application/utils/environment.py` | Public base URL (trailing `/` stripped) for deep links, and the fallback for `PLATFORM_HOST`. **Not** the source of the OAuth callback. Set it in production — a stale value bakes an unreachable host into printed equipment QR labels, which is why the label sheet names the host it encodes and warns when that is not the host you are browsing ([frontend.md](reference/frontend.md#encoded-host-check)). |
@@ -153,21 +169,23 @@ terminate at the proxy; see [features/mcp-server.md](features/mcp-server.md).
 
 ### Startup refusals (fail-fast)
 
-Three independent checks abort the process before it serves a request:
+Four independent checks abort the process before it serves a request:
 
 1. **[`migrations/tortoise_config.py`](../migrations/tortoise_config.py)** (import time): `DB_HOST`, `DB_PORT`, `DB_NAME` are always required; when `ENVIRONMENT=production`, blank `DB_USERNAME` or `DB_PASSWORD` raises `ValueError`.
 2. **`validate_security_config()`** in `application/utils/environment.py` (called from `frontend.init()`): blank `STORAGE_SECRET` raises `RuntimeError` in every environment; in production a `STORAGE_SECRET` shorter than 32 characters, or a blank `DB_USERNAME`/`DB_PASSWORD`, also raises.
-3. **`is_mock_discord()`** in `application/utils/mocks/mock_discord.py` (evaluated at import of `middleware/auth.py`): `MOCK_DISCORD` truthy while `ENVIRONMENT=production` raises `RuntimeError` — the mock layer is a complete authentication bypass and must never run in production.
+3. **`validate_session_storage()`** in `application/utils/environment.py` (called from `frontend.init()`): `NICEGUI_REDIS_URL` set but Redis unreachable (a one-shot `PING`, 5s timeout) raises `RuntimeError`.
+4. **`is_mock_discord()`** in `application/utils/mocks/mock_discord.py` (evaluated at import of `pages/auth.py`, and again in the lifespan): `MOCK_DISCORD` truthy while `ENVIRONMENT=production` raises `RuntimeError` — the mock layer is a complete authentication bypass and must never run in production.
 
 ## Startup behavior
 
 Boot sequence (`main.py` lifespan, after the import-time checks above):
 
-1. **Migrations auto-apply** — `init_db()` runs Aerich `upgrade()` against `./migrations`, then `Tortoise.init()`. Every boot applies any pending migrations; deploys need no manual `aerich upgrade` step.
+1. **Migrations auto-apply** — `init_db()` runs Aerich `upgrade()` against `./migrations` under a PostgreSQL advisory lock (so two overlapping container starts cannot apply the chain twice), then `Tortoise.init()`. Every boot applies any pending migrations; deploys need no manual `aerich upgrade` step.
 2. **Discord bot** — `init_discord_bot()` starts the bot with `DISCORD_TOKEN` as a background task on the shared event loop. Skipped entirely under `MOCK_DISCORD`; without a token it logs a warning and continues.
-3. **DM queue** — `discord_queue.start()` launches a single in-process worker that drains queued Discord notification coroutines sequentially.
+3. **Racetime bot runtime and workers** — the racetime runtime and the env-gated workers (`RACETIME_BOT_ENABLED`, `SPEEDGAMING_SYNC_ENABLED`, `DISCORD_EVENTS_SYNC_ENABLED`, `SERVICE_HEALTH_ENABLED`) start only when switched on; the async-qualifier expiry, seed-roll polling, volunteer and stage reminders always start.
+4. **DM queue and event bus** — `discord_queue.start()` launches a single in-process worker that drains queued Discord notification coroutines sequentially; the event dispatch queue starts and the webhook and telemetry subscribers register.
 
-Shutdown reverses this: the queue worker is cancelled (any still-queued DMs are counted, logged, and dropped), the bot connection closes, then DB connections close. See [architecture.md](architecture.md) for the full process model.
+Shutdown reverses this: the workers stop, the queue workers are cancelled (any still-queued DMs are counted, logged, and dropped), the bot connection closes, then DB connections close. See [architecture.md](architecture.md#process-model-and-startup) for the full sequence.
 
 ### Single worker — required
 
@@ -181,9 +199,9 @@ Shutdown reverses this: the queue worker is cancelled (any still-queued DMs are 
 | Host binding | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | `0.0.0.0` (required in a container) |
 | Workers | n/a (reload implies one process) | n/a | one | `--workers 1` |
 | Port | 8000 | 8000 | 8000 | 8000 |
-| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_CHALLONGE`, `MOCK_SEEDGEN` | same as `mock` | `ENVIRONMENT=production` |
+| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME` | same as `mock` | `ENVIRONMENT=production` |
 
-`mock` is the one-command offline dev loop — no Discord, Challonge or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
+`mock` is the one-command offline dev loop — no Discord, Challonge, Twitch, racetime.gg or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
 
 `./start.sh stop` stops whichever of them is running. Use it rather than `pkill -f`, which reliably kills its own shell instead — the reasoning is in [development.md](development.md#stopping-it-never-pkill--f), and `enforce_safe_commands.py` blocks the form.
 
@@ -261,18 +279,18 @@ Migrations are **forward-applied at every boot**. Rolling back to an older image
 
 ## Health & monitoring
 
-There is no dedicated `/health` endpoint. Useful probes:
+`GET /api/health` (`api/routers/health.py`) is the liveness/readiness probe: unauthenticated, it runs `SELECT 1` and returns `{"status": "ok"}`, or `503` when the database is unreachable. Both the Dockerfile `HEALTHCHECK` and the compose healthcheck poll it.
 
 | Probe | What it proves |
 |---|---|
+| `GET /api/health` | The app is serving **and** can reach PostgreSQL |
 | `GET /` | UI is up (NiceGUI page render, no login required) |
 | `GET /api/docs` | FastAPI is serving (no DB involved) |
-| `GET /api/matches?limit=1` | Full read-only DB round-trip via the public REST API (see [reference/rest-api.md](reference/rest-api.md)) |
 
 ```bash
-curl -fsS http://localhost:8000/api/matches?limit=1 > /dev/null && echo OK
+curl -fsS http://localhost:8000/api/health > /dev/null && echo OK
 ```
 
-- **DB liveness** inside compose is covered by the `pg_isready` healthcheck (5s interval, 10 retries); `docker compose ps` shows the `healthy` state.
-- **Crash recovery:** both services use `restart: unless-stopped`, so crashed containers come back automatically.
-- **Logs to watch:** everything goes to stdout/stderr at `--log-level info`. Notable lines: `Warning: DISCORD_TOKEN not set.` (app runs but Discord features are dead), `[discord_queue] worker error: …` (a queued Discord notification failed), and `[discord_queue] stopping with N item(s) still queued` at shutdown (those DMs were dropped).
+- **Liveness** inside compose is covered by the healthchecks — `pg_isready` and `redis-cli ping` (5s interval, 10 retries) and the app's `/api/health` (30s); `docker compose ps` shows the `healthy` state.
+- **Crash recovery:** all three services use `restart: unless-stopped`, so crashed containers come back automatically.
+- **Logs to watch:** everything goes to stdout/stderr at `--log-level info`. Notable lines: `DISCORD_TOKEN not set. Discord features will not work.` (app runs but Discord features are dead), `discord_queue worker error` with a traceback (a queued Discord notification failed), `discord_queue stopping with N item(s) still queued` at shutdown (those DMs were dropped), and the `Session storage:` line at boot, which warns in production when sessions are file-backed.

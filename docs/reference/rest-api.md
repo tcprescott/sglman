@@ -17,7 +17,7 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 
 ## Authentication
 
-**Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push)), whose only caller is a service worker with no session to present.
+**Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth--healthpy)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push--web_pushpy)), whose only caller is a service worker with no session to present.
 
 Generate a token on the home **Profile** tab (the *API tokens & AI clients* card), then send it on each request:
 
@@ -39,14 +39,14 @@ Tokens can also be managed programmatically via the `/api/tokens` endpoints (cre
 | Code | Meaning |
 |---|---|
 | `401` | Missing, malformed, unknown, revoked, or expired token |
-| `403` | Inactive account, read-only token used for a write, or the user lacks the required role/scope (`PermissionError` from a service) |
+| `403` | Inactive account or tenant, read-only token used for a write, or the user lacks the required role/scope (`PermissionError` from a service) |
 | `400` | Validation/business-rule error (`ValueError` from a service) |
-| `404` | Entity not found (including a feature-flag-gated router the tenant hasn't enabled) |
+| `404` | Entity not found (`NotFoundError` from a service, including `FeatureDisabledError`), or a feature-flag-gated router the tenant hasn't enabled |
 | `422` | Request body/query failed schema validation |
 | `429` | Rate limit exceeded — carries a `Retry-After` header |
 | `503` | `GET /health` only: the database is unreachable |
 
-`PermissionError`/`ValueError` → `403`/`400` translation is handled by `ServiceErrorRoute` in [`api/dependencies.py`](../../api/dependencies.py), scoped to the API routers so the NiceGUI frontend is unaffected.
+`PermissionError` → `403`, `NotFoundError` → `404` (checked first, since it subclasses `ValueError`) and `ValueError` → `400` translation is handled by `ServiceErrorRoute` in [`api/dependencies.py`](../../api/dependencies.py), scoped to the API routers so the NiceGUI frontend is unaffected.
 
 ### Rate limiting
 
@@ -104,7 +104,7 @@ Raising, agreeing and withdrawing take any write token (the service checks the a
 ### Tournaments (`/api/tournaments`) · `tournaments.py`, `tournament_actions.py`
 - `GET /tournaments?active_only=` (`active_only` returns only active tournaments, default `false`) · `GET /tournaments/{id}`.
 - `POST` · `PATCH /{id}` · `DELETE /{id}?confirmation=permanently%20delete`. The delete is permanent and cascades (matches, entrants, brackets, triforce texts), so it carries the same two gates as the UI: the tournament must already be `is_active: false` (`400` otherwise) and `confirmation` must be `permanently delete` (`422` when the param is missing, `400` when it is wrong). `POST`/`PATCH` accept an optional per-tournament **tournament-days** override — `event_start_date`, `event_end_date` (`YYYY-MM-DD`), and `tournament_hours` (`{"YYYY-MM-DD": ["HH:MM open", "HH:MM close"]}`); each is nullable and falls back to the community setting when omitted (on `PATCH`, sending `null` clears an override back to inherit). An end before start, or a close not after open, returns `400`.
-- `POST/DELETE /{id}/admins` and `/{id}/crew-coordinators` (Staff).
+- `POST /{id}/admins` · `DELETE /{id}/admins/{user_id}` and `POST /{id}/crew-coordinators` · `DELETE /{id}/crew-coordinators/{user_id}` (Staff).
 - `POST /tournaments/{id}/signup` · `DELETE /tournaments/{id}/signup` — the caller signs **themselves** up or withdraws, the same act the Tournaments tab performs. `400` outside the tournament's signup window, for a non-member, for a Challonge-synced roster, on a duplicate signup, and for an inactive tournament; `404` for an id that does not exist in this tenant (saying "not accepting signups" there would confirm a tournament that isn't yours). Withdrawing is refused only once the window has **closed** — before it opens you may still back out, since staff may have entered you early and there is no roster to protect yet. Staff enrolling *someone else* use `PUT /users/{user_id}/tournaments`, which ignores the window.
 - The signup window itself rides on the tournament: `signups_open_at` / `signups_close_at` (UTC datetimes) on `POST`/`PATCH` and in every tournament response. Both are nullable and read permissively — no open date means signups are open now, no close date means they stay open. A close at or before the open returns `400`.
 - `GET /tournaments/{id}/match-suggestion?player_ids=[&bracket_match_id=]` — suggested UTC start time for the given players (400 if no slot fits). `bracket_match_id` confines the suggestion to that matchup's round window.
@@ -193,6 +193,7 @@ When the caller's tenant has not enabled a router's flag, the **whole router 404
 | Group | Flag |
 |---|---|
 | Triforce texts | `TRIFORCE_TEXTS` |
+| Payouts | `PAYOUTS` |
 | Volunteers | `VOLUNTEERS` |
 | Race room profiles, Race rooms | `RACETIME_ROOMS` |
 | SpeedGaming | `SPEEDGAMING_ETL` |
@@ -281,7 +282,7 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 ### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
 - `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
-- `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `POST /{id}/record` · `DELETE /{id}` (cancel). The room's own lifecycle events (`mark_in_progress`, the inbound `record_finish`) are **not** exposed — they arrive from racetime. `/{id}/record` is the manual counterpart, for when that event never came: a body of `{results: [{user_id, status, elapsed_seconds?}]}` where `status` is `finished` (time required), `forfeit` or `disqualified` (time ignored). It applies the same rules as the racetime path — no permalink is a 400, a racer over the pool cap is recorded voided, par recomputes, the race moves to FINISHED — and audits as a manual record. `GET /{id}` reports `unmatched_handles`: racetime accounts the last capture could not match, whose results were therefore not recorded.
+- `POST /async-qualifiers/live-races` (create; `permalink_id` may be null) · `POST /{id}/permalink` (`{permalink_id}` — set the pool permalink the race is scored against; refused once the race has runs) · `POST /{id}/open-room` · `POST /{id}/record` · `DELETE /{id}` (cancel). The room's own lifecycle events (`mark_in_progress`, the inbound `record_finish`) are **not** exposed — they arrive from racetime. `/{id}/record` is the manual counterpart, for when that event never came: a body of `{results: [{user_id, status, elapsed_seconds?}]}` where `status` is `finished` (time required), `forfeit` or `disqualified` (time ignored). It applies the same rules as the racetime path — no permalink is a 400, a racer over the pool cap is recorded voided, par recomputes, the race moves to FINISHED — and audits as a manual record. `GET /{id}` reports `unmatched_handles`: racetime accounts the last capture could not match, whose results were therefore not recorded.
 
 ### Brackets (`/api/brackets`) · `brackets.py`
 Native tournament brackets. Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate in `BracketService` — **Staff** everywhere except `POST /matches/{id}/games`, which also accepts the tournament's admins and the matchup's own two entrants (in a bracket-run tournament the bracket is the only way a player schedules at all). Thin wrappers over the service; schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py). Behaviour — formats, advancement, roster rules, series semantics, who may schedule — is documented in [brackets.md](../features/brackets.md).
@@ -298,6 +299,6 @@ Two response shapes are worth calling out because they differ from the UI's view
 
 ## Tests
 
-Integration tests live in [`tests/`](../../tests/) as `test_api_<resource>.py`, roughly one per group. They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client; pass `roles=[Role.SUPER_ADMIN]` for a global super-admin token).
+Integration tests live in [`tests/api/`](../../tests/api/) as `test_<resource>.py`, roughly one per group. They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client; pass `roles=[Role.SUPER_ADMIN]` for a global super-admin token).
 
 Every group covers the same baseline matrix plus its own resource-specific cases: happy-path read, `401` unauthenticated, `403` read-only-token write, cross-tenant isolation, and `403` for a role-less token.

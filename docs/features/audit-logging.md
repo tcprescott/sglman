@@ -48,12 +48,12 @@ not a reason to skip the audit.
 
 | Area | Namespaces |
 |---|---|
-| Scheduling | `match.*` (lifecycle, seeds, stages, stations, stream candidates, watchers, stream volunteers), `crew.*`, `tournament.*`, `stage.*` |
-| People | `user.*` (creation, login provisioning, role grants, profile, activation, enrollment), `role.*` (Discord-sourced grants), `discord_role.*`, `player.availability_updated` |
+| Scheduling | `match.*` (lifecycle, requests, seeds, stages, stations, stream candidates, review flags, watchers, stream volunteers, hard-preset opt-ins and overrides, reschedule requests), `crew.*`, `tournament.*` (including admin/crew-coordinator grants, prize pool and payouts), `stage.*`, `station.*` |
+| People | `user.*` (creation, login provisioning, role grants, profile, activation, enrollment, timezone), `role.*` (Discord-sourced grants), `discord_role.*`, `player.availability_updated` |
 | Volunteers & equipment | `volunteer.*` (positions, shifts, assignments, draft scheduling), `equipment.*` (lending, check-out/in) |
 | Online play | `bracket.*`, `challonge.*`, `race_room.*`, `race_room_profile.*`, `racetime.*`, `racetime_bot.*`, `sg_sync.*`, `async_qualifier.*`, `preset.*`, `randomizer_credential.*` |
 | Community content | `triforce_text.*`, `feedback.*` |
-| Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
+| Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `roomtoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `timezone.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
 
 Platform-level rows (`tenant.created` / `.updated` / `.deleted`, `platform.*`,
 feature-group and availability grants) carry `tenant=NULL`; everything else is

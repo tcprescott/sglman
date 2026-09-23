@@ -189,8 +189,8 @@ bypasses the role gate; it belongs to no community by design. It is deliberately
 **not** gated on `Tenant.is_active` — an inactive community is a separate
 concern with its own handling.
 
-Two surfaces sit outside it. `@public_page` routes (the spectator bracket views)
-are world-readable and always were. And the tenant home is registered with a
+Two surfaces sit outside it. `@public_page` routes (the spectator bracket views,
+event info, help, the room-seeds page) are world-readable and always were. And the tenant home is registered with a
 bare `ui.page` — the same function also renders the platform community picker,
 which has no tenant and must stay anonymous — so it calls `enforce_membership`
 itself rather than getting it from the decorator.
@@ -226,9 +226,11 @@ handled deliberately:
   [`tenant_session.py`](../../application/utils/tenant_session.py) — e.g. the match
   table filters, whose values are tenant-local ids that would be meaningless in
   another community.
-- **OAuth (Discord, Challonge, Twitch)** uses a single registered redirect URI per
-  provider on `PLATFORM_HOST`, built **at request time** (Discord in
-  [`pages/auth.py`](../../pages/auth.py)) — never at import. The tenant return path
+- **OAuth (Discord, Challonge, Twitch, racetime.gg)** uses a single registered
+  redirect URI per provider on `PLATFORM_HOST` (plus, for Discord login under
+  Design A, one per custom domain — see [Host mode](#host-mode-a-tenants-custom-domain)),
+  built **at request time** (Discord in [`pages/auth.py`](../../pages/auth.py)) —
+  never at import. The tenant return path
   (`/t/<slug>/…`) is captured at initiation (where
   the tenant is in scope) and stored in the session; the shared callback — which
   lands on the bare host — reads it and navigates back into the originating
@@ -251,9 +253,13 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
   community.
 - **`/platform`** — [`pages/platform.py`](../../pages/platform.py), gated on
   *no tenant context* **and** `is_super_admin`. Tenant CRUD (name, slug, domain,
-  guild id, active), the **first-admin grant** (below), a **Setup** column, **and
-  Racetime Bot CRUD + per-tenant authorization grants** (`RacetimeBotService`;
-  client secrets are write-only and never shown). Its queries pass explicit ids
+  guild id, active), the **first-admin grant** (below), a **Setup** column, a
+  per-tenant **Features** dialog (tri-state flag overrides), **Racetime Bot CRUD +
+  per-tenant authorization grants** (`RacetimeBotService`; client secrets are
+  write-only and never shown), the **Feature Groups** tiers
+  ([feature-flags.md](feature-flags.md)), and the platform-wide **Service Health**
+  board. The sections are split across `pages/platform_bots.py`,
+  `platform_feature_groups.py` and `platform_tenant_admins.py`. Its queries pass explicit ids
   (intended cross-tenant capability), backed by `TenantService` /
   `RacetimeBotService`, whose CRUD/grant methods are super-admin-gated and
   audited as platform-level rows (`tenant=NULL`).
@@ -298,9 +304,10 @@ them (an unknown guild resolves to an empty list and is ignored):
   mappings stay separated and the same Discord role can grant different app roles
   per community.
 - **Interaction handlers** (`crew_signup`, `crew_acknowledgment`,
-  `match_acknowledgment`, `volunteer_acknowledgment`, `watch_buttons`) resolve the
-  tenant from the referenced entity's `tenant_id` and wrap DB work in
-  `tenant_scope`.
+  `match_acknowledgment`, `match_hard_preset`, `reschedule_agreement`,
+  `volunteer_acknowledgment`, `watch_buttons`) resolve the tenant from the
+  referenced entity's `tenant_id` (helpers in `discordbot/_tenant.py`) and wrap DB
+  work in `tenant_scope`.
 - **`volunteer_reminder`** does one cross-tenant scan over a wide window, then
   re-checks each assignment against **its own tenant's** lead-time
   `SystemConfiguration` inside `tenant_scope`.

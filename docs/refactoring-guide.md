@@ -110,8 +110,10 @@ they must not import `application.repositories` or reach through
 ## What the hooks enforce
 
 `enforce_architecture.py` rejects, at write time: presentation importing
-`application.repositories`; services importing NiceGUI; repositories importing
-`pages/`/`theme/`. Sibling hooks check audit conventions, the `write_log` +
+`application.repositories` or reaching through a service to its repository
+(`service.repository.foo(...)`); services importing NiceGUI (only
+`auth_service.py` is allowlisted, for `app.storage.user`) or any presentation
+module; repositories importing services, NiceGUI or any presentation module. Sibling hooks check audit conventions, the `write_log` +
 `publish` pair, mobile grids on tables, and test-fixture cost. Inventory:
 [`.claude/README.md`](../.claude/README.md).
 

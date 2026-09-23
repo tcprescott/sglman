@@ -65,13 +65,16 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 
 ## Delivery, retries, logging
 
-- Runs on the event dispatch worker (off the request path), using
-  `httpx.AsyncClient` with a 10s timeout.
+- Runs on the event dispatch worker (off the request path). `deliver_event`
+  picks the tenant's active webhooks and enqueues each POST as its own dispatch
+  item, re-wrapped in the webhook's `tenant_scope`. Each POST uses
+  `httpx.AsyncClient` with a 10s timeout and `follow_redirects=False`.
 - Bounded retry: up to `MAX_ATTEMPTS` (3) with exponential backoff (`2**attempt`
   seconds) on any non-2xx or transport error.
 - Every delivery writes one `WebhookDelivery` row (final status, attempt count,
   success, error, `delivered_at`) for observability — visible in the admin tab's
-  "Recent deliveries" view.
+  "Recent deliveries" view. The webhook list also shows a per-row health chip
+  ("N of M failed" / "M delivered") from the last 24 hours (`recent_health`).
 
 ## Security
 
@@ -79,9 +82,13 @@ sends. Reject requests whose timestamp is too old to defend against replay.
   reproducible to sign each request. Shown **once** on create/regenerate; never
   returned by list/GET and never logged.
 - **SSRF**: on create/update the URL must be `https://`; in production the host is
-  resolved and rejected if it maps to loopback / RFC-1918 / link-local /
-  `169.254.169.254` (cloud metadata). Outside production, `http://` and localhost
-  are allowed so a developer can point at a local receiver.
+  resolved (`application/utils/ssrf.py`) and rejected if any address is private,
+  loopback, link-local (incl. `169.254.169.254` cloud metadata), reserved,
+  multicast or unspecified. In production the check runs **again at delivery
+  time**, because the host is re-resolved then; a blocked delivery is logged as a
+  failed `WebhookDelivery` with zero attempts. Redirects are never followed.
+  Outside production, `http://` and localhost are allowed so a developer can
+  point at a local receiver.
 
 ## Managing webhooks
 
@@ -96,7 +103,8 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 
 Everything in [`EventType.ALL`](../../application/events/event_types.py) — the
 `match.*`, `crew.*`, `volunteer.*`, `bracket.*`, `race_room.*`, `sg_sync.*`,
-`discord_event.*` and `async_qualifier.*` families, listed per publisher in
+`discord_event.*`, `async_qualifier.*`, `tenant.member_*` / `tenant.join_*` and
+`tournament.*` (enrolment, prize pool, payouts) families, listed per publisher in
 [event-system.md](event-system.md). Select `*` to receive all of them. The one
 member no webhook can receive is `service_health.alert`: it is platform-level
 (no tenant), and delivery is tenant-scoped.

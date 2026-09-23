@@ -13,11 +13,11 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`), `import_builtins` from the `presets/` files, and `import_remote_presets` from a randomizer's own API |
 | [`application/services/_seedgen_dk64r.py`](../../application/services/_seedgen_dk64r.py) | `DK64RBackend`: every DK64R call — settings conversion, submit/poll, and the published preset catalogue |
 | [`application/services/_seedgen_types.py`](../../application/services/_seedgen_types.py) | `RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll` |
-| [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
-| [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Tournament.hard_preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed`, `Match.preset_override` |
+| [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `dk64r/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
+| [`models/tournament.py`](../../models/tournament.py), [`models/match.py`](../../models/match.py) | `Tournament.seed_generator`, `Tournament.preset`, `Tournament.hard_preset`, `Preset`, `GeneratedSeeds`, `ProviderTask`; `Match.generated_seed`, `Match.preset_override` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | The Seed Preset select on the tournament create/edit dialog |
 | [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
-| [`pages/admin_tabs/admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py), [`theme/tables/match.py`](../../theme/tables/match.py) | The per-row **Generate** button and its `roll` event handling |
+| [`theme/tables/match_slots.py`](../../theme/tables/match_slots.py), [`theme/tables/match.py`](../../theme/tables/match.py), [`theme/tables/match_lifecycle.py`](../../theme/tables/match_lifecycle.py) | The per-row **Generate** button (`SEED_ROLLABLE` gate), its `roll` event, and the `on_generate_seed` handler shared by the admin Schedule tab and the proctor board |
 | [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) | `CredentialSpec` registry: which credential each keyed randomizer needs |
 | [`application/services/randomizer_credential_service.py`](../../application/services/randomizer_credential_service.py) | `RandomizerCredentialService`: per-tenant credential CRUD + roll-time resolution |
 | [`pages/admin_tabs/admin_randomizer_keys.py`](../../pages/admin_tabs/admin_randomizer_keys.py) | Admin **Randomizer Keys** tab: enter/clear this community's credentials |
@@ -34,8 +34,8 @@ The admin Settings tab lists each tournament's `seed_generator` read-only.
 
 ### Generation flow
 
-1. The admin Schedule tab's match table shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set and no seed exists yet ([`theme/tables/match.py`](../../theme/tables/match.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `on_generate_seed` in [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py).
-2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the preset through `MatchHardPresetService.resolve_preset(match)` and takes the randomizer from it (falling back to the legacy `tournament.seed_generator` string with no preset), and dispatches `SeedGenerationService.generate_seed(randomizer, preset)`.
+1. The admin Schedule tab's match table (and the proctor board) shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set, the match is not a racetime match, it has players, it is not Finished/Confirmed, no seed exists yet and no roll is in flight (`SEED_ROLLABLE` in [`match_slots.py`](../../theme/tables/match_slots.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `MatchLifecycleHandlers.on_generate_seed` in [`match_lifecycle.py`](../../theme/tables/match_lifecycle.py).
+2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the preset through `MatchHardPresetService.resolve_preset(match)` and takes the randomizer from it (falling back to the legacy `tournament.seed_generator` string with no preset), and dispatches `SeedGenerationService.generate_seed_call(randomizer, preset, surface='match')` (or, for an `ASYNC_RANDOMIZERS` backend, queues a `ProviderTask` — see [Asynchronous rolls](#asynchronous-rolls)).
 
    **Which preset that is, is the players' answer as much as the tournament's.** In order: staff's per-match `Match.preset_override`; else `tournament.hard_preset` when every player opted into it; else `tournament.preset`. This is the only place the question is asked, and asking it here is what closes the opt-in window — from that line on, the settings are what `GeneratedSeeds` records rather than what anyone picks. See [match-participation.md](../features/match-participation.md#harder-settings-opt-in).
 3. The returned string is persisted as a [`GeneratedSeeds`](../../models/tournament.py) row and linked from the match:
@@ -45,12 +45,17 @@ The admin Settings tab lists each tournament's `seed_generator` read-only.
    | `tenant` | required FK (`on_delete=CASCADE`, `related_name='generated_seeds'`) |
    | `seed_url` | the generator's return value (a URL for most randomizers; a plain string for Z1R) |
    | `seed_info` | `"Generated seed for match {id}"` |
+   | `randomizer` | the backend that actually rolled it |
+   | `preset` | nullable FK to the `Preset` that won resolution (`SET_NULL`) |
+   | `settings_snapshot` | the settings **as sent upstream** (`RolledSeed.settings`), never updated — survives later preset edits; no credential is ever included |
+   | `rolled_by` | nullable FK to the acting `User` (`SET_NULL`) |
+   | `provider_meta` | `ProviderCall.as_meta()` — attempts, latency, surface |
    | `created_at` / `updated_at` | automatic timestamps |
 
-   `Match.generated_seed` is a nullable FK to `GeneratedSeeds` (`related_name='matches'`). Note: `MatchScheduleService` passes a `tournament=` kwarg to `GeneratedSeeds.create()`, but the model defines no such field, so no tournament linkage is stored.
+   `Match.generated_seed` is a nullable FK to `GeneratedSeeds` (`related_name='matches'`). Persistence, DMs and audit all live in `MatchScheduleService.complete_seed_roll`, the one completion path shared by synchronous rolls and the [task-queue worker](#asynchronous-rolls).
 4. Players are DM'd the seed URL in the background via the Discord queue (respecting each user's `dm_notifications` opt-out), and an audit entry `match.seed_rolled` (`AuditActions.MATCH_SEED_ROLLED`) is written with `match_id`, `randomizer`, `preset` (the preset name, or `None` when rolled from the legacy `seed_generator`), and `seed_url`.
 
-The seed is displayed on the home Schedule and Player tabs and in the admin match table — values matching `^https?://` render as truncated hyperlinks, anything else as plain text. The REST API exposes it as `MatchResponse.generated_seed` (`GeneratedSeedBase`: `id`, `seed_url`, `seed_info`, `created_at`) in the [`api/`](../../api/) package ([rest-api.md](rest-api.md)). The admin match dialog's **Clear Seed** button ([`match_dialog.py`](../../theme/dialog/match_dialog.py)) sets the FK back to `NULL` via `MatchService.update_match(clear_seed=True)`; the `GeneratedSeeds` row itself is not deleted.
+The seed is displayed on the home Schedule and Player tabs and in the admin match table — values matching `^https?://` render as truncated hyperlinks, anything else as plain text. The REST API exposes it as `MatchResponse.generated_seed` (`GeneratedSeedBase`: `id`, `seed_url`, `seed_info`, `randomizer`, `settings_snapshot`, `provider_meta`, `created_at`) in the [`api/`](../../api/) package ([rest-api.md](rest-api.md)). The admin match dialog's **Clear Seed** button ([`match_dialog.py`](../../theme/dialog/match_dialog.py)) sets the FK back to `NULL` via `MatchService.update_match(clear_seed=True)`; the `GeneratedSeeds` row itself is not deleted.
 
 ## SeedGenerationService API
 
@@ -60,7 +65,10 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'dk64r', 'wwr', 'test']
 STUB_RANDOMIZERS = {'mmr', 'smdash', 'wwr'}
 PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}          # use preset.settings when given
+ASYNC_RANDOMIZERS = {'dk64r'}                           # task-queue backends (submit now, collect later)
 TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}                  # can embed community triforce texts
+REMOTE_PRESET_BRANCHES = {'dk64r': ('stable', 'dev')}   # upstream preset catalogues
+PROVIDER_TIMEOUTS = {'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'dk64r': 1}
 ```
 
 `AVAILABLE_RANDOMIZERS` is the full validity set — it drives `MatchScheduleService`'s validity check and stays whole regardless of what any tenant has configured. What a tenant may *select* is the narrower `SeedGenerationService.available_randomizers(configured)`, which drops randomizers whose credential this community has not supplied; the tournament dialog, the Presets tab, and the REST `/seeds/randomizers` catalogue all render that filtered list. See [Per-tenant credentials](#per-tenant-credentials).
@@ -102,7 +110,7 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `list_remote_presets(randomizer, *, branch=None) -> list[RemotePreset]` | The presets the randomizer's own API publishes, mapped into storable `settings`. Raises `ValueError` for a randomizer with no catalogue or an unknown branch, `MissingCredentialError` without the key. | `list[RemotePreset]`. |
 | `offers_remote_presets(randomizer) -> bool` / `remote_preset_branches(randomizer) -> list[str]` (classmethods) | Membership in and lookup into `REMOTE_PRESET_BRANCHES` — what the Presets tab's import dialog renders from. | `bool` / `list[str]`. |
-| `supports_triforce_texts(generator: Optional[str]) -> bool` (classmethod) | Membership in `TRIFORCE_TEXT_RANDOMIZERS`. Four consumers: `AuthService.can_submit_triforce_text`, `TriforceTextService` (both the submit guard and the `seed_generator__in=…` tournament filter), the home **Triforce Texts** tab, and the REST `/seeds/randomizers` response field `supports_triforce_texts`. | `bool`. |
+| `supports_triforce_texts(generator: Optional[str]) -> bool` (classmethod) | Membership in `TRIFORCE_TEXT_RANDOMIZERS`. Four consumers: `AuthService.can_submit_triforce_text`, `TriforceTextService` (both the submit guard and the `seed_generator__in=…` tournament filter), the home Tournaments tab's **Triforce Texts** button (`supporting_tournament_ids` / `open_triforce_dialog`), and the REST `/seeds/randomizers` response field `supports_triforce_texts`. | `bool`. |
 | `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
 
 ### Dispatch targets (private generators)
@@ -164,8 +172,11 @@ surface them unchanged:
 | Concurrent click (per-match `asyncio.Lock` in class-level `_seed_locks` already held) | `(False, "Seed generation already in progress for this match", None)` |
 | Actor fails `AuthService.can_run_match` | `(False, "You do not have permission to roll a seed for this match", None)` |
 | Match already has a seed | `(False, "A seed has already been generated for this match", None)` |
-| Neither `tournament.preset` nor `tournament.seed_generator` is set | `(False, "No seed generator configured for this tournament", None)` |
+| No preset resolves and `tournament.seed_generator` is unset | `(False, "No seed generator configured for this tournament", None)` |
 | Generator not in `AVAILABLE_RANDOMIZERS` | `(False, "Seed generator '…' not found", None)` |
+| Match has no players yet (a seed rolls once and its DM would reach nobody; enforced here so REST/MCP are covered too) | `(False, "This match has no players yet — …", None)` |
+| Randomizer is in `ASYNC_RANDOMIZERS` | Queues a `ProviderTask` (audit `match.seed_roll_queued`) → `(True, "Rolling the seed — this takes a few minutes. …", None)`; a task already active for the match → the "already in progress" tuple |
+| `MissingCredentialError` | `(False, str(e), None)` — names the credential to configure |
 | A `SeedProviderError` (upstream down / rate-limiting / rejected the settings) | `(False, str(e), None)` — the envelope's curated message, so the reader can tell "try again in a minute" from "this preset will never roll" |
 | Any other exception during generation | `(False, "Seed generation failed. Please check the server logs.", None)` |
 | Success | `(True, "Seed generated successfully for match ID {id}", seed_url)` |
@@ -180,7 +191,7 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-8-6.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` | Random 8-hex-digit seed substituted into a hard-coded flags URL on the version-pinned 4.8.6 site; the site builds the game client-side, so the URL *is* the seed |
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (**not** a URL, so tables render it as plain text) | Random seed number + hard-coded flags string; players enter both into the offline tool |
 | `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` | `multipart/form-data` with a `spoiler_token` part (never defaulted — a leaked token unlocks spoiler logs for race seeds) and a `settings` part carrying the raw preset JSON |
-| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=8.3.0`, `encrypt=true` and `raise_for_status=True`; an unset key raises rather than sending `key=None` |
+| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=8.3.0`, `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
 | `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` | Asynchronous submit → poll → result; see below |
 | `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
 | `smdash` | Super Metroid: DASH | none yet (**stub**) | — | — | raises `ValueError` | |
@@ -274,8 +285,8 @@ For ALTTPR-style files the payload lives under a top-level `settings` key (with 
 ## Adding a randomizer or preset
 
 1. Drop a settings file under `presets/<randomizer>/` if the upstream API takes one (skip for purely local generators like `ff1r`/`z1r`).
-2. Add an `async def _generate_<name>(self) -> str` to [`seedgen_service.py`](../../application/services/seedgen_service.py) — or `(self, preset: Optional[Preset] = None)` if it consumes preset settings — that calls the upstream service with `aiohttp` (never blocking `requests`) and returns the seed URL/string. Read any credential with `await self._credential('<name>', '<key>')`, which raises a clear `MissingCredentialError` when the community has not set it (see `_generate_ootr`).
-3. Register the name in **both** `AVAILABLE_RANDOMIZERS` and the `generator_map` inside `generate_seed` — a method alone is unreachable — and, for a preset-consuming backend, in `PRESET_AWARE_RANDOMIZERS`. Omit that last one and `generate_seed` calls the generator with no arguments, so it silently rolls its committed default forever.
+2. Add an `async def _generate_<name>(self) -> RolledSeed` to [`seedgen_service.py`](../../application/services/seedgen_service.py) — or `(self, preset: Optional[Preset] = None)` if it consumes preset settings — that calls the upstream service with `aiohttp` (never blocking `requests`) and returns a `RolledSeed(url=..., settings=...)` (the settings as sent become the `GeneratedSeeds.settings_snapshot`; raise the envelope's `raise_for_status` / `SeedProviderBadResponse` for upstream failures). Read any credential with `await self._credential('<name>', '<key>')`, which raises a clear `MissingCredentialError` when the community has not set it (see `_generate_ootr`).
+3. Register the name in **both** `AVAILABLE_RANDOMIZERS` and the `generator_map` inside `generate_seed_call` — a method alone is unreachable — and, for a preset-consuming backend, in `PRESET_AWARE_RANDOMIZERS`. Omit that last one and `generate_seed_call` calls the generator with no arguments, so it silently rolls its committed default forever.
 4. Register a `CredentialSpec` for each credential in [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) — that alone puts it on the admin **Randomizer Keys** tab and into `available_randomizers`. No environment variable, and nothing to add to the deployment.
 5. Author a preset on the new randomizer and select it as the tournament's Seed Preset in the tournament dialog; the admin schedule's Generate button picks it up with no further wiring. Add a row to the [Supported randomizers](#supported-randomizers) table.
 

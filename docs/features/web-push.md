@@ -24,10 +24,14 @@ The encrypted payload is JSON in WebKit's **Declarative Web Push** shape:
   "notification": {
     "title": "Wizzrobe",
     "body": "Your match has been scheduled for 2026-07-04 18:00 EST",
-    "navigate": "https://wizzrobe.example.com/"
+    "navigate": "https://wizzrobe.example.com/t/sglive/home/player"
   }
 }
 ```
+
+`navigate` is the DM's [`DMLink`](discord.md#calls-to-action) URL, so tapping
+the notification opens the same control the Discord link button does. A DM with
+no link falls back to `BASE_URL/`.
 
 `"web_push": 8030` is the magic member that opts the message into declarative
 parsing (Safari/iOS 18.4+ renders it with no service worker); `title` and
@@ -138,7 +142,7 @@ Both checks are production-only, matching the webhook guard, so a development
 setup can still point at a local push mock.
 
 Source: model `WebPushSubscription` in [`models/user.py`](../../models/user.py)
-(user × device: unique `endpoint`, `p256dh`, `auth`, `user_agent`; the repository's
+(user × device: unique `endpoint`, `p256dh`, `auth`, `user_agent`, `created_at`, `last_used_at`; the repository's
 endpoint upsert re-binds a device to the latest user),
 [`web_push_service.py`](../../application/services/web_push_service.py),
 [`application/utils/web_push.py`](../../application/utils/web_push.py),
@@ -172,8 +176,9 @@ moved — there is no session actor), details = subscription id + endpoint host
 
 ## Limitations
 
-- **`navigate` always opens the home page** — there are no per-match deep-link
-  pages yet.
+- **A DM with no `DMLink` opens the site root** — informational DMs (checked
+  in, cancelled, state changed) carry no link, so their push lands on
+  `BASE_URL/`.
 - **Rotation needs the stored IndexedDB record**: a device that subscribed
   before this shipped, or whose site data was cleared, has no record — and if
   the browser also fires `pushsubscriptionchange` with null subscriptions, the

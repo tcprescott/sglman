@@ -19,8 +19,11 @@ Versions come from [`pyproject.toml`](../pyproject.toml) (Poetry); only major/mi
 | Database | PostgreSQL (16-alpine in docker-compose) |
 | Discord bot | discord.py ≥2.7 |
 | Discord OAuth | zenora |
+| MCP server | `mcp` (FastMCP) ≥1.28 |
+| Session store | Redis 7 via `NICEGUI_REDIS_URL` (optional; falls back to a local file) |
 | Seed generation | pyz3r (ALTTPR) + HTTP APIs for other randomizers |
-| Testing | pytest ≥9, pytest-asyncio (`asyncio_mode = "auto"`), aiosqlite (in-memory test DB) |
+| Testing | pytest ≥9, pytest-asyncio (`asyncio_mode = "auto"`), pytest-xdist (parallel by default), aiosqlite (in-memory test DB) |
+| Lint / types | ruff (blocking), mypy (per-file ratchet) |
 | Packaging / runtime | Poetry, Docker + docker-compose |
 
 ## Process model and startup
@@ -29,22 +32,24 @@ Everything runs in **one Uvicorn worker** (`start.sh prod` passes `--workers 1`)
 
 [`main.py`](../main.py) builds the FastAPI app and wires everything together:
 
-1. **Lifespan startup**
-   1. `init_db()` — runs Aerich `upgrade()` (pending migrations are applied automatically on boot), then `Tortoise.init()` with the config from [`migrations/tortoise_config.py`](../migrations/tortoise_config.py).
-   2. `init_discord_bot()` — starts the discord.py bot as an asyncio task using `DISCORD_TOKEN`. Skipped entirely under `MOCK_DISCORD`; logs a warning and continues if the token is unset (Discord features simply won't work).
-   3. `discord_queue.start()` — starts the background worker that serializes outbound Discord DMs (see [reference/discord-integration.md](reference/discord-integration.md)).
-2. **Lifespan shutdown** — reverse order: `discord_queue.stop()` → `close_discord_bot()` → `Tortoise.close_connections()`.
-
-The FastAPI app is created with `docs_url="/api/docs"` and `redoc_url="/api/redoc"`, and the REST routers from the [`api/`](../api/) package are mounted at the `/api` prefix (see [reference/rest-api.md](reference/rest-api.md)).
+1. **Module load** — `init_sentry()` (no-op without `SENTRY_DSN`), then the FastAPI app (`docs_url="/api/docs"`, `redoc_url="/api/redoc"`, `openapi_url="/api/openapi.json"`), `FunFactMiddleware` and `SecurityHeadersMiddleware`, the REST routers from [`api/`](../api/) at the `/api` prefix ([reference/rest-api.md](reference/rest-api.md)), then `mcpserver.mount(app)` — **before** `frontend.init(app)`, because NiceGUI mounts itself at `/` and would swallow `/mcp` ([features/mcp-server.md](features/mcp-server.md)).
+2. **Lifespan startup**
+   1. `init_db()` — runs Aerich `upgrade()` under a PostgreSQL advisory lock (`application/utils/migration_lock.py`, so two overlapping container starts cannot race the chain), then `Tortoise.init()` with the config from [`migrations/tortoise_config.py`](../migrations/tortoise_config.py).
+   2. `import discordbot` registers the interaction handlers and DM view factories, then `init_discord_bot()` starts the discord.py bot as a task using `DISCORD_TOKEN`. Skipped under `MOCK_DISCORD`; logs a warning and continues if the token is unset.
+   3. `init_racetime_bot()` — the racetime bot runtime (a no-op unless `RACETIME_BOT_ENABLED`).
+   4. Background workers. Env-gated (off by default): `race_room_worker` (with the racetime runtime), `speedgaming_sync_worker` (`SPEEDGAMING_SYNC_ENABLED`), `discord_event_worker` (`DISCORD_EVENTS_SYNC_ENABLED`), `service_health_worker` (`SERVICE_HEALTH_ENABLED`). Always on: `async_qualifier_worker`, `seed_roll_worker`, `discord_queue` (serializes outbound DMs — [reference/discord-integration.md](reference/discord-integration.md)), `volunteer_reminder`, `stage_reminder`.
+   5. The event bus: `event_dispatch_queue.start()`, then the webhook delivery and telemetry mirror subscribers ([features/event-system.md](features/event-system.md)).
+   6. `mcpserver.session_lifespan()` wraps the `yield`, so `/mcp` stops accepting calls before the workers tear down.
+3. **Lifespan shutdown** — stops every worker and the racetime runtime, then `event_dispatch_queue` → `discord_queue` → the web-push HTTP client → `close_discord_bot()` → `Tortoise.close_connections()`.
 
 [`frontend.py`](../frontend.py) then attaches the UI:
 
-- `validate_security_config()` refuses to start with an insecure configuration (missing `STORAGE_SECRET`; missing DB credentials in production). Separately, `is_mock_discord()` raises at startup if `MOCK_DISCORD` is enabled while `ENVIRONMENT=production`.
+- `validate_security_config()` refuses to start with an insecure configuration (missing `STORAGE_SECRET`; missing DB credentials in production), and `validate_session_storage()` refuses a configured-but-unreachable `NICEGUI_REDIS_URL`; the startup log then says which session store is live. Separately, `is_mock_discord()` raises at startup if `MOCK_DISCORD` is enabled while `ENVIRONMENT=production`.
 - The `static/` directory is mounted at `/static` through `VersionedStaticFiles`: development sends `no-store` so CSS/JS edits show up on refresh, and production caches a stamped URL (`?v=<mtime>`, written by `theme.assets.asset_url`) for a year and revalidates everything else. Link static assets through `asset_url` or a deploy will not reach clients that already have the old file — see [reference/frontend.md](reference/frontend.md#static-assets--styling-static).
 - Three middlewares are registered at import time (Starlette runs the last-added outermost, so the effective order is session → `TransportPrefixMiddleware` → `TenantMiddleware` → `AuthMiddleware`): `AuthMiddleware` (Discord OAuth session enforcement), `TenantMiddleware` (resolves the tenant from `/t/<slug>` or a custom `Host` and rewrites the ASGI scope — see [features/multitenancy.md](features/multitenancy.md)), and `TransportPrefixMiddleware` (un-prefixes NiceGUI/asset transport paths). The resolved `PLATFORM_HOST` is logged at startup.
-- The OAuth routes and every page module imported in [`frontend.py`](../frontend.py) are registered, then `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path.
+- `/robots.txt` and the root-scoped `/sw.js` service worker are registered, then the OAuth routes and every page module imported in [`frontend.py`](../frontend.py), then `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path. `PublicCacheMiddleware` is added after that (outside the session middleware, so it can strip `Set-Cookie` from the cacheable spectator responses), and `register_error_handlers()` installs the error pages.
 
-`main.py` is not run directly — `start.sh dev|mock|prod` sources `.env` and launches Uvicorn (`dev` and `mock` add `--reload`).
+`main.py` is not run directly — `start.sh dev|mock|validate|prod` sources `.env` and launches Uvicorn (`dev` and `mock` add `--reload`; `validate` is `mock` without it), and `start.sh stop` stops it.
 
 ## Three-layer pattern
 
@@ -101,7 +106,7 @@ flowchart LR
 
 Notes on the arrows:
 
-- The REST API (the [`api/`](../api/) package) is a full read/write API authenticated by personal access tokens (`Authorization: Bearer …`, see [reference/rest-api.md](reference/rest-api.md)). The original public `GET /api/matches` read path queries the ORM (models) directly.
+- The REST API (the [`api/`](../api/) package) is a full read/write API authenticated by personal access tokens (`Authorization: Bearer …`, see [reference/rest-api.md](reference/rest-api.md)). A few routers (e.g. `api/routers/matches.py`) still read models directly with a tenant-scoped `filter`, the sanctioned read-only shape.
 - Discord button interactions (crew signup, match acknowledgment, unwatch) arrive at the bot and call back into the service layer. See [reference/discord-integration.md](reference/discord-integration.md).
 - Outbound DMs are never sent inline from request handlers; services enqueue them onto `discord_queue` so UI interactions don't block on Discord.
 
@@ -121,26 +126,30 @@ Every top-level entry in the repository, with the doc that covers it:
 | `models/` | All Tortoise ORM models and enums, split into per-domain submodules | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` | Business-logic layer: flat `<domain>_service.py` modules plus a subpackage per outgrown domain — `match/`, `discord/`, `volunteer/`, `async_qualifier/`, `bracket_engines/`, `tournament_strategies/`, `_bracket/`. The top-level barrel re-exports everything, so `from application.services import X` is layout-independent | [reference/services.md](reference/services.md) |
 | `application/repositories/` | Data-access layer: one repository per model family | [reference/data-model.md](reference/data-model.md) |
-| `application/tenant_context.py`, `application/feature_flags.py` | Request-time tenant context + the feature-flag registry | [features/multitenancy.md](features/multitenancy.md), [features/feature-flags.md](features/feature-flags.md) |
+| `application/tenant_context.py`, `application/timezone_context.py`, `application/table_preferences_context.py`, `application/feature_flags.py` | Request-time tenant / viewer-timezone / table-layout context + the feature-flag registry | [features/multitenancy.md](features/multitenancy.md), [features/feature-flags.md](features/feature-flags.md) |
+| `application/events/` | In-process event bus (`event_bus`, `EventType`, the async dispatch queue) and the narrow `match_live` UI-refresh channel | [features/event-system.md](features/event-system.md) |
+| `application/help/`, `application/event_info/`, `application/content/` | In-repo Markdown for `/help` and `/event-info` and the shared closed-block loader | [features/help.md](features/help.md), [features/event-information.md](features/event-information.md) |
+| `application/errors.py`, `application/randomizer_credentials.py` | Shared service error types (`NotFoundError`, `FeatureDisabledError`, …); the per-randomizer credential registry | [reference/services.md](reference/services.md), [reference/seed-generation.md](reference/seed-generation.md) |
 | `application/utils/` | Helpers (timezone, environment validation, CSV export, QR codes, web push, Sentry, host/URL/session), plus `clients/` (Challonge/Twitch/racetime/SpeedGaming/OAuth-identity HTTP clients) and `mocks/` (the `MOCK_*` flags and their offline stand-ins) | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
-| `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware`), `tenant.py` (`TenantMiddleware` + `TransportPrefixMiddleware`), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md), [features/multitenancy.md](features/multitenancy.md) |
+| `middleware/` | `auth.py` (`protected_page` / `public_page` + `AuthMiddleware`), `tenant.py` (`TenantMiddleware` + `TransportPrefixMiddleware`), `public_cache.py`, `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md), [features/multitenancy.md](features/multitenancy.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
 | `mcpserver/` | Remote MCP server at `/mcp` (peer of `api/`): typed tools over the same services — reads for every connection, match writes for one whose consent screen approved them — with its own OAuth 2.1 authorization server. Mounted before NiceGUI; its transport session manager runs for the app's lifetime | [features/mcp-server.md](features/mcp-server.md) |
 | `racetimebot/` | Racetime bot runtime (peer of `discordbot/`): one lifespan-managed connection per active `RacetimeBot` category, health tracking, tenant-routed room-event handlers; gated by `RACETIME_BOT_ENABLED`, mockable via `MOCK_RACETIME` | [reference/services.md](reference/services.md) |
 | `pages/` | NiceGUI pages: home, admin (role-gated tabs), volunteer, equipment, brackets, qualifiers, super-admin `platform.py`, and the OAuth login/link pages | [reference/frontend.md](reference/frontend.md), [reference/authentication.md](reference/authentication.md) |
-| `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `realtime.py` | [reference/frontend.md](reference/frontend.md) |
+| `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `brackets/` (bracket renderer + static spectator view), `help/`, `realtime.py`, and shared widgets | [reference/frontend.md](reference/frontend.md) |
 | `static/` | CSS (and other static assets) served at `/static` | [reference/frontend.md](reference/frontend.md) |
 | `presets/` | Built-in randomizer preset files (alttpr/, dk64r/, ootr/, smmap/) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
-| `scripts/` | Idempotent dev fixtures (`seed_dev.py` and the online/Challonge/bracket seeds), tenant and role bootstrap (`seed_tenant.py`, `grant_super_admin.py`, `grant_staff.py`), and one-off utilities | [development.md](development.md), [deployment.md](deployment.md) |
-| `tests/` | pytest suite: `services/`, `api/`, `mcp/`, `tenancy/` (tenant context + leak tests), `theme/` (pure presentation logic), plus cross-cutting utility suites at the root | [development.md](development.md) |
+| `scripts/` | Idempotent dev fixtures (`seed_dev.py` and the online/Challonge/bracket seeds), tenant and role bootstrap (`seed_tenant.py`, `grant_super_admin.py`, `grant_staff.py`), the CI drivers (`guardrails.py`, `mypy_ratchet.py`, `ui_smoke.js`), dev drivers (`run_worker_tick.py`, `set_feature_flags.py` + `ui_flag_sweep.sh`), `loadtest/`, and one-off utilities | [development.md](development.md), [deployment.md](deployment.md) |
+| `tests/` | pytest suite: `services/`, `api/`, `mcp/`, `tenancy/` (tenant context + leak tests), `theme/` and `pages/` (pure presentation logic), `postgres/` (PostgreSQL-only), `utils/`, plus cross-cutting utility suites at the root | [development.md](development.md) |
 | `docs/` | This documentation | [README.md](README.md) |
-| `start.sh` | Uvicorn launcher (`dev`/`mock`/`prod`); sources `.env` | [deployment.md](deployment.md) |
+| `start.sh` | Uvicorn launcher (`dev`/`mock`/`validate`/`prod`, plus `stop`); sources `.env` | [deployment.md](deployment.md) |
 | `Dockerfile`, `docker-compose.yml` | Container build and postgres+app stack | [deployment.md](deployment.md) |
-| `.github/workflows/` | CI (`test.yml`) and GHCR image publishing (`publish.yml`) | [development.md](development.md), [deployment.md](deployment.md) |
+| `.github/workflows/` | CI (`test.yml`), GHCR image publishing (`publish.yml`), `security.yml` (pip-audit) and `guardrail-sweep.yml` (weekly whole-tree guardrails) | [development.md](development.md), [deployment.md](deployment.md) |
 | `pyproject.toml`, `poetry.lock` | Poetry dependencies, pytest and Aerich config | [development.md](development.md) |
 | `.env.example` | Annotated template for all environment variables | [deployment.md](deployment.md) |
-| `CLAUDE.md`, `AGENTS.md` | Conventions and AI-assistant development guides | — |
+| `CLAUDE.md`, `AGENTS.md`, `.claude/` | Conventions and AI-assistant development guides; `.claude/` holds the hooks, guardrail scripts and skills | [`.claude/README.md`](../.claude/README.md) |
+| `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE` | Contribution guide, vulnerability reporting, licence | — |
 | `README.md` | Quick-start readme | — |
 
 ## Key design decisions

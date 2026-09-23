@@ -14,10 +14,10 @@ logic of its own.
 | Endpoint | `POST/GET/DELETE {BASE_URL}/mcp` |
 | Transport | Streamable HTTP, **stateless**, JSON responses (no SSE on POST) |
 | Auth | OAuth 2.1 (RFC 7591 dynamic registration + PKCE). **Personal access tokens are refused.** |
-| Writes | 19 match-management tools, served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
-| Reads | 54 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
+| Writes | 21 tools (19 match-management, plus tournament self-signup and withdrawal), served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
+| Reads | 56 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
 | Feature flag | None — the server is always on. `MCP_ENABLED=false` is an operational kill switch. |
-| Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). Covers `/mcp` **and** the four unauthenticated authorization-server routes. |
+| Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). Covers `/mcp` **and** the unauthenticated authorization-server routes (`/authorize`, `/token`, `/register`, `/revoke`, and the AS metadata document). |
 | Code | [`mcpserver/`](../../mcpserver), consent page [`pages/mcp_consent.py`](../../pages/mcp_consent.py) |
 
 ## Connecting a client
@@ -316,11 +316,15 @@ field, whatever its size.
 
 ## Writes
 
-Nineteen tools in [`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py),
-served only to a connection approved for writing.
+Twenty-one tools, served only to a connection approved for writing: nineteen in
+[`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py), plus
+`sign_up_for_tournament` and `withdraw_from_tournament`, which live beside the
+other tournament tools in
+[`mcpserver/tools/tournaments.py`](../../mcpserver/tools/tournaments.py).
 
 **Scope, and the rule that fixes it.** The write surface is exactly what
-`api/routers/match_actions.py` exposes, tool for tool. That is worth stating
+`api/routers/match_actions.py` exposes, tool for tool, plus the self-signup pair
+from `api/routers/tournament_actions.py` (`POST`/`DELETE /tournaments/{id}/signup`). That is worth stating
 because the alternative — adding whichever writes seem useful — leaves two
 surfaces that drift and no answer for the next proposal. A write that belongs
 here belongs in the REST router too, and the reverse.
@@ -344,15 +348,15 @@ user.
 holding no role in the community, and the REST API has no equivalent (a PAT is
 bound to one community, so it never needed one). The floor governs the whole MCP
 surface, reads included, so the write tools did not introduce it — but it does
-mean the five self-service tools (crew signup and withdrawal, acknowledge, watch
-and unwatch) are out of reach for a plain member who joined a community without
+mean the seven self-service tools (crew signup and withdrawal, acknowledge, watch
+and unwatch, tournament signup and withdrawal) are out of reach for a plain member who joined a community without
 being given a role, even though the same actions work for them on the web and
 through a PAT. Widening the floor to `TenantMembershipService.is_member` would
 fix that, and would also widen what the *read* tools disclose to any member — a
 decision about the read surface's posture, not one to make from the write side.
 
-`delete_match` and `withdraw_crew_signup` are additionally annotated
-`destructiveHint`, which is how a client decides how hard to ask before
+`delete_match`, `withdraw_crew_signup` and `withdraw_from_tournament` are
+additionally annotated `destructiveHint`, which is how a client decides how hard to ask before
 proceeding.
 
 ### Hiding writes from a read-only listing
@@ -360,7 +364,7 @@ proceeding.
 `WizzrobeMCP.list_tools` (in `mcpserver/server.py`) filters the write tools out
 for a read-only connection. It is **not** the security boundary — the gate is,
 and `test_mcp_writes.py` calls every write tool over the wire with a read-only
-token to prove it. It is a context boundary: a read-only client offered nineteen
+token to prove it. It is a context boundary: a read-only client offered twenty-one
 tools it can never call spends tokens on their schemas and plans work it cannot
 do, with the refusal arriving a round-trip after the model has told the user it
 would reschedule their match.
@@ -377,8 +381,9 @@ Two rules, in `mcpserver/schemas.py`:
 - **Singular reads reuse the REST model.** `get_match` goes through
   `api/_match_view.serialize_match`, so rules baked into it cannot drift between
   the two surfaces. Writes follow the same rule and return the same
-  `MatchResponse`, so the model reads back exactly what it changed; the four
-  that have no record to hand back return `OperationResult`.
+  `MatchResponse`, so the model reads back exactly what it changed; the ones
+  with no match record to hand back (`delete_match`, the crew/acknowledge/watch
+  self-actions, and the two tournament signup tools) return `OperationResult`.
 - **List reads get a compact shape.** A hundred full match records is mostly
   padding, which buries the answer and burns the model's context.
 
