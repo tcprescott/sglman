@@ -24,6 +24,7 @@ from models import (
     Preset,
     PresetOverride,
     Tournament,
+    TriforceText,
 )
 from tests.factories import utc
 from tests.services._match_schedule_setup import (
@@ -68,6 +69,42 @@ def _submission(provider_task_id: str, branch: str = 'stable'):
         settings={'branch': branch, 'generate_spoilerlog': False},
     )
 
+
+
+class TestTriforceTextAtRollTime:
+    """An approved community text rides along on the match's ALTTPR roll."""
+
+    async def _match(self, seed_generator):
+        tournament = await Tournament.create(name='T', seed_generator=seed_generator)
+        match = await Match.create(tournament=tournament, scheduled_at=utc(2025, 1, 15, 19, 30))
+        user = await make_dm_user(90, name='tf0')
+        await MatchPlayers.create(match=match, user=user)
+        return tournament, match, user
+
+    async def test_approved_text_is_passed_to_the_alttpr_roll(
+        self, service, db, stub_discord_queue,
+    ):
+        tournament, match, user = await self._match('alttpr')
+        await TriforceText.create(tournament=tournament, user=user, text='GG', approved=True)
+        await TriforceText.create(tournament=tournament, user=user, text='NOPE', approved=False)
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled('https://alttpr.com/h/tf'))
+
+        ok, _, _ = await service.generate_seed(match.id, await make_staff())
+
+        assert ok is True
+        assert service.seedgen_service.generate_seed_call.await_args.kwargs['triforce_text'] == 'GG'
+
+    async def test_no_text_for_a_randomizer_without_triforce_support(
+        self, service, db, stub_discord_queue,
+    ):
+        tournament, match, user = await self._match('test')
+        await TriforceText.create(tournament=tournament, user=user, text='GG', approved=True)
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled('https://x/1'))
+
+        ok, _, _ = await service.generate_seed(match.id, await make_staff())
+
+        assert ok is True
+        assert service.seedgen_service.generate_seed_call.await_args.kwargs['triforce_text'] is None
 
 
 class TestHardPresetAtRollTime:

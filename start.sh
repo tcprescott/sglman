@@ -54,7 +54,7 @@ if [ "$1" = "stop" ]; then
     exit 0
 elif [ "$1" = "prod" ]; then
     echo "Starting Uvicorn server in production mode..."
-    # Force production security posture (hidden API docs, HSTS, strict
+    # Force production security posture (HSTS, strict
     # STORAGE_SECRET/DB-credential checks, mock-mode refusal) rather than
     # depending on the operator's .env to set it.
     export ENVIRONMENT=production

@@ -32,6 +32,11 @@ async def _subscribed_user(discord_id: int = 1) -> User:
     )
     return user
 
+async def _deliver(user: User, title: str = 't', body: str = 'b') -> int:
+    """Push to every device ``user`` subscribed, through the shared delivery path."""
+    subscriptions = await WebPushSubscription.filter(user=user)
+    return await WebPushService()._send_to_subscriptions(subscriptions, title=title, body=body)
+
 
 @pytest.fixture
 def vapid_env(monkeypatch):
@@ -323,7 +328,7 @@ class TestSubscriptions:
         monkeypatch.setattr(
             'application.services.web_push_service._get_http_client', lambda: client
         )
-        delivered = await WebPushService().notify_user(user, title='Wizzrobe', body='hi')
+        delivered = await _deliver(user, title='Wizzrobe', body='hi')
         assert delivered == 1
         assert client.calls[0]['url'] == NEW_ENDPOINT
 
@@ -401,7 +406,7 @@ class TestDelivery:
             lambda *a, **k: [(0, 0, 0, '', ('169.254.169.254', 0))],
         )
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
 
         assert delivered == 0
         assert fake.calls == []
@@ -422,7 +427,7 @@ class TestDelivery:
             lambda *a, **k: [(0, 0, 0, '', ('93.184.216.34', 0))],
         )
 
-        assert await WebPushService().notify_user(user, title='t', body='b') == 1
+        assert await _deliver(user) == 1
         assert len(fake.calls) == 1
 
     async def test_delivery_does_not_resolve_outside_production(
@@ -436,7 +441,7 @@ class TestDelivery:
             raise AssertionError('getaddrinfo must not run outside production')
 
         monkeypatch.setattr('application.utils.ssrf.socket.getaddrinfo', _boom)
-        assert await WebPushService().notify_user(user, title='t', body='b') == 1
+        assert await _deliver(user) == 1
         assert len(fake.calls) == 1
 
     async def test_mirror_dm_without_subscriptions_makes_no_requests(self, db, vapid_env, fake_client):
@@ -449,7 +454,7 @@ class TestDelivery:
         fake = fake_client([410])
         user = await _subscribed_user(discord_id=42)
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
 
         assert delivered == 0
         assert len(fake.calls) == 1
@@ -459,20 +464,20 @@ class TestDelivery:
         fake = fake_client([500])
         user = await _subscribed_user(discord_id=42)
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
 
         assert delivered == 0
         assert len(fake.calls) == 1
         assert await WebPushSubscription.all().count() == 1
 
-    async def test_notify_user_counts_deliveries_across_devices(self, db, vapid_env, fake_client):
+    async def test_delivery_counts_across_devices(self, db, vapid_env, fake_client):
         fake = fake_client([201, 201])
         user = await _subscribed_user(discord_id=42)
         await WebPushSubscription.create(
             user=user, endpoint=ENDPOINT + '-second', p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
         )
 
-        delivered = await WebPushService().notify_user(user, title='t', body='b')
+        delivered = await _deliver(user)
 
         assert delivered == 2
         assert len(fake.calls) == 2

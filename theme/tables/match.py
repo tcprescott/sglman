@@ -247,8 +247,6 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self.table.on('acknowledge_match', lambda event: background_tasks.create(
             self._handle_acknowledge_match(event.args, context.client)))
 
-        for role in ['player']:
-            self.table.on(f'edit_{role}', lambda event, r=role: self._handle_edit_role(r, event))
         for role in ['commentator', 'tracker']:
             self.table.on(f"view_{role}", lambda event, r=role: self._handle_edit_role(r, event))
             self.table.on(f"toggle_{role}", lambda event, r=role: self._handle_toggle_approval(r, event))

@@ -136,7 +136,13 @@ RULES = [
     Rule(
         "audit-publish-pair",
         lambda n: in_services(n) and os.path.basename(n) != "audit_service.py",
-        re.compile(r"write_log\([\s\S]{0,400}?event_bus\.publish\("),
+        # Bounded by the enclosing function rather than a short character
+        # window: MatchService.create_match hid its pair behind ~800 chars of
+        # notification code, so a 400-char window let it through.
+        re.compile(
+            r"write_log\((?:(?!\n[ \t]*(?:async[ \t]+)?def[ \t])[\s\S]){0,6000}?"
+            r"event_bus\.publish\("
+        ),
         "Hand-rolled `write_log(...)` followed by `event_bus.publish(...)`.\n"
         "  Use AuditService.write_and_publish(actor, action, details, event_type)\n"
         "  (application/services/audit_service.py). When the event needs extra\n"

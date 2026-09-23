@@ -6,7 +6,7 @@ and who may decide, writes the audit rows, and queues the Discord notifications.
 The permission split mirrors the web surface exactly. Raising, withdrawing and
 agreeing take any write token, because the service checks that the actor plays
 in the match. Deciding is re-gated inside the service on ``can_crud_match`` —
-staff or the tournament's admin — which is wider than global STAFF, so the HTTP
+staff or the tournament's admin — which is wider than STAFF alone, so the HTTP
 layer takes the coarse write gate and lets the service answer.
 """
 

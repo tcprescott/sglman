@@ -52,12 +52,10 @@ class MatchTableHandlersMixin:
         match_id = row['id']
         match_query = self.get_query()
         prefetch_map = {
-            'player': ('players', 'players__user'),
             'commentator': ('commentators', 'commentators__user'),
             'tracker': ('trackers', 'trackers__user'),
         }
         attr_map = {
-            'player': 'players',
             'commentator': 'commentators',
             'tracker': 'trackers',
         }

@@ -36,7 +36,7 @@ class AuthService:
       so they never operate a feature the tenant has not enabled.
     """
 
-    # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
+    # Per-tenant roles that grant access to the Admin dashboard. Excludes PROCTOR
     # and VOLUNTEER, whose workflows live on the Volunteer page instead.
     _ADMIN_ROLES: ClassVar[set[Role]] = {
         Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
@@ -141,7 +141,7 @@ class AuthService:
 
     @staticmethod
     async def can_view_admin(user: Optional[User]) -> bool:
-        """Any admin global role or any TA/CC tournament membership in this
+        """Any admin role in this tenant or any TA/CC tournament membership in this
         tenant. A platform SUPER_ADMIN can view any tenant's admin."""
         if user is None:
             return False

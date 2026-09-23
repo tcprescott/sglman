@@ -1,9 +1,8 @@
 
 
-from nicegui import app, ui
+from nicegui import ui
 
 from application.services import MatchService
-from theme.dialog.match_dialog import UserMatchDialog
 from theme.help import help_icon
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
@@ -11,9 +10,6 @@ from theme.tables.preferences import TableKeys
 
 
 async def schedule():
-    # Always set: home applies the membership gate before any tab is built, so a
-    # signed-out visitor gets the join page and never reaches this board.
-    discord_id = app.storage.user.get('discord_id')
     match_service = MatchService()
 
     with ui.column().classes('page-container'):
@@ -55,25 +51,12 @@ async def schedule():
             'body-cell-generated_seed': SEED_SLOT_READONLY,
         }
 
-        async def on_edit(match_id: int):
-            match = await match_service.get_by_id(match_id)
-            if not match:
-                ui.notify("Couldn't find that match. Try refreshing the page.", color='warning')
-                return
-            dialog = UserMatchDialog(
-                discord_id=discord_id,
-                match=match,
-                on_submit=lambda *_: table_view.refresh(),
-            )
-            await dialog.open()
-
-        table_view = MatchTableView(
+        MatchTableView(
             columns=columns,
             get_query=get_query,
             admin_controls=False,
             table_key=TableKeys.HOME_SCHEDULE,
             extra_slots=extra_slots,
-            on_edit=on_edit,
             grid_breakpoint='lt.lg',
             storage_key='home_schedule',
         )

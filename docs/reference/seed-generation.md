@@ -35,7 +35,7 @@ The admin Settings tab lists each tournament's `seed_generator` read-only.
 ### Generation flow
 
 1. The admin Schedule tab's match table (and the proctor board) shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set, the match is not a racetime match, it has players, it is not Finished/Confirmed, no seed exists yet and no roll is in flight (`SEED_ROLLABLE` in [`match_slots.py`](../../theme/tables/match_slots.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `MatchLifecycleHandlers.on_generate_seed` in [`match_lifecycle.py`](../../theme/tables/match_lifecycle.py).
-2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the preset through `MatchHardPresetService.resolve_preset(match)` and takes the randomizer from it (falling back to the legacy `tournament.seed_generator` string with no preset), and dispatches `SeedGenerationService.generate_seed_call(randomizer, preset, surface='match')` (or, for an `ASYNC_RANDOMIZERS` backend, queues a `ProviderTask` — see [Asynchronous rolls](#asynchronous-rolls)).
+2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the preset through `MatchHardPresetService.resolve_preset(match)` and takes the randomizer from it (falling back to the legacy `tournament.seed_generator` string with no preset), and dispatches `SeedGenerationService.generate_seed_call(randomizer, preset, surface='match', triforce_text=…)` (an approved community text for an ALTTPR roll — see [below](#alttpr-tournament-generation-and-triforce-texts)) (or, for an `ASYNC_RANDOMIZERS` backend, queues a `ProviderTask` — see [Asynchronous rolls](#asynchronous-rolls)).
 
    **Which preset that is, is the players' answer as much as the tournament's.** In order: staff's per-match `Match.preset_override`; else `tournament.hard_preset` when every player opted into it; else `tournament.preset`. This is the only place the question is asked, and asking it here is what closes the opt-in window — from that line on, the settings are what `GeneratedSeeds` records rather than what anyone picks. See [match-participation.md](../features/match-participation.md#harder-settings-opt-in).
 3. The returned string is persisted as a [`GeneratedSeeds`](../../models/tournament.py) row and linked from the match:
@@ -106,12 +106,11 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | Method | Behavior | Returns |
 |---|---|---|
 | `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Convenience wrapper over `generate_seed_call` returning just the permalink. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential, or a `SeedProviderError` subclass naming what the upstream did. |
-| `generate_seed_call(randomizer, preset=None, *, surface=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
+| `generate_seed_call(randomizer, preset=None, *, surface=None, triforce_text=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). `triforce_text` is embedded by the `TRIFORCE_TEXT_RANDOMIZERS` (`alttpr`) and ignored by the rest. A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `list_remote_presets(randomizer, *, branch=None) -> list[RemotePreset]` | The presets the randomizer's own API publishes, mapped into storable `settings`. Raises `ValueError` for a randomizer with no catalogue or an unknown branch, `MissingCredentialError` without the key. | `list[RemotePreset]`. |
 | `offers_remote_presets(randomizer) -> bool` / `remote_preset_branches(randomizer) -> list[str]` (classmethods) | Membership in and lookup into `REMOTE_PRESET_BRANCHES` — what the Presets tab's import dialog renders from. | `bool` / `list[str]`. |
 | `supports_triforce_texts(generator: Optional[str]) -> bool` (classmethod) | Membership in `TRIFORCE_TEXT_RANDOMIZERS`. Four consumers: `AuthService.can_submit_triforce_text`, `TriforceTextService` (both the submit guard and the `seed_generator__in=…` tournament filter), the home Tournaments tab's **Triforce Texts** button (`supporting_tournament_ids` / `open_triforce_dialog`), and the REST `/seeds/randomizers` response field `supports_triforce_texts`. | `bool`. |
-| `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
 
 ### Dispatch targets (private generators)
 
@@ -231,20 +230,15 @@ DK64R is the one randomizer that does **not** take the `MOCK_SEEDGEN` short-circ
 
 ## ALTTPR tournament generation and triforce texts
 
-`generate_alttpr_for_tournament(tournament_id, balanced=True)` rolls the same `casualboots.yaml` preset but first embeds a community-submitted end-game text from the tournament's approved [triforce text](../features/triforce-texts.md) pool ([`triforce_text_service.py`](../../application/services/triforce_text_service.py)):
+Every ALTTPR match roll carries a community-submitted end-game text from the tournament's approved [triforce text](../features/triforce-texts.md) pool when it has one. `MatchScheduleService.generate_seed` asks `TriforceTextService.get_balanced_text(tournament)` ([`triforce_text_service.py`](../../application/services/triforce_text_service.py)) for any randomizer in `TRIFORCE_TEXT_RANDOMIZERS`: it picks a random *submitter* with approved texts, then a random text of theirs, so every submitter is weighted equally regardless of how many texts they had approved. Texts whose submitter was deleted form their own bucket. (`get_random_text()`, a uniform pick over all approved texts, exists but nothing uses it.) Both are soft-gated: with `TRIFORCE_TEXTS` off, or an empty pool, they answer `None` and the seed rolls with the preset's own text.
 
-- **`balanced=True`** (default) — `TriforceTextService.get_balanced_text()`: pick a random *submitter* with approved texts, then a random text of theirs, so every submitter is weighted equally regardless of how many texts they had approved. Texts whose submitter was deleted form their own bucket.
-- **`balanced=False`** — `get_random_text()`: a uniformly random approved text.
-
-When a text is found, it is injected into the customizer settings before generation:
+`_generate_alttpr` deep-copies the resolved preset's settings (the `casualboots.yaml` fallback without one) and injects the text before generation, so the shared `Preset` row never keeps it:
 
 ```python
-preset['settings']['texts']['end_triforce'] = "{NOBORDER}\n" + text
+settings.setdefault('texts', {})['end_triforce'] = "{NOBORDER}\n" + triforce_text
 ```
 
-(`{NOBORDER}` is an ALTTP text-engine directive; the text itself is up to 3 newline-joined lines of ≤19 characters, validated at submission time.) When the pool is empty the method falls back to a plain seed with the preset's default text. The method raises `ValueError` if the tournament id does not exist.
-
-Note: the match-rolling flow always calls `generate_seed('alttpr')` → `_generate_alttpr`, which does **not** inject texts; `generate_alttpr_for_tournament` currently has no caller in the codebase.
+(`{NOBORDER}` is an ALTTP text-engine directive; the text itself is up to 3 newline-joined lines of ≤19 characters, validated at submission time.) The settings as sent, text included, land in the `GeneratedSeeds.settings_snapshot`, which is the record of which text a match got. Only match rolls embed a text; `POST /seeds` and qualifier pools don't.
 
 ## Presets (DB-backed)
 
@@ -290,6 +284,6 @@ For ALTTPR-style files the payload lives under a top-level `settings` key (with 
 4. Register a `CredentialSpec` for each credential in [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) — that alone puts it on the admin **Randomizer Keys** tab and into `available_randomizers`. No environment variable, and nothing to add to the deployment.
 5. Author a preset on the new randomizer and select it as the tournament's Seed Preset in the tournament dialog; the admin schedule's Generate button picks it up with no further wiring. Add a row to the [Supported randomizers](#supported-randomizers) table.
 
-To change which settings an ALTTPR tournament rolls, author or edit a `Preset` on the admin **Presets** tab and select it on the tournament — no code change. For the still-hard-coded backends, edit the path in the `_generate_*` method (and `generate_alttpr_for_tournament` for ALTTPR, which loads `casualboots.yaml` independently).
+To change which settings an ALTTPR tournament rolls, author or edit a `Preset` on the admin **Presets** tab and select it on the tournament — no code change. For the still-hard-coded backends, edit the path in the `_generate_*` method.
 
 Related: [services.md](services.md) (service layer), [data-model.md](data-model.md) (`GeneratedSeeds`, `Match`, `Tournament` schemas), [frontend.md](frontend.md) (match table internals).

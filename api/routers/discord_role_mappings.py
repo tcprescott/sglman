@@ -1,6 +1,6 @@
 """Discord-role-to-app-role mapping endpoints (Staff only).
 
-Reads require a global STAFF role; mutations additionally reject read-only
+Reads require STAFF in this community; mutations additionally reject read-only
 tokens. ``DiscordRoleMappingService`` re-enforces the Staff check
 (``can_grant_roles``) and writes audit logs.
 """
