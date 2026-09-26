@@ -542,6 +542,33 @@ class TestProvisionFromDiscordLogin:
         service.audit_service.write_log.assert_not_awaited()
 
 
+class TestProvisionFromDiscordRoleSync:
+    async def test_new_account_is_audited_with_the_role_sync_source(self, service):
+        new_user = make_user(user_id=8, username='guildie', discord_id='888')
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(new_user, True))
+
+        user, created = await service.provision_from_discord_role_sync(888, 'guildie', 'hash')
+
+        assert (user, created) == (new_user, True)
+        service.repository.get_or_create_by_discord_id.assert_awaited_once_with(
+            888, 'guildie', 'hash',
+        )
+        actor, action, details = service.audit_service.write_log.await_args.args
+        assert actor is new_user
+        assert action == 'user.provisioned'
+        assert details['source'] == 'discord_role_sync'
+
+    async def test_existing_account_is_left_alone(self, service):
+        existing = make_user(user_id=3, username='chosen_name', is_active=True)
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(existing, False))
+
+        user, created = await service.provision_from_discord_role_sync(123, 'guild_name')
+
+        assert (user, created) == (existing, False)
+        service.repository.update.assert_not_awaited()
+        service.audit_service.write_log.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # create_mock_login_user
 # ---------------------------------------------------------------------------

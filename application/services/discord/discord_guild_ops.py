@@ -14,7 +14,8 @@ MOCK_DISCORD, which is the mode nobody runs the tests in.
 """
 
 import logging
-from typing import Dict, List, Optional, Set, Tuple, Union
+from dataclasses import dataclass
+from typing import AbstractSet, Dict, FrozenSet, List, Optional, Set, Tuple, Union
 
 import discord
 from discord.ext import commands
@@ -22,6 +23,29 @@ from discord.ext import commands
 from application.utils.mocks import mock_discord_data
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GuildMember:
+    """The slice of a guild member that role sync needs to provision an account.
+
+    ``avatar`` is the *global* avatar hash (what the OAuth login stores), ``None``
+    when the account has no custom avatar. ``role_ids`` excludes ``@everyone``.
+    """
+
+    id: int
+    username: str
+    avatar: Optional[str]
+    role_ids: FrozenSet[int]
+
+    @classmethod
+    def from_member(cls, member: discord.Member) -> 'GuildMember':
+        return cls(
+            id=member.id,
+            username=member.name,
+            avatar=member.avatar.key if member.avatar else None,
+            role_ids=frozenset(r.id for r in member.roles if r.id != member.guild.id),
+        )
 
 
 class GuildOpsMixin:
@@ -208,6 +232,52 @@ class GuildOpsMixin:
         except Exception as e:
             return False, f"Failed to read member roles: {e!s}"
 
+    async def list_members_with_roles(
+        self, guild_id: int, role_ids: AbstractSet[int],
+    ) -> Tuple[bool, Union[List[GuildMember], str]]:
+        """Every non-bot member of ``guild_id`` holding at least one of ``role_ids``.
+
+        Reads the gateway member cache when the guild is fully chunked and pages
+        through the REST member list otherwise; both need the members intent,
+        which the bot requests.
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+            if not role_ids:
+                return True, []
+
+            guild = self._bot.get_guild(guild_id)
+            if guild is None:
+                try:
+                    guild = await self._bot.fetch_guild(guild_id)
+                except discord.NotFound:
+                    return False, "The bot is not in this server."
+                except discord.Forbidden:
+                    return False, "Insufficient permissions to access this guild"
+
+            if guild.chunked:
+                members = list(guild.members)
+            else:
+                members = [m async for m in guild.fetch_members(limit=None)]
+
+            found = []
+            for member in members:
+                if member.bot:
+                    continue
+                info = GuildMember.from_member(member)
+                if info.role_ids & role_ids:
+                    found.append(info)
+            return True, found
+        except discord.Forbidden:
+            return False, "Bot lacks permissions to read guild members"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while listing members: {e!s}"
+        except Exception as e:
+            return False, f"Failed to list members: {e!s}"
+
     async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
         """Return ``{"id", "name"}`` for a guild the bot can see, else an error.
 
@@ -296,6 +366,17 @@ class MockGuildOpsMixin:
     async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
         print(f"[MOCK Discord] get_member_role_ids guild={guild_id} user={user_id}")
         return True, mock_discord_data.member_role_ids(guild_id, user_id)
+
+    async def list_members_with_roles(
+        self, guild_id: int, role_ids: AbstractSet[int],
+    ) -> Tuple[bool, Union[List[GuildMember], str]]:
+        print(f"[MOCK Discord] list_members_with_roles guild={guild_id} roles={sorted(role_ids)}")
+        found = []
+        for member_id, username in mock_discord_data.MOCK_GUILD_ROSTER.items():
+            held = frozenset(mock_discord_data.member_role_ids(guild_id, member_id))
+            if held & role_ids:
+                found.append(GuildMember(id=member_id, username=username, avatar=None, role_ids=held))
+        return True, found
 
     async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
         print(f"[MOCK Discord] get_guild_summary guild={guild_id}")

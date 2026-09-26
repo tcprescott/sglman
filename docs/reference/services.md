@@ -384,7 +384,8 @@ CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discor
 | `list_all_mappings()` / `list_mappings(guild_id)` | `List[DiscordRoleMapping]` | All mappings, or those scoped to one guild. |
 | `add_mapping(guild_id, discord_role_id, discord_role_name, actor, app_role=None, tournament_grant=None, tournament_id=None)` | `DiscordRoleMapping` | Staff-only. Exactly one of `app_role` / `tournament_grant` — the latter requires a `tournament_id` in this tenant, the former forbids one. Rejects exact duplicates; every violation is a `ValueError`. Audits `discord_role.mapping_added`. |
 | `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
-| `sync_all_users(actor)` | `dict` | Staff-only (`can_grant_roles`) bulk re-sync of every user with a Discord account, applying current mappings immediately; returns `{users_processed, granted, revoked, skipped}` counts. Audits `role.discord_sync_bulk`. |
+| `sync_all_users(actor)` | `dict` | Staff-only (`can_grant_roles`) bulk re-sync of every user with a Discord account, applying current mappings immediately. First provisions an account for each member of the current tenant's guild who holds a mapped role and has none (`DiscordService.list_members_with_roles`; a Discord failure logs and creates nothing). Returns `{users_processed, users_created, granted, revoked, skipped}` counts. Audits `role.discord_sync_bulk`. |
+| `provision_member(tenants, member)` | `User \| None` | The account for a `GuildMember` whose roles one of `tenants` maps (a grantable app role, or a tournament grant on an active tournament), created via `UserService.provision_from_discord_role_sync` if missing. `None` when no held role confers anything. Called by the live `sync_member_roles`. |
 | `sync_user_roles_for_tenant(user, tenant)` | `dict` | The per-tenant half of `sync_user_roles`, inside `tenant_scope(tenant.id)` against that tenant's `discord_guild_id`. Never raises. |
 | `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles **and** tournament grants. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'tournament_granted', 'tournament_revoked', 'skipped'}` summary. |
 
@@ -397,7 +398,7 @@ role conferred. `TournamentService.add_admin` / `add_crew_coordinator` (and thei
 removes) delete the provenance row, pinning the grant as manual the way
 `UserRoleRepository.add` promotes a row to `RoleSource.MANUAL`.
 
-Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `TenantService.list_tenants` (the per-tenant `discord_guild_id` is the routing key), `AuthService`, `AuditService`.
+Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids` / `.list_members_with_roles`, `UserService.provision_from_discord_role_sync`, `TenantService.list_tenants` (the per-tenant `discord_guild_id` is the routing key), `AuthService`, `AuditService`.
 
 ### discord_queue.py — module functions
 
@@ -435,6 +436,7 @@ Every `send_dm_with_*` also takes the optional `embed=None, link=None` pair and 
 | `add_role_to_user(guild_id, user_id, role_id, reason=None)` | `(bool, str)` | Grant a Discord role to a guild member. |
 | `remove_role_from_user(guild_id, user_id, role_id, reason=None)` | `(bool, str)` | Remove a Discord role from a guild member. |
 | `get_member_role_ids(guild_id, user_id)` | `(bool, set[int] \| str)` | The member's role ids (`@everyone` excluded); `(True, set())` for a non-member. Feeds `DiscordRoleMappingService.sync_user_roles`. |
+| `list_members_with_roles(guild_id, role_ids)` | `(bool, list[GuildMember] \| str)` | Every non-bot member holding at least one of `role_ids`, as frozen `GuildMember(id, username, avatar, role_ids)` records. Reads the member cache when the guild is chunked, otherwise pages `fetch_members`. Feeds the provisioning step of `sync_all_users`. |
 | `get_guild_summary(guild_id)` | `(bool, {id, name} \| str)` | Name of a guild the bot can see (renders the connected-server label; confirms bot presence). |
 | `member_can_manage_guild(guild_id, user_id)` | `(bool, bool \| str)` | Whether a user is owner / Administrator / has Manage Server. **Fails closed** (`ok=False`) if the bot can't determine it. The authority check behind `DiscordLinkService`. |
 | `create_scheduled_event(guild_id, *, name, start_time, end_time, description=None, location='Stream')` | `(bool, int \| str)` | Create an external guild Scheduled Event; returns its id. |
@@ -450,7 +452,7 @@ What the bot does with `GUILD_MEMBER_UPDATE` / `GUILD_MEMBER_REMOVE`, split out 
 
 | Function | Returns | Description |
 |---|---|---|
-| `sync_member_roles(guild_id, discord_user_id)` | `None` | Re-syncs the member's app roles across **every tenant sharing the guild**, each in its own `tenant_scope`. Unknown guild or unknown user is a no-op. |
+| `sync_member_roles(guild_id, discord_user_id, member=None)` | `None` | Re-syncs the member's app roles across **every tenant sharing the guild**, each in its own `tenant_scope`. Unknown guild is a no-op. An unknown user gets an account via `DiscordRoleMappingService.provision_member` when `member` is given (the update event) and holds a mapped role; otherwise (including every removal) it's a no-op. |
 | `sync_member_avatar(member)` | `None` | Stores `Member.avatar.key` — the **global** hash, matching what the OAuth login records — on `User.discord_avatar`, or `NULL` when the avatar was removed. Unknown users are a no-op; an unchanged hash writes nothing. The only avatar refresh someone who never signs in gets. |
 
 ### discord_link_service.py — DiscordLinkService
@@ -1332,6 +1334,7 @@ User lookup, profile edits (self- and admin-driven), activation, per-tenant role
 | `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `get_community_people(*, role=None, has_discord=False, include_user_ids=None, include_inactive=False)` | `list[User]` | **The people of the tenant in scope** — every per-community picker, the Users tab, `GET /users` and MCP `list_users`. `User` is global, so belonging is derived, and `TenantMembership` derives it: the same basis the access gate checks, so a picker cannot offer someone the app would turn away. (It used to union role-holders with tournament entrants, because membership was a frozen backfill nothing wrote to; the membership work closed that and the old union is a strict subset.) `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account by **both** its flag and its sentinel id, and deactivated accounts unless `include_inactive` — which the match dialog passes, since a SpeedGaming placeholder is inactive by construction. Raises with no tenant in scope. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
+| `provision_from_discord_role_sync(discord_id, username, avatar=None)` | `(User, bool)` | Get-or-create the account for a guild member who holds a mapped role but has never signed in. A new account audits `user.provisioned` (`source: discord_role_sync`); an existing one is returned untouched. |
 | `provision_from_discord_login(discord_id, username, avatar=None)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username and avatar hash synced (`avatar=None` leaves the stored hash alone, `''` clears it; inactive accounts are returned untouched for the caller to reject). |
 | `sync_discord_avatar(discord_id, avatar)` | `bool` | Record the avatar hash Discord reports (the bot's member-update path); `True` when it changed. Unknown users are a no-op — no account is provisioned off a presence event. |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |

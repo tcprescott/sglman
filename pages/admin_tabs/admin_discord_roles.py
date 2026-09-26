@@ -206,7 +206,9 @@ async def admin_discord_roles_page() -> None:
                 with ui.dialog() as confirm, ui.card():
                     ui.label(
                         'Re-sync Discord roles for all users now? This applies the '
-                        'current mappings immediately and may take a moment.'
+                        'current mappings immediately, creates an account for anyone '
+                        'in the server who holds a mapped role but has never signed '
+                        'in, and may take a moment.'
                     )
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
@@ -220,9 +222,14 @@ async def admin_discord_roles_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
+                n_created = result['users_created']
+                created = (
+                    f", {n_created} new account{'s' if n_created != 1 else ''}"
+                    if n_created else ''
+                )
                 ui.notify(
                     f"Synced {result['users_processed']} users: "
-                    f"{result['granted']} granted, {result['revoked']} revoked",
+                    f"{result['granted']} granted, {result['revoked']} revoked{created}",
                     color='positive',
                 )
 

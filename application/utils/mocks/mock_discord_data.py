@@ -14,7 +14,8 @@ sync grants the expected app roles. Extra, unmapped roles are included so the
 "Add mapping" UI has a realistic set of choices to pick from.
 
 To enrich the mock: add guilds to :data:`MOCK_GUILDS`, add roles to a guild's
-``roles`` list, or pin a specific user's roles in :data:`MOCK_MEMBER_ROLES`.
+``roles`` list, pin a specific user's roles in :data:`MOCK_MEMBER_ROLES`, or add
+a never-signed-in member to :data:`MOCK_GUILD_ROSTER`.
 """
 
 from typing import Dict, List, Set
@@ -65,6 +66,17 @@ MOCK_GUILDS: Dict[int, dict] = {
 # Pin specific users' roles here (keyed by Discord user id) to script precise
 # scenarios. Anyone not listed falls back to :func:`_default_member_roles`.
 MOCK_MEMBER_ROLES: Dict[int, Set[int]] = {}
+
+# Guild members who have never signed in to Wizzrobe (discord id -> username).
+# "Sync All Users" provisions an account for each one holding a mapped role, so
+# in MOCK_DISCORD mode the button visibly creates users. The ids sit well above
+# ``seed_support.fixture_discord_id``'s block so they never collide with a
+# seeded user. Their roles come from :func:`member_role_ids` like anyone else's.
+MOCK_GUILD_ROSTER: Dict[int, str] = {
+    3000000000000000002: 'guild_only_proctor',
+    3000000000000000003: 'guild_only_staff',
+    3000000000000000005: 'guild_only_stream_manager',
+}
 
 
 def guild(guild_id: int) -> dict:

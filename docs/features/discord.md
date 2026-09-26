@@ -147,6 +147,27 @@ latency stays at roughly one Discord round-trip instead of scaling with tenant
 count. Per-tenant mappings are `DiscordRoleMapping` rows managed on the admin
 **Discord Roles** tab.
 
+### Accounts for members who have never signed in
+
+Holding a mapped role is enough to get a Wizzrobe account: staff shouldn't have
+to wait for a volunteer to log in before they can put them on a shift. Two paths
+create one, both through `UserService.provision_from_discord_role_sync`, which
+audits `user.provisioned` with `source: discord_role_sync`:
+
+- **Live** — `on_member_update` passes the member to `sync_member_roles`. An
+  unknown member whose new roles include one a tenant sharing the guild maps gets
+  an account, then the normal per-tenant sync grants the roles (and membership).
+- **Sync All Users** — before the per-user loop, `sync_all_users` lists every
+  member of the *current* community's guild holding a mapped role
+  (`list_members_with_roles`) and provisions those without an account, so a role
+  handed out before the mapping existed still lands.
+
+Only a mapping the sync would honour counts: a grantable app role, or a
+tournament grant on an active tournament. An unmapped role, leaving the server
+(`on_member_remove` passes no member) and bots never create anything. An existing
+account is never renamed by this path; the new one takes the member's Discord
+username and global avatar hash, exactly what a first login would store.
+
 ### Two kinds of mapping
 
 A mapping grants **either** a community-wide `Role` **or** a `TournamentGrant`
@@ -190,7 +211,8 @@ guild. The code already sets `intents.members = True`; without the portal toggle
 
 Audit actions: `discord_role.mapping_added` / `.mapping_removed` for staff edits,
 `role.discord_sync_granted` / `.discord_sync_revoked` for the login sync (actor =
-the signing-in user).
+the signing-in user), `user.provisioned` (`source: discord_role_sync`) for an
+account the sync created.
 
 ## Tournament notification preferences
 
