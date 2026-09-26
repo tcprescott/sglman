@@ -157,6 +157,42 @@ class UserService:
         (self-attributed to the new user) so login-time account creation is no
         longer invisible to the audit trail.
         """
+        user, created = await self._provision_by_discord_id(
+            discord_id, username, avatar, source='discord_login',
+        )
+        if not created and user.is_active:
+            fields: dict = {'username': username}
+            if avatar is not None:
+                fields['discord_avatar'] = avatar or None
+            await self.repository.update(user, **fields)
+        return user, created
+
+    async def provision_from_discord_role_sync(
+        self,
+        discord_id: int,
+        username: str,
+        avatar: Optional[str] = None,
+    ) -> tuple[User, bool]:
+        """Get-or-create the ``User`` for a guild member who holds a mapped role.
+
+        Role sync's counterpart to :meth:`provision_from_discord_login`: someone
+        a community has given a mapped Discord role gets an account before they
+        ever sign in, so staff can assign them. An existing account is returned
+        untouched; role sync owns nothing else about it. Audited as
+        ``user.provisioned`` with ``source='discord_role_sync'``.
+        """
+        return await self._provision_by_discord_id(
+            discord_id, username, avatar, source='discord_role_sync',
+        )
+
+    async def _provision_by_discord_id(
+        self,
+        discord_id: int,
+        username: str,
+        avatar: Optional[str],
+        *,
+        source: str,
+    ) -> tuple[User, bool]:
         user, created = await self.repository.get_or_create_by_discord_id(
             discord_id, username, avatar,
         )
@@ -168,14 +204,9 @@ class UserService:
                     'target_user_id': user.id,
                     'username': username,
                     'discord_id': str(discord_id),
-                    'source': 'discord_login',
+                    'source': source,
                 },
             )
-        elif user.is_active:
-            fields: dict = {'username': username}
-            if avatar is not None:
-                fields['discord_avatar'] = avatar or None
-            await self.repository.update(user, **fields)
         return user, created
 
     async def sync_discord_avatar(

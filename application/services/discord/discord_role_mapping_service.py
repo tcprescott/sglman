@@ -1,13 +1,14 @@
 """
 DiscordRoleMapping Service - Business Logic Layer
 
-Manages the mapping of Discord guild roles to application roles and performs
-the login-time sync that grants/revokes app roles from a user's Discord roles.
+Manages the mapping of Discord guild roles to application roles, performs the
+sync that grants/revokes app roles from a user's Discord roles, and provisions
+an account for a guild member who holds a mapped role but has never signed in.
 """
 
 import asyncio
 import logging
-from typing import List, Optional, Set, Tuple
+from typing import Iterable, List, Optional, Set, Tuple
 
 from application.errors import require_found
 from application.repositories.discord_role_mapping_repository import DiscordRoleMappingRepository
@@ -19,10 +20,12 @@ from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord.discord_guild_ops import GuildMember
 from application.services.discord.discord_service import DiscordService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tenant_service import TenantService
-from application.tenant_context import tenant_scope
+from application.services.user_service import UserService
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import DiscordRoleMapping, Role, RoleSource, Tenant, TournamentGrant, User
 
 logger = logging.getLogger(__name__)
@@ -149,15 +152,23 @@ class DiscordRoleMappingService:
         Applies the current mappings immediately instead of waiting for each
         user to next log in. Reuses the defensive per-user ``sync_user_roles``,
         so an unreachable Discord or a single bad user never aborts the run.
+
+        First provisions an account for every member of the current community's
+        guild who holds a mapped role but has never signed in, so a role handed
+        out before the mapping existed still reaches its holder.
         """
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
             "Only Staff can sync Discord roles",
         )
 
+        # Before the user list is read, so the accounts it creates are synced
+        # (and handed their roles) by the loop below in the same run.
+        created = await self._provision_current_guild_members()
         users = await UserRepository.get_all(has_discord=True)
         summary = {
             'users_processed': len(users),
+            'users_created': created,
             'granted': 0,
             'revoked': 0,
             'skipped': 0,
@@ -177,6 +188,84 @@ class DiscordRoleMappingService:
             actor, AuditActions.ROLE_DISCORD_SYNC_BULK, dict(summary)
         )
         return summary
+
+    async def provision_member(
+        self, tenants: Iterable[Tenant], member: GuildMember,
+    ) -> Optional[User]:
+        """The account for a guild member whose roles one of ``tenants`` maps.
+
+        ``None`` when none of the member's Discord roles confers anything in
+        those tenants, so holding an unmapped role (or none) never creates an
+        account. Creation is get-or-create, so a concurrent login is harmless.
+        """
+        if member.role_ids & await self._conferring_role_ids(tenants):
+            user, _created = await UserService().provision_from_discord_role_sync(
+                member.id, member.username, member.avatar,
+            )
+            return user
+        return None
+
+    async def _provision_current_guild_members(self) -> int:
+        """Create accounts for the current guild's mapped-role holders. Never raises.
+
+        Scoped to the community whose staff pressed the button: its guild, its
+        mappings. Returns how many accounts were created.
+        """
+        tenant_id = get_current_tenant_id()
+        try:
+            tenant = await TenantService.get_by_id(tenant_id) if tenant_id is not None else None
+            if tenant is None or not tenant.discord_guild_id:
+                return 0
+            role_ids = await self._conferring_role_ids([tenant])
+            if not role_ids:
+                return 0
+            ok, payload = await DiscordService().list_members_with_roles(
+                tenant.discord_guild_id, role_ids,
+            )
+        except Exception:
+            logger.exception('Failed to list guild members to provision for tenant %s', tenant_id)
+            return 0
+        if not ok or isinstance(payload, str):
+            logger.warning(
+                'Skipped provisioning guild members for tenant %s: %s', tenant.id, payload,
+            )
+            return 0
+
+        created = 0
+        for member in payload:
+            try:
+                _user, was_created = await UserService().provision_from_discord_role_sync(
+                    member.id, member.username, member.avatar,
+                )
+            except Exception:
+                logger.exception(
+                    'Failed to provision discord_id=%s for tenant %s', member.id, tenant.id,
+                )
+                continue
+            created += was_created
+        return created
+
+    async def _conferring_role_ids(self, tenants: Iterable[Tenant]) -> Set[int]:
+        """Discord role ids whose mapping would grant something in ``tenants``.
+
+        The same filter the sync applies to a *held* role: a grantable app role,
+        or a tournament grant on an active tournament. A mapping the sync would
+        ignore must not create an account either.
+        """
+        grantable = set(Role.tenant_grantable())
+        role_ids: Set[int] = set()
+        for tenant in tenants:
+            if not tenant.discord_guild_id:
+                continue
+            with tenant_scope(tenant.id):
+                mappings = await self.mapping_repository.list_for_guild(tenant.discord_guild_id)
+            role_ids.update(
+                m.discord_role_id for m in mappings
+                if m.app_role in grantable
+                or (m.tournament_grant is not None
+                    and m.tournament is not None and m.tournament.is_active)
+            )
+        return role_ids
 
     async def sync_user_roles(self, user: User) -> dict:
         """Login-time sync across **every** tenant whose Discord guild this user is in.

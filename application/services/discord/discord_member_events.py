@@ -1,7 +1,8 @@
 """What the bot does with ``GUILD_MEMBER_*`` gateway events.
 
 Two independent syncs hang off the same events — application roles (from the
-member's Discord roles) and the cached avatar hash — so they live together here
+member's Discord roles, provisioning an account for a mapped-role holder who
+has none) and the cached avatar hash — so they live together here
 rather than in :mod:`discord_service`, which owns the bot singleton and the DM
 senders. ``get_discord_bot`` wires both listeners; nothing else calls them.
 
@@ -14,8 +15,11 @@ imported lazily inside each function to avoid a circular import back through
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 import discord
+
+from application.services.discord.discord_guild_ops import GuildMember
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +42,15 @@ async def sync_member_avatar(member: discord.Member) -> None:
         logger.exception('Avatar sync failed for discord_id=%s', member.id)
 
 
-async def sync_member_roles(guild_id: int, discord_user_id: int) -> None:
+async def sync_member_roles(
+    guild_id: int, discord_user_id: int, member: Optional[GuildMember] = None,
+) -> None:
     """Re-sync a member's app roles when their Discord roles change.
 
     Runs in the bot event loop on ``GUILD_MEMBER_UPDATE`` / member-remove events.
+    ``member`` is passed only by the update event: someone with no account who
+    now holds a mapped role gets one. A removal passes nothing, since leaving
+    the server is never a reason to create an account.
     """
     try:
         from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
@@ -54,10 +63,12 @@ async def sync_member_roles(guild_id: int, discord_user_id: int) -> None:
         tenants = await TenantService.list_tenants_for_guild(guild_id)
         if not tenants:
             return
+        service = DiscordRoleMappingService()
         user = await User.get_or_none(discord_id=discord_user_id)
+        if user is None and member is not None:
+            user = await service.provision_member(tenants, member)
         if user is None:
             return
-        service = DiscordRoleMappingService()
         for tenant in tenants:
             await service.sync_user_roles_for_tenant(user, tenant)
     except Exception:

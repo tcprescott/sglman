@@ -104,14 +104,14 @@ Four gateway events are registered:
 |---|---|
 | `on_ready` | Logs `Discord bot ready. Logged in as <user>` |
 | `on_interaction` | The single dispatch point for buttons: handles `InteractionType.component` only, reads `interaction.data['custom_id']`, and looks the prefix (text before the first `:`) up in `_interaction_handlers` |
-| `on_member_update` | Fires `sync_member_avatar` when the member's global avatar changed, and `sync_member_roles` when role membership changed (the event also fires for nick/timeout edits, which are ignored) |
+| `on_member_update` | Fires `sync_member_avatar` when the member's global avatar changed, and `sync_member_roles` (with a `GuildMember` snapshot, so an unknown mapped-role holder can be provisioned) when role membership changed (the event also fires for nick/timeout edits, which are ignored) |
 | `on_member_remove` | Left/kicked/banned — the same role re-sync, which strips their Discord-sourced roles |
 
 Both live in [`discord_member_events.py`](../../application/services/discord/discord_member_events.py).
 
 `sync_member_avatar(member)` stores `Member.avatar.key` (the **global** hash, matching what the OAuth login records) on `User.discord_avatar`, or `NULL` when the avatar was removed. Unknown users are a no-op — a presence event never provisions an account — and an unchanged hash writes nothing. This is the only avatar refresh someone who never signs in will get.
 
-`sync_member_roles(guild_id, discord_user_id)` fans out across **every tenant sharing that guild** (`TenantService.list_tenants_for_guild`), each inside its own `tenant_scope`; an unknown guild or unknown user is a no-op. It logs and swallows everything, so a bad event can never crash the gateway connection. Behavior: [discord.md § Guild-role → app-role sync](../features/discord.md#guild-role--app-role-sync).
+`sync_member_roles(guild_id, discord_user_id, member=None)` fans out across **every tenant sharing that guild** (`TenantService.list_tenants_for_guild`), each inside its own `tenant_scope`; an unknown guild is a no-op. An unknown user gets an account when the update event passes `member` and one of its roles is mapped by a tenant sharing the guild; a removal passes nothing, so it never provisions. It logs and swallows everything, so a bad event can never crash the gateway connection. Behavior: [discord.md § Guild-role → app-role sync](../features/discord.md#guild-role--app-role-sync).
 
 Registered handler prefixes:
 
@@ -149,11 +149,12 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `add_role_to_user` | `(guild_id, user_id, role_id, reason=None)` | Adds a guild role to a member. Resolves member via cache then `fetch_member`, role via cache then `fetch_roles`. `reason` goes to the Discord audit log. |
 | `remove_role_from_user` | `(guild_id, user_id, role_id, reason=None)` | Mirror of `add_role_to_user` using `member.remove_roles`. |
 | `get_member_role_ids` | `(guild_id, user_id)` | `(True, {role_id, ...})` for the member's current roles (`@everyone` excluded); `(True, set())` when the member is not in the guild. A hard failure (bot not ready, API error) returns `(False, reason)` so callers can fail open. Powers the role sync. |
+| `list_members_with_roles` | `(guild_id, role_ids)` | `(True, [GuildMember, ...])` for every non-bot member holding one of `role_ids`. Uses the member cache when the guild is chunked, else pages `fetch_members`. Powers the Sync All Users account provisioning. |
 | `create_scheduled_event` | `(guild_id, *, name, start_time, end_time, description=None, location='Stream')` | Creates an external Scheduled Event; `(True, event_id)`. |
 | `edit_scheduled_event` | `(guild_id, event_id, *, name, start_time, end_time, description=None, location='Stream')` | Edits an existing Scheduled Event to match the current schedule. |
 | `delete_scheduled_event` | `(guild_id, event_id)` | Cancels a Scheduled Event; treats an already-gone event as success. |
 
-`add_role_to_user` / `remove_role_from_user` currently have no callers; they exist as API surface only. `get_member_role_ids` is called by `DiscordRoleMappingService.sync_user_roles`. The three scheduled-event methods share one `_scheduled_event_op` guard/error wrapper and are driven by `DiscordEventReconcilerService`.
+`add_role_to_user` / `remove_role_from_user` currently have no callers; they exist as API surface only. `get_member_role_ids` is called by `DiscordRoleMappingService.sync_user_roles`, `list_members_with_roles` by its `sync_all_users`. The three scheduled-event methods share one `_scheduled_event_op` guard/error wrapper and are driven by `DiscordEventReconcilerService`.
 
 > **Privileged intent.** Reading guild members requires the **Server Members Intent**, enabled both in code (`intents.members = True`, already set) **and** toggled on for the bot application in the Discord Developer Portal. The bot must also be invited to the guild (`bot` scope). Without these, `get_member_role_ids` returns errors / empty sets and the sync is a safe no-op.
 
@@ -180,7 +181,7 @@ Caller pattern: `from application.services.discord.discord_service import Discor
 
 - The seven button variants delegate to the single `send_dm` stub, which **prints to stdout** (`[MOCK Discord DM] -> <user_id>: <message> [embed: <title>] [button: <label> -> <url>]`, the suffixes only when present — the link is the half of a DM mock mode can verify) and returns `(True, "Message sent (mock)")`, so notification code paths run end-to-end without Discord.
 - `get_bot()` returns `None`.
-- `list_guilds` / `list_guild_roles` / `get_member_role_ids` / `get_guild_summary` / `member_can_manage_guild` answer from `application/utils/mocks/mock_discord_data.py`; the role/event methods print a `[MOCK Discord] …` line and return success.
+- `list_guilds` / `list_guild_roles` / `get_member_role_ids` / `list_members_with_roles` / `get_guild_summary` / `member_can_manage_guild` answer from `application/utils/mocks/mock_discord_data.py` (`list_members_with_roles` draws from `MOCK_GUILD_ROSTER`, three members who have never signed in, so Sync All Users visibly creates accounts in mock mode); the role/event methods print a `[MOCK Discord] …` line and return success.
 
 Button interactions are **not** testable in mock mode (no bot connection); see [discord.md § Mock mode](../features/discord.md#mock-mode).
 

@@ -191,6 +191,77 @@ class TestMemberCanManageGuild:
         assert (ok, can) == (True, False)
 
 
+def _stub_member(member_id, role_ids, *, guild_id=1, bot=False, avatar='hash'):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        id=member_id, name=f'user{member_id}', bot=bot,
+        avatar=SimpleNamespace(key=avatar) if avatar else None,
+        guild=SimpleNamespace(id=guild_id),
+        roles=[SimpleNamespace(id=guild_id)] + [SimpleNamespace(id=r) for r in role_ids],
+    )
+
+
+class TestListMembersWithRoles:
+    """Enumerating the members a mapped role would provision."""
+
+    def _svc(self, guild):
+        from application.services.discord.discord_service import _RealDiscordService
+
+        stub_bot = MagicMock()
+        stub_bot.is_ready.return_value = True
+        stub_bot.get_guild.return_value = guild
+        svc = object.__new__(_RealDiscordService)
+        svc._bot = stub_bot
+        return svc
+
+    async def test_filters_to_holders_and_skips_bots(self):
+        guild = MagicMock()
+        guild.chunked = True
+        guild.members = [
+            _stub_member(10, {111}),
+            _stub_member(11, {222}),
+            _stub_member(12, {111}, bot=True),
+            _stub_member(13, {111, 222}, avatar=None),
+        ]
+        ok, found = await self._svc(guild).list_members_with_roles(1, {111})
+
+        assert ok is True
+        assert [(m.id, m.username, m.avatar) for m in found] == [
+            (10, 'user10', 'hash'), (13, 'user13', None),
+        ]
+        # @everyone (id == guild id) is never reported as a held role.
+        assert found[1].role_ids == frozenset({111, 222})
+
+    async def test_pages_the_rest_api_when_the_cache_is_incomplete(self):
+        async def fetch_members(limit=None):
+            for member in (_stub_member(10, {111}), _stub_member(11, set())):
+                yield member
+
+        guild = MagicMock()
+        guild.chunked = False
+        guild.fetch_members = fetch_members
+        ok, found = await self._svc(guild).list_members_with_roles(1, {111})
+
+        assert ok is True
+        assert [m.id for m in found] == [10]
+
+    async def test_fails_gracefully_when_not_ready(self, real_svc_not_ready):
+        ok, msg = await real_svc_not_ready.list_members_with_roles(1, {111})
+        assert ok is False
+
+    async def test_mock_roster_reports_only_holders(self, mock_svc):
+        from application.utils.mocks import mock_discord_data as mdd
+
+        ok, found = await mock_svc.list_members_with_roles(
+            mdd.GUILD_WIZ_DEFAULT, {mdd.ROLE_STAFF},
+        )
+        assert ok is True
+        assert found
+        assert all(mdd.ROLE_STAFF in m.role_ids for m in found)
+        assert {m.id for m in found} <= set(mdd.MOCK_GUILD_ROSTER)
+
+
 class TestMockAuthorityHelpers:
     async def test_member_can_manage_guild_true(self, mock_svc):
         ok, can = await mock_svc.member_can_manage_guild(guild_id=1, user_id=2)

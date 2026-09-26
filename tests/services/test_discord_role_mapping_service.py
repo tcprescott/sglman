@@ -5,12 +5,14 @@ manual-vs-discord source guard, and fail-open behaviour) plus the mapping
 CRUD permission gates and audit logging.
 """
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from application.services.discord import discord_role_mapping_service as drms
+from application.services.discord.discord_guild_ops import GuildMember
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
 from models import Role, RoleSource, TournamentGrant
 from tests.factories import make_audit_double
@@ -465,6 +467,7 @@ class TestMappingCrud:
 class TestSyncAllUsers:
     async def test_aggregates_and_audits(self, monkeypatch):
         svc = make_service()
+        svc._provision_current_guild_members = AsyncMock(return_value=2)
         users = [make_user(1, 100), make_user(2, 200), make_user(3, 300)]
         monkeypatch.setattr(drms.UserRepository, 'get_all', AsyncMock(return_value=users))
         svc.sync_user_roles = AsyncMock(side_effect=[
@@ -476,7 +479,8 @@ class TestSyncAllUsers:
         summary = await svc.sync_all_users(actor=make_user())
 
         assert summary == {
-            'users_processed': 3, 'granted': 1, 'revoked': 2, 'skipped': 1,
+            'users_processed': 3, 'users_created': 2,
+            'granted': 1, 'revoked': 2, 'skipped': 1,
         }
         assert svc.sync_user_roles.await_count == 3
         action = svc.audit_service.write_log.await_args.args[1]
@@ -499,6 +503,65 @@ class TestSyncAllUsers:
         with pytest.raises(PermissionError):
             await svc.sync_all_users(actor=make_user())
         get_all.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# provision_member (a mapped-role holder with no account)
+# ---------------------------------------------------------------------------
+
+
+def guild_member(member_id=900, role_ids=(111,)):
+    return GuildMember(
+        id=member_id, username='guildie', avatar='hash', role_ids=frozenset(role_ids),
+    )
+
+
+class TestProvisionMember:
+    TENANT = SimpleNamespace(id=1, discord_guild_id=42)
+
+    @pytest.fixture
+    def provision(self, monkeypatch):
+        spy = AsyncMock(side_effect=lambda did, *_a: (SimpleNamespace(id=5, discord_id=did), True))
+        monkeypatch.setattr(drms.UserService, 'provision_from_discord_role_sync', spy)
+        return spy
+
+    async def test_mapped_role_creates_the_account(self, provision):
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(return_value=[mapping(111, Role.PROCTOR)])
+
+        user = await svc.provision_member([self.TENANT], guild_member())
+
+        assert user.discord_id == 900
+        provision.assert_awaited_once_with(900, 'guildie', 'hash')
+
+    async def test_unmapped_role_creates_nothing(self, provision):
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(return_value=[mapping(111, Role.PROCTOR)])
+
+        assert await svc.provision_member([self.TENANT], guild_member(role_ids={222})) is None
+        provision.assert_not_awaited()
+
+    async def test_mapping_the_sync_would_ignore_creates_nothing(self, provision):
+        # A platform role, or a grant on an ended tournament, confers nothing on
+        # sync, so it must not conjure an account either.
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(return_value=[
+            mapping(111, Role.SUPER_ADMIN),
+            tournament_mapping(112, TournamentGrant.TOURNAMENT_ADMIN, is_active=False),
+        ])
+
+        member = guild_member(role_ids={111, 112})
+        assert await svc.provision_member([self.TENANT], member) is None
+        provision.assert_not_awaited()
+
+    async def test_active_tournament_grant_creates_the_account(self, provision):
+        svc = make_service()
+        svc.mapping_repository.list_for_guild = AsyncMock(return_value=[
+            tournament_mapping(112, TournamentGrant.CREW_COORDINATOR),
+        ])
+
+        assert await svc.provision_member([self.TENANT], guild_member(role_ids={112}))
+        provision.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -544,3 +607,67 @@ class TestSyncIntegration:
         assert summary['revoked'] == ['proctor']
         assert not await UserRole.filter(user=user, role=Role.PROCTOR).exists()
         assert await UserRole.filter(user=user, role=Role.STAFF).exists()
+
+    async def test_sync_all_creates_accounts_for_mapped_role_holders(self, db, monkeypatch):
+        from application.repositories.discord_role_mapping_repository import (
+            DiscordRoleMappingRepository,
+        )
+        from models import AuditLog, Tenant, TenantMembership, User, UserRole
+
+        guild_id = 42
+        default = await Tenant.get(id=1)
+        default.discord_guild_id = guild_id
+        await default.save()
+        await DiscordRoleMappingRepository.create(guild_id, 111, 'Mods', Role.PROCTOR)
+        staff = await User.create(discord_id=1, username='staff')
+        existing = await User.create(discord_id=556, username='chosen_name')
+
+        roster = [
+            GuildMember(id=555, username='newcomer', avatar='abc', role_ids=frozenset({111})),
+            GuildMember(id=556, username='guild_name', avatar=None, role_ids=frozenset({111})),
+        ]
+        list_members = AsyncMock(return_value=(True, roster))
+        fake = SimpleNamespace(
+            list_members_with_roles=list_members,
+            get_member_role_ids=AsyncMock(side_effect=lambda g, u: (
+                (True, {111}) if u in (555, 556) else (True, set())
+            )),
+        )
+        monkeypatch.setattr(drms, 'DiscordService', lambda: fake)
+
+        summary = await DiscordRoleMappingService().sync_all_users(actor=staff)
+
+        assert summary['users_created'] == 1
+        list_members.assert_awaited_once_with(guild_id, {111})
+        newcomer = await User.get(discord_id=555)
+        assert (newcomer.username, newcomer.discord_avatar) == ('newcomer', 'abc')
+        assert await UserRole.filter(user=newcomer, role=Role.PROCTOR).exists()
+        assert await TenantMembership.filter(user=newcomer, tenant_id=1).exists()
+        audit = await AuditLog.get(action='user.provisioned', user=newcomer)
+        assert json.loads(audit.details)['source'] == 'discord_role_sync'
+        # An existing account keeps its name; sync only hands it the role.
+        await existing.refresh_from_db()
+        assert existing.username == 'chosen_name'
+        assert await UserRole.filter(user=existing, role=Role.PROCTOR).exists()
+
+    async def test_sync_all_survives_an_unreachable_guild(self, db, monkeypatch):
+        from application.repositories.discord_role_mapping_repository import (
+            DiscordRoleMappingRepository,
+        )
+        from models import Tenant, User
+
+        default = await Tenant.get(id=1)
+        default.discord_guild_id = 42
+        await default.save()
+        await DiscordRoleMappingRepository.create(42, 111, 'Mods', Role.PROCTOR)
+        staff = await User.create(discord_id=1, username='staff')
+        fake = SimpleNamespace(
+            list_members_with_roles=AsyncMock(return_value=(False, 'not connected')),
+            get_member_role_ids=AsyncMock(return_value=(False, 'not connected')),
+        )
+        monkeypatch.setattr(drms, 'DiscordService', lambda: fake)
+
+        summary = await DiscordRoleMappingService().sync_all_users(actor=staff)
+
+        assert summary['users_created'] == 0
+        assert await User.all().count() == 1

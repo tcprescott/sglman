@@ -12,6 +12,7 @@ from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
 from application.services.discord.discord_guild_ops import (
+    GuildMember,
     GuildOpsMixin,
     MockGuildOpsMixin,
 )
@@ -160,7 +161,12 @@ def get_discord_bot() -> commands.Bot:
             if before.avatar != after.avatar:
                 await sync_member_avatar(after)
             if {r.id for r in before.roles} != {r.id for r in after.roles}:
-                await sync_member_roles(after.guild.id, after.id)
+                # No snapshot for a bot, so a bot given a mapped role is
+                # never provisioned an account.
+                await sync_member_roles(
+                    after.guild.id, after.id,
+                    None if after.bot else GuildMember.from_member(after),
+                )
 
         @_bot_instance.event
         async def on_member_remove(member: discord.Member) -> None:
