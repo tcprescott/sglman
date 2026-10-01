@@ -117,6 +117,7 @@ erDiagram
 
     User ||--o{ ApiToken : "user"
     User ||--o{ Feedback : "user"
+    User ||--o{ AccommodationRequest : "user"
     User |o--o{ Equipment : "owner_user"
     Equipment ||--o{ EquipmentLoan : "equipment"
     User ||--o{ EquipmentLoan : "borrower"
@@ -196,7 +197,7 @@ list — one member per **deliberately gated** subsystem, not one per feature
 (renaming a value is a data migration). Members, whose values are the snake_case
 names: `ASYNC_QUALIFIERS`, `RACETIME_ROOMS`, `SPEEDGAMING_ETL`, `CHALLONGE`,
 `EQUIPMENT`, `VOLUNTEERS`, `TRIFORCE_TEXTS`, `BRACKETS`, `FEEDBACK`, `EVENT_INFO`,
-`PAYOUTS`. Human copy and grouping
+`PAYOUTS`, `ADA_ACCOMMODATIONS`. Human copy and grouping
 live in `application/feature_flags`; see [feature-flags.md](../features/feature-flags.md).
 
 ### `ApiTokenOrigin`
@@ -235,6 +236,10 @@ Used by both `VolunteerAvailability.status` and `PlayerAvailability.status` (`ma
 `RescheduleRequestKind` — `RESCHEDULE` | `CANCEL`. Two kinds rather than two models: both travel the same queue, carry the same reason, and are decided by the same person with the same authority. Only the approval branches, into `update_match` or `cancel_match`.
 
 `RescheduleRequestStatus` — `PENDING` | `APPROVED` | `DECLINED` | `WITHDRAWN` | `SUPERSEDED`. Three ways to stop being pending without being refused, kept apart on purpose: `WITHDRAWN` is the requester taking it back, `SUPERSEDED` is another request on the same match having settled it (staff decided nothing), and `DECLINED` is the only one meaning someone looked at this ask and said no.
+
+### `AccommodationStatus`
+
+`AccommodationRequest.status` (`max_length=20`, default `NEW`): `NEW` = `'new'`, `ACKNOWLEDGED` = `'acknowledged'`, `ARRANGED` = `'arranged'`, `WITHDRAWN` = `'withdrawn'` (set only by the requester unticking). See [ada-accommodations.md](../features/ada-accommodations.md#lifecycle).
 
 ### `FeedbackCategory` / `FeedbackStatus`
 
@@ -606,6 +611,19 @@ In-app feedback submission from a logged-in attendee. Captures the page the user
 | `message` | `TextField` | not null | Free-text feedback |
 | `page_url` | `CharField(512)` | not null | Path + query the user was on |
 | `status` | `CharEnumField(FeedbackStatus)` | default `NEW` | `max_length=20` |
+
+#### `AccommodationRequest`
+
+A member's ADA accommodation request in one community (`unique_together = (tenant, user)`). Withdrawing keeps the row with `details` cleared so `staff_notes` survive; asking again reopens it. Neither text field ever leaves the app. See [ada-accommodations.md](../features/ada-accommodations.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='accommodation_requests'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='accommodation_requests'` |
+| `status` | `CharEnumField(AccommodationStatus)` | default `NEW` | `max_length=20` |
+| `details` | `TextField` | null | The requester's own text (≤2000, enforced by the service) |
+| `staff_notes` | `TextField` | null | STAFF-only (≤4000, enforced by the service) |
+| `created_at` / `updated_at` | `DatetimeField` | auto | |
 
 ### Tournament
 
@@ -1718,6 +1736,7 @@ Consult the source for full signatures.
 | `TenantJoinRequestRepository` | [`tenant_join_request_repository.py`](../../application/repositories/tenant_join_request_repository.py) | `TenantJoinRequest` | **Never scoped** — the requester is not in the target tenant. `get`, `get_by_id`, `upsert_pending` (re-opens a decided row in place), `list_pending`, `decide` |
 | `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `create_oauth_token`, `get_by_id`, `get_by_hash`, `get_by_refresh_hash`, `rotate_refresh`, `list_for_user`, `touch_last_used`, `revoke`. Reads match this tenant's PATs **or** the user's tenant-less OAuth tokens, so MCP connections stay revocable from any community. `create_oauth_token` defaults `read_only=True`, matching the consent screen's own default. |
 | `McpAuthRepository` | [`mcp_auth_repository.py`](../../application/repositories/mcp_auth_repository.py) | `McpOAuthClient`, `McpAuthorizationCode` | `create_client`, `get_client`, `create_code`, `get_code`, `consume_code`, `purge_expired_codes`. Global by design — neither model carries a tenant. |
+| `AccommodationRepository` | [`accommodation_repository.py`](../../application/repositories/accommodation_repository.py) | `AccommodationRequest` | `TenantScopedRepository` CRUD plus `get_by_id` (prefetches `user`), `get_for_user`, `list_by_status` (oldest first), `user_ids_with_status` |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `list_for_user`, `set_status` |
 | `TenantFeatureFlagRepository` | [`feature_flag_repository.py`](../../application/repositories/feature_flag_repository.py) | `TenantFeatureFlag` | `list_for_tenant`, `map_for_tenant`, `get_for_tenant`, `set_override` (tri-state; deletes an all-NULL row) |
 | `FeatureFlagGroupRepository` | [`feature_flag_group_repository.py`](../../application/repositories/feature_flag_group_repository.py) | `FeatureFlagGroup` | `list_all`, `get_by_id`, `get_by_name`, `get_default`, `create`, `update`, `delete`, `clear_default`, `count_tenants` |

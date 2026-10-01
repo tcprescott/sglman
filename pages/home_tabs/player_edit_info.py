@@ -15,6 +15,7 @@ from application.services import (
 from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED
 from models import FeatureFlag
 from pages.home_tabs._link_section import render_connected_accounts_section
+from pages.home_tabs.accommodation_section import render_accommodation_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
@@ -114,6 +115,7 @@ async def render_edit_info_tab():
         # The Matcherino handle only means anything where prize money is paid,
         # so a community without payouts is not asked for one.
         payouts_live = FeatureFlag.PAYOUTS in live_flags
+        accommodations_live = FeatureFlag.ADA_ACCOMMODATIONS in live_flags
 
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
@@ -398,6 +400,9 @@ async def render_edit_info_tab():
                     on_change=on_personal_typing,
                 ).props('outlined dense stack-label').classes('input-full-width')
                 matcherino_input.on('blur', flush_personal)
+
+        if accommodations_live:
+            await render_accommodation_section(user)
 
         # What you sent through the feedback form and whether it was read.
         # Draws nothing when you have sent none, or when the community has the

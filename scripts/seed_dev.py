@@ -32,6 +32,8 @@ from application.services.mcp_auth_service import READ_SCOPE, WRITE_SCOPE
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_local, parse_local_datetime
 from models import (
+    AccommodationRequest,
+    AccommodationStatus,
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
@@ -454,6 +456,28 @@ async def seed_for_tenant(
 
         # --- Webhooks + telemetry (scripts/seed_observability.py) -------------
         await seed_observability_for_tenant(tenant, staff, finished_match, now_utc, users)
+
+        # --- ADA accommodation requests ---------------------------------------
+        # One in each state, so the staff sub-tab, its
+        # "Show withdrawn" toggle and the Users-table filter all have something
+        # to show. Written directly (no flag check) like the feedback rows.
+        accommodation_specs = [
+            ("player_one", AccommodationStatus.NEW,
+             "Step-free access to the stage, please.", None),
+            ("player_two", AccommodationStatus.ARRANGED,
+             "A chair with back support at my station.",
+             "Venue confirmed a chair for station 3."),
+            ("sm_user", AccommodationStatus.ACKNOWLEDGED,
+             "Seat near an exit during stream shifts.", "Talked to venue; confirming Friday."),
+            ("player_three", AccommodationStatus.WITHDRAWN, None,
+             "Asked about quiet room; withdrawn after the schedule changed."),
+        ]
+        for uname, status, details, notes in accommodation_specs:
+            await AccommodationRequest.get_or_create(
+                tenant=tenant, user=users[uname],
+                defaults={"status": status, "details": details, "staff_notes": notes},
+            )
+        print(f"    [{tenant.slug}] ADA accommodation requests ok (one per status)")
 
         # --- Audit log -------------------------------------------------------
         # One row per action a staff member actually takes on a match day, so the

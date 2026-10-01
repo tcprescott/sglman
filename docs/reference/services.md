@@ -40,6 +40,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
+| `AccommodationService` | [accommodation_service.py](../../application/services/accommodation_service.py) | ADA accommodation requests: member self-service, STAFF queue | [ada-accommodations.md](../features/ada-accommodations.md) |
 | `AnalyticsService` | [analytics_service.py](../../application/services/analytics_service.py) | Longitudinal trends: crew participation, volunteer hours, tournament health | — |
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Bearer credential issue/revoke/authenticate (PATs and OAuth tokens) | [rest-api.md](rest-api.md) |
 | `McpAuthService` | [mcp_auth_service.py](../../application/services/mcp_auth_service.py) | The MCP OAuth 2.1 authorization server: dynamic client registration, authorization codes, access/refresh token issue and rotation | [features/mcp-server.md](../features/mcp-server.md) |
@@ -518,6 +519,20 @@ Feature- **and role**-aware access to the current community's event handbook (`a
 | `get_snippet(name, user=None)` | `ContentSnippet \| None` | One popup region, gated by its **owning article** — a snippet can never be more readable than the article it was cut from. |
 
 Collaborators: `application.event_info` (per-tenant catalogue), `TenantRepository`, `FeatureFlagService`, `AuthService`.
+
+### accommodation_service.py — AccommodationService
+
+Per-community ADA accommodation requests. Every public method is gated by `FeatureFlag.ADA_ACCOMMODATIONS`; the staff methods also require `AuthService.is_staff` (`PermissionError`). Audited under `accommodation.*` with ids and status only (never `details` or `staff_notes`); no events are published. Constants: `DETAILS_MAX_LENGTH = 2000`, `STAFF_NOTES_MAX_LENGTH = 4000`, `OPEN_STATUSES`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_mine(actor)` | `AccommodationRequest \| None` | The actor's own request in this community, withdrawn or not. |
+| `set_my_request(actor, requested, details=None)` | `AccommodationRequest \| None` | Create (members only), update details, withdraw (`requested=False`: clears details, keeps notes) or reopen. Changing details on an acknowledged/arranged request resets it to `NEW`; identical details are a no-op. Audits `accommodation.requested` / `.updated` / `.withdrawn`. |
+| `list_requests(actor, include_withdrawn=False)` | `list[AccommodationRequest]` | STAFF. Open requests oldest first, `user` prefetched. |
+| `requesting_user_ids(actor)` | `set[int]` | STAFF. Users with an open request (the Users-tab filter and column). |
+| `update_request(actor, request_id, status, staff_notes)` | `AccommodationRequest` | STAFF. Sets status (not to/from `WITHDRAWN`) and notes in one save; `NotFoundError` for an unknown or other-tenant id. Audits `accommodation.status_changed` and/or `.notes_updated`. |
+
+Collaborators: `AccommodationRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
 
 ### feedback_service.py — FeedbackService
 

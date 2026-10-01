@@ -188,6 +188,14 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Operations',
             service_modules=('application/services/payout_service.py',),
         ),
+        FeatureFlagSpec(
+            FeatureFlag.ADA_ACCOMMODATIONS,
+            'ADA Accommodations',
+            'Members can ask for ADA accommodation from their profile; staff '
+            'track each request, its status and their own notes.',
+            'Community',
+            service_modules=('application/services/accommodation_service.py',),
+        ),
     )
 }
 

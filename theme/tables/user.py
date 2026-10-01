@@ -12,7 +12,7 @@ class UserTableView:
 
     def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None,
                  show_toolbar=True, row_actions=None, empty_message='No users match this filter.',
-                 table_key=None):
+                 table_key=None, before_refresh=None, decorate_row=None):
         self.columns = columns
         # When set, this view's desktop columns follow the viewer's saved layout.
         self.table_key = table_key
@@ -25,6 +25,11 @@ class UserTableView:
         # cell and the mobile card so the two never drift.
         self.row_actions = row_actions
         self.empty_message = empty_message
+        # Optional hooks for a caller that layers its own data on the rows: an
+        # async ``before_refresh()`` that loads it (``get_query`` is sync), and a
+        # ``decorate_row(row)`` that writes it onto each formatted row.
+        self.before_refresh = before_refresh
+        self.decorate_row = decorate_row
         self.table = None
         # Capture the tenant while the request context is live; background tasks
         # (initial load, pagination refresh) run detached from the client slot, so
@@ -68,6 +73,11 @@ class UserTableView:
         self.table.add_slot('body-cell-discord_id', '''<q-td :props="props">
             <span v-if="props.value" class="wrap" :title="props.value">{{ props.value.toString().length > 24 ? props.value.toString().substring(0, 21) + '...' : props.value }}</span>
             <span v-else>-</span>
+        </q-td>''')
+        self.table.add_slot('body-cell-ada', '''<q-td :props="props">
+            <q-icon v-if="props.value" name="accessible" color="primary" size="sm">
+                <q-tooltip>Has an open ADA accommodation request</q-tooltip>
+            </q-icon>
         </q-td>''')
         self.table.add_slot('body-cell-challonge', '''<q-td :props="props">
             <span v-if="props.value">{{ props.value }}</span>
@@ -149,6 +159,8 @@ class UserTableView:
             ''')
 
     async def refresh(self, *_, **__):
+        if self.before_refresh:
+            await self.before_refresh()
         user_query = self.get_query()
         all_users = await user_query.order_by('username').prefetch_related(
             'roles', 'admin_tournaments', 'crew_coordinated_tournaments'
@@ -158,6 +170,9 @@ class UserTableView:
         # bare background tasks that have lost the tenant, where a live resolve
         # returns None and would re-leak cross-tenant role grants.
         rows = [self._format_user_row(u, self._tenant_id) for u in all_users]
+        if self.decorate_row:
+            for row in rows:
+                self.decorate_row(row)
         self.table.rows = rows
         self.table.update()
 

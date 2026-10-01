@@ -161,7 +161,7 @@ Only the signed-in shape is listed because it is the only shape: `enforce_member
 | [`equipment.py`](../../pages/home_tabs/equipment.py) | My Schedule → Equipment | `equipment_checkouts_section` — the viewer's own checkouts, `EQUIPMENT` flag live. Browsing the register is admin-side; borrowing is the QR scan into `/equipment/<id>` |
 | [`tournaments.py`](../../pages/home_tabs/tournaments.py) | Tournaments | Signup cards per tournament, sectioned by what the reader can act on |
 | [`triforce_texts.py`](../../pages/home_tabs/triforce_texts.py) | Tournaments → dialog | `open_triforce_dialog` submits/tracks triforce-screen text for one tournament; `supporting_tournament_ids` says which cards get the button |
-| [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile and notification delivery; hosts the device-notification, identity-link, API-token and feedback sections |
+| [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile and notification delivery; hosts the device-notification, identity-link, API-token, ADA-accommodation and feedback sections |
 
 Several further modules render **inside** the Profile tab rather than as standalone tabs (all called from `player_edit_info.py`):
 
@@ -172,6 +172,7 @@ Several further modules render **inside** the Profile tab rather than as standal
 | [`challonge_link_section.py`](../../pages/home_tabs/challonge_link_section.py) | "Challonge" card | Verify-link / unlink via `ChallongeService`; hides itself when the integration isn't configured |
 | [`twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py) | "Twitch" card | Verify-link / unlink via `TwitchService`; hides itself when unconfigured |
 | [`racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py) | "racetime.gg" card | Verify-link / unlink via `RacetimeService`; hides itself when unconfigured |
+| [`accommodation_section.py`](../../pages/home_tabs/accommodation_section.py) | "ADA accommodation" card | Request checkbox, optional details (autosaved), privacy disclaimer and staff status chip; rendered only with `ADA_ACCOMMODATIONS` live — see [../features/ada-accommodations.md](../features/ada-accommodations.md) |
 | [`my_feedback_section.py`](../../pages/home_tabs/my_feedback_section.py) | "Your feedback" card | The submitter's own feedback and whether staff have read it — see [Profile](#profile-pageshome_tabsplayer_edit_infopy) |
 | [`web_push_section.py`](../../pages/home_tabs/web_push_section.py) | "Your devices" subsection of the Notifications card | Enable/disable web push on the current device via `WebPushService`. The buttons run [`static/js/web-push.js`](../../static/js/web-push.js) client-side via `js_handler` (permission prompts must stay inside the click gesture) and report back through `emitEvent` → `ui.on`. Hides itself when VAPID keys aren't configured ([../features/web-push.md](../features/web-push.md)) |
 
@@ -376,7 +377,8 @@ Triforce texts has no standalone route: player submission is a dialog off the to
 | Module | Tab(s) | Responsibility |
 |---|---|---|
 | [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py) | Schedule | Match CRUD and the full lifecycle (seed / seat / start / finish / confirm) |
-| [`admin_users.py`](../../pages/admin_tabs/admin_users.py) | Users | User management with role filtering |
+| [`admin_users.py`](../../pages/admin_tabs/admin_users.py) | Users | User management with role filtering; with `ADA_ACCOMMODATIONS` live, Members / ADA requests sub-tabs |
+| [`admin_accommodations.py`](../../pages/admin_tabs/admin_accommodations.py) | (Users sub-tab) | STAFF queue of ADA accommodation requests: status + staff-notes dialog, Show withdrawn, CSV — see [../features/ada-accommodations.md](../features/ada-accommodations.md) |
 | [`admin_setup.py`](../../pages/admin_tabs/admin_setup.py) | Setup | The new-community checklist (`theme/setup_checklist.py`), derived from `TenantSetupService`; disappears once the required steps are done |
 | [`admin_settings.py`](../../pages/admin_tabs/admin_settings.py) | Tournaments, Stages | Tournament CRUD; stage CRUD |
 | [`admin_payouts.py`](../../pages/admin_tabs/admin_payouts.py) | Payouts | Prize pool and placement splits per tournament via `PayoutService` (`PAYOUTS` flag); a TA is scoped to their own events by the service |
@@ -435,7 +437,7 @@ Seed generation suppresses the notification when the service reports a generatio
 
 ### Admin users (`pages/admin_tabs/admin_users.py`)
 
-`admin_users_page()` — membership and role management for this community.
+`admin_users_page(accommodations=False)` — membership and role management for this community. `pages/admin.py` passes `accommodations=FeatureFlag.ADA_ACCOMMODATIONS in live`; when true the page renders **Members** and **ADA requests (n)** sub-tabs (the second is `render_accommodation_panel` from `admin_accommodations.py`), the member table gains an **ADA** column and a **Needs ADA accommodation** filter. Both load the open-request user ids through `UserTableView`'s `before_refresh` / `decorate_row` hooks.
 
 - A `@ui.refreshable` **join-request queue** above the table (`TenantMembershipService.list_pending`) with Approve / Decline per request; the requester's message renders as plain text.
 - A `UserTableView` with the toolbar suppressed (`show_toolbar=False`); the page renders its own row with **Add Member** (brings an existing account into the community), **Add User** (opens `AdminUserDialog` to create a brand-new one) and a refresh button.

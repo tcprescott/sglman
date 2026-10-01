@@ -142,7 +142,9 @@ def build_admin_tabs(
     if is_staff or is_ta_any or is_cc_any or is_sm:
         tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
     if is_staff:
-        tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
+        tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations',
+                     'content': (admin_users_page, (),
+                                 {'accommodations': FeatureFlag.ADA_ACCOMMODATIONS in live})})
     if is_staff or is_ta_any:
         tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
     if is_staff or access.is_stream_manager:

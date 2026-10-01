@@ -5,6 +5,7 @@ Repositories handle all database queries and return domain objects.
 They should NOT contain business logic - only data fetching/persistence.
 """
 
+from .accommodation_repository import AccommodationRepository
 from .api_token_repository import ApiTokenRepository
 from .async_qualifier_repository import (
     AsyncQualifierLiveRaceRepository,
@@ -67,6 +68,7 @@ from .webhook_delivery_repository import WebhookDeliveryRepository
 from .webhook_repository import WebhookRepository
 
 __all__ = [
+    'AccommodationRepository',
     'ApiTokenRepository',
     'AsyncQualifierLiveRaceRepository',
     'AsyncQualifierPermalinkRepository',

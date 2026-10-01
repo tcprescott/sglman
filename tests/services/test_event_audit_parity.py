@@ -140,6 +140,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.FEEDBACK_SUBMITTED,
     AuditActions.FEEDBACK_REVIEWED,
     AuditActions.FEEDBACK_REOPENED,
+    # ADA accommodation requests: personal by nature, so none of it is
+    # broadcast. The requester sees their status on their own profile.
+    AuditActions.ACCOMMODATION_REQUESTED,
+    AuditActions.ACCOMMODATION_UPDATED,
+    AuditActions.ACCOMMODATION_WITHDRAWN,
+    AuditActions.ACCOMMODATION_STATUS_CHANGED,
+    AuditActions.ACCOMMODATION_NOTES_UPDATED,
     # A coordinator's free-text note on a volunteer profile: tenant-internal
     # staffing detail, and potentially personal — not for arbitrary receivers.
     AuditActions.VOLUNTEER_NOTE_UPDATED,

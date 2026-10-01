@@ -52,7 +52,7 @@ not a reason to skip the audit.
 | People | `user.*` (creation, login provisioning, role grants, profile, activation, enrollment, timezone), `role.*` (Discord-sourced grants), `discord_role.*`, `player.availability_updated` |
 | Volunteers & equipment | `volunteer.*` (positions, shifts, assignments, draft scheduling), `equipment.*` (lending, check-out/in) |
 | Online play | `bracket.*`, `challonge.*`, `race_room.*`, `race_room_profile.*`, `racetime.*`, `racetime_bot.*`, `sg_sync.*`, `async_qualifier.*`, `preset.*`, `randomizer_credential.*` |
-| Community content | `triforce_text.*`, `feedback.*` |
+| Community content | `triforce_text.*`, `feedback.*`, `accommodation.*` (ids and status only, never the text) |
 | Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `roomtoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `timezone.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
 
 Platform-level rows (`tenant.created` / `.updated` / `.deleted`, `platform.*`,

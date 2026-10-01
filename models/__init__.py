@@ -9,6 +9,7 @@ package's namespace). Cross-model foreign keys use string references
 other — only the shared enums in :mod:`models.enums` are imported directly.
 """
 
+from .accommodation import AccommodationRequest
 from .async_qualifier import (
     AsyncQualifier,
     AsyncQualifierLiveRace,
@@ -36,6 +37,7 @@ from .discord_events import DiscordScheduledEvent
 from .enums import (
     STATION_REGEXES,
     SYSTEM_USER_DISCORD_ID,
+    AccommodationStatus,
     ApiTokenOrigin,
     AsyncQualifierLiveRaceStatus,
     AsyncQualifierReviewStatus,
@@ -128,6 +130,9 @@ __all__ = [
     'STATION_REGEXES',
     # constants
     'SYSTEM_USER_DISCORD_ID',
+    # accommodation
+    'AccommodationRequest',
+    'AccommodationStatus',
     # user / auth
     'ApiToken',
     # enums

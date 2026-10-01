@@ -4,6 +4,7 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import (
+    AccommodationService,
     NotFoundError,
     TenantMembershipService,
     UserService,
@@ -11,6 +12,7 @@ from application.services import (
 )
 from application.tenant_context import require_tenant_id
 from models import Role, User
+from pages.admin_tabs.admin_accommodations import render_accommodation_panel
 from theme.dialog import AdminUserDialog
 from theme.tables.admin_crud import refresh_button
 from theme.tables.export import csv_export_button
@@ -28,13 +30,44 @@ _ROW_ACTIONS = '''
 '''
 
 
-async def admin_users_page() -> None:
+async def admin_users_page(accommodations: bool = False) -> None:
+    """Members table, plus an ADA requests sub-tab when the community has the feature."""
     with ui.column().classes('page-container-narrow w-full'):
         with ui.row().classes('header-row'):
             ui.label('User Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
 
+        if not accommodations:
+            await _members_panel(accommodations=False)
+            return
+
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        service = AccommodationService()
+
+        def tab_label(count: int) -> str:
+            return f'ADA requests ({count})' if count else 'ADA requests'
+
+        with ui.tabs().props('dense inline-label align=left no-caps').classes('w-full') as sub_tabs:
+            members_tab = ui.tab('members', label='Members', icon='group')
+            ada_tab = ui.tab('ada', label=tab_label(0), icon='accessible')
+
+        async def recount() -> None:
+            try:
+                ada_tab.props(f'label="{tab_label(len(await service.requesting_user_ids(actor)))}"')
+            except (ValueError, PermissionError):
+                pass
+
+        with ui.tab_panels(sub_tabs, value=members_tab).classes('w-full'):
+            with ui.tab_panel(members_tab).classes('q-px-none'):
+                await _members_panel(accommodations=True, actor=actor)
+            with ui.tab_panel(ada_tab).classes('q-px-none'):
+                await render_accommodation_panel(on_change=recount)
+        await recount()
+
+
+async def _members_panel(accommodations: bool, actor: User | None = None) -> None:
+    with ui.column().classes('w-full gap-4'):
         ui.label(
             'Everyone in this community and the roles they hold. Identity is '
             'shared across communities; membership is not — Add Member brings an '
@@ -93,6 +126,21 @@ async def admin_users_page() -> None:
         await join_queue()
 
         selected = {'value': []}
+        ada_only = {'value': False}
+        ada_ids: set[int] = set()
+
+        async def load_ada_ids() -> None:
+            if not accommodations:
+                return
+            try:
+                fresh = await AccommodationService().requesting_user_ids(actor)
+            except (ValueError, PermissionError):
+                fresh = set()
+            ada_ids.clear()
+            ada_ids.update(fresh)
+
+        def mark_ada(row: dict) -> None:
+            row['ada'] = 'Requested' if row['id'] in ada_ids else ''
 
         columns: list[dict] = [
             {'name': 'username', 'label': 'Username', 'field': 'username', 'sortable': True},
@@ -100,6 +148,8 @@ async def admin_users_page() -> None:
              'sortable': True},
             {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns', 'sortable': True},
             {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge', 'sortable': True},
+            *([{'name': 'ada', 'label': 'ADA', 'field': 'ada', 'sortable': True}]
+              if accommodations else []),
             # Not sortable: a comma-joined list of role labels sorts on the
             # string, which orders by whoever happens to hold 'Commentator'.
             {'name': 'roles', 'label': 'Roles', 'field': 'roles'},
@@ -114,6 +164,8 @@ async def admin_users_page() -> None:
             sel_list = selected.get('value') or []
             tid = require_tenant_id()
             qs = User.filter(tenant_memberships__tenant_id=tid).exclude(is_system=True)
+            if ada_only['value']:
+                qs = qs.filter(id__in=list(ada_ids))
             if not sel_list:
                 return qs.distinct()
             global_roles = [v for v in sel_list if v in {r.value for r in Role}]
@@ -213,11 +265,19 @@ async def admin_users_page() -> None:
                         .props('outlined dense use-chips clearable')
                     )
                     role_select.bind_value(selected, 'value')
+                if accommodations:
+                    with ui.column().classes('match-filter-column'):
+                        ui.label('Accessibility').classes('match-filter-label')
+                        ada_checkbox = ui.checkbox(
+                            'Needs ADA accommodation',
+                        ).bind_value(ada_only, 'value')
 
         # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
             columns=columns, get_query=get_query, show_toolbar=False,
             row_actions=_ROW_ACTIONS, table_key=TableKeys.ADMIN_USERS,
+            before_refresh=load_ada_ids,
+            decorate_row=mark_ada if accommodations else None,
             empty_message=(
                 'Nobody is a member of this community yet. Add Member brings an '
                 'existing account in; granting someone a role makes them a member too.'
@@ -241,6 +301,8 @@ async def admin_users_page() -> None:
         # Same rebind as the tab-switch below: an 'update:model-value' handler
         # is a client event, so a bare background task loses the tenant.
         role_select.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
+        if accommodations:
+            ada_checkbox.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
 
         # Route through the view's _bg so refresh rebinds the tenant captured at
         # build — the selected_tab handler runs detached, and _format_user_row
