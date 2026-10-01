@@ -5,6 +5,7 @@ Typed accessors over the SystemConfiguration key/value table.
 """
 
 import json
+import re
 from datetime import date, time
 from typing import Dict, List, Optional, Tuple
 
@@ -26,6 +27,18 @@ KEY_STATION_FORMAT = 'station_format'
 # Default off: the membership gate exists precisely to keep a stranger from
 # reading a community's schedule, so publishing it again is a staff decision.
 KEY_JOIN_PREVIEW = 'join_page_match_preview'
+# Whether anyone in the community's linked Discord server gets in at the join
+# door without asking. Default off: a server is often wider than the community
+# (a shared server, a public one), so opening the door to all of it is a staff
+# decision, like the preview above.
+KEY_DISCORD_AUTO_JOIN = 'discord_auto_join'
+# An invite to the linked server, offered on the join door. Typed in by staff:
+# the bot never mints one.
+KEY_DISCORD_INVITE_URL = 'discord_invite_url'
+
+_DISCORD_INVITE_RE = re.compile(
+    r'^(?:https?://)?(?:www\.)?(?:discord\.gg|(?:discord|discordapp)\.com/invite)/([A-Za-z0-9-]{2,64})/?$'
+)
 
 
 class SystemConfigService:
@@ -250,6 +263,36 @@ class SystemConfigService:
             return StationFormat(raw)
         except ValueError:
             return default
+
+    @staticmethod
+    async def get_discord_invite_url() -> Optional[str]:
+        """The community's Discord invite, or None when staff never set one."""
+        return await SystemConfigService.get_raw(KEY_DISCORD_INVITE_URL) or None
+
+    @staticmethod
+    def normalize_discord_invite_url(raw: Optional[str]) -> str:
+        """A Discord invite in its canonical ``https://discord.gg/<code>`` form.
+
+        Blank clears the setting. Anything that is not a Discord invite is
+        refused: the join door renders this as a button, and a link to some
+        other site behind a "Join the Discord server" label is the one thing it
+        must never be.
+        """
+        text = (raw or '').strip()
+        if not text:
+            return ''
+        match = _DISCORD_INVITE_RE.match(text)
+        if match is None:
+            raise ValueError(
+                'That isn’t a Discord invite link. Use one that looks like '
+                'https://discord.gg/abc123.'
+            )
+        return f'https://discord.gg/{match.group(1)}'
+
+    @staticmethod
+    async def set_discord_invite_url(raw: Optional[str], actor: User) -> None:
+        url = SystemConfigService.normalize_discord_invite_url(raw)
+        await SystemConfigService.set_raw(KEY_DISCORD_INVITE_URL, url, actor)
 
     @staticmethod
     def validate_hours_mapping(

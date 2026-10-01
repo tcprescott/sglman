@@ -168,6 +168,17 @@ tournament grant on an active tournament. An unmapped role, leaving the server
 account is never renamed by this path; the new one takes the member's Discord
 username and global avatar hash, exactly what a first login would store.
 
+### Membership for anyone in the server
+
+Role sync only makes members of people holding a mapped role. A community that
+wants its whole server in turns on **Discord auto-join** (Admin →
+Settings): a signed-in non-member who opens any community page is checked
+against the linked guild (`is_guild_member`) and, if they're in it, added on the
+spot instead of seeing the join door. Membership only, no roles; leaving the
+server doesn't undo it. The same settings block takes a **Discord invite link**
+that the join door offers as a button. Mechanics:
+[multitenancy.md](multitenancy.md).
+
 ### Two kinds of mapping
 
 A mapping grants **either** a community-wide `Role` **or** a `TournamentGrant`
@@ -275,7 +286,10 @@ self-consistent. It is kept in sync with `scripts/seed_dev.py`: the guild ids an
 mapped role ids/names match the dev seed, so a mock member's roles resolve against
 seeded `DiscordRoleMapping` rows and login sync does real work.
 `get_member_role_ids` hands each user a deterministic, varied role set (everyone is
-at least a Volunteer). Edit `MOCK_GUILDS`, a guild's `roles`, or `MOCK_MEMBER_ROLES`
+at least a Volunteer). `is_guild_member` says everyone is in every server except
+the ids in `MOCK_NON_GUILD_MEMBERS` — the seeded `outsider`, so the join door stays
+reachable in the seeded community that has Discord auto-join on. Edit
+`MOCK_GUILDS`, a guild's `roles`, `MOCK_MEMBER_ROLES` or `MOCK_NON_GUILD_MEMBERS`
 to enrich the fixtures.
 
 ## Testing

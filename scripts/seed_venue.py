@@ -86,6 +86,12 @@ async def seed_venue_for_tenant(
         # matches to non-members, tenant A keeps the gate closed. A dev
         # signed out of both sees the two versions of the same door.
         ("join_page_match_preview", "true" if tenant.slug == "second" else "false"),
+        # Both halves of Discord auto-join, the same way: tenant B lets its
+        # server in, tenant A only offers the invite. ``outsider`` is in no mock
+        # server (mock_discord_data.MOCK_NON_GUILD_MEMBERS), so it still meets
+        # each door and reads both versions of its copy.
+        ("discord_auto_join", "true" if tenant.slug == "second" else "false"),
+        ("discord_invite_url", f"https://discord.gg/wizzrobe-{tenant.slug}"),
     ]
     for key, val in config_specs:
         await SystemConfiguration.get_or_create(

@@ -969,9 +969,11 @@ Constraint: `unique_together (('tenant', 'name'),)`.
 Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
 `max_concurrent_players`, `max_concurrent_stages`,
 `volunteer_reminder_lead_minutes`, `volunteer_comp_tiers`,
-`tournament_hours_by_date`, `station_format`, and `join_page_match_preview`
+`tournament_hours_by_date`, `station_format`, `join_page_match_preview`
 (the join page's today's-matches opt-in, default off — see
-[frontend.md](frontend.md#the-join-page-themejoin_pagepy)).
+[frontend.md](frontend.md#the-join-page-themejoin_pagepy)), `discord_auto_join`
+(linked-server members skip the join request, default off) and
+`discord_invite_url` (the join page's invite button).
 
 #### `RoomToken`
 

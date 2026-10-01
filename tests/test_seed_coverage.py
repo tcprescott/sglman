@@ -189,3 +189,14 @@ async def test_the_outsider_fixture_belongs_to_no_community(seeded_db):
         f"'outsider' belongs to {memberships} communities; the join page is only "
         f"reachable in dev as a user who belongs to none"
     )
+
+
+def test_the_outsider_is_in_no_mock_discord_server():
+    """Otherwise the seeded auto-join community would let it in on first visit.
+
+    ``mock_discord_data`` cannot import the seed scripts, so it pins the
+    derived id by hand; this is what keeps the two from drifting.
+    """
+    from application.utils.mocks.mock_discord_data import MOCK_NON_GUILD_MEMBERS
+
+    assert int(fixture_discord_id('outsider')) in MOCK_NON_GUILD_MEMBERS

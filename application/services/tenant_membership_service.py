@@ -12,6 +12,7 @@ nature: the row *is* the tenant linkage), so its queries pass tenant ids
 explicitly rather than going through ``scoped(...)``.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -31,6 +32,8 @@ from application.utils.discord_embeds import (
 )
 from application.utils.discord_messages_tenant import join_decided_dm, join_requested_dm
 from models import JoinRequestStatus, Role, TenantJoinRequest, User
+
+logger = logging.getLogger(__name__)
 
 
 class TenantMembershipService:
@@ -136,6 +139,72 @@ class TenantMembershipService:
             )
             await self._notify_staff_of_request(user, tenant_id, text)
         return request
+
+    async def join_via_discord(self, user: User, tenant_id: int) -> bool:
+        """Let a member of the community's linked Discord server straight in.
+
+        The door's alternative to a join request, live only when staff turned on
+        ``KEY_DISCORD_AUTO_JOIN`` and the tenant has a guild. True when ``user``
+        is a member afterwards. Explicit ``tenant_id`` for the same reason as
+        ``request_to_join``.
+
+        Never raises. It runs inside the membership gate on every page a
+        non-member opens, and a Discord outage must leave them at the door with
+        its Request access button, not on an error page. A bot that cannot say
+        whether they are in the server is treated as "not known to be", never as
+        yes.
+        """
+        from application.services.discord import DiscordService
+        from application.services.system_config_service import (
+            KEY_DISCORD_AUTO_JOIN,
+            SystemConfigService,
+        )
+        from application.services.tenant_service import TenantService
+
+        if user.discord_id is None:
+            return False
+        try:
+            if await TenantMembershipRepository.is_member(user.id, tenant_id):
+                return True
+            with tenant_scope(tenant_id):
+                if not await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN):
+                    return False
+                tenant = await TenantService.get_by_id(tenant_id)
+                if tenant is None or tenant.discord_guild_id is None:
+                    return False
+                ok, in_guild = await DiscordService().is_guild_member(
+                    tenant.discord_guild_id, int(user.discord_id),
+                )
+                if not ok:
+                    logger.warning(
+                        'Discord auto-join: guild check failed for tenant %s: %s',
+                        tenant_id, in_guild,
+                    )
+                    return False
+                if not in_guild:
+                    return False
+
+                await TenantMembershipRepository.add(user, tenant_id)
+                # A request they filed before joining the server would otherwise
+                # sit in the staff queue for someone who is already in. Closed
+                # as approved with no decider: nobody on staff decided it.
+                request = await TenantJoinRequestRepository.get(user.id, tenant_id)
+                if request is not None and request.status is JoinRequestStatus.PENDING:
+                    await TenantJoinRequestRepository.decide(
+                        request, JoinRequestStatus.APPROVED, None,
+                        datetime.now(timezone.utc),
+                    )
+                await self.audit_service.write_and_publish(
+                    user, AuditActions.TENANT_MEMBER_ADDED,
+                    {'target_user_id': user.id, 'source': 'discord_auto_join'},
+                    EventType.TENANT_MEMBER_ADDED,
+                )
+            return True
+        except Exception:
+            logger.exception(
+                'Discord auto-join failed for user %s in tenant %s', user.id, tenant_id,
+            )
+            return False
 
     async def get_request(self, user: User, tenant_id: int) -> Optional[TenantJoinRequest]:
         """This user's request in a named tenant, if any.

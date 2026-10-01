@@ -12,6 +12,7 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tenant_service import TenantService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import (
@@ -178,6 +179,10 @@ async def enforce_membership(
     if is_super_admin:
         return False
     if user is not None and await TenantService.is_member(user.id, tenant_id):
+        return False
+    # The other way through: a community that opened its door to its Discord
+    # server lets a server member in here, on the page they were opening.
+    if user is not None and await TenantMembershipService().join_via_discord(user, tenant_id):
         return False
 
     tenant = await TenantService.get_by_id(tenant_id)

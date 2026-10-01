@@ -145,6 +145,7 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `list_guilds` | `()` | `(True, [{"id": int, "name": str}, ...])` from the bot's cached guild list. |
 | `list_guild_roles` | `(guild_id: int)` | Roles as `[{"id", "name"}]`. Resolves the guild via cache then `fetch_guild`; prefers `guild.fetch_roles()`, falls back to cached `guild.roles`. |
 | `get_guild_summary` | `(guild_id: int)` | `(True, {"id", "name"})` for a guild the bot can see — renders the connected server's name and confirms the bot actually joined after a link. |
+| `is_guild_member` | `(guild_id: int, user_id: int)` | `(True, bool)` — whether the user is in the guild; `(False, error)` when the bot can't tell. Behind Discord auto-join at the membership gate. |
 | `member_can_manage_guild` | `(guild_id: int, user_id: int)` | `(True, bool)` — owner / Administrator / Manage Server. The authorization proof for `DiscordLinkService`; an indeterminate answer returns `(False, error)` so callers fail **closed**. |
 | `add_role_to_user` | `(guild_id, user_id, role_id, reason=None)` | Adds a guild role to a member. Resolves member via cache then `fetch_member`, role via cache then `fetch_roles`. `reason` goes to the Discord audit log. |
 | `remove_role_from_user` | `(guild_id, user_id, role_id, reason=None)` | Mirror of `add_role_to_user` using `member.remove_roles`. |
@@ -181,7 +182,7 @@ Caller pattern: `from application.services.discord.discord_service import Discor
 
 - The seven button variants delegate to the single `send_dm` stub, which **prints to stdout** (`[MOCK Discord DM] -> <user_id>: <message> [embed: <title>] [button: <label> -> <url>]`, the suffixes only when present — the link is the half of a DM mock mode can verify) and returns `(True, "Message sent (mock)")`, so notification code paths run end-to-end without Discord.
 - `get_bot()` returns `None`.
-- `list_guilds` / `list_guild_roles` / `get_member_role_ids` / `list_members_with_roles` / `get_guild_summary` / `member_can_manage_guild` answer from `application/utils/mocks/mock_discord_data.py` (`list_members_with_roles` draws from `MOCK_GUILD_ROSTER`, three members who have never signed in, so Sync All Users visibly creates accounts in mock mode); the role/event methods print a `[MOCK Discord] …` line and return success.
+- `list_guilds` / `list_guild_roles` / `get_member_role_ids` / `list_members_with_roles` / `get_guild_summary` / `member_can_manage_guild` / `is_guild_member` answer from `application/utils/mocks/mock_discord_data.py` (`list_members_with_roles` draws from `MOCK_GUILD_ROSTER`, three members who have never signed in, so Sync All Users visibly creates accounts in mock mode); the role/event methods print a `[MOCK Discord] …` line and return success.
 
 Button interactions are **not** testable in mock mode (no bot connection); see [discord.md § Mock mode](../features/discord.md#mock-mode).
 
