@@ -218,7 +218,17 @@ button rather than on an error page. Leaving the server does **not** remove the
 membership. It only runs at the door, so someone in the server who never opens
 the community gets no row. A staff-supplied invite (`discord_invite_url`,
 validated to a `discord.gg` link) is offered on the door whether or not
-auto-join is on. Neither is a `FeatureFlag`: each is one staff toggle.
+auto-join is on.
+
+**Join requests can be switched off** (`join_requests_enabled`, default on,
+Admin → Settings → Take join requests) independently of auto-join, so a
+community can admit its Discord server and nobody else. With it off the door
+drops the message box and Request access button, its copy names only the ways in
+that are still open, and `request_to_join` refuses with a `ValueError` (a door
+left open from before the switch still has a button). Requests already pending
+stay in the staff queue and can still be approved or denied; auto-join still
+closes them as it lets their authors in. None of the three is a `FeatureFlag`:
+each is one staff toggle.
 
 The gate is a page-level check on a *person*. It does not apply to the REST API
 or MCP (a token belongs to a tenant, and wave 2 scoped what those return), to the

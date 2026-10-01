@@ -972,7 +972,8 @@ Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
 `tournament_hours_by_date`, `station_format`, `join_page_match_preview`
 (the join page's today's-matches opt-in, default off — see
 [frontend.md](frontend.md#the-join-page-themejoin_pagepy)), `discord_auto_join`
-(linked-server members skip the join request, default off) and
+(linked-server members skip the join request, default off),
+`join_requests_enabled` (whether the join page takes requests, default on) and
 `discord_invite_url` (the join page's invite button).
 
 #### `RoomToken`

@@ -14,6 +14,7 @@ import application.services.discord as discord_pkg
 from application.services.system_config_service import (
     KEY_DISCORD_AUTO_JOIN,
     KEY_DISCORD_INVITE_URL,
+    KEY_JOIN_REQUESTS,
     SystemConfigService,
 )
 from application.services.tenant_membership_service import TenantMembershipService
@@ -27,7 +28,12 @@ from models import (
     TenantMembership,
     User,
 )
-from theme.join_page import resolve_join_preview
+from theme.join_page import (
+    JoinPreview,
+    _non_member_message,
+    _signed_out_message,
+    resolve_join_preview,
+)
 
 GUILD_ID = 555_000_000_000_000_001
 
@@ -217,3 +223,33 @@ class TestJoinPreview:
         preview = await resolve_join_preview(1)
         assert preview.discord_auto_join is False
         assert preview.discord_invite_url is None
+
+
+class TestJoinRequestsOff:
+    async def test_auto_join_still_lets_a_server_member_in(self, fake_discord, db):
+        await _configure()
+        await SystemConfiguration.create(
+            name=KEY_JOIN_REQUESTS, value='false', tenant_id=1,
+        )
+        user = await _stranger(9300)
+
+        assert await TenantMembershipService().join_via_discord(user, 1) is True
+        assert await _is_member(user)
+
+    async def test_the_door_reads_the_switch(self, db):
+        assert (await resolve_join_preview(1)).join_requests is True
+        await SystemConfiguration.create(
+            name=KEY_JOIN_REQUESTS, value='false', tenant_id=1,
+        )
+        assert (await resolve_join_preview(1)).join_requests is False
+
+
+class TestDoorCopy:
+    @pytest.mark.parametrize('auto_join,requests', [
+        (True, True), (True, False), (False, True), (False, False),
+    ])
+    def test_the_door_only_offers_ways_in_that_are_open(self, auto_join, requests):
+        preview = JoinPreview(discord_auto_join=auto_join, join_requests=requests)
+        for text in (_signed_out_message(preview), _non_member_message(preview)):
+            assert ('Discord server' in text) is auto_join
+            assert ('ask' in text.lower()) is requests

@@ -281,3 +281,33 @@ async def test_the_requester_is_notified_on_approve_and_on_deny(staff, captured_
     assert len(captured_dms) == 1
     await service.deny_request(staff, r2.id)
     assert len(captured_dms) == 2
+
+
+async def _close_requests() -> None:
+    from application.services.system_config_service import KEY_JOIN_REQUESTS
+    from models import SystemConfiguration
+
+    await SystemConfiguration.create(name=KEY_JOIN_REQUESTS, value='false', tenant_id=1)
+
+
+async def test_requests_switched_off_refuse_a_new_request(captured_dms, db):
+    from models import TenantJoinRequest
+
+    await _close_requests()
+    outsider = await User.create(discord_id=4300, username='outsider')
+    with pytest.raises(ValueError) as exc:
+        await TenantMembershipService().request_to_join(outsider, 1, 'let me in')
+    assert 'join requests' in str(exc.value)
+    assert not await TenantJoinRequest.exists(user=outsider, tenant_id=1)
+    assert captured_dms == []
+
+
+async def test_requests_switched_off_leave_the_pending_queue_decidable(staff, captured_dms, db):
+    outsider = await User.create(discord_id=4301, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await _close_requests()
+
+    assert [r.id for r in await service.list_pending()] == [request.id]
+    await service.approve_request(staff, request.id)
+    assert await service.is_member(outsider) is True

@@ -91,6 +91,10 @@ async def seed_venue_for_tenant(
         # server (mock_discord_data.MOCK_NON_GUILD_MEMBERS), so it still meets
         # each door and reads both versions of its copy.
         ("discord_auto_join", "true" if tenant.slug == "second" else "false"),
+        # And tenant B takes no join requests, so its door is the
+        # Discord-only one: the case the switch exists for. Tenant A keeps
+        # the default request form.
+        ("join_requests_enabled", "false" if tenant.slug == "second" else "true"),
         ("discord_invite_url", f"https://discord.gg/wizzrobe-{tenant.slug}"),
     ]
     for key, val in config_specs:
