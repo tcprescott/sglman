@@ -17,6 +17,7 @@ from application.services.system_config_service import (
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
     KEY_JOIN_PREVIEW,
+    KEY_JOIN_REQUESTS,
     KEY_MAX_CONCURRENT_PLAYERS,
     KEY_MAX_CONCURRENT_STAGES,
     KEY_STATION_FORMAT,
@@ -227,6 +228,7 @@ async def admin_system_config_page() -> None:
     station_format = await SystemConfigService.get_station_format()
     join_preview = await SystemConfigService.get_bool(KEY_JOIN_PREVIEW)
     discord_auto_join = await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN)
+    join_requests = await SystemConfigService.get_bool(KEY_JOIN_REQUESTS, default=True)
     discord_invite_url = await SystemConfigService.get_discord_invite_url() or ''
     tenant = await TenantService.get_by_id(require_tenant_id())
     guild_linked = bool(tenant and tenant.discord_guild_id)
@@ -294,6 +296,16 @@ async def admin_system_config_page() -> None:
                 f'player names, on the community’s clock ({tenant_tz_label}). '
                 'Published brackets are always listed there — they are public '
                 'pages already. Off by default.'
+            ).classes('text-caption text-grey')
+
+            join_requests_input = ui.switch(
+                'Take join requests', value=join_requests,
+            )
+            ui.label(
+                'Non-members can ask to join from the join page, and Staff approve '
+                'or deny on the Users tab. Turn this off to stop new requests; '
+                'ones already waiting stay there for you to decide. Discord '
+                'auto-join below keeps working either way. On by default.'
             ).classes('text-caption text-grey')
 
             discord_auto_join_input = ui.switch(
@@ -402,6 +414,10 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
                 await SystemConfigService.set_raw(
                     KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
+                )
+                await SystemConfigService.set_raw(
+                    KEY_JOIN_REQUESTS,
+                    'true' if join_requests_input.value else 'false', actor,
                 )
                 await SystemConfigService.set_raw(
                     KEY_DISCORD_AUTO_JOIN,

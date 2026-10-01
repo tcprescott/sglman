@@ -560,6 +560,13 @@ Settings:
   button that reloads the page, re-running the gate. The gate itself does the
   joining ([multitenancy.md](../features/multitenancy.md)); the door only ever
   sees people the bot did not find in the server.
+- **Join requests off** — when `join_requests_enabled` is `false`
+  (`JoinPreview.join_requests`), a signed-in non-member gets no message box and
+  no Request access button, and the copy (`_signed_out_message` /
+  `_non_member_message`) offers only what is still open: the Discord server if
+  auto-join is on, otherwise "its staff can add you directly". A visitor with a
+  request already pending still sees the pending copy, since staff can still
+  decide it.
 
 Not a `FeatureFlag`: one display toggle does not need two-tier availability, a
 `FeatureFlagSpec`, `service_modules`, or `@requires_feature`.
@@ -669,7 +676,7 @@ Rendered as a `no-print` warning **above** the Print button on the label sheet (
 
 `admin_system_config_page()` — the "Settings" tab (`AuthService.is_staff` gates the Save button).
 
-- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), Discord auto-join (`discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
+- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), the join-request switch (`join_requests_enabled`), Discord auto-join (`discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
 - Hosts two sections beyond the key/value form: the **Station Pool**, and **Tournament Room Screens** (`pages/admin_tabs/room_tokens_section.py`) — issue a token per shared machine, see when each last used it, revoke one. The URL is shown once, in a dialog, since only the hash is stored.
 - Date fields use a calendar-popup helper; per-day tournament hours render an Open/Close time pair per event day; the Discord-server select is populated from `DiscordService.list_guilds`. **Save** validates and persists each key through `SystemConfigService.set_raw` / `set_tournament_hours`.
 

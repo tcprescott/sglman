@@ -66,6 +66,9 @@ class JoinPreview:
     #: when staff turned it on *and* a server is linked, since the door must not
     #: promise a way in that the gate will not honour.
     discord_auto_join: bool = False
+    #: Whether the door takes join requests. Off leaves auto-join (if on) as
+    #: the only way in short of staff adding someone by hand.
+    join_requests: bool = True
 
 
 def roster_label(match) -> str:
@@ -93,6 +96,7 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     from application.services.system_config_service import (
         KEY_DISCORD_AUTO_JOIN,
         KEY_JOIN_PREVIEW,
+        KEY_JOIN_REQUESTS,
         SystemConfigService,
     )
     from application.services.tenant_service import TenantService
@@ -103,6 +107,13 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     from theme.brackets import visible_stages
 
     preview = JoinPreview()
+
+    try:
+        preview.join_requests = await SystemConfigService.get_bool(
+            KEY_JOIN_REQUESTS, default=True,
+        )
+    except Exception:
+        logger.exception('Join page: join-request setting failed for tenant %s', tenant_id)
 
     try:
         if await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
@@ -216,6 +227,45 @@ def _render_preview(preview: JoinPreview) -> None:
         ui.label(f'…and {preview.more_matches} more today.').classes('text-caption text-grey')
 
 
+def _signed_out_message(preview: JoinPreview) -> str:
+    if preview.discord_auto_join and preview.join_requests:
+        return (
+            'Sign in to join. Members of this community’s Discord server get in '
+            'straight away; anyone else can ask its staff.'
+        )
+    if preview.discord_auto_join:
+        return (
+            'Sign in to join. Members of this community’s Discord server get in '
+            'straight away.'
+        )
+    if preview.join_requests:
+        return 'Sign in to ask to join this community.'
+    return 'Sign in if you’re already a member. This community isn’t taking join requests.'
+
+
+def _non_member_message(preview: JoinPreview) -> str:
+    if preview.discord_auto_join and preview.join_requests:
+        return (
+            'You aren’t a member of this community yet. Members of its Discord '
+            'server get in automatically, so join it and check again, or ask to '
+            'join and its staff will decide.'
+        )
+    if preview.discord_auto_join:
+        return (
+            'You aren’t a member of this community yet. Members of its Discord '
+            'server get in automatically, so join it and check again.'
+        )
+    if preview.join_requests:
+        return (
+            'You aren’t a member of this community yet. Ask to join and its '
+            'staff will decide.'
+        )
+    return (
+        'You aren’t a member of this community, and it isn’t taking join '
+        'requests. Its staff can add you directly.'
+    )
+
+
 def render_join_page(
     *,
     tenant_id: int,
@@ -243,12 +293,7 @@ def render_join_page(
             ui.label(tenant_name).classes('error-headline')
 
             if user is None:
-                ui.label(
-                    'Sign in to join. Members of this community’s Discord server '
-                    'get in straight away; anyone else can ask its staff.'
-                    if preview.discord_auto_join else
-                    'Sign in to ask to join this community.'
-                ).classes('error-message')
+                ui.label(_signed_out_message(preview)).classes('error-message')
                 ui.button('Sign in', icon='login',
                           on_click=lambda: ui.navigate.to('login')).props('color=primary')
                 _render_discord(preview, signed_in=False)
@@ -270,15 +315,12 @@ def render_join_page(
                 _render_preview(preview)
                 return
 
-            ui.label(
-                'You aren’t a member of this community yet. Members of its '
-                'Discord server get in automatically, so join it and check again, '
-                'or ask to join and its staff will decide.'
-                if preview.discord_auto_join else
-                'You are not a member of this community yet. Ask to join and its '
-                'staff will decide.'
-            ).classes('error-message')
+            ui.label(_non_member_message(preview)).classes('error-message')
             _render_discord(preview, signed_in=True)
+
+            if not preview.join_requests:
+                _render_preview(preview)
+                return
 
             message = ui.textarea(
                 'Anything they should know? (optional)',

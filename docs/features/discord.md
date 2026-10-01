@@ -176,7 +176,9 @@ Settings): a signed-in non-member who opens any community page is checked
 against the linked guild (`is_guild_member`) and, if they're in it, added on the
 spot instead of seeing the join door. Membership only, no roles; leaving the
 server doesn't undo it. The same settings block takes a **Discord invite link**
-that the join door offers as a button. Mechanics:
+that the join door offers as a button. Turn **Take join requests** off in the
+same block and the server becomes the only way in short of staff adding someone
+by hand. Mechanics:
 [multitenancy.md](multitenancy.md).
 
 ### Two kinds of mapping

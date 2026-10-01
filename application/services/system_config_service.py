@@ -32,6 +32,10 @@ KEY_JOIN_PREVIEW = 'join_page_match_preview'
 # (a shared server, a public one), so opening the door to all of it is a staff
 # decision, like the preview above.
 KEY_DISCORD_AUTO_JOIN = 'discord_auto_join'
+# Whether non-members may file a join request at the door. Default on (read with
+# ``default=True``): turning it off closes that way in without touching Discord
+# auto-join, so a community can admit its server and nobody else.
+KEY_JOIN_REQUESTS = 'join_requests_enabled'
 # An invite to the linked server, offered on the join door. Typed in by staff:
 # the bot never mints one.
 KEY_DISCORD_INVITE_URL = 'discord_invite_url'

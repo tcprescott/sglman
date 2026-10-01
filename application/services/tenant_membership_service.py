@@ -120,9 +120,21 @@ class TenantMembershipService:
         Takes an explicit ``tenant_id``: this is called from a page the
         requester is *not yet a member of*, so it must not depend on anything
         membership-scoped.
+
+        Refused when staff turned ``KEY_JOIN_REQUESTS`` off. The door hides its
+        button then, but a page left open from before the switch still has one.
+        Requests already pending are untouched: staff can still decide them.
         """
+        from application.services.system_config_service import (
+            KEY_JOIN_REQUESTS,
+            SystemConfigService,
+        )
+
         if await TenantMembershipRepository.is_member(user.id, tenant_id):
             raise ValueError('You are already a member of this community.')
+        with tenant_scope(tenant_id):
+            if not await SystemConfigService.get_bool(KEY_JOIN_REQUESTS, default=True):
+                raise ValueError('This community isn’t taking join requests right now.')
         text = (message or '').strip() or None
         if text and len(text) > 500:
             raise ValueError("That message is a bit long. Keep it under 500 characters.")
