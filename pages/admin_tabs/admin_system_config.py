@@ -8,10 +8,12 @@ from application.services import (
     AuthService,
     StationService,
     SystemConfigService,
+    TenantService,
     TimezoneService,
     get_user_from_discord_id,
 )
 from application.services.system_config_service import (
+    KEY_DISCORD_AUTO_JOIN,
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
     KEY_JOIN_PREVIEW,
@@ -21,6 +23,7 @@ from application.services.system_config_service import (
     KEY_VOLUNTEER_COMP_TIERS,
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import timezone_label
 from models import StationFormat, StationSide
 from pages.admin_tabs.room_tokens_section import render_room_tokens_section
@@ -223,6 +226,10 @@ async def admin_system_config_page() -> None:
     comp_tiers = await SystemConfigService.get_volunteer_comp_tiers()
     station_format = await SystemConfigService.get_station_format()
     join_preview = await SystemConfigService.get_bool(KEY_JOIN_PREVIEW)
+    discord_auto_join = await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN)
+    discord_invite_url = await SystemConfigService.get_discord_invite_url() or ''
+    tenant = await TenantService.get_by_id(require_tenant_id())
+    guild_linked = bool(tenant and tenant.discord_guild_id)
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
     # Operating hours are the community's rule, so they are written and enforced
@@ -289,6 +296,28 @@ async def admin_system_config_page() -> None:
                 'pages already. Off by default.'
             ).classes('text-caption text-grey')
 
+            discord_auto_join_input = ui.switch(
+                'Let Discord server members in without asking', value=discord_auto_join,
+            )
+            ui.label(
+                'Anyone in this community’s linked Discord server becomes a member '
+                'the first time they open it, instead of filing a join request. '
+                'They get no roles from this; role mappings still decide those. '
+                'Leaving the server later doesn’t remove them. Off by default.'
+                if guild_linked else
+                'No Discord server is linked to this community, so this does '
+                'nothing until one is.'
+            ).classes('text-caption text-grey')
+
+            discord_invite_input = ui.input(
+                'Discord invite link', value=discord_invite_url,
+                placeholder='https://discord.gg/abc123',
+            ).classes('w-full')
+            ui.label(
+                'Shown on the join page as a Join the Discord server button. Use an '
+                'invite that doesn’t expire. Leave blank to hide the button.'
+            ).classes('text-caption text-grey')
+
         await _station_pool_section(can_edit)
         await render_room_tokens_section(can_edit)
 
@@ -353,6 +382,9 @@ async def admin_system_config_page() -> None:
                 stages_raw = int_str(stages_input.value)
                 reminder_raw = int_str(reminder_lead_input.value)
                 tiers_raw = _validate_comp_tiers(comp_tiers_input.value)
+                invite_raw = SystemConfigService.normalize_discord_invite_url(
+                    discord_invite_input.value,
+                )
 
                 hours_mapping: dict[date, tuple[str, str]] = {}
                 for d, fields in hours_inputs.items():
@@ -371,6 +403,12 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(
                     KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
                 )
+                await SystemConfigService.set_raw(
+                    KEY_DISCORD_AUTO_JOIN,
+                    'true' if discord_auto_join_input.value else 'false', actor,
+                )
+                await SystemConfigService.set_discord_invite_url(invite_raw, actor)
+                discord_invite_input.value = invite_raw
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')

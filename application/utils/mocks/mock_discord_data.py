@@ -79,6 +79,15 @@ MOCK_GUILD_ROSTER: Dict[int, str] = {
 }
 
 
+# Discord ids that are **not** in any mock server. Everyone else is, which is
+# what the role-sync fixtures above already assume. ``outsider`` is the seeded
+# account that belongs to no community (``seed_support.fixture_discord_id``,
+# pinned by ``tests/test_seed_coverage.py``): keeping it out of every server is
+# what keeps the join door reachable in dev when a community turns on Discord
+# auto-join.
+MOCK_NON_GUILD_MEMBERS: Set[int] = {100_000_000_093_103_805}
+
+
 def guild(guild_id: int) -> dict:
     """The guild record for ``guild_id``, or the default guild if unknown.
 
@@ -117,6 +126,10 @@ def member_role_ids(guild_id: int, user_id: int) -> Set[int]:
     if user_id in MOCK_MEMBER_ROLES:
         return set(MOCK_MEMBER_ROLES[user_id]) & {r["id"] for r in roles_for(guild_id)}
     return _default_member_roles(guild_id, user_id)
+
+
+def is_guild_member(guild_id: int, user_id: int) -> bool:
+    return user_id not in MOCK_NON_GUILD_MEMBERS
 
 
 def user_can_manage(guild_id: int, user_id: int) -> bool:

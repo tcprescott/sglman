@@ -345,6 +345,41 @@ class GuildOpsMixin:
         except Exception as e:
             return False, f"Failed to check permissions: {e!s}"
 
+    async def is_guild_member(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
+        """Whether ``user_id`` is currently in ``guild_id``.
+
+        ``(True, bool)`` on a definitive answer, ``(False, error)`` when the bot
+        cannot tell (not ready, not in the guild, API error). The membership
+        door's Discord auto-join reads this, and must treat an error as "not
+        known to be a member" rather than as either answer.
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+            guild = self._bot.get_guild(guild_id)
+            if guild is None:
+                try:
+                    guild = await self._bot.fetch_guild(guild_id)
+                except discord.NotFound:
+                    return False, "The bot is not in this server."
+                except discord.Forbidden:
+                    return False, "The bot cannot access this server."
+            if guild.get_member(user_id) is not None:
+                return True, True
+            try:
+                await guild.fetch_member(user_id)
+            except discord.NotFound:
+                return True, False
+            return True, True
+        except discord.Forbidden:
+            return False, "Bot lacks permissions to read guild members"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while reading member: {e!s}"
+        except Exception as e:
+            return False, f"Failed to read member: {e!s}"
+
 
 class MockGuildOpsMixin:
     """Canned answers for the same surface, served from ``mock_discord_data``."""
@@ -385,3 +420,7 @@ class MockGuildOpsMixin:
     async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
         print(f"[MOCK Discord] member_can_manage_guild guild={guild_id} user={user_id}")
         return True, mock_discord_data.user_can_manage(guild_id, user_id)
+
+    async def is_guild_member(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
+        print(f"[MOCK Discord] is_guild_member guild={guild_id} user={user_id}")
+        return True, mock_discord_data.is_guild_member(guild_id, user_id)

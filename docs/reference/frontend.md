@@ -547,6 +547,20 @@ different rules:
   "…and N more today" line, and a roster longer than two renders as
   "A vs B +N more" so a ten-racer play-in does not run off the card.
 
+It also carries the community's Discord door, both halves staff-set on Admin →
+Settings:
+
+- **Join the Discord server** — a button to `discord_invite_url`, opened in a
+  new tab, shown to signed-in and signed-out visitors alike. The setter
+  (`SystemConfigService.set_discord_invite_url`) refuses anything that is not a
+  Discord invite and stores it as `https://discord.gg/<code>`.
+- **Auto-join copy** — when `discord_auto_join` is on *and* a guild is linked
+  (`JoinPreview.discord_auto_join`), the copy says server members get in
+  automatically and a signed-in visitor gets an **I've joined, check again**
+  button that reloads the page, re-running the gate. The gate itself does the
+  joining ([multitenancy.md](../features/multitenancy.md)); the door only ever
+  sees people the bot did not find in the server.
+
 Not a `FeatureFlag`: one display toggle does not need two-tier availability, a
 `FeatureFlagSpec`, `service_modules`, or `@requires_feature`.
 
@@ -655,7 +669,7 @@ Rendered as a `no-print` warning **above** the Print button on the label sheet (
 
 `admin_system_config_page()` — the "Settings" tab (`AuthService.is_staff` gates the Save button).
 
-- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), and the Discord sync guild id.
+- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), Discord auto-join (`discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
 - Hosts two sections beyond the key/value form: the **Station Pool**, and **Tournament Room Screens** (`pages/admin_tabs/room_tokens_section.py`) — issue a token per shared machine, see when each last used it, revoke one. The URL is shown once, in a dialog, since only the hash is stored.
 - Date fields use a calendar-popup helper; per-day tournament hours render an Open/Close time pair per event day; the Discord-server select is populated from `DiscordService.list_guilds`. **Save** validates and persists each key through `SystemConfigService.set_raw` / `set_tournament_hours`.
 

@@ -195,12 +195,30 @@ bare `ui.page` — the same function also renders the platform community picker,
 which has no tenant and must stay anonymous — so it calls `enforce_membership`
 itself rather than getting it from the decorator.
 
-**Membership is acquired three ways:** a staff grant (Users tab → Add Member),
-any role grant (the invariant above), or an approved **join request**.
+**Membership is acquired four ways:** a staff grant (Users tab → Add Member),
+any role grant (the invariant above), an approved **join request**, or
+**Discord auto-join**.
 `TenantJoinRequest` is the self-serve enrollment path whose absence used to be
 the documented reason no gate existed: one row per `(user, tenant)` — a denied
 request is re-opened, never appended to — with the community's staff notified
 when it arrives and the requester notified on **both** outcomes.
+
+**Discord auto-join** is the door's other way through, off by default
+(`SystemConfiguration` key `discord_auto_join`, Admin → Settings).
+With it on and a guild linked, `enforce_membership` calls
+`TenantMembershipService.join_via_discord` for a signed-in non-member before
+rendering the door: the bot checks the linked server (`is_guild_member`), and a
+member is added on the spot and the page they asked for renders. It grants
+membership only, never roles (role mappings still decide those), closes any
+pending join request as approved with no decider, and audits
+`tenant.member_added` with the user as actor and `source: discord_auto_join`.
+It never raises, and a bot that cannot answer counts as "not known to be a
+member", so a Discord outage leaves people at the door with its Request access
+button rather than on an error page. Leaving the server does **not** remove the
+membership. It only runs at the door, so someone in the server who never opens
+the community gets no row. A staff-supplied invite (`discord_invite_url`,
+validated to a `discord.gg` link) is offered on the door whether or not
+auto-join is on. Neither is a `FeatureFlag`: each is one staff toggle.
 
 The gate is a page-level check on a *person*. It does not apply to the REST API
 or MCP (a token belongs to a tenant, and wave 2 scoped what those return), to the

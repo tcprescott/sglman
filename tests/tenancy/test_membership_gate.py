@@ -384,3 +384,46 @@ class TestTheTenantHome:
     async def test_an_anonymous_visitor_gets_the_door(self, page_harness, db):
         assert await auth_module.enforce_membership(1, None) is True
         assert page_harness.rendered[0][1]['user'] is None
+
+
+class TestDiscordAutoJoin:
+    """The gate's second way through, end to end: no join page, just the body."""
+
+    @pytest.fixture
+    def in_the_server(self, monkeypatch):
+        import application.services.discord as discord_pkg
+
+        class _InGuild:
+            async def is_guild_member(self, guild_id, user_id):
+                return True, True
+
+        monkeypatch.setattr(discord_pkg, 'DiscordService', _InGuild)
+
+    async def _open_the_door(self) -> None:
+        from models import SystemConfiguration
+
+        await SystemConfiguration.create(name='discord_auto_join', value='true', tenant_id=1)
+        await Tenant.filter(id=1).update(discord_guild_id=555)
+
+    async def test_a_server_member_reaches_the_page(self, page_harness, in_the_server, db):
+        await self._open_the_door()
+        newcomer = await User.create(discord_id=8320, username='newcomer')
+        page_harness.session['discord_id'] = str(newcomer.discord_id)
+        page = page_harness.build()
+
+        with tenant_scope(1):
+            await page()
+
+        assert page_harness.rendered == [('body', None)]
+        assert await TenantMembership.exists(user=newcomer, tenant_id=1)
+
+    async def test_switched_off_the_door_stays_shut(self, page_harness, in_the_server, db):
+        await Tenant.filter(id=1).update(discord_guild_id=555)
+        newcomer = await User.create(discord_id=8321, username='newcomer')
+        page_harness.session['discord_id'] = str(newcomer.discord_id)
+        page = page_harness.build()
+
+        with tenant_scope(1):
+            await page()
+
+        assert [kind for kind, _ in page_harness.rendered] == ['join']

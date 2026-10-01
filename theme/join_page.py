@@ -60,6 +60,12 @@ class JoinPreview:
     matches_enabled: bool = False
     #: The zone the times above are in, e.g. ``EST``.
     timezone_label: str = ''
+    #: Staff's invite to the community's Discord server, or None.
+    discord_invite_url: Optional[str] = None
+    #: Whether members of the linked server get in without asking. Only True
+    #: when staff turned it on *and* a server is linked, since the door must not
+    #: promise a way in that the gate will not honour.
+    discord_auto_join: bool = False
 
 
 def roster_label(match) -> str:
@@ -85,9 +91,11 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     from application.services import BracketService, MatchService
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import (
+        KEY_DISCORD_AUTO_JOIN,
         KEY_JOIN_PREVIEW,
         SystemConfigService,
     )
+    from application.services.tenant_service import TenantService
     from application.services.timezone_service import TimezoneService
     from application.timezone_context import tz_scope
     from application.utils.timezone import format_local_time, timezone_label, today_local
@@ -139,7 +147,38 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     except Exception:
         logger.exception('Join page: match preview failed for tenant %s', tenant_id)
 
+    try:
+        preview.discord_invite_url = await SystemConfigService.get_discord_invite_url()
+        if await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN):
+            tenant = await TenantService.get_by_id(tenant_id)
+            preview.discord_auto_join = bool(tenant and tenant.discord_guild_id)
+    except Exception:
+        logger.exception('Join page: Discord settings failed for tenant %s', tenant_id)
+
     return preview
+
+
+def _render_discord(preview: JoinPreview, *, signed_in: bool) -> None:
+    """The invite, and for auto-join, the button that re-runs the gate.
+
+    The invite opens in a new tab so this one is still here, with its Check
+    again button, when they come back from accepting it.
+    """
+    url = preview.discord_invite_url
+    recheck = signed_in and preview.discord_auto_join
+    if not url and not recheck:
+        return
+    with ui.row().classes('items-center justify-center gap-2'):
+        if url:
+            ui.button(
+                'Join the Discord server', icon='forum',
+                on_click=lambda: ui.navigate.to(url, new_tab=True),
+            ).props('color=primary outline no-caps')
+        if recheck:
+            ui.button(
+                'I’ve joined, check again', icon='refresh',
+                on_click=ui.navigate.reload,
+            ).props('flat no-caps')
 
 
 def _render_preview(preview: JoinPreview) -> None:
@@ -205,10 +244,14 @@ def render_join_page(
 
             if user is None:
                 ui.label(
+                    'Sign in to join. Members of this community’s Discord server '
+                    'get in straight away; anyone else can ask its staff.'
+                    if preview.discord_auto_join else
                     'Sign in to ask to join this community.'
                 ).classes('error-message')
                 ui.button('Sign in', icon='login',
                           on_click=lambda: ui.navigate.to('login')).props('color=primary')
+                _render_discord(preview, signed_in=False)
                 _render_preview(preview)
                 return
 
@@ -218,14 +261,24 @@ def render_join_page(
                 ui.label(
                     'Your request to join is with this community’s staff. '
                     'You will get a message either way.'
+                    + (
+                        ' Joining its Discord server gets you in without waiting.'
+                        if preview.discord_auto_join else ''
+                    )
                 ).classes('error-message')
+                _render_discord(preview, signed_in=True)
                 _render_preview(preview)
                 return
 
             ui.label(
+                'You aren’t a member of this community yet. Members of its '
+                'Discord server get in automatically, so join it and check again, '
+                'or ask to join and its staff will decide.'
+                if preview.discord_auto_join else
                 'You are not a member of this community yet. Ask to join and its '
                 'staff will decide.'
             ).classes('error-message')
+            _render_discord(preview, signed_in=True)
 
             message = ui.textarea(
                 'Anything they should know? (optional)',

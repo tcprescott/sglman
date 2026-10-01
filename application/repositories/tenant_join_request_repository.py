@@ -53,7 +53,7 @@ class TenantJoinRequestRepository:
 
     @staticmethod
     async def decide(
-        request: TenantJoinRequest, status: JoinRequestStatus, actor: User, decided_at,
+        request: TenantJoinRequest, status: JoinRequestStatus, actor: Optional[User], decided_at,
     ) -> TenantJoinRequest:
         request.status = status
         request.decided_by = actor
