@@ -15,9 +15,13 @@ from application.content.blocks import (
     STATE_STYLES,
     Block,
     Span,
+    article_sections,
+    internal_target,
+    link_filter,
     parse_blocks,
     parse_inline,
     plain_text,
+    prune_links,
     slugify,
 )
 from application.content.catalog import (
@@ -36,10 +40,14 @@ __all__ = [
     'ContentCatalog',
     'ContentSnippet',
     'Span',
+    'article_sections',
     'catalog_for',
+    'internal_target',
+    'link_filter',
     'parse_blocks',
     'parse_inline',
     'plain_text',
+    'prune_links',
     'reload_all',
     'slugify',
 ]

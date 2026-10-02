@@ -2351,6 +2351,12 @@ ol.wiz-help-list { list-style-type: decimal; }
         border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
     }
     .wiz-help-body { order: 1; }
+    /* The reader's own contents and the way back move above the body; only
+       the article list stays below it (theme/help/article.py). */
+    .wiz-help-wide-only { display: none !important; }
+}
+@media (min-width: 1024px) {
+    .wiz-help-narrow-only { display: none !important; }
 }
 
 /* --- the tappable help icon --------------------------------------------- */

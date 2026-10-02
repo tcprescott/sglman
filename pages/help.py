@@ -12,10 +12,16 @@ blocks with :func:`theme.help.render_blocks`. Nothing here touches the ORM.
 from nicegui import app, ui
 
 from application.help import HelpArticle
-from application.services import AuthService, HelpService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    HelpService,
+    TenantService,
+    get_user_from_discord_id,
+)
 from middleware.auth import public_page
 from theme.base import BaseLayout
-from theme.help.render import render_blocks
+from theme.error_page import render_not_found
+from theme.help.article import render_article
 
 __all__ = ['create']
 
@@ -31,18 +37,27 @@ def _article_card(article: HelpArticle) -> None:
                     ui.label(article.summary).classes('text-caption text-grey-7')
 
 
-async def _render_chrome() -> None:
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+async def _viewer():
+    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
+
+async def _render_chrome(user) -> None:
     await BaseLayout(
         user=user, show_admin=await AuthService.can_view_admin(user),
     ).render()
 
 
+async def _title(*parts: str) -> str:
+    """A tab title that says which community's help this is."""
+    community = await TenantService.current_community_name() or 'Wizzrobe'
+    return ' — '.join((*parts, community))
+
+
 def create() -> None:
     @public_page('/help')
     async def help_index() -> None:
-        ui.page_title('Help')
-        await _render_chrome()
+        ui.page_title(await _title('Help'))
+        await _render_chrome(await _viewer())
 
         articles = await HelpService.list_articles()
         state = {'query': ''}
@@ -87,46 +102,16 @@ def create() -> None:
 
     @public_page('/help/{slug}')
     async def help_article(slug: str) -> None:
-        await _render_chrome()
-
-        article = await HelpService.get_article(slug)
+        user = await _viewer()
+        article = await HelpService.get_article(slug, user)
         if article is None:
-            ui.page_title('Help')
-            with ui.column().classes('page-container-narrow w-full'):
-                ui.label('That help article does not exist.').classes('page-title')
-                ui.link('Back to help', '/help')
+            await render_not_found(
+                user=user, actions=[('All help', 'help_outline', '/help')],
+            )
             return
 
-        ui.page_title(f'Help — {article.title}')
-        articles = await HelpService.list_articles()
-
-        with ui.row().classes('wiz-help-layout no-wrap w-full items-start'):
-            # Article list, then the current article's own headings. Ordered that
-            # way so the narrow-screen stack puts the reader's own contents last,
-            # right above the body it indexes.
-            with ui.column().classes('wiz-help-nav gap-1'):
-                ui.link('← All help', '/help').classes('text-caption')
-                for other in articles:
-                    link = ui.link(other.title, f'/help/{other.slug}') \
-                        .classes('wiz-help-nav-item')
-                    if other.slug == article.slug:
-                        link.classes(add='wiz-help-nav-item--active')
-                headings = article.headings
-                if headings:
-                    ui.separator().classes('q-my-sm')
-                    ui.label('On this page').classes('text-caption text-grey-7')
-                    for anchor, text in headings:
-                        ui.link(text, f'/help/{article.slug}#{anchor}') \
-                            .classes('wiz-help-nav-sub')
-
-            with ui.column().classes('wiz-help-body col min-w-0'):
-                with ui.row().classes('items-center gap-2 no-wrap'):
-                    ui.icon(article.icon).props('size=sm').classes('text-primary')
-                    ui.label(article.title).classes('page-title')
-                if article.summary:
-                    ui.label(article.summary).classes('text-muted')
-                ui.separator().classes('separator-spacing')
-                # Block flow rather than the enclosing flex column, so the blocks'
-                # own margins set the rhythm instead of a uniform flex gap.
-                with ui.element('div').classes('wiz-help-prose'):
-                    render_blocks(article.blocks)
+        ui.page_title(await _title(article.title, 'Help'))
+        await _render_chrome(user)
+        render_article(
+            article, await HelpService.list_articles(), base='/help', back_label='All help',
+        )

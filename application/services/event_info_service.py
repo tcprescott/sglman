@@ -22,6 +22,7 @@ database this interface is the seam it lands on — the surfaces above call
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Optional
 
 from application.content import ContentArticle, ContentSnippet
@@ -82,7 +83,16 @@ class EventInfoService:
             return None
         live = await FeatureFlagService().enabled_flags()
         roles = await EventInfoService._reader_roles(user)
-        return article if EventInfoService._readable(article, live, roles) else None
+        if not EventInfoService._readable(article, live, roles):
+            return None
+        return replace(article, blocks=await EventInfoService._prune(article.blocks, user))
+
+    @staticmethod
+    async def _prune(blocks, user: Optional[User]):
+        """Drop links this reader could not follow — see ``HelpService.prune_links``."""
+        from application.services.help_service import HelpService
+
+        return await HelpService.prune_links(blocks, user)
 
     @staticmethod
     @requires_feature(FeatureFlag.EVENT_INFO)
@@ -102,4 +112,6 @@ class EventInfoService:
             return None
         live = await FeatureFlagService().enabled_flags()
         roles = await EventInfoService._reader_roles(user)
-        return snippet if EventInfoService._readable(article, live, roles) else None
+        if not EventInfoService._readable(article, live, roles):
+            return None
+        return replace(snippet, blocks=await EventInfoService._prune(snippet.blocks, user))

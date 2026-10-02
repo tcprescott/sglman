@@ -150,6 +150,17 @@ that a page exists for people with more access than them.
 reader sees; it never redirects to `/login`. A signed-out visitor gets the public
 articles, which is most of them and the ones they came for.
 
+**A miss offers a way forward when it costs nothing.** Every withheld or missing
+article renders the shared not-found page (HTTP 404) with an **All event
+information** button. For a *signed-out* reader only, the message adds that some
+pages are for crew and staff and offers **Sign in**, which comes back to the same
+URL ([authentication.md](../reference/authentication.md#coming-back-to-the-page)).
+That leaks nothing — a signed-out reader holds no role by definition, so the
+sentence is true of every miss — and it is the proctor on a borrowed laptop's
+only next step. A signed-in reader who lacks the role gets the plain not-found.
+Links inside an article to pages this reader cannot open are pruned
+([help.md](help.md#feature-gating)).
+
 ### The role gate is not the Volunteer flag
 
 `roles: VOLUNTEER, PROCTOR, STAFF` mirrors the Volunteer hub's own gate

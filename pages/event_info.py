@@ -20,11 +20,18 @@ the help section uses. Nothing here touches the ORM.
 from nicegui import app, ui
 
 from application.content import ContentArticle
-from application.services import AuthService, EventInfoService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    EventInfoService,
+    TenantService,
+    get_user_from_discord_id,
+)
+from application.utils.tenant_urls import login_path
 from middleware.auth import public_page
 from models import FeatureFlag
-from theme.base import BaseLayout
-from theme.help.render import render_blocks
+from theme.base import BaseLayout, current_local_url
+from theme.error_page import render_not_found
+from theme.help.article import render_article
 
 __all__ = ['create']
 
@@ -40,13 +47,21 @@ def _article_card(article: ContentArticle) -> None:
                     ui.label(article.summary).classes('text-caption text-grey-7')
 
 
-async def _render_chrome():
-    """Draw the frame and hand back the viewer — the articles are role-filtered."""
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+async def _viewer():
+    """The signed-in reader, or None — the articles are role-filtered."""
+    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
+
+async def _render_chrome(user) -> None:
     await BaseLayout(
         user=user, show_admin=await AuthService.can_view_admin(user),
     ).render()
-    return user
+
+
+async def _title(*parts: str) -> str:
+    """A tab title that says which community's handbook this is."""
+    community = await TenantService.current_community_name() or 'Wizzrobe'
+    return ' — '.join((*parts, community))
 
 
 def _nothing_published() -> None:
@@ -62,8 +77,9 @@ def _nothing_published() -> None:
 def create() -> None:
     @public_page('/event-info', feature=FeatureFlag.EVENT_INFO)
     async def event_info_index() -> None:
-        ui.page_title('Event Information')
-        user = await _render_chrome()
+        ui.page_title(await _title('Event Information'))
+        user = await _viewer()
+        await _render_chrome(user)
 
         articles = await EventInfoService.list_articles(user)
 
@@ -92,46 +108,31 @@ def create() -> None:
 
     @public_page('/event-info/{slug}', feature=FeatureFlag.EVENT_INFO)
     async def event_info_article(slug: str) -> None:
-        user = await _render_chrome()
-
+        user = await _viewer()
         article = await EventInfoService.get_article(slug, user)
         if article is None:
-            ui.page_title('Event Information')
-            with ui.column().classes('page-container-narrow w-full'):
-                ui.label('That page does not exist.').classes('page-title')
-                ui.link('Back to event information', '/event-info')
+            back = ('All event information', 'event_note', '/event-info')
+            if user is None:
+                # Not revealing which role-gated pages exist is deliberate, but
+                # a signed-out reader holds no role by definition, so saying
+                # some pages need one leaks nothing — and it is the proctor on
+                # a borrowed laptop's only way forward.
+                await render_not_found(
+                    user=None,
+                    message=(
+                        "We couldn't find that page. Some pages here are only "
+                        'for crew and staff, so if you have a role in this '
+                        'community, sign in and try again.'
+                    ),
+                    actions=[('Sign in', 'login', login_path(current_local_url())), back],
+                )
+            else:
+                await render_not_found(user=user, actions=[back])
             return
 
-        ui.page_title(f'Event Information — {article.title}')
-        articles = await EventInfoService.list_articles(user)
-
-        with ui.row().classes('wiz-help-layout no-wrap w-full items-start'):
-            # Article list, then this article's own headings — ordered so the
-            # narrow-screen stack puts the reader's contents last, right above
-            # the body it indexes.
-            with ui.column().classes('wiz-help-nav gap-1'):
-                ui.link('← All event information', '/event-info').classes('text-caption')
-                for other in articles:
-                    link = ui.link(other.title, f'/event-info/{other.slug}') \
-                        .classes('wiz-help-nav-item')
-                    if other.slug == article.slug:
-                        link.classes(add='wiz-help-nav-item--active')
-                headings = article.headings
-                if headings:
-                    ui.separator().classes('q-my-sm')
-                    ui.label('On this page').classes('text-caption text-grey-7')
-                    for anchor, text in headings:
-                        ui.link(text, f'/event-info/{article.slug}#{anchor}') \
-                            .classes('wiz-help-nav-sub')
-
-            with ui.column().classes('wiz-help-body col min-w-0'):
-                with ui.row().classes('items-center gap-2 no-wrap'):
-                    ui.icon(article.icon).props('size=sm').classes('text-primary')
-                    ui.label(article.title).classes('page-title')
-                if article.summary:
-                    ui.label(article.summary).classes('text-muted')
-                ui.separator().classes('separator-spacing')
-                # Block flow rather than the enclosing flex column, so the
-                # blocks' own margins set the rhythm instead of a uniform gap.
-                with ui.element('div').classes('wiz-help-prose'):
-                    render_blocks(article.blocks)
+        ui.page_title(await _title(article.title, 'Event Information'))
+        await _render_chrome(user)
+        render_article(
+            article, await EventInfoService.list_articles(user),
+            base='/event-info', back_label='All event information',
+        )
