@@ -60,7 +60,21 @@ class TestLinkBuilding:
 
     async def test_no_tenant_yields_no_link_rather_than_a_broken_one(self):
         with patch.object(links, '_current_tenant', AsyncMock(return_value=None)):
-            assert await links.community_home() is None
+            assert await links.home_tournaments() is None
+
+    async def test_crew_and_agree_targets_land_on_their_controls(self):
+        tenant = type('T', (), {'slug': 'acme', 'domain': None})()
+        with patch.object(links, '_current_tenant', AsyncMock(return_value=tenant)):
+            crew = await links.crew_match(4)
+            agree = await links.player_agree(11)
+        assert crew.url.endswith('/t/acme/home/my-crew?match=4')
+        assert agree.url.endswith('/t/acme/home/player?agree=11')
+
+    def test_a_race_room_link_is_racetimes_own_url(self):
+        assert links.race_room('https://racetime.gg/alttpr/x') == DMLink(
+            'Join the race room', 'https://racetime.gg/alttpr/x',
+        )
+        assert links.race_room('') is None
 
     async def test_a_failed_lookup_costs_the_button_not_the_dm(self):
         """Every caller is a best-effort notifier that swallows Discord failures.

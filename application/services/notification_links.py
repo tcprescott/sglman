@@ -37,7 +37,9 @@ from application.utils.app_links import (
     admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
+    crew_match_url,
     home_url,
+    player_agree_url,
     player_hard_preset_url,
     player_match_url,
     player_reschedule_url,
@@ -142,6 +144,39 @@ async def player_match(
     return await link_for(label, player_match_url(match_id))
 
 
+async def player_agree(
+    request_id: int, *, label: str = 'Open the request',
+) -> Optional[DMLink]:
+    """The opponent's reschedule request, open with its Agree button.
+
+    The DM's Discord Agree button covers a reader in Discord; this covers the
+    web-push tap and anyone who would rather read the request in full first.
+    """
+    return await link_for(label, player_agree_url(request_id))
+
+
+async def crew_match(
+    match_id: int, *, label: str = 'View your crew slot',
+) -> Optional[DMLink]:
+    """A crew member's own slot on this match, under Crew you signed up for.
+
+    :func:`player_match` filters the reader's *playing* schedule, which is empty
+    for someone commentating, so a stage DM that sent crew there landed on
+    "No matches to show yet".
+    """
+    return await link_for(label, crew_match_url(match_id))
+
+
+def race_room(url: str, *, label: str = 'Join the race room') -> Optional[DMLink]:
+    """The racetime.gg room itself — already absolute, and the only place to join.
+
+    Not tenant-qualified because it is not ours: the room lives on racetime.gg,
+    and the join control is there. ``None`` for a blank URL, since Discord
+    rejects an empty link button.
+    """
+    return DMLink(label, url) if url else None
+
+
 async def player_matches() -> Optional[DMLink]:
     """"View your matches" — the Player tab, the reader's own schedule."""
     return await link_for('View your matches', home_url(HOME_PLAYER))
@@ -166,11 +201,6 @@ async def home_tournaments(*, label: str = 'View tournaments') -> Optional[DMLin
     rather than a hunt through Home.
     """
     return await link_for(label, home_url(HOME_TOURNAMENTS))
-
-
-async def community_home() -> Optional[DMLink]:
-    """"Open the community" — the tenant home, for someone just admitted to it."""
-    return await link_for('Open the community', home_url())
 
 
 # ---------------------------------------------------------------------------

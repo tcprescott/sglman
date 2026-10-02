@@ -309,7 +309,7 @@ class TenantMembershipService:
         # Only the approval gets a button: "you can open the community now" is an
         # invitation, while a decline has nowhere useful to send anyone.
         from application.services import notification_links
-        link = await notification_links.community_home() if approved else None
+        link = await notification_links.home_tournaments(label='Find a tournament') if approved else None
         discord_queue.enqueue(
             DiscordService().send_dm(
                 int(requester.discord_id), body, embed=embed, link=link,

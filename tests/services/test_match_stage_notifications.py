@@ -16,6 +16,7 @@ from models import (
     Commentator,
     Match,
     MatchPlayers,
+    MatchWatcher,
     Role,
     Stage,
     Tournament,
@@ -151,7 +152,34 @@ async def test_every_stage_dm_carries_an_absolute_tenant_link(
         link = call['link']
         assert link is not None
         assert link.url.startswith('http')
-        assert f'/home/player?match={fixture["match"].id}' in link.url
+
+
+async def test_each_audience_gets_its_own_copy_and_button(
+    fixture, sent, stub_discord_queue,
+):
+    """Players land on their match, crew on their slot, a watcher on the schedule.
+
+    All three used to get "Your match…" and the player filter, which showed crew
+    and watchers "No matches to show yet".
+    """
+    watcher = await make_user(6, 'watcher')
+    await MatchWatcher.create(match=fixture['match'], user=watcher)
+    match_id = fixture['match'].id
+
+    await MatchService().assign_stage(match_id, fixture['stage'].id, fixture['staff'])
+    await _drain(stub_discord_queue)
+
+    by_id = {call['discord_id']: call for call in sent}
+    for player_id in (1, 2):
+        assert by_id[player_id]['message'].startswith('Your match in **Cup**')
+        assert by_id[player_id]['link'].url.endswith(f'/home/player?match={match_id}')
+    crew = by_id[fixture['approved'].discord_id]
+    assert crew['message'].startswith("A match you're on crew for in **Cup**")
+    assert crew['link'].url.endswith(f'/home/my-crew?match={match_id}')
+    assert crew['embed'].title == '📺 Your crew slot is on stage'
+    watching = by_id[6]
+    assert watching['message'].startswith("A match you're watching in **Cup**")
+    assert watching['link'].url.endswith('/home/schedule')
 
 
 async def test_reminder_dm_names_the_stage_and_the_time(
@@ -166,6 +194,9 @@ async def test_reminder_dm_names_the_stage_and_the_time(
     assert sent
     for call in sent:
         assert 'coming up on **Kraid**' in call['message']
+        # The commentator is reminded about their slot, not told to play.
+        if call['discord_id'] == fixture['approved'].discord_id:
+            assert call['message'].startswith("A match you're on crew for")
         assert '<t:' in call['message']
 
 
