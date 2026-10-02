@@ -1,15 +1,12 @@
-"""Two things on My Schedule that are waiting on the player but are not a booking.
+"""Your opponent asked to move a match: the request, and an Agree for it.
 
-Each is a card above the board rather than a column on it, for the same reason
-the "Waiting on you to pick a time" card is: it is the reader's next action, and
-a cell on a ten-column board is where actions go to be scrolled past.
+A card above the board rather than a column on it, for the same reason the
+"Waiting on you to pick a time" card is: it is the reader's next action, and a
+cell on a ten-column board is where actions go to be scrolled past.
 
-* **Your opponent asked to move a match.** The opponent DM asks them to press
-  Agree. The web had no Agree at all, so the push notification copy of that DM,
-  which has no Discord button under it, asked for something nobody could do.
-* **Your race room is open.** An online player's match happens in a racetime
-  room, and nothing on the site named it: the room was reachable only from
-  racetime.gg itself.
+The opponent DM asks them to press Agree. The web had no Agree at all, so the
+push notification copy of that DM, which has no Discord button under it, asked
+for something nobody could do.
 """
 
 from typing import Awaitable, Callable, Optional
@@ -17,17 +14,14 @@ from typing import Awaitable, Callable, Optional
 from nicegui import ui
 
 from application.services import (
-    FeatureFlagService,
     MatchRescheduleService,
-    RacetimeRoomService,
 )
 from application.services.match_reschedule_service import (
     AGREE_DECIDED,
     AGREE_DONE,
     AGREE_OPEN,
 )
-from application.utils.timezone import format_local_display
-from models import FeatureFlag, User
+from models import User
 from theme.dialog.reschedule_agree_dialog import (
     AGREE_NOTE,
     RescheduleAgreeDialog,
@@ -107,38 +101,3 @@ async def render_opponent_requests(
             await RescheduleAgreeDialog(request, viewer, on_agreed=after).open()
             return
     _notify(_STALE_AGREE.get(state, _NOT_YOURS))
-
-
-async def render_race_rooms(viewer: Optional[User]) -> None:
-    """The open race rooms for this player's matches, each with a way in."""
-    if viewer is None:
-        return
-    if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
-        return
-    rooms = await RacetimeRoomService().open_rooms_for_player(viewer)
-    if not rooms:
-        return
-    with ui.card().classes('wiz-subcard'):
-        ui.label(
-            'Your race room is open' if len(rooms) == 1 else 'Your race rooms are open'
-        ).classes('wiz-subcard__title')
-        for room in rooms:
-            match = room.match
-            if match is None:
-                continue
-            opponents = [
-                p.user.preferred_name for p in match.players if p.user_id != viewer.id
-            ]
-            with ui.row().classes(
-                'items-center justify-between full-width q-my-xs gap-2'
-            ):
-                with ui.column().classes('col-12 col-sm min-w-0 gap-0'):
-                    ui.label(match.tournament.name).classes('text-bold ellipsis')
-                    if opponents:
-                        ui.label(f"vs {', '.join(opponents)}").classes('ellipsis')
-                    if match.scheduled_at is not None:
-                        ui.label(format_local_display(match.scheduled_at)) \
-                            .classes('text-caption text-grey-7 ellipsis')
-                ui.button('Join the room', icon='open_in_new') \
-                    .props(f'color=primary no-caps href="{room.url}" target=_blank') \
-                    .tooltip(room.slug)

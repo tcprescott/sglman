@@ -62,7 +62,6 @@ tenant costs the button, not the DM.
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
 | Stage assigned / cleared / reminder | View your match · View your crew slot · View the schedule | per audience: players `/home/player?match=<id>`, crew `/home/my-crew?match=<id>`, watchers `/home/schedule` |
-| Race room opened (players) | Join the race room | the racetime.gg room itself — off-site, like the seed link, because that is where the race is |
 | Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |
 | Harder preset agreed / broken | View your match | `/home/player?match=<id>` |
 | Match preset set by staff / handed back | View your match · Choose your settings | the first when staff forced a preset, the second (`?hard=`) when the choice is the players' again |
@@ -98,8 +97,9 @@ a DM outlives what it points at, and a dead button reads as a broken app.
 saying so and a "Show all my matches" button beside it — a one-row board with no
 explanation reads as a board that lost rows. It narrows only when the viewer
 plays in that match (`MatchService.viewer_relation`). Otherwise the board stays
-whole and the page says what the match is to them: crew get a toast and their
-slot outlined and scrolled to under Crew you signed up for, a watcher gets a chip
+whole and the page says what the match is to them: crew get their slot (every
+role's card) outlined and scrolled to under Crew you signed up for, with past
+slots shown and a note when the match's start has passed, a watcher gets a chip
 with **Find it on the schedule**, and anyone else gets "That match isn't one of
 yours". Filtering regardless used to show a commentator "No matches to show yet".
 

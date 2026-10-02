@@ -20,7 +20,7 @@ from application.services.match.match_reads import (
 from application.utils.app_links import HOME_PLAYER, HOME_SCHEDULE, home_url
 from application.utils.timezone import format_local_display
 from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
-from pages.home_tabs.player_asks import render_opponent_requests, render_race_rooms
+from pages.home_tabs.player_asks import render_opponent_requests
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
@@ -108,15 +108,12 @@ def _explain_other_match(relation: str) -> None:
 
     Filtering the board to it anyway showed "No matches to show yet", which is
     what a commentator following a stage DM used to get. The board stays whole;
-    crew are pointed at their slot below (``my_crew_tab`` scrolls to it), and a
-    watcher at the one board that lists a match they neither play nor crew.
+    crew are left to ``my_crew_tab``, which outlines and scrolls to their slot, and a
+    watcher is pointed at the one board that lists a match they neither play nor crew.
     """
     if relation == RELATION_CREW:
-        ui.notify(
-            "You're on crew for that match, not playing in it. "
-            'Your slot is under Crew you signed up for.',
-            color='info',
-        )
+        # The crew section owns this one: it finds the card (past or upcoming),
+        # outlines it and scrolls to it, and says so if the match is over.
         return
     if relation == RELATION_WATCHER:
         with ui.row().classes('items-center gap-2 q-mb-sm'):
@@ -508,8 +505,6 @@ async def render_player_dashboard(
         # filter card — far enough down that the "matchup ready" DM landed on a
         # page whose call to action was off-screen. Then the board, then the
         # requests they have already made and are only tracking.
-        # A room that is open means the match is close, so it leads.
-        await render_race_rooms(viewer)
         # Agreeing changes nothing on the board, so nothing there refreshes.
         await render_opponent_requests(viewer, agree_request_id=agree)
         await challonge_section()

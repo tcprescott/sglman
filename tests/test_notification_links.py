@@ -70,12 +70,6 @@ class TestLinkBuilding:
         assert crew.url.endswith('/t/acme/home/my-crew?match=4')
         assert agree.url.endswith('/t/acme/home/player?agree=11')
 
-    def test_a_race_room_link_is_racetimes_own_url(self):
-        assert links.race_room('https://racetime.gg/alttpr/x') == DMLink(
-            'Join the race room', 'https://racetime.gg/alttpr/x',
-        )
-        assert links.race_room('') is None
-
     async def test_a_failed_lookup_costs_the_button_not_the_dm(self):
         """Every caller is a best-effort notifier that swallows Discord failures.
 
