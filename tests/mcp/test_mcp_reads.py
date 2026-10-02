@@ -312,6 +312,28 @@ class TestBrackets:
             )
         assert sorted(e['display_name'] for e in payload['result']) == ['Alice', 'Bob']
 
+    async def test_a_non_staff_caller_cannot_read_an_unpublished_stage(self, db):
+        """``_bracket`` builds a DRAFT stage. The same rule as the public pages
+        and REST: staff-only, answered as ``not_found``, roster included."""
+        # A role is the MCP floor for reaching a community at all; VOLUNTEER
+        # holds no authority over brackets.
+        _, raw = await create_oauth_token(username='mcp-player', roles=[Role.VOLUNTEER])
+        tournament, bracket = await self._bracket()
+        async with mcp_session() as client:
+            is_error, listed = await call_tool(
+                client, raw, 'list_brackets', tenant=TENANT, tournament_id=tournament.id,
+            )
+            assert not is_error, listed
+            assert 'Main' not in str(listed)
+            for tool, args in (
+                ('get_bracket', {'bracket_id': bracket.id}),
+                ('list_bracket_matches', {'bracket_id': bracket.id}),
+                ('get_bracket_standings', {'bracket_id': bracket.id}),
+                ('list_bracket_entrants', {'tournament_id': tournament.id}),
+            ):
+                is_error, payload = await call_tool(client, raw, tool, tenant=TENANT, **args)
+                assert is_error and 'not_found:' in payload, (tool, payload)
+
 
 class TestAsyncQualifiers:
     async def test_qualifier_detail_includes_its_pools(self, db):

@@ -34,6 +34,7 @@ from models import (
     Stage,
     StationFormat,
     SystemConfiguration,
+    TenantMembership,
     Tournament,
     User,
     UserRole,
@@ -552,6 +553,7 @@ class TestMarkReviewed:
 class TestSubmit:
     async def test_persists_and_coerces_unknown_category(self, db):
         actor = await make_user(4, username='attendee')
+        await TenantMembership.create(user=actor, tenant_id=1)
         fb = await FeedbackService().submit(
             actor=actor, category='nonsense', message='  hello  ', page_url='/volunteer',
         )
@@ -567,6 +569,7 @@ class TestSubmit:
 
     async def test_page_url_truncated(self, db):
         actor = await make_user(4, username='attendee')
+        await TenantMembership.create(user=actor, tenant_id=1)
         fb = await FeedbackService().submit(
             actor=actor, category='praise', message='great', page_url='/x' * 600,
         )

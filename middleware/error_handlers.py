@@ -31,7 +31,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from application.utils.environment import is_production
-from theme.error_page import render_error_page
+from theme.error_page import (
+    NOT_FOUND_HEADLINE,
+    NOT_FOUND_MESSAGE,
+    prepared_layout,
+    render_error_page,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +88,33 @@ def register_error_handlers(fastapi_app: FastAPI) -> None:
             and isinstance(exc, StarletteHTTPException)
         ):
             return await http_exception_handler(request, exc)
+        from middleware.tenant import UNKNOWN_COMMUNITY_SCOPE_KEY
+
         user = await _current_user_best_effort()
         with Client(ui.page(''), request=request) as client:
-            render_error_page(
-                status_code=404,
-                headline='Page not found',
-                message="We couldn't find that page. It may have moved, or the link's out of date.",
-                user=user,
-            )
+            if request.scope.get(UNKNOWN_COMMUNITY_SCOPE_KEY):
+                # No tenant is bound, so "home" is the community picker — which
+                # is exactly where someone with a mistyped or retired link
+                # wants to go.
+                render_error_page(
+                    status_code=404,
+                    headline='Community not found',
+                    message=(
+                        "There's no community at this address. The link may be "
+                        'mistyped, or the community may have moved or closed.'
+                    ),
+                    user=user,
+                    layout=await prepared_layout(user),
+                    actions=[('See all communities', 'groups', '/')],
+                )
+            else:
+                render_error_page(
+                    status_code=404,
+                    headline=NOT_FOUND_HEADLINE,
+                    message=NOT_FOUND_MESSAGE,
+                    user=user,
+                    layout=await prepared_layout(user),
+                )
         return client.build_response(request, 404)
 
     def _page_exception_handler(exc: Exception) -> None:

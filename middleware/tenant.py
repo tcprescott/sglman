@@ -36,7 +36,6 @@ import logging
 import re
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 
 from application.services.tenant_service import TenantService
 from application.tenant_context import (
@@ -55,6 +54,10 @@ from application.utils.environment import get_platform_host
 from application.utils.hostname import effective_request_host, normalize_hostname
 
 logger = logging.getLogger(__name__)
+
+#: Set on the ASGI scope when ``/t/<slug>`` names no active community, so the
+#: 404 handler can say "no such community" rather than "no such page".
+UNKNOWN_COMMUNITY_SCOPE_KEY = 'wizzrobe.unknown_community'
 
 # /t/<slug> optionally followed by the rest of the path.
 _TENANT_PATH_RE = re.compile(r'^/t/(?P<slug>[a-z0-9][a-z0-9-]*)(?P<rest>/.*)?$')
@@ -192,7 +195,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
         slug = match.group('slug')
         tenant = await TenantService.get_by_slug(slug)
         if tenant is None or not tenant.is_active:
-            return Response('Tenant not found', status_code=404)
+            # Left unrouted (nothing serves /t/<slug>/…) with no tenant bound, so
+            # the themed 404 handler renders it — a page with a way to the
+            # community picker. A bare Response carried no Content-Type and
+            # Chrome downloaded it instead of showing it.
+            scope[UNKNOWN_COMMUNITY_SCOPE_KEY] = True
+            return await call_next(request)
 
         # Rewrite the scope: strip /t/<slug> into root_path so the unprefixed
         # routes match and url_for/redirects keep the prefix.

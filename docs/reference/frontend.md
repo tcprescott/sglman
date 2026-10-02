@@ -40,17 +40,17 @@ Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=
 - `chromeless=True` is kiosk mode: the palette, fonts, head/body scripts and dark-mode preference are set up as usual, but no header, drawer or bottom nav is drawn — the page body gets the whole viewport. A floating `ui.page_sticky` dark-mode toggle stays in the top-right corner, because a room's lighting is not the viewer's system theme and there is no header left to hang the toggle on. Used by [the tournament-room seeds board](#the-tournament-room-seeds-board-pagesroom_seedspy), the one surface with no session to sign out of and nowhere else to navigate.
 - Callers also pass `page_name=…`; `BaseLayout` absorbs it via `**_kwargs` and does not use it.
 
-`async render()` drains any notice stashed before a redirect (`theme/notice.py`), resolves the wordmark and Volunteer visibility, resolves the drawer's Feedback item (signed-in and `FEEDBACK` live) and Event Information item (`EVENT_INFO` live, signed in or not), `await`s `_load_theme_colors()` (the tenant's brand palette via `TenantThemeService.get_current_theme()`), primes the viewer's saved table layouts (`TablePreferenceService().prime(user)`, see [Data tables](#data-tables)), then — inside that `table_prefs_scope` — calls the synchronous `render_chrome()` and `await`s `_render_tab_panels()` if tabs were supplied.
+`async render()` drains any notice stashed before a redirect (`theme/notice.py`), then `await`s `prepare()` — the idempotent async half: it resolves the wordmark and Volunteer visibility, whether the viewer is a **member** of this community (`TenantService.is_member`, or a super-admin), the drawer's Feedback item (members only, `FEEDBACK` live) and Event Information item (`EVENT_INFO` live, signed in or not), and `await`s `_load_theme_colors()` (the tenant's brand palette via `TenantThemeService.get_current_theme()`), primes the viewer's saved table layouts (`TablePreferenceService().prime(user)`, see [Data tables](#data-tables)), then — inside that `table_prefs_scope` — calls the synchronous `render_chrome()` and `await`s `_render_tab_panels()` if tabs were supplied.
 
-**Why the split.** `render_chrome()` is separate so non-async callers — notably the `on_page_exception` 50x path, which NiceGUI invokes synchronously — can draw the full themed shell without awaiting. That path skips the async palette load and falls back to the shipped defaults.
+**Why the split.** `render_chrome()` is separate so non-async callers — notably the `on_page_exception` 50x path, which NiceGUI invokes synchronously — can draw the full themed shell without awaiting. That path skips the async palette load and falls back to the shipped defaults. The join door and every other error page are drawn synchronously too, but their callers are async: they `await layout.prepare()` (via `theme.error_page.prepared_layout(user)`) and hand the prepared layout in, so those pages carry the community's name, palette and drawer rather than Wizzrobe's defaults.
 
 | Step | Method | Behavior |
 |---|---|---|
 | Dark mode | `render_chrome()` | `app.storage.user['dark_mode']` into `ui.dark_mode()` (`None` ⇒ follow the client's system theme), font preloads, `styles.css`, the `noindex` meta, the PWA manifest / theme-color metas / `/sw.js` registration, the Konami-code listener, `install_timezone_detection()` (the `wiz_tz` cookie), `install_connection_watch()`, and `js/table-columns.js` (drag-to-resize headers) |
 | Palette | `render_chrome()` | `colors = self._theme_colors or DEFAULT_THEME` → `ui.colors(primary/secondary/accent=…)` (status colours stay fixed) plus an injected `<style>` re-pointing the `--wiz-*` brand vars. See [Per-tenant theme colours](#per-tenant-theme-colours) |
-| Header | `_render_header()` | Burger, wordmark (the community name), `ui.space()` spacer, then either the user's name + Discord avatar (or an `account_circle` placeholder) + logout, or an icon-only-on-phones "Login with Discord" button; finally the dark-mode toggle |
-| Drawer | `_render_drawer()` | `ui.left_drawer` at `breakpoint=1023 show-if-above bordered` (pinned ≥1024px, behind the burger below). Top menu (Home / Volunteer / Admin), one item per tab with a `.wiz-drawer-group` header per `'group'`, then **Event Information** (`EVENT_INFO` live, not gated on a user), **Help** (always), and **Feedback** (logged in and `FEEDBACK` live), and a GitHub link + copyright caption pinned to the foot via `ui.space()` |
-| Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.wiz-bottom-nav`), and only when **every** tab fits it (`len(tabs) <= BOTTOM_NAV_CAPACITY`, currently 4). Hidden ≥1024px, so desktop, tab-less pages, and hubs with more tabs than the bar holds render no footer. When it renders, it also stamps `body.wiz-has-bottom-nav`, which is what gives `--wiz-bottom-nav-h` its 72px (0 otherwise) — see [Offline honesty](#offline-honesty-themeconnectionpy) |
+| Header | `_render_header()` | Burger, wordmark (the community name), `ui.space()` spacer, then either the user's name + Discord avatar (or an `account_circle` placeholder) + logout, or an icon-only-on-phones "Login with Discord" button that carries the current page as `/login?next=…` (see [Coming back to the page](authentication.md#coming-back-to-the-page)); finally the dark-mode toggle |
+| Drawer | `_render_drawer()` | `ui.left_drawer` at `breakpoint=1023 show-if-above bordered` (pinned ≥1024px, behind the burger below). Top menu (Home / Volunteer / Admin); one item per tab with a `.wiz-drawer-group` header per `'group'` — or, on a **tab-less** page viewed by a member, home's four sections (`HOME_SECTIONS`, linking `/home/<slug>`) so a bracket or an article is never a dead end for a player; then, **only inside a community**, **Event Information** (`EVENT_INFO` live, not gated on a user), **Help**, and **Feedback** (members only, `FEEDBACK` live — `FeedbackService.submit` refuses anyone else); and a GitHub link + copyright caption pinned to the foot via `ui.space()`. Off any community (the bare host) the Help item would point at the page it sits on, so the section is omitted |
+| Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.wiz-bottom-nav`), and only when **every** tab fits it (`len(tabs) <= BOTTOM_NAV_CAPACITY`, currently 4). Each tab takes an equal share of the bar and may shrink below its label (ellipsis), and Quasar's scroll arrows are hidden: Home's four natural widths summed to 373px in a 358px bar, which put **Profile** under a scroll arrow on every phone. Hidden ≥1024px, so desktop, tab-less pages, and hubs with more tabs than the bar holds render no footer. When it renders, it also stamps `body.wiz-has-bottom-nav`, which is what gives `--wiz-bottom-nav-h` its 72px (0 otherwise) — see [Offline honesty](#offline-honesty-themeconnectionpy) |
 | Tabs | `_render_tab_panels()` | Panel *containers* are all created up front; each tab's **content is built on first show** — see below |
 
 **Lazy tab rendering.** Every `ui.tab_panel` container exists from page load (so panel switching, deep-linked sections, and swipe all work), but a tab's content is built the first time it is shown, by `_build_tab`. Unbuilt tabs sit in `_pending_tabs`; a label leaves it exactly once. A deferred build gets a spinner, is wrapped in `tenant_scope(self._tenant_id)` — the tenant captured at page-build time, because the deferred build runs in a websocket handler where the contextvar is unset — and falls back to an inline error label if the content raises. This is why the home hub is cheap: eager rendering spent roughly half of the page's render CPU on panels nobody looked at.
@@ -86,14 +86,16 @@ Two surfaces run on the bare platform host with **no tenant in scope** and so ca
 
 ## Error pages (`middleware/error_handlers.py`)
 
-Branded 40x/50x pages, all rendered through the standard `BaseLayout` chrome by **`render_error_page(...)`** in [`theme/error_page.py`](../../theme/error_page.py). The renderer is **synchronous** because NiceGUI invokes the `on_page_exception` hook without awaiting it; the only async work (loading the user to file a report) happens lazily in a button click handler.
+Branded 40x/50x pages, all rendered through the standard `BaseLayout` chrome by **`render_error_page(...)`** in [`theme/error_page.py`](../../theme/error_page.py). The renderer is **synchronous** because NiceGUI invokes the `on_page_exception` hook without awaiting it; the only async work (loading the user to file a report) happens lazily in a button click handler. Async callers pass a `layout=` they prepared (`prepared_layout(user)`) so the page carries the community's chrome and shows who is signed in, plus optional `actions=` buttons. The renderer sets the **response status** to the one on the card (`context.client.status_code`), so a not-found is an HTTP 404 and a forbidden an HTTP 403.
+
+**One not-found page.** `render_not_found(user=…, message=…, actions=…)` is the async helper, and `NOT_FOUND_HEADLINE` / `NOT_FOUND_MESSAGE` are the words. Every "this isn't here" state uses it: an unknown route, a feature the community has off, a dead room token, a missing or unpublished bracket stage or tournament, a malformed or out-of-range id (`application.utils.route_params.parse_route_id`, which the public routes use instead of an `int` path type — that answered FastAPI's raw 422 JSON, or a Postgres range error as a 500), and a missing help or handbook article (with an "All help" / "All event information" action, and for a signed-out reader of the handbook, a Sign in action that says some pages need a role). None of them says more than an unknown route would. Two variants differ on purpose: an **unknown or inactive community slug** (`TenantMiddleware` marks the scope and lets the request fall through unrouted) reads "Community not found" with a **See all communities** button to the picker — it used to be a bare `Response` with no `Content-Type`, which Chrome downloaded — and a tenant page reached on the **bare host** reads "Pick a community" with the same path offered inside each one. The static bracket routes, which are not NiceGUI pages, answer with `render_not_found_document` — the same words in a small HTML page, `no-store`.
 
 NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.app)`) and ships its own "sad face" 404/500 pages, so `register_error_handlers()` installs the overrides on the NiceGUI `app`, not the host FastAPI app:
 
 | Status | Mechanism | Behavior |
 |---|---|---|
-| **404** | `@app.exception_handler(404)` override | Keeps NiceGUI's guard that returns JSON for non-page endpoints (the REST API and raised `HTTPException`s); renders a themed "Page not found" for real UI routes |
-| **403** | `render_error_page(...)` call in [`middleware/auth.py`](../../middleware/auth.py) | The `@protected_page` denial path renders a themed "Forbidden" instead of a bare label |
+| **404** | `@app.exception_handler(404)` override | Keeps NiceGUI's guard that returns JSON for non-page endpoints (the REST API and raised `HTTPException`s); renders the themed not-found (or "Community not found" for an unknown slug) for real UI routes |
+| **403** | `render_error_page(...)` call in [`middleware/auth.py`](../../middleware/auth.py) | The `@protected_page` denial path renders a themed "Not available to you" in the community's chrome, HTTP 403 |
 | **500** | `app.on_page_exception` | NiceGUI calls this from `create_500_error_page` for exceptions raised inside `@ui.page` builders (where essentially all request handling runs) |
 
 **Traceability.** Every unhandled 500 gets a `uuid4` `error_id` via `log_unhandled_error()`, which logs `UNHANDLED ERROR error_id=<uuid> path=<path>` with `exc_info` and tags `error_id` on the Sentry scope so logs and Sentry events correlate. The error page surfaces the UUID and, for logged-in users, a **"Report this error"** button that opens `FeedbackDialog` prefilled (category `BUG`, message containing `Error reference: <uuid>`).
@@ -528,7 +530,18 @@ new attendee gets. It is **synchronous** (like `theme/error_page.py`) so the
 middleware decorator can call it without restructuring; everything needing an
 `await` is resolved first by `resolve_join_preview(tenant_id)`, which never
 raises — a community whose bracket list or schedule read fails must still be able
-to take a join request.
+to take a join request. The caller also hands in a prepared layout, so the door
+wears the community's name, palette and public drawer (Event Information, Help)
+rather than Wizzrobe's defaults.
+
+**Signed out is not the same as not a member.** Home applies the membership gate
+itself, so a member opening a DM's button on a phone with no session lands here
+too. The signed-out copy therefore leads with "Already a member? Sign in and
+you'll land right back on this page." and the **Sign in** button carries the page
+(path and query) as `/login?next=…` — see
+[Coming back to the page](authentication.md#coming-back-to-the-page). It used to
+navigate to the relative `'login'`, which from `/home/<section>` resolved to
+`/home/login`: the door again.
 
 Beyond the Request access form it carries two previews with deliberately
 different rules:
@@ -536,8 +549,8 @@ different rules:
 - **Brackets** — one button per tournament with published stages, into
   `/tournament/{id}/brackets`. No opt-in: those pages are already
   `@public_page`, they were merely unreachable without knowing the URL. Gated
-  only on `FeatureFlag.BRACKETS`, and filtered through
-  `theme/brackets/visibility.py` with `is_staff=False`, so DRAFT and CANCELLED
+  only on `FeatureFlag.BRACKETS`, and read through
+  `BracketService.list_all_visible_brackets(None)`, so DRAFT and CANCELLED
   stages stay hidden.
 - **Today's matches** — times and player names, **behind a staff opt-in**
   (`SystemConfiguration` key `join_page_match_preview`, default off, on Admin →
@@ -593,7 +606,9 @@ until it did.
 
 - **Authorization** is a [`RoomToken`](data-model.md#roomtoken) via
   `RoomTokenService.resolve`, not a session. Unknown, revoked, malformed and
-  wrong-community all render the same plain 404 as a route that never existed.
+  wrong-community all render the same not-found page, status and copy as a
+  route that never existed (`render_not_found`) — "the link's out of date" is
+  also the true thing to tell staff at a room PC whose token was just revoked.
   The token is redacted out of the page-view telemetry row (`_tracked_params`).
 - **Read-only.** Rolling and re-rolling stay signed-in staff work: an anonymous
   token that could spend randomizer API calls and replace the seed for a match
@@ -618,10 +633,12 @@ until it did.
 
 Two read-only `@public_page(..., feature=FeatureFlag.BRACKETS)` routes rendering through `BaseLayout` and `BracketService` (with a load-or-404 `Tournament` lookup). **Public here means anonymous** — a bracket is the spectator-facing artefact of a tournament, so neither route joins `protected_routes` and a link to one works signed out (see [`public_page`](authentication.md#public_page)). The feature and tenant gates still apply, and every staff affordance sits behind `is_staff`, which is `False` for an anonymous visitor. The browse path in is the home **Brackets** tab.
 
-- **`/tournament/{tournament_id}/brackets`** (`bracket_index`) — a card per stage with a **View** button into the detail route.
-- **`/brackets/{bracket_id}`** (`bracket_detail`) — a `@ui.refreshable` body that renders **by format** through the shared [`theme/brackets/`](#bracket-renderer-themebrackets) renderer, with a match-detail dialog on click (staff get inline report/override) and live refresh from the event bus.
+- **`/tournament/{tournament_id}/brackets`** (`bracket_index`) — a card per stage with a **View** button into the detail route. A tournament with no published stage is a **404 to everyone but staff**, so walking ids signed out does not list a community's unannounced events.
+- **`/brackets/{bracket_id}`** (`bracket_detail`) — a `@ui.refreshable` body that renders **by format** through the shared [`theme/brackets/`](#bracket-renderer-themebrackets) renderer, with a match-detail dialog on click (staff get inline report/override) and live refresh from the event bus. A signed-in viewer's own entry is marked (**You**, `viewer_entries`) on every card it appears on, and an unfinished matchup shows its next booked time on the card's bottom edge (`booked_times`, on the viewer's clock).
 
-DRAFT visibility (staff-only, via `theme/brackets/visibility.py`), the mobile List/Bracket toggle, the derived live-status pills, and the standings/crosstable presentation are all covered in [brackets.md](../features/brackets.md#presentation).
+Both take the id as a string and parse it with `parse_route_id`; anything that cannot name a row, and any stage that is not visible to this viewer, renders the shared not-found page (HTTP 404). Titles name the stage, tournament and community (`Championship — Bracket Demo — Default`) and carry `og:title`/`og:description` for link unfurls. The stage's configured rules (`config_summary`) are shown to staff only — "1 round(s) with their own best-of" is a setup check, not something a player acts on. The **Shareable spectator view** link appears only when the twin would show something; for a draft, staff see "The spectator view goes live once a stage starts." instead of a URL that 404s for everyone they paste it to.
+
+DRAFT visibility (staff-only, enforced by `BracketService`'s viewer-aware reads), the mobile List/Bracket toggle, the derived live-status pills, and the standings/crosstable presentation are all covered in [brackets.md](../features/brackets.md#presentation).
 
 #### Bracket renderer (`theme/brackets/`)
 
@@ -632,7 +649,6 @@ One in-house renderer, consumed by the public pages, the admin Results dialog, a
 | `layout.py` | Pure, ORM-free layout walker: winner-link tree → absolute pixel placements + elbow connectors, handling byes and the double-elim losers bracket. Unit-tested in [`tests/theme/`](../../tests/theme/) |
 | `cards.py` | Absolute-positioned match cards + sticky round headers; `render_avatar(name, url)` paints the entrant disc (Discord avatar layered over the initial, which is the fallback when the cached hash 404s) |
 | `tables.py` | Swiss/group data tables (standings with tiebreaker columns + advancement tint, pairings, crosstable) as **NiceGUI elements, never `ui.html`** — entrant names are user-controlled |
-| `visibility.py` | The pure staff-only-DRAFT rule, shared by the public pages and the browse tab |
 | `labels.py` | Format/state chrome shared by those surfaces and the admin format select |
 | `render.py` | Whole-bracket helpers (`render_elimination`, mobile accordion, `build_context`, `detect_finals`, `entry_avatars`) |
 | `dialog.py` | The shared match report/override dialog |

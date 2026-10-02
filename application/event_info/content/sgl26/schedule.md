@@ -99,10 +99,11 @@ or cancelled, so you do not need to keep refreshing the board. See
 
 ## If your match time does not work
 
-Use the **Change** column on the Player tab. It asks staff to move the match or
-call it off, and it saves you tracking someone down in a hotel corridor. How it
-works is in [Help](/help/player#asking-for-a-different-time); what matters here
-is when to use it and what to expect at *this* event.
+Use **Ask to change**, under *Your actions* on **My Schedule**. It asks staff
+to move the match or call it off, and it saves you tracking someone down in a
+hotel corridor. How it works is in
+[Help](/help/player#asking-for-a-different-time); what matters here is when to
+use it and what to expect at *this* event.
 
 **Ask as early as you can.** A slot that is only your two names is easy to move.
 The same slot once it has a stage, a commentator and a tracker attached is three

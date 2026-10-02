@@ -14,14 +14,13 @@ from typing import Dict, List, Tuple
 
 from nicegui import app, ui
 
-from application.services import AuthService, BracketService, get_user_from_discord_id
+from application.services import BracketService, get_user_from_discord_id
 from models import Bracket
 from theme.brackets import (
     format_label,
     stage_label,
     state_color,
     state_label,
-    visible_stages,
 )
 
 
@@ -61,13 +60,10 @@ def _render_stage(bracket: Bracket) -> None:
 
 
 async def brackets_tab() -> None:
-    # DRAFT stages are unpublished (theme/brackets/visibility.py): a staff
-    # viewer browses the full list, everyone else only what has started.
+    # DRAFT/CANCELLED stages are unpublished: the service hands a staff viewer
+    # the full list and everyone else only what is public.
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-    is_staff = await AuthService.is_staff(user)
-    brackets = visible_stages(
-        await BracketService().list_all_brackets(), is_staff=is_staff,
-    )
+    brackets = await BracketService().list_all_visible_brackets(user)
 
     with ui.column().classes('page-container'):
         # No page title: the Event tab's view switcher above already says

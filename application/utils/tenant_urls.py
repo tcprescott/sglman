@@ -10,6 +10,7 @@ layer reads the pending referrer from ``app.storage.user`` and passes it in.
 """
 
 from typing import Any, Optional, Sequence
+from urllib.parse import quote, unquote
 
 from application.utils.environment import get_base_url
 from application.utils.hostname import normalize_hostname, scheme_for_host
@@ -17,26 +18,63 @@ from application.utils.hostname import normalize_hostname, scheme_for_host
 # Routes that must never be used as a post-login return target (they would loop).
 AUTH_ROUTES: tuple[str, ...] = ('/login', '/logout', '/oauth/callback')
 
+# A return path is a URL a person was looking at; anything longer is not one.
+_MAX_RETURN_PATH = 2048
+
+
+def safe_local_path(path: Any, *, auth_routes: Sequence[str] = AUTH_ROUTES) -> Optional[str]:
+    """``path`` when it is a plain same-origin path (with optional query), else ``None``.
+
+    The gate for a return target that arrived from outside — the ``next`` a
+    sign-in button carries — and the backstop for the one ``AuthMiddleware``
+    stores. Everything a browser could resolve to another origin is refused: a
+    relative path, a protocol-relative ``//evil``, the backslash form ``/\\evil``
+    (browsers normalise ``\\`` to ``/``), a control or whitespace character, and
+    a scheme. Dot segments are refused too, including the ``%2e`` spelling
+    browsers decode: ``/t/a/../b`` is same-origin but walks into another
+    community, which is the one thing a tenant-local path must not do. An auth
+    route would loop.
+    """
+    if not isinstance(path, str) or not path or len(path) > _MAX_RETURN_PATH:
+        return None
+    if not path.startswith('/') or path.startswith('//'):
+        return None
+    if '\\' in path or any(ord(c) < 0x21 or ord(c) == 0x7f for c in path):
+        return None
+    route = path.split('?', 1)[0].split('#', 1)[0]
+    decoded = unquote(route)
+    if decoded.startswith('//') or '\\' in decoded:
+        return None
+    if any(segment in ('.', '..') for segment in decoded.split('/')):
+        return None
+    if route in auth_routes:
+        return None
+    return path
+
+
+def login_path(return_to: Any) -> str:
+    """The tenant-local ``/login`` URL that comes back to ``return_to`` afterwards.
+
+    ``return_to`` is the tenant-local path (and query) the reader is on. An
+    unsafe one is dropped rather than carried, so the worst a bad value does is
+    land the reader on the community home.
+    """
+    local = safe_local_path(return_to)
+    if local is None or local == '/':
+        return '/login'
+    return f"/login?next={quote(local, safe='')}"
+
 
 def safe_next(path: Any) -> str:
     """A safe same-host absolute return path for a cross-host handoff, or ``/``.
 
-    Rejects anything that isn't a plain same-host absolute path so a ``next``
-    carried across a handoff can never become an open redirect when fed to
-    ``ui.navigate.to``: a non-string, a relative path, a protocol-relative
-    ``//evil.com``, a backslash form ``/\\evil.com`` (browsers normalize ``\\`` to
-    ``/`` per the WHATWG URL spec), any control/whitespace char that could smuggle
-    a second target, and auth routes (which would loop). Shared by the Discord
-    login handoff (``pages/auth.py``) and the secondary-provider link handoff
-    (``pages/_oauth_link.py``).
+    The one gate is :func:`safe_local_path`; this only supplies the ``/``
+    fallback the handoffs need. Shared by the Discord login handoff
+    (``pages/auth.py``: ``/login``, ``/oauth/start``, ``/session/claim``) and
+    the secondary-provider link handoff (``pages/_oauth_link.py``), so a
+    ``next`` carried across a host can never be looser than one that stays.
     """
-    if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
-        return '/'
-    if '\\' in path or any(c in path for c in '\r\n\t '):
-        return '/'
-    if path.split('?', 1)[0] in AUTH_ROUTES:
-        return '/'
-    return path
+    return safe_local_path(path) or '/'
 
 
 def tenant_base_url(tenant: Any) -> str:
@@ -135,6 +173,21 @@ def sanitize_return_path(
     if root_path and not (referrer == root_path or referrer.startswith(root_path + '/')):
         return home
     local = strip_root_path(root_path, referrer)
-    if local.split('?', 1)[0] in auth_routes:
+    if safe_local_path(local, auth_routes=auth_routes) is None:
         return home
     return referrer
+
+
+def return_path_for_login(root_path: str, next_path: Any, referrer: Any) -> str:
+    """The post-login target for a ``/login`` request on the tenant at ``root_path``.
+
+    ``next_path`` is the tenant-local ``?next=`` a sign-in button carried from
+    the page the reader was on. It wins when it is safe, because it names the
+    page they pressed the button on; a stale ``referrer`` in the session names
+    whatever protected page last bounced them. Otherwise the referrer goes
+    through :func:`sanitize_return_path` as before.
+    """
+    local = safe_local_path(next_path)
+    if local is not None:
+        return f'{root_path}{local}'
+    return sanitize_return_path(root_path, referrer)

@@ -53,7 +53,9 @@ async def list_brackets(
     tournament_id: int = Query(...),
     actor: User = Depends(require_api_actor),
 ):
-    return await BracketService().list_brackets(tournament_id)
+    # Viewer-aware: DRAFT and CANCELLED stages are staff-only here exactly as
+    # on the public pages.
+    return await BracketService().list_visible_brackets(actor, tournament_id)
 
 
 @router.get("/entrants", response_model=List[BracketEntrantResponse], summary="List a tournament's entrants")
@@ -61,7 +63,11 @@ async def list_entrants(
     tournament_id: int = Query(...),
     actor: User = Depends(require_api_actor),
 ):
-    return await BracketService().list_entrants(tournament_id)
+    # A tournament with nothing published has not been announced, and neither
+    # has its roster: same 404 as an unknown id, to everyone but staff.
+    service = BracketService()
+    require_found(await service.get_visible_tournament(actor, tournament_id), "Tournament")
+    return await service.list_entrants(tournament_id)
 
 
 @router.get(
@@ -111,7 +117,7 @@ async def get_match(match_id: int, actor: User = Depends(require_api_actor)):
 
 @router.get("/{bracket_id}", response_model=BracketResponse, summary="Get a bracket")
 async def get_bracket(bracket_id: int, actor: User = Depends(require_api_actor)):
-    return require_found(await BracketService().get_bracket(bracket_id), "Bracket")
+    return require_found(await BracketService().get_visible_bracket(actor, bracket_id), "Bracket")
 
 
 @router.get(
@@ -126,20 +132,22 @@ async def get_standings(bracket_id: int, actor: User = Depends(require_api_actor
     Elimination formats have no points table and are rejected with a 400 — read
     their placement from ``/matches`` and each entry's ``final_rank``.
     """
-    return await BracketService().standings(bracket_id)
+    service = BracketService()
+    require_found(await service.get_visible_bracket(actor, bracket_id), "Bracket")
+    return await service.standings(bracket_id)
 
 
 @router.get("/{bracket_id}/matches", response_model=List[BracketMatchResponse], summary="List a bracket's matches")
 async def list_matches(bracket_id: int, actor: User = Depends(require_api_actor)):
     service = BracketService()
-    require_found(await service.get_bracket(bracket_id), "Bracket")
+    require_found(await service.get_visible_bracket(actor, bracket_id), "Bracket")
     return await _with_status(service, await service.list_matches(bracket_id))
 
 
 @router.get("/{bracket_id}/open-matches", response_model=List[BracketMatchResponse], summary="List a bracket's open (playable) matches")
 async def list_open_matches(bracket_id: int, actor: User = Depends(require_api_actor)):
     service = BracketService()
-    require_found(await service.get_bracket(bracket_id), "Bracket")
+    require_found(await service.get_visible_bracket(actor, bracket_id), "Bracket")
     return await _with_status(service, await service.get_open_matches(bracket_id))
 
 
@@ -159,7 +167,7 @@ async def _with_status(service: BracketService, matches: list) -> list:
 
 @router.get("/{bracket_id}/entries", response_model=List[BracketEntryResponse], summary="List a bracket's entries")
 async def list_entries(bracket_id: int, actor: User = Depends(require_api_actor)):
-    require_found(await BracketService().get_bracket(bracket_id), "Bracket")
+    require_found(await BracketService().get_visible_bracket(actor, bracket_id), "Bracket")
     return await BracketService().list_entries(bracket_id)
 
 

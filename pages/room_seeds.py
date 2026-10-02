@@ -21,9 +21,9 @@ about to be played is not a trade worth making for a machine sitting in a room
 the public walks through.
 """
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import RoomTokenService
+from application.services import RoomTokenService, get_user_from_discord_id
 from application.services.match.match_display_service import is_seeded_and_unplayed
 from middleware.auth import public_page
 from theme.base import BaseLayout
@@ -46,15 +46,14 @@ def create() -> None:
         ui.page_title('Wizzrobe — Room Seeds')
 
         # An unknown, revoked, malformed or wrong-community token renders the
-        # same page a route that never existed would, so guessing at a URL
-        # tells you nothing about which tokens are live.
+        # same page a route that never existed would — same copy, same 404 —
+        # so guessing at a URL tells you nothing about which tokens are live.
+        # The copy ("the link's out of date") is also the true one for the
+        # staff member at a room PC whose token was just revoked.
         if await RoomTokenService().resolve(token) is None:
-            from theme.error_page import render_error_page
-            render_error_page(
-                status_code=404,
-                headline='Not Found',
-                message="This page only exists inside a specific community. Try getting there from your community's link.",
-                user=None,
+            from theme.error_page import render_not_found
+            await render_not_found(
+                user=await get_user_from_discord_id(app.storage.user.get('discord_id')),
             )
             return
 

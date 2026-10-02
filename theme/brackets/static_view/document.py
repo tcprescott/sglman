@@ -17,7 +17,7 @@ from application.utils.timezone import format_local_display, to_local
 from models import Bracket, BracketEntry, BracketFormat, BracketMatch, BracketState
 from theme.assets import asset_url
 
-from ..labels import config_summary, format_label, stage_label, state_label
+from ..labels import format_label, stage_label, state_label
 from ..render import build_context
 from .data_tables import _round_robin_html, _swiss_html
 from .markup import _elimination_2d_html, _elimination_list_html, _esc, _tag
@@ -122,6 +122,7 @@ def _document(
     primary_color: Optional[str],
     generated_at: Optional[datetime],
     footer_links: str = '',
+    description: str = '',
 ) -> str:
     palette = (
         f'<style>body{{--q-primary:{_esc(primary_color)};'
@@ -142,6 +143,11 @@ def _document(
         '<meta name="robots" content="noindex, nofollow">'
         f'{refresh}'
         f'<title>{_esc(title)}</title>'
+        # What a link unfurl (Discord, chat apps) shows: these pages are the
+        # link staff paste into a channel, and a bare <title> is all it had.
+        f'<meta property="og:title" content="{_esc(title)}">'
+        + (f'<meta property="og:description" content="{_esc(description)}">' if description else '')
+        +
         '<link rel="icon" href="/static/icons/icon-192.png">'
         f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">'
         f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">'
@@ -171,14 +177,15 @@ def render_bracket_document(view: StaticBracketView) -> str:
     entry_name = view.entry_name
     root = view.root_path
 
-    setup = config_summary(bracket)
+    # No config_summary here: the stage's rules as configured are a check for
+    # staff, and this page is for spectators (the interactive page shows them
+    # to staff only, for the same reason).
     header = _tag(
         'div', 'wizs-card',
         _tag('div', 'wizs-title', _esc(bracket.name))
         + _tag('div', 'wizs-sub', _esc(
             f'{view.tournament_name} · {stage_label(bracket.stage_order)} · '
             f'{format_label(bracket.format)}'))
-        + (_tag('div', 'wizs-sub', _esc(' · '.join(setup))) if setup else '')
         + _tag('div', 'wizs-sub', _tag('span', 'wizs-badge', _esc(state_label(bracket.state)))),
     )
 
@@ -233,6 +240,10 @@ def render_bracket_document(view: StaticBracketView) -> str:
     )
     return _document(
         title=f'{bracket.name} — {view.tournament_name}',
+        description=(
+            f'{stage_label(bracket.stage_order)} · {format_label(bracket.format)} · '
+            f'{state_label(bracket.state)}'
+        ),
         body=bar + _tag('div', 'wizs-wrap', body),
         refresh_seconds=view.refresh_seconds,
         primary_color=view.primary_color,
@@ -254,15 +265,13 @@ def render_index_document(view: StaticIndexView) -> str:
     else:
         rows = []
         for b in view.brackets:
-            setup = config_summary(b)
             rows.append(_tag(
                 'div', 'wizs-stage',
                 _tag(
                     'div', 'wizs-stage-main',
                     _tag('div', '', f'<strong>{_esc(b.name)}</strong>')
                     + _tag('div', 'wizs-sub', _esc(
-                        f'{stage_label(b.stage_order)} · {format_label(b.format)}'))
-                    + (_tag('div', 'wizs-sub', _esc(' · '.join(setup))) if setup else ''),
+                        f'{stage_label(b.stage_order)} · {format_label(b.format)}')),
                 )
                 + _tag(
                     'div', 'wizs-stage-side',
@@ -281,6 +290,7 @@ def render_index_document(view: StaticIndexView) -> str:
     )
     return _document(
         title=f'{view.tournament_name} — Brackets',
+        description=f'{len(view.brackets)} stage(s) · live bracket',
         body=_bar(view.tournament_name, 'Bracket stages') + body,
         refresh_seconds=view.refresh_seconds,
         primary_color=view.primary_color,
@@ -289,4 +299,33 @@ def render_index_document(view: StaticIndexView) -> str:
             f'<a href="{_esc(root)}/tournament/{_esc(view.tournament_id)}/brackets">'
             'interactive view</a>'
         ),
+    )
+
+
+def render_not_found_document(
+    *, root_path: str = '', community: str = '', primary_color: Optional[str] = None,
+) -> str:
+    """The static twin of the app's 404: same words, a way back, no framework.
+
+    These routes answer without NiceGUI, so they cannot render the themed error
+    page — but a spectator who followed a stale link should still get a page
+    that says what happened and where to go, not a line of plain text.
+    """
+    from theme.error_page import NOT_FOUND_HEADLINE, NOT_FOUND_MESSAGE
+
+    body = _tag(
+        'div', 'wizs-wrap',
+        _tag(
+            'div', 'wizs-card',
+            _tag('div', 'wizs-title', _esc(NOT_FOUND_HEADLINE))
+            + _tag('p', '', _esc(NOT_FOUND_MESSAGE))
+            + f'<a href="{_esc(root_path)}/">Back to home</a>',
+        ),
+    )
+    return _document(
+        title=f'{NOT_FOUND_HEADLINE} — {community or "Wizzrobe"}',
+        body=_bar(community or 'Wizzrobe', '') + body,
+        refresh_seconds=0,
+        primary_color=primary_color,
+        generated_at=None,
     )

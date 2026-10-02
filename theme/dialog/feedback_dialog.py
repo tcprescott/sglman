@@ -3,6 +3,7 @@ from nicegui import ui
 from application.services import FeedbackService
 from models import FeedbackCategory, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.notify import notify_error
 
 CATEGORY_OPTIONS = {
     FeedbackCategory.BUG.value: 'Bug',
@@ -57,8 +58,8 @@ class FeedbackDialog:
                             message=message,
                             page_url=page_url or '',
                         )
-                    except ValueError as e:
-                        ui.notify(str(e), color='warning')
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
                         return
                     ui.notify('Thanks for your feedback!', color='positive')
                     dialog.close()

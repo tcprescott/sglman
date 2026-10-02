@@ -3,7 +3,7 @@ title: Being a player at the event
 slug: player
 icon: videogame_asset
 order: 40
-summary: Your Schedule, acknowledging a match, getting one scheduled, and what happens to your result.
+summary: My Schedule, acknowledging a match, getting one scheduled, and what happens to your result.
 ---
 
 This is how the app works for a player. What happens **on the floor**, meaning
@@ -12,25 +12,25 @@ what to do when something breaks, is set by the event rather than by the app.
 Where your community publishes that information, it lives under **Event
 Information** in the sidebar.
 
-## Your Schedule
+## My Schedule
 
-The **Player** tab shows only your own matches. Check it when you want to know
-where you have to be and when; the full board on the Schedule tab shows
+The **My Schedule** tab shows only your own matches. Check it when you want to
+know where you have to be and when; the full board on the **Event** tab shows
 everybody's.
 
 Times are shown in your local time.
 
 :::snippet player-schedule
-**Your Schedule** lists the matches you are playing in, in your local time. The
-Schedule tab shows every match in the event; this one shows only yours.
+**My Schedule** lists the matches you are playing in, in your local time. The
+**Event** tab shows every match in the event; this one shows only yours.
 :::
 
 ## Offering your match for stream
 
 :::snippet stream-volunteer
-The **Stream** column on Your Schedule is where you say you would be happy for
-your match to go out on stream. Tap it once to offer, tap it again to take the
-offer back.
+**Offer for stream**, under *Your actions* on My Schedule, is where you say you
+would be happy for your match to go out on stream. Tap it once to offer, tap it
+again to take the offer back.
 
 It is a hint to staff, nothing more. They build the stream schedule around
 stages, crew and what the bracket needs, and they will not see your offer as a
@@ -60,15 +60,15 @@ the tournament.
 - **You request it.** Use **Submit Match** to propose a tournament, an opponent
   and a time. You have to have opted into the tournament first.
 - **It comes from a bracket.** In a bracket-run tournament you do not submit
-  matches. Your next matchup appears on the Player tab under *Upcoming matches
-  to schedule*. Pick a time there and your opponent confirms it.
+  matches. Your next matchup appears on **My Schedule**, waiting for a time.
+  Pick a time there and your opponent confirms it.
 
 :::snippet match-request
 **Submit Match** proposes a new match: a tournament, your opponent and a time.
 
 You must be opted into the tournament to pick it. If the dropdown is empty,
 either you have not opted into anything, or your tournaments are run from a
-bracket, in which case you schedule your matchup from **Your Schedule**
+bracket, in which case you schedule your matchup from **My Schedule**
 instead, not from here.
 :::
 
@@ -128,8 +128,8 @@ You cannot move or cancel your own match, but you can ask, and you do not have
 to find a staff member to do it.
 
 :::snippet reschedule-request
-The **Change** column on Your Schedule asks staff to move your match or call it
-off. It is a request, not a booking: nothing changes until staff answer, so keep
+**Ask to change**, under *Your actions* on My Schedule, asks staff to move your
+match or call it off. It is a request, not a booking: nothing changes until staff answer, so keep
 playing to the current time until you hear back.
 
 Say why. Staff read the reason and nothing else, so it is what they decide on.

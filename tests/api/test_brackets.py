@@ -9,7 +9,15 @@ require Staff in the service. The router is feature-gated by
 import pytest
 
 from application.tenant_context import tenant_scope
-from models import BracketFormat, FeatureFlag, Role, TenantFeatureFlag, Tournament
+from models import (
+    Bracket,
+    BracketFormat,
+    BracketState,
+    FeatureFlag,
+    Role,
+    TenantFeatureFlag,
+    Tournament,
+)
 from tests.api_helpers import client_for, create_user_token, enable_all_features
 from tests.factories import make_user
 
@@ -32,13 +40,14 @@ class TestReads:
             assert resp.status_code == 401
 
     async def test_list_role_less_ok(self, db, app):
-        """Reads are role-agnostic: a role-less token still gets 200."""
+        """Reads are open to a role-less token — for published stages."""
         _, staff = await _staff_token()
         t = await _tournament()
         async with client_for(app, staff) as c:
             await c.post('/api/brackets', json={
                 'tournament_id': t.id, 'name': 'Main', 'format': 'single_elim',
             })
+        await Bracket.filter(tournament_id=t.id).update(state=BracketState.ACTIVE)
         _, plain = await create_user_token(username='plain')
         async with client_for(app, plain) as c:
             resp = await c.get(f'/api/brackets?tournament_id={t.id}')
@@ -50,6 +59,61 @@ class TestReads:
         async with client_for(app, staff) as c:
             resp = await c.get('/api/brackets/9999')
             assert resp.status_code == 404
+
+
+class TestUnpublishedStagesAreStaffOnly:
+    """The REST twin of the public pages' rule: a DRAFT or CANCELLED stage, and a
+    tournament with nothing published, read as absent to a non-staff token.
+
+    Before the rule moved into ``BracketService`` the pages filtered drafts and
+    the API handed them, config and seeded field included, to any token.
+    """
+
+    async def _setup(self, app):
+        _, staff = await _staff_token()
+        t = await _tournament('Unannounced')
+        async with client_for(app, staff) as c:
+            draft = (await c.post('/api/brackets', json={
+                'tournament_id': t.id, 'name': 'Draft', 'format': 'single_elim',
+            })).json()
+        _, plain = await create_user_token(username='plain')
+        return t, draft['id'], staff, plain
+
+    async def test_a_non_staff_token_sees_no_draft(self, db, app):
+        t, draft_id, _staff, plain = await self._setup(app)
+        async with client_for(app, plain) as c:
+            assert (await c.get(f'/api/brackets?tournament_id={t.id}')).json() == []
+            for path in (
+                f'/api/brackets/{draft_id}',
+                f'/api/brackets/{draft_id}/matches',
+                f'/api/brackets/{draft_id}/open-matches',
+                f'/api/brackets/{draft_id}/entries',
+                f'/api/brackets/{draft_id}/standings',
+                f'/api/brackets/entrants?tournament_id={t.id}',
+            ):
+                assert (await c.get(path)).status_code == 404, path
+
+    async def test_staff_still_read_drafts(self, db, app):
+        t, draft_id, staff, _plain = await self._setup(app)
+        async with client_for(app, staff) as c:
+            listed = (await c.get(f'/api/brackets?tournament_id={t.id}')).json()
+            assert [b['id'] for b in listed] == [draft_id]
+            assert (await c.get(f'/api/brackets/{draft_id}')).status_code == 200
+            assert (await c.get(f'/api/brackets/entrants?tournament_id={t.id}')).status_code == 200
+
+    async def test_a_cancelled_stage_is_withdrawn_too(self, db, app):
+        t, draft_id, _staff, plain = await self._setup(app)
+        await Bracket.filter(id=draft_id).update(state=BracketState.CANCELLED)
+        async with client_for(app, plain) as c:
+            assert (await c.get(f'/api/brackets/{draft_id}')).status_code == 404
+
+    async def test_publishing_opens_it(self, db, app):
+        t, draft_id, _staff, plain = await self._setup(app)
+        await Bracket.filter(id=draft_id).update(state=BracketState.ACTIVE)
+        async with client_for(app, plain) as c:
+            assert (await c.get(f'/api/brackets/{draft_id}')).status_code == 200
+            assert (await c.get(f'/api/brackets/entrants?tournament_id={t.id}')).status_code == 200
+
 
 
 # --- Writes / auth matrix -------------------------------------------------

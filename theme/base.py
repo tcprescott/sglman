@@ -2,10 +2,11 @@ import json
 import logging
 import re
 
-from nicegui import app, ui
+from nicegui import app, context, ui
 
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.tenant_urls import login_path
 from models import FeatureFlag, User
 from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, dark_mode_button, install_timezone_detection
@@ -14,6 +15,31 @@ from theme.notice import drain_notice
 from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
+
+#: Home's four sections as ``(label, icon)``. Home builds its tabs from these,
+#: and a tab-less page (a bracket, an article) offers them in the drawer to a
+#: member, so the way back to their own matches is never more than one tap.
+HOME_SECTIONS: tuple[tuple[str, str], ...] = (
+    ('Event', 'event'),
+    ('My Schedule', 'event_available'),
+    ('Tournaments', 'emoji_events'),
+    ('Profile', 'account_circle'),
+)
+
+
+def current_local_url() -> str:
+    """The tenant-local path and query of the page being built, or ``/``.
+
+    ``TenantMiddleware`` has already moved ``/t/<slug>`` into ``root_path``, so
+    the request's own path is the tenant-local one a sign-in button carries as
+    ``?next=``.
+    """
+    try:
+        url = context.client.request.url
+    except Exception:
+        return '/'
+    return f'{url.path}?{url.query}' if url.query else url.path
+
 
 def tab_slug(label: str) -> str:
     """Derive a URL path segment from a tab's display label.
@@ -101,6 +127,11 @@ class BaseLayout:
         # is a public page, and someone who has not signed in is squarely who it
         # is written for.
         self._show_event_info = False
+        # Whether the viewer belongs to this community (or is a super-admin).
+        # Gates what only a member can use: Feedback, whose submit the service
+        # refuses to anyone else, and the home sections on a tab-less page.
+        self._is_member = False
+        self._prepared = False
         self.top_menu: list[dict] = []
 
         if tabs:
@@ -131,22 +162,67 @@ class BaseLayout:
             self._label_by_alias = {}
             self._default_tab = None
 
+    @property
+    def wordmark(self) -> str:
+        """The header's brand text: the community's name once prepared, else Wizzrobe."""
+        return self._wordmark or 'Wizzrobe'
+
+    @property
+    def is_prepared(self) -> bool:
+        """Whether :meth:`prepare` has resolved the viewer-dependent chrome."""
+        return self._prepared
+
+    @property
+    def is_member(self) -> bool:
+        """Whether the viewer belongs to this community (or is a super-admin).
+
+        ``False`` until :meth:`prepare` has run.
+        """
+        return self._is_member
+
+    @property
+    def offers_feedback(self) -> bool:
+        """Whether this viewer may send this community feedback here.
+
+        A member (or super-admin) where ``FEEDBACK`` is live — the same test the
+        drawer's item uses, so every Feedback affordance agrees with it.
+        """
+        return bool(self.user) and self._is_member and self._show_feedback
+
+    async def prepare(self) -> 'BaseLayout':
+        """Resolve everything the chrome needs that takes a query. Idempotent.
+
+        Split from :meth:`render` for the surfaces that draw the frame
+        synchronously — the join door and the error pages — so they can still
+        carry the community's name, palette and drawer: resolve here in the
+        async caller, then hand the layout to the synchronous renderer.
+        """
+        if self._prepared:
+            return self
+        self._prepared = True
+        from application.services import AuthService, FeatureFlagService, TenantService
+        if self._wordmark is None:
+            self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
+        if self._show_volunteer is None:
+            self._show_volunteer = await AuthService.can_view_volunteer(self.user)
+        if self.user is not None and self._tenant_id is not None:
+            self._is_member = (
+                await AuthService.is_super_admin(self.user)
+                or await TenantService.is_member(self.user.id, self._tenant_id)
+            )
+        if self._is_member:
+            self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
+        if self._tenant_id is not None:
+            self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
+        await self._load_theme_colors()
+        return self
+
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
         # A message stashed before a redirect (theme/notice.py) is shown on the
         # first framed page the browser lands on, whichever that turns out to be.
         drain_notice()
-        if self._wordmark is None:
-            from application.services import TenantService
-            self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
-        if self._show_volunteer is None:
-            from application.services import AuthService
-            self._show_volunteer = await AuthService.can_view_volunteer(self.user)
-        from application.services import FeatureFlagService
-        if self.user:
-            self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
-        self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
-        await self._load_theme_colors()
+        await self.prepare()
         # One query for every table on the page. Bound for the rest of the build
         # so each customize_table call reads it back synchronously — a table
         # build cannot await, and a page can host a dozen of them.
@@ -331,8 +407,12 @@ class BaseLayout:
                 # so it can be hidden on phones via .login-button-text without
                 # fighting Quasar's `.block` utility. The tooltip keeps the
                 # icon-only mobile button labelled for accessibility.
+                # Carries the page it was pressed on, so signing in from a
+                # bracket or an article comes back to it rather than to home.
+                # Off any community there is nowhere local to come back to.
+                target = login_path(current_local_url()) if self._tenant_id is not None else '/login'
                 login_btn = ui.button(
-                    on_click=lambda: ui.navigate.to('/login'),
+                    on_click=lambda: ui.navigate.to(target),
                     icon='login',
                 ).props('flat color=white').classes('login-button')
                 with login_btn:
@@ -343,8 +423,6 @@ class BaseLayout:
 
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""
-        from theme.dialog import FeedbackDialog
-
         # Unify the drawer's auto-show boundary with the app-shell <1024px break:
         # below it the bottom nav + burger carry navigation, at/above it the drawer
         # pins open (show-if-above). This matches the grid-card table breakpoint.
@@ -359,6 +437,21 @@ class BaseLayout:
                             ui.icon(item['icon']).props('size=sm')
                         with ui.item_section():
                             ui.item_label(item['label'])
+
+            if not self.tabs and self._is_member:
+                # A tab-less page has no section list of its own, so a member
+                # gets home's: the bracket or article they followed a link to
+                # is not where they stop being a player.
+                ui.separator()
+                with ui.list().props('padding'):
+                    for label, icon in HOME_SECTIONS:
+                        with ui.item(
+                            on_click=lambda slug=tab_slug(label): ui.navigate.to(f'/home/{slug}')
+                        ).props('clickable v-ripple'):
+                            with ui.item_section().props('avatar'):
+                                ui.icon(icon).props('size=sm')
+                            with ui.item_section():
+                                ui.item_label(label)
 
             if self.tabs:
                 ui.separator()
@@ -382,43 +475,8 @@ class BaseLayout:
                             tab_item.props(add='active')
                         self._tab_item_refs[tab['label']] = tab_item
 
-            ui.separator()
-            with ui.list().props('padding'):
-                # Above Help, and ungated on ``self.user`` for the same reason:
-                # the event handbook answers the questions people have before
-                # they sign in, and some of its readers never will.
-                if self._show_event_info:
-                    with ui.item(
-                        on_click=lambda: ui.navigate.to('/event-info')
-                    ).props('clickable v-ripple'):
-                        with ui.item_section().props('avatar'):
-                            ui.icon('event_note').props('size=sm')
-                        with ui.item_section():
-                            ui.item_label('Event Information')
-
-                # Not gated on ``self.user``: /help is a public page, and a
-                # signed-out visitor on any framed public surface is exactly the
-                # reader who most needs the way in. The real /login is a bare
-                # redirect to Discord with no page to hang a link on, so the
-                # drawer is that way in.
-                with ui.item(
-                    on_click=lambda: ui.navigate.to('/help')
-                ).props('clickable v-ripple'):
-                    with ui.item_section().props('avatar'):
-                        ui.icon('help_outline').props('size=sm')
-                    with ui.item_section():
-                        ui.item_label('Help')
-
-                # Feedback is flag-gated: no item where the community has it off,
-                # because the dialog's submit would be refused by the service.
-                if self.user and self._show_feedback:
-                    with ui.item(
-                        on_click=lambda: FeedbackDialog(self.user).open()
-                    ).props('clickable v-ripple'):
-                        with ui.item_section().props('avatar'):
-                            ui.icon('feedback').props('size=sm')
-                        with ui.item_section():
-                            ui.item_label('Feedback')
+            if self._tenant_id is not None:
+                self._render_drawer_help()
 
             # Copyright and source link live at the foot of the drawer (every
             # page renders the drawer, so this replaces the old desktop-only
@@ -429,6 +487,52 @@ class BaseLayout:
                 ui.link('GitHub', 'https://github.com/tcprescott/wizzrobe', new_tab=True) \
                     .classes('text-caption wiz-drawer-github-link')
             ui.label(self._copyright).classes('text-caption q-px-md q-pb-md wiz-drawer-copyright')
+
+    def _render_drawer_help(self) -> None:
+        """The drawer's public foot: Event Information, Help, Feedback.
+
+        Only inside a community — off one there is no /help or /event-info to
+        reach, and an item pointing at the page it sits on is a circle.
+        """
+        from theme.dialog import FeedbackDialog
+
+        ui.separator()
+        with ui.list().props('padding'):
+            # Above Help, and ungated on ``self.user`` for the same reason:
+            # the event handbook answers the questions people have before
+            # they sign in, and some of its readers never will.
+            if self._show_event_info:
+                with ui.item(
+                    on_click=lambda: ui.navigate.to('/event-info')
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('event_note').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Event Information')
+
+            # Not gated on ``self.user``: /help is a public page, and a
+            # signed-out visitor on any framed public surface is exactly the
+            # reader who most needs the way in. The real /login is a bare
+            # redirect to Discord with no page to hang a link on, so the
+            # drawer is that way in.
+            with ui.item(
+                on_click=lambda: ui.navigate.to('/help')
+            ).props('clickable v-ripple'):
+                with ui.item_section().props('avatar'):
+                    ui.icon('help_outline').props('size=sm')
+                with ui.item_section():
+                    ui.item_label('Help')
+
+            # Members only, and flag-gated: the service refuses a submit
+            # from anyone else, so the item would open a dialog that fails.
+            if self.offers_feedback:
+                with ui.item(
+                    on_click=lambda: FeedbackDialog(self.user).open()
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('feedback').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Feedback')
 
     def _switch_tab(self, label: str) -> None:
         # Only move the panel; the drawer highlight and the /base/<slug> history

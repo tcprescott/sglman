@@ -148,7 +148,7 @@ deliberately not an `ApiToken`, which acts with its owner's full permissions.
 | `issue(actor, label)` | `(RoomToken, str)` | Create a token for the actor's community; returns the record and the **raw token** (only chance to capture it). STAFF only; non-empty label required. Audits `roomtoken.created`. |
 | `list_tokens(actor)` | `list[RoomToken]` | Every token this community has issued, live ones first then newest-first. Revoked rows stay listed so staff can see which machine's URL stopped working. STAFF only. |
 | `revoke(actor, token_id)` | `RoomToken` | Revoke; `NotFoundError` for unknown or already-revoked tokens. STAFF only. Audits `roomtoken.revoked`. |
-| `resolve(raw_token)` | `RoomToken \| None` | The live token this string opens. Unknown, revoked, malformed and wrong-community all return `None` — the page renders the same plain 404 for each, so guessing reveals nothing. Stamps `last_used_at` on success. |
+| `resolve(raw_token)` | `RoomToken \| None` | The live token this string opens. Unknown, revoked, malformed and wrong-community all return `None` — the page renders the same not-found page an unknown route does (HTTP 404, same copy) for each, so guessing reveals nothing. Stamps `last_used_at` on success. |
 
 Both audit actions are deliberately event-less (`test_event_audit_parity`): a
 credential a venue machine holds is a security fact, not a domain one.
@@ -313,7 +313,8 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None, format=None)` | `Bracket` | Edit a DRAFT stage's name / order / config / **format** — the format is safe to change precisely because a DRAFT stage has no match graph and nothing but `start_bracket` reads it. The config is validated against the stage as it will be *after* the edit, so a format change and its format-specific keys are checked together. Audits `BRACKET_UPDATED`. |
 | `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round metadata (`{round: {best_of, scheduled_at, scheduled_end}}`), allowed in **any** state since round chrome never touches the graph. The `scheduled_at`/`scheduled_end` window bounds match-time suggestions for that round. Audits `BRACKET_UPDATED`. |
 | `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. Audits `BRACKET_DELETED`. |
-| `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
+| `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. Unfiltered: staff tooling and lifecycle code only. |
+| `is_published(bracket)` · `list_visible_brackets(viewer, tournament_id)` · `list_all_visible_brackets(viewer)` · `get_visible_bracket(viewer, bracket_id)` · `get_visible_tournament(viewer, tournament_id)` | viewer-aware reads | What `viewer` (`None` = signed out) may see: DRAFT/CANCELLED stages and tournaments with nothing published are staff-only, and read as missing to anyone else. Every non-staff surface (pages, static views, join door, browse tab, REST, MCP) reads through these. |
 | `get_match_with_games(match_id)` | `BracketMatch \| None` | One matchup with its series games loaded, for render/serialize. |
 | `list_all_brackets()` | `list[Bracket]` | Every stage in the tenant with its tournament prefetched, active tournaments first then name then `stage_order` — the one read behind the anonymous home **Brackets** tab, which groups the rows rather than querying per tournament. |
 | `add_entrant(actor, tournament_id, display_name, user_id=None)` | `BracketEntrant` | Add a roster entrant — placeholder (`user_id=None`) or linked. Audits/events `BRACKET_ENTRANT_ADDED`. |
@@ -547,7 +548,7 @@ Records in-app feedback from logged-in attendees and lets admins review it. The 
 
 | Method | Returns | Description |
 |---|---|---|
-| `submit(actor, category, message, page_url)` | `Feedback` | Record a submission from `actor`; non-empty message required (`ValueError`). Audits `feedback.submitted`. |
+| `submit(actor, category, message, page_url)` | `Feedback` | Record a submission from `actor`; non-empty message required, and `actor` must be a **member** of this community or a super-admin (`PermissionError` otherwise, a REST 403 — the queue is the community's, and the drawer offers the dialog to members only). Audits `feedback.submitted`. |
 | `list_recent(limit=200)` | `list[Feedback]` | Recent submissions for the admin review list. |
 | `list_mine(actor, limit=25)` | `list[Feedback]` | The actor's own submissions and their status; no gate beyond being the actor. |
 | `set_reviewed(actor, feedback_id, reviewed=True)` | `Feedback` | Admin-only (`can_view_admin`); sets status `REVIEWED`, or back to `NEW` with `reviewed=False` (reversible so a mis-click can't lose a submission); `NotFoundError` for unknown id. Audits `feedback.reviewed` / `feedback.reopened`. |
