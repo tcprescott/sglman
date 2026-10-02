@@ -65,6 +65,20 @@ def now_local(tz: TzArg = None) -> datetime:
     return datetime.now(_resolve(tz))
 
 
+def next_whole_hour_local(
+    lead: timedelta = timedelta(minutes=30), tz: TzArg = None,
+) -> datetime:
+    """The first whole hour at least ``lead`` from now, on the display clock.
+
+    The default a booking form offers. "Now" is a time that has already passed
+    by the time anyone presses Schedule, so a form defaulting to it books a
+    match that has already started; 08:48 offers 10:00, 08:20 offers 09:00.
+    """
+    start = now_local(tz) + lead
+    hour = start.replace(minute=0, second=0, microsecond=0)
+    return hour if hour >= start else hour + timedelta(hours=1)
+
+
 def today_local(tz: TzArg = None) -> date:
     """The current calendar date on the display clock.
 

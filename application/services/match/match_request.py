@@ -6,6 +6,7 @@ repositories, ``participants``, and ``_seed_acknowledgments`` through that
 composed class, the same way :class:`CancellationMixin` does.
 """
 
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from application.errors import require_found
@@ -76,6 +77,10 @@ class MatchRequestMixin:
             await self.tournament_repository.get_by_id(tournament_id),
             f"Tournament {tournament_id}",
         )
+        # Archived is closed to everyone, the bracket path included: a matchup
+        # left open in a finished season is not a reason to book a new game.
+        if not tournament.is_active:
+            raise ValueError(f"{tournament.name} has finished — it isn't taking new matches.")
         if not from_bracket:
             assert_player_requests_allowed(tournament)
 
@@ -83,6 +88,11 @@ class MatchRequestMixin:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
+
+        # A player books forward. Staff go through create_match, which stays
+        # free to record a match that already happened.
+        if scheduled_at <= datetime.now(timezone.utc):
+            raise ValueError("That time has already passed. Pick a time later than now.")
 
         await self.assert_within_tournament_hours(scheduled_at, tournament_id)
 

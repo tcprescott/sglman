@@ -23,6 +23,7 @@ from application.services import (
 from application.utils.timezone import (
     format_local_date,
     format_local_time,
+    next_whole_hour_local,
     now_local,
 )
 from models import Match, PresetOverride
@@ -126,10 +127,14 @@ class BaseMatchDialog:
                 'stage': self.match.stage_id if self.match.stage_id else None,
             }
         else:
+            # A new match starts on the next whole hour, never on "now": a
+            # player request refuses a time that has passed, and by the time
+            # anyone presses Save, now has.
+            slot = next_whole_hour_local()
             return {
                 'tournament': None,
-                'date': now.strftime('%Y-%m-%d'),
-                'time': now.strftime('%H:%M'),
+                'date': slot.strftime('%Y-%m-%d'),
+                'time': slot.strftime('%H:%M'),
                 'comment': '',
                 'stage': None,
             }

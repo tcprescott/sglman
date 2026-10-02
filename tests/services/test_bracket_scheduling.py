@@ -88,7 +88,7 @@ class TestScheduleBracketMatch:
         t, bracket, users, bmatch = await _linked_bracket(service, actor)
 
         match = await service.schedule_bracket_match(
-            actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+            actor, bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
         )
 
         assert match.tournament_id == t.id
@@ -106,7 +106,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(ValueError, match='players must be linked'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
 
     async def test_non_open_match_rejected(self, service):
@@ -117,7 +117,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(ValueError, match="isn't ready to schedule"):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
 
     async def test_cancelled_stage_rejected(self, service):
@@ -132,7 +132,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(ValueError, match='cancelled'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
         assert await BracketMatchGame.filter(bracket_match_id=bmatch.id).count() == 0
 
@@ -146,7 +146,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(ValueError, match='already scheduled'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
 
     async def test_non_staff_rejected(self, service):
@@ -156,7 +156,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(PermissionError):
             await service.schedule_bracket_match(
                 outsider, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
 
     async def test_entrant_can_schedule_their_own_matchup(self, service):
@@ -166,7 +166,7 @@ class TestScheduleBracketMatch:
 
         match = await service.schedule_bracket_match(
             users[0], bmatch.id,
-            scheduled_date='2026-06-12', scheduled_time='14:30',
+            scheduled_date='2099-06-12', scheduled_time='14:30',
         )
 
         assert match.tournament_id == t.id
@@ -184,7 +184,7 @@ class TestScheduleBracketMatch:
 
         match = await service.schedule_bracket_match(
             users[1], bmatch.id,
-            scheduled_date='2026-06-12', scheduled_time='14:30',
+            scheduled_date='2099-06-12', scheduled_time='14:30',
         )
         assert match.id is not None
 
@@ -195,7 +195,7 @@ class TestScheduleBracketMatch:
         with pytest.raises(ValueError, match='Only staff can set stage_id'):
             await service.schedule_bracket_match(
                 users[0], bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
                 stage_id=room.id,
             )
 
@@ -206,7 +206,7 @@ class TestScheduleBracketMatch:
         await t.admins.add(ta)
 
         match = await service.schedule_bracket_match(
-            ta, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+            ta, bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
         )
         assert match.tournament_id == t.id
 
@@ -231,7 +231,7 @@ class TestListOpenMatchesForUser:
         actor = await _staff()
         _, _, users, bmatch = await _linked_bracket(service, actor)
         await service.schedule_bracket_match(
-            actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+            actor, bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
         )
         assert await service.list_open_matches_for_user(users[0].id) == []
 
@@ -263,7 +263,7 @@ class TestAdvanceIfLinked:
     async def _scheduled(self, service, actor):
         t, bracket, users, bmatch = await _linked_bracket(service, actor)
         match = await service.schedule_bracket_match(
-            actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+            actor, bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
         )
         return bracket, users, bmatch, match
 
@@ -369,5 +369,5 @@ async def test_bracket_match_not_schedulable_across_tenants(service, two_tenants
         with pytest.raises(NotFoundError):
             await service.schedule_bracket_match(
                 b_actor, bmatch.id,
-                scheduled_date='2026-06-12', scheduled_time='14:30',
+                scheduled_date='2099-06-12', scheduled_time='14:30',
             )
