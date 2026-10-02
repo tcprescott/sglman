@@ -22,8 +22,9 @@ from typing import List, Optional, Tuple
 
 from nicegui import background_tasks, context, ui
 
+from application.utils.tenant_urls import login_path
 from models import JoinRequestStatus, User
-from theme.base import BaseLayout
+from theme.base import BaseLayout, current_local_url
 
 logger = logging.getLogger(__name__)
 
@@ -227,20 +228,26 @@ def _render_preview(preview: JoinPreview) -> None:
         ui.label(f'…and {preview.more_matches} more today.').classes('text-caption text-grey')
 
 
+#: First, because a member who is merely signed out — the usual reader of a
+#: Discord button opened on a phone — lands here too, and the way past the door
+#: for them is one tap, not a request.
+_MEMBER_LINE = 'Already a member? Sign in and you’ll land right back on this page.'
+
+
 def _signed_out_message(preview: JoinPreview) -> str:
     if preview.discord_auto_join and preview.join_requests:
         return (
-            'Sign in to join. Members of this community’s Discord server get in '
-            'straight away; anyone else can ask its staff.'
+            f'{_MEMBER_LINE} New here? Members of this community’s Discord '
+            'server get in straight away; anyone else can ask its staff.'
         )
     if preview.discord_auto_join:
         return (
-            'Sign in to join. Members of this community’s Discord server get in '
-            'straight away.'
+            f'{_MEMBER_LINE} New here? Members of this community’s Discord '
+            'server get in straight away.'
         )
     if preview.join_requests:
-        return 'Sign in to ask to join this community.'
-    return 'Sign in if you’re already a member. This community isn’t taking join requests.'
+        return f'{_MEMBER_LINE} New here? Sign in to ask to join.'
+    return f'{_MEMBER_LINE} This community isn’t taking join requests.'
 
 
 def _non_member_message(preview: JoinPreview) -> str:
@@ -273,17 +280,18 @@ def render_join_page(
     user: Optional[User],
     pending: bool = False,
     preview: Optional[JoinPreview] = None,
+    layout: Optional[BaseLayout] = None,
 ) -> None:
     """Ask to join, or say the request is already in.
 
-    ``pending`` and ``preview`` are resolved by the caller (which has already
-    loaded the user), so this stays synchronous.
+    ``pending``, ``preview`` and ``layout`` are resolved by the caller (which
+    has already loaded the user), so this stays synchronous.
     """
     ui.page_title(f'{tenant_name} — Join')
     preview = preview or JoinPreview()
 
     try:
-        BaseLayout(user=user).render_chrome()
+        (layout or BaseLayout(user=user)).render_chrome()
     except Exception:  # pragma: no cover - defensive, mirroring error_page
         pass
 
@@ -294,8 +302,11 @@ def render_join_page(
 
             if user is None:
                 ui.label(_signed_out_message(preview)).classes('error-message')
+                # Absolute and carrying the page: a relative 'login' resolved
+                # against /home/<section> to /home/login, which is this door again.
+                sign_in = login_path(current_local_url())
                 ui.button('Sign in', icon='login',
-                          on_click=lambda: ui.navigate.to('login')).props('color=primary')
+                          on_click=lambda: ui.navigate.to(sign_in)).props('color=primary')
                 _render_discord(preview, signed_in=False)
                 _render_preview(preview)
                 return

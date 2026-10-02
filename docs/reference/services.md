@@ -148,7 +148,7 @@ deliberately not an `ApiToken`, which acts with its owner's full permissions.
 | `issue(actor, label)` | `(RoomToken, str)` | Create a token for the actor's community; returns the record and the **raw token** (only chance to capture it). STAFF only; non-empty label required. Audits `roomtoken.created`. |
 | `list_tokens(actor)` | `list[RoomToken]` | Every token this community has issued, live ones first then newest-first. Revoked rows stay listed so staff can see which machine's URL stopped working. STAFF only. |
 | `revoke(actor, token_id)` | `RoomToken` | Revoke; `NotFoundError` for unknown or already-revoked tokens. STAFF only. Audits `roomtoken.revoked`. |
-| `resolve(raw_token)` | `RoomToken \| None` | The live token this string opens. Unknown, revoked, malformed and wrong-community all return `None` — the page renders the same plain 404 for each, so guessing reveals nothing. Stamps `last_used_at` on success. |
+| `resolve(raw_token)` | `RoomToken \| None` | The live token this string opens. Unknown, revoked, malformed and wrong-community all return `None` — the page renders the same not-found page an unknown route does (HTTP 404, same copy) for each, so guessing reveals nothing. Stamps `last_used_at` on success. |
 
 Both audit actions are deliberately event-less (`test_event_audit_parity`): a
 credential a venue machine holds is a security fact, not a domain one.

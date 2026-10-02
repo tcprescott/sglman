@@ -78,6 +78,15 @@ async def _render_platform_landing() -> None:
                                 ui.label(tenant.name).classes('wiz-tenant-name')
                                 ui.label(f'/t/{tenant.slug}').classes('text-caption text-muted')
                             ui.icon('arrow_forward').classes('text-primary')
+        if tenants:
+            # The bare host has no drawer, so without this a first-time visitor
+            # here has no help at all. Help lives inside each community.
+            with ui.row().classes('items-center gap-x-3 gap-y-1 q-mt-sm'):
+                ui.icon('help_outline').props('size=xs').classes('text-muted')
+                ui.label('New here? Read how it works:').classes('text-caption text-muted')
+                for tenant in tenants:
+                    ui.link(f'{tenant.name} help', f'/t/{tenant.slug}/help') \
+                        .classes('text-caption')
         if await AuthService.is_super_admin(user):
             ui.separator().classes('separator-spacing')
             ui.button('Platform administration', icon='admin_panel_settings',

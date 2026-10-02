@@ -271,11 +271,12 @@ def create() -> None:
         setup_steps = await TenantSetupService().status()
 
         if not access.any():
-            from theme.error_page import render_error_page
+            from theme.error_page import prepared_layout, render_error_page
             render_error_page(
                 status_code=403, headline='Forbidden',
                 message="You don't have access to the admin area. If you think that's wrong, ask a staff member to check your role.",
                 user=user,
+                layout=await prepared_layout(user),
             )
             return
 

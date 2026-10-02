@@ -45,7 +45,7 @@ Roles live in the `UserRole` junction table (`user`, `tenant`, `role`, `granted_
 | Route | Mode | Behavior |
 |---|---|---|
 | `/oauth/discord/connect/callback` | always | Bot-authorization callback for linking a tenant to a Discord guild. Runs on the bare platform host, so the target tenant, CSRF `state`, and return path travel in the session (`discord_connect_*`); writes are wrapped in `tenant_scope`. Delegates to `DiscordLinkService.complete_link` (or `link_guild` in mock mode). |
-| `/login` | real | If already authenticated, redirects to the tenant home. Otherwise pins the return path, generates a CSRF `state`, and 302s to Discord's authorize URL. Under Design B on a custom domain it instead stashes a `handoff_bind` secret and redirects to the platform host's `/oauth/start`. |
+| `/login` | real | If already authenticated, redirects to the safe `?next=` (else the tenant home). Otherwise pins the return path (see [Coming back to the page](#coming-back-to-the-page)), generates a CSRF `state`, and 302s to Discord's authorize URL. Under Design B on a custom domain it instead stashes a `handoff_bind` secret and redirects to the platform host's `/oauth/start`. |
 | `/logout` | real + mock | `app.storage.user.clear()` — wipes the entire session — then redirects to the tenant home. |
 | `/oauth/callback` | real | Validates `state`, exchanges the `code`, fetches the Discord user, provisions the `User` row, writes the session, syncs Discord roles, then navigates to `referrer_path`. |
 | `/oauth/start` | real | Design B entry point on the platform host: allow-lists the target host against active tenant domains, stashes `handoff_*` keys, and runs the normal Discord flow to the single platform callback. |
@@ -85,14 +85,23 @@ Design B's session keys and guards: `/login` on the custom domain mints a `hando
 | `username` | callback / claim / mock login | Display convenience |
 | `avatar` | callback / claim (`avatar_url`; `None` in mock mode) | Display convenience |
 | `oauth_state` | `/login`, `/oauth/start` | One-time CSRF token; popped by the callback |
-| `referrer_path` | `AuthMiddleware`, `/login` | Original (tenant-qualified) destination; popped after the post-login redirect |
+| `referrer_path` | `AuthMiddleware`, `/login` | Original (tenant-qualified) destination, **query string included**; popped after the post-login redirect |
 | `handoff_bind` | `/login` on a custom domain (Design B) | Browser-binding secret; popped and verified by `/session/claim` |
 | `handoff_target_host` / `handoff_next` / `handoff_bind_commit` | `/oauth/start` (Design B) | Target domain, return path, and the published sha256; popped by the platform callback |
 | `discord_connect_state` / `discord_connect_tenant_id` / `discord_connect_return` | [`pages/admin_tabs/admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py), before the bot-auth redirect | CSRF token, target tenant, and return path for `/oauth/discord/connect/callback` |
 
 The Discord `access_token` is **never persisted** — not on the `User` row, not in the session — so there is nothing token-shaped to revoke at logout. The post-login target is `referrer_path` (default `/`), falling back to `/` when it names one of the auth routes.
 
-**How the target is delivered matters.** `referrer_path` is stored *tenant-qualified* (`AuthMiddleware` writes `f'{root_path}{path}'`), and the two delivery mechanisms treat that differently:
+### Coming back to the page
+
+A Discord DM's button is usually opened on a phone with no session, and the whole point of the button is the dialog or row it names (`/home/my-schedule?match=1`, `/admin/schedule?match_id=1`). Two paths carry that target through login, and both keep the query string:
+
+- **A protected page** bounces to `/login`, and `AuthMiddleware` stores `referrer_for(root_path, path, query)` as `referrer_path`.
+- **A page anyone can open** — the join door (home applies the membership gate itself, so a signed-out *member* lands there too), the bracket views, help, the event handbook, the error pages — has a sign-in button rather than a bounce. Both the door's **Sign in** and the header's **Login with Discord** navigate to `login_path(current_local_url())`: `/login?next=<tenant-local path and query>`. The door's button used to be the relative `'login'`, which from `/home/<section>` resolved to `/home/login` — home again, so the door looped.
+
+`/login` (real and mock) picks the target with `return_path_for_login(root_path, next, referrer_path)` ([`tenant_urls.py`](../../application/utils/tenant_urls.py)): a safe `next` wins, qualified with this tenant's `root_path`; otherwise the stored referrer goes through `sanitize_return_path` (this tenant only); otherwise the tenant home. **`next` is attacker-controlled**, so `safe_local_path` accepts only a plain same-origin path: it refuses anything with a scheme, a protocol-relative `//host`, the backslash form browsers normalise (`/\host`), control or whitespace characters, dot segments (including the `%2e` spelling, since `/t/a/../b` walks into another community), auth routes, and anything over 2 KB. `sanitize_return_path` applies the same shape check to the stored referrer, which matters in host mode where there is no prefix to anchor on. Tests: `tests/tenancy/test_login_return_path.py`.
+
+**How the target is delivered matters.** `referrer_path` is stored *tenant-qualified* (`AuthMiddleware` writes `f'{root_path}{path}?{query}'`), and the two delivery mechanisms treat that differently:
 
 - An HTTP `RedirectResponse` is resolved by the browser against the origin, so it takes the fully qualified path — `tenant_home(root_path)`, `referrer_path` as stored.
 - `ui.navigate.to` is **client-side**, and `nicegui.js` prepends the client's `options.prefix` (`X-Forwarded-Prefix` + `root_path`) to any absolute path. A navigate issued from a page served under `/t/<slug>` must therefore be given the **tenant-local** path via `strip_root_path(root_path, path)`, or it lands on `/t/<slug>/t/<slug>/…`. The mock-login picker (`_login_as`) does this. The real `/oauth/callback` and `/session/claim` deliberately do not: both run where the prefix is empty — the callback on the bare platform host, the claim on the tenant's own domain — so the qualified path is the correct one there.
@@ -149,12 +158,12 @@ The Discord credentials (`DISCORD_TOKEN`, `DISCORD_CLIENT_SECRET`, `DISCORD_CLIE
 On each render, `_tenant_page` runs in this order — regardless of which decorator registered the route:
 
 1. **Page-view telemetry** — recorded before any auth short-circuit, in a background task with the tenant rebound ([features/telemetry.md](../features/telemetry.md)). On a public page the row may carry a `NULL` `discord_id`, attributed to the browser session alone.
-2. **Tenant resolution** — no tenant in scope (a bare `/admin` on the platform host rather than `/t/<slug>/admin`) renders a themed 404 and returns.
+2. **Tenant resolution** — no tenant in scope (a bare `/help` on the platform host rather than `/t/<slug>/help`) renders a 404 titled "Pick a community" whose buttons open the same path inside each active community — someone who lost the prefix wants the page, not a dead end.
 3. **Stash for websockets** — `stash_client_tenant_id(tid)` and `stash_client_host_mode(is_host_mode())`, so UI event handlers running outside any request can resolve both.
 4. **Display clock** — binds the viewer's display timezone (contextvar + client stash) from `TimezoneService.pick(...)` before anything renders, first without the user and again once a signed-in user is loaded in step 6 ([timezone-handling.md](../timezone-handling.md)). A page that bypasses `_tenant_page` (the tenant home) calls the public `bind_display_timezone(tenant_id, user)` itself.
-5. **Feature gate** — when `feature=` is set and the flag is not live for this tenant, renders a **404** (hidden like an unknown route), *before* the role gate: a subsystem the tenant has not enabled is invisible to everyone, staff and super-admins included.
+5. **Feature gate** — when `feature=` is set and the flag is not live for this tenant, renders the unknown-route **404**, word for word and with the viewer shown (`theme.error_page.render_not_found`), *before* the role gate: a subsystem the tenant has not enabled is invisible to everyone, staff and super-admins included.
 6. **Membership gate** (only on an auth-requiring route, so a `public_page` is unaffected) — a viewer who is not a `TenantMembership` of this tenant gets the **join door** ([`theme/join_page.py`](../../theme/join_page.py)), *not* a 403: forbidden-by-role is a dead end, not-a-member is a state with a remedy. Rendered in place at the requested URL, so a deep link survives approval. `SUPER_ADMIN` bypasses it, as it does the role gate. Deliberately not gated on `Tenant.is_active`. The check is `middleware.auth.enforce_membership`, shared with the tenant home — which is registered with a bare `ui.page` (the same function also serves the tenant-less community picker) and so applies the gate itself.
-7. **Role gate** (only when `roles=` or `allow_tournament_membership=` was given) — a global `SUPER_ADMIN` passes unconditionally; otherwise the user must hold at least one listed role **in the current tenant** (`AuthService.get_roles` intersection), and `allow_tournament_membership=True` additionally admits anyone `AuthService.can_view_admin` accepts. Denial renders the themed 403 page ([`theme/error_page.py`](../../theme/error_page.py)) — a normal 200 render, not a redirect. See [Error pages](frontend.md#error-pages-middlewareerror_handlerspy).
+7. **Role gate** (only when `roles=` or `allow_tournament_membership=` was given) — a global `SUPER_ADMIN` passes unconditionally; otherwise the user must hold at least one listed role **in the current tenant** (`AuthService.get_roles` intersection), and `allow_tournament_membership=True` additionally admits anyone `AuthService.can_view_admin` accepts. Denial renders the themed 403 page ([`theme/error_page.py`](../../theme/error_page.py)) in the community's chrome — a render with HTTP status 403, not a redirect. See [Error pages](frontend.md#error-pages-middlewareerror_handlerspy).
 
 ### `protected_page`
 
@@ -214,7 +223,7 @@ Signed-out readability is **not** publication: the app serves a blanket `robots.
 Registered in [`frontend.py`](../../frontend.py) with `app.add_middleware(AuthMiddleware)` at module import. Its `dispatch` runs on every request:
 
 1. If `app.storage.user['authenticated']` is truthy, attach the `discord_id`/`username` to Sentry (guarded, so `str(None)` never files a phantom user) and pass through.
-2. Otherwise, if the path does not start with `/_nicegui` **and** `_matches_protected_route(path)`: save `f'{root_path}{path}'` as `referrer_path` and return `RedirectResponse(f'{root_path}/login')`. Under path mode `TenantMiddleware` has already stripped `/t/<slug>` into `root_path`, so rebuilding both from it round-trips the login back to the right community.
+2. Otherwise, if the path does not start with `/_nicegui` **and** `_matches_protected_route(path)`: save `referrer_for(root_path, path, request.url.query)` (the query kept) as `referrer_path` and return `RedirectResponse(f'{root_path}/login')`. Under path mode `TenantMiddleware` has already stripped `/t/<slug>` into `root_path`, so rebuilding both from it round-trips the login back to the right community.
 3. All other unauthenticated traffic (home page, `/api/*`, static files) passes through.
 
 `_matches_protected_route` matches plain paths by **exact string equality** (no prefix matching — `/admin/foo` does not match `/admin`), and compiles entries containing `{param}` placeholders to anchored regexes with each placeholder as `[^/]+`, so `/equipment/{asset_id}` matches `/equipment/3`.

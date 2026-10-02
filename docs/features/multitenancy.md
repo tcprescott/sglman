@@ -30,7 +30,11 @@ scope**: `/t/<slug>` is stripped from `scope['path']` and appended to
 `/equipment`, …) serve both the tenant and the platform surface, while redirects
 and links built from `root_path` keep the `/t/<slug>` prefix.
 
-- **Unknown or inactive slug → 404.**
+- **Unknown or inactive slug → 404.** The request is marked
+  (`UNKNOWN_COMMUNITY_SCOPE_KEY`) and left unrouted with no tenant bound, so the
+  themed 404 handler renders "Community not found" with a **See all communities**
+  button to the picker. (It used to be a bare `Response` with no `Content-Type`,
+  which Chrome treated as a file download.)
 - **No `/t/` prefix → no tenant context.** That is the *platform surface*: the
   landing/community-picker page, `/platform`, and the shared OAuth callbacks.
 - **Excluded (tenant-agnostic) paths:** `/_nicegui`, `/static`, `/api`, `/sw.js`.
@@ -174,8 +178,8 @@ four checks in order — tenant → feature → **membership** → role:
 
 | Check | Failure renders |
 |---|---|
-| A tenant is in scope | 404 (a bare `/admin` on the platform host is not a tenant page) |
-| The feature is live here | 404 — a subsystem the tenant has off is hidden from everyone, member or not, so an unreleased feature never leaks |
+| A tenant is in scope | 404 "Pick a community", offering the same path inside each active community (a bare `/help` on the platform host is not a tenant page) |
+| The feature is live here | The unknown-route 404, word for word — a subsystem the tenant has off is hidden from everyone, member or not, so an unreleased feature never leaks |
 | The viewer is a member | the **join door** (`theme/join_page.py`) — not a 403 |
 | The viewer holds a required role | 403 |
 
