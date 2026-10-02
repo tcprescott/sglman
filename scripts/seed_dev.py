@@ -672,7 +672,23 @@ async def seed() -> None:
         await seed_all()
     finally:
         await Tortoise.close_connections()
+        _discard_unsent()
     print("Seeding complete.")
+
+
+def _discard_unsent() -> None:
+    """Drop the DMs and event deliveries the seed queued for a worker it never runs.
+
+    Starting a bracket queues each matchup-ready DM; with no queue worker in
+    this process they were left un-awaited and Python printed a
+    ``RuntimeWarning: coroutine ... was never awaited`` per send at exit.
+    """
+    from application.events import dispatch_queue
+    from application.services.discord import discord_queue
+
+    dropped = discord_queue.discard_pending() + dispatch_queue.discard_pending()
+    if dropped:
+        print(f"  {dropped} queued notification(s) not sent: the seed runs without the bot.")
 
 
 if __name__ == "__main__":
