@@ -31,7 +31,7 @@ screen can only fail again.
 from contextlib import nullcontext
 from typing import List, Optional
 
-from nicegui import context, ui
+from nicegui import Client, context, ui
 
 from application.errors import AlreadyBookedError
 from application.services import BracketService
@@ -77,7 +77,7 @@ class BracketScheduleDialog:
         self.tenant_id = tenant_id
         self.on_submit = on_submit
         self.dialog = None
-        self._client = None
+        self._client: Optional[Client] = None
         self.bracket_service = BracketService()
 
     def _scope(self):
@@ -101,7 +101,7 @@ class BracketScheduleDialog:
                 "ask staff to move it if the time doesn't work.")
 
     async def _after_submit(self) -> None:
-        if self.on_submit is None:
+        if self.on_submit is None or self._client is None:
             return
         with self._client, self._scope():
             await self.on_submit()

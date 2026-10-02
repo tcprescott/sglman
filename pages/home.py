@@ -123,15 +123,9 @@ def create() -> None:
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
         )
-        schedule, reschedule, match, hard = (
-            ids['schedule'], ids['reschedule'], ids['match'], ids['hard'],
-        )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
-        record_page_view('/home', {
-            'section': section, 'schedule': schedule, 'reschedule': reschedule,
-            'match': match, 'hard': hard,
-        })
+        record_page_view('/home', {'section': section, **ids})
         # Stash the tenant onto the connection so websocket UI handlers resolve it.
         stash_client_tenant_id(tid)
         # Carry host mode too, so link-section buttons can hide on a custom domain.
@@ -195,8 +189,8 @@ def create() -> None:
             {'label': 'My Schedule', 'icon': 'event_available',
              'aliases': ('player', 'my-crew', 'availability', 'equipment'),
              'content': (my_schedule_tab, (),
-                         {'schedule': schedule, 'reschedule': reschedule,
-                          'match': match, 'hard': hard})},
+                         {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
+                          'match': ids['match'], 'hard': ids['hard']})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission
