@@ -8,7 +8,7 @@ dialog hanging off the card for the tournament it belongs to.
 
 from typing import Set
 
-from nicegui import ui
+from nicegui import Client, ui
 
 from application.services import (
     AuthService,
@@ -35,7 +35,18 @@ async def supporting_tournament_ids() -> Set[int]:
     return {t.id for t in await TriforceTextService().list_supporting_tournaments()}
 
 
-async def open_triforce_dialog(tournament: Tournament, user: User) -> None:
+async def open_triforce_dialog(tournament: Tournament, user: User, client: Client) -> None:
+    """Build and open the dialog inside ``client``.
+
+    The card's button runs this as a background task, where the slot stack is
+    empty: without re-entering the client, ``ui.dialog()`` has nowhere to go and
+    the button did nothing at all.
+    """
+    with client:
+        await _build_triforce_dialog(tournament, user)
+
+
+async def _build_triforce_dialog(tournament: Tournament, user: User) -> None:
     service = TriforceTextService()
     accepts = tournament.is_active and SeedGenerationService.supports_triforce_texts(
         tournament.seed_generator

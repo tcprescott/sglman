@@ -160,12 +160,13 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
     ) -> List[Tournament]:
         """Tournaments a player may still request a match in.
 
-        Excludes the bracket-run ones (``allow_player_match_requests`` off).
+        Excludes the bracket-run ones (``allow_player_match_requests`` off) and
+        archived ones (``is_active`` off), which ``submit_match_request`` refuses.
         Narrowed to the tournaments ``user_id`` is enrolled in when given, which
         is what the request dialog's default (non-"show all") list needs.
         """
         query = scoped(
-            Tournament.filter(allow_player_match_requests=True)
+            Tournament.filter(allow_player_match_requests=True, is_active=True)
         ).order_by('name')
         if user_id is not None:
             query = query.filter(players__user_id=user_id)

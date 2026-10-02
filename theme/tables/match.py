@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from nicegui import app, background_tasks, context, ui
@@ -19,7 +20,6 @@ from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.export import csv_export_button
 from theme.tables.hard_preset_rows import (
     apply_hard_preset_state,
-    carry_hard_preset_state,
 )
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_filters import (
@@ -29,7 +29,11 @@ from theme.tables.match_filters import (
 )
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
-from theme.tables.match_slots import CANDIDATE_STAGE, register_body_slots
+from theme.tables.match_slots import (
+    CANDIDATE_STAGE,
+    MY_ACTIONS_COLUMN,
+    register_body_slots,
+)
 from theme.tables.preferences import (
     customize_table,
     preferences_button,
@@ -37,6 +41,7 @@ from theme.tables.preferences import (
     search_input,
     sticky_header,
 )
+from theme.tables.row_state import carry_viewer_row_state
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -78,6 +83,11 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # decides per viewer, so a tournament admin on the same board sees none.
         self.show_accommodations = show_accommodations
         self._plan = None
+        # Serialises single-row updates. One service call can push match_live
+        # twice (approving a move: once from update_match, once after the
+        # decision is recorded), and two concurrent re-fetches of one row let
+        # the earlier, staler read land last.
+        self._row_update_lock = asyncio.Lock()
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
@@ -536,6 +546,12 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                 ui.button('Close', on_click=dialog.close).props('flat')
         dialog.open()
 
+    def _shows_column(self, name: str) -> bool:
+        """Whether the board renders ``name``'s control, on its own or inside
+        the player's combined "Your actions" cell (``MY_ACTIONS_COLUMN``)."""
+        names = {c.get('name') for c in self.columns}
+        return name in names or MY_ACTIONS_COLUMN in names
+
     async def _fetch_hard_preset_states(self, rows) -> dict:
         """This viewer's own hard-preset state for every visible row, in bulk.
 
@@ -543,7 +559,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         schedule and the proctor station render matches nobody is choosing
         settings on, so the queries would buy nothing.
         """
-        if not any(c.get('name') == 'hard_preset' for c in self.columns):
+        if not self._shows_column('hard_preset'):
             return {}
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
@@ -565,7 +581,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         schedule, the proctor station and the home schedule all render matches
         and none of them offers the ask, so the two queries would buy nothing.
         """
-        if not any(c.get('name') == 'reschedule' for c in self.columns):
+        if not self._shows_column('reschedule'):
             return set(), set()
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
@@ -583,6 +599,10 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         Uses service layer to fetch match data. When ``flash`` is set, the refreshed row
         briefly highlights so viewers notice a change made elsewhere.
         """
+        async with self._row_update_lock:
+            await self._update_row(match_id, flash)
+
+    async def _update_row(self, match_id, flash):
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is None:
@@ -598,9 +618,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             self._notify_rows_changed()
             return
 
-        match_data['_watching'] = self.table.rows[idx].get('_watching', False)
-        match_data['_stream_volunteer'] = self.table.rows[idx].get('_stream_volunteer', False)
-        carry_hard_preset_state(match_data, self.table.rows[idx])
+        carry_viewer_row_state(match_data, self.table.rows[idx])
+        await self._restamp_shared_state(match_data)
         await self._apply_accommodations([match_data])
         stage_options = self._stage_options()
         if stage_options is not None:
@@ -612,6 +631,21 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self._notify_rows_changed()
         if flash:
             self._schedule_flash_clear(match_id)
+
+    async def _restamp_shared_state(self, row) -> None:
+        """Recompute the per-viewer fields other people's actions change.
+
+        The reschedule pair and the harder-preset fields (``RESTAMPED_ROW_FIELDS``)
+        for this one row, through the same bulk lookups ``refresh`` uses: staff
+        approving a move is exactly the ``match_live`` push that lands here.
+        """
+        if self._shows_column('reschedule'):
+            requestable_ids, asked_ids = await self._fetch_reschedule_state()
+            row['_can_reschedule'] = row.get('id') in requestable_ids
+            row['_reschedule_pending'] = row.get('id') in asked_ids
+        if self._shows_column('hard_preset'):
+            states = await self._fetch_hard_preset_states([row])
+            apply_hard_preset_state(row, states.get(row.get('id')))
 
     def _schedule_flash_clear(self, match_id):
         """Clear the transient highlight on a row a moment after it was set."""
@@ -632,3 +666,4 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if idx is not None:
             del self.table.rows[idx]
             self.table.update()
+

@@ -17,7 +17,7 @@ subscribers (presentation) can import it with no cycle.
 | `event_types.py` | `EventType` — the `object.verb` name registry (mirrors `AuditActions`). `EventType.ALL` drives the webhook UI multiselect + validation; `'*'` is the wildcard. |
 | `dispatch_queue.py` | A background worker (its own instance of the shared `CoroutineQueue` from `application/utils/coroutine_queue.py`, separate from `discord_queue`) that runs async subscribers off the request path. |
 | `bus.py` | The core: `subscribe_sync`, `subscribe_async`, `unsubscribe`, `publish`. |
-| `match_live.py` | The narrow predecessor: `(match_id, change_type)` nudges to open UI views. Deliberately **not** re-exported from `__init__.py`, so reaching for it takes an explicit `from application.events import match_live` and can never be mistaken for the bus. |
+| `match_live.py` | The narrow predecessor: `(match_id, change_type)` nudges to open UI views. Deliberately **not** re-exported from `__init__.py`, so reaching for it takes an explicit `from application.events import match_live` and can never be mistaken for the bus. Views subscribe through `theme/realtime.register_view`, whose runner re-enters the view's client *and* rebinds NiceGUI's request contextvar to that client's request: the task inherits the publisher's contextvars, so without the rebind `app.storage.user` named the publisher (a staff member approving a move) as every board's viewer. A client whose session has no user storage is skipped. A publisher that changes state in two writes must publish after the last one; `MatchRescheduleService.approve` publishes again once the decision is recorded, and `MatchTableView` serialises single-row updates so an earlier, staler re-fetch cannot land last. |
 
 ## Two kinds of subscriber
 

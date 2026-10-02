@@ -30,6 +30,11 @@ async def stop() -> None:
     await _q.stop()
 
 
+def discard_pending() -> int:
+    """Close whatever is queued without running it (see ``CoroutineQueue``)."""
+    return _q.discard_pending()
+
+
 async def _run_in_tenant_scope(tenant_id: int, coro: Coroutine) -> None:
     with tenant_scope(tenant_id):
         await coro

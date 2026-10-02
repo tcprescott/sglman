@@ -193,7 +193,8 @@ Button interactions are **not** testable in mock mode (no bot connection); see [
 | Function | Signature | Behavior |
 |---|---|---|
 | `start` | `() -> None` (sync) | Delegates to `CoroutineQueue.start()` — creates the single worker task on the running loop. Called once from lifespan startup. |
-| `stop` | `() -> None` (async) | Delegates to `CoroutineQueue.stop()`: logs `discord_queue stopping with %d item(s) still queued — they will not be sent`, cancels the worker, awaits it. Called from lifespan shutdown. |
+| `stop` | `() -> None` (async) | Delegates to `CoroutineQueue.stop()`: logs `discord_queue stopping with %d item(s) still queued — they will not be sent`, cancels the worker, awaits it, then closes what was left (`discard_pending`). Called from lifespan shutdown. |
+| `discard_pending` | `() -> int` (sync) | Closes every queued send without running it — for a process that never starts the worker, such as `scripts/seed_dev.py`. |
 | `enqueue` | `(coro: Coroutine) -> None` (sync) | Wraps the coroutine in the caller's `tenant_scope` (below), then `put_nowait` onto the unbounded queue. Safe from sync or async code; never blocks. |
 
 The worker awaits one coroutine at a time, so sends are strictly serialized in enqueue order. Failures are **logged** (reaching logs + Sentry), never swallowed silently, and the queue survives a bad send.

@@ -250,3 +250,18 @@ def submit_on_enter(dialog, make_coro) -> None:
             # ui.run_javascript in the submit handler would raise.
             return make_coro()
     dialog.on('keydown', on_keydown)
+
+
+def booked_notice(opponent_name: str, opponent_can_ask: bool) -> str:
+    """What a player is told after booking their own matchup.
+
+    Booking is final: there is no confirm step, so the copy must not promise
+    one. The "ask staff to move it" clause is said only where it is true; a
+    tournament with ``allow_reschedule_requests`` off gives the opponent no such
+    route, and saying otherwise sends them looking for a button that is not
+    there.
+    """
+    notice = f'Booked. {opponent_name} gets a message about it.'
+    if opponent_can_ask:
+        notice += " They can ask staff to move it if the time doesn't work."
+    return notice

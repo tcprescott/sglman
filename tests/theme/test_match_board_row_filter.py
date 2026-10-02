@@ -8,6 +8,7 @@ one, because rolling a seed publishes ``changed`` (not ``CREATED``) for a match
 the board has never had a row for, which a plain in-place update would no-op.
 """
 
+import asyncio
 from types import SimpleNamespace
 
 from application.events import match_live
@@ -32,6 +33,8 @@ def _view(rows, *, fetched=None):
     view.on_rows_changed = None
     view.on_set_stage = None
     view.show_accommodations = False
+    view._row_update_lock = asyncio.Lock()
+    view.columns = []
     view.refreshed = 0
     # The row-flash timer needs a live slot context, which none of these paths
     # has; the highlight is not what is under test.

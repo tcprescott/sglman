@@ -409,7 +409,8 @@ Single-worker async queue (one instance of the shared `CoroutineQueue` from [`co
 | Function | Returns | Description |
 |---|---|---|
 | `start()` | `None` | Create the worker task on the running event loop. Called once from `main.py` lifespan startup. |
-| `stop()` (async) | `None` | Cancel the worker and await its exit; warns if items are still queued (they are dropped). Called from lifespan shutdown. |
+| `stop()` (async) | `None` | Cancel the worker and await its exit; warns if items are still queued (they are dropped). Called from lifespan shutdown. Dropped items are closed (`discard_pending`), so none surfaces later as a never-awaited warning. |
+| `discard_pending()` | `int` | Close every queued coroutine without running it, including the send an un-started `_run_in_tenant_scope` wrapper holds; returns the count. For a process with no worker: `scripts/seed_dev.py` calls it (and `dispatch_queue`'s) after seeding, because starting a bracket queues matchup DMs. |
 | `enqueue(coro)` | `None` | Put a coroutine on the queue without awaiting it. Captures the caller's tenant and re-binds it (`tenant_scope`) around the coroutine when the worker runs it, since the worker starts with no tenant in scope; enqueued outside any tenant, the coroutine is queued unwrapped. |
 
 Producers: the match services (`MatchService`, `MatchScheduleService`, cancellation, hard-preset, stage reminder), `CrewService`, `BracketService` notifications, reschedule and tournament-signup notifications, `TenantMembershipService`, and the volunteer schedule/reminder. Tests stub `enqueue` (see [Testing](#testing-the-service-layer)).

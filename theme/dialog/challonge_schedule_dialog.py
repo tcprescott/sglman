@@ -8,11 +8,13 @@ dialog (``theme/dialog/match_dialog.py``), rather than silently pre-filling an
 availability/occupancy-aware suggestion on open.
 """
 
-from nicegui import ui
+from nicegui import context, ui
 
 from application.services import ChallongeService
-from application.utils.timezone import now_local
+from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.timezone import next_whole_hour_local
 from theme.dialog._helpers import (
+    booked_notice,
     dialog_actions,
     dialog_header,
     mobile_sheet,
@@ -35,9 +37,15 @@ class ChallongeScheduleDialog:
 
     async def open(self):
         cm = self.challonge_match
-        now = now_local()
-        default_date = now.strftime('%Y-%m-%d')
-        default_time = now.strftime('%H:%M')
+        # Captured while the opening handler's slot is alive. on_submit
+        # refreshes the section this dialog was built in, deleting it, so the
+        # refresh after it has to be handed its client and tenant back
+        # (bracket_schedule_dialog has the same shape).
+        client = context.client
+        tenant_id = get_current_tenant_id()
+        slot = next_whole_hour_local()
+        default_date = slot.strftime('%Y-%m-%d')
+        default_time = slot.strftime('%H:%M')
         player_ids = [cm.participant1.user_id, cm.participant2.user_id]
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -76,17 +84,26 @@ class ChallongeScheduleDialog:
                         scheduled_time=time.value,
                         actor=self.actor,
                     )
-                    with self.dialog:
-                        ui.notify('Match scheduled — your opponent will be asked to confirm.', color='positive')
-                        dialog.close()
-                    if self.on_submit:
-                        await self.on_submit()
                 except PermissionError as e:
                     with self.dialog:
                         ui.notify(str(e), color='negative')
+                    return
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(str(e), color='warning')
+                    return
+                with self.dialog:
+                    ui.notify(
+                        booked_notice(
+                            self.opponent_name,
+                            bool(getattr(cm.tournament, 'allow_reschedule_requests', False)),
+                        ),
+                        color='positive', multi_line=True,
+                    )
+                    dialog.close()
+                if self.on_submit:
+                    with client, tenant_scope(tenant_id):
+                        await self.on_submit()
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

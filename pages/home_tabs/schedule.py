@@ -35,13 +35,16 @@ async def schedule():
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             # Not sortable: joined rosters sort on whoever is listed first.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
+            # Crew and Watch beside Players: the Sign up buttons are what this
+            # board offers a member, and after Stage and Seed they started past
+            # the table's right edge at 1440.
+            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
+            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
+            {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
             {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed',
              'sortable': True},
-            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
-            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
-        columns.append({'name': 'watch', 'label': 'Watch', 'field': 'watch'})
 
         async def get_query():
             return await match_service.get_all_matches_for_schedule()
