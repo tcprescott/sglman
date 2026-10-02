@@ -44,6 +44,16 @@ class MissingCredentialError(ValueError):
     """
 
 
+class AlreadyBookedError(ValueError):
+    """Raised when the slot a caller tried to book was booked by someone else first.
+
+    A plain :class:`ValueError` everywhere else (400 over REST, a notification
+    in the UI), and a distinct type so a booking dialog can tell "your input was
+    wrong, fix it" from "this is stale, close and refresh": the second leaves a
+    Schedule button on screen that can only fail again.
+    """
+
+
 def require_found(obj: Optional[T], label: str) -> T:
     """Return ``obj`` if present, otherwise raise :class:`NotFoundError`.
 

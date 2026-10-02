@@ -27,3 +27,46 @@ class TestTriforceButton:
         opener = source[source.index('async def open_triforce_dialog'):]
         opener = opener[:opener.index('\nasync def ', 1)]
         assert 'with client:' in opener
+
+
+class TestBookingCopy:
+    """A player's booking is final; nothing asks the opponent to confirm it."""
+
+    def test_no_surface_promises_a_confirm_step(self):
+        for rel in ('pages/home_tabs/player.py',
+                    'theme/dialog/bracket_schedule_dialog.py',
+                    'theme/dialog/challonge_schedule_dialog.py'):
+            source = _read(rel)
+            assert 'your opponent confirms' not in source, rel
+            assert 'asked to confirm' not in source, rel
+            assert 'ask staff to move it' in source, rel
+
+    def test_the_board_refreshes_before_the_section_holding_the_dialog(self):
+        # Rebuilding the section deletes the dialog the callback runs from, and
+        # the board refresh after it found no tenant ("No tenant in context").
+        source = _read('pages/home_tabs/player.py')
+        for section in ('challonge_section', 'bracket_section'):
+            after = source[source.index(f'{section}.refresh()') - 120:source.index(f'{section}.refresh()')]
+            assert 'await table_view.refresh()' in after, section
+
+
+class TestBookingDialog:
+    def test_on_submit_runs_in_the_opening_client_and_tenant(self):
+        source = _read('theme/dialog/bracket_schedule_dialog.py')
+        assert 'self._client = context.client' in source
+        assert 'self.tenant_id = get_current_tenant_id()' in source
+        assert 'with self._client, self._scope():' in source
+
+    def test_a_lost_race_closes_and_refreshes(self):
+        source = _read('theme/dialog/bracket_schedule_dialog.py')
+        branch = source[source.index('except AlreadyBookedError'):]
+        branch = branch[:branch.index('except PermissionError')]
+        assert 'dialog.close()' in branch
+        assert 'return' not in branch  # falls through to _after_submit
+
+    def test_no_dialog_defaults_to_now(self):
+        for rel in ('theme/dialog/bracket_schedule_dialog.py',
+                    'theme/dialog/challonge_schedule_dialog.py'):
+            source = _read(rel)
+            assert 'next_whole_hour_local()' in source, rel
+            assert 'now_local()' not in source, rel

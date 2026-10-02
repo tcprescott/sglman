@@ -16,19 +16,27 @@ the staff bracket view does not carry. Shares the button with the non-bracket
 UserMatchDialog match-request dialog (``theme/dialog/match_dialog.py``).
 
 ``tenant_id`` is optional: pass it from a detached client event (the bracket
-view's card click) so the service call is rebound with ``tenant_scope``; omit it
-inside an ordinary page handler, where the client stash already resolves the
-tenant.
+view's card click); otherwise it is read when the dialog opens. Either way the
+booking and ``on_submit`` run under ``tenant_scope`` and inside the client the
+dialog opened in. That is not belt and braces: the player board's ``on_submit``
+refreshes the section the dialog was built in, which deletes the dialog, and the
+board refresh that follows used to find no slot, no client stash and so no
+tenant ("No tenant in context" on every booking).
+
+A booking that lost a race (``AlreadyBookedError``) closes the dialog and runs
+``on_submit`` too, because the Schedule button it would otherwise leave on
+screen can only fail again.
 """
 
 from contextlib import nullcontext
 from typing import List, Optional
 
-from nicegui import ui
+from nicegui import context, ui
 
+from application.errors import AlreadyBookedError
 from application.services import BracketService
-from application.tenant_context import tenant_scope
-from application.utils.timezone import now_local
+from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.timezone import next_whole_hour_local
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -69,6 +77,7 @@ class BracketScheduleDialog:
         self.tenant_id = tenant_id
         self.on_submit = on_submit
         self.dialog = None
+        self._client = None
         self.bracket_service = BracketService()
 
     def _scope(self):
@@ -82,10 +91,25 @@ class BracketScheduleDialog:
         return f'{game} vs {self.opponent_name}' if self.opponent_name else game
 
     def _defaults(self) -> tuple:
-        now = now_local()
-        return now.strftime('%Y-%m-%d'), now.strftime('%H:%M')
+        slot = next_whole_hour_local()
+        return slot.strftime('%Y-%m-%d'), slot.strftime('%H:%M')
+
+    def _booked_message(self) -> str:
+        if not self.opponent_name:
+            return 'Match scheduled.'
+        return (f"Booked. {self.opponent_name} gets a message about it and can "
+                "ask staff to move it if the time doesn't work.")
+
+    async def _after_submit(self) -> None:
+        if self.on_submit is None:
+            return
+        with self._client, self._scope():
+            await self.on_submit()
 
     async def open(self):
+        self._client = context.client
+        if self.tenant_id is None:
+            self.tenant_id = get_current_tenant_id()
         default_date, default_time = self._defaults()
         can_suggest = bool(self.opponent_name and self.tournament_id and len(self.player_ids) == 2)
 
@@ -135,21 +159,23 @@ class BracketScheduleDialog:
                             scheduled_date=date.value,
                             scheduled_time=time.value,
                         )
+                except AlreadyBookedError as e:
                     with self.dialog:
-                        ui.notify(
-                            'Match scheduled — your opponent will be asked to confirm.'
-                            if self.opponent_name else 'Match scheduled.',
-                            color='positive',
-                        )
+                        ui.notify(str(e), color='warning', multi_line=True)
                         dialog.close()
-                    if self.on_submit:
-                        await self.on_submit()
                 except PermissionError as e:
                     with self.dialog:
                         ui.notify(str(e), color='negative')
+                    return
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(str(e), color='warning')
+                    return
+                else:
+                    with self.dialog:
+                        ui.notify(self._booked_message(), color='positive', multi_line=True)
+                        dialog.close()
+                await self._after_submit()
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

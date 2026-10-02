@@ -225,7 +225,10 @@ async def render_player_dashboard(
             # directly (there is no separate challonge_container to enter).
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
+                ui.label(
+                    'From your Challonge bracket. Pick a time and it’s booked; your '
+                    'opponent gets a message and can ask staff to move it.'
+                ).classes(
                     'text-caption text-grey-7'
                 )
                 for cm in matches:
@@ -244,8 +247,8 @@ async def render_player_dashboard(
                                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
                                 async def after():
-                                    challonge_section.refresh()
                                     await table_view.refresh()
+                                    challonge_section.refresh()
 
                                 dialog = ChallongeScheduleDialog(
                                     m, actor=actor, opponent_name=oname, on_submit=after,
@@ -280,7 +283,10 @@ async def render_player_dashboard(
             openers: dict = {}
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label('From your bracket. Pick a time and your opponent confirms.').classes(
+                ui.label(
+                    'From your bracket. Pick a time and it’s booked; your opponent '
+                    'gets a message and can ask staff to move it.'
+                ).classes(
                     'text-caption text-grey-7'
                 )
                 for bm in matchups:
@@ -311,9 +317,11 @@ async def render_player_dashboard(
                                 app.storage.user.get('discord_id')
                             )
 
+                            # The board first: rebuilding the section deletes
+                            # the dialog this runs from.
                             async def after():
-                                bracket_section.refresh()
                                 await table_view.refresh()
+                                bracket_section.refresh()
 
                             await BracketScheduleDialog(
                                 m.id, actor,

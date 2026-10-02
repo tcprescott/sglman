@@ -175,6 +175,42 @@ class TestScheduleBracketMatch:
         game = await BracketMatchGame.get(bracket_match_id=bmatch.id)
         assert game.match_id == match.id
 
+    async def test_a_stale_booking_names_who_booked_it_and_when(self, service):
+        """Two players with the dialog open: the loser learns who and when.
+
+        It used to read "All 1 game(s) of this series are already scheduled."
+        """
+        from application.errors import AlreadyBookedError
+
+        actor = await _staff()
+        _, _, users, bmatch = await _linked_bracket(service, actor)
+        users[0].display_name = 'Alice'
+        await users[0].save()
+        await service.schedule_bracket_match(
+            users[0], bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
+        )
+        with pytest.raises(AlreadyBookedError, match=r'^Alice already booked this match for 2099-06-12 14:30'):
+            await service.schedule_bracket_match(
+                users[1], bmatch.id, scheduled_date='2099-06-13', scheduled_time='10:00',
+            )
+        with pytest.raises(AlreadyBookedError, match=r'^You already booked this match'):
+            await service.schedule_bracket_match(
+                users[0], bmatch.id, scheduled_date='2099-06-13', scheduled_time='10:00',
+            )
+
+    async def test_a_staff_booking_says_when_without_a_name(self, service):
+        from application.errors import AlreadyBookedError
+
+        actor = await _staff()
+        _, _, users, bmatch = await _linked_bracket(service, actor)
+        await service.schedule_bracket_match(
+            actor, bmatch.id, scheduled_date='2099-06-12', scheduled_time='14:30',
+        )
+        with pytest.raises(AlreadyBookedError, match=r'^This match is already booked for 2099-06-12 14:30'):
+            await service.schedule_bracket_match(
+                users[1], bmatch.id, scheduled_date='2099-06-13', scheduled_time='10:00',
+            )
+
     async def test_entrant_schedules_despite_the_request_toggle(self, service):
         """create_bracket turns the toggle off; the bracket path must still work."""
         actor = await _staff()

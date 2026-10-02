@@ -291,6 +291,18 @@ through the shared
 [`BracketScheduleDialog`](../../theme/dialog/bracket_schedule_dialog.py) — the same
 dialog the staff bracket view opens, in its player mode.
 
+Booking is final on the player's side: the match is created at once, the
+opponent gets the acknowledgment request, and their only way to change it is a
+reschedule request staff decide. The dialog and the dashboard copy say exactly
+that ("it's booked; your opponent gets a message and can ask staff to move
+it"), not that the opponent confirms. The dialog defaults to the next whole
+hour, and `submit_match_request` refuses a time that has passed and an
+archived tournament (`is_active` off), the bracket path included. When two
+players race, the loser's `schedule_bracket_match` raises `AlreadyBookedError`
+(a `ValueError`) naming who booked it and when — the booker is the
+auto-acknowledged player on the game's match — and the dialog closes and
+refreshes rather than leaving a Schedule button that can only fail again.
+
 Going the other way, staff can attach a match scheduled in the ordinary editor to
 the matchup it settles: `link_match_to_bracket_match` writes the
 `BracketMatchGame` for an existing `Match` and `unlink_match` detaches one that has

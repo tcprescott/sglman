@@ -8,11 +8,13 @@ and ``self.repository`` through that composed class.
 
 from typing import Any, Dict, List, Optional
 
-from application.errors import require_found
+from application.errors import AlreadyBookedError, require_found
 from application.events import EventType
+from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
+from application.utils.timezone import format_local_display
 from models import (
     Bracket,
     BracketMatch,
@@ -155,6 +157,9 @@ class SchedulingMixin(ComposedBracketService):
         games = await self.repository.list_games(bracket_match_id)
         if self.is_decided(bracket_match, games, best_of):
             raise ValueError("This series is already decided.")
+        taken = {g.game_number for g in games}
+        if all(n in taken for n in range(1, best_of + 1)):
+            raise AlreadyBookedError(await self._already_booked_message(games, best_of, actor))
         number = await self.next_game_number(bracket_match, best_of)
 
         from application.services.match.match_service import MatchService
@@ -196,6 +201,39 @@ class SchedulingMixin(ComposedBracketService):
             EventType.BRACKET_GAME_SCHEDULED,
         )
         return match
+
+    @staticmethod
+    async def _already_booked_message(games, best_of: int, actor: Optional[User]) -> str:
+        """Who booked the series' last game, and when, for a stale booking dialog.
+
+        The usual cause is two players with the dialog open at once, so the
+        answer the loser needs is their opponent's name and the time they are
+        now playing. The booker is read from the auto-acknowledged row
+        ``submit_match_request`` writes for its actor; a staff booking (or a
+        roster edit since) leaves no such row, and the message says only when.
+        """
+        booked = [g for g in games if g.match_id is not None
+                  and g.state == BracketMatchGameState.SCHEDULED]
+        fallback = f"All {best_of} game(s) of this series are already scheduled."
+        latest = max(booked, key=lambda g: g.game_number, default=None)
+        if latest is None:
+            return fallback
+        match = await MatchRepository.get_by_id(latest.match_id, prefetch_relations=False)
+        if match is None or match.scheduled_at is None:
+            return fallback
+        when = format_local_display(match.scheduled_at)
+        booker = next(
+            (a.user for a in await MatchAcknowledgmentRepository.list_for_match(match)
+             if a.auto_acknowledged),
+            None,
+        )
+        what = ("this match" if best_of == 1
+                else f"the last game of this series (game {latest.game_number} of {best_of})")
+        if booker is None:
+            return f"{what[0].upper()}{what[1:]} is already booked for {when}."
+        if actor is not None and booker.id == actor.id:
+            return f"You already booked {what} for {when}."
+        return f"{booker.display_name or booker.username} already booked {what} for {when}."
 
     # -- linking a manually-scheduled match onto a matchup -----------------
     async def list_linkable_matches(self, tournament_id: int) -> List[BracketMatch]:
@@ -284,6 +322,9 @@ class SchedulingMixin(ComposedBracketService):
         games = await self.repository.list_games(bracket_match_id)
         if self.is_decided(bracket_match, games, best_of):
             raise ValueError("This series is already decided.")
+        taken = {g.game_number for g in games}
+        if all(n in taken for n in range(1, best_of + 1)):
+            raise AlreadyBookedError(await self._already_booked_message(games, best_of, actor))
         number = await self.next_game_number(bracket_match, best_of)
 
         game = await self.repository.create_game(
