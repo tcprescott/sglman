@@ -64,7 +64,12 @@ class TableKeys:
     # a proctor's column choices must not follow them onto the admin board.
     ADMIN_SCHEDULE = 'admin.schedule'
     HOME_SCHEDULE = 'home.schedule'
-    HOME_PLAYER_MATCHES = 'home.player_matches'
+    # _v2 since the player's four action columns became one "Your actions"
+    # beside Players: rule 3 appends a new default at the far right, so every
+    # saved v1 layout would have put the player's own controls back past the
+    # table's edge. A fresh key starts everyone on the shipped order; v1 rows
+    # name columns that no longer exist, so there is little in them to keep.
+    HOME_PLAYER_MATCHES = 'home.player_matches_v2'
     PROCTOR_STATION = 'volunteer.proctor_station'
 
     # Admin

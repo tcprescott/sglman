@@ -102,9 +102,9 @@ def event_dates(card: TournamentSignupCard) -> Optional[str]:
     return None
 
 
-
 def _card_dom_id(tournament_id: int) -> str:
     return f'wiz-tournament-card-{tournament_id}'
+
 
 async def tournaments_tab() -> None:
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -156,6 +156,8 @@ async def tournaments_tab() -> None:
                     ui.notify(f"You're signed up for {tournament.name}.", color='positive')
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
+                    await cards.refresh()
+                    return
                 await cards.refresh()
                 follow_card(tournament_id)
 
@@ -166,6 +168,8 @@ async def tournaments_tab() -> None:
                     ui.notify(f'You have withdrawn from {tournament.name}.', color='positive')
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
+                    await cards.refresh()
+                    return
                 await cards.refresh()
                 follow_card(tournament_id)
 
