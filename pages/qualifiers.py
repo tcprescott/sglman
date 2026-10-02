@@ -36,6 +36,7 @@ from theme.qualifier_copy import (
 )
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, row_count_label, search_input, sticky_header
+from theme.timer_teardown import PageTimer
 
 
 def _fmt(dt) -> str:
@@ -257,7 +258,7 @@ def create() -> None:
                             else 'Past the deadline — it will be forfeited on the next check.'
                         )
 
-                ui.timer(1.0, _tick)
+                PageTimer(1.0, _tick)
 
                 ui.separator()
                 ui.label('Submit your result').classes('text-subtitle2')

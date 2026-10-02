@@ -142,7 +142,7 @@ git stash pop     # and restart again
 This is written down because a session spent two rounds on a
 `RuntimeError: The parent slot of the element has been deleted` that reproduced
 identically on `main`, having first talked itself into a wrong cause. That one is
-filtered now (`theme/timer_teardown.py`), but the lesson generalises: the sweep
+prevented and filtered now (`theme/timer_teardown.py`, `application/utils/timer_teardown.py`), but the lesson generalises: the sweep
 reports what the log contains, not what your diff caused.
 
 **What the sweep can't see: dialogs.** It loads pages; it does not click. A

@@ -1753,7 +1753,17 @@ Sentry error-monitoring initialization ([sentry.py](../../application/utils/sent
 
 | Function | Returns | Description |
 |---|---|---|
-| `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment` from `get_environment()`, `send_default_pii=False`, an optional `SENTRY_TRACES_SAMPLE_RATE`, and a `before_send` hook that scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies from every outgoing event. |
+| `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment` from `get_environment()`, `send_default_pii=False`, an optional `SENTRY_TRACES_SAMPLE_RATE`, and a `before_send` hook that drops the NiceGUI timer-teardown race (see [timer_teardown.py](#timer_teardownpy)) and scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies from every other outgoing event. |
+
+### timer_teardown.py
+
+Recognising a `ui.timer` that outlived its page ([timer_teardown.py](../../application/utils/timer_teardown.py)). NiceGUI's timer waits for the client to connect and then enters its parent slot without re-checking deletion, so a page closed during that wait raises `RuntimeError: The parent slot of the element has been deleted`. Nobody can act on it. Pure stdlib so Sentry setup can import it. `theme.timer_teardown.PageTimer` stops the race happening for our own timers; this module is the backstop for any that don't use it.
+
+| Name | Description |
+|---|---|
+| `is_timer_teardown_race(exc)` | True only for that exact `RuntimeError` message raised through a `nicegui.timer` frame. The same error from application code is a real bug and stays reported. |
+| `TimerTeardownLogFilter` | `logging.Filter` that drops records whose exception (`exc_info`, or the exception passed as the message) is the race. |
+| `install_log_filter()` | Attaches the filter to the `nicegui` logger, idempotently. Called from `frontend.init()`: NiceGUI's default exception handler is `log.exception` on that logger and runs alongside the app's own `on_exception` handler, so dropping it there is the only way to keep it out of the log. Sentry's logging hook runs behind logger filters, so this keeps it out of Sentry too. |
 
 ### discord_avatar.py
 

@@ -42,6 +42,7 @@ from theme.tables.preferences import (
     sticky_header,
 )
 from theme.tables.row_state import carry_viewer_row_state
+from theme.timer_teardown import PageTimer
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -335,7 +336,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # flight. Five seconds, not one: the label is the difference between "the
         # page is working" and "the page is stuck", which does not need
         # per-second resolution, and this ticks once per open board.
-        ui.timer(5.0, self._tick_rolling_labels)
+        PageTimer(5.0, self._tick_rolling_labels)
 
     def _tick_rolling_labels(self) -> None:
         """Re-render the elapsed label on every row that is currently rolling.
@@ -668,7 +669,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             if i is not None and self.table.rows[i].get('_flash'):
                 self.table.rows[i]['_flash'] = False
                 self.table.update()
-        ui.timer(1.6, clear, once=True)
+        PageTimer(1.6, clear, once=True)
 
     async def delete_row_by_id(self, match_id):
         """
