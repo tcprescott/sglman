@@ -73,10 +73,18 @@ def next_whole_hour_local(
     The default a booking form offers. "Now" is a time that has already passed
     by the time anyone presses Schedule, so a form defaulting to it books a
     match that has already started; 08:48 offers 10:00, 08:20 offers 09:00.
+
+    The step to the next hour is taken in UTC, not on the wall clock: on a
+    spring-forward night 01:50 + one wall hour is 02:50, a time that does not
+    exist and that :func:`parse_local_datetime` would then refuse. Stepping the
+    instant lands on 03:00.
     """
-    start = now_local(tz) + lead
+    zone = _resolve(tz)
+    start = (datetime.now(timezone.utc) + lead).astimezone(zone)
     hour = start.replace(minute=0, second=0, microsecond=0)
-    return hour if hour >= start else hour + timedelta(hours=1)
+    if hour < start:
+        hour = (hour.astimezone(timezone.utc) + timedelta(hours=1)).astimezone(zone)
+    return hour
 
 
 def today_local(tz: TzArg = None) -> date:
