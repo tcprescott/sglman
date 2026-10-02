@@ -77,7 +77,8 @@ request requires community membership.
   "Changed since arranged" chip, and its dialog shows the arranged text beside
   the current one with a **Save and mark reviewed** button.
   `/admin/users?ada_request=<id>` opens that request's dialog on arrival (a
-  stale id says the request no longer exists).
+  stale id says the request no longer exists; with the feature off, the
+  Users tab says ADA requests aren't turned on).
 
 - **Admin → Schedule and Volunteer → Proctor Station**: a player whose
   request is **Arranged** gets an accessibility icon beside their name, on the
@@ -92,8 +93,10 @@ request requires community membership.
 ## Notifications
 
 Staff get a DM (with an **Open the request** button to
-`/admin/users?ada_request=<id>`) when a request opens or reopens, and when a
-member first changes an Arranged request. Later autosaves of the same edit stay
+`/admin/users?ada_request=<id>`) when a request opens or reopens, at most once
+per request per 24 h (`staff_notified_at`, `STAFF_DM_WINDOW`) so unticking and
+re-ticking the box doesn't DM everyone again, and when a member first changes
+an Arranged request. Later autosaves of the same edit stay
 quiet. The DM names the member and never carries their details, since it's
 mirrored to web-push too. The member isn't DM'd on status changes; their
 profile card shows the current status, and a note when their change is waiting

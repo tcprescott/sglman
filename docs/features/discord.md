@@ -59,9 +59,8 @@ tenant costs the button, not the DM.
 | Reschedule request (to the opponent) | Agree · View your matches | the Agree button *is* the control; the link is their own schedule |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
-| Join declined (to requester) | Join the Discord server | the community's `discord_invite_url`, when set; otherwise no button |
+| Join declined (to requester) | Join the Discord server | the community's `discord_invite_url`, when set; otherwise no button. The date a new request opens is `<t:…:f>` (date and time); with auto-join on, the copy leads with "joining the server gets you in" |
 | Added by staff / request closed by a role grant (to the person) | Open the community | the tenant home |
-| Auto-joined (to staff) | Open the members list | `/admin/users` |
 | ADA request opened / changed after arranging (to staff) | Open the request | `/admin/users?ada_request=<id>` — that request's dialog, open |
 | Stage assigned / cleared / reminder | View your match | `/home/player?match=<id>` — the player's own board, narrowed to that match |
 | Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |

@@ -320,6 +320,14 @@ or `CANCELLED` = `'cancelled'` when the racetime room was cancelled instead of r
 leaving the race indistinguishable from one still to come; a race already `FINISHED`
 is never moved to it, since cancelling the room afterwards does not un-score its runs.
 
+### `MembershipSource`
+
+How someone became a member (`TenantMembership.source`, `max_length=32`, nullable):
+`STAFF` = `'staff'` (Add Member, Add User, the `/platform` first-admin grant),
+`JOIN_REQUEST` = `'join_request'`, `DISCORD_AUTO_JOIN` = `'discord_auto_join'`,
+`ROLE_GRANT` = `'role_grant'` (a role staff granted), `DISCORD_ROLE` =
+`'discord_role'` (the Discord role sync), `IMPORT` = `'import'` (SpeedGaming).
+
 ### `JoinRequestStatus`
 
 Where a request to join a community stands (`TenantJoinRequest.status`,
@@ -328,8 +336,10 @@ Where a request to join a community stands (`TenantJoinRequest.status`,
 request is **re-opened** by moving it back to `PENDING` rather than appended to,
 but not until `JOIN_REQUEST_COOLDOWN` (7 days) after `decided_at`. A pending
 request is closed as `APPROVED` by every way into the community, not just the
-queue (Add Member stamps the staff member as `decided_by`; a role grant, the
-Discord role sync and auto-join leave it null).
+queue. The staff member is `decided_by` for Add Member and a staff role grant;
+the Discord role sync and auto-join leave it null. Each closure publishes
+`TENANT_JOIN_APPROVED`, and the audit row of the path that let them in carries
+`closed_request_id`.
 
 ### `BracketFormat`
 
@@ -404,6 +414,8 @@ tenants, so it is never auto-scoped.
 |---|---|---|---|
 | `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='memberships'` |
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='tenant_memberships'` |
+| `source` | `CharEnumField(MembershipSource)` | null | How they got in, set only when the row is created (migration 76). Null on older rows. The Users tab shows it as **Via** |
+| `created_at` | `DatetimeField` | auto | When they joined: the Users tab's **Joined** column and its "Joined in the last 7 days" filter |
 
 Constraints: `unique_together (('user', 'tenant'),)`; index on `tenant` (the composite is user-first, leaving per-tenant member enumeration uncovered).
 
@@ -629,6 +641,7 @@ A member's ADA accommodation request in one community (`unique_together = (tenan
 | `staff_notes` | `TextField` | null | STAFF-only (≤4000, enforced by the service). PROCTORs see that an `ARRANGED` request exists, never this text |
 | `changed_since_arranged` | `BooleanField` | default `False` | The member edited `details` after staff arranged it. The request stays `ARRANGED`; staff saving it clears the flag (migration 75) |
 | `arranged_details` | `TextField` | null | `details` as they were when arranged, kept while `changed_since_arranged` is set so staff can compare |
+| `staff_notified_at` | `DatetimeField` | null | Last "request opened" staff DM; another isn't sent within 24 h (`STAFF_DM_WINDOW`), so toggling the box doesn't DM staff each time (migration 76) |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 
 ### Tournament

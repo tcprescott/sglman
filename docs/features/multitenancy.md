@@ -209,9 +209,14 @@ refuses meanwhile, and the decline DM gives the date (Discord `<t:…:D>`) plus 
 
 Every way in closes a pending request, not only the queue: Add Member (closed
 with that staff member as decider, and the person is DM'd that staff added
-them), `ensure_member` from a role grant or the Discord role sync (closed with
-no decider; the person is DM'd only when it closed a request of theirs, since
-the door promised a message either way), and auto-join. Decline refuses for
+them), `ensure_member` from a role grant (decider = the granting staff member),
+the Discord role sync or the SpeedGaming import (no decider), and auto-join.
+`ensure_member` DMs the person only when it closed a request of theirs, since
+the door promised a message either way, and returns the closed request so the
+caller's audit row records `closed_request_id`. Each closure publishes
+`TENANT_JOIN_APPROVED`. Every membership row records its `source`
+(`MembershipSource`) and `created_at`, shown on the Users tab as **Joined** and
+**Via**, with a "Joined in the last 7 days" filter. Decline refuses for
 someone who is already a member, so a leftover row can't tell a member they
 weren't approved; Approve still clears it. Removing a member asks for
 confirmation by name, DMs them, and withdraws their ADA request (clearing its
@@ -226,10 +231,20 @@ member is added on the spot and the page they asked for renders. It grants
 membership only, never roles (role mappings still decide those), closes any
 pending join request as approved with no decider, and audits
 `tenant.member_added` with the user as actor and `source: discord_auto_join`.
-Staff are DM'd that the person joined (button to the Users tab), and the person
-lands with a sticky welcome toast saying why they're in
-(`stash_notice(..., sticky=True)`, which survives the first-visit timezone
-reload and clears on **Got it**).
+Staff aren't DM'd (nothing needs doing); the Users tab marks the member
+**Joined via Discord**. The person lands with a sticky welcome toast saying why
+they're in (`stash_notice(..., sticky=True, tenant_id=…)`: held for that
+community's pages, shown on up to two loads so it survives the first-visit
+timezone reload, cleared on **Got it**).
+
+**With auto-join on, the server is the membership rule.** A removal or a
+decline doesn't stick against it (`auto_join_active(tenant_id)`), and the copy
+says so: the Remove confirmation tells staff the person is let back in while
+they're in the server (remove them there too), the removal DM says they'll be
+back in on their next visit, and a declined requester's door and DM lead with
+"members of its Discord server get in automatically" before the date a new web
+request opens. Without auto-join, removal locks them out and the cooldown is
+the only route back.
 It never raises, and a bot that cannot answer counts as "not known to be a
 member", so a Discord outage leaves people at the door with its Request access
 button rather than on an error page. Leaving the server does **not** remove the

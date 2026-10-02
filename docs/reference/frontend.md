@@ -574,7 +574,8 @@ Settings:
   decline, `resolve_ask_again_at` hands `render_join_page(ask_again_at=…)` the
   date, and the door says when they can ask again instead of showing the form
   (the service refuses meanwhile too). The Discord invite and auto-join's
-  check-again button still show.
+  check-again button still show; with auto-join on, the copy leads with joining
+  the server, since that gets them in whatever the cooldown says.
 
 Not a `FeatureFlag`: one display toggle does not need two-tier availability, a
 `FeatureFlagSpec`, `service_modules`, or `@requires_feature`.
