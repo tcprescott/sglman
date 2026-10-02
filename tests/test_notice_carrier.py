@@ -51,6 +51,37 @@ def test_drain_is_idempotent(storage, notified):
     assert _KEY not in storage
 
 
+def test_a_sticky_notice_survives_a_reload_until_dismissed(storage, monkeypatch):
+    shown = []
+
+    class _FakeNotification:
+        def __init__(self, message, **kw):
+            shown.append((message, kw))
+
+    monkeypatch.setattr('theme.notice.ui.notification', _FakeNotification)
+    stash_notice('Welcome in.', color='positive', sticky=True)
+
+    drain_notice()  # the first-visit timezone reload throws this page away
+    drain_notice()
+    assert [m for m, _ in shown] == ['Welcome in.', 'Welcome in.']
+    assert shown[0][1]['timeout'] is None
+
+    shown[-1][1]['on_dismiss']()  # Got it
+    drain_notice()
+    assert len(shown) == 2
+    assert _KEY not in storage
+
+
+def test_a_sticky_notice_stops_after_its_show_limit(storage, monkeypatch):
+    shown = []
+    monkeypatch.setattr('theme.notice.ui.notification', lambda m, **kw: shown.append(m))
+    stash_notice('Welcome in.', sticky=True)
+    for _ in range(5):
+        drain_notice()
+    assert len(shown) == 3
+    assert _KEY not in storage
+
+
 def test_drain_with_nothing_stashed_is_a_noop(storage, notified):
     drain_notice()
     assert notified == []

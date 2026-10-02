@@ -25,6 +25,14 @@ class TenantMembershipRepository:
         return membership
 
     @staticmethod
+    async def add_returning_created(user: User, tenant_id: int) -> bool:
+        """:meth:`add`, reporting whether the row is new."""
+        _membership, created = await TenantMembership.get_or_create(
+            user=user, tenant_id=tenant_id,
+        )
+        return created
+
+    @staticmethod
     async def remove(user_id: int, tenant_id: int) -> int:
         return await TenantMembership.filter(user_id=user_id, tenant_id=tenant_id).delete()
 

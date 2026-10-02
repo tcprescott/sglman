@@ -253,3 +253,30 @@ class TestDoorCopy:
         for text in (_signed_out_message(preview), _non_member_message(preview)):
             assert ('Discord server' in text) is auto_join
             assert ('ask' in text.lower()) is requests
+
+
+async def test_staff_hear_about_an_auto_join(fake_discord, monkeypatch, db):
+    from models import Role, UserRole
+
+    sent: list = []
+
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+        sent.append((user_id, message, link))
+        return True, ''
+
+    fake_discord.send_dm = fake_send
+    pending: list = []
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', pending.append)
+    await _configure()
+    boss = await User.create(discord_id=9200, username='boss')
+    await UserRole.create(user=boss, role=Role.STAFF, tenant_id=1)
+    user = await _stranger()
+
+    assert await TenantMembershipService().join_via_discord(user, 1) is True
+    for coro in pending:
+        await coro
+
+    [(to, text, link)] = sent
+    assert to == 9200
+    assert 'joined' in text and 'Discord server' in text
+    assert link is not None and link.url.endswith('/admin/users')

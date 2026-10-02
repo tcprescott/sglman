@@ -27,17 +27,27 @@ __all__ = ['drain_notice', 'stash_notice']
 # One key, one slot, last write wins. A queue would let two notices pile up
 # across an aborted redirect chain and surface a stale one on a later page.
 _KEY = 'pending_notice'
+_STICKY_SHOWS = 3
 
 
-def stash_notice(message: str, *, color: str = 'warning') -> None:
+def stash_notice(message: str, *, color: str = 'warning', sticky: bool = False) -> None:
     """Queue a toast for the next page this browser loads.
 
     For the notify-then-redirect case only: ``ui.notify`` followed by
     ``ui.navigate.to`` loses the toast with the document it was queued against.
+    Also for a gate that decides something *before* the page it lets you into
+    renders (Discord auto-join's welcome). ``sticky`` keeps the toast up until
+    it's dismissed, for a message too long to read in five seconds, and keeps
+    it stashed until then (for up to :data:`_STICKY_SHOWS` page loads): a
+    browser's first visit reloads once to set the timezone cookie, which would
+    otherwise take the toast with it.
     """
     if not message:
         return
-    app.storage.user[_KEY] = {'message': message, 'color': color}
+    app.storage.user[_KEY] = {
+        'message': message, 'color': color, 'sticky': sticky,
+        'shows': _STICKY_SHOWS if sticky else 1,
+    }
 
 
 def drain_notice() -> None:
@@ -54,5 +64,25 @@ def drain_notice() -> None:
         return
     message = notice.get('message')
     if not message:
+        return
+    if notice.get('sticky'):
+        shows = int(notice.get('shows') or 1) - 1
+        if shows > 0:
+            app.storage.user[_KEY] = {**notice, 'shows': shows}
+
+        def dismissed() -> None:
+            try:
+                if app.storage.user.get(_KEY, {}).get('message') == message:
+                    app.storage.user.pop(_KEY, None)
+            except Exception:
+                pass
+
+        ui.notification(
+            message, color=notice.get('color') or 'warning', position='bottom',
+            timeout=None, multi_line=True, on_dismiss=dismissed,
+            # An action rather than close_button: the theme paints the close
+            # button primary, which is unreadable on a positive toast.
+            actions=[{'label': 'Got it', 'color': 'white'}],
+        )
         return
     ui.notify(message, color=notice.get('color') or 'warning')

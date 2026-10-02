@@ -74,7 +74,9 @@ class TenantJoinRequest(Model):
 
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='join_requests', on_delete=fields.CASCADE)
+    tenant_id: int
     user = fields.ForeignKeyField('models.User', related_name='join_requests', on_delete=fields.CASCADE)
+    user_id: int
     status = fields.CharEnumField(JoinRequestStatus, default=JoinRequestStatus.PENDING, max_length=20)
     message = fields.CharField(max_length=500, null=True)
     # SET_NULL, like Tenant.feature_group: deleting a staff account must not
