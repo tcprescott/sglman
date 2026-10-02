@@ -291,6 +291,7 @@ class TestAutoOpenHold:
         )
         tournament.racetime_bot = bot
         tournament.racetime_auto_create_rooms = True
+        tournament.racetime_default_goal = "Beat the game"
         tournament.room_open_minutes_before = 30
         await tournament.save()
         for user in users:
@@ -416,6 +417,7 @@ class TestRoomIsNotOpenedForAHeldGame:
         )
         tournament.racetime_bot = bot
         tournament.racetime_auto_create_rooms = True
+        tournament.racetime_default_goal = "Beat the game"
         await tournament.save()
 
         bracket = await service.create_bracket(

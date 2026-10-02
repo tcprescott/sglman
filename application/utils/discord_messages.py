@@ -258,6 +258,32 @@ def stage_reminder_dm(
     )
 
 
+def race_room_open_dm(
+    tournament_name: str,
+    scheduled_at_display: str,
+    *,
+    player_names: Optional[list[str]] = None,
+    bracket_line: str = '',
+) -> str:
+    """To each player when their racetime room opens.
+
+    The room is the only place the race happens, and before this the only way
+    to find it was racetime.gg itself. The button under the card opens it.
+    """
+    info = _match_info_lines(
+        player_names=player_names,
+        scheduled_at_display=scheduled_at_display,
+        bracket_line=bracket_line,
+    )
+    body = "\n".join(info)
+    block = f"{body}\n\n" if body else ''
+    return (
+        f"Your race room for **{tournament_name}** is open.\n\n"
+        f"{block}"
+        f"Join it on racetime.gg before your start time."
+    )
+
+
 def checked_in_dm(
     tournament_name: str,
     *,

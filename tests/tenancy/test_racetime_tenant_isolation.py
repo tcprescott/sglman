@@ -70,3 +70,26 @@ async def test_bot_grants_do_not_leak_across_tenants(two_tenants):
     assert [x.id for x in await repo.list_active_for_tenant(a.id)] == [bot.id]
     # B holds no grant — the global bot must not surface for it.
     assert await repo.list_active_for_tenant(b.id) == []
+
+
+async def test_a_players_open_rooms_stay_in_their_community(two_tenants):
+    """``User`` is global: one player in two communities sees each one's room only there."""
+    from models import Match, MatchPlayers, Tournament, User
+
+    a, b = two_tenants
+    player = await User.create(username='both', discord_id=880001)
+    repo = RacetimeRoomRepository()
+    rooms = {}
+    for tenant in (a, b):
+        with tenant_scope(tenant.id):
+            tournament = await Tournament.create(name='T', tenant_id=tenant.id)
+            match = await Match.create(tournament_id=tournament.id, tenant_id=tenant.id)
+            await MatchPlayers.create(match_id=match.id, user_id=player.id, tenant_id=tenant.id)
+            rooms[tenant.id] = await RacetimeRoom.create(
+                slug=f'alttpr/open-{tenant.id}', category='alttpr',
+                match_id=match.id, tenant_id=tenant.id,
+            )
+
+    for tenant in (a, b):
+        with tenant_scope(tenant.id):
+            assert [r.id for r in await repo.open_for_player(player.id)] == [rooms[tenant.id].id]

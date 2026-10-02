@@ -15,6 +15,7 @@ from application.services import (
 from application.utils.app_links import HOME_PLAYER, home_url
 from application.utils.timezone import format_local_display
 from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
+from pages.home_tabs.race_rooms_section import render_race_rooms
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
@@ -482,7 +483,9 @@ async def render_player_dashboard(
         # waiting on *them*, and it used to sit below a twelve-row board and a
         # filter card — far enough down that the "matchup ready" DM landed on a
         # page whose call to action was off-screen. Then the board, then the
-        # requests they have already made and are only tracking.
+        # requests they have already made and are only tracking. An open race room
+        # means the match is close, so it leads.
+        await render_race_rooms(viewer)
         await challonge_section()
         await bracket_section()
 

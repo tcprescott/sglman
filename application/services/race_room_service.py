@@ -18,23 +18,35 @@ Tenant-scoped: callers run inside ``tenant_scope`` (the worker binds
 ``match.tenant_id``; the handler binds ``room.tenant_id``; the manual-create UI
 runs in the request's tenant). ``manual_create_room`` is the one method gated by
 an interactive permission (STAFF / ``SYNC_ADMIN``); the rest are system paths.
+
+A room is real before it is recorded: :meth:`create_room_for_match` asks
+racetime.gg to open it (the category bot's ``startrace``, with the tournament's
+``RaceRoomProfile``), stores the slug racetime returns, and only then writes the
+row as OPEN and tells the players. A refused ``startrace`` leaves nothing behind.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import weakref
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
+from application.feature_flags import requires_feature
 from application.repositories import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
+from application.utils.clients import racetime_rooms_client
+from application.utils.clients.racetime_client import RacetimeAPIError
+from application.utils.clients.racetime_rooms_client import RaceRoomSettings
 from application.utils.racetime_entrants import is_scored_finish, unmatched_handle
 from models import (
+    FeatureFlag,
     Match,
     MatchPlayers,
     RaceRoomStatus,
@@ -46,6 +58,40 @@ from racetimebot.transport import EntrantStatus, RaceEntrant, RaceRoomEvent
 
 logger = logging.getLogger(__name__)
 
+# One opener at a time per room key. The 60s poll and the series push can both
+# reach the same match, and with a ``startrace`` round trip between "no room yet"
+# and the row being written, two of them would otherwise open two racetime rooms.
+# Process-local, which is enough under the single-worker deployment
+# (docs/scaling-roadmap.md); weak values so idle keys don't accumulate.
+_open_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = weakref.WeakValueDictionary()
+
+
+def room_open_lock(key: str) -> asyncio.Lock:
+    """The lock serialising room creation for ``key`` (e.g. ``match:12``)."""
+    lock = _open_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _open_locks[key] = lock
+    return lock
+
+
+async def start_racetime_room(bot, settings: RaceRoomSettings) -> str:
+    """Open a room on racetime.gg as ``bot`` and return racetime's slug for it.
+
+    A refusal or an unreachable racetime becomes a ``ValueError`` carrying
+    racetime's reason, so staff opening one by hand see why, and the auto-open
+    worker logs it and tries again on its next tick.
+    """
+    client = racetime_rooms_client.build_rooms_client()
+    try:
+        return await client.start_race(
+            category=bot.category, client_id=bot.client_id,
+            client_secret=bot.client_secret, settings=settings,
+        )
+    except RacetimeAPIError as exc:
+        logger.warning('racetime startrace failed for %s: %s', bot.category, exc)
+        raise ValueError(f"racetime.gg didn't open the room: {exc}") from exc
+
 
 class RaceRoomService:
     """Drive a racetime room through its lifecycle, mapped onto a ``Match``."""
@@ -56,51 +102,127 @@ class RaceRoomService:
 
     # ---- creation / open -------------------------------------------------
 
+    @requires_feature(FeatureFlag.RACETIME_ROOMS)
     async def create_room_for_match(
         self, match: Match, *, actor: Optional[User] = None, attach_seed: bool = True,
     ) -> RacetimeRoom:
-        """Create (or return the existing) racetime room for a match.
+        """Open (or return the existing) racetime room for a match.
 
         Idempotent — one room per match. Requires the tournament to have an
-        authorized racetime bot (its category names the room). Opens the room
-        and, when configured, attaches the seed.
+        authorized racetime bot (its category hosts the room) and a goal (from
+        its room profile, else its default goal). The room is opened on
+        racetime.gg first; the row records racetime's slug and is OPEN from the
+        moment it exists. Each player is DMed a button into it, and the seed is
+        attached when configured.
         """
-        existing = await self.room_repository.get_by_match(match)
-        if existing is not None:
-            return existing
+        async with room_open_lock(f'match:{match.id}'):
+            existing = await self.room_repository.get_by_match(match)
+            if existing is not None:
+                return existing
 
-        tournament = await self._tournament_of(match)
-        bot = await tournament.racetime_bot
-        if bot is None:
-            raise ValueError('This tournament has no racetime bot configured.')
+            tournament = await self._tournament_of(match)
+            bot = await tournament.racetime_bot
+            if bot is None:
+                raise ValueError('This tournament has no racetime bot configured.')
+            settings = await self._room_settings(tournament, match)
 
-        actor = actor or await self._system_actor()
-        now = datetime.now(timezone.utc)
-        room = await self.room_repository.create(
-            bot_id=bot.id,
-            slug=f'{bot.category}/match-{match.id}',
-            category=bot.category,
-            room_name=(match.title or f'Match {match.id}'),
-            status=RaceRoomStatus.OPEN,
-            match_id=match.id,
-            opened_at=now,
-        )
+            # Everything fallible goes before startrace: once racetime has opened
+            # the room, a failure here would leave it with no row, and the next
+            # tick would open a second one.
+            actor = actor or await self._system_actor()
+            slug = await start_racetime_room(bot, settings)
+            try:
+                room = await self.room_repository.create(
+                    bot_id=bot.id,
+                    slug=slug,
+                    category=bot.category,
+                    room_name=(match.title or f'Match {match.id}'),
+                    status=RaceRoomStatus.OPEN,
+                    match_id=match.id,
+                    opened_at=datetime.now(timezone.utc),
+                )
+            except Exception:
+                logger.error(
+                    'racetime room %s was opened for match %s but not recorded; '
+                    'close it on racetime.gg', slug, match.id,
+                )
+                raise
         await self._audit_and_emit(
             actor, room, match, AuditActions.RACE_ROOM_CREATED, EventType.RACE_ROOM_CREATED,
         )
         await self._audit_and_emit(
             actor, room, match, AuditActions.RACE_ROOM_OPENED, EventType.RACE_ROOM_OPENED,
         )
+        await self._notify_players_room_open(match, room)
         if attach_seed:
             await self._attach_seed(match, actor)
         return room
 
+    async def _room_settings(self, tournament: Tournament, match: Match) -> RaceRoomSettings:
+        """The ``startrace`` settings: the tournament's profile, plus a goal."""
+        profile = await tournament.race_room_profile  # type: ignore[misc]
+        goal = self._goal_for(tournament, profile)
+        if not goal:
+            raise ValueError(
+                f'Set a racetime goal on {tournament.name} (or its race room '
+                'profile) before opening a room.'
+            )
+        info = f'{tournament.name} — {match.title}' if match.title else tournament.name
+        return RaceRoomSettings.from_profile(profile, goal=goal, info_user=info)
+
+    @staticmethod
+    def _goal_for(tournament: Tournament, profile) -> str:
+        """The room's goal: the profile's, else the tournament's default, else ''."""
+        return ((profile.goal if profile else None) or tournament.racetime_default_goal or '').strip()
+
+    async def _notify_players_room_open(self, match: Match, room: RacetimeRoom) -> None:
+        """DM each player that their room is open, with a button into it.
+
+        Best-effort: the room is open whether or not Discord takes the message.
+        Players only; crew and watchers have no seat in the race.
+        """
+        try:
+            from application.repositories import MatchRepository
+            from application.services import notification_links
+            from application.services.discord import DiscordService, discord_queue
+            from application.services.tenant_service import TenantService
+            from application.utils.discord_embeds import COLOR_STARTED, match_embed, time_field
+            from application.utils.discord_messages import race_room_open_dm
+
+            link = notification_links.race_room(room.url)
+            if link is None:
+                return
+            tournament = await self._tournament_of(match)
+            players = await MatchRepository.get_players(match.id)
+            names = [p.user.preferred_name for p in players]
+            body = race_room_open_dm(
+                tournament.name, time_field(match.scheduled_at), player_names=names,
+            )
+            embed = match_embed(
+                title='🏁 Your race room is open', color=COLOR_STARTED,
+                tournament=tournament.name,
+                community_name=await TenantService.current_community_name(),
+                player_names=names, when=match.scheduled_at, url=room.url,
+            )
+            service = DiscordService()
+            for player in players:
+                user = player.user
+                if user.discord_id and user.dm_notifications:
+                    discord_queue.enqueue(service.send_dm(
+                        int(user.discord_id), body, embed=embed, link=link,
+                    ))
+        except Exception:
+            logger.exception('race room open DM failed for match %s', match.id)
+
+    @requires_feature(FeatureFlag.RACETIME_ROOMS)
     async def manual_create_room(self, actor: Optional[User], match_id: int) -> RacetimeRoom:
         """Create a room on demand (STAFF / SYNC_ADMIN), ignoring the auto toggle."""
         await AuthService.ensure_can_manage_sync(actor)
         match = require_found(await self._load_match(match_id), 'Match')
         return await self.create_room_for_match(match, actor=actor)
 
+    # feature-gate: exempt — a worker/series trigger: skips (returns None) rather
+    # than raising when RACETIME_ROOMS is off, via its own is_enabled check.
     async def auto_open_if_eligible(
         self, match: Match, *, now: datetime, actor: Optional[User] = None,
     ) -> Optional[RacetimeRoom]:
@@ -133,6 +255,11 @@ class RaceRoomService:
         bot = await match.tournament.racetime_bot
         if bot is None:
             return None  # no authorized bot to host the room
+        if not self._goal_for(match.tournament, await match.tournament.race_room_profile):
+            # Staff opening one by hand get the reason; the worker would only
+            # log the same refusal every tick.
+            logger.info('auto-open skipped for match %s: no racetime goal set', match.id)
+            return None
         players = list(match.players)
         if not players or not all(
             getattr(p.user, 'racetime_user_id', None) for p in players
@@ -146,8 +273,21 @@ class RaceRoomService:
         actor = actor or await self._system_actor()
         return await self.create_room_for_match(match, actor=actor)
 
-    # ---- transitions -----------------------------------------------------
+    @requires_feature(FeatureFlag.RACETIME_ROOMS)
+    async def open_rooms_for_player(self, user: User) -> List[RacetimeRoom]:
+        """The open or running rooms on matches ``user`` plays in, soonest first.
 
+        For My Schedule: a player whose match is raced online needs the way into
+        its room where they look for the match, not only in a DM.
+        """
+        return await self.room_repository.open_for_player(user.id)
+
+    # ---- transitions -----------------------------------------------------
+    # Driven by racetime for a room that already exists, so deliberately not
+    # gated: switching RACETIME_ROOMS off mid-race must not drop its result or
+    # leave a match unable to cancel its room.
+
+    # feature-gate: exempt — lifecycle of an already-open room (see above).
     async def mark_in_progress(self, room: RacetimeRoom, *, actor: Optional[User] = None) -> None:
         actor = actor or await self._system_actor()
         now = datetime.now(timezone.utc)
@@ -165,6 +305,8 @@ class RaceRoomService:
             actor, room, match, AuditActions.RACE_ROOM_STARTED, EventType.RACE_ROOM_STARTED,
         )
 
+    # feature-gate: exempt — lifecycle of an already-open room; also called by
+    # match cancellation, an unrelated flow.
     async def cancel_room(
         self, room: RacetimeRoom, *, actor: Optional[User] = None, reason: Optional[str] = None,
     ) -> None:
@@ -176,6 +318,7 @@ class RaceRoomService:
             extra={'reason': reason} if reason else None,
         )
 
+    # feature-gate: exempt — lifecycle of an already-open room (see above).
     async def record_finish(
         self, room: RacetimeRoom, entrants: List[RaceEntrant], *, actor: Optional[User] = None,
     ) -> None:

@@ -90,6 +90,26 @@ raising.
 
 Workers act as the system user described above.
 
+## Opening a room, and the player's way into it
+
+A room exists on racetime.gg before Wizzrobe records it. `RaceRoomService.create_room_for_match`
+(auto-open or staff's manual create) asks racetime to open it as the tournament's
+category bot (`startrace`, with the tournament's `RaceRoomProfile` and a goal from
+that profile or the tournament's default goal), stores the slug racetime returns,
+and only then writes the row as `OPEN`. A refusal (no goal, a goal the category
+won't take, rejected bot credentials) leaves nothing behind: staff see racetime's
+reason, and the worker retries on its next tick. Qualifier live races
+(`AsyncQualifierLiveRaceService.open_room`) go through the same call.
+
+Once a room is open each opted-in player gets a DM with a **Join the race room**
+link button straight to it, and My Schedule leads with **Your race room is open**
+while a room on one of the viewer's matches is open or running
+(`RaceRoomService.open_rooms_for_player`; the section checks `RACETIME_ROOMS`).
+
+What isn't there yet: the live transport doesn't join the room's websocket, so
+in production nothing yet reports a room starting or finishing back to Wizzrobe,
+and an invitational profile's room has nobody to invite its entrants.
+
 ## Migrating a community off SahasrahBot
 
 These are one-way doors:
