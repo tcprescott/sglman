@@ -1972,6 +1972,31 @@ body.body--dark {
     padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Every tab gets an equal share of the bar and may shrink below its label's
+   natural width. Quasar sizes a tab to its content plus 16px padding each side,
+   so "Event / My Schedule / Tournaments / Profile" measured 373px in a 358px
+   bar and the fourth sat under a scroll arrow on every member's home. With
+   equal shares there is nothing to scroll, so the arrows are hidden outright. */
+.wiz-bottom-nav .q-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 2px;
+}
+.wiz-bottom-nav .q-tab__content {
+    min-width: 0;
+    max-width: 100%;
+}
+.wiz-bottom-nav .q-tab__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+.wiz-bottom-nav .q-tabs__arrow {
+    display: none;
+}
+
 /* The footer exists solely to host the bottom nav, so collapse the whole bar
    (not just the nav) on desktop — otherwise the empty ui.footer() would render
    as a stray surface strip along the bottom edge. */
