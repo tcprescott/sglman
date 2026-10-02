@@ -133,10 +133,12 @@ why you are here" table pointed at `volunteering` and `proctor` in communities
 where both are gated off. `HelpService.get_article` / `get_snippet` (and
 `EventInfoService`'s, which call the same `HelpService.prune_links(blocks,
 user)`) run the blocks through `application.content.prune_links` against the
-articles this reader can open here: a link in running text keeps its words and
-loses the anchor, and a **table row** that points at an unreadable article is
-dropped whole (its label alone is a dead end). Only sections the blocks
-actually link into are looked up, so a snippet with no links costs nothing.
+articles this reader can open here: every such link — running text, list
+items, table headers and cells — keeps its words and loses the anchor. Nothing
+else is removed. A trailing slash or a query names the same article. Only
+sections the blocks actually link into are looked up, so a snippet with no links
+costs nothing, and `help_icon` resolves the viewer for a snippet that links into
+the handbook so a role-gated link is not pruned for staff.
 `tests/test_article_links_resolve.py` follows every internal link of every
 article a reader is handed, in each shape of community (all flags, none, handbook
 without volunteers) and for each kind of reader of the `sgl26` handbook. `help_icon` renders **nothing** when its snippet

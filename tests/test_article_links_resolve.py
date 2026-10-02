@@ -5,7 +5,7 @@ features off and by readers who hold no role. ``getting-started`` — the first
 card on ``/help`` — linked ``/help/volunteering`` and ``/help/proctor`` in its
 "depending on why you are here" table, and on two of the three dev communities
 both rows landed on "That help article does not exist." The services now prune
-a link the reader cannot follow (a table row pointing at one goes whole); this
+a link the reader cannot follow (it keeps its words, loses the anchor); this
 walks every article a reader is actually handed, in each shape of community,
 and follows every internal link it still carries.
 """
@@ -128,7 +128,7 @@ class TestWhatPruningKeeps:
         hrefs = set(_links(article.blocks))
         assert {'/help/volunteering', '/help/proctor', '/help/player'} <= hrefs
 
-    async def test_getting_started_drops_the_rows_that_would_dead_end(self, db):
+    async def test_getting_started_unlinks_the_rows_that_would_dead_end(self, db):
         tenant = await _tenant('bare')
         with tenant_scope(tenant.id):
             article = await HelpService.get_article('getting-started')
@@ -137,9 +137,11 @@ class TestWhatPruningKeeps:
         assert '/help/proctor' not in hrefs
         assert '/help/player' in hrefs
         table = next(b for b in article.blocks if b.kind == 'table')
-        labels = {''.join(s.text for s in row[0]) for row in table.rows}
-        assert 'Working shifts' not in labels
-        assert 'Playing' in labels
+        rows = {''.join(s.text for s in row[0]): row[1] for row in table.rows}
+        # The row stays; only its dead link loses the anchor.
+        assert [s.kind for s in rows['Working shifts']] == ['text']
+        assert rows['Working shifts'][0].text == 'Volunteering'
+        assert rows['Playing'][0].kind == 'link'
 
     async def test_running_text_keeps_its_words(self, db):
         """The glossary's "See [Volunteering](/help/volunteering)" keeps the word."""
@@ -176,6 +178,35 @@ class TestPruneLinks:
         assert not readable('/event-info/attending')
         assert not readable('/event-info')
 
-    def test_a_table_left_empty_is_dropped(self):
-        table = Block('table', rows=(((Span('link', 'P', href='/help/proctor'),),),))
-        assert prune_links((table,), link_filter(set(), None)) == ()
+    def test_a_dead_link_in_a_table_cell_is_unlinked_not_dropped(self):
+        table = Block('table', rows=(
+            ((Span('text', 'Proctoring'),), (Span('link', 'P', href='/help/proctor'),)),
+        ))
+        (out,) = prune_links((table,), link_filter(set(), None))
+        assert out.rows == (((Span('text', 'Proctoring'),), (Span('text', 'P'),)),)
+
+    def test_table_headers_are_pruned_too(self):
+        table = Block(
+            'table',
+            headers=((Span('link', 'Proctor', href='/help/proctor'),),),
+            rows=(((Span('text', 'x'),),),),
+        )
+        (out,) = prune_links((table,), link_filter(set(), None))
+        assert out.headers == ((Span('text', 'Proctor'),),)
+
+    def test_a_header_link_counts_as_a_section_to_look_up(self):
+        from application.content import article_sections
+
+        table = Block('table', headers=((Span('link', 'E', href='/event-info/x'),),))
+        assert article_sections((table,)) == {'/event-info'}
+
+    @pytest.mark.parametrize('href', [
+        '/help/crew/', '/help/crew?ref=dm', '/help/crew/?ref=dm#approval', '/help/crew#approval',
+    ])
+    def test_a_trailing_slash_or_query_names_the_same_article(self, href):
+        assert internal_target(href)[:2] == ('/help', 'crew')
+        assert link_filter({'crew'}, None)(href)
+        assert not link_filter(set(), None)(href)
+
+    def test_a_section_index_with_a_trailing_slash_is_the_index(self):
+        assert internal_target('/help/') == ('/help', '', '')

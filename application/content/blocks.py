@@ -315,11 +315,13 @@ def internal_target(href: str) -> tuple[str, str, str] | None:
     """``(section, slug, anchor)`` for a link into an article section, else ``None``.
 
     ``/help/crew#approval`` is ``('/help', 'crew', 'approval')``; a section index
-    (``/help``) has an empty slug. Links anywhere else — another page of the
-    app, off-site, an in-page ``#anchor`` — are not article links and return
-    ``None``.
+    (``/help``) has an empty slug. A trailing slash or a query names the same
+    article (``/help/crew/?x`` is ``crew``). Links anywhere else — another page
+    of the app, off-site, an in-page ``#anchor`` — are not article links and
+    return ``None``.
     """
     path, _, anchor = href.partition('#')
+    path = path.split('?', 1)[0].rstrip('/')
     for section in ('/help', '/event-info'):
         if path == section:
             return section, '', anchor
@@ -328,17 +330,12 @@ def internal_target(href: str) -> tuple[str, str, str] | None:
     return None
 
 
-def _prune_spans(spans: tuple[Span, ...], readable: Callable[[str], bool]) -> tuple[tuple[Span, ...], bool]:
-    """Spans with dead links turned into their label; and whether any was dead."""
-    out: list[Span] = []
-    dead = False
-    for span in spans:
-        if span.kind == 'link' and not readable(span.href):
-            out.append(Span('text', span.text))
-            dead = True
-        else:
-            out.append(span)
-    return tuple(out), dead
+def _prune_spans(spans: tuple[Span, ...], readable: Callable[[str], bool]) -> tuple[Span, ...]:
+    """Spans with each dead link turned into its label."""
+    return tuple(
+        Span('text', span.text) if span.kind == 'link' and not readable(span.href) else span
+        for span in spans
+    )
 
 
 def prune_links(blocks, readable: Callable[[str], bool]) -> tuple[Block, ...]:
@@ -346,28 +343,24 @@ def prune_links(blocks, readable: Callable[[str], bool]) -> tuple[Block, ...]:
 
     Articles link to each other freely, but an article can be gated off (a
     feature the community has not enabled, a role the reader does not hold),
-    and the link to it then lands on "does not exist". A link in running text
-    keeps its words and loses the anchor. A **table row** pointing at an
-    unreadable article is dropped whole: a "you are a volunteer, read this"
-    row is noise in a community with no volunteers, and its label alone is a
-    dead end. A table left with no rows goes too.
+    and the link to it then lands on "does not exist". Every link — in running
+    text, list items, table headers and table cells — that points at an
+    article this reader cannot open keeps its words and loses the anchor.
+    Nothing else is removed: dropping a whole row or block would decide for the
+    author what the surrounding text still means.
     """
-    out: list[Block] = []
-    for block in blocks:
-        if block.kind == 'table':
-            rows = []
-            for row in block.rows:
-                cells = [_prune_spans(cell, readable) for cell in row]
-                if any(dead for _cell, dead in cells):
-                    continue
-                rows.append(tuple(cell for cell, _dead in cells))
-            if rows:
-                out.append(replace(block, rows=tuple(rows)))
-            continue
-        spans, _ = _prune_spans(block.spans, readable)
-        items = tuple(_prune_spans(item, readable)[0] for item in block.items)
-        out.append(replace(block, spans=spans, items=items))
-    return tuple(out)
+    return tuple(
+        replace(
+            block,
+            spans=_prune_spans(block.spans, readable),
+            items=tuple(_prune_spans(item, readable) for item in block.items),
+            headers=tuple(_prune_spans(cell, readable) for cell in block.headers),
+            rows=tuple(
+                tuple(_prune_spans(cell, readable) for cell in row) for row in block.rows
+            ),
+        )
+        for block in blocks
+    )
 
 
 def link_filter(help_slugs, event_slugs) -> Callable[[str], bool]:
@@ -406,6 +399,8 @@ def article_sections(blocks) -> set[str]:
         scan(block.spans)
         for item in block.items:
             scan(item)
+        for header in block.headers:
+            scan(header)
         for row in block.rows:
             for cell in row:
                 scan(cell)
