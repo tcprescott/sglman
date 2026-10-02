@@ -473,6 +473,11 @@ class MatchRescheduleService(RescheduleNotificationMixin):
                 decision_note=(note or '').strip() or None,
             )
             superseded = await self._supersede_others(request, actor)
+            # update_match already published, but *before* the request was
+            # marked approved, so an open board re-read it as still pending
+            # (no chip, no Ask to change). Publish again now the decision is
+            # recorded; the row's last refresh is then the true one.
+            match_live.publish(match_id, match_live.CHANGED)
 
         await self.audit_service.write_and_publish(
             actor,
@@ -527,8 +532,8 @@ class MatchRescheduleService(RescheduleNotificationMixin):
             EventType.MATCH_RESCHEDULE_DECLINED,
             event_extra={'tournament_id': request.match.tournament_id},
         )
-        # Approving reaches ``match_live`` through ``update_match`` /
-        # ``cancel_match``; a decline touches no match, so it publishes its own.
+        # A decline touches no match, so it publishes its own (approving
+        # publishes once more after recording the decision, see ``approve``).
         match_live.publish(request.match_id, match_live.CHANGED)  # type: ignore[attr-defined]
         await self._notify_decided(request, approved=False, new_at=None, note=note)
         return request

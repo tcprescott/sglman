@@ -862,7 +862,7 @@ The largest UI component, used by the home Schedule and Player boards, the admin
 | `acknowledge_match` | Player's own Acknowledge button | `MatchService.acknowledge_match` (client captured via `context.client`, restored with `with client:`) |
 | `acknowledge_commentator` / `acknowledge_tracker` | Crew member's own Acknowledge button | `CrewService.acknowledge_crew_assignment` |
 | `toggle_watch` | Watch column button (logged-in) | `MatchWatcherService.watch` / `unwatch`, flips `_watching` locally |
-| `request_reschedule` | **Ask to change** in the Your actions cell (a player in that match, row `Scheduled`) | Opens `RescheduleRequestDialog`; on submit flips `_can_reschedule`/`_reschedule_pending` locally so the button gives way to the Asked chip without a reload |
+| `request_reschedule` | **Ask to change** in the Your actions cell (a player in that match, row `Scheduled`) | Opens `RescheduleRequestDialog`; on submit flips `_can_reschedule`/`_reschedule_pending` locally so the button gives way to the **Change requested** chip without a reload. A staff decision arrives as a `match_live` push, and `update_row_by_id` recomputes the pair for that row (`_restamp_shared_state`), so approval brings Ask to change back without a reload too |
 | `toggle_stream_volunteer` | **Offer for stream** in the Your actions cell (a player in that match) | `MatchStreamVolunteerService.volunteer` / `withdraw`, flips `_stream_volunteer` and patches `stream_volunteers` locally |
 | `open_hard_preset` | **Harder settings** in the Your actions cell (a player in that match) | Opens `HardPresetDialog`; on change re-projects the row's harder-preset fields |
 | `open_bracket` | Bracket-ref link under the tournament name | `ui.navigate.to` the bracket view |

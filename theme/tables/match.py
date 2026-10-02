@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from nicegui import app, background_tasks, context, ui
@@ -82,6 +83,11 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # decides per viewer, so a tournament admin on the same board sees none.
         self.show_accommodations = show_accommodations
         self._plan = None
+        # Serialises single-row updates. One service call can push match_live
+        # twice (approving a move: once from update_match, once after the
+        # decision is recorded), and two concurrent re-fetches of one row let
+        # the earlier, staler read land last.
+        self._row_update_lock = asyncio.Lock()
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
@@ -593,6 +599,10 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         Uses service layer to fetch match data. When ``flash`` is set, the refreshed row
         briefly highlights so viewers notice a change made elsewhere.
         """
+        async with self._row_update_lock:
+            await self._update_row(match_id, flash)
+
+    async def _update_row(self, match_id, flash):
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is None:
@@ -609,6 +619,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             return
 
         carry_viewer_row_state(match_data, self.table.rows[idx])
+        await self._restamp_shared_state(match_data)
         await self._apply_accommodations([match_data])
         stage_options = self._stage_options()
         if stage_options is not None:
@@ -620,6 +631,21 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self._notify_rows_changed()
         if flash:
             self._schedule_flash_clear(match_id)
+
+    async def _restamp_shared_state(self, row) -> None:
+        """Recompute the per-viewer fields other people's actions change.
+
+        The reschedule pair and the harder-preset fields (``RESTAMPED_ROW_FIELDS``)
+        for this one row, through the same bulk lookups ``refresh`` uses: staff
+        approving a move is exactly the ``match_live`` push that lands here.
+        """
+        if self._shows_column('reschedule'):
+            requestable_ids, asked_ids = await self._fetch_reschedule_state()
+            row['_can_reschedule'] = row.get('id') in requestable_ids
+            row['_reschedule_pending'] = row.get('id') in asked_ids
+        if self._shows_column('hard_preset'):
+            states = await self._fetch_hard_preset_states([row])
+            apply_hard_preset_state(row, states.get(row.get('id')))
 
     def _schedule_flash_clear(self, match_id):
         """Clear the transient highlight on a row a moment after it was set."""
@@ -640,3 +666,4 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if idx is not None:
             del self.table.rows[idx]
             self.table.update()
+
