@@ -135,3 +135,10 @@ class TestListMyCommitments:
         assert row['approved'] is True
         assert row['acknowledged'] is False
         assert row['finished'] is False
+
+
+def test_a_card_id_is_unique_per_role():
+    """Commentating and tracking one match is two cards; the deep link needs one target."""
+    from pages.home_tabs.my_crew import crew_card_id
+
+    assert crew_card_id(7, 'commentator') != crew_card_id(7, 'tracker')

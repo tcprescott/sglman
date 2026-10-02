@@ -111,10 +111,13 @@ class RescheduleNotificationMixin:
             community_name=community,
             description=opponent_body,
         )
+        # The request itself with its Agree button, not the board: the board has
+        # no Agree, and the web-push copy of this DM has no Discord button, so
+        # landing anywhere else asked for something the reader could not do.
         discord_queue.enqueue(service.send_dm_with_reschedule_agree_button(
             int(opponent.discord_id), opponent_body, request.id,
             embed=opponent_embed,
-            link=await notification_links.player_matches(),
+            link=await notification_links.player_agree(request.id),
         ))
 
     @staticmethod

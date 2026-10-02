@@ -87,6 +87,28 @@ def player_match_url(match_id: int) -> str:
     return home_url(HOME_PLAYER, match=match_id)
 
 
+def crew_match_url(match_id: int) -> str:
+    """My Schedule, scrolled to this match's card under Crew you signed up for.
+
+    For the DMs a commentator or tracker gets about a match they crew. The
+    player-side ``?match=`` filter is no use to them: it narrows *their own
+    matches* to one, and they are not playing in it. The ``my-crew`` slug lands
+    on the same tab, and the page reads ``match`` against the viewer's crew
+    slots to find the card.
+    """
+    return home_url(HOME_MY_CREW, match=match_id)
+
+
+def player_agree_url(request_id: int) -> str:
+    """My Schedule with the opponent's reschedule request open for agreement.
+
+    The opponent DM asks for one thing, "Agree if that works for you", and this
+    is the web control that does it; without it the ask could only be answered
+    from the Discord button.
+    """
+    return home_url(HOME_PLAYER, agree=request_id)
+
+
 def player_hard_preset_url(match_id: int) -> str:
     """The Player tab with this match's hard-preset opt-in dialog open.
 

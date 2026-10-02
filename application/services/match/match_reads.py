@@ -16,12 +16,21 @@ stage is the shape the board wants rather than the shape the table has.
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 
+from application.repositories import MatchRepository
 from application.utils.timezone import local_day_bounds
-from models import Match, MatchPlayers, Stage
+from models import Match, MatchPlayers, Stage, User
+
+# The four answers to "what is this match to you?", strongest tie first.
+RELATION_PLAYER = 'player'
+RELATION_CREW = 'crew'
+RELATION_WATCHER = 'watcher'
+RELATION_NONE = 'none'
 
 
 class MatchReadsMixin:
     """Load-or-None lookups, the schedule queries, and the stage grouping."""
+
+    repository: MatchRepository
 
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
@@ -35,6 +44,32 @@ class MatchReadsMixin:
         through ``match_service.repository`` for a simple read.
         """
         return await self.repository.get_by_id(match_id, prefetch_relations=prefetch_relations)
+
+    async def viewer_relation(self, match_id: int, user: Optional[User]) -> str:
+        """What ``match_id`` is to ``user``: player, crew, watcher, or none.
+
+        For a deep link that names a match, so the page can say why the match is
+        or is not on the board it opened: a DM outlives the slot it was about,
+        and a crew member following a stage DM to the player board used to land
+        on "No matches to show yet" with no word about why. Crew counts any
+        signup, approved or not, because both have a card under Crew you signed
+        up for. A missing match (or another community's) is ``none``.
+        """
+        if user is None:
+            return RELATION_NONE
+        match = await self.repository.get_by_id(match_id)
+        if match is None:
+            return RELATION_NONE
+        if any(p.user_id == user.id for p in match.players):
+            return RELATION_PLAYER
+        crew = [*match.commentators, *match.trackers]
+        if any(c.user_id == user.id for c in crew):
+            return RELATION_CREW
+        from application.repositories import MatchWatcherRepository
+
+        if await MatchWatcherRepository.is_watching(match_id, user.id):
+            return RELATION_WATCHER
+        return RELATION_NONE
 
     async def get_match_players(self, match: Match) -> List[MatchPlayers]:
         return await self.repository.get_players(match)

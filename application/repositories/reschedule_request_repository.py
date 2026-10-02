@@ -55,6 +55,20 @@ class RescheduleRequestRepository(TenantScopedRepository[MatchRescheduleRequest]
         ).prefetch_related(*_FULL).order_by('-created_at').limit(limit)
 
     @staticmethod
+    async def list_pending_against(user_id: int) -> List[MatchRescheduleRequest]:
+        """Open requests on matches ``user_id`` plays in that someone else raised.
+
+        The opponent's half of the loop: what they have been asked to agree to.
+        Oldest first, like the staff queue.
+        """
+        return await scoped(
+            MatchRescheduleRequest.filter(
+                status=RescheduleRequestStatus.PENDING,
+                match__players__user_id=user_id,
+            ).exclude(requested_by_id=user_id)
+        ).distinct().prefetch_related(*_FULL).order_by('created_at')
+
+    @staticmethod
     async def get_pending_for(match_id: int, user_id: int) -> Optional[MatchRescheduleRequest]:
         """This player's open request on this match, if they have one."""
         return await scoped(

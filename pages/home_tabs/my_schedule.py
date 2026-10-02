@@ -34,10 +34,12 @@ async def my_schedule_tab(
     reschedule: Optional[int] = None,
     match: Optional[int] = None,
     hard: Optional[int] = None,
+    agree: Optional[int] = None,
 ) -> None:
-    """The four deep-link params belong to the matches section and pass straight
+    """The deep-link params belong to the matches section and pass straight
     through to it; see :func:`pages.home_tabs.player.render_player_dashboard` for
-    what each one opens. They arrive here because the DMs that carry them predate
+    what each one opens. ``match`` also reaches the crew section, which scrolls
+    to the viewer's slot on that match when they crew it rather than play it. They arrive here because the DMs that carry them predate
     this tab and address ``/home/player``, which resolves onto My Schedule via
     the alias declared in :mod:`pages.home`.
     """
@@ -46,8 +48,9 @@ async def my_schedule_tab(
     with ui.column().classes('page-container wiz-section-stack'):
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
+            agree=agree,
         )
-        await my_crew_tab()
+        await my_crew_tab(focus_match=match)
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()

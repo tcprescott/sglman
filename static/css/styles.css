@@ -1610,6 +1610,13 @@ body.body--dark {
     animation: wizRowFlash 1.6s ease-out;
 }
 
+/* The card a DM's link button was about, so the reader's eye lands on it. */
+.wiz-deep-link-target {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
+    animation: wizRowFlash 2.4s ease-out;
+}
+
 /* Mobile grid cards — token-driven surface; the vars switch per mode on
    their own. Slot templates keep only layout inline (width/box-sizing). */
 .match-grid-card,

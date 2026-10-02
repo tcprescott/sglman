@@ -12,9 +12,15 @@ from application.services import (
     TournamentService,
     get_user_from_discord_id,
 )
-from application.utils.app_links import HOME_PLAYER, home_url
+from application.services.match.match_reads import (
+    RELATION_CREW,
+    RELATION_PLAYER,
+    RELATION_WATCHER,
+)
+from application.utils.app_links import HOME_PLAYER, HOME_SCHEDULE, home_url
 from application.utils.timezone import format_local_display
 from models import FeatureFlag, RescheduleRequestKind, RescheduleRequestStatus
+from pages.home_tabs.player_asks import render_opponent_requests
 from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
@@ -113,6 +119,50 @@ def _notify_stale_reschedule_link() -> None:
     )
 
 
+def _show_one_match_chip() -> None:
+    """The board is narrowed to the DM's match. Say so, and offer the way out.
+
+    A one-row board with no explanation reads as a board that lost rows, and a
+    DM outlives the stage call it was sent about.
+    """
+    with ui.row().classes('items-center gap-2 q-mb-sm'):
+        with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+            ui.icon('filter_alt', size='14px')
+            ui.label('Showing one match only')
+        ui.button(
+            'Show all my matches', icon='clear',
+            on_click=lambda: ui.navigate.to(home_url(HOME_PLAYER)),
+        ).props('flat dense color=primary')
+
+
+def _explain_other_match(relation: str) -> None:
+    """``?match=`` named a match the viewer isn't playing. Say what it is to them.
+
+    Filtering the board to it anyway showed "No matches to show yet", which is
+    what a commentator following a stage DM used to get. The board stays whole;
+    crew are left to ``my_crew_tab``, which outlines and scrolls to their slot, and a
+    watcher is pointed at the one board that lists a match they neither play nor crew.
+    """
+    if relation == RELATION_CREW:
+        # The crew section owns this one: it finds the card (past or upcoming),
+        # outlines it and scrolls to it, and says so if the match is over.
+        return
+    if relation == RELATION_WATCHER:
+        with ui.row().classes('items-center gap-2 q-mb-sm'):
+            with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
+                ui.icon('visibility', size='14px')
+                ui.label("You're watching that match, not playing in it")
+            ui.button(
+                'Find it on the schedule', icon='event',
+                on_click=lambda: ui.navigate.to(home_url(HOME_SCHEDULE)),
+            ).props('flat dense color=primary')
+        return
+    ui.notify(
+        "That match isn't one of yours, so here's your whole schedule.",
+        color='warning',
+    )
+
+
 # What each status means to the person who asked, rather than the machine key.
 _REQUEST_STATUS = {
     RescheduleRequestStatus.PENDING: ('Waiting on staff', 'warning'),
@@ -172,6 +222,7 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
 async def render_player_dashboard(
     schedule: int | None = None, reschedule: int | None = None,
     match: int | None = None, hard: int | None = None,
+    agree: int | None = None,
 ):
     """The player's own schedule.
 
@@ -186,7 +237,12 @@ async def render_player_dashboard(
 
     ``match`` narrows the board to one match, for the stage DMs' button. It
     stays a filter rather than a dialog because "which stage am I on" is
-    answered by the row itself.
+    answered by the row itself. A match the viewer is not playing (crew and
+    watchers get their own links, but an old DM or a forwarded one can still
+    land here) leaves the board whole and says what the match is to them.
+
+    ``agree`` is a reschedule request id from the opponent DM's button, opening
+    that request with its Agree button.
 
     ``hard`` is a match id from the harder-settings DM, opening that match's
     opt-in dialog. A dialog rather than a filter, because unlike the stage the
@@ -221,18 +277,14 @@ async def render_player_dashboard(
         user=viewer,
     )
     with panel.body:
-        # A stage DM linked here naming one match. Say so, and offer the way
-        # out: a one-row board with no explanation reads as a board that lost
-        # rows, and a DM outlives the stage call it was sent about.
+        board_match_ids = None
         if match:
-            with ui.row().classes('items-center gap-2 q-mb-sm'):
-                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
-                    ui.icon('filter_alt', size='14px')
-                    ui.label('Showing one match only')
-                ui.button(
-                    'Show all my matches', icon='clear',
-                    on_click=lambda: ui.navigate.to(home_url(HOME_PLAYER)),
-                ).props('flat dense color=primary')
+            relation = await match_service.viewer_relation(int(match), viewer)
+            if relation == RELATION_PLAYER:
+                board_match_ids = [int(match)]
+                _show_one_match_chip()
+            else:
+                _explain_other_match(relation)
 
         # Challonge: upcoming bracket matches the player can schedule in a few clicks.
         @ui.refreshable
@@ -483,6 +535,8 @@ async def render_player_dashboard(
         # filter card — far enough down that the "matchup ready" DM landed on a
         # page whose call to action was off-screen. Then the board, then the
         # requests they have already made and are only tracking.
+        # Agreeing changes nothing on the board, so nothing there refreshes.
+        await render_opponent_requests(viewer, agree_request_id=agree)
         await challonge_section()
         await bracket_section()
 
@@ -495,7 +549,7 @@ async def render_player_dashboard(
             extra_slots=extra_slots,
             player_discord_id=discord_id,
             storage_key='player_dashboard',
-            match_ids=[int(match)] if match else None,
+            match_ids=board_match_ids,
         )
 
         await requests_section()

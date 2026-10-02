@@ -105,6 +105,33 @@ def _match_info_lines(
 # Match scheduling DMs  (sent by MatchScheduleService / MatchService)
 # ---------------------------------------------------------------------------
 
+# Who a match DM is for. The same lifecycle change reaches four kinds of reader,
+# and copy written for one is false for the others: a tournament subscriber told
+# "you've got a match... good luck!" reads that as being drafted into someone
+# else's game. Players get their own acknowledgment DM for scheduling, so the
+# scheduled/rescheduled builders below never address one.
+AUDIENCE_PLAYER = 'player'
+AUDIENCE_CREW = 'crew'
+AUDIENCE_WATCHER = 'watcher'
+AUDIENCE_SUBSCRIBER = 'subscriber'
+
+# The subject of a sentence about the match, per audience.
+_MATCH_SUBJECT = {
+    AUDIENCE_PLAYER: 'Your match',
+    AUDIENCE_CREW: "A match you're on crew for",
+    AUDIENCE_WATCHER: "A match you're watching",
+    AUDIENCE_SUBSCRIBER: 'A match',
+}
+
+
+def _subject(audience: str) -> str:
+    return _MATCH_SUBJECT.get(audience, _MATCH_SUBJECT[AUDIENCE_SUBSCRIBER])
+
+
+def _join_blocks(*blocks: str) -> str:
+    return "\n\n".join(b for b in blocks if b)
+
+
 def scheduled_dm(
     tournament_name: str,
     scheduled_at_display: str,
@@ -112,19 +139,29 @@ def scheduled_dm(
     player_names: Optional[list[str]] = None,
     stage_name: str = '',
     bracket_line: str = '',
+    audience: str = AUDIENCE_SUBSCRIBER,
 ) -> str:
+    """A new match, told to someone who is not playing it.
+
+    Subscribers get crew signup buttons under the card, so their tail points at
+    them; crew already hold a slot and need it on their calendar; a watcher asked
+    only to be kept informed.
+    """
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stage_name=stage_name,
         bracket_line=bracket_line,
     )
-    body = "\n".join(info)
-    return (
-        f"You've got a match scheduled in **{tournament_name}**.\n\n"
-        f"{body}\n\n"
-        f"Good luck!"
-    )
+    tail = {
+        AUDIENCE_CREW: "Make sure it's on your calendar.",
+        AUDIENCE_WATCHER: '',
+    }.get(audience, "Want to commentate or track it? Use the buttons below.")
+    if audience == AUDIENCE_SUBSCRIBER:
+        intro = f"A match was just scheduled in **{tournament_name}**."
+    else:
+        intro = f"{_subject(audience)} in **{tournament_name}** is scheduled."
+    return _join_blocks(intro, "\n".join(info), tail)
 
 
 def rescheduled_dm(
@@ -134,7 +171,9 @@ def rescheduled_dm(
     player_names: Optional[list[str]] = None,
     stage_name: str = '',
     bracket_line: str = '',
+    audience: str = AUDIENCE_SUBSCRIBER,
 ) -> str:
+    """A match moved, told to someone who is not playing it."""
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=new_scheduled_at_display,
@@ -142,12 +181,35 @@ def rescheduled_dm(
         time_label='New time',
         bracket_line=bracket_line,
     )
-    body = "\n".join(info)
-    return (
-        f"Your match in **{tournament_name}** got moved. Here's the new time.\n\n"
-        f"{body}\n\n"
-        f"Make sure it's on your calendar."
+    tail = {
+        AUDIENCE_CREW: (
+            "Make sure it's on your calendar. If you can't make the new time, "
+            "withdraw from My Schedule so staff can find cover."
+        ),
+        AUDIENCE_WATCHER: '',
+    }.get(audience, "Want to commentate or track it? Use the buttons below.")
+    intro = f"{_subject(audience)} in **{tournament_name}** has moved. Here's the new time."
+    return _join_blocks(intro, "\n".join(info), tail)
+
+
+def tournament_signup_dm(tournament_name: str, *, can_request: bool) -> str:
+    """The signup confirmation, true however the tournament gets scheduled.
+
+    It used to say "Staff can now schedule you", which is false for a
+    bracket-run tournament where players book their own games. At signup time
+    the bracket often does not exist yet, so the copy names what happens in
+    every mode: the match shows up on My Schedule and a DM says so, including
+    the one that asks them to pick a time. ``can_request`` adds the one extra
+    route that only some tournaments offer.
+    """
+    body = (
+        f"You're signed up for **{tournament_name}**. Your matches will show up "
+        "on My Schedule, and you'll get a DM when one is booked or is waiting on "
+        "you to pick a time."
     )
+    if can_request:
+        body += " You can also request a match from My Schedule."
+    return body
 
 
 def acknowledgment_request_dm(
@@ -206,18 +268,22 @@ def stage_assigned_dm(
     scheduled_at_display: str,
     *,
     player_names: Optional[list[str]] = None,
+    audience: str = AUDIENCE_PLAYER,
 ) -> str:
     """"You're on Kraid" — sent the moment a stage is assigned.
 
     Where to go is the whole message, so it states the substitution outright:
-    the stage, not the tournament room.
+    the stage, not the tournament room. Crew go with the match; a watcher is
+    told where it will be played and asked to do nothing.
     """
-    body = _stage_info_lines(player_names, scheduled_at_display)
-    block = f"{body}\n\n" if body else ''
-    return (
-        f"Your match in **{tournament_name}** is on **{stage_name}**.\n\n"
-        f"{block}"
-        f"Play it at the stage rather than in the tournament room."
+    tail = {
+        AUDIENCE_CREW: "That's where you'll be crewing it.",
+        AUDIENCE_WATCHER: "It'll be played at the stage.",
+    }.get(audience, "Play it at the stage rather than in the tournament room.")
+    return _join_blocks(
+        f"{_subject(audience)} in **{tournament_name}** is on **{stage_name}**.",
+        _stage_info_lines(player_names, scheduled_at_display),
+        tail,
     )
 
 
@@ -226,15 +292,18 @@ def stage_cleared_dm(
     scheduled_at_display: str,
     *,
     player_names: Optional[list[str]] = None,
+    audience: str = AUDIENCE_PLAYER,
 ) -> str:
     """The retraction. Telling someone they're on a stage and never taking it
     back sends them to an empty one."""
-    body = _stage_info_lines(player_names, scheduled_at_display)
-    block = f"{body}\n\n" if body else ''
-    return (
-        f"Your match in **{tournament_name}** is off the stage.\n\n"
-        f"{block}"
-        f"Play it in the tournament room as usual."
+    tail = {
+        AUDIENCE_CREW: "It's back in the tournament room, so crew it as usual.",
+        AUDIENCE_WATCHER: "It'll be played in the tournament room.",
+    }.get(audience, "Play it in the tournament room as usual.")
+    return _join_blocks(
+        f"{_subject(audience)} in **{tournament_name}** is off the stage.",
+        _stage_info_lines(player_names, scheduled_at_display),
+        tail,
     )
 
 
@@ -244,17 +313,20 @@ def stage_reminder_dm(
     scheduled_at_display: str,
     *,
     player_names: Optional[list[str]] = None,
+    audience: str = AUDIENCE_PLAYER,
 ) -> str:
     """The nudge shortly before the match, naming the stage and the time again.
 
     The assignment DM may have arrived hours ago and two matches back.
     """
-    body = _stage_info_lines(player_names, scheduled_at_display)
-    block = f"{body}\n\n" if body else ''
-    return (
-        f"Your match in **{tournament_name}** is coming up on **{stage_name}**.\n\n"
-        f"{block}"
-        f"Head to the stage rather than the tournament room."
+    tail = {
+        AUDIENCE_CREW: "Head to the stage.",
+        AUDIENCE_WATCHER: '',
+    }.get(audience, "Head to the stage rather than the tournament room.")
+    return _join_blocks(
+        f"{_subject(audience)} in **{tournament_name}** is coming up on **{stage_name}**.",
+        _stage_info_lines(player_names, scheduled_at_display),
+        tail,
     )
 
 
