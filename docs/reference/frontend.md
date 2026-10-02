@@ -928,7 +928,7 @@ guardrail hooks and source-scanning tests, because each one fails silently.
 | `preferences_button(table)` | same | The gear that opens the Preferences modal; hidden below 1024px |
 | `search_input(table)` | same | A box bound to Quasar's real `filter` prop |
 | `row_count_label(table, noun)` | same | Live `124 matches` caption over a client-paginated board |
-| `sticky_header(table)` | same | Bounded height + sticky `<th>`; the two only work together |
+| `sticky_header(table)` | same | Bounded height + sticky `<th>`; the two only work together. The cap applies only outside grid mode (`:not(.q-table--grid)`), because nothing scrolls a phone grid's cards — capped, they overflowed past the third card |
 | `csv_export_button(prefix, columns, rows)` | [`theme/tables/export.py`](../../theme/tables/export.py) | Downloads what is on screen — pass the plan's columns, not the defaults |
 | `TableKeys` | [`theme/tables/preferences.py`](../../theme/tables/preferences.py) | Every table's stable key, namespaced `surface.table` |
 | `apply_column_visibility(table, columns)` | [`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py) | Turns this app's `hidden` convention into Quasar's `visible-columns` |

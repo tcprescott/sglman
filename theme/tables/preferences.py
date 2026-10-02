@@ -562,7 +562,14 @@ def sticky_header(table: ui.table, max_height: str = '70vh') -> ui.table:
     no bounded height has nothing to stick to — the two have to be set together,
     which is what this pairs. Worth it on a long operational board and pure cost
     on a short reference table, so it is opt-in rather than automatic.
+
+    The cap travels as a CSS variable, not an inline ``max-height``, because it
+    must not apply in grid mode: below ``md`` a mobile-grid table renders cards in
+    ``.q-table__grid-content``, which is not the scroll container, so a capped
+    table painted every card past the third over whatever followed it and the
+    page ended before them. The stylesheet applies the cap only to
+    ``:not(.q-table--grid)``.
     """
     table.classes(add='wiz-table--sticky')
-    table.style(f'max-height: {max_height}')
+    table.style(f'--wiz-sticky-max-height: {max_height}')
     return table

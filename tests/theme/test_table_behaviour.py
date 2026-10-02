@@ -132,8 +132,21 @@ class TestStickyHeaders:
 
     def test_the_stylesheet_pairs_the_class_with_a_scroll_container(self):
         css = (REPO / 'static' / 'css' / 'styles.css').read_text()
-        assert '.wiz-table--sticky .q-table__middle' in css
+        assert '.wiz-table--sticky:not(.q-table--grid) .q-table__middle' in css
         assert '.wiz-table--sticky thead tr th' in css
+
+    def test_the_cap_skips_the_phone_grid(self):
+        # In grid mode nothing scrolls the cards, so an inline max-height clipped
+        # a phone board at its third card. The cap rides on a variable the
+        # stylesheet applies only outside grid mode.
+        source = (REPO / 'theme' / 'tables' / 'preferences.py').read_text()
+        helper = source[source.index('def sticky_header'):]
+        assert "style(f'max-height" not in helper
+        css = (REPO / 'static' / 'css' / 'styles.css').read_text()
+        assert re.search(
+            r'\.wiz-table--sticky:not\(\.q-table--grid\)\s*\{\s*max-height: var\(--wiz-sticky-max-height',
+            css,
+        )
 
 
 class TestTheEventLog:

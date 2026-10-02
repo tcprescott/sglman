@@ -1813,7 +1813,14 @@ body.body--dark {
    without a bounded height has nothing to stick to — the helper sets both, and
    the class is what pairs them. Applied to the long operational boards, never
    to short reference tables, where an inner scrollbar is pure cost. */
-.wiz-table--sticky .q-table__middle {
+.wiz-table--sticky:not(.q-table--grid) {
+    max-height: var(--wiz-sticky-max-height, 70vh);
+}
+
+/* Grid mode (the phone card view) is excluded: its cards live in
+   .q-table__grid-content, which nothing scrolls, so a capped grid overflowed its
+   box and buried every card past the third under the next panel. */
+.wiz-table--sticky:not(.q-table--grid) .q-table__middle {
     overflow: auto;
 }
 
