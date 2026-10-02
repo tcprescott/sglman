@@ -167,6 +167,16 @@ async def crew_match(
     return await link_for(label, crew_match_url(match_id))
 
 
+def race_room(url: str, *, label: str = 'Join the race room') -> Optional[DMLink]:
+    """The racetime.gg room itself — already absolute, and the only place to join.
+
+    Not tenant-qualified because it is not ours: the room lives on racetime.gg,
+    and the join control is there. ``None`` for a blank URL, since Discord
+    rejects an empty link button.
+    """
+    return DMLink(label, url) if url else None
+
+
 async def community_schedule(*, label: str = 'View the schedule') -> Optional[DMLink]:
     """The community schedule — for a DM about somebody *else's* match.
 

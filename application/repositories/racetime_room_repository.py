@@ -8,6 +8,7 @@ method never calls the ``_tenant`` helpers and says so; the scoped reads/writes
 (created by the PR 4/6 lifecycle) use them.
 """
 
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from application.repositories._base import TenantScopedRepository
@@ -74,6 +75,22 @@ class RacetimeRoomRepository(TenantScopedRepository[RacetimeRoom]):
             return {}
         rooms = await scoped(RacetimeRoom.filter(match_id__in=list(match_ids)))
         return {r.match_id: r for r in rooms if r.match_id is not None}
+
+    async def open_for_player(self, user_id: int) -> List[RacetimeRoom]:
+        """Rooms not yet finished or cancelled on matches ``user_id`` plays in.
+
+        Soonest match first. Sorted here rather than by ``order_by`` because the
+        roster join needs ``DISTINCT``, and Postgres refuses to order a distinct
+        query by a column of another table.
+        """
+        rooms = await scoped(
+            RacetimeRoom.filter(
+                status__in=[RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS],
+                match__players__user_id=user_id,
+            )
+        ).distinct().prefetch_related('match', 'match__tournament', 'match__players__user')
+        far = datetime.max.replace(tzinfo=timezone.utc)
+        return sorted(rooms, key=lambda r: ((r.match and r.match.scheduled_at) or far, r.id))
 
     async def list_all(self) -> List[RacetimeRoom]:
         return await scoped(RacetimeRoom.all()).order_by('-created_at')
