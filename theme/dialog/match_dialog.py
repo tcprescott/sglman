@@ -48,6 +48,22 @@ _ROOM_STATUS_CHIP = {
 _CANCELLABLE_ROOM_STATUSES = (RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS)
 
 
+def _no_requestable_message(*, enrolled: bool, enrolled_running: bool) -> str:
+    """Why Request Match has no tournament to offer, said truthfully.
+
+    Nothing requestable while enrolled in a *running* tournament means every one
+    of them is bracket-run. Enrolled only in finished ones is a different answer:
+    pointing that player at a bracket sends them looking for a matchup that will
+    never come.
+    """
+    if enrolled_running:
+        return ('Your tournaments are scheduled from their bracket — '
+                'schedule your matchup from My Schedule instead.')
+    if enrolled:
+        return ("The tournaments you're in have finished, so there's nothing to "
+                'request a match in. Sign up for a running one on the Tournaments tab.')
+    return 'You have not opted into any tournaments. Please opt in before submitting a match.'
+
 class AdminMatchDialog(BaseMatchDialog):
     """Admin view for creating/editing matches with full control."""
 
@@ -518,7 +534,8 @@ class UserMatchDialog(BaseMatchDialog):
         # bracket, not from a request. The service rejects them either way — this
         # keeps the dropdown from offering a choice that can only fail.
         tournaments = await self.tournament_service.list_player_requestable(user)
-        enrolled_any = bool(await self.tournament_service.get_enrolled_players_by_user(user))
+        enrolments = await self.tournament_service.get_enrolled_players_by_user(user)
+        enrolled_running = any(e.tournament.is_active for e in enrolments)
 
         defaults = self._get_default_values()
 
@@ -539,13 +556,9 @@ class UserMatchDialog(BaseMatchDialog):
                 with ui.row().classes('items-center gap-1 no-wrap'):
                     await help_icon('match-request', label='What is this?')
                 if not tournaments:
-                    ui.label(
-                        'Your tournaments are scheduled from their bracket — '
-                        'schedule your matchup from Your Schedule instead.'
-                        if enrolled_any else
-                        'You have not opted into any tournaments. '
-                        'Please opt in before submitting a match.'
-                    ).classes('text-negative')
+                    ui.label(_no_requestable_message(
+                        enrolled=bool(enrolments), enrolled_running=enrolled_running,
+                    )).classes('text-negative')
                     with dialog_actions().classes('justify-end'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                     dialog.open()

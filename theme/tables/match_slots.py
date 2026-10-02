@@ -208,6 +208,76 @@ RESCHEDULE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     </span>
 </q-td>'''.replace('__ASK__', RESCHEDULE_TOOLTIP)
 
+# The player's own controls on their own board, in one labelled cell.
+#
+# They were four columns (Stream, Change, Settings, Watch) of 30 px icon buttons,
+# laid out after Stage and Generated Seed, and at 1440 the Change column started
+# at the table's right edge: a player had to scroll sideways to reach the things
+# only they can do, and then read a tooltip to learn what each icon did. This
+# cell sits beside Players and labels each button the way the phone card does.
+# Each control keeps its own gate from the single-purpose slots above; the phone
+# card reads this column as standing for all four (match_grid.render_grid_slot).
+MY_ACTIONS_COLUMN = 'my_actions'
+
+MY_ACTIONS_SLOT = """<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <div class="wiz-my-actions">
+        <template v-if="props.row.players && props.row.players.some(p => p.discord_id == __DID__)">
+            <q-btn v-if="props.row._can_reschedule && props.row.state === 'Scheduled'"
+                   icon="edit_calendar" color="primary" dense flat no-caps no-wrap label="Ask to change"
+                   @click="$parent.$emit('request_reschedule', props.row)">
+                <q-tooltip>__ASK__</q-tooltip>
+            </q-btn>
+            <span v-else-if="props.row._reschedule_pending" class="wiz-chip wiz-chip--pending">
+                <q-icon name="edit_calendar" size="12px" />Change requested
+                <q-tooltip>A reschedule request is waiting on staff.</q-tooltip>
+            </span>
+            <template v-if="props.row._hard_offered">
+                <span v-if="props.row._hard_override" class="wiz-chip wiz-chip--candidate">
+                    <q-icon name="gavel" size="12px" />
+                    <span class="wiz-chip--name">{{ props.row._hard_override_name }}</span>
+                    <q-tooltip>Staff set this match to {{ props.row._hard_override_name }}.</q-tooltip>
+                </span>
+                <span v-else-if="props.row._hard_agreed && props.row._hard_locked"
+                      class="wiz-chip wiz-chip--confirmed">
+                    <q-icon name="bolt" size="12px" />
+                    <span class="wiz-chip--name">{{ props.row._hard_name }}</span>
+                    <q-tooltip>This match rolled {{ props.row._hard_name }}.</q-tooltip>
+                </span>
+                <q-btn v-else-if="!props.row._hard_locked"
+                       icon="bolt" :color="props.row._hard_opted_in ? 'primary' : 'grey-8'"
+                       dense flat no-caps no-wrap
+                       :label="props.row._hard_agreed ? 'Playing ' + props.row._hard_name
+                               : (props.row._hard_opted_in ? 'Opted in — waiting' : 'Harder settings')"
+                       @click="$parent.$emit('open_hard_preset', props.row)">
+                    <q-tooltip v-if="props.row._hard_opted_in && !props.row._hard_agreed">
+                        You opted in to {{ props.row._hard_name }}. Nobody is told unless everyone does.
+                    </q-tooltip>
+                    <q-tooltip v-else-if="!props.row._hard_agreed">
+                        Play this match on {{ props.row._hard_name }} instead, if everyone agrees.
+                    </q-tooltip>
+                </q-btn>
+            </template>
+            <q-btn v-if="__ACTIONABLE__"
+                   :icon="props.row._stream_volunteer ? 'videocam' : 'videocam_off'"
+                   :color="props.row._stream_volunteer ? 'primary' : 'grey-8'"
+                   dense flat no-caps no-wrap
+                   :label="props.row._stream_volunteer ? 'Offered for stream' : 'Offer for stream'"
+                   @click="$parent.$emit('toggle_stream_volunteer', props.row)">
+                <q-tooltip>{{ props.row._stream_volunteer ? 'Withdraw your stream offer' : "__OFFER__" }}</q-tooltip>
+            </q-btn>
+        </template>
+        <q-btn :icon="props.row._watching ? 'notifications' : 'notifications_none'"
+               :color="props.row._watching ? 'primary' : 'grey-8'"
+               dense flat no-caps no-wrap
+               :label="props.row._watching ? 'Watching' : 'Watch'"
+               @click="$parent.$emit('toggle_watch', props.row)">
+            <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
+        </q-btn>
+    </div>
+</q-td>""".replace('__ASK__', RESCHEDULE_TOOLTIP).replace(
+    '__OFFER__', STREAM_VOLUNTEER_TOOLTIP,
+).replace('__ACTIONABLE__', STREAM_VOLUNTEER_ACTIONABLE)
+
 # The Generate button's own gate, shared with the mobile grid's seed detail.
 # A seed can only be rolled once, so offering the button where it cannot help is
 # not merely noise: on a bracket row with no players yet it burns the one roll on
@@ -506,7 +576,8 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                         <span v-if="player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
-                    <q-btn v-if="player.ada" icon="accessible" color="primary" size="xs" dense flat round
+                    <q-btn v-if="player.ada" icon="accessible" color="primary" size="sm" dense flat round
+                           class="wiz-tap-24"
                            @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})">
                         <q-tooltip>ADA accommodation arranged. Tap for staff notes.</q-tooltip>
                     </q-btn>
@@ -514,10 +585,13 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                         <q-icon name="emoji_events" size="12px" />Winner</span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
+                    <!-- Labelled, not an 18 px tick: a bare check beside your own
+                         name reads as a status mark, and its tooltip was the only
+                         thing saying it was a control. -->
                     <q-btn v-if="!__IA__ && props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"
-                           icon="check" color="primary" size="xs" dense flat
+                           icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
                            @click="$parent.$emit('acknowledge_match', props.row)">
-                        <q-tooltip>Acknowledge</q-tooltip>
+                        <q-tooltip>Confirm you've seen this match and will play it</q-tooltip>
                     </q-btn>
                 </div>
             </template>
@@ -585,7 +659,7 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                      its only explanation never opens on the tablets this board is
                      read on (the same lesson the Stations button records above). -->
                 <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
-                       icon="check" color="primary" size="sm" dense flat no-caps label="Acknowledge"
+                       icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
                        @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
                     <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
                 </q-btn>
@@ -651,6 +725,9 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
             '__DID__', discord_id_js,
         ))
         table.add_slot('body-cell-hard_preset', HARD_PRESET_SLOT.replace(
+            '__DID__', discord_id_js,
+        ))
+        table.add_slot(f'body-cell-{MY_ACTIONS_COLUMN}', MY_ACTIONS_SLOT.replace(
             '__DID__', discord_id_js,
         ))
 

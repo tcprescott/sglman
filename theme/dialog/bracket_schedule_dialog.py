@@ -16,20 +16,29 @@ the staff bracket view does not carry. Shares the button with the non-bracket
 UserMatchDialog match-request dialog (``theme/dialog/match_dialog.py``).
 
 ``tenant_id`` is optional: pass it from a detached client event (the bracket
-view's card click) so the service call is rebound with ``tenant_scope``; omit it
-inside an ordinary page handler, where the client stash already resolves the
-tenant.
+view's card click); otherwise it is read when the dialog opens. Either way the
+booking and ``on_submit`` run under ``tenant_scope`` and inside the client the
+dialog opened in. That is not belt and braces: the player board's ``on_submit``
+refreshes the section the dialog was built in, which deletes the dialog, and the
+board refresh that follows used to find no slot, no client stash and so no
+tenant ("No tenant in context" on every booking).
+
+A booking that lost a race (``AlreadyBookedError``) closes the dialog and runs
+``on_submit`` too, because the Schedule button it would otherwise leave on
+screen can only fail again.
 """
 
 from contextlib import nullcontext
 from typing import List, Optional
 
-from nicegui import ui
+from nicegui import Client, context, ui
 
+from application.errors import AlreadyBookedError
 from application.services import BracketService
-from application.tenant_context import tenant_scope
-from application.utils.timezone import now_local
+from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.timezone import format_local_display, next_whole_hour_local
 from theme.dialog._helpers import (
+    booked_notice,
     dialog_actions,
     dialog_header,
     mobile_sheet,
@@ -55,6 +64,7 @@ class BracketScheduleDialog:
         tournament_id: Optional[int] = None,
         player_ids: Optional[List[int]] = None,
         tenant_id: Optional[int] = None,
+        opponent_can_ask: bool = False,
         on_submit=None,
     ):
         self.bracket_match_id = bracket_match_id
@@ -67,8 +77,10 @@ class BracketScheduleDialog:
         self.tournament_id = tournament_id
         self.player_ids = player_ids or []
         self.tenant_id = tenant_id
+        self.opponent_can_ask = opponent_can_ask
         self.on_submit = on_submit
         self.dialog = None
+        self._client: Optional[Client] = None
         self.bracket_service = BracketService()
 
     def _scope(self):
@@ -82,10 +94,24 @@ class BracketScheduleDialog:
         return f'{game} vs {self.opponent_name}' if self.opponent_name else game
 
     def _defaults(self) -> tuple:
-        now = now_local()
-        return now.strftime('%Y-%m-%d'), now.strftime('%H:%M')
+        slot = next_whole_hour_local()
+        return slot.strftime('%Y-%m-%d'), slot.strftime('%H:%M')
+
+    def _booked_message(self) -> str:
+        if not self.opponent_name:
+            return 'Match scheduled.'
+        return booked_notice(self.opponent_name, self.opponent_can_ask)
+
+    async def _after_submit(self) -> None:
+        if self.on_submit is None or self._client is None:
+            return
+        with self._client, self._scope():
+            await self.on_submit()
 
     async def open(self):
+        self._client = context.client
+        if self.tenant_id is None:
+            self.tenant_id = get_current_tenant_id()
         default_date, default_time = self._defaults()
         can_suggest = bool(self.opponent_name and self.tournament_id and len(self.player_ids) == 2)
 
@@ -107,10 +133,9 @@ class BracketScheduleDialog:
                     time = native_time_input('Time', default_time, required=True)
 
                 if can_suggest:
-                    # opponent_name is only set from the player dashboard's own
-                    # page handler, never the staff bracket view's detached
-                    # click — so tenant_id is never set here and the ordinary
-                    # request-scoped tenant context already applies.
+                    # Player mode only (opponent_name is set from the player
+                    # dashboard). The suggestion runs in this click's own
+                    # request-scoped tenant context.
                     with ui.row().classes('items-center gap-1 no-wrap'):
                         render_suggest_time_button(
                             dialog,
@@ -134,22 +159,26 @@ class BracketScheduleDialog:
                             self.actor, self.bracket_match_id,
                             scheduled_date=date.value,
                             scheduled_time=time.value,
+                            game_number=self.game_number,
                         )
+                except AlreadyBookedError as e:
                     with self.dialog:
-                        ui.notify(
-                            'Match scheduled — your opponent will be asked to confirm.'
-                            if self.opponent_name else 'Match scheduled.',
-                            color='positive',
-                        )
+                        ui.notify(e.describe(format_local_display(e.scheduled_at)),
+                                  color='warning', multi_line=True)
                         dialog.close()
-                    if self.on_submit:
-                        await self.on_submit()
                 except PermissionError as e:
                     with self.dialog:
                         ui.notify(str(e), color='negative')
+                    return
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(str(e), color='warning')
+                    return
+                else:
+                    with self.dialog:
+                        ui.notify(self._booked_message(), color='positive', multi_line=True)
+                        dialog.close()
+                await self._after_submit()
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

@@ -63,7 +63,7 @@ class TestSubmitMatchRequest:
         with pytest.raises(PermissionError, match="Login required"):
             await service.submit_match_request(
                 tournament_id=1,
-                scheduled_date="2025-01-15",
+                scheduled_date="2099-01-15",
                 scheduled_time="14:30",
                 player_ids=[1],
                 actor=None,
@@ -76,7 +76,7 @@ class TestSubmitMatchRequest:
         with pytest.raises(PermissionError, match="only submit match requests where you are a player"):
             await service.submit_match_request(
                 tournament_id=t.id,
-                scheduled_date="2025-01-15",
+                scheduled_date="2099-01-15",
                 scheduled_time="14:30",
                 player_ids=[other.id],
                 actor=actor,
@@ -100,7 +100,7 @@ class TestSubmitMatchRequest:
         with pytest.raises(ValueError, match="not found"):
             await service.submit_match_request(
                 tournament_id=t.id,
-                scheduled_date="2025-01-15",
+                scheduled_date="2099-01-15",
                 scheduled_time="14:30",
                 player_ids=[actor.id, 424242],
                 actor=actor,
@@ -116,7 +116,7 @@ class TestSubmitMatchRequest:
         with pytest.raises(PermissionError, match="scheduled from its bracket"):
             await service.submit_match_request(
                 tournament_id=t.id,
-                scheduled_date="2025-01-15",
+                scheduled_date="2099-01-15",
                 scheduled_time="14:30",
                 player_ids=[actor.id, opponent.id],
                 actor=actor,
@@ -131,7 +131,7 @@ class TestSubmitMatchRequest:
         opponent = await make_user("p2", "P2")
         match = await service.submit_match_request(
             tournament_id=t.id,
-            scheduled_date="2025-01-15",
+            scheduled_date="2099-01-15",
             scheduled_time="14:30",
             player_ids=[actor.id, opponent.id],
             actor=actor,
@@ -145,7 +145,7 @@ class TestSubmitMatchRequest:
         opponent = await make_user("p2", "P2")
         match = await service.submit_match_request(
             tournament_id=t.id,
-            scheduled_date="2025-01-15",
+            scheduled_date="2099-01-15",
             scheduled_time="14:30",
             player_ids=[actor.id, opponent.id],
             actor=actor,
@@ -160,7 +160,7 @@ class TestSubmitMatchRequest:
         opponent = await make_user("p2", "P2")
         match = await service.submit_match_request(
             tournament_id=t.id,
-            scheduled_date="2025-01-15",
+            scheduled_date="2099-01-15",
             scheduled_time="14:30",
             player_ids=[actor.id, opponent.id],
             actor=actor,
@@ -173,3 +173,49 @@ class TestSubmitMatchRequest:
         assert (await MatchAcknowledgment.get(match=match, user=actor)).acknowledged_at is not None
         assert (await MatchAcknowledgment.get(match=match, user=opponent)).acknowledged_at is None
         assert EventType.MATCH_CREATED in [e.event_type for e in captured_events]
+
+    async def test_a_time_in_the_past_is_refused(self, service, db):
+        """The booking dialog used to default to now, so pressing Schedule
+        untouched booked a match that started a minute ago."""
+        t = await make_tournament()
+        actor = await make_user("p1", "P1")
+        opponent = await make_user("p2", "P2")
+        for from_bracket in (False, True):
+            with pytest.raises(ValueError, match="already passed"):
+                await service.submit_match_request(
+                    tournament_id=t.id,
+                    scheduled_date="2020-01-15",
+                    scheduled_time="14:30",
+                    player_ids=[actor.id, opponent.id],
+                    actor=actor,
+                    from_bracket=from_bracket,
+                )
+        assert not await MatchPlayers.filter(user=actor).exists()
+
+    async def test_an_archived_tournament_is_refused(self, service, db):
+        """Request Match offered last season's tournament, and nothing stopped
+        the request going through."""
+        t = await make_tournament(name="Last Season", is_active=False)
+        actor = await make_user("p1", "P1")
+        opponent = await make_user("p2", "P2")
+        for from_bracket in (False, True):
+            with pytest.raises(ValueError, match="Last Season has finished"):
+                await service.submit_match_request(
+                    tournament_id=t.id,
+                    scheduled_date="2099-01-15",
+                    scheduled_time="14:30",
+                    player_ids=[actor.id, opponent.id],
+                    actor=actor,
+                    from_bracket=from_bracket,
+                )
+
+
+class TestRequestableTournaments:
+    async def test_archived_tournaments_are_not_offered(self, db):
+        from application.services import TournamentService
+
+        live = await make_tournament(name="Live")
+        await make_tournament(name="Archived", is_active=False)
+        await make_tournament(name="Bracket run", allow_player_match_requests=False)
+        offered = await TournamentService().list_player_requestable()
+        assert [t.id for t in offered] == [live.id]

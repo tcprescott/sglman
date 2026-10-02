@@ -422,3 +422,45 @@ class TestTimezoneLabel:
         at = datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
         with tz_scope(KOLKATA):
             assert timezone_label(at=at) == 'IST'
+
+
+class TestNextWholeHourLocal:
+    """The booking dialogs' default: never a time that has already passed."""
+
+    def _at(self, monkeypatch, utc_instant):
+        import application.utils.timezone as tzmod
+
+        class _Frozen(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return utc_instant.astimezone(tz) if tz else utc_instant
+
+        monkeypatch.setattr(tzmod, 'datetime', _Frozen)
+        return tzmod.next_whole_hour_local
+
+    def test_rounds_up_past_the_lead(self, monkeypatch):
+        # 03:18:40 UTC is 08:48:40 in Kolkata.
+        fn = self._at(monkeypatch, datetime(2025, 1, 15, 3, 18, 40, tzinfo=timezone.utc))
+        got = fn(tz=KOLKATA)
+        assert (got.hour, got.minute, got.second) == (10, 0, 0)
+
+    def test_an_early_minute_takes_the_next_hour(self, monkeypatch):
+        # 02:50:40 UTC is 08:20:40 in Kolkata.
+        fn = self._at(monkeypatch, datetime(2025, 1, 15, 2, 50, 40, tzinfo=timezone.utc))
+        assert fn(tz=KOLKATA).hour == 9
+
+    def test_spring_forward_skips_the_missing_hour(self, monkeypatch):
+        # 01:20 EST on 2026-03-08; 02:00-02:59 does not exist in New York.
+        fn = self._at(monkeypatch, datetime(2026, 3, 8, 6, 20, tzinfo=timezone.utc))
+        got = fn(tz='America/New_York')
+        assert (got.hour, got.minute) == (3, 0)
+        # The dialog splits it into wall-clock strings; they must parse back.
+        back = parse_local_datetime(got.strftime('%Y-%m-%d'), got.strftime('%H:%M'),
+                                    tz='America/New_York')
+        assert back == datetime(2026, 3, 8, 7, 0, tzinfo=timezone.utc)
+
+    def test_is_always_in_the_future(self):
+        from application.utils.timezone import next_whole_hour_local
+
+        assert next_whole_hour_local() > now_local()
+        assert next_whole_hour_local().minute == 0

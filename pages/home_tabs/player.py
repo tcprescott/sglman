@@ -23,7 +23,11 @@ from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.tables.match import MatchTableView
-from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.match_slots import (
+    MY_ACTIONS_COLUMN,
+    SEED_SLOT_READONLY,
+    state_readonly_slot,
+)
 from theme.tables.preferences import TableKeys
 
 
@@ -57,6 +61,19 @@ def _report_stale_deep_link(deep_link: dict) -> None:
         _notify_stale_schedule_link()
 
 
+def _booking_caption(source: str, tournaments) -> str:
+    """The Waiting-on-you card's one line on what booking does.
+
+    Booking is final, so the copy never promises a confirm step. The opponent's
+    "ask staff to move it" route is mentioned only when every listed tournament
+    takes reschedule requests; one that turned them off gives no such route.
+    """
+    caption = f'{source} Pick a time and it’s booked; your opponent gets a message'
+    if tournaments and all(getattr(t, 'allow_reschedule_requests', False) for t in tournaments):
+        return caption + ' and can ask staff to move it.'
+    return caption + '.'
+
+
 def _notify_stale_hard_preset_link() -> None:
     """Say why a "Choose your settings" button did nothing.
 
@@ -66,6 +83,21 @@ def _notify_stale_hard_preset_link() -> None:
     """
     ui.notify(
         'The settings for that match are already decided.', color='warning',
+    )
+
+
+def _notify_missing_hard_preset_match() -> None:
+    """The match a "Choose your settings" button named is gone, or never was."""
+    ui.notify(
+        "That match isn't on the schedule any more, so there's nothing to choose.",
+        color='warning',
+    )
+
+
+def _notify_no_hard_preset_choice() -> None:
+    """The match exists but offers this viewer no settings choice to make."""
+    ui.notify(
+        "That match doesn't offer you a choice of settings.", color='warning',
     )
 
 
@@ -221,9 +253,9 @@ async def render_player_dashboard(
             # directly (there is no separate challonge_container to enter).
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
-                    'text-caption text-grey-7'
-                )
+                ui.label(_booking_caption(
+                    'From your Challonge bracket.', [cm.tournament for cm in matches],
+                )).classes('text-caption text-grey-7')
                 for cm in matches:
                     me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
                     opponent = cm.participant2 if me_is_p1 else cm.participant1
@@ -240,8 +272,8 @@ async def render_player_dashboard(
                                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
                                 async def after():
-                                    challonge_section.refresh()
                                     await table_view.refresh()
+                                    challonge_section.refresh()
 
                                 dialog = ChallongeScheduleDialog(
                                     m, actor=actor, opponent_name=oname, on_submit=after,
@@ -276,9 +308,9 @@ async def render_player_dashboard(
             openers: dict = {}
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label('From your bracket. Pick a time and your opponent confirms.').classes(
-                    'text-caption text-grey-7'
-                )
+                ui.label(_booking_caption(
+                    'From your bracket.', [bm.bracket.tournament for bm in matchups],
+                )).classes('text-caption text-grey-7')
                 for bm in matchups:
                     me_is_e1 = bm.entry1.entrant.user_id == user.id
                     opponent = bm.entry2 if me_is_e1 else bm.entry1
@@ -307,15 +339,20 @@ async def render_player_dashboard(
                                 app.storage.user.get('discord_id')
                             )
 
+                            # The board first: rebuilding the section deletes
+                            # the dialog this runs from.
                             async def after():
-                                bracket_section.refresh()
                                 await table_view.refresh()
+                                bracket_section.refresh()
 
                             await BracketScheduleDialog(
                                 m.id, actor,
                                 opponent_name=oname,
                                 game_number=n,
                                 best_of=bo,
+                                opponent_can_ask=bool(
+                                    m.bracket.tournament.allow_reschedule_requests
+                                ),
                                 tournament_name=m.bracket.tournament.name,
                                 tournament_id=m.bracket.tournament_id,
                                 player_ids=[
@@ -350,22 +387,15 @@ async def render_player_dashboard(
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             # Not sortable: a joined roster of names.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
+            # Beside Players, because these are the only things on the row this
+            # viewer can act on: Ask to change, the harder-settings choice, the
+            # stream offer and Watch, labelled, in one cell. As four icon columns
+            # after Stage and Seed they started at the table's right edge at 1440
+            # (match_slots.MY_ACTIONS_SLOT).
+            {'name': MY_ACTIONS_COLUMN, 'label': 'Your actions', 'field': MY_ACTIONS_COLUMN},
             {'name': 'stage', 'label': 'Stage', 'field': 'stage',
              'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-            # Beside Watch, because both are this viewer acting on their own
-            # behalf rather than reading the match. Offering is advisory — the
-            # cell's tooltip and the confirmation both say so.
-            {'name': 'stream_volunteer', 'label': 'Stream', 'field': 'stream_volunteer'},
-            # Beside Stream for the same reason: this viewer acting on their own
-            # behalf rather than reading the match.
-            {'name': 'reschedule', 'label': 'Change', 'field': 'reschedule'},
-            # Beside the other two for the same reason, and last of the three
-            # because it is the only one that is nobody else's business: the
-            # cell renders nothing at all unless this viewer's tournament offers
-            # a harder preset and this viewer is playing the match.
-            {'name': 'hard_preset', 'label': 'Settings', 'field': 'hard_preset'},
-            {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
         extra_slots = {
@@ -418,12 +448,12 @@ async def render_player_dashboard(
                 return
             match = await match_service.get_by_id(match_id)
             if match is None:
-                _notify_stale_hard_preset_link()
+                _notify_missing_hard_preset_match()
                 return
             states = await hard_preset_service.board_states(viewer, [match_id])
             state = states.get(match_id)
             if state is None:
-                _notify_stale_hard_preset_link()
+                _notify_no_hard_preset_choice()
                 return
 
             async def after():

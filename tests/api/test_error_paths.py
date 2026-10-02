@@ -29,7 +29,7 @@ async def _tournament_and_players(**tournament_kwargs):
 async def _create_match(client, t, p1, p2, **overrides):
     payload = {
         'tournament_id': t.id,
-        'scheduled_date': '2026-06-10',
+        'scheduled_date': '2099-06-10',
         'scheduled_time': '18:00',
         'player_ids': [p1.id, p2.id],
     }
@@ -287,7 +287,7 @@ class TestSubmitMatchRequest:
                 '/api/matches/request',
                 json={
                     'tournament_id': t.id,
-                    'scheduled_date': '2026-06-10',
+                    'scheduled_date': '2099-06-10',
                     'scheduled_time': '18:00',
                     'player_ids': [actor.id, opponent.id],
                 },
@@ -305,7 +305,7 @@ class TestSubmitMatchRequest:
                 '/api/matches/request',
                 json={
                     'tournament_id': t.id,
-                    'scheduled_date': '2026-06-10',
+                    'scheduled_date': '2099-06-10',
                     'scheduled_time': '18:00',
                     'player_ids': [p1.id, p2.id],
                 },
@@ -320,7 +320,7 @@ class TestSubmitMatchRequest:
                 '/api/matches/request',
                 json={
                     'tournament_id': t.id,
-                    'scheduled_date': '2026-06-10',
+                    'scheduled_date': '2099-06-10',
                     'scheduled_time': '18:00',
                     'player_ids': [actor.id],
                 },

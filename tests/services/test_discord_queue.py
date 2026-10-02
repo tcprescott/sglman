@@ -207,3 +207,46 @@ class TestStartStop:
         await dq.stop()
         assert task.cancelled()
         assert dq._worker_task is None
+
+
+class TestDiscardPending:
+    """A process that queued sends it will never run closes them, quietly.
+
+    The dev seed starts brackets, which queue matchup DMs with no worker in the
+    process; each one printed "coroutine ... was never awaited" at exit.
+    """
+
+    def test_closes_the_wrapper_and_the_send_it_wraps(self):
+        import warnings
+
+        from application.utils.coroutine_queue import CoroutineQueue
+
+        q = CoroutineQueue('test')
+        send = _noop()
+        q.enqueue(dq._run_in_tenant_scope(7, send))
+        q.enqueue(_noop())
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            assert q.discard_pending() == 2
+        assert send.cr_frame is None  # closed, so it can never warn
+        assert q._queue.empty()
+        assert q.discard_pending() == 0
+
+    async def test_stop_discards_what_it_drops(self):
+        from application.utils.coroutine_queue import CoroutineQueue
+
+        q = CoroutineQueue('test')
+        q.start()
+        await asyncio.sleep(0)
+        blocker = asyncio.Event()
+
+        async def hold():
+            await blocker.wait()
+
+        q.enqueue(hold())
+        await asyncio.sleep(0)
+        left = _noop()
+        q.enqueue(left)
+        await q.stop()
+        assert left.cr_frame is None
+        assert q._queue.empty()
