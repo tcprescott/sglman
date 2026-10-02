@@ -76,4 +76,17 @@ def _stringify(value) -> str:
         return 'true' if value else 'false'
     if isinstance(value, datetime):
         return value.isoformat()
+    # A structured cell is the board's render payload, not a value: the players
+    # list carries discord ids and private ADA notes beside the name, so only a
+    # display key may leave, and a dict without one exports blank.
+    if isinstance(value, Mapping):
+        for key in _DISPLAY_KEYS:
+            if value.get(key):
+                return _stringify(value[key])
+        return ''
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return '; '.join(s for s in (_stringify(v) for v in value) if s)
     return str(value)
+
+
+_DISPLAY_KEYS = ('name', 'display_name', 'label', 'username', 'title')

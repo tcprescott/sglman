@@ -226,3 +226,43 @@ class TestFilesToZipBytes:
         """A ZIP date has no offset, so members carry a fixed stamp, not "now"."""
         with zipfile.ZipFile(io.BytesIO(files_to_zip_bytes({'a.txt': b'x'}))) as archive:
             assert archive.getinfo('a.txt').date_time == (1980, 1, 1, 0, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Structured cells
+# ---------------------------------------------------------------------------
+
+_PLAYERS = [
+    {'name': 'Player One', 'user_id': 5, 'discord_id': '100000000022537938'},
+    {
+        'name': 'Player Two',
+        'user_id': 6,
+        'discord_id': '100000000027392325',
+        'ada': True,
+        'ada_note': 'Venue confirmed a chair for station 3.',
+    },
+]
+
+
+class TestStructuredCells:
+    """A board row is its render payload, so a structured cell must export only
+    its display name — the players list carries discord ids and private ADA
+    notes that a PROCTOR's Export CSV used to write out verbatim."""
+
+    def test_player_list_exports_names_only(self):
+        out = _decode(rows_to_csv_bytes([{'name': 'players', 'label': 'Players'}], [{'players': _PLAYERS}]))
+        assert out.splitlines() == ['Players', 'Player One; Player Two']
+
+    def test_no_private_field_reaches_the_file(self):
+        out = _decode(rows_to_csv_bytes([{'name': 'players', 'label': 'Players'}], [{'players': _PLAYERS}]))
+        for leaked in ('ada_note', 'Venue confirmed', 'discord_id', '100000000022537938', 'user_id'):
+            assert leaked not in out
+
+    def test_dict_without_a_display_key_exports_blank(self):
+        assert _stringify({'discord_id': '1', 'secret': 'x'}) == ''
+
+    def test_empty_list_exports_blank(self):
+        assert _stringify([]) == ''
+
+    def test_scalar_list_joins(self):
+        assert _stringify(['STAFF', 'PROCTOR']) == 'STAFF; PROCTOR'
