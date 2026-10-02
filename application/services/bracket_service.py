@@ -48,6 +48,9 @@ from models import (
     User,
 )
 
+#: The stage states that are not public — see the viewer-aware reads below.
+UNPUBLISHED_STATES = (BracketState.DRAFT, BracketState.CANCELLED)
+
 
 class BracketService(
     GenerationMixin,
@@ -324,6 +327,78 @@ class BracketService(
         than asking for each tournament's stages in turn.
         """
         return await self.repository.list_all_with_tournament()
+
+    # -- viewer-aware reads -------------------------------------------------
+    #
+    # A DRAFT stage is unpublished: it exists so staff can author and seed a
+    # field before announcing it. A CANCELLED one was published, then called
+    # off, and leaving it listed invites people to keep reading a bracket nobody
+    # will finish. Both are staff-only on every surface that shows stages to
+    # anyone else — the public pages, their static twins, the join door, the
+    # home browse tab, REST and MCP — so the rule lives here, once, rather than
+    # as a filter each surface has to remember. The unfiltered reads above stay
+    # for staff tooling (Admin → Brackets) and internal lifecycle code.
+
+    @staticmethod
+    def is_published(bracket: Bracket) -> bool:
+        """Whether ``bracket`` is public: neither DRAFT nor CANCELLED."""
+        return bracket.state not in UNPUBLISHED_STATES
+
+    @staticmethod
+    async def _sees_unpublished(viewer: Optional[User]) -> bool:
+        return await AuthService.is_staff(viewer)
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def list_visible_brackets(
+        self, viewer: Optional[User], tournament_id: int,
+    ) -> List[Bracket]:
+        """A tournament's stages as ``viewer`` may see them (``None`` = signed out)."""
+        stages = await self.repository.list_for_tournament(tournament_id)
+        if await self._sees_unpublished(viewer):
+            return stages
+        return [b for b in stages if self.is_published(b)]
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def list_all_visible_brackets(self, viewer: Optional[User]) -> List[Bracket]:
+        """Every stage in the tenant ``viewer`` may see, tournament loaded."""
+        stages = await self.repository.list_all_with_tournament()
+        if await self._sees_unpublished(viewer):
+            return stages
+        return [b for b in stages if self.is_published(b)]
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def get_visible_bracket(
+        self, viewer: Optional[User], bracket_id: int,
+    ) -> Optional[Bracket]:
+        """One stage, or ``None`` when it is missing *or* not for this viewer.
+
+        Same answer either way, so asking for an unpublished stage tells a
+        non-staff reader nothing an unused id would not.
+        """
+        bracket = await self.repository.get_bracket(bracket_id)
+        if bracket is None:
+            return None
+        if self.is_published(bracket) or await self._sees_unpublished(viewer):
+            return bracket
+        return None
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def get_visible_tournament(
+        self, viewer: Optional[User], tournament_id: int,
+    ) -> Optional[Tournament]:
+        """The tournament behind a bracket view, or ``None`` if it is not public.
+
+        A tournament with no published stage has not been announced, and its
+        name is not public either: walking ids must not list a community's
+        unannounced events. Staff see every tournament.
+        """
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
+        if tournament is None:
+            return None
+        if await self._sees_unpublished(viewer):
+            return tournament
+        stages = await self.repository.list_for_tournament(tournament_id)
+        return tournament if any(self.is_published(b) for b in stages) else None
 
     @requires_feature(FeatureFlag.BRACKETS)
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:

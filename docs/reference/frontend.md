@@ -549,8 +549,8 @@ different rules:
 - **Brackets** — one button per tournament with published stages, into
   `/tournament/{id}/brackets`. No opt-in: those pages are already
   `@public_page`, they were merely unreachable without knowing the URL. Gated
-  only on `FeatureFlag.BRACKETS`, and filtered through
-  `theme/brackets/visibility.py` with `is_staff=False`, so DRAFT and CANCELLED
+  only on `FeatureFlag.BRACKETS`, and read through
+  `BracketService.list_all_visible_brackets(None)`, so DRAFT and CANCELLED
   stages stay hidden.
 - **Today's matches** — times and player names, **behind a staff opt-in**
   (`SystemConfiguration` key `join_page_match_preview`, default off, on Admin →
@@ -632,7 +632,7 @@ Two read-only `@public_page(..., feature=FeatureFlag.BRACKETS)` routes rendering
 
 Both take the id as a string and parse it with `parse_route_id`; anything that cannot name a row, and any stage that is not visible to this viewer, renders the shared not-found page (HTTP 404). Titles name the stage, tournament and community (`Championship — Bracket Demo — Default`) and carry `og:title`/`og:description` for link unfurls. The stage's configured rules (`config_summary`) are shown to staff only — "1 round(s) with their own best-of" is a setup check, not something a player acts on. The **Shareable spectator view** link appears only when the twin would show something; for a draft, staff see "The spectator view goes live once a stage starts." instead of a URL that 404s for everyone they paste it to.
 
-DRAFT visibility (staff-only, via `theme/brackets/visibility.py`), the mobile List/Bracket toggle, the derived live-status pills, and the standings/crosstable presentation are all covered in [brackets.md](../features/brackets.md#presentation).
+DRAFT visibility (staff-only, enforced by `BracketService`'s viewer-aware reads), the mobile List/Bracket toggle, the derived live-status pills, and the standings/crosstable presentation are all covered in [brackets.md](../features/brackets.md#presentation).
 
 #### Bracket renderer (`theme/brackets/`)
 
@@ -643,7 +643,6 @@ One in-house renderer, consumed by the public pages, the admin Results dialog, a
 | `layout.py` | Pure, ORM-free layout walker: winner-link tree → absolute pixel placements + elbow connectors, handling byes and the double-elim losers bracket. Unit-tested in [`tests/theme/`](../../tests/theme/) |
 | `cards.py` | Absolute-positioned match cards + sticky round headers; `render_avatar(name, url)` paints the entrant disc (Discord avatar layered over the initial, which is the fallback when the cached hash 404s) |
 | `tables.py` | Swiss/group data tables (standings with tiebreaker columns + advancement tint, pairings, crosstable) as **NiceGUI elements, never `ui.html`** — entrant names are user-controlled |
-| `visibility.py` | The pure staff-only-DRAFT rule, shared by the public pages and the browse tab |
 | `labels.py` | Format/state chrome shared by those surfaces and the admin format select |
 | `render.py` | Whole-bracket helpers (`render_elimination`, mobile accordion, `build_context`, `detect_finals`, `entry_avatars`) |
 | `dialog.py` | The shared match report/override dialog |

@@ -38,7 +38,7 @@ async def list_brackets(
     tenant: TenantArg = None,
 ) -> List[Dict[str, Any]]:
     """List a tournament's brackets."""
-    brackets = await BracketService().list_brackets(tournament_id)
+    brackets = await BracketService().list_visible_brackets(current_actor().user, tournament_id)
     return [
         {
             'id': b.id,
@@ -55,7 +55,9 @@ async def get_bracket_standings(
     tenant: TenantArg = None,
 ) -> List[Dict[str, Any]]:
     """Get current standings for a bracket, grouped as the bracket format defines."""
-    groups = await BracketService().standings(bracket_id)
+    service = BracketService()
+    require_found(await service.get_visible_bracket(current_actor().user, bracket_id), 'Bracket')
+    groups = await service.standings(bracket_id)
     return [
         {
             'group': getattr(group, 'name', None),
@@ -83,7 +85,9 @@ async def get_bracket(
     the table.
     """
     service = BracketService()
-    bracket = require_found(await service.get_bracket(bracket_id), 'Bracket')
+    bracket = require_found(
+        await service.get_visible_bracket(current_actor().user, bracket_id), 'Bracket',
+    )
     entries = await service.list_entries(bracket_id)
     return BracketDetail(
         id=bracket.id,
@@ -122,7 +126,9 @@ async def list_bracket_matches(
     match waiting on an earlier round, not missing data.
     """
     service = BracketService()
-    bracket = require_found(await service.get_bracket(bracket_id), 'Bracket')
+    bracket = require_found(
+        await service.get_visible_bracket(current_actor().user, bracket_id), 'Bracket',
+    )
     labels = await _entry_labels(service, bracket)
     return [
         BracketMatchInfo(
@@ -159,8 +165,17 @@ async def list_bracket_entrants(
             status=getattr(e.status, 'value', e.status),
             user_id=e.user_id,
         )
-        for e in await BracketService().list_entrants(tournament_id)
+        for e in await _visible_entrants(tournament_id)
     ]
+
+
+async def _visible_entrants(tournament_id: int):
+    """A tournament's roster, or ``not_found`` if the tournament is not public to this caller."""
+    service = BracketService()
+    require_found(
+        await service.get_visible_tournament(current_actor().user, tournament_id), 'Tournament',
+    )
+    return await service.list_entrants(tournament_id)
 
 
 async def list_async_qualifiers(

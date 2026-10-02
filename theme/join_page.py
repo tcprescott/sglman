@@ -105,7 +105,6 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     from application.timezone_context import tz_scope
     from application.utils.timezone import format_local_time, timezone_label, today_local
     from models import FeatureFlag
-    from theme.brackets import visible_stages
 
     preview = JoinPreview()
 
@@ -120,13 +119,11 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
         if await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
             # Anonymous, always: a DRAFT or CANCELLED stage is unpublished, and
             # the door is read by people who hold no role here by definition.
-            stages = visible_stages(
-                await BracketService().list_all_brackets(), is_staff=False,
-            )
+            stages = await BracketService().list_all_visible_brackets(None)
             seen: dict = {}
             for stage in stages:
                 seen.setdefault(
-                    stage.tournament_id,  # type: ignore[attr-defined]
+                    stage.tournament_id,
                     stage.tournament.name,
                 )
             preview.tournaments = list(seen.items())

@@ -388,11 +388,21 @@ game's scheduled time.
 **DRAFT stages are staff-only.** A stage in `DRAFT` is unpublished — it exists so
 staff can author and seed a field before announcing it — so on every public
 surface it reads as absent to everyone else: omitted from the browse tab and the
-stage index, and the shared not-found page (HTTP 404) on the detail route. The rule is one pure
-helper, [`theme/brackets/visibility.py`](../../theme/brackets/visibility.py)
-(`is_visible` / `visible_stages`), shared by the three surfaces rather than
-copied into each; staff keep the unfiltered list in Admin → Brackets, which never
-goes through it.
+stage index, and the shared not-found page (HTTP 404) on the detail route. A
+`CANCELLED` stage is withdrawn by the same rule. **The rule lives in
+`BracketService`**, not in the pages: `is_published(bracket)` and the
+viewer-aware reads `list_visible_brackets(viewer, tournament_id)`,
+`list_all_visible_brackets(viewer)`, `get_visible_bracket(viewer, bracket_id)`
+and `get_visible_tournament(viewer, tournament_id)`, where `viewer=None` means
+signed out and staff see everything. Every surface that shows stages to anyone
+else calls them — the interactive pages, their static twins (with no viewer),
+the join door, the home browse tab, REST (`/api/brackets`, its `/{id}/…` reads
+and `/entrants`) and the MCP bracket tools — so a new surface cannot forget the
+filter. It used to be a presentation helper the pages applied, and REST and MCP
+handed drafts, config and seeded field to any token holder. Staff keep the
+unfiltered reads for Admin → Brackets and lifecycle code.
+`tests/services/test_bracket_visibility.py`, `tests/api/test_brackets.py` and
+`tests/mcp/test_mcp_reads.py` cover it.
 
 **A tournament with nothing published is not public either.** The stage index
 (interactive and static) for a tournament with no visible stage is a 404 to
@@ -444,8 +454,8 @@ would mint the very client this exists to avoid — and each interactive page li
 to its twin ("Shareable spectator view"), with the static page linking back.
 Everything `public_page` does that still applies is done explicitly: the tenant
 comes from `TenantMiddleware` (so `/t/<slug>/live/…` works, and a tenant-less
-path 404s), `BRACKETS` must be live, and `is_visible(..., is_staff=False)` keeps
-DRAFT and CANCELLED stages off the surface. Page-view telemetry is deliberately
+path 404s), `BRACKETS` must be live, and the service's viewer-aware reads,
+called with no viewer, keep DRAFT and CANCELLED stages off the surface. Page-view telemetry is deliberately
 **not** recorded: a DB write per spectator is exactly the cost being avoided, and
 the interactive pages still report.
 

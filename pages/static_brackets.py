@@ -17,7 +17,8 @@ They are plain FastAPI routes rather than ``@public_page`` because a NiceGUI
 page is precisely what is being avoided; everything ``public_page`` does that
 still applies is done here explicitly — tenant resolution (from the middleware
 that already ran), the ``BRACKETS`` feature gate, and the anonymous-visitor
-rule that a DRAFT or CANCELLED stage is not public (``is_visible``). Page-view
+rule that a DRAFT or CANCELLED stage is not public (``BracketService``'s
+viewer-aware reads, called with no viewer). Page-view
 telemetry is deliberately **not** recorded: a DB write per spectator request is
 the cost this surface exists to avoid, and the interactive pages still report.
 
@@ -61,7 +62,6 @@ from theme.brackets.static_view import (
     render_index_document,
     render_not_found_document,
 )
-from theme.brackets.visibility import is_visible, visible_stages
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,10 @@ def create() -> None:
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
 
-        tournament = await Tournament.get_or_none(id=tid, tenant_id=tenant_id)
+        service = BracketService()
+        # Anonymous always: no viewer, so a tournament with nothing published
+        # (its name included) and every DRAFT/CANCELLED stage stay hidden.
+        tournament = await service.get_visible_tournament(None, tid)
         if tournament is None:
             return await _not_found(request)
 
@@ -213,15 +216,7 @@ def create() -> None:
         # resolver anyway. The community's own zone is the only correct answer.
         tz = await TimezoneService.tenant_timezone_name(tenant_id)
 
-        service = BracketService()
-        # Anonymous always: a DRAFT stage is unpublished and a CANCELLED one is
-        # withdrawn, on every public surface (theme/brackets/visibility.py).
-        brackets = visible_stages(
-            await service.list_brackets(tid), is_staff=False,
-        )
-        # Nothing published means nothing public, the name included.
-        if not brackets:
-            return await _not_found(request)
+        brackets = await service.list_visible_brackets(None, tid)
         with tz_scope(tz):
             body = render_index_document(StaticIndexView(
                 tournament_id=tid,
@@ -255,8 +250,8 @@ def create() -> None:
         tz = await TimezoneService.tenant_timezone_name(tenant_id)
 
         service = BracketService()
-        bracket = await service.get_bracket(stage_id)
-        if bracket is None or not is_visible(bracket, is_staff=False):
+        bracket = await service.get_visible_bracket(None, stage_id)
+        if bracket is None:
             return await _not_found(request)
 
         tournament = await Tournament.get_or_none(
