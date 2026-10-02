@@ -293,15 +293,24 @@ dialog the staff bracket view opens, in its player mode.
 
 Booking is final on the player's side: the match is created at once, the
 opponent gets the acknowledgment request, and their only way to change it is a
-reschedule request staff decide. The dialog and the dashboard copy say exactly
-that ("it's booked; your opponent gets a message and can ask staff to move
-it"), not that the opponent confirms. The dialog defaults to the next whole
-hour, and `submit_match_request` refuses a time that has passed and an
-archived tournament (`is_active` off), the bracket path included. When two
-players race, the loser's `schedule_bracket_match` raises `AlreadyBookedError`
-(a `ValueError`) naming who booked it and when — the booker is the
-auto-acknowledged player on the game's match — and the dialog closes and
-refreshes rather than leaving a Schedule button that can only fail again.
+reschedule request staff decide. The dashboard copy and the booking toast say
+it's booked and the opponent gets a message, and add "can ask staff to move it"
+only when the tournament takes reschedule requests (`allow_reschedule_requests`).
+The dialog defaults to the next whole hour (`next_whole_hour_local`, stepped in
+UTC so a spring-forward night never yields a missing wall time), and
+`submit_match_request` refuses a time that has passed and an archived tournament
+(`is_active` off), the bracket path included.
+
+The dialog passes `game_number`, the game it says it is booking. It never picks
+the slot; it makes a stale caller fail instead of quietly booking the next game.
+When that game was booked meanwhile, `schedule_bracket_match` raises
+`AlreadyBookedError` (a `ValueError`) naming who booked it (the
+auto-acknowledged player on the game's match) and when; the dialog closes and
+refreshes. The error's `str()` states the time in UTC, as REST does, and the
+dialog rebuilds it on the viewer's clock with `describe()`. A slot that is gone
+for another reason (cancelled on the clinch, played) is a plain `ValueError`,
+and a caller without `game_number` (REST) gets the plain "already scheduled"
+refusal once every slot is taken.
 
 Going the other way, staff can attach a match scheduled in the ordinary editor to
 the matchup it settles: `link_match_to_bracket_match` writes the

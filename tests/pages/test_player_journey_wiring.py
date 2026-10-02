@@ -62,7 +62,9 @@ class TestBookingCopy:
             source = _read(rel)
             assert 'your opponent confirms' not in source, rel
             assert 'asked to confirm' not in source, rel
-            assert 'ask staff to move it' in source, rel
+        for rel in ('theme/dialog/bracket_schedule_dialog.py',
+                    'theme/dialog/challonge_schedule_dialog.py'):
+            assert 'booked_notice(' in _read(rel), rel
 
     def test_the_board_refreshes_before_the_section_holding_the_dialog(self):
         # Rebuilding the section deletes the dialog the callback runs from, and
@@ -93,3 +95,30 @@ class TestBookingDialog:
             source = _read(rel)
             assert 'next_whole_hour_local()' in source, rel
             assert 'now_local()' not in source, rel
+
+
+class TestRequestMatchEmptyState:
+    def test_each_case_says_what_is_true(self):
+        from theme.dialog.match_dialog import _no_requestable_message
+
+        assert 'bracket' in _no_requestable_message(enrolled=True, enrolled_running=True)
+        finished = _no_requestable_message(enrolled=True, enrolled_running=False)
+        assert 'finished' in finished and 'bracket' not in finished
+        assert 'opted into' in _no_requestable_message(enrolled=False, enrolled_running=False)
+
+
+class TestBookingCaption:
+    def test_the_ask_staff_clause_appears_only_when_every_tournament_allows_it(self):
+        from types import SimpleNamespace
+
+        from pages.home_tabs.player import _booking_caption
+
+        yes, no = (SimpleNamespace(allow_reschedule_requests=v) for v in (True, False))
+        assert _booking_caption('From your bracket.', [yes]).endswith('can ask staff to move it.')
+        assert 'ask staff' not in _booking_caption('From your bracket.', [yes, no])
+
+    def test_the_toast_follows_the_same_rule(self):
+        from theme.dialog._helpers import booked_notice
+
+        assert 'ask staff' in booked_notice('Bob', True)
+        assert 'ask staff' not in booked_notice('Bob', False)

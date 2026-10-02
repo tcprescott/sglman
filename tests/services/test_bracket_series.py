@@ -127,7 +127,7 @@ class TestGameNumbering:
                 actor, bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',
             )
-        with pytest.raises(ValueError, match='already booked'):
+        with pytest.raises(ValueError, match='already scheduled'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',

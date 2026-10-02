@@ -14,6 +14,7 @@ from application.services import ChallongeService
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.timezone import next_whole_hour_local
 from theme.dialog._helpers import (
+    booked_notice,
     dialog_actions,
     dialog_header,
     mobile_sheet,
@@ -83,22 +84,26 @@ class ChallongeScheduleDialog:
                         scheduled_time=time.value,
                         actor=self.actor,
                     )
-                    with self.dialog:
-                        ui.notify(
-                            f"Booked. {self.opponent_name} gets a message about it and can "
-                            "ask staff to move it if the time doesn't work.",
-                            color='positive', multi_line=True,
-                        )
-                        dialog.close()
-                    if self.on_submit:
-                        with client, tenant_scope(tenant_id):
-                            await self.on_submit()
                 except PermissionError as e:
                     with self.dialog:
                         ui.notify(str(e), color='negative')
+                    return
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(str(e), color='warning')
+                    return
+                with self.dialog:
+                    ui.notify(
+                        booked_notice(
+                            self.opponent_name,
+                            bool(getattr(cm.tournament, 'allow_reschedule_requests', False)),
+                        ),
+                        color='positive', multi_line=True,
+                    )
+                    dialog.close()
+                if self.on_submit:
+                    with client, tenant_scope(tenant_id):
+                        await self.on_submit()
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

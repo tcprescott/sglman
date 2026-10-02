@@ -6,6 +6,7 @@ presentation, REST API, Discord handlers). Keeping them in a leaf module
 without creating an import cycle.
 """
 
+from datetime import datetime, timezone
 from typing import Optional, TypeVar
 
 T = TypeVar('T')
@@ -51,7 +52,32 @@ class AlreadyBookedError(ValueError):
     in the UI), and a distinct type so a booking dialog can tell "your input was
     wrong, fix it" from "this is stale, close and refresh": the second leaves a
     Schedule button on screen that can only fail again.
+
+    Carries the facts rather than only a sentence, because *when* is a
+    wall-clock question with no single answer: ``str()`` states it in UTC (what
+    REST and logs promise), and a web surface rebuilds it on the viewer's clock
+    with :meth:`describe`.
     """
+
+    def __init__(
+        self, *, what: str, scheduled_at: datetime,
+        booker_name: Optional[str] = None, booked_by_you: bool = False,
+    ) -> None:
+        self.what = what
+        self.scheduled_at = scheduled_at
+        self.booker_name = booker_name
+        self.booked_by_you = booked_by_you
+        super().__init__(self.describe(
+            scheduled_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+        ))
+
+    def describe(self, when: str) -> str:
+        """The refusal, with ``when`` already formatted for its reader."""
+        if self.booked_by_you:
+            return f"You already booked {self.what} for {when}."
+        if self.booker_name:
+            return f"{self.booker_name} already booked {self.what} for {when}."
+        return f"{self.what[0].upper()}{self.what[1:]} is already booked for {when}."
 
 
 def require_found(obj: Optional[T], label: str) -> T:

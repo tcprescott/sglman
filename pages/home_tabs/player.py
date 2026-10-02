@@ -61,6 +61,19 @@ def _report_stale_deep_link(deep_link: dict) -> None:
         _notify_stale_schedule_link()
 
 
+def _booking_caption(source: str, tournaments) -> str:
+    """The Waiting-on-you card's one line on what booking does.
+
+    Booking is final, so the copy never promises a confirm step. The opponent's
+    "ask staff to move it" route is mentioned only when every listed tournament
+    takes reschedule requests; one that turned them off gives no such route.
+    """
+    caption = f'{source} Pick a time and it’s booked; your opponent gets a message'
+    if tournaments and all(getattr(t, 'allow_reschedule_requests', False) for t in tournaments):
+        return caption + ' and can ask staff to move it.'
+    return caption + '.'
+
+
 def _notify_stale_hard_preset_link() -> None:
     """Say why a "Choose your settings" button did nothing.
 
@@ -240,12 +253,9 @@ async def render_player_dashboard(
             # directly (there is no separate challonge_container to enter).
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label(
-                    'From your Challonge bracket. Pick a time and it’s booked; your '
-                    'opponent gets a message and can ask staff to move it.'
-                ).classes(
-                    'text-caption text-grey-7'
-                )
+                ui.label(_booking_caption(
+                    'From your Challonge bracket.', [cm.tournament for cm in matches],
+                )).classes('text-caption text-grey-7')
                 for cm in matches:
                     me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
                     opponent = cm.participant2 if me_is_p1 else cm.participant1
@@ -298,12 +308,9 @@ async def render_player_dashboard(
             openers: dict = {}
             with ui.card().classes('wiz-subcard'):
                 ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                ui.label(
-                    'From your bracket. Pick a time and it’s booked; your opponent '
-                    'gets a message and can ask staff to move it.'
-                ).classes(
-                    'text-caption text-grey-7'
-                )
+                ui.label(_booking_caption(
+                    'From your bracket.', [bm.bracket.tournament for bm in matchups],
+                )).classes('text-caption text-grey-7')
                 for bm in matchups:
                     me_is_e1 = bm.entry1.entrant.user_id == user.id
                     opponent = bm.entry2 if me_is_e1 else bm.entry1
@@ -343,6 +350,9 @@ async def render_player_dashboard(
                                 opponent_name=oname,
                                 game_number=n,
                                 best_of=bo,
+                                opponent_can_ask=bool(
+                                    m.bracket.tournament.allow_reschedule_requests
+                                ),
                                 tournament_name=m.bracket.tournament.name,
                                 tournament_id=m.bracket.tournament_id,
                                 player_ids=[
