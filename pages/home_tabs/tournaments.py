@@ -218,7 +218,7 @@ async def tournaments_tab() -> None:
                         ui.button(
                             'Triforce Texts', icon='auto_awesome',
                             on_click=lambda _e, tourney=t: background_tasks.create(
-                                open_triforce_dialog(tourney, user)),
+                                open_triforce_dialog(tourney, user, context.client)),
                         ).props('flat color=primary dense no-caps')
 
         @ui.refreshable
