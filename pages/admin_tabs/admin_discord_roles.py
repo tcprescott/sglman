@@ -18,6 +18,7 @@ from application.services.discord.discord_link_service import connect_redirect_u
 from application.tenant_context import get_current_tenant_id, is_host_mode
 from application.utils.mocks.mock_discord import is_mock_discord
 from models import Role, TournamentGrant
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -201,38 +202,6 @@ async def admin_discord_roles_page() -> None:
                 ui.notify('Mapping removed', color='positive')
                 await refresh_table()
 
-        async def sync_all_users(client):
-            with client:
-                with ui.dialog() as confirm, ui.card():
-                    ui.label(
-                        'Re-sync Discord roles for all users now? This applies the '
-                        'current mappings immediately, creates an account for anyone '
-                        'in the server who holds a mapped role but has never signed '
-                        'in, and may take a moment.'
-                    )
-                    with ui.row().classes('justify-end w-full'):
-                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
-                        ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
-                if not await confirm:
-                    return
-                ui.notify('Syncing Discord roles for all users…')
-                try:
-                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                    result = await service.sync_all_users(current)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-                    return
-                n_created = result['users_created']
-                created = (
-                    f", {n_created} new account{'s' if n_created != 1 else ''}"
-                    if n_created else ''
-                )
-                ui.notify(
-                    f"Synced {result['users_processed']} users: "
-                    f"{result['granted']} granted, {result['revoked']} revoked{created}",
-                    color='positive',
-                )
-
         async def open_add_dialog():
             ok, roles_payload = await DiscordService().list_guild_roles(guild_id)
             if not ok:
@@ -314,6 +283,29 @@ async def admin_discord_roles_page() -> None:
                         ui.button('Add', icon='add', on_click=submit).props('color=primary')
             dialog.open()
 
+        async def sync_all_users(client):
+            with client:
+                with ui.dialog() as confirm, ui.card():
+                    ui.label(
+                        'Re-sync Discord roles for this community now? This applies '
+                        'the current mappings to its members and to anyone in the '
+                        'server holding a mapped role, creates an account for those '
+                        'who have never signed in, and may take a moment.'
+                    )
+                    with ui.row().classes('justify-end w-full'):
+                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
+                        ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
+                if not await confirm:
+                    return
+                ui.notify('Syncing Discord roles for this community…')
+                try:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    result = await service.sync_all_users(current)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                _show_sync_result(result)
+
         with table_container:
             with ui.row().classes('full-width'):
                 if can_manage:
@@ -322,7 +314,7 @@ async def admin_discord_roles_page() -> None:
                         'Sync All Users', icon='sync',
                         on_click=lambda: background_tasks.create(sync_all_users(context.client)),
                     ).props('outline color=primary').tooltip(
-                        'Apply current mappings to all users now'
+                        'Apply current mappings to this community now'
                     )
                 ui.space()
                 refresh_button(refresh_table)
@@ -338,3 +330,54 @@ async def admin_discord_roles_page() -> None:
 
         wire_tab_refresh('Discord Roles', refresh_table)
         background_tasks.create(refresh_table())
+
+
+def _show_sync_result(result: dict) -> None:
+    """What one Sync press did, by name: who it created and whose roles moved.
+
+    A count alone ("Synced 37 users") said nothing staff could check, and the
+    new accounts looked the same as everyone else on the Users tab.
+    """
+    created = result.get('created') or []
+    changed = result.get('changed') or []
+    changed_names = {row['name'] for row in changed}
+    with form_dialog('Discord roles synced') as dialog:
+        with ui.column().classes('q-pa-md gap-1 full-width'):
+            ui.label(
+                f"Checked {result['users_processed']} "
+                f"{'person' if result['users_processed'] == 1 else 'people'}: "
+                f"{result['granted']} granted, {result['revoked']} revoked"
+                + (f", {result['skipped']} skipped" if result.get('skipped') else '')
+                + '.'
+            ).classes('text-body2')
+            if created:
+                ui.label(f'New accounts ({len(created)})').classes('subsection-title q-mt-sm')
+                ui.label(
+                    'In the server with a mapped role, never signed in here. An '
+                    'account becomes a member once a mapping grants it something.'
+                ).classes('text-caption text-grey')
+                for name in created:
+                    ui.label(
+                        name + (' (member now)' if name in changed_names else '')
+                    ).classes('text-body2').style('overflow-wrap: anywhere')
+            if changed:
+                ui.label(f'Roles changed ({len(changed)})').classes('subsection-title q-mt-sm')
+                for row in changed:
+                    parts = []
+                    if row['granted']:
+                        parts.append('+ ' + ', '.join(_pretty(r) for r in row['granted']))
+                    if row['revoked']:
+                        parts.append('− ' + ', '.join(_pretty(r) for r in row['revoked']))
+                    with ui.row().classes('items-baseline gap-2 no-wrap'):
+                        ui.label(row['name']).classes('text-body2 text-bold') \
+                            .style('overflow-wrap: anywhere')
+                        ui.label('; '.join(parts)).classes('text-caption')
+            if not created and not changed:
+                ui.label('Nothing needed changing.').classes('text-caption text-grey q-mt-sm')
+        with dialog_actions().classes('justify-end'):
+            ui.button('Close', on_click=dialog.close).props('flat')
+    dialog.open()
+
+
+def _pretty(value: str) -> str:
+    return value.replace('_', ' ').replace(':', ' #').title()

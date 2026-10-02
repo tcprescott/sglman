@@ -147,6 +147,7 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ACCOMMODATION_WITHDRAWN,
     AuditActions.ACCOMMODATION_STATUS_CHANGED,
     AuditActions.ACCOMMODATION_NOTES_UPDATED,
+    AuditActions.ACCOMMODATION_CHANGE_REVIEWED,
     # A coordinator's free-text note on a volunteer profile: tenant-internal
     # staffing detail, and potentially personal — not for arbitrary receivers.
     AuditActions.VOLUNTEER_NOTE_UPDATED,

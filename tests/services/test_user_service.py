@@ -7,12 +7,12 @@ set math.
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
 from application.services.user_service import UserService
-from models import Role, RoleSource
+from models import MembershipSource, Role, RoleSource
 from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.usefixtures("bypass_auth")
 def service(monkeypatch):
     # The membership write behind "a role implies membership" is a real DB call;
     # this suite is mock-only, so stand it in and let the tests assert against it.
-    membership = AsyncMock()
+    membership = AsyncMock(return_value=None)
     monkeypatch.setattr(
         'application.services.user_service.TenantMembershipService.ensure_member',
         membership,
@@ -320,7 +320,9 @@ class TestRoleManagement:
     async def test_granting_a_role_makes_the_user_a_member(self, service):
         target = make_user(user_id=7)
         await service.grant_role(target, Role.PROCTOR, make_user(user_id=1))
-        service.membership_hook.assert_awaited_once_with(target)
+        service.membership_hook.assert_awaited_once_with(
+            target, actor=ANY, source=MembershipSource.ROLE_GRANT,
+        )
 
     async def test_super_admin_cannot_be_granted_from_a_community(self, service):
         """The per-tenant role surface must not reach the platform role.

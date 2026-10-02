@@ -461,6 +461,9 @@ async def seed_for_tenant(
         # One in each state, so the staff sub-tab, its
         # "Show withdrawn" toggle and the Users-table filter all have something
         # to show. Written directly (no flag check) like the feedback rows.
+        # player_four's is Arranged and then changed by the member, so the
+        # "Changed since arranged" chip, the before/now dialog and the action
+        # count (New + Acknowledged + changed = 3) all show on a fresh seed.
         accommodation_specs = [
             ("player_one", AccommodationStatus.NEW,
              "Step-free access to the stage, please.", None),
@@ -477,6 +480,16 @@ async def seed_for_tenant(
                 tenant=tenant, user=users[uname],
                 defaults={"status": status, "details": details, "staff_notes": notes},
             )
+        await AccommodationRequest.get_or_create(
+            tenant=tenant, user=users["player_four"],
+            defaults={
+                "status": AccommodationStatus.ARRANGED,
+                "details": "Extra time between matches, and a seat away from the speakers.",
+                "staff_notes": "Scheduled with 30 minutes between matches.",
+                "changed_since_arranged": True,
+                "arranged_details": "Extra time between matches.",
+            },
+        )
         print(f"    [{tenant.slug}] ADA accommodation requests ok (one per status)")
 
         # --- Audit log -------------------------------------------------------
@@ -513,7 +526,8 @@ async def seed_for_tenant(
         # pending one lives in 'fledgling' (the staff queue), this denied one is
         # the re-openable case — asking again updates this row rather than
         # appending a second — and the approved one is the ordinary outcome, the
-        # record of how most members actually got in.
+        # record of how most members actually got in. The denial is fresh, so
+        # 'outsider' sees the door's "you can ask again from …" cooldown state.
         await TenantJoinRequest.get_or_create(
             user=users['outsider'], tenant=tenant,
             defaults={
@@ -532,6 +546,11 @@ async def seed_for_tenant(
                 'decided_at': now_local() - timedelta(days=3),
             },
         )
+        # Kept fresh on every run, not just the first: the cooldown door only
+        # shows while the decline is under a week old.
+        await TenantJoinRequest.filter(
+            user=users['outsider'], tenant=tenant, status=JoinRequestStatus.DENIED,
+        ).update(decided_at=now_utc)
         print(f"    [{tenant.slug}] join requests ok")
 
 

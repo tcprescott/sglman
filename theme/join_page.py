@@ -18,6 +18,7 @@ without restructuring it. Everything that needs an ``await`` is resolved by
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import List, Optional, Tuple
 
 from nicegui import background_tasks, context, ui
@@ -246,18 +247,18 @@ def _signed_out_message(preview: JoinPreview) -> str:
 def _non_member_message(preview: JoinPreview) -> str:
     if preview.discord_auto_join and preview.join_requests:
         return (
-            'You aren’t a member of this community yet. Members of its Discord '
+            'You aren’t a member of this community. Members of its Discord '
             'server get in automatically, so join it and check again, or ask to '
             'join and its staff will decide.'
         )
     if preview.discord_auto_join:
         return (
-            'You aren’t a member of this community yet. Members of its Discord '
+            'You aren’t a member of this community. Members of its Discord '
             'server get in automatically, so join it and check again.'
         )
     if preview.join_requests:
         return (
-            'You aren’t a member of this community yet. Ask to join and its '
+            'You aren’t a member of this community. Ask to join and its '
             'staff will decide.'
         )
     return (
@@ -273,10 +274,12 @@ def render_join_page(
     user: Optional[User],
     pending: bool = False,
     preview: Optional[JoinPreview] = None,
+    ask_again_at: Optional[datetime] = None,
 ) -> None:
     """Ask to join, or say the request is already in.
 
-    ``pending`` and ``preview`` are resolved by the caller (which has already
+    ``pending``, ``preview`` and ``ask_again_at`` (set while a declined
+    requester's cooldown runs) are resolved by the caller (which has already
     loaded the user), so this stays synchronous.
     """
     ui.page_title(f'{tenant_name} — Join')
@@ -310,6 +313,25 @@ def render_join_page(
                         ' Joining its Discord server gets you in without waiting.'
                         if preview.discord_auto_join else ''
                     )
+                ).classes('error-message')
+                _render_discord(preview, signed_in=True)
+                _render_preview(preview)
+                return
+
+            if ask_again_at is not None and preview.join_requests:
+                # Said up front, with the date, rather than a form that refuses
+                # on submit. Auto-join (if on) still works meanwhile.
+                from application.utils.timezone import format_local_display
+
+                # With auto-join on, the server is the way in and the cooldown
+                # only holds back a new web request; say that first.
+                when = format_local_display(ask_again_at)
+                ui.label(
+                    'Staff declined your request to join. Members of its Discord '
+                    'server get in automatically, so join it and check again. You '
+                    f'can send a new request from {when}.'
+                    if preview.discord_auto_join else
+                    f'Staff declined your request to join. You can ask again from {when}.'
                 ).classes('error-message')
                 _render_discord(preview, signed_in=True)
                 _render_preview(preview)
@@ -358,3 +380,12 @@ async def resolve_join_state(user: Optional[User], tenant_id: int) -> bool:
 
     request = await TenantMembershipService().get_request(user, tenant_id)
     return request is not None and request.status is JoinRequestStatus.PENDING
+
+
+async def resolve_ask_again_at(user: Optional[User], tenant_id: int) -> Optional[datetime]:
+    """When a declined requester may ask again, or None if they may now."""
+    if user is None:
+        return None
+    from application.services import TenantMembershipService
+
+    return await TenantMembershipService().next_request_allowed_at(user, tenant_id)
