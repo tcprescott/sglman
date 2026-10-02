@@ -162,6 +162,33 @@ class BaseLayout:
             self._label_by_alias = {}
             self._default_tab = None
 
+    @property
+    def wordmark(self) -> str:
+        """The header's brand text: the community's name once prepared, else Wizzrobe."""
+        return self._wordmark or 'Wizzrobe'
+
+    @property
+    def is_prepared(self) -> bool:
+        """Whether :meth:`prepare` has resolved the viewer-dependent chrome."""
+        return self._prepared
+
+    @property
+    def is_member(self) -> bool:
+        """Whether the viewer belongs to this community (or is a super-admin).
+
+        ``False`` until :meth:`prepare` has run.
+        """
+        return self._is_member
+
+    @property
+    def offers_feedback(self) -> bool:
+        """Whether this viewer may send this community feedback here.
+
+        A member (or super-admin) where ``FEEDBACK`` is live — the same test the
+        drawer's item uses, so every Feedback affordance agrees with it.
+        """
+        return bool(self.user) and self._is_member and self._show_feedback
+
     async def prepare(self) -> 'BaseLayout':
         """Resolve everything the chrome needs that takes a query. Idempotent.
 
@@ -498,7 +525,7 @@ class BaseLayout:
 
             # Members only, and flag-gated: the service refuses a submit
             # from anyone else, so the item would open a dialog that fails.
-            if self.user and self._is_member and self._show_feedback:
+            if self.offers_feedback:
                 with ui.item(
                     on_click=lambda: FeedbackDialog(self.user).open()
                 ).props('clickable v-ripple'):

@@ -118,7 +118,7 @@ class TestSubmitWithDb:
         """The queue is the community's: the drawer only offers the dialog to
         members, and the service has to agree or the REST route is a way in."""
         outsider = await User.create(discord_id=556, username='outsider')
-        with pytest.raises(ValueError, match='members'):
+        with pytest.raises(PermissionError, match='members'):
             await FeedbackService().submit(
                 actor=outsider, category='bug', message='hi', page_url='/help',
             )

@@ -542,7 +542,7 @@ Records in-app feedback from logged-in attendees and lets admins review it. The 
 
 | Method | Returns | Description |
 |---|---|---|
-| `submit(actor, category, message, page_url)` | `Feedback` | Record a submission from `actor`; non-empty message required, and `actor` must be a **member** of this community or a super-admin (`ValueError` otherwise — the queue is the community's, and the drawer offers the dialog to members only). Audits `feedback.submitted`. |
+| `submit(actor, category, message, page_url)` | `Feedback` | Record a submission from `actor`; non-empty message required, and `actor` must be a **member** of this community or a super-admin (`PermissionError` otherwise, a REST 403 — the queue is the community's, and the drawer offers the dialog to members only). Audits `feedback.submitted`. |
 | `list_recent(limit=200)` | `list[Feedback]` | Recent submissions for the admin review list. |
 | `list_mine(actor, limit=25)` | `list[Feedback]` | The actor's own submissions and their status; no gate beyond being the actor. |
 | `set_reviewed(actor, feedback_id, reviewed=True)` | `Feedback` | Admin-only (`can_view_admin`); sets status `REVIEWED`, or back to `NEW` with `reviewed=False` (reversible so a mis-click can't lose a submission); `NotFoundError` for unknown id. Audits `feedback.reviewed` / `feedback.reopened`. |

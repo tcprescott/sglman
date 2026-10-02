@@ -47,12 +47,11 @@ class FeedbackService:
         from application.services.auth_service import AuthService
         from application.services.tenant_membership_service import TenantMembershipService
 
-        if await AuthService.is_super_admin(actor):
-            return
-        if not await TenantMembershipService().is_member(actor):
-            raise ValueError(
-                'Only members of this community can send it feedback. Ask to join it first.'
-            )
+        await AuthService.ensure(
+            await AuthService.is_super_admin(actor)
+            or await TenantMembershipService().is_member(actor),
+            'Only members of this community can send it feedback. Ask to join it first.',
+        )
 
     @requires_feature(FeatureFlag.FEEDBACK)
     async def submit(
@@ -67,7 +66,8 @@ class FeedbackService:
         Members only (a super-admin, who belongs to no community, passes): the
         queue is this community's, and the drawer only offers the dialog to its
         members — but UI-only gating is not gating, and this is reachable over
-        REST too.
+        REST too. A non-member is an authorization failure (``PermissionError``,
+        a 403 over REST), not bad input.
         """
         message = (message or '').strip()
         if not message:

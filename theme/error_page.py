@@ -75,8 +75,7 @@ def render_error_page(
         actions: Buttons offered before "Back to home", the first one primary.
     """
     _set_status(status_code)
-    wordmark = getattr(layout, '_wordmark', None) or 'Wizzrobe'
-    ui.page_title(f'{headline} — {wordmark}')
+    ui.page_title(f'{headline} — {layout.wordmark if layout else "Wizzrobe"}')
 
     # A notice stashed before a redirect must still be shown on the error page a
     # bad return path lands on — this renderer does not go through
@@ -123,17 +122,69 @@ def render_error_page(
                         on_click=lambda: ui.navigate.to('/'),
                     ).props('flat color=primary' if actions else 'color=primary')
                 if error_id and _is_authenticated():
-                    ui.button(
+                    report = ui.button(
                         'Report this error', icon='feedback',
                         # Return the coroutine so NiceGUI awaits it in the button's
                         # slot; a bare background task has no slot and the dialog/
                         # notify calls inside would raise.
                         on_click=lambda: _open_error_report(error_id),
                     ).props('flat')
+                    # Only where the viewer could actually send it — a member (or
+                    # super-admin) with Feedback live, as the drawer decides. The
+                    # 500 path renders synchronously with no prepared layout, so
+                    # there it starts hidden and an async check reveals it.
+                    if layout is not None and layout.is_prepared:
+                        report.set_visibility(layout.offers_feedback)
+                    else:
+                        report.set_visibility(False)
+                        _reveal_when_member(report)
 
             if traceback_text:
                 ui.label('Diagnostic details (development only)').classes('error-trace-title')
                 ui.code(traceback_text, language='python').classes('error-trace')
+
+
+def _reveal_when_member(button) -> None:
+    """Show ``button`` once the signed-in viewer turns out to be able to send feedback."""
+    from nicegui import background_tasks, context
+
+    from application.tenant_context import get_current_tenant_id
+
+    try:
+        client = context.client
+        tenant_id = get_current_tenant_id()
+        discord_id = app.storage.user.get('discord_id')
+    except Exception:  # pragma: no cover - no client or session in scope
+        return
+    if tenant_id is None or discord_id is None:
+        return
+    background_tasks.create(_reveal(button, client, tenant_id, discord_id))
+
+
+async def _reveal(button, client, tenant_id: int, discord_id) -> None:
+    from application.services import (
+        AuthService,
+        FeatureFlagService,
+        TenantService,
+        get_user_from_discord_id,
+    )
+    from application.tenant_context import tenant_scope
+    from models import FeatureFlag
+
+    try:
+        with tenant_scope(tenant_id):
+            user = await get_user_from_discord_id(discord_id)
+            if user is None:
+                return
+            allowed = (
+                await AuthService.is_super_admin(user)
+                or await TenantService.is_member(user.id, tenant_id)
+            ) and await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
+        if allowed:
+            with client:
+                button.set_visibility(True)
+    except Exception:
+        logger.exception('Failed to resolve whether to offer an error report')
 
 
 def _is_authenticated() -> bool:

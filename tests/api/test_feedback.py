@@ -51,7 +51,7 @@ class TestSubmit:
         _, raw = await create_user_token(username='stranger')
         async with client_for(app, raw) as c:
             resp = await c.post('/api/feedback', json={'message': 'let me in'})
-            assert resp.status_code == 400
+            assert resp.status_code == 403
             assert 'members' in resp.json()['detail']
 
     async def test_an_empty_message_is_400(self, db, app):
