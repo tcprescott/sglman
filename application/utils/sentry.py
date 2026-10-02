@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 import sentry_sdk
 
 from application.utils.environment import get_environment
+from application.utils.timer_teardown import is_timer_teardown_race
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,18 @@ def _scrub_event(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Dict[
     return event
 
 
+def _before_send(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Drop the NiceGUI timer-teardown race, then scrub what's left.
+
+    The ``nicegui`` logger filter already stops it reaching the logging hook;
+    this catches the same exception arriving by any other integration.
+    """
+    exc_info = (hint or {}).get('exc_info')
+    if exc_info and exc_info[1] is not None and is_timer_teardown_race(exc_info[1]):
+        return None
+    return _scrub_event(event, hint)
+
+
 def init_sentry() -> None:
     """Initialize Sentry when ``SENTRY_DSN`` is configured; otherwise do nothing.
 
@@ -62,7 +75,7 @@ def init_sentry() -> None:
         dsn=dsn,
         environment=get_environment(),
         send_default_pii=False,
-        before_send=_scrub_event,
+        before_send=_before_send,
         traces_sample_rate=traces_sample_rate,
     )
     logger.info('Sentry initialized (environment=%s).', get_environment())

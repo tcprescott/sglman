@@ -1,47 +1,22 @@
-"""Recognising a ``ui.timer`` that outlived the page which created it.
+"""``PageTimer``: a ``ui.timer`` that can't outlive its page.
 
-``Timer._run_in_loop`` sleeps for its interval, waits for the client, and only
-*then* enters ``self.parent_slot`` — while its own ``_should_stop`` (which does
-check ``is_deleted``) is evaluated **inside** that context. A page torn down
-during that gap therefore raises out of the ``with`` instead of stopping
-quietly, and every navigation away from a board carrying the 5s roll-label tick
-(``theme/tables/match.py``) lands in it.
-
-Nobody can act on the result: the page is gone, there is no UI left to notify,
-and the timer stops either way. Reported as an unhandled UI exception it buried
-real errors in Sentry and made ``scripts/ui_flag_sweep.sh`` fail for merely
-visiting pages — which cost a full stash-and-rerun against ``main`` to establish
-it was pre-existing rather than a regression.
-
-Its own module rather than a helper inside ``frontend.py`` so a test can import
-the predicate without importing the app, which builds a Discord client on the
-way in.
+The race it closes, and the filters that back it up for any timer that doesn't
+use it, are described in ``application/utils/timer_teardown.py``.
 """
 
-import traceback
-
-# Raised by nicegui.element.Element.parent_slot. Matched rather than caught by
-# type because NiceGUI raises a bare RuntimeError.
-_DELETED_SLOT = 'parent slot of the element has been deleted'
-
-# The frame that raises belongs to nicegui.timer, or a submodule of it
-# (nicegui.elements.timer subclasses the base).
-_TIMER_MODULE = 'nicegui.timer'
+from nicegui import ui
 
 
-def is_timer_teardown_race(exc: BaseException) -> bool:
-    """Whether ``exc`` is the teardown race described above.
+class PageTimer(ui.timer):
+    """A ``ui.timer`` that stops quietly when its page is torn down before it starts.
 
-    Deliberately narrow — the exact type, the exact message, **and** a NiceGUI
-    timer frame in the traceback. An application ``RuntimeError`` that reaches a
-    deleted slot is a real bug (something is writing into a page that is gone)
-    and must still be reported.
+    The base class waits for the client to connect and then enters its parent
+    slot without re-checking deletion; a page closed during that wait leaves a
+    dead slot behind and the entry raises. Checking ``is_deleted`` after the
+    wait lets the timer's own cleanup run instead. Overrides a private NiceGUI
+    hook, so recheck it on upgrade (``tests/test_timer_teardown_filter.py``
+    does).
     """
-    if not isinstance(exc, RuntimeError):
-        return False
-    if _DELETED_SLOT not in str(exc):
-        return False
-    return any(
-        frame.f_globals.get('__name__', '').startswith(_TIMER_MODULE)
-        for frame, _ in traceback.walk_tb(exc.__traceback__)
-    )
+
+    async def _can_start(self) -> bool:
+        return await super()._can_start() and not self.is_deleted

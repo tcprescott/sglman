@@ -18,6 +18,7 @@ from application.utils.environment import (
     validate_security_config,
     validate_session_storage,
 )
+from application.utils.timer_teardown import install_log_filter, is_timer_teardown_race
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.public_cache import PublicCacheMiddleware
@@ -47,7 +48,6 @@ from pages import (
 from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
 from theme.assets import cache_control
-from theme.timer_teardown import is_timer_teardown_race
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
 
@@ -71,7 +71,7 @@ def _handle_unhandled_ui_exception(exc: Exception) -> None:
     surface a generic notice so a failure is visible-but-generic rather than
     silent. Never raises itself."""
     # A timer whose page went away is not an error anyone can act on, and
-    # reporting it buries the ones that are — see theme/timer_teardown.py.
+    # reporting it buries the ones that are — see application/utils/timer_teardown.py.
     if is_timer_teardown_race(exc):
         _ui_logger.debug('Timer outlived its page; stopping quietly.')
         return
@@ -169,6 +169,7 @@ def init(fastapi_app: FastAPI) -> None:
     # session store that is configured but unreachable.
     validate_security_config()
     validate_session_storage()
+    install_log_filter()
 
     # Which store holds `app.storage.user` decides whether a deploy logs
     # everyone out: the file backend lives in the container's filesystem and
