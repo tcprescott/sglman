@@ -325,7 +325,11 @@ is never moved to it, since cancelling the room afterwards does not un-score its
 Where a request to join a community stands (`TenantJoinRequest.status`,
 `max_length=20`): `PENDING` = `'pending'` → `APPROVED` = `'approved'` or
 `DENIED` = `'denied'`. There is one row per `(user, tenant)`, so a denied
-request is **re-opened** by moving it back to `PENDING` rather than appended to.
+request is **re-opened** by moving it back to `PENDING` rather than appended to,
+but not until `JOIN_REQUEST_COOLDOWN` (7 days) after `decided_at`. A pending
+request is closed as `APPROVED` by every way into the community, not just the
+queue (Add Member stamps the staff member as `decided_by`; a role grant, the
+Discord role sync and auto-join leave it null).
 
 ### `BracketFormat`
 
@@ -622,7 +626,9 @@ A member's ADA accommodation request in one community (`unique_together = (tenan
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='accommodation_requests'` |
 | `status` | `CharEnumField(AccommodationStatus)` | default `NEW` | `max_length=20` |
 | `details` | `TextField` | null | The requester's own text (≤2000, enforced by the service) |
-| `staff_notes` | `TextField` | null | STAFF-only (≤4000, enforced by the service) |
+| `staff_notes` | `TextField` | null | STAFF-only (≤4000, enforced by the service). PROCTORs see that an `ARRANGED` request exists, never this text |
+| `changed_since_arranged` | `BooleanField` | default `False` | The member edited `details` after staff arranged it. The request stays `ARRANGED`; staff saving it clears the flag (migration 75) |
+| `arranged_details` | `TextField` | null | `details` as they were when arranged, kept while `changed_since_arranged` is set so staff can compare |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 
 ### Tournament
