@@ -36,7 +36,7 @@ for the vast majority of matches, which no bracket scheduled.
 Every DM that asks the recipient to do something carries a **link button** to the
 control that does it. `DMLink(label, url)` goes to `send_dm(..., link=...)`, which
 appends a Discord link button to whatever buttons the DM already has — a player
-gets **Acknowledge** and **View your matches** side by side — and hands the same
+gets **Acknowledge** and **View your match** side by side — and hands the same
 URL to the web-push mirror as its `navigate` target, so the phone notification
 opens the same place.
 
@@ -49,22 +49,25 @@ tenant costs the button, not the DM.
 |---|---|---|
 | Matchup ready to schedule | Pick a time | `/home/player?schedule=<matchup id>` — the picker, open |
 | …its rebook variant | Pick a new time | the same |
-| Match scheduled / rescheduled (players) | View your matches | `/home/player`, beside Acknowledge |
+| Match scheduled / rescheduled (players) | View your match | `/home/player?match=<id>`, beside Acknowledge — the match, not the fifteen-row board it sits on |
+| Match scheduled / rescheduled (crew) | View your crew slot | `/home/my-crew?match=<id>` — their card under Crew you signed up for, outlined and scrolled to |
+| Match scheduled / rescheduled (watchers) | — | Unwatch only; there is nothing to do |
 | Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
 | Seed ready | Open your seed | the randomizer — the one deliberately off-site link |
 | Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
 | Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
 | Reschedule request (to staff) | Review the request | `/admin/schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
-| Reschedule request (to the opponent) | Agree · View your matches | the Agree button *is* the control; the link is their own schedule |
+| Reschedule request (to the opponent) | Agree · Open the request | Discord's Agree button is the control; the link is `/home/player?agree=<request id>`, the same request open in a dialog with its own **Agree** — the web-push copy of this DM has no Discord button, so the tap target has to carry one |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
 | Join request (to staff) | Review the request | `/admin/users` |
-| Stage assigned / cleared / reminder | View your match | `/home/player?match=<id>` — the player's own board, narrowed to that match |
+| Stage assigned / cleared / reminder | View your match · View your crew slot · View the schedule | per audience: players `/home/player?match=<id>`, crew `/home/my-crew?match=<id>`, watchers `/home/schedule` |
+| Race room opened (players) | Join the race room | the racetime.gg room itself — off-site, like the seed link, because that is where the race is |
 | Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |
 | Harder preset agreed / broken | View your match | `/home/player?match=<id>` |
 | Match preset set by staff / handed back | View your match · Choose your settings | the first when staff forced a preset, the second (`?hard=`) when the choice is the players' again |
 | Tournament signup confirmed | View tournaments | `/home/tournaments` |
-| Join approved (to requester) | Open the community | the tenant home |
+| Join approved (to requester) | Find a tournament | `/home/tournaments` — a new member's next step is entering something, not the match board |
 | Qualifier reviewed / expiring / expired / reattempt | Submit or forfeit · View the leaderboard · Start your next run | `/qualifiers/<id>` |
 | Qualifier review queue waiting (to reviewers) | Open the review queue | `/admin/qualifiers?qualifier=<id>&tab=queue` |
 
@@ -93,14 +96,38 @@ a DM outlives what it points at, and a dead button reads as a broken app.
 
 `?match=` narrows the same tab to one match for the stage DMs, with a chip
 saying so and a "Show all my matches" button beside it — a one-row board with no
-explanation reads as a board that lost rows.
+explanation reads as a board that lost rows. It narrows only when the viewer
+plays in that match (`MatchService.viewer_relation`). Otherwise the board stays
+whole and the page says what the match is to them: crew get a toast and their
+slot outlined and scrolled to under Crew you signed up for, a watcher gets a chip
+with **Find it on the schedule**, and anyone else gets "That match isn't one of
+yours". Filtering regardless used to show a commentator "No matches to show yet".
+
+`?agree=<request id>` opens the opponent's reschedule request with an **Agree**
+button (`theme/dialog/reschedule_agree_dialog.py`), gated by the same
+`record_opponent_agreement` the Discord button calls. A stale link says why:
+already agreed, closed (decided or withdrawn), or not a request waiting on this
+viewer (`MatchRescheduleService.agreement_link_state`).
+
+### Who a match DM is for
+
+One lifecycle change reaches up to four kinds of reader, and copy written for
+one is false for the others. `collect_match_audience` returns each recipient's
+strongest tie (player, then crew, then watcher; the Unwatch button stays
+independent), and the builders in `discord_messages.py` take an `audience`
+(`AUDIENCE_PLAYER` / `_CREW` / `_WATCHER` / `_SUBSCRIBER`). Only a player reads
+"Your match"; crew read "A match you're on crew for", watchers "A match you're
+watching", and a tournament subscriber "A match was just scheduled", pointed at
+the signup buttons under the card. Players never get the scheduled/rescheduled
+builders at all: their news is the acknowledgment request.
 
 ### Stage calls
 
 Assigning a stage tells the people it concerns. `MatchService.assign_stage`
 enqueues `notify_stage_changed`, which reads the stage back off the match and
 DMs the players, the **approved** crew and the watchers — a pending commentator
-has not been given the job and is not told to be anywhere. Clearing the stage
+has not been given the job and is not told to be anywhere. Each audience gets
+its own copy, card title and button (see *Who a match DM is for*). Clearing the stage
 sends its own retraction ("back in the tournament room"): telling someone they
 are on Kraid and never taking it back sends them to an empty stage.
 

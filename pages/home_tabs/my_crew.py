@@ -15,7 +15,7 @@ sign up from the Schedule board, so anyone must be able to see what they signed
 up for.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from nicegui import app, background_tasks, context, ui
 
@@ -55,7 +55,15 @@ def commitment_title(row: dict) -> str:
     )
 
 
-async def my_crew_tab() -> None:
+def crew_card_id(match_id: int) -> str:
+    """The DOM id of a commitment card, so a crew DM's link can scroll to it."""
+    return f'crew-match-{match_id}'
+
+
+async def my_crew_tab(focus_match: Optional[int] = None) -> None:
+    """``focus_match`` comes from a crew DM's button (``/home/my-crew?match=``):
+    that match's card is outlined and scrolled into view.
+    """
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in to see your crew commitments.').classes('text-error')
@@ -63,6 +71,7 @@ async def my_crew_tab() -> None:
 
     service = CrewService()
     state = {'upcoming_only': True}
+    focus = {'match_id': int(focus_match) if focus_match else None}
 
     panel = await section_panel(
         'Crew you signed up for',
@@ -143,9 +152,16 @@ async def my_crew_tab() -> None:
                     'Schedule tab.'
                 ).classes('text-muted')
                 return
+            focused = False
             for row in rows:
                 chip_class, status = commitment_status(row)
-                with ui.card().classes('full-width q-mb-sm'):
+                card = ui.card().classes('full-width q-mb-sm').props(
+                    f'id={crew_card_id(row["match_id"])}'
+                )
+                if row['match_id'] == focus['match_id'] and not focused:
+                    card.classes('wiz-deep-link-target')
+                    focused = True
+                with card:
                     with ui.row().classes('items-center gap-2 flex-wrap full-width'):
                         with ui.element('span').classes(f'wiz-chip {chip_class}'):
                             ui.label(status)
@@ -172,6 +188,16 @@ async def my_crew_tab() -> None:
                                 on_click=lambda _e, r=row: background_tasks.create(
                                     withdraw(r, context.client)),
                             ).props('flat color=negative dense no-caps')
+            if focused:
+                # Scrolling is the one thing here the Python API cannot do. Once
+                # only: a later refresh (Confirm, Withdraw) must not yank the
+                # page back up under the reader.
+                ui.run_javascript(
+                    f"setTimeout(() => document.getElementById("
+                    f"'{crew_card_id(focus['match_id'])}')"
+                    f"?.scrollIntoView({{behavior: 'smooth', block: 'center'}}), 400)"
+                )
+                focus['match_id'] = None
 
         async def toggle_scope(event) -> None:
             state['upcoming_only'] = not bool(event.value)

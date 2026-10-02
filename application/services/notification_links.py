@@ -28,7 +28,6 @@ from typing import Any, Optional
 
 from application.tenant_context import get_current_tenant_id
 from application.utils.app_links import (
-    HOME_PLAYER,
     HOME_SCHEDULE,
     HOME_TOURNAMENTS,
     SCHEDULE,
@@ -177,24 +176,22 @@ def race_room(url: str, *, label: str = 'Join the race room') -> Optional[DMLink
     return DMLink(label, url) if url else None
 
 
-async def player_matches() -> Optional[DMLink]:
-    """"View your matches" — the Player tab, the reader's own schedule."""
-    return await link_for('View your matches', home_url(HOME_PLAYER))
-
-
 async def community_schedule(*, label: str = 'View the schedule') -> Optional[DMLink]:
     """The community schedule — for a DM about somebody *else's* match.
 
-    Distinct from :func:`player_matches` because the two read differently: a
-    subscriber weighing whether to crew a stream candidate is not being shown
-    their own fixture, and a button that says "your matches" would claim they
-    were.
+    A subscriber weighing whether to crew a stream candidate, or a watcher told
+    where a match moved, is not being shown their own fixture: a button that
+    says "your matches" would claim they were, and the player board is empty for
+    them.
     """
     return await link_for(label, home_url(HOME_SCHEDULE))
 
 
 async def home_tournaments(*, label: str = 'View tournaments') -> Optional[DMLink]:
     """The Tournaments tab — where signing up and withdrawing both happen.
+
+    Also the join-approved DM's button: a new member's next step is finding
+    something to enter, not the community's match board.
 
     The signup confirmation's button, so the next thought after "am I in?" —
     checking, or backing out while the window is still open — is one press away

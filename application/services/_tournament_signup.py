@@ -266,7 +266,6 @@ class TournamentSignupMixin:
             from application.services.discord import DiscordService, discord_queue
             from application.services.tenant_service import TenantService
             from application.utils.discord_embeds import notification_embed
-
             from application.utils.discord_messages import tournament_signup_dm
 
             community = await TenantService.current_community_name()
