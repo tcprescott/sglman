@@ -201,29 +201,6 @@ async def admin_discord_roles_page() -> None:
                 ui.notify('Mapping removed', color='positive')
                 await refresh_table()
 
-        async def sync_all_users(client):
-            with client:
-                with ui.dialog() as confirm, ui.card():
-                    ui.label(
-                        'Re-sync Discord roles for this community now? This applies '
-                        'the current mappings to its members and to anyone in the '
-                        'server holding a mapped role, creates an account for those '
-                        'who have never signed in, and may take a moment.'
-                    )
-                    with ui.row().classes('justify-end w-full'):
-                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
-                        ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
-                if not await confirm:
-                    return
-                ui.notify('Syncing Discord roles for this community…')
-                try:
-                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                    result = await service.sync_all_users(current)
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-                    return
-                _show_sync_result(result)
-
         async def open_add_dialog():
             ok, roles_payload = await DiscordService().list_guild_roles(guild_id)
             if not ok:
@@ -304,6 +281,29 @@ async def admin_discord_roles_page() -> None:
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button('Add', icon='add', on_click=submit).props('color=primary')
             dialog.open()
+
+        async def sync_all_users(client):
+            with client:
+                with ui.dialog() as confirm, ui.card():
+                    ui.label(
+                        'Re-sync Discord roles for this community now? This applies '
+                        'the current mappings to its members and to anyone in the '
+                        'server holding a mapped role, creates an account for those '
+                        'who have never signed in, and may take a moment.'
+                    )
+                    with ui.row().classes('justify-end w-full'):
+                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
+                        ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
+                if not await confirm:
+                    return
+                ui.notify('Syncing Discord roles for this community…')
+                try:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    result = await service.sync_all_users(current)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                _show_sync_result(result)
 
         with table_container:
             with ui.row().classes('full-width'):

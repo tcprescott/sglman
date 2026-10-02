@@ -364,7 +364,7 @@ async def admin_system_config_page() -> None:
                     )
                     await SystemConfigService.set_discord_invite_url(invite_raw, actor)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 discord_invite_input.value = invite_raw
                 ui.notify('Join settings saved', color='positive')

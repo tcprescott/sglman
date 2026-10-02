@@ -18,6 +18,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from nicegui import ui
 
+from application.errors import NotFoundError
 from application.services import AccommodationService, TenantService
 from application.services.accommodation_service import STAFF_NOTES_MAX_LENGTH
 from application.utils.timezone import format_local_display
@@ -182,7 +183,7 @@ async def render_accommodation_panel(
                 notify_error(e)
                 return
             if request is None:
-                ui.notify('That ADA request no longer exists.', color='warning')
+                notify_error(NotFoundError('That ADA request no longer exists.'))
                 return
             row = _row(request)
         await open_editor(row)
