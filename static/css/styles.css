@@ -813,6 +813,18 @@ body.body--dark {
     border-top-color: var(--wiz-gold-deep);
 }
 
+/* A bracket link on the door: icon beside the name, the name wrapping under
+   itself. Quasar's button content is a wrapping flex row, so at 390 px a long
+   name dropped below its icon and the list read as icons with captions. */
+.join-bracket-link .q-btn__content {
+    flex-wrap: nowrap;
+    text-align: left;
+}
+
+.join-bracket-link .q-btn__content > span {
+    white-space: normal;
+}
+
 .error-status {
     font-family: var(--font-display);
     font-size: clamp(3rem, 10vw, 5rem);

@@ -29,6 +29,29 @@ class TestTriforceButton:
         assert 'with client:' in opener
 
 
+class TestDeepLinkIds:
+    """A mangled DM link renders the page and says so, rather than a raw 422."""
+
+    def test_ids_parse_and_blanks_are_absent(self):
+        from pages.home import deep_link_ids
+
+        ids, malformed = deep_link_ids(schedule='30', reschedule=None, match='', hard='7')
+        assert ids == {'schedule': 30, 'reschedule': None, 'match': None, 'hard': 7}
+        assert malformed is False
+
+    def test_a_malformed_id_is_dropped_and_reported(self):
+        from pages.home import deep_link_ids
+
+        ids, malformed = deep_link_ids(schedule='abc', hard='-1', match='12')
+        assert ids == {'schedule': None, 'hard': None, 'match': 12}
+        assert malformed is True
+
+    def test_the_route_no_longer_types_them_as_int(self):
+        source = _read('pages/home.py')
+        for name in ('schedule', 'reschedule', 'match', 'hard'):
+            assert f'{name}: int | None' not in source, name
+
+
 class TestBookingCopy:
     """A player's booking is final; nothing asks the opponent to confirm it."""
 

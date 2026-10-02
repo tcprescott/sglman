@@ -23,5 +23,5 @@ def assert_player_requests_allowed(tournament) -> None:
     if not getattr(tournament, 'allow_player_match_requests', True):
         raise PermissionError(
             "This tournament is scheduled from its bracket — schedule your "
-            "matchup from Your Schedule instead."
+            "matchup from My Schedule instead."
         )

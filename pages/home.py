@@ -85,20 +85,47 @@ async def _render_platform_landing() -> None:
                 .props('outline color=primary')
 
 
+def deep_link_ids(**raw: str | None) -> tuple[dict[str, int | None], bool]:
+    """Parse the DM deep-link params, which should each be a row id.
+
+    They used to be typed ``int`` on the route, so a mangled link
+    (``?schedule=abc``, a chat client eating half the URL) got FastAPI's raw 422
+    JSON instead of the page. Now a malformed one is dropped and reported, and
+    the page renders as if it had not been there.
+    """
+    ids: dict[str, int | None] = {}
+    malformed = False
+    for name, value in raw.items():
+        if value is None or value == '':
+            ids[name] = None
+        elif value.isdecimal():
+            ids[name] = int(value)
+        else:
+            ids[name] = None
+            malformed = True
+    return ids, malformed
+
+
 def create() -> None:
     async def home(
         section: str | None = None,
         request: Request = None,
-        schedule: int | None = None,
-        reschedule: int | None = None,
-        match: int | None = None,
-        hard: int | None = None,
+        schedule: str | None = None,
+        reschedule: str | None = None,
+        match: str | None = None,
+        hard: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
         if tid is None:
             await _render_platform_landing()
             return
+        ids, malformed_link = deep_link_ids(
+            schedule=schedule, reschedule=reschedule, match=match, hard=hard,
+        )
+        schedule, reschedule, match, hard = (
+            ids['schedule'], ids['reschedule'], ids['match'], ids['hard'],
+        )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
         record_page_view('/home', {
@@ -178,6 +205,12 @@ def create() -> None:
              'content': tournaments_tab},
             {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
         ]
+        if malformed_link:
+            ui.notify(
+                "That link is broken: the match it points to got cut off. "
+                "Open it again from the message you were sent.",
+                color='warning', multi_line=True,
+            )
         show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/home" if request else '/home'
         await BaseLayout(

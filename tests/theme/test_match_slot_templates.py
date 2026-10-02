@@ -528,7 +528,7 @@ class TestStreamVolunteering:
 
 def test_request_match_is_offered_only_where_a_request_can_be_made():
     """A bracket-run community has nothing to request, and the dialog's own dead
-    end ("schedule your matchup from Your Schedule instead") is the wrong place
+    end ("schedule your matchup from My Schedule instead") is the wrong place
     to learn that — the button should not have been there.
 
     Pinned at the source, because the decision is a page-build-time argument to

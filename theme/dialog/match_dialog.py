@@ -541,7 +541,7 @@ class UserMatchDialog(BaseMatchDialog):
                 if not tournaments:
                     ui.label(
                         'Your tournaments are scheduled from their bracket — '
-                        'schedule your matchup from Your Schedule instead.'
+                        'schedule your matchup from My Schedule instead.'
                         if enrolled_any else
                         'You have not opted into any tournaments. '
                         'Please opt in before submitting a match.'

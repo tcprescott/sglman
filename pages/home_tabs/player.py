@@ -73,6 +73,21 @@ def _notify_stale_hard_preset_link() -> None:
     )
 
 
+def _notify_missing_hard_preset_match() -> None:
+    """The match a "Choose your settings" button named is gone, or never was."""
+    ui.notify(
+        "That match isn't on the schedule any more, so there's nothing to choose.",
+        color='warning',
+    )
+
+
+def _notify_no_hard_preset_choice() -> None:
+    """The match exists but offers this viewer no settings choice to make."""
+    ui.notify(
+        "That match doesn't offer you a choice of settings.", color='warning',
+    )
+
+
 def _notify_stale_reschedule_link() -> None:
     """Say why an "Ask again" button did nothing.
 
@@ -423,12 +438,12 @@ async def render_player_dashboard(
                 return
             match = await match_service.get_by_id(match_id)
             if match is None:
-                _notify_stale_hard_preset_link()
+                _notify_missing_hard_preset_match()
                 return
             states = await hard_preset_service.board_states(viewer, [match_id])
             state = states.get(match_id)
             if state is None:
-                _notify_stale_hard_preset_link()
+                _notify_no_hard_preset_choice()
                 return
 
             async def after():
