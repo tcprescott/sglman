@@ -102,6 +102,10 @@ def event_dates(card: TournamentSignupCard) -> Optional[str]:
     return None
 
 
+
+def _card_dom_id(tournament_id: int) -> str:
+    return f'wiz-tournament-card-{tournament_id}'
+
 async def tournaments_tab() -> None:
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
@@ -131,6 +135,20 @@ async def tournaments_tab() -> None:
         # Both handlers run as detached background tasks, where the slot stack is
         # empty, so the client comes from the call site rather than being read in
         # here — ``context.client`` raises inside the task.
+        def follow_card(tournament_id: int) -> None:
+            """Bring a card back under the reader after it changed section.
+
+            Signing up moves a card from "Open for signup" to "My tournaments",
+            hundreds of pixels away, while the viewport stays put: the Withdraw
+            button the player might want next was no longer where they looked.
+            """
+            ui.run_javascript(
+                f"const el = document.getElementById('{_card_dom_id(tournament_id)}');"
+                "if (el) { el.scrollIntoView({block: 'center', behavior: 'smooth'});"
+                " el.classList.add('wiz-row-flash');"
+                " setTimeout(() => el.classList.remove('wiz-row-flash'), 1700); }"
+            )
+
         async def sign_up(tournament_id: int, client) -> None:
             with client:
                 try:
@@ -139,6 +157,7 @@ async def tournaments_tab() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                 await cards.refresh()
+                follow_card(tournament_id)
 
         async def withdraw(tournament_id: int, client) -> None:
             with client:
@@ -148,11 +167,12 @@ async def tournaments_tab() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                 await cards.refresh()
+                follow_card(tournament_id)
 
         def render_card(card: TournamentSignupCard) -> None:
             t = card.tournament
             chip_class, status = signup_status(card)
-            with ui.card().classes('full-width q-mb-sm'):
+            with ui.card().classes('full-width q-mb-sm').props(f'id={_card_dom_id(t.id)}'):
                 with ui.row().classes('items-center gap-2 flex-wrap full-width'):
                     ui.label(t.name).classes('text-subtitle1 text-weight-medium')
                     with ui.element('span').classes(f'wiz-chip {chip_class}'):
