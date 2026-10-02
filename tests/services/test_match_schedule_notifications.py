@@ -44,7 +44,10 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hello crew")
 
-        service.discord_service.send_dm.assert_awaited_once_with(111, "hello crew", embed=None, link=None)
+        service.discord_service.send_dm.assert_awaited_once_with(111, "hello crew", embed=None, link=ANY)
+        link = service.discord_service.send_dm.await_args.kwargs['link']
+        # Their crew slot, not the player filter that is empty for them.
+        assert link.url.endswith(f'/home/my-crew?match={m.id}')
         service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
 
     async def test_approved_tracker_gets_plain_dm(self, service, db):
@@ -54,17 +57,31 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(112, "hi", embed=None, link=None)
+        service.discord_service.send_dm.assert_awaited_once_with(112, "hi", embed=None, link=ANY)
 
     async def test_watcher_gets_unwatch_button_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
         await MatchWatcher.create(match=m, user=await make_dm_user(222, name="w"))
 
-        await service.notify_match_crew(m, "watch msg")
+        await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
 
         service.discord_service.send_dm.assert_not_awaited()
         service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None, link=None)
+
+    async def test_crew_who_also_watches_reads_the_crew_copy(self, service, db):
+        """Watching adds the Unwatch button; it does not demote them to a spectator."""
+        t = await Tournament.create(name="T")
+        m = await Match.create(tournament=t)
+        u = await make_dm_user(223, name="cw")
+        await Commentator.create(match=m, user=u, approved=True)
+        await MatchWatcher.create(match=m, user=u)
+
+        await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
+
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(
+            223, "crew msg", m.id, embed=None, link=ANY,
+        )
 
     async def test_player_who_is_crew_is_excluded(self, service, db):
         t = await Tournament.create(name="T")
@@ -134,6 +151,8 @@ class TestNotifyAcknowledgmentRequest:
         call = service.discord_service.send_dm_with_acknowledgment_button.call_args
         assert call.args[0] == 111
         assert call.args[2] == m.id
+        # The match itself, not the whole board it is one row of.
+        assert call.kwargs['link'].url.endswith(f'/home/player?match={m.id}')
 
     async def test_rescheduled_flag_still_sends(self, service, db):
         m = await self._setup_match(stage=False)

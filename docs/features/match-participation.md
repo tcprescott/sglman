@@ -124,10 +124,12 @@ nobody has given that person the job. Clearing the stage sends its own
 retraction, so a stage call is never left standing after it stops being true.
 
 A second DM lands `Tournament.stage_reminder_minutes` before the match (default
-30, `0` to send none) from `application/services/match/stage_reminder.py`. Both
-DMs carry a **View your match** button onto `/home/player?match=<id>` — the
-player's own board, narrowed to that match, because most of the recipients
-cannot open the admin schedule at all. Detail:
+30, `0` to send none) from `application/services/match/stage_reminder.py`. Each
+reader gets copy and a button for their own tie to the match: players **View
+your match** (`/home/player?match=<id>`, their board narrowed to it), crew **View
+your crew slot** (`/home/my-crew?match=<id>`, their commitment card outlined and
+scrolled to), watchers **View the schedule**. Most of them cannot open the admin
+schedule at all, and the player filter is empty for anyone not playing. Detail:
 [discord.md → Stage calls](discord.md#stage-calls).
 
 ## Check-in and the station pool
@@ -442,20 +444,26 @@ route and a forwarded link both reach past whatever the UI rendered.
 
 ### The opponent's agreement
 
-The match's other player gets a DM with an **Agree** button. It stamps
+The match's other player gets a DM with an **Agree** button, and the same ask on
+the web: My Schedule shows **Your opponent asked to reschedule** above the board
+with an Agree button per request (and "You agreed. Waiting on staff." once they
+have), and the DM's link button opens `/home/player?agree=<id>` with the request
+in a dialog. Both call `record_opponent_agreement`. It stamps
 `opponent_agreed_at`, shows on the decision dialog, and **gates nothing**: a
 request with no agreement is still decidable and one with agreement can still be
 declined. It exists so staff are not the ones chasing the other player.
 
 One column, so it only means "the other player". A match with more than two
 players skips the signal entirely rather than recording one person's yes as if
-it were everyone's.
+it were everyone's: no DM, no card, and `record_opponent_agreement` refuses it
+on every route (Discord, web, REST).
 
 ### Each side's surface
 
 | Who | Where | What it carries |
 |---|---|---|
 | The player | Home → My Schedule, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
+| The opponent | Home → My Schedule, **Your opponent asked to reschedule** above the board | The request (time now, proposed time, reason) with **Agree**; `MatchRescheduleService.list_awaiting_agreement`, two-player matches only |
 | Staff | Admin → Schedule, the reschedule strip | *"2 reschedule requests waiting"* plus the first few named individually, each opening the decision dialog |
 
 The strip is **live**. Submitting, withdrawing, agreeing and declining all

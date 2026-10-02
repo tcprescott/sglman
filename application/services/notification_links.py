@@ -28,7 +28,6 @@ from typing import Any, Optional
 
 from application.tenant_context import get_current_tenant_id
 from application.utils.app_links import (
-    HOME_PLAYER,
     HOME_SCHEDULE,
     HOME_TOURNAMENTS,
     SCHEDULE,
@@ -38,7 +37,9 @@ from application.utils.app_links import (
     admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
+    crew_match_url,
     home_url,
+    player_agree_url,
     player_hard_preset_url,
     player_match_url,
     player_reschedule_url,
@@ -143,18 +144,36 @@ async def player_match(
     return await link_for(label, player_match_url(match_id))
 
 
-async def player_matches() -> Optional[DMLink]:
-    """"View your matches" — the Player tab, the reader's own schedule."""
-    return await link_for('View your matches', home_url(HOME_PLAYER))
+async def player_agree(
+    request_id: int, *, label: str = 'Open the request',
+) -> Optional[DMLink]:
+    """The opponent's reschedule request, open with its Agree button.
+
+    The DM's Discord Agree button covers a reader in Discord; this covers the
+    web-push tap and anyone who would rather read the request in full first.
+    """
+    return await link_for(label, player_agree_url(request_id))
+
+
+async def crew_match(
+    match_id: int, *, label: str = 'View your crew slot',
+) -> Optional[DMLink]:
+    """A crew member's own slot on this match, under Crew you signed up for.
+
+    :func:`player_match` filters the reader's *playing* schedule, which is empty
+    for someone commentating, so a stage DM that sent crew there landed on
+    "No matches to show yet".
+    """
+    return await link_for(label, crew_match_url(match_id))
 
 
 async def community_schedule(*, label: str = 'View the schedule') -> Optional[DMLink]:
     """The community schedule — for a DM about somebody *else's* match.
 
-    Distinct from :func:`player_matches` because the two read differently: a
-    subscriber weighing whether to crew a stream candidate is not being shown
-    their own fixture, and a button that says "your matches" would claim they
-    were.
+    A subscriber weighing whether to crew a stream candidate, or a watcher told
+    where a match moved, is not being shown their own fixture: a button that
+    says "your matches" would claim they were, and the player board is empty for
+    them.
     """
     return await link_for(label, home_url(HOME_SCHEDULE))
 
@@ -162,16 +181,14 @@ async def community_schedule(*, label: str = 'View the schedule') -> Optional[DM
 async def home_tournaments(*, label: str = 'View tournaments') -> Optional[DMLink]:
     """The Tournaments tab — where signing up and withdrawing both happen.
 
+    Also the join-approved DM's button: a new member's next step is finding
+    something to enter, not the community's match board.
+
     The signup confirmation's button, so the next thought after "am I in?" —
     checking, or backing out while the window is still open — is one press away
     rather than a hunt through Home.
     """
     return await link_for(label, home_url(HOME_TOURNAMENTS))
-
-
-async def community_home() -> Optional[DMLink]:
-    """"Open the community" — the tenant home, for someone just admitted to it."""
-    return await link_for('Open the community', home_url())
 
 
 # ---------------------------------------------------------------------------

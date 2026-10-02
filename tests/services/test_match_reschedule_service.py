@@ -673,3 +673,121 @@ class TestLiveViewNudges:
         await MatchRescheduleService().record_opponent_agreement(request.id, p2)
 
         assert seen == []
+
+
+class TestAgreeingOnTheWeb:
+    """The opponent DM asks for Agree; My Schedule is where the web does it."""
+
+    async def test_the_opponent_sees_the_request(self, db):
+        m, p1, p2 = await _match()
+        request = await _submit(m, p1, proposed_at=_soon())
+
+        rows = await MatchRescheduleService().list_awaiting_agreement(p2)
+
+        assert [r.id for r in rows] == [request.id]
+
+    async def test_the_requester_does_not(self, db):
+        m, p1, _ = await _match()
+        await _submit(m, p1, proposed_at=_soon())
+
+        assert await MatchRescheduleService().list_awaiting_agreement(p1) == []
+
+    async def test_an_agreed_request_stays_listed_until_decided(self, db):
+        """So the player can see their answer landed while staff decide."""
+        m, p1, p2 = await _match()
+        boss = await _staff()
+        request = await _submit(m, p1, proposed_at=_soon())
+        service = MatchRescheduleService()
+        await service.record_opponent_agreement(request.id, p2)
+
+        rows = await service.list_awaiting_agreement(p2)
+        assert rows and rows[0].opponent_agreed_at is not None
+
+        await service.decline(request.id, boss, 'no room')
+        assert await service.list_awaiting_agreement(p2) == []
+
+    async def test_a_three_player_match_offers_no_agreement(self, db):
+        """One column records agreement; in a bigger match it would read as everyone's."""
+        m, p1, p2 = await _match()
+        await MatchPlayers.create(match=m, user=await make_user(discord_id=9003, username='p3'))
+        await _submit(m, p1, proposed_at=_soon())
+
+        assert await MatchRescheduleService().list_awaiting_agreement(p2) == []
+
+    async def test_the_link_state_follows_the_request(self, db):
+        from application.services.match_reschedule_service import (
+            AGREE_DECIDED,
+            AGREE_DONE,
+            AGREE_NOT_YOURS,
+            AGREE_OPEN,
+        )
+
+        m, p1, p2 = await _match()
+        outsider = await make_user(discord_id=9005, username='nosy')
+        request = await _submit(m, p1, proposed_at=_soon())
+        service = MatchRescheduleService()
+
+        assert await service.agreement_link_state(request.id, p2) == AGREE_OPEN
+        assert await service.agreement_link_state(request.id, p1) == AGREE_NOT_YOURS
+        assert await service.agreement_link_state(request.id, outsider) == AGREE_NOT_YOURS
+        assert await service.agreement_link_state(request.id, None) == AGREE_NOT_YOURS
+        assert await service.agreement_link_state(999999, p2) == AGREE_NOT_YOURS
+
+        await service.record_opponent_agreement(request.id, p2)
+        assert await service.agreement_link_state(request.id, p2) == AGREE_DONE
+
+        await service.withdraw(request.id, p1)
+        assert await service.agreement_link_state(request.id, p2) == AGREE_DECIDED
+
+    async def test_the_opponent_dm_opens_the_request_not_the_board(
+        self, db, stub_discord_queue, monkeypatch,
+    ):
+        sent = []
+
+        async def _send(user_id, message, request_id, **kwargs):
+            sent.append((user_id, request_id, kwargs))
+            return True, 'ok'
+
+        monkeypatch.setattr(
+            'application.services.discord.discord_service.DiscordService'
+            '.send_dm_with_reschedule_agree_button',
+            AsyncMock(side_effect=_send),
+        )
+        monkeypatch.setattr(
+            'application.services.discord.discord_service.DiscordService.send_dm',
+            AsyncMock(return_value=(True, 'ok')),
+        )
+        m, p1, _ = await _match()
+        request = await _submit(m, p1, proposed_at=_soon())
+        for coro in list(stub_discord_queue):
+            await coro
+        stub_discord_queue.clear()
+
+        assert len(sent) == 1
+        user_id, request_id, kwargs = sent[0]
+        assert (user_id, request_id) == (9002, request.id)
+        assert kwargs['link'].url.endswith(f'/home/player?agree={request.id}')
+
+
+class TestAgreementNeedsTwoPlayers:
+    """One column records agreement; in a bigger match it would read as everyone's."""
+
+    async def test_a_third_player_cannot_stamp_agreement(self, db):
+        m, p1, p2 = await _match()
+        await MatchPlayers.create(match=m, user=await make_user(discord_id=9006, username='p3'))
+        request = await _submit(m, p1, proposed_at=_soon())
+
+        with pytest.raises(ValueError, match='two-player'):
+            await MatchRescheduleService().record_opponent_agreement(request.id, p2)
+
+        await request.refresh_from_db()
+        assert request.opponent_agreed_at is None
+
+    async def test_the_link_says_it_is_not_theirs(self, db):
+        from application.services.match_reschedule_service import AGREE_NOT_YOURS
+
+        m, p1, p2 = await _match()
+        await MatchPlayers.create(match=m, user=await make_user(discord_id=9007, username='p3'))
+        request = await _submit(m, p1, proposed_at=_soon())
+
+        assert await MatchRescheduleService().agreement_link_state(request.id, p2) == AGREE_NOT_YOURS

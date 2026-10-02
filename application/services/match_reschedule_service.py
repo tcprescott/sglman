@@ -53,6 +53,12 @@ logger = logging.getLogger(__name__)
 
 REASON_MAX_LENGTH = 500
 
+# What an agreement deep link finds (see agreement_link_state).
+AGREE_OPEN = 'open'
+AGREE_DONE = 'agreed'
+AGREE_DECIDED = 'decided'
+AGREE_NOT_YOURS = 'not_yours'
+
 # States in which there is still something to reschedule. Once a match is
 # seated the players are in the room and the answer is a conversation with the
 # proctor, not a queue entry staff will read later.
@@ -121,6 +127,42 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         """
         return await self.repository.list_for_user(actor, limit)
 
+    async def list_awaiting_agreement(self, actor: User) -> List[MatchRescheduleRequest]:
+        """Open requests ``actor`` is the other player on — agreed to or not yet.
+
+        The web counterpart of the opponent DM's Agree button. Same audience as
+        that DM: only a match with exactly two players, because one column
+        records agreement and in a bigger match it would read as everyone's yes.
+        Already-agreed requests stay listed so the player can see their answer
+        landed while staff decide.
+        """
+        rows = await self.repository.list_pending_against(actor.id)
+        return [row for row in rows if await self._is_head_to_head(row.match)]
+
+    async def agreement_link_state(self, request_id: int, actor: Optional[User]) -> str:
+        """Why a "Open the request" link would or would not offer Agree.
+
+        One of :data:`AGREE_OPEN`, :data:`AGREE_DONE`, :data:`AGREE_DECIDED` or
+        :data:`AGREE_NOT_YOURS`. A DM outlives the request it is about: staff
+        may have answered, the requester may have withdrawn, or the reader may
+        already have agreed from Discord. The page says which, rather than
+        opening nothing.
+        """
+        request = await self.repository.get_by_id(request_id)
+        if request is None or actor is None:
+            return AGREE_NOT_YOURS
+        if request.requested_by_id == actor.id:  # type: ignore[attr-defined]
+            return AGREE_NOT_YOURS
+        if not await self._is_player(request.match, actor):
+            return AGREE_NOT_YOURS
+        if not await self._is_head_to_head(request.match):
+            return AGREE_NOT_YOURS
+        if request.status is not RescheduleRequestStatus.PENDING:
+            return AGREE_DECIDED
+        if request.opponent_agreed_at is not None:
+            return AGREE_DONE
+        return AGREE_OPEN
+
     async def pending_count(self) -> int:
         return await self.repository.pending_count()
 
@@ -174,6 +216,19 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         except NoValuesFetched:
             rows = await self.match_repository.get_players(match.id)
             return any(p.user_id == user.id for p in rows)  # type: ignore[attr-defined]
+
+    async def _is_head_to_head(self, match: Match) -> bool:
+        """Exactly two players, the only shape opponent agreement can describe.
+
+        One column records it, so in a bigger match one player's yes would read
+        as everyone's. Enforced here rather than only in the listing, because the
+        REST route and a forwarded ``?agree=`` link reach the write directly.
+        """
+        try:
+            players = match.players  # type: ignore[attr-defined]
+            return len(players) == 2
+        except NoValuesFetched:
+            return len(await self.match_repository.get_players(match.id)) == 2
 
     @staticmethod
     def _blocking_state(match: Match) -> Optional[str]:
@@ -358,6 +413,10 @@ class MatchRescheduleService(RescheduleNotificationMixin):
             raise PermissionError("You can't agree with your own request.")
         if not await self._is_player(request.match, actor):
             raise PermissionError("Only the other player in the match can agree to this.")
+        if not await self._is_head_to_head(request.match):
+            raise ValueError(
+                "Agreement only applies to a two-player match. Staff will decide this one."
+            )
 
         if request.opponent_agreed_at is None:
             await self.repository.update(

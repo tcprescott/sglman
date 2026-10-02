@@ -303,13 +303,67 @@ class TestSchedulingDms:
         assert 'Players: A vs B' in msg
         assert 'Scheduled for: 2025-03-01 12:00 EST' in msg
         assert 'Stage: Stage 1' in msg
-        assert msg.endswith('Good luck!')
 
     def test_rescheduled_dm_uses_new_time_label(self):
         msg = dm.rescheduled_dm('Cool Cup', '2025-03-02 12:00 EST', player_names=['A', 'B'])
-        assert 'got moved' in msg
+        assert 'has moved' in msg
         assert 'New time: 2025-03-02 12:00 EST' in msg
-        assert msg.endswith("Make sure it's on your calendar.")
+
+    # Nobody who receives these is playing: players get the acknowledgment DM.
+    # Each audience's copy has to be true for that reader.
+    @pytest.mark.parametrize('builder', ['scheduled_dm', 'rescheduled_dm'])
+    @pytest.mark.parametrize('audience', [
+        dm.AUDIENCE_SUBSCRIBER, dm.AUDIENCE_CREW, dm.AUDIENCE_WATCHER,
+    ])
+    def test_no_audience_is_told_it_is_playing(self, builder, audience):
+        msg = getattr(dm, builder)('Cup', 'later', player_names=['A', 'B'], audience=audience)
+        assert 'Your match' not in msg
+        assert "You've got a match" not in msg
+        assert 'Good luck' not in msg
+
+    def test_a_subscriber_is_pointed_at_the_signup_buttons(self):
+        msg = dm.scheduled_dm('Cup', 'later', audience=dm.AUDIENCE_SUBSCRIBER)
+        assert msg.startswith('A match was just scheduled in **Cup**.')
+        assert msg.endswith('Use the buttons below.')
+
+    def test_crew_hear_it_is_their_slot_and_how_to_drop_it(self):
+        msg = dm.rescheduled_dm('Cup', 'later', audience=dm.AUDIENCE_CREW)
+        assert msg.startswith("A match you're on crew for in **Cup** has moved.")
+        assert 'withdraw from My Schedule' in msg
+
+    def test_a_watcher_is_asked_to_do_nothing(self):
+        msg = dm.scheduled_dm('Cup', 'later', player_names=['A', 'B'], audience=dm.AUDIENCE_WATCHER)
+        assert msg.startswith("A match you're watching in **Cup**")
+        assert 'buttons' not in msg and 'calendar' not in msg
+
+
+class TestTournamentSignupDm:
+    def test_it_no_longer_promises_staff_will_schedule(self):
+        """A bracket-run tournament has players book their own games."""
+        msg = dm.tournament_signup_dm('Open', can_request=False)
+        assert 'Staff can now schedule' not in msg
+        assert 'My Schedule' in msg and 'pick a time' in msg
+        assert 'request a match' not in msg
+
+    def test_request_route_only_where_it_exists(self):
+        assert 'request a match' in dm.tournament_signup_dm('Open', can_request=True)
+
+
+class TestStageDmsPerAudience:
+    @pytest.mark.parametrize('builder,args', [
+        ('stage_assigned_dm', ('Cup', 'Kraid', 'later')),
+        ('stage_cleared_dm', ('Cup', 'later')),
+        ('stage_reminder_dm', ('Cup', 'Kraid', 'later')),
+    ])
+    def test_only_a_player_reads_your_match(self, builder, args):
+        fn = getattr(dm, builder)
+        assert fn(*args, audience=dm.AUDIENCE_PLAYER).startswith('Your match in **Cup**')
+        crew = fn(*args, audience=dm.AUDIENCE_CREW)
+        watcher = fn(*args, audience=dm.AUDIENCE_WATCHER)
+        assert crew.startswith("A match you're on crew for in **Cup**")
+        assert watcher.startswith("A match you're watching in **Cup**")
+        assert 'tournament room as usual' not in watcher
+        assert 'rather than the tournament room' not in crew + watcher
 
 
 class TestAcknowledgmentRequestDm:

@@ -15,7 +15,7 @@ sign up from the Schedule board, so anyone must be able to see what they signed
 up for.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from nicegui import app, background_tasks, context, ui
 
@@ -55,7 +55,22 @@ def commitment_title(row: dict) -> str:
     )
 
 
-async def my_crew_tab() -> None:
+def crew_card_id(match_id: int, role: str) -> str:
+    """The DOM id of a commitment card, so a crew DM's link can scroll to it.
+
+    Role included because one person can both commentate and track a match,
+    which is two cards.
+    """
+    return f'crew-{role}-{match_id}'
+
+
+async def my_crew_tab(focus_match: Optional[int] = None) -> None:
+    """``focus_match`` comes from a crew DM's button (``/home/my-crew?match=``):
+    that match's card is outlined and scrolled into view. A match whose start
+    has passed is not in the default upcoming list, so the list widens to
+    include past slots and says why. A match the viewer does not crew is left
+    to the player section's notice.
+    """
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in to see your crew commitments.').classes('text-error')
@@ -63,6 +78,21 @@ async def my_crew_tab() -> None:
 
     service = CrewService()
     state = {'upcoming_only': True}
+    focus: dict[str, Optional[int]] = {'match_id': int(focus_match) if focus_match else None}
+    if focus['match_id'] is not None:
+        def holds(rows: list[dict]) -> bool:
+            return any(r['match_id'] == focus['match_id'] for r in rows)
+
+        if not holds(await service.list_my_commitments(user, upcoming_only=True)):
+            if holds(await service.list_my_commitments(user, upcoming_only=False)):
+                state['upcoming_only'] = False
+                ui.notify(
+                    "That match's start time has passed, so your past crew slots "
+                    'are showing too.',
+                    color='info',
+                )
+            else:
+                focus['match_id'] = None
 
     panel = await section_panel(
         'Crew you signed up for',
@@ -143,9 +173,15 @@ async def my_crew_tab() -> None:
                     'Schedule tab.'
                 ).classes('text-muted')
                 return
+            focused_id: Optional[str] = None
             for row in rows:
                 chip_class, status = commitment_status(row)
-                with ui.card().classes('full-width q-mb-sm'):
+                card_id = crew_card_id(row['match_id'], row['role'])
+                card = ui.card().classes('full-width q-mb-sm').props(f'id={card_id}')
+                if row['match_id'] == focus['match_id']:
+                    card.classes('wiz-deep-link-target')
+                    focused_id = focused_id or card_id
+                with card:
                     with ui.row().classes('items-center gap-2 flex-wrap full-width'):
                         with ui.element('span').classes(f'wiz-chip {chip_class}'):
                             ui.label(status)
@@ -172,6 +208,15 @@ async def my_crew_tab() -> None:
                                 on_click=lambda _e, r=row: background_tasks.create(
                                     withdraw(r, context.client)),
                             ).props('flat color=negative dense no-caps')
+            if focused_id:
+                # Scrolling is the one thing here the Python API cannot do. Once
+                # only: a later refresh (Confirm, Withdraw) must not yank the
+                # page back up under the reader.
+                ui.run_javascript(
+                    f"setTimeout(() => document.getElementById('{focused_id}')"
+                    f"?.scrollIntoView({{behavior: 'smooth', block: 'center'}}), 400)"
+                )
+                focus['match_id'] = None
 
         async def toggle_scope(event) -> None:
             state['upcoming_only'] = not bool(event.value)
@@ -180,7 +225,7 @@ async def my_crew_tab() -> None:
         # In the header rather than above the list: a scope switch floating over
         # the cards it filters reads as a stray control on a stacked page.
         with panel.aside:
-            ui.switch('Include past', value=False, on_change=toggle_scope) \
+            ui.switch('Include past', value=not state['upcoming_only'], on_change=toggle_scope) \
                 .props('dense').classes('wiz-panel__switch') \
                 .tooltip('Show matches that have already been played')
 

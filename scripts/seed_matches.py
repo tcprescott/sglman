@@ -107,7 +107,7 @@ async def seed_matches_for_tenant(
         "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], stage=stage3,
         comment="Requested a rematch after a disconnect last round.",
     )
-    await make_match(
+    off_stream_match = await make_match(
         "Off-Stream Match", 4, p1=players[2], p2=players[0], stream_candidate=False,
     )
     future_match = await make_match(
@@ -300,6 +300,13 @@ async def seed_matches_for_tenant(
          RescheduleRequestStatus.PENDING, now + timedelta(hours=6),
          "Work shifted my evening — could we push this back a few hours?",
          None, True),
+        # Waiting on the *opponent* too: players[0] has not agreed yet, so their
+        # My Schedule shows "Your opponent asked to reschedule" with an Agree
+        # button, and the opponent DM's ?agree= link has something to open.
+        (off_stream_match, players[2], RescheduleRequestKind.RESCHEDULE,
+         RescheduleRequestStatus.PENDING, now + timedelta(hours=8),
+         "Stuck at work until late — could we start a few hours later?",
+         None, False),
         # The other kind, also waiting: a call-off nobody has answered yet.
         (stage3_match, players[1], RescheduleRequestKind.CANCEL,
          RescheduleRequestStatus.PENDING, None,

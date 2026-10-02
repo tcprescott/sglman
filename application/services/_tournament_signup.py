@@ -266,11 +266,12 @@ class TournamentSignupMixin:
             from application.services.discord import DiscordService, discord_queue
             from application.services.tenant_service import TenantService
             from application.utils.discord_embeds import notification_embed
+            from application.utils.discord_messages import tournament_signup_dm
 
             community = await TenantService.current_community_name()
-            body = (
-                f"You're signed up for **{tournament.name}**. "
-                'Staff can now schedule you into its matches.'
+            body = tournament_signup_dm(
+                tournament.name,
+                can_request=bool(getattr(tournament, 'allow_player_match_requests', False)),
             )
             embed = notification_embed(
                 title='🏁 Signed up',

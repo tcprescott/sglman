@@ -114,6 +114,7 @@ def create() -> None:
         reschedule: str | None = None,
         match: str | None = None,
         hard: str | None = None,
+        agree: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
@@ -121,7 +122,7 @@ def create() -> None:
             await _render_platform_landing()
             return
         ids, malformed_link = deep_link_ids(
-            schedule=schedule, reschedule=reschedule, match=match, hard=hard,
+            schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
         )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
@@ -185,12 +186,13 @@ def create() -> None:
             # `match` narrows the board to one match, for the stage DMs — the
             # player-side equivalent of `/admin/schedule?match_id=`.
             # `hard` is a match id from the harder-settings DM, opening that
-            # match's private opt-in dialog.
+            # match's private opt-in dialog. `agree` is a reschedule request id
+            # from the opponent DM, opening that request with its Agree button.
             {'label': 'My Schedule', 'icon': 'event_available',
              'aliases': ('player', 'my-crew', 'availability', 'equipment'),
              'content': (my_schedule_tab, (),
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
-                          'match': ids['match'], 'hard': ids['hard']})},
+                          'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree']})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission
