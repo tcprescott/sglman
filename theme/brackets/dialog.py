@@ -245,6 +245,21 @@ _STATE_BADGE = {
 }
 
 
+def slot_display_name(match: BracketMatch, slot: int, entry_name: Dict[int, str]) -> str:
+    """A slot's name as the card labels it.
+
+    An empty side of a finished match is a bye, not a player still to be
+    decided — the card said BYE while the dialog it opens said TBD.
+    """
+    entry_id = match.entry1_id if slot == 1 else match.entry2_id  # type: ignore[attr-defined]
+    other = match.entry2_id if slot == 1 else match.entry1_id  # type: ignore[attr-defined]
+    if entry_id is not None:
+        return entry_name.get(entry_id, 'TBD')
+    if match.state == BracketMatchState.COMPLETE and other is not None:
+        return 'BYE'
+    return 'TBD'
+
+
 def build_match_dialog(
     match: BracketMatch,
     entry_name: Dict[int, str],
@@ -265,6 +280,9 @@ def build_match_dialog(
 
     def name_of(entry_id: Optional[int]) -> str:
         return entry_name.get(entry_id, 'TBD') if entry_id is not None else 'TBD'
+
+    def slot_name(slot: int) -> str:
+        return slot_display_name(match, slot, entry_name)
 
     with ui.dialog() as dialog, ui.card().classes('dialog-card'):
         # House chrome: a full-screen sheet on a phone, sticky title, and the
@@ -298,7 +316,7 @@ def build_match_dialog(
                     seed = entry_seed.get(entry_id) if entry_id is not None else None
                     if seed is not None:
                         ui.label(f'#{seed}').classes('text-caption text-grey')
-                    ui.label(name_of(entry_id)).classes('text-bold' if is_winner else '')
+                    ui.label(slot_name(slot)).classes('text-bold' if is_winner else '')
                     rec = records.get(entry_id) if entry_id is not None else None
                     if rec is not None and (rec[0] or rec[1]):
                         ui.label(f'({rec[0]}-{rec[1]})').classes('text-caption text-grey')
@@ -312,7 +330,7 @@ def build_match_dialog(
         _render_games(
             _games_of(match), entry_name, best_of,
             bracket_match_id=match.id,
-            matchup_label=f'{name_of(match.entry1_id)} vs {name_of(match.entry2_id)}',
+            matchup_label=f'{slot_name(1)} vs {slot_name(2)}',
             is_staff=is_staff, tenant_id=tenant_id, on_saved=on_saved,
             game_status=(live or {}).get('games'),
             watch_url=(live or {}).get('watch_url', ''),

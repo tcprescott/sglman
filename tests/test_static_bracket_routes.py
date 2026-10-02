@@ -142,3 +142,61 @@ class TestPublicCachePaths:
             '/_nicegui/main.js',
         ):
             assert not is_public_cacheable_path(path), path
+
+
+def _endpoint(path: str, method: str = 'GET'):
+    from nicegui import app
+
+    static_brackets.create()
+    return next(
+        r.endpoint for r in app.routes
+        if getattr(r, 'path', None) == path and method in getattr(r, 'methods', ())
+    )
+
+
+def _request(path: str, root_path: str = '/t/default'):
+    from starlette.requests import Request
+
+    return Request({
+        'type': 'http', 'method': 'GET', 'path': path, 'root_path': root_path,
+        'query_string': b'', 'headers': [],
+    })
+
+
+class TestNotFound:
+    """Every way a spectator link can miss is one HTML 404 with a way home."""
+
+    async def _assert_not_found(self, response):
+        assert response.status_code == 404
+        assert response.headers['content-type'].startswith('text/html')
+        assert response.headers['cache-control'] == 'no-store'
+        body = bytes(response.body).decode()
+        assert 'Page not found' in body
+        assert 'href="/t/default/"' in body
+
+    async def test_a_malformed_or_out_of_range_id(self, db):
+        detail = _endpoint('/live/brackets/{bracket_id}')
+        index = _endpoint('/live/tournament/{tournament_id}/brackets')
+        for raw in ('abc', '99999999999', '-1', '0'):
+            await self._assert_not_found(await detail(raw, _request(f'/live/brackets/{raw}')))
+            await self._assert_not_found(
+                await index(raw, _request(f'/live/tournament/{raw}/brackets')),
+            )
+
+    async def test_an_unpublished_tournament_does_not_give_its_name_away(self, db):
+        from models import Bracket, BracketFormat, BracketState, Tournament
+
+        tournament = await Tournament.create(name='Secret Invitational')
+        await Bracket.create(
+            tournament=tournament, name='Main', format=BracketFormat.SINGLE_ELIM,
+            state=BracketState.DRAFT,
+        )
+        index = _endpoint('/live/tournament/{tournament_id}/brackets')
+        response = await index(str(tournament.id), _request('/live/x'))
+        await self._assert_not_found(response)
+        assert 'Secret Invitational' not in bytes(response.body).decode()
+
+    def test_head_is_answered(self):
+        """Some link unfurlers probe with HEAD first; a 405 reads as dead."""
+        assert _endpoint('/live/brackets/{bracket_id}', 'HEAD')
+        assert _endpoint('/live/tournament/{tournament_id}/brackets', 'HEAD')

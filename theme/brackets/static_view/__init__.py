@@ -20,6 +20,7 @@ from .document import (
     StaticIndexView,
     render_bracket_document,
     render_index_document,
+    render_not_found_document,
 )
 
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     'StaticIndexView',
     'render_bracket_document',
     'render_index_document',
+    'render_not_found_document',
 ]

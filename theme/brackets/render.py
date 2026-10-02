@@ -21,7 +21,7 @@ from application.services.bracket_engines.round_names import (
 )
 from application.services.bracket_engines.standings import ResultRow
 from application.utils.discord_avatar import avatar_url
-from application.utils.timezone import format_local_display
+from application.utils.timezone import format_local_datetime, format_local_display
 from models import BracketMatch, BracketMatchState
 
 from .cards import BracketContext, render_mobile_card, render_section
@@ -107,6 +107,50 @@ def entry_avatars(entrants, entries) -> Dict[int, str]:
     }
 
 
+def viewer_entries(entrants, entries, user_id: Optional[int]) -> set:
+    """The entry ids that belong to the signed-in viewer, so their own run stands out.
+
+    ``entrants`` must come from ``BracketService.list_entrants`` (the account is
+    prefetched). Empty for a signed-out viewer, or one with no entry here.
+    """
+    if user_id is None:
+        return set()
+    mine = {en.id for en in entrants if getattr(en, 'user_id', None) == user_id}
+    return {entry.id for entry in entries if entry.entrant_id in mine}
+
+
+def booked_times(matches: List[BracketMatch]) -> Dict[int, Tuple[str, str]]:
+    """``bracket_match_id -> (short, full)`` for each unfinished matchup with a booking.
+
+    The earliest scheduled, unfinished game wins: that is the next time the two
+    players are due somewhere. Both strings are on the ambient clock, so the
+    caller binds it — the viewer's on the interactive page. Reads the games and
+    their matches ``BracketRepository.list_matches`` already prefetched; a
+    matchup without them simply shows no time.
+    """
+    out: Dict[int, Tuple[str, str]] = {}
+    for bracket_match in matches:
+        if bracket_match.state == BracketMatchState.COMPLETE:
+            continue
+        try:
+            games = list(bracket_match.games)  # type: ignore[call-overload]
+        except Exception:
+            continue
+        upcoming = [
+            game.match.scheduled_at
+            for game in games
+            if getattr(game, 'match', None) is not None
+            and game.match.scheduled_at is not None
+            and game.match.finished_at is None
+        ]
+        if upcoming:
+            at = min(upcoming)
+            out[bracket_match.id] = (
+                format_local_datetime(at, '%a %H:%M'), format_local_display(at),
+            )
+    return out
+
+
 def build_context(
     config: Optional[dict],
     entries,
@@ -116,6 +160,8 @@ def build_context(
     entry_avatar: Optional[Dict[int, str]] = None,
     on_card_click: Optional[Callable[[int], None]] = None,
     live_state: Optional[Dict[int, dict]] = None,
+    viewer_entry_ids: Optional[set] = None,
+    booked: Optional[Dict[int, Tuple[str, str]]] = None,
 ) -> BracketContext:
     """Resolve the per-bracket lookups the renderer needs, once.
 
@@ -137,6 +183,8 @@ def build_context(
         scheduled_fmt=format_scheduled,
         on_card_click=on_card_click,
         live_state=live_state or {},
+        viewer_entries=viewer_entry_ids or set(),
+        booked=booked or {},
     )
 
 

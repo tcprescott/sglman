@@ -51,6 +51,7 @@ from application.services.timezone_service import TimezoneService
 from application.tenant_context import get_current_tenant_id
 from application.timezone_context import tz_scope
 from application.utils.html_cache import HtmlPageCache
+from application.utils.route_params import parse_route_id
 from models import Bracket, BracketFormat, FeatureFlag, Tournament
 from theme.brackets import entry_avatars
 from theme.brackets.static_view import (
@@ -58,6 +59,7 @@ from theme.brackets.static_view import (
     StaticIndexView,
     render_bracket_document,
     render_index_document,
+    render_not_found_document,
 )
 from theme.brackets.visibility import is_visible, visible_stages
 
@@ -109,6 +111,31 @@ def _no_store(body: str, status_code: int) -> PlainTextResponse:
     )
 
 
+async def _not_found(request: Request) -> Response:
+    """The static 404: an HTML page with a way home, never cached.
+
+    Same words as the app's own not-found page, and the same answer for every
+    reason — no such id, a draft or withdrawn stage, a tournament with nothing
+    published — so a spectator's stale link reads as one thing and walking ids
+    teaches nothing.
+    """
+    from application.services import TenantService
+
+    try:
+        community = await TenantService.current_community_name() or ''
+    except Exception:
+        community = ''
+    return HTMLResponse(
+        render_not_found_document(
+            root_path=request.scope.get('root_path', '') or '',
+            community=community,
+            primary_color=await _theme_primary(),
+        ),
+        status_code=404,
+        headers={'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow'},
+    )
+
+
 def _respond(request: Request, tenant_id: Optional[int], key: str, body: str) -> Response:
     """Serve ``body`` with validators, or a 304 when the reader already has it."""
     entry = _cache.put(tenant_id, key, body)
@@ -156,22 +183,30 @@ def create() -> None:
         event_bus.subscribe_sync(_on_change, _INVALIDATING_EVENTS)
         _subscribed = True
 
-    @app.get('/live/tournament/{tournament_id}/brackets', include_in_schema=False)
-    async def static_bracket_index(tournament_id: int, request: Request) -> Response:
+    # GET and HEAD: a link unfurler (Discord's among them) may probe with HEAD
+    # first, and a 405 there reads as a dead link.
+    @app.api_route(
+        '/live/tournament/{tournament_id}/brackets', methods=['GET', 'HEAD'],
+        include_in_schema=False,
+    )
+    async def static_bracket_index(tournament_id: str, request: Request) -> Response:
         tenant_id = get_current_tenant_id()
         if tenant_id is None:
             return _no_store('Not found', 404)
         if not await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
-            return _no_store('Not found', 404)
+            return await _not_found(request)
+        tid = parse_route_id(tournament_id)
+        if tid is None:
+            return await _not_found(request)
 
-        key = f'index:{tournament_id}'
+        key = f'index:{tid}'
         cached = _cache.get(tenant_id, key)
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
 
-        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=tenant_id)
+        tournament = await Tournament.get_or_none(id=tid, tenant_id=tenant_id)
         if tournament is None:
-            return _no_store('Tournament not found', 404)
+            return await _not_found(request)
 
         # One render is cached and served to every spectator, so it cannot carry
         # any one viewer's clock — and these routes never run the page-build
@@ -182,11 +217,14 @@ def create() -> None:
         # Anonymous always: a DRAFT stage is unpublished and a CANCELLED one is
         # withdrawn, on every public surface (theme/brackets/visibility.py).
         brackets = visible_stages(
-            await service.list_brackets(tournament_id), is_staff=False,
+            await service.list_brackets(tid), is_staff=False,
         )
+        # Nothing published means nothing public, the name included.
+        if not brackets:
+            return await _not_found(request)
         with tz_scope(tz):
             body = render_index_document(StaticIndexView(
-                tournament_id=tournament_id,
+                tournament_id=tid,
                 tournament_name=tournament.name,
                 brackets=brackets,
                 generated_at=datetime.now(timezone.utc),
@@ -196,15 +234,20 @@ def create() -> None:
             ))
         return _respond(request, tenant_id, key, body)
 
-    @app.get('/live/brackets/{bracket_id}', include_in_schema=False)
-    async def static_bracket_detail(bracket_id: int, request: Request) -> Response:
+    @app.api_route(
+        '/live/brackets/{bracket_id}', methods=['GET', 'HEAD'], include_in_schema=False,
+    )
+    async def static_bracket_detail(bracket_id: str, request: Request) -> Response:
         tenant_id = get_current_tenant_id()
         if tenant_id is None:
             return _no_store('Not found', 404)
         if not await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
-            return _no_store('Not found', 404)
+            return await _not_found(request)
+        stage_id = parse_route_id(bracket_id)
+        if stage_id is None:
+            return await _not_found(request)
 
-        key = f'bracket:{bracket_id}'
+        key = f'bracket:{stage_id}'
         cached = _cache.get(tenant_id, key)
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
@@ -212,16 +255,16 @@ def create() -> None:
         tz = await TimezoneService.tenant_timezone_name(tenant_id)
 
         service = BracketService()
-        bracket = await service.get_bracket(bracket_id)
+        bracket = await service.get_bracket(stage_id)
         if bracket is None or not is_visible(bracket, is_staff=False):
-            return _no_store('Bracket not found', 404)
+            return await _not_found(request)
 
         tournament = await Tournament.get_or_none(
             id=bracket.tournament_id, tenant_id=tenant_id,
         )
         entrants = await service.list_entrants(bracket.tournament_id)
-        entries = await service.list_entries(bracket_id)
-        matches = await service.list_matches(bracket_id)
+        entries = await service.list_entries(stage_id)
+        matches = await service.list_matches(stage_id)
         live_state = await service.matchup_live_state(matches)
         advancement = (
             None
