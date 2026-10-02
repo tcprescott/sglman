@@ -124,6 +124,8 @@ async def render_race_rooms(viewer: Optional[User]) -> None:
         ).classes('wiz-subcard__title')
         for room in rooms:
             match = room.match
+            if match is None:
+                continue
             opponents = [
                 p.user.preferred_name for p in match.players if p.user_id != viewer.id
             ]

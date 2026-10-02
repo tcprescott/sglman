@@ -194,7 +194,7 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
                 # page back up under the reader.
                 ui.run_javascript(
                     f"setTimeout(() => document.getElementById("
-                    f"'{crew_card_id(focus['match_id'])}')"
+                    f"'{crew_card_id(focus['match_id'] or 0)}')"
                     f"?.scrollIntoView({{behavior: 'smooth', block: 'center'}}), 400)"
                 )
                 focus['match_id'] = None

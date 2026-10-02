@@ -90,7 +90,7 @@ class RacetimeRoomRepository(TenantScopedRepository[RacetimeRoom]):
             )
         ).distinct().prefetch_related('match', 'match__tournament', 'match__players__user')
         far = datetime.max.replace(tzinfo=timezone.utc)
-        return sorted(rooms, key=lambda r: (r.match.scheduled_at or far, r.id))
+        return sorted(rooms, key=lambda r: ((r.match.scheduled_at if r.match else None) or far, r.id))
 
     async def list_all(self) -> List[RacetimeRoom]:
         return await scoped(RacetimeRoom.all()).order_by('-created_at')

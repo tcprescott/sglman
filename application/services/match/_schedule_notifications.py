@@ -16,8 +16,9 @@ from typing import Optional
 
 import discord
 
+from application.repositories import MatchAcknowledgmentRepository
 from application.services import notification_links
-from application.services.discord import discord_queue
+from application.services.discord import DiscordService, discord_queue
 from application.services.match._dm_context import _community_name, bracket_line_for
 from application.services.match._match_recipients import (
     MatchRecipient,
@@ -57,6 +58,9 @@ _AUDIENCES = (AUDIENCE_PLAYER, AUDIENCE_CREW, AUDIENCE_WATCHER)
 
 class MatchNotificationMixin:
     """Discord DM fan-out for match lifecycle and subscriber notifications."""
+
+    acknowledgment_repository: MatchAcknowledgmentRepository
+    discord_service: DiscordService
 
     async def notify_match_participants(
         self, match: Match, message: str, embed: Optional[discord.Embed] = None,

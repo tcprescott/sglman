@@ -16,6 +16,7 @@ stage is the shape the board wants rather than the shape the table has.
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 
+from application.repositories import MatchRepository
 from application.utils.timezone import local_day_bounds
 from models import Match, MatchPlayers, Stage, User
 
@@ -28,6 +29,8 @@ RELATION_NONE = 'none'
 
 class MatchReadsMixin:
     """Load-or-None lookups, the schedule queries, and the stage grouping."""
+
+    repository: MatchRepository
 
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
