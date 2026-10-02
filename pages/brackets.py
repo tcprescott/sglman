@@ -23,16 +23,23 @@ standings with the pure :func:`compute_standings` helper. No ORM writes.
 """
 
 import asyncio
+import html
 from typing import Callable, Dict, List, Optional
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import AuthService, BracketService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    BracketService,
+    TenantService,
+    get_user_from_discord_id,
+)
 from application.services.bracket_engines.standings import (
     compute_standings,
     standings_config_from,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
+from application.utils.route_params import parse_route_id
 from middleware.auth import public_page
 from models import (
     Bracket,
@@ -55,7 +62,6 @@ from theme.brackets import (
     entry_avatars,
     entry_records,
     format_label,
-    is_visible,
     match_nodes,
     register_bracket_view,
     render_elimination,
@@ -64,9 +70,10 @@ from theme.brackets import (
     stage_label,
     state_color,
     state_label,
-    visible_stages,
 )
+from theme.brackets.render import booked_times, viewer_entries
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
+from theme.error_page import render_not_found
 
 
 def _slot_label(
@@ -298,7 +305,7 @@ def _render_swiss(
                 )
 
 
-def _static_view_link(path: str) -> None:
+def _static_view_link(path: str, *, public: bool) -> None:
     """Offer the cached, socket-free twin of this page (pages/static_brackets.py).
 
     ``path`` is tenant-relative: ``ui.link`` prepends the page's ``root_path``,
@@ -308,38 +315,66 @@ def _static_view_link(path: str) -> None:
     is the wrong trade for a spectator link posted to a stream or a Discord
     channel — so the page that costs a socket is also where the one that doesn't
     is advertised.
+
+    ``public`` is whether a spectator would see anything there. Staff reach
+    draft stages here, and the twin is anonymous by construction, so offering
+    the link for a draft hands staff a URL that 404s for everyone they paste it
+    to. Until it would work, say when it will.
     """
+    if not public:
+        ui.label('The spectator view goes live once a stage starts.') \
+            .classes('text-caption text-grey')
+        return
     ui.link('Shareable spectator view', path).classes('text-caption') \
         .tooltip('A static, cached page for followers — no live connection')
 
 
+def _share_meta(title: str, description: str) -> None:
+    """Title and summary for a link unfurl (Discord, chat apps)."""
+    ui.add_head_html(
+        f'<meta property="og:title" content="{html.escape(title)}">'
+        f'<meta property="og:description" content="{html.escape(description)}">'
+    )
+
+
+async def _viewer():
+    """The signed-in viewer (or None), whether they hold staff here, and the admin link."""
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return user, await AuthService.is_staff(user), await AuthService.can_view_admin(user)
+
+
 def create() -> None:
     @public_page('/tournament/{tournament_id}/brackets', feature=FeatureFlag.BRACKETS)
-    async def bracket_index(tournament_id: int) -> None:
-        ui.page_title('Wizzrobe — Brackets')
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-        show_admin = await AuthService.can_view_admin(user)
-        is_staff = await AuthService.is_staff(user)
-        await BaseLayout(
-            user=user, show_admin=show_admin,
-        ).render()
+    async def bracket_index(tournament_id: str) -> None:
+        user, is_staff, show_admin = await _viewer()
+        tid = parse_route_id(tournament_id)
 
         service = BracketService()
-        tournament = await Tournament.get_or_none(
-            id=tournament_id, tenant_id=require_tenant_id()
+        # The service decides what this viewer may see: a tournament with
+        # nothing published (name included) and DRAFT/CANCELLED stages are
+        # staff-only, answered exactly like an id that was never used.
+        tournament = (
+            await service.get_visible_tournament(user, tid) if tid is not None else None
         )
-        if tournament is None:
-            ui.label('Tournament not found.').classes('text-error')
+        if tid is None or tournament is None:
+            await render_not_found(user=user)
             return
+        brackets = await service.list_visible_brackets(user, tid)
+        public_stages = [b for b in brackets if BracketService.is_published(b)]
 
-        # DRAFT stages are unpublished — staff-only on every public surface.
-        brackets = visible_stages(
-            await service.list_brackets(tournament_id), is_staff=is_staff,
+        community = await TenantService.current_community_name() or 'Wizzrobe'
+        ui.page_title(f'{tournament.name} — Brackets — {community}')
+        _share_meta(
+            f'{tournament.name} — Brackets',
+            f'{community} · {len(public_stages)} stage(s) · live bracket',
         )
+        await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
             ui.label(f'{tournament.name} — Brackets').classes('page-title')
-            _static_view_link(f'/live/tournament/{tournament_id}/brackets')
+            _static_view_link(
+                f'/live/tournament/{tid}/brackets', public=bool(public_stages),
+            )
             ui.separator().classes('separator-spacing')
             if not brackets:
                 ui.label('No brackets have been published for this tournament.').classes('italic-note')
@@ -353,7 +388,7 @@ def create() -> None:
                                 f'{stage_label(bracket.stage_order)} · '
                                 f'{format_label(bracket.format)}'
                             ).classes('text-caption')
-                            setup = config_summary(bracket)
+                            setup = config_summary(bracket) if is_staff else []
                             if setup:
                                 ui.label(' · '.join(setup)).classes('text-caption text-grey')
                         with ui.row().classes('items-center gap-2'):
@@ -369,14 +404,31 @@ def create() -> None:
                             ).props('flat dense')
 
     @public_page('/brackets/{bracket_id}', feature=FeatureFlag.BRACKETS)
-    async def bracket_detail(bracket_id: int) -> None:
-        ui.page_title('Wizzrobe — Bracket')
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-        show_admin = await AuthService.can_view_admin(user)
-        is_staff = await AuthService.is_staff(user)
-        await BaseLayout(
-            user=user, show_admin=show_admin,
-        ).render()
+    async def bracket_detail(bracket_id: str) -> None:
+        user, is_staff, show_admin = await _viewer()
+        parsed_id = parse_route_id(bracket_id)
+        service = BracketService()
+        # An unpublished (DRAFT) or withdrawn stage reads as absent to everyone
+        # but staff, with the same page and status as an id never used.
+        first = (
+            await service.get_visible_bracket(user, parsed_id) if parsed_id is not None else None
+        )
+        if parsed_id is None or first is None:
+            await render_not_found(user=user)
+            return
+        stage_id = parsed_id
+        tournament = await Tournament.get_or_none(
+            id=first.tournament_id, tenant_id=require_tenant_id(),
+        )
+        tournament_name = tournament.name if tournament else 'Tournament'
+        community = await TenantService.current_community_name() or 'Wizzrobe'
+        ui.page_title(f'{first.name} — {tournament_name} — {community}')
+        _share_meta(
+            f'{first.name} — {tournament_name}',
+            f'{community} · {stage_label(first.stage_order)} · '
+            f'{format_label(first.format)} · {state_label(first.state)}',
+        )
+        await BaseLayout(user=user, show_admin=show_admin).render()
         ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
         _install_hover_run()
 
@@ -386,7 +438,6 @@ def create() -> None:
         # tenant and refreshes re-enter this client.
         tenant_id = require_tenant_id()
         client = context.client
-        service = BracketService()
 
         # Which view the phone toggle is on. Held per client (not module level)
         # and outside the refreshable so a live BRACKET_* rebuild keeps the
@@ -419,12 +470,12 @@ def create() -> None:
         async def open_match_dialog(match_id: int, client) -> None:
             with client:
                 with tenant_scope(tenant_id):
-                    bracket = await service.get_bracket(bracket_id)
+                    bracket = await service.get_visible_bracket(user, stage_id)
                     if bracket is None:
                         return
                     entrants = await service.list_entrants(bracket.tournament_id)
-                    entries = await service.list_entries(bracket_id)
-                    matches = await service.list_matches(bracket_id)
+                    entries = await service.list_entries(stage_id)
+                    matches = await service.list_matches(stage_id)
                     live_state = await service.matchup_live_state(matches)
                 name_by_entrant = {en.id: en.display_name for en in entrants}
                 entry_name = {
@@ -453,15 +504,15 @@ def create() -> None:
             # tenant contextvar is unset, so scope the reads explicitly (the admin
             # dialogs do the same) rather than relying on the client-stash fallback.
             with tenant_scope(tenant_id):
-                bracket = await service.get_bracket(bracket_id)
+                bracket = await service.get_visible_bracket(user, stage_id)
                 # An unpublished (DRAFT) stage reads as absent to everyone but
                 # staff — its seeded field is not public until the stage starts.
-                if bracket is None or not is_visible(bracket, is_staff=is_staff):
+                if bracket is None:
                     ui.label('Bracket not found.').classes('text-error')
                     return
                 entrants = await service.list_entrants(bracket.tournament_id)
-                entries = await service.list_entries(bracket_id)
-                matches = await service.list_matches(bracket_id)
+                entries = await service.list_entries(stage_id)
+                matches = await service.list_matches(stage_id)
                 # One extra query for the whole field: the derived per-matchup
                 # status and watch link the cards paint (U2). Public — the
                 # schedule already shows all of it signed out (D4).
@@ -471,6 +522,7 @@ def create() -> None:
                 e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
             }
             entry_avatar = entry_avatars(entrants, entries)
+            mine = viewer_entries(entrants, entries, user.id if user else None)
 
             with ui.card().classes('page-container w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('items-center justify-between w-full'):
@@ -480,7 +532,9 @@ def create() -> None:
                             f'{stage_label(bracket.stage_order)} · '
                             f'{format_label(bracket.format)}'
                         ).classes('text-caption')
-                        setup = config_summary(bracket)
+                        # The stage's rules as staff configured them — a
+                        # check on the setup, not something a player acts on.
+                        setup = config_summary(bracket) if is_staff else []
                         if setup:
                             ui.label(' · '.join(setup)).classes('text-caption text-grey')
                     ui.badge(
@@ -494,7 +548,10 @@ def create() -> None:
                             f'/tournament/{bracket.tournament_id}/brackets'
                         ),
                     ).props('flat dense')
-                    _static_view_link(f'/live/brackets/{bracket_id}')
+                    _static_view_link(
+                        f'/live/brackets/{stage_id}',
+                        public=BracketService.is_published(bracket),
+                    )
                 ui.separator().classes('separator-spacing')
 
                 if bracket.state == BracketState.DRAFT or not matches:
@@ -515,6 +572,7 @@ def create() -> None:
                         bracket.config, entries, matches, entry_name,
                         entry_avatar=entry_avatar,
                         on_card_click=on_card_click, live_state=live_state,
+                        viewer_entry_ids=mine, booked=booked_times(matches),
                     )
                     # 2-D connector bracket (>= md); a per-round accordion (< md),
                     # with the toolbar toggle swapping between them on a phone.
@@ -555,8 +613,8 @@ def create() -> None:
         # carry no bracket_id, so the subscriber filters on the tournament and
         # lets the debounce absorb the wider net.
         with tenant_scope(tenant_id):
-            live_bracket = await service.get_bracket(bracket_id)
+            live_bracket = await service.get_visible_bracket(user, stage_id)
         register_bracket_view(
-            bracket_id, request_refresh,
+            stage_id, request_refresh,
             tournament_id=live_bracket.tournament_id if live_bracket else None,
         )

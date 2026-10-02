@@ -20,14 +20,19 @@ raising, because a malformed article should read badly, not 500 the page.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Callable
 
 __all__ = [
     'Block',
     'Span',
+    'article_sections',
+    'internal_target',
+    'link_filter',
     'parse_blocks',
     'parse_inline',
     'plain_text',
+    'prune_links',
     'slugify',
 ]
 
@@ -304,3 +309,99 @@ def plain_text(blocks: list[Block]) -> str:
             for cell in row:
                 add(cell)
     return ' '.join(part.strip() for part in out if part.strip())
+
+
+def internal_target(href: str) -> tuple[str, str, str] | None:
+    """``(section, slug, anchor)`` for a link into an article section, else ``None``.
+
+    ``/help/crew#approval`` is ``('/help', 'crew', 'approval')``; a section index
+    (``/help``) has an empty slug. A trailing slash or a query names the same
+    article (``/help/crew/?x`` is ``crew``). Links anywhere else — another page
+    of the app, off-site, an in-page ``#anchor`` — are not article links and
+    return ``None``.
+    """
+    path, _, anchor = href.partition('#')
+    path = path.split('?', 1)[0].rstrip('/')
+    for section in ('/help', '/event-info'):
+        if path == section:
+            return section, '', anchor
+        if path.startswith(section + '/'):
+            return section, path[len(section) + 1:], anchor
+    return None
+
+
+def _prune_spans(spans: tuple[Span, ...], readable: Callable[[str], bool]) -> tuple[Span, ...]:
+    """Spans with each dead link turned into its label."""
+    return tuple(
+        Span('text', span.text) if span.kind == 'link' and not readable(span.href) else span
+        for span in spans
+    )
+
+
+def prune_links(blocks, readable: Callable[[str], bool]) -> tuple[Block, ...]:
+    """``blocks`` without links the reader cannot follow.
+
+    Articles link to each other freely, but an article can be gated off (a
+    feature the community has not enabled, a role the reader does not hold),
+    and the link to it then lands on "does not exist". Every link — in running
+    text, list items, table headers and table cells — that points at an
+    article this reader cannot open keeps its words and loses the anchor.
+    Nothing else is removed: dropping a whole row or block would decide for the
+    author what the surrounding text still means.
+    """
+    return tuple(
+        replace(
+            block,
+            spans=_prune_spans(block.spans, readable),
+            items=tuple(_prune_spans(item, readable) for item in block.items),
+            headers=tuple(_prune_spans(cell, readable) for cell in block.headers),
+            rows=tuple(
+                tuple(_prune_spans(cell, readable) for cell in row) for row in block.rows
+            ),
+        )
+        for block in blocks
+    )
+
+
+def link_filter(help_slugs, event_slugs) -> Callable[[str], bool]:
+    """A ``readable(href)`` predicate for :func:`prune_links`.
+
+    ``help_slugs`` / ``event_slugs`` are the articles this reader can open in
+    each section; ``event_slugs`` is ``None`` where the community has no event
+    handbook at all, which makes every ``/event-info`` link dead. Links that are
+    not into an article section are always readable.
+    """
+    def readable(href: str) -> bool:
+        target = internal_target(href)
+        if target is None:
+            return True
+        section, slug, _anchor = target
+        slugs = help_slugs if section == '/help' else event_slugs
+        if slugs is None:
+            return False
+        return not slug or slug in slugs
+
+    return readable
+
+
+def article_sections(blocks) -> set[str]:
+    """The article sections (``/help``, ``/event-info``) ``blocks`` link into."""
+    sections: set[str] = set()
+
+    def scan(spans) -> None:
+        for span in spans:
+            if span.kind == 'link':
+                target = internal_target(span.href)
+                if target is not None:
+                    sections.add(target[0])
+
+    for block in blocks:
+        scan(block.spans)
+        for item in block.items:
+            scan(item)
+        for header in block.headers:
+            scan(header)
+        for row in block.rows:
+            for cell in row:
+                scan(cell)
+    return sections

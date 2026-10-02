@@ -304,3 +304,23 @@ async def test_transport_middleware_passes_page_paths_through():
     r = await _get(_build_transport_app(), '/admin')
     assert r.status_code == 200
     assert r.json()['path'] == '/admin'
+
+
+async def test_unknown_slug_falls_through_marked_for_the_themed_404(two_tenants):
+    """No tenant is bound and the scope is marked, so the app's 404 handler can
+    render "Community not found" — rather than a bare body with no
+    Content-Type, which Chrome downloaded."""
+    from middleware.tenant import UNKNOWN_COMMUNITY_SCOPE_KEY
+
+    async def marked(request):
+        return JSONResponse({
+            'tenant': get_current_tenant_id(),
+            'marked': bool(request.scope.get(UNKNOWN_COMMUNITY_SCOPE_KEY)),
+            'path': request.scope['path'],
+        })
+
+    app = Starlette(routes=[Route('/t/nope/help', marked), Route('/t/gone/help', marked)])
+    app.add_middleware(TenantMiddleware)
+    for path in ('/t/nope/help', '/t/gone/help'):
+        body = (await _get(app, path)).json()
+        assert body == {'tenant': None, 'marked': True, 'path': path}

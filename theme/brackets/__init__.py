@@ -49,7 +49,6 @@ from .render import (
     render_elimination_mobile,
     results_from_matches,
 )
-from .visibility import is_visible, visible_stages
 
 __all__ = [
     'CARD_HEIGHT',
@@ -72,7 +71,6 @@ __all__ = [
     'entry_avatars',
     'entry_records',
     'format_label',
-    'is_visible',
     'layout_section',
     'match_nodes',
     'register_bracket_view',
@@ -87,5 +85,4 @@ __all__ = [
     'stage_label',
     'state_color',
     'state_label',
-    'visible_stages',
 ]

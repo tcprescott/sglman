@@ -216,18 +216,22 @@ body {
    all (transparent) layout wrappers; Quasar hardcodes dark to a cool #121212,
    so both modes are set explicitly. */
 body {
-    background: radial-gradient(1100px 520px at 50% -180px,
-        #FCF8F0 0%, var(--page-bg) 65%) fixed;
+    background: var(--page-bg) radial-gradient(1100px 520px at 50% -180px,
+        #FCF8F0 0%, var(--page-bg) 65%) no-repeat fixed;
 }
 
 body.body--dark {
-    background: radial-gradient(1100px 520px at 50% -180px,
-        #251d14 0%, var(--wiz-dark-bg) 65%) fixed;
+    background: var(--wiz-dark-bg) radial-gradient(1100px 520px at 50% -180px,
+        #251d14 0%, var(--wiz-dark-bg) 65%) no-repeat fixed;
 }
 
 /* Touch devices can't cheaply repaint a `fixed` background while scrolling (and
    several mobile browsers ignore fixed attachment outright), so fall back to a
-   scroll-attached gradient — the glow still paints, without the jank. */
+   scroll-attached gradient — the glow still paints, without the jank. Scrolled,
+   the gradient is one viewport-sized tile, which is why the rules above carry a
+   solid colour and no-repeat: a page taller than the screen (the join door on a
+   phone) otherwise showed the tile's pale top again below the fold, and the
+   bottom of its card sat on white. */
 @media (hover: none) {
     body,
     body.body--dark {
@@ -813,16 +817,17 @@ body.body--dark {
     border-top-color: var(--wiz-gold-deep);
 }
 
-/* A bracket link on the door: icon beside the name, the name wrapping under
-   itself. Quasar's button content is a wrapping flex row, so at 390 px a long
-   name dropped below its icon and the list read as icons with captions. */
-.join-bracket-link .q-btn__content {
+/* The door's bracket list: icon beside the name on one line, the name cut
+   short rather than wrapped. At 390px a long tournament name pushed its icon
+   onto a line of its own above the label. */
+.join-preview-button .q-btn__content {
     flex-wrap: nowrap;
-    text-align: left;
+    min-width: 0;
 }
-
-.join-bracket-link .q-btn__content > span {
-    white-space: normal;
+.join-preview-button .q-btn__content > .block {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .error-status {
@@ -1605,6 +1610,13 @@ body.body--dark {
     animation: wizRowFlash 1.6s ease-out;
 }
 
+/* The card a DM's link button was about, so the reader's eye lands on it. */
+.wiz-deep-link-target {
+    outline: 2px solid var(--q-primary);
+    outline-offset: 2px;
+    animation: wizRowFlash 2.4s ease-out;
+}
+
 /* Mobile grid cards — token-driven surface; the vars switch per mode on
    their own. Slot templates keep only layout inline (width/box-sizing). */
 .match-grid-card,
@@ -2018,6 +2030,31 @@ body.body--dark {
     padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Every tab gets an equal share of the bar and may shrink below its label's
+   natural width. Quasar sizes a tab to its content plus 16px padding each side,
+   so "Event / My Schedule / Tournaments / Profile" measured 373px in a 358px
+   bar and the fourth sat under a scroll arrow on every member's home. With
+   equal shares there is nothing to scroll, so the arrows are hidden outright. */
+.wiz-bottom-nav .q-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 2px;
+}
+.wiz-bottom-nav .q-tab__content {
+    min-width: 0;
+    max-width: 100%;
+}
+.wiz-bottom-nav .q-tab__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+.wiz-bottom-nav .q-tabs__arrow {
+    display: none;
+}
+
 /* The footer exists solely to host the bottom nav, so collapse the whole bar
    (not just the nav) on desktop — otherwise the empty ui.footer() would render
    as a stray surface strip along the bottom edge. */
@@ -2397,6 +2434,12 @@ ol.wiz-help-list { list-style-type: decimal; }
         border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
     }
     .wiz-help-body { order: 1; }
+    /* The reader's own contents and the way back move above the body; only
+       the article list stays below it (theme/help/article.py). */
+    .wiz-help-wide-only { display: none !important; }
+}
+@media (min-width: 1024px) {
+    .wiz-help-narrow-only { display: none !important; }
 }
 
 /* --- the tappable help icon --------------------------------------------- */

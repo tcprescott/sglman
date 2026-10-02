@@ -75,43 +75,6 @@ class TestGroupByTournament:
         assert group_by_tournament([]) == []
 
 
-class TestDraftVisibility:
-    """A DRAFT stage is unpublished — staff-only on every public surface."""
-
-    def _stages(self):
-        from models import BracketState
-
-        class _B:
-            def __init__(self, id, state):
-                self.id, self.state = id, state
-
-        return [
-            _B(1, BracketState.DRAFT),
-            _B(2, BracketState.ACTIVE),
-            _B(3, BracketState.COMPLETE),
-        ]
-
-    def test_non_staff_never_sees_a_draft(self):
-        from theme.brackets import is_visible, visible_stages
-
-        stages = self._stages()
-        assert [b.id for b in visible_stages(stages, is_staff=False)] == [2, 3]
-        assert is_visible(stages[0], is_staff=False) is False
-        assert is_visible(stages[1], is_staff=False) is True
-
-    def test_staff_sees_everything(self):
-        from theme.brackets import is_visible, visible_stages
-
-        stages = self._stages()
-        assert [b.id for b in visible_stages(stages, is_staff=True)] == [1, 2, 3]
-        assert is_visible(stages[0], is_staff=True) is True
-
-    def test_empty(self):
-        from theme.brackets import visible_stages
-
-        assert visible_stages([], is_staff=False) == []
-
-
 class TestCrawlerPolicy:
     """Signed-out surfaces are shareable by link, not published to search."""
 

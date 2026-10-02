@@ -246,3 +246,24 @@ async def test_a_request_is_invisible_across_tenants(two_tenant_api):
 
     assert resp.status_code == 404
     assert listed.json() == []
+
+
+async def test_agreeing_in_a_three_player_match_is_refused(db, app):
+    """A third player must not stamp agreement as if they were the only opponent."""
+    from application.services import MatchRescheduleService
+
+    asker = await User.create(discord_id=777101, username='asker')
+    match = await _match_with(asker)
+    third, raw = await create_user_token(username='third')
+    await MatchPlayers.create(match=match, user=third)
+    request = await MatchRescheduleService().submit(
+        match.id, asker, reason='work clash',
+        proposed_at=datetime.now(timezone.utc) + timedelta(hours=6),
+    )
+
+    async with client_for(build_api_app(), raw) as client:
+        resp = await client.post(f'/api/reschedule-requests/{request.id}/agree')
+
+    assert resp.status_code == 400
+    await request.refresh_from_db()
+    assert request.opponent_agreed_at is None

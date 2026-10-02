@@ -310,6 +310,11 @@ question. `list_race_rooms` is the exception at STAFF, matching
 | `get_async_qualifier_leaderboard` | ACTOR | `ASYNC_QUALIFIERS` |
 | `list_async_qualifier_live_races` | ACTOR | `ASYNC_QUALIFIERS` |
 
+The bracket tools read through `BracketService`'s viewer-aware reads with the
+caller as viewer: a DRAFT or CANCELLED stage, and the roster of a tournament
+with nothing published, are `not_found` to anyone but staff — the same rule as
+the public pages and REST ([brackets.md](brackets.md#public-access--anonymous-and-reachable)).
+
 `list_bracket_matches` resolves entry ids to entrant names from two list reads
 rather than prefetching per match: a fixed pair of queries covers the whole
 field, whatever its size.

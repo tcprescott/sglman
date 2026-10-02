@@ -9,9 +9,6 @@ the truth and git history keeps the rationale.
 
 | Evaluation | Scope | Headline finding |
 |---|---|---|
-| [player-journey-ux.md](player-journey-ux.md) | A plain member from the join door to a played match, every Home tab, and the DMs along the way, at 1440 and 390 | On a phone every match board stops at its third card (the sticky-header height cap has no scroll container in grid mode), and the Triforce Texts button on a tournament card opens nothing because it runs without a client |
-| [membership-accommodations-ux.md](membership-accommodations-ux.md) | Join requests, Discord auto-join and provisioning, ADA accommodation requests and the board icon (PRs #250–#253) | Export CSV wrote every arranged player's private ADA note and Discord id into a file any PROCTOR could download (fixed in #254); Approve/Decline on the join queue raise on every click, and the privacy copy says only staff see notes while proctors do |
-| [public-pages-wayfinding-ux.md](public-pages-wayfinding-ux.md) | Every `@public_page`, the tenant front door, error pages, nav per role and help coverage, signed out and in | A signed-out reader tapping a DM link never reaches its target: the join page's Sign in is a relative link that loops on every `/home/<section>` URL, and sign-in drops the query; an unknown community slug serves a contentless 404 the browser downloads |
 | [2026-08-code-quality-drift.md](2026-08-code-quality-drift.md) | The whole tree at `ce73311` — DRY, convention divergence and the correctness bugs the drift exposes | The mechanical invariants are clean because of `.claude/scripts/`, and everything the hooks do not watch has drifted: the whole-tree sweep **cannot fire `check_dry_regressions` at all** and reports clean over 56 hits, and the manual live-race record erases the "these racers matched nobody" to-do while the card above the button tells the admin to do exactly that |
 | [async-qualifier-leaderboard-ux.md](async-qualifier-leaderboard-ux.md) | The whole qualifier lifecycle and both leaderboards, at 500 players / 6,260 runs | The scoring formulas are exact (32/32 hand-checked); nothing in the subsystem paginates, so the admin Runs tab is a 151,156 px page, and review has no concurrency control — two reviewers verdicting one run both commit and DM the runner contradictory results |
 | [hard-preset-opt-in-ux.md](hard-preset-opt-in-ux.md) | The harder-settings opt-in, all four roles | The secrecy holds on every surface, but the only web control for the feature sits 360px past the horizontal fold at 1440 — and one tenant-supplied preset name had made `Settings` the widest column on a ten-column board |
@@ -96,6 +93,24 @@ column, `FeatureFlag.FEEDBACK` with a reversible review and the submitter's own
 status card, and `check_slot_context.py`'s second check. `/platform` was driven
 end to end in the same pass and found sound — recorded then, and worth knowing
 now only as "somebody looked".
+The player-journey, membership-and-accommodations and public-pages audits
+(three reports driven together, every finding shipped in #254 and #256–#260) —
+their findings became the CSV export that writes a structured cell as its
+display name only (Export CSV had handed any PROCTOR every arranged player's
+staff ADA note and Discord id), the sticky-header cap that skips the phone grid
+(every match board stopped at its third card), `carry_viewer_row_state` beside
+a per-match re-stamp, and the realtime runner binding each client's own
+request (a live board refreshed as whoever triggered the push). They also
+became the web Agree on My Schedule, per-audience stage and match DMs, and
+`/login?next=` with `safe_local_path` as the one return-path gate. Bracket
+stage visibility moved into `BracketService` (REST and MCP had returned draft
+stages to any token), every miss now renders one themed 404, and help prunes
+links its reader can't open. On the membership side: join requests close on
+every way in, a 7-day decline cooldown, `TenantMembership.source` with the
+Joined/Via columns, proctors seeing the ADA icon but never the note, and an
+Arranged request that stays Arranged when its member edits it. One finding did
+not ship: a route to the player's racetime room, because nothing creates a room
+on racetime.gg yet; `RacetimeRoom.url` is a placeholder slug until it does.
 
 ## Cross-cutting themes
 

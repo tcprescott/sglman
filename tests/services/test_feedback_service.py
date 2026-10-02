@@ -4,7 +4,16 @@ import pytest
 
 from application.services.audit_service import AuditActions
 from application.services.feedback_service import FeedbackService
-from models import AuditLog, Feedback, FeedbackCategory, FeedbackStatus, Role, User, UserRole
+from models import (
+    AuditLog,
+    Feedback,
+    FeedbackCategory,
+    FeedbackStatus,
+    Role,
+    TenantMembership,
+    User,
+    UserRole,
+)
 from tests.factories import make_audit_double
 
 # The repository stays mocked — these are unit tests of the service's own logic —
@@ -36,6 +45,8 @@ def service():
     svc.repository = MagicMock()
     svc.repository.create = AsyncMock(side_effect=lambda **kwargs: _fake_feedback(**kwargs))
     svc.audit_service = make_audit_double()
+    # Membership is exercised against the DB in TestSubmitWithDb.
+    svc._ensure_member = AsyncMock()
     return svc
 
 
@@ -89,6 +100,7 @@ class TestSubmit:
 class TestSubmitWithDb:
     async def test_persists_to_database(self, db):
         actor = await User.create(discord_id=555, username='attendee')
+        await TenantMembership.create(user=actor, tenant_id=1)
         feedback = await FeedbackService().submit(
             actor=actor,
             category='praise',
@@ -101,6 +113,24 @@ class TestSubmitWithDb:
         assert stored.status == FeedbackStatus.NEW
         assert stored.message == 'great event!'
         assert stored.page_url == '/volunteer'
+
+    async def test_a_non_member_is_refused(self, db):
+        """The queue is the community's: the drawer only offers the dialog to
+        members, and the service has to agree or the REST route is a way in."""
+        outsider = await User.create(discord_id=556, username='outsider')
+        with pytest.raises(PermissionError, match='members'):
+            await FeedbackService().submit(
+                actor=outsider, category='bug', message='hi', page_url='/help',
+            )
+        assert await Feedback.filter(user=outsider).count() == 0
+
+    async def test_a_super_admin_needs_no_membership(self, db):
+        admin = await User.create(discord_id=557, username='platform')
+        await UserRole.create(user=admin, role=Role.SUPER_ADMIN, tenant=None)
+        feedback = await FeedbackService().submit(
+            actor=admin, category='other', message='hello', page_url='/',
+        )
+        assert feedback.id is not None
 
 
 class TestSetReviewed:

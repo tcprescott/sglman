@@ -20,6 +20,8 @@ from typing import Optional
 
 from nicegui import app, ui
 
+from application.content import article_sections
+from application.help import get_snippet
 from application.services import (
     EventInfoService,
     FeatureFlagService,
@@ -49,6 +51,12 @@ async def _event_info_snippet(snippet_name: str, user: Optional[User], user_give
     return await EventInfoService.get_snippet(snippet_name, user)
 
 
+def _links_into_the_handbook(snippet_name: str) -> bool:
+    """Whether a help snippet links into ``/event-info`` (content only, no query)."""
+    raw = get_snippet(snippet_name)
+    return raw is not None and '/event-info' in article_sections(raw.blocks)
+
+
 async def help_icon(
     snippet_name: str,
     *,
@@ -72,9 +80,15 @@ async def help_icon(
     empty popup is worse than no icon, and a missing snippet is an authoring slip
     that should not break a page.
     """
-    snippet = await HelpService.get_snippet(snippet_name)
+    viewer = user
+    if viewer is None and _links_into_the_handbook(snippet_name):
+        # A help snippet's handbook links are pruned against what the reader
+        # may open, and handbook pages can be role-gated — judged as signed out
+        # they would vanish for staff. Only looked up when it matters.
+        viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    snippet = await HelpService.get_snippet(snippet_name, viewer)
     if snippet is None:
-        snippet = await _event_info_snippet(snippet_name, user, user is not None)
+        snippet = await _event_info_snippet(snippet_name, viewer, viewer is not None)
     if snippet is None:
         return
 

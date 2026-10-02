@@ -125,7 +125,23 @@ await HelpService.search('crew withdraw')  # AND over terms
 
 A gated article and a missing one give the **same** answer, deliberately: a
 reader following a stale link should not learn which optional features their
-community has turned off. `help_icon` renders **nothing** when its snippet
+community has turned off.
+
+**Links to a gated article are pruned, not offered.** Articles link to each
+other without knowing where they are read, so `getting-started`'s "depending on
+why you are here" table pointed at `volunteering` and `proctor` in communities
+where both are gated off. `HelpService.get_article` / `get_snippet` (and
+`EventInfoService`'s, which call the same `HelpService.prune_links(blocks,
+user)`) run the blocks through `application.content.prune_links` against the
+articles this reader can open here: every such link — running text, list
+items, table headers and cells — keeps its words and loses the anchor. Nothing
+else is removed. A trailing slash or a query names the same article. Only
+sections the blocks actually link into are looked up, so a snippet with no links
+costs nothing, and `help_icon` resolves the viewer for a snippet that links into
+the handbook so a role-gated link is not pruned for staff.
+`tests/test_article_links_resolve.py` follows every internal link of every
+article a reader is handed, in each shape of community (all flags, none, handbook
+without volunteers) and for each kind of reader of the `sgl26` handbook. `help_icon` renders **nothing** when its snippet
 resolves to `None` — an icon that opens an empty popup is worse than no icon.
 
 **One known consequence.** `proctor-result` explains the *Flag for admin review*
@@ -147,11 +163,19 @@ There is no user-specific content on either page.
 - **Index** — a search box (AND over whitespace-separated terms, matched against
   title + summary + flattened body) over article cards.
 - **Article** — a sticky sidebar listing every article plus the current one's own
-  `##` headings, and the rendered body. Both stack below 1024px, and there the
-  **body is ordered first**: the sidebar is ~550px of links, which in source
-  order put the title below the fold and the first sentence most of a second
-  screen down — on the surface most of these readers are on. Stacked, the
-  article list reads as a "more help" footer instead.
+  `##` headings, and the rendered body (`theme/help/article.py`, shared with
+  `/event-info/{slug}`). Both stack below 1024px, and there the **body is ordered
+  first**: the sidebar is ~550px of links, which in source order put the title
+  below the fold and the first sentence most of a second screen down — on the
+  surface most of these readers are on. Stacked, the article list reads as a
+  "more help" footer instead. The reader's *own* contents do not go with it:
+  below 1024px "← All help" and a collapsed **On this page** expansion sit above
+  the title (`.wiz-help-narrow-only`), and the sidebar's copies are hidden
+  (`.wiz-help-wide-only`). They used to land at the foot of the article —
+  1,867px down a 2,468px page on `getting-started`.
+- **Missing article** — the shared not-found page (HTTP 404, the community's
+  chrome) with an **All help** button. Titles name the article and the
+  community (`Getting started — Help — Default`).
 
 **Prose is block flow, not flex.** `render_blocks` output goes inside a
 `.wiz-help-prose` div on both surfaces, because the containers around it are
@@ -166,8 +190,11 @@ does not track the full width of a desktop monitor.
 
 **Entry point: the drawer.** The Help item sits below Event Information (when
 that flag is live) and above Feedback, and is *not* gated on `self.user`, so a signed-out visitor on any framed public surface can
-reach it. The real `/login` is a bare redirect to Discord with no page to hang a
-link on — the drawer is the way in.
+reach it — the join door and the error pages included, since they now carry the
+community's drawer. The real `/login` is a bare redirect to Discord with no page
+to hang a link on — the drawer is the way in. Off any community (the bare host)
+there is no `/help` to reach, so the item is omitted rather than pointing at the
+page it sits on; the community picker links each community's help instead.
 
 ### Help icons
 

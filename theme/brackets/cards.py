@@ -73,6 +73,11 @@ class BracketContext:
     # ``BracketService.matchup_live_state``. Empty for a caller that didn't
     # resolve it, which renders exactly the pre-U2 card.
     live_state: Dict[int, dict] = field(default_factory=dict)
+    # Entry ids that are the signed-in viewer's own, so their run is marked.
+    viewer_entries: set = field(default_factory=set)
+    # {bracket_match_id: (short, full)} — the next booked time of an
+    # unfinished matchup (``render.booked_times``).
+    booked: Dict[int, tuple] = field(default_factory=dict)
 
 
 def _slot_entry_id(match: BracketMatch, slot: int) -> Optional[int]:
@@ -107,6 +112,8 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
     classes = 'bracket-slot'
     if entry_id is None:
         classes += ' is-empty'
+    elif entry_id in ctx.viewer_entries:
+        classes += ' is-viewer'
     if is_winner:
         classes += ' is-winner'
     if is_loser:
@@ -125,7 +132,10 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
         if entry_id is not None:
             name = ctx.entry_name.get(entry_id, 'Unknown')
             render_avatar(name, ctx.entry_avatar.get(entry_id))
-            ui.label(name).classes('bracket-name').tooltip(name)
+            mine = entry_id in ctx.viewer_entries
+            ui.label(name).classes('bracket-name').tooltip(f'{name} (you)' if mine else name)
+            if mine:
+                ui.label('You').classes('bracket-you')
         else:
             ui.element('div').classes('bracket-avatar is-empty')
             ui.label(placeholder_text(match, slot, ctx, completed=completed)) \
@@ -195,8 +205,23 @@ def _render_status_pill(match: BracketMatch, ctx: BracketContext) -> None:
     ui.label(label(status)).classes(f'bracket-status-pill tone-{tone(status)}')
 
 
+def _card_classes(match: BracketMatch, ctx: BracketContext) -> str:
+    classes = card_state_class(match, ctx)
+    if ctx.viewer_entries and {match.entry1_id, match.entry2_id} & ctx.viewer_entries:  # type: ignore[attr-defined]
+        classes += ' is-mine'
+    return classes
+
+
+def _render_booked(match: BracketMatch, ctx: BracketContext) -> None:
+    """The next booked time, on the card's bottom edge, for an unfinished matchup."""
+    booked = ctx.booked.get(match.id)
+    if booked:
+        short, full = booked
+        ui.label(short).classes('bracket-time-pill').tooltip(f'Scheduled for {full}')
+
+
 def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketContext) -> None:
-    card = ui.element('div').classes(f'bracket-match {card_state_class(match, ctx)}').style(
+    card = ui.element('div').classes(f'bracket-match {_card_classes(match, ctx)}').style(
         f'left: {placement.left}px; top: {placement.top}px; '
         f'width: {COL_WIDTH}px; height: {CARD_HEIGHT}px'
     )
@@ -209,6 +234,7 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
         _render_status_pill(match, ctx)
         _render_slot(match, 1, ctx)
         _render_slot(match, 2, ctx)
+        _render_booked(match, ctx)
 
     if ctx.on_card_click is not None:
         card.classes('is-clickable')
@@ -218,7 +244,7 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
 def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
     """The same match card in normal flow (full-width) for the mobile accordion."""
     card = ui.element('div').classes(
-        f'bracket-match bracket-match-flow {card_state_class(match, ctx)}'
+        f'bracket-match bracket-match-flow {_card_classes(match, ctx)}'
     )
     card.props(f'data-match-id={match.id}')
     number = ctx.match_number.get(match.id)
@@ -228,6 +254,7 @@ def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
         _render_status_pill(match, ctx)
         _render_slot(match, 1, ctx)
         _render_slot(match, 2, ctx)
+        _render_booked(match, ctx)
     if ctx.on_card_click is not None:
         card.classes('is-clickable')
         card.on('click', lambda _=None, mid=match.id: ctx.on_card_click(mid))

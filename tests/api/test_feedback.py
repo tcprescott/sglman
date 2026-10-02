@@ -6,21 +6,30 @@ is staff. Marking reviewed is re-gated by ``FeedbackService`` at
 quietly converge.
 """
 
-from application.tenant_context import tenant_scope
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import (
     FeatureFlag,
     Feedback,
     FeedbackStatus,
     Role,
     TenantFeatureFlag,
+    TenantMembership,
     Tournament,
 )
 from tests.api_helpers import client_for, create_user_token
 
 
+async def _member_token(**kwargs):
+    """A token for someone who belongs to the ambient community — the feedback
+    queue takes submissions from members only."""
+    user, raw = await create_user_token(**kwargs)
+    await TenantMembership.create(user=user, tenant_id=get_current_tenant_id())
+    return user, raw
+
+
 class TestSubmit:
     async def test_any_member_can_submit_and_read_it_back(self, db, app):
-        user, raw = await create_user_token(username='plain')
+        user, raw = await _member_token(username='plain')
         async with client_for(app, raw) as c:
             resp = await c.post(
                 '/api/feedback',
@@ -38,14 +47,21 @@ class TestSubmit:
             mine = (await c.get('/api/feedback/mine')).json()
             assert [row['id'] for row in mine] == [body['id']]
 
+    async def test_a_non_member_is_refused(self, db, app):
+        _, raw = await create_user_token(username='stranger')
+        async with client_for(app, raw) as c:
+            resp = await c.post('/api/feedback', json={'message': 'let me in'})
+            assert resp.status_code == 403
+            assert 'members' in resp.json()['detail']
+
     async def test_an_empty_message_is_400(self, db, app):
-        _, raw = await create_user_token(username='plain')
+        _, raw = await _member_token(username='plain')
         async with client_for(app, raw) as c:
             resp = await c.post('/api/feedback', json={'message': '   '})
             assert resp.status_code == 400
 
     async def test_an_unknown_category_falls_back_to_other(self, db, app):
-        _, raw = await create_user_token(username='plain')
+        _, raw = await _member_token(username='plain')
         async with client_for(app, raw) as c:
             # The enum is validated at the schema, so a bad value never reaches
             # the service's own coercion.
@@ -54,13 +70,13 @@ class TestSubmit:
             )).status_code == 422
 
     async def test_read_only_token_cannot_submit(self, db, app):
-        _, raw = await create_user_token(username='plain', read_only=True)
+        _, raw = await _member_token(username='plain', read_only=True)
         async with client_for(app, raw) as c:
             assert (await c.post('/api/feedback', json={'message': 'hi'})).status_code == 403
 
     async def test_mine_shows_only_your_own(self, db, app):
-        _, mine = await create_user_token(username='a')
-        _, theirs = await create_user_token(username='b')
+        _, mine = await _member_token(username='a')
+        _, theirs = await _member_token(username='b')
         async with client_for(app, mine) as c:
             await c.post('/api/feedback', json={'message': 'from a'})
         async with client_for(app, theirs) as c:
@@ -73,8 +89,8 @@ class TestSubmit:
 
 class TestQueue:
     async def test_staff_reads_the_queue_newest_first(self, db, app):
-        submitter, sub_token = await create_user_token(username='plain')
-        _, staff_token = await create_user_token(username='staff', roles=[Role.STAFF])
+        submitter, sub_token = await _member_token(username='plain')
+        _, staff_token = await _member_token(username='staff', roles=[Role.STAFF])
         async with client_for(app, sub_token) as c:
             await c.post('/api/feedback', json={'message': 'first'})
             await c.post('/api/feedback', json={'message': 'second'})
@@ -84,15 +100,15 @@ class TestQueue:
             assert rows[0]['submitted_by_name'] == submitter.preferred_name
 
     async def test_a_plain_member_cannot_read_the_queue(self, db, app):
-        _, raw = await create_user_token(username='plain')
+        _, raw = await _member_token(username='plain')
         async with client_for(app, raw) as c:
             assert (await c.get('/api/feedback')).status_code == 403
 
 
 class TestReview:
     async def test_staff_marks_reviewed_and_reopens(self, db, app):
-        _, sub_token = await create_user_token(username='plain')
-        _, staff_token = await create_user_token(username='staff', roles=[Role.STAFF])
+        _, sub_token = await _member_token(username='plain')
+        _, staff_token = await _member_token(username='staff', roles=[Role.STAFF])
         async with client_for(app, sub_token) as c:
             row_id = (await c.post('/api/feedback', json={'message': 'hi'})).json()['id']
         async with client_for(app, staff_token) as c:
@@ -106,8 +122,8 @@ class TestReview:
 
     async def test_a_tournament_admin_may_review_though_not_staff(self, db, app):
         """The service gate is ``can_view_admin``, wider than the queue's STAFF."""
-        _, sub_token = await create_user_token(username='plain')
-        ta, ta_token = await create_user_token(username='ta')
+        _, sub_token = await _member_token(username='plain')
+        ta, ta_token = await _member_token(username='ta')
         tournament = await Tournament.create(name='Cup')
         await tournament.admins.add(ta)
         async with client_for(app, sub_token) as c:
@@ -119,14 +135,14 @@ class TestReview:
             assert (await c.get('/api/feedback')).status_code == 403
 
     async def test_a_plain_member_cannot_review(self, db, app):
-        _, raw = await create_user_token(username='plain')
+        _, raw = await _member_token(username='plain')
         async with client_for(app, raw) as c:
             row_id = (await c.post('/api/feedback', json={'message': 'hi'})).json()['id']
             resp = await c.post(f'/api/feedback/{row_id}/reviewed', json={'reviewed': True})
             assert resp.status_code == 403
 
     async def test_unknown_id_is_404(self, db, app):
-        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        _, raw = await _member_token(username='staff', roles=[Role.STAFF])
         async with client_for(app, raw) as c:
             resp = await c.post('/api/feedback/9999/reviewed', json={'reviewed': True})
             assert resp.status_code == 404
@@ -137,7 +153,7 @@ class TestFeatureGate:
         await TenantFeatureFlag.filter(
             tenant_id=1, flag=FeatureFlag.FEEDBACK.value,
         ).update(available=False, enabled=False)
-        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        _, raw = await _member_token(username='staff', roles=[Role.STAFF])
         async with client_for(app, raw) as c:
             assert (await c.get('/api/feedback')).status_code == 404
             assert (await c.post('/api/feedback', json={'message': 'hi'})).status_code == 404
@@ -147,9 +163,9 @@ class TestTenantIsolation:
     async def test_the_queue_never_crosses_communities(self, app, two_tenants):
         tenant_a, tenant_b = two_tenants
         with tenant_scope(tenant_a.id):
-            _, a_user_token = await create_user_token(username='a-plain')
+            _, a_user_token = await _member_token(username='a-plain')
         with tenant_scope(tenant_b.id):
-            _, b_staff_token = await create_user_token(username='b-staff', roles=[Role.STAFF])
+            _, b_staff_token = await _member_token(username='b-staff', roles=[Role.STAFF])
 
         async with client_for(app, a_user_token) as c:
             row_id = (await c.post('/api/feedback', json={'message': 'a-only'})).json()['id']

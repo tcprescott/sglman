@@ -137,6 +137,16 @@ def record_page_view(path: str, kwargs: dict) -> None:
 protected_routes: set[str] = set()
 
 
+def referrer_for(root_path: str, path: str, query: str = '') -> str:
+    """The tenant-qualified destination to come back to after login.
+
+    The query is part of the destination: a DM's button carries ``?match_id=``
+    or ``?schedule=``, and dropping it lands the reader on the page instead of
+    the dialog the message asked them to open.
+    """
+    return f'{root_path}{path}?{query}' if query else f'{root_path}{path}'
+
+
 def _matches_protected_route(path: str) -> bool:
     for route in protected_routes:
         if '{' in route:
@@ -202,6 +212,8 @@ async def enforce_membership(
         )
         return False
 
+    from theme.error_page import prepared_layout
+
     tenant = await TenantService.get_by_id(tenant_id)
     render_join_page(
         tenant_id=tenant_id,
@@ -209,9 +221,39 @@ async def enforce_membership(
         user=user,
         pending=await resolve_join_state(user, tenant_id),
         preview=await resolve_join_preview(tenant_id),
+        # The door is the community's front page: its name, palette and the
+        # public half of its drawer (Event Information, Help), not Wizzrobe's.
+        layout=await prepared_layout(user),
         ask_again_at=await resolve_ask_again_at(user, tenant_id),
     )
     return True
+
+
+async def _render_community_chooser() -> None:
+    """A community page reached on the bare platform host: offer each community's copy.
+
+    ``/help`` or ``/cat-facts`` without ``/t/<slug>`` is a real page someone
+    lost the prefix of, not a mistyped one, so the useful answer is the same
+    page in each community rather than a dead end — and certainly not a drawer
+    whose Help item points back at the URL it is on.
+    """
+    from theme.base import current_local_url
+    from theme.error_page import prepared_layout, render_error_page
+
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    here = current_local_url()
+    tenants = [t for t in await TenantService.list_tenants() if t.is_active]
+    render_error_page(
+        status_code=404,
+        headline='Pick a community',
+        message=(
+            'This page lives inside a community. Choose yours:'
+            if tenants else 'This page lives inside a community, and none is open yet.'
+        ),
+        user=user,
+        layout=await prepared_layout(user),
+        actions=[(t.name, 'arrow_forward', f'/t/{t.slug}{here}') for t in tenants],
+    )
 
 
 def _tenant_page(
@@ -255,13 +297,7 @@ def _tenant_page(
             # (a bare /admin on the platform host, not /t/<slug>/admin), 404.
             tid = get_current_tenant_id()
             if tid is None:
-                from theme.error_page import render_error_page
-                render_error_page(
-                    status_code=404,
-                    headline='Not Found',
-                    message="This page only exists inside a specific community. Try getting there from your community's link.",
-                    user=None,
-                )
+                await _render_community_chooser()
                 return
             # Stash the tenant onto the connection so websocket UI event handlers
             # (which run outside any request) can resolve it via the fallback.
@@ -286,12 +322,11 @@ def _tenant_page(
             # enabled is hidden from everyone — 404, like an unknown route — so a
             # not-yet-released feature never leaks and role has no bearing.
             if feature is not None and not await FeatureFlagService().is_enabled(feature):
-                from theme.error_page import render_error_page
-                render_error_page(
-                    status_code=404,
-                    headline='Not Found',
-                    message='This feature is not enabled for this community.',
-                    user=None,
+                # The unknown-route page, word for word and status for status:
+                # anything more specific would say the feature exists here.
+                from theme.error_page import render_not_found
+                await render_not_found(
+                    user=await get_user_from_discord_id(app.storage.user.get('discord_id')),
                 )
                 return
 
@@ -329,12 +364,13 @@ def _tenant_page(
                 if not allowed and allow_tournament_membership:
                     allowed = await AuthService.can_view_admin(user)
                 if not allowed:
-                    from theme.error_page import render_error_page
+                    from theme.error_page import prepared_layout, render_error_page
                     render_error_page(
                         status_code=403,
                         headline='Not available to you',
                         message="You don't have access to this page. If you think that's wrong, ask a staff member to check your role.",
                         user=user,
+                        layout=await prepared_layout(user),
                     )
                     return
 
@@ -440,7 +476,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             path = request.url.path
             root_path = request.scope.get('root_path', '')
             if not path.startswith('/_nicegui') and _matches_protected_route(path):
-                app.storage.user['referrer_path'] = f'{root_path}{path}'
+                app.storage.user['referrer_path'] = referrer_for(root_path, path, request.url.query)
                 return RedirectResponse(f'{root_path}/login')
         else:
             # Attach the logged-in user to Sentry so error events show who hit them.

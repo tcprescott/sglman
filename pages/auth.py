@@ -36,8 +36,8 @@ from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.tenant_urls import (
     AUTH_ROUTES,
+    return_path_for_login,
     safe_next,
-    sanitize_return_path,
     strip_root_path,
     tenant_home,
 )
@@ -163,14 +163,21 @@ def _oauth_url(state: str, redirect_uri: str) -> str:
     return f'https://discord.com/api/oauth2/authorize?{params}'
 
 
-def _sanitized_return(root_path: str) -> str:
-    """Post-login return target for this tenant, from the pending referrer.
+def _sanitized_return(root_path: str, request: Request) -> str:
+    """Post-login return target for this tenant.
 
-    ``AuthMiddleware`` writes ``referrer_path`` (tenant-qualified) when a
-    protected page bounces the user to login; :func:`sanitize_return_path`
-    accepts it only when it belongs to this tenant, else falls back to home.
+    A sign-in button on a page anyone can open (the join door, a bracket, the
+    help) carries the page it was pressed on as ``?next=``, tenant-local; it is
+    accepted only as a plain same-origin path. Otherwise the target is the
+    ``referrer_path`` ``AuthMiddleware`` wrote when a protected page bounced the
+    reader here, accepted only when it belongs to this tenant. Either way the
+    fallback is the community home — see :func:`return_path_for_login`.
     """
-    return sanitize_return_path(root_path, app.storage.user.get('referrer_path'))
+    return return_path_for_login(
+        root_path,
+        request.query_params.get('next'),
+        app.storage.user.get('referrer_path'),
+    )
 
 
 def _register_discord_connect_callback() -> None:
@@ -251,11 +258,14 @@ def create() -> None:
         # again.") is drained by the first framed page after the login completes.
         root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
-            return RedirectResponse(tenant_home(root_path))
+            # Already in: go where the sign-in button was taking them.
+            return RedirectResponse(
+                return_path_for_login(root_path, request.query_params.get('next'), None)
+            )
         # Pin the post-login return to this tenant before leaving for Discord. In
         # path mode the callback lands on the bare platform host; in host mode it
         # lands on this same custom domain (so the session cookie is visible).
-        return_path = _sanitized_return(root_path)
+        return_path = _sanitized_return(root_path, request)
         # Design B (HOST_OAUTH_MODE=handoff): on a custom domain, run OAuth on the
         # platform host and hand the session back, so no per-domain Discord
         # redirect URI is needed. The return path travels in the URL (the platform
@@ -520,12 +530,15 @@ def _create_mock() -> None:
         root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
             # Tenant-local: this page is served under root_path, and the client
-            # prepends it. tenant_home(root_path) would double it.
-            ui.navigate.to(strip_root_path(root_path, tenant_home(root_path)))
+            # prepends it. A qualified path would double it.
+            ui.navigate.to(strip_root_path(
+                root_path,
+                return_path_for_login(root_path, request.query_params.get('next'), None),
+            ))
             return
         # Pin the post-login return to this tenant (mirrors the real flow) so a
         # picked user lands on this community's home, not the platform landing.
-        app.storage.user['referrer_path'] = _sanitized_return(root_path)
+        app.storage.user['referrer_path'] = _sanitized_return(root_path, request)
 
         # Unlike the real /login (an immediate redirect to Discord), this one has
         # a page to show a stashed notice on — so a message that sent the user

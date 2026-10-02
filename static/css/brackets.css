@@ -302,6 +302,46 @@ body {
   background: var(--bracket-run-bg);
 }
 
+/* The signed-in viewer's own entry, and every card it appears on: a player
+ * opening a 64-entrant bracket finds their run without reading every name. */
+.bracket-slot.is-viewer {
+  background: var(--bracket-run-bg);
+}
+
+.bracket-match.is-mine {
+  border-color: var(--bracket-accent);
+  box-shadow: 0 0 0 1px var(--bracket-accent);
+}
+
+.bracket-you {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--bracket-accent);
+  color: var(--bracket-accent-text);
+}
+
+/* The next booked time of an unfinished matchup, on the card's bottom edge —
+ * the mirror of the match number on the top edge. */
+.bracket-time-pill {
+  position: absolute;
+  bottom: 0;
+  right: 8px;
+  transform: translateY(52%);
+  background: var(--bracket-header-bg);
+  border: 1px solid var(--bracket-card-border);
+  color: var(--bracket-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  z-index: 3;
+}
+
 .bracket-seed {
   flex: 0 0 auto;
   min-width: 12px;

@@ -11,14 +11,38 @@ in the "Report this error" button's click handler.
 """
 
 import logging
+from typing import Optional, Sequence
 
-from nicegui import app, ui
+from nicegui import app, context, ui
 
 from models import FeedbackCategory, User
 from theme.base import BaseLayout
 from theme.notice import drain_notice
 
 logger = logging.getLogger(__name__)
+
+#: The one not-found page. Every "this isn't here" state — an unknown route, a
+#: feature the community has off, a dead room link, a stage or article that is
+#: missing or not public — says the same thing with the same status, so none of
+#: them tells a visitor more than an unknown route would.
+NOT_FOUND_HEADLINE = 'Page not found'
+NOT_FOUND_MESSAGE = "We couldn't find that page. It may have moved, or the link's out of date."
+
+#: ``(label, icon, target)`` — a button on the error card. Targets are paths
+#: handed to ``ui.navigate.to``, so tenant-local.
+Action = tuple[str, str, str]
+
+
+def _set_status(status_code: int) -> None:
+    """Make the HTTP response carry the status the card shows.
+
+    A not-found that answers 200 reads as a live page to a link checker, a
+    crawler and any cache in front of the app.
+    """
+    try:
+        context.client.status_code = status_code
+    except Exception:  # pragma: no cover - no client in scope
+        pass
 
 
 def render_error_page(
@@ -29,11 +53,14 @@ def render_error_page(
     error_id: str | None = None,
     traceback_text: str | None = None,
     user: User | None = None,
+    layout: Optional[BaseLayout] = None,
+    actions: Sequence[Action] = (),
 ) -> None:
     """Render a themed error page into the current page context.
 
     Args:
-        status_code: HTTP status to display prominently (e.g. 404, 500).
+        status_code: HTTP status to display prominently (e.g. 404, 500), and
+            the status the response carries.
         headline: Short title under the status code.
         message: Friendly explanation shown to the user.
         error_id: Traceable reference shown for 50x errors; when set, logged-in
@@ -41,8 +68,14 @@ def render_error_page(
         traceback_text: Full traceback for the debug diagnosis page; omit in
             production so internals are never exposed.
         user: Logged-in user (when known), used for the header/footer.
+        layout: A layout an async caller already prepared
+            (:meth:`BaseLayout.prepare`), so the page carries the community's
+            name, palette and drawer. Without one the chrome falls back to the
+            shipped defaults — the synchronous 500 path has no way to await.
+        actions: Buttons offered before "Back to home", the first one primary.
     """
-    ui.page_title(f'{status_code} — Wizzrobe')
+    _set_status(status_code)
+    ui.page_title(f'{headline} — {layout.wordmark if layout else "Wizzrobe"}')
 
     # A notice stashed before a redirect must still be shown on the error page a
     # bad return path lands on — this renderer does not go through
@@ -54,7 +87,7 @@ def render_error_page(
 
     # Never let layout chrome throw from inside an error handler.
     try:
-        BaseLayout(user=user).render_chrome()
+        (layout or BaseLayout(user=user)).render_chrome()
     except Exception:  # pragma: no cover - defensive
         logger.exception('Failed to render error-page chrome')
 
@@ -78,22 +111,80 @@ def render_error_page(
                     ui.label(error_id).classes('error-ref-id')
 
             with ui.row().classes('error-actions gap-2'):
-                ui.button(
-                    'Back to home', icon='home',
-                    on_click=lambda: ui.navigate.to('/'),
-                ).props('color=primary')
-                if error_id and _is_authenticated():
+                for index, (label, icon, target) in enumerate(actions):
                     ui.button(
+                        label, icon=icon,
+                        on_click=lambda t=target: ui.navigate.to(t),
+                    ).props('color=primary' if index == 0 else 'outline color=primary')
+                if not any(target == '/' for _label, _icon, target in actions):
+                    ui.button(
+                        'Back to home', icon='home',
+                        on_click=lambda: ui.navigate.to('/'),
+                    ).props('flat color=primary' if actions else 'color=primary')
+                if error_id and _is_authenticated():
+                    report = ui.button(
                         'Report this error', icon='feedback',
                         # Return the coroutine so NiceGUI awaits it in the button's
                         # slot; a bare background task has no slot and the dialog/
                         # notify calls inside would raise.
                         on_click=lambda: _open_error_report(error_id),
                     ).props('flat')
+                    # Only where the viewer could actually send it — a member (or
+                    # super-admin) with Feedback live, as the drawer decides. The
+                    # 500 path renders synchronously with no prepared layout, so
+                    # there it starts hidden and an async check reveals it.
+                    if layout is not None and layout.is_prepared:
+                        report.set_visibility(layout.offers_feedback)
+                    else:
+                        report.set_visibility(False)
+                        _reveal_when_member(report)
 
             if traceback_text:
                 ui.label('Diagnostic details (development only)').classes('error-trace-title')
                 ui.code(traceback_text, language='python').classes('error-trace')
+
+
+def _reveal_when_member(button) -> None:
+    """Show ``button`` once the signed-in viewer turns out to be able to send feedback."""
+    from nicegui import background_tasks, context
+
+    from application.tenant_context import get_current_tenant_id
+
+    try:
+        client = context.client
+        tenant_id = get_current_tenant_id()
+        discord_id = app.storage.user.get('discord_id')
+    except Exception:  # pragma: no cover - no client or session in scope
+        return
+    if tenant_id is None or discord_id is None:
+        return
+    background_tasks.create(_reveal(button, client, tenant_id, discord_id))
+
+
+async def _reveal(button, client, tenant_id: int, discord_id) -> None:
+    from application.services import (
+        AuthService,
+        FeatureFlagService,
+        TenantService,
+        get_user_from_discord_id,
+    )
+    from application.tenant_context import tenant_scope
+    from models import FeatureFlag
+
+    try:
+        with tenant_scope(tenant_id):
+            user = await get_user_from_discord_id(discord_id)
+            if user is None:
+                return
+            allowed = (
+                await AuthService.is_super_admin(user)
+                or await TenantService.is_member(user.id, tenant_id)
+            ) and await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
+        if allowed:
+            with client:
+                button.set_visibility(True)
+    except Exception:
+        logger.exception('Failed to resolve whether to offer an error report')
 
 
 def _is_authenticated() -> bool:
@@ -128,3 +219,37 @@ async def _open_error_report(error_id: str) -> None:
         initial_category=FeedbackCategory.BUG.value,
         initial_message=initial_message,
     ).open()
+
+
+async def prepared_layout(user: Optional[User]) -> BaseLayout:
+    """A layout for an error page, resolved so it carries the community's chrome.
+
+    Never raises: an error page whose chrome lookup fails still renders, on
+    the shipped defaults.
+    """
+    from application.services import AuthService
+
+    try:
+        layout = BaseLayout(user=user, show_admin=await AuthService.can_view_admin(user))
+        return await layout.prepare()
+    except Exception:
+        logger.exception('Failed to resolve error-page chrome')
+        return BaseLayout(user=user)
+
+
+async def render_not_found(
+    *,
+    user: Optional[User] = None,
+    headline: str = NOT_FOUND_HEADLINE,
+    message: str = NOT_FOUND_MESSAGE,
+    actions: Sequence[Action] = (),
+) -> None:
+    """The themed 404, in the community's chrome, showing who is looking."""
+    render_error_page(
+        status_code=404,
+        headline=headline,
+        message=message,
+        user=user,
+        layout=await prepared_layout(user),
+        actions=actions,
+    )
