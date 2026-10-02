@@ -219,7 +219,10 @@ class TestTheDeepLinkParamDoesNotShadowATab:
 
         # create() closes over `home`; find it among its locals via the source.
         src = inspect.getsource(home.create)
-        assert 'schedule: int | None = None' in src
+        # A string, parsed on the page, so a mangled id renders the page
+        # instead of a 422 (pages.home.deep_link_ids).
+        assert 'schedule: str | None = None' in src
+        assert 'deep_link_ids(' in src
 
 
 @pytest.mark.parametrize('builder,expected_label', [

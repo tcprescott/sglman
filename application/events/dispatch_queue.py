@@ -32,5 +32,10 @@ async def stop() -> None:
     await _q.stop()
 
 
+def discard_pending() -> int:
+    """Close whatever is queued without running it (see ``CoroutineQueue``)."""
+    return _q.discard_pending()
+
+
 def enqueue(coro: Coroutine) -> None:
     _q.enqueue(coro)

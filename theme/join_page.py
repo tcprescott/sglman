@@ -207,7 +207,7 @@ def _render_preview(preview: JoinPreview) -> None:
                 on_click=lambda tid=tournament_id: ui.navigate.to(
                     f'/tournament/{tid}/brackets'
                 ),
-            ).props('flat dense no-caps align=left').classes('w-full')
+            ).props('flat dense no-caps align=left').classes('w-full join-bracket-link')
 
     if not preview.matches_enabled:
         return

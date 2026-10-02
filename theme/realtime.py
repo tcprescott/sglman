@@ -10,6 +10,7 @@ browser. Subscriptions are cleaned up automatically when the client disconnects.
 from typing import Awaitable, Callable, Dict, List
 
 from nicegui import app, background_tasks, context
+from nicegui.storage import request_contextvar
 
 from application.events import match_live
 
@@ -29,11 +30,25 @@ def register_view(on_change: OnChange) -> None:
     client_id = client.id
 
     async def _runner(match_id: int, change_type: str) -> None:
-        # Enter the captured client's context so refresh()/update_row_by_id and
-        # app.storage.user resolve to the right browser (mirrors the proven
-        # `with client:` pattern in theme/tables/match.py).
-        with client:
-            await on_change(match_id, change_type)
+        # Enter the captured client's context so refresh()/update_row_by_id
+        # resolve to the right browser (mirrors the proven `with client:`
+        # pattern in theme/tables/match.py). app.storage.user is keyed off
+        # NiceGUI's request contextvar, not the client, and this task inherits
+        # the *publisher's* contextvars: without rebinding it, every open board
+        # read the staff member who approved a move as its viewer.
+        request = client.request
+        session_id = (getattr(request, 'session', None) or {}).get('id')
+        if session_id not in app.storage._users:  # pylint: disable=protected-access
+            # The page's session has no user storage (rotated at login, or the
+            # client outlived it): app.storage.user would raise, and there is
+            # no viewer to refresh for.
+            return
+        token = request_contextvar.set(request)
+        try:
+            with client:
+                await on_change(match_id, change_type)
+        finally:
+            request_contextvar.reset(token)
 
     def _callback(match_id: int, change_type: str) -> None:
         background_tasks.create(_runner(match_id, change_type))

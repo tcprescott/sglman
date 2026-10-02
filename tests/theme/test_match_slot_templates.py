@@ -528,7 +528,7 @@ class TestStreamVolunteering:
 
 def test_request_match_is_offered_only_where_a_request_can_be_made():
     """A bracket-run community has nothing to request, and the dialog's own dead
-    end ("schedule your matchup from Your Schedule instead") is the wrong place
+    end ("schedule your matchup from My Schedule instead") is the wrong place
     to learn that — the button should not have been there.
 
     Pinned at the source, because the decision is a page-build-time argument to
@@ -623,3 +623,110 @@ def test_the_mobile_card_carries_the_reschedule_ask_too():
     )
     assert "$parent.$emit('request_reschedule'" in grid.slots['item']
     assert 'props.row._reschedule_pending' in grid.slots['item']
+
+
+class TestYourActionsCell:
+    """The player's own controls sit beside Players, labelled, in one cell.
+
+    As four icon columns after Stage and Seed they started at the table's right
+    edge at 1440 (docs/reviews/player-journey-ux.md F8).
+    """
+
+    def _cell(self, discord_id='7'):
+        table = FakeTable()
+        register_body_slots(
+            table, admin_controls=False, access=MatchBoardAccess(),
+            discord_id=discord_id,
+        )
+        return table.slots.get('body-cell-my_actions')
+
+    def test_it_exists_only_for_a_logged_in_viewer(self):
+        assert self._cell() is not None
+        assert self._cell(discord_id=None) is None
+
+    def test_each_control_keeps_its_own_gate(self):
+        from theme.tables.match_slots import STREAM_VOLUNTEER_ACTIONABLE
+
+        cell = self._cell()
+        ask = _guard_on(cell, "$parent.$emit('request_reschedule'")
+        assert 'props.row._can_reschedule' in ask
+        assert "props.row.state === 'Scheduled'" in ask
+        assert STREAM_VOLUNTEER_ACTIONABLE in _guard_on(
+            cell, "$parent.$emit('toggle_stream_volunteer'",
+        )
+        assert "props.row.players.some(p => p.discord_id == '7')" in cell
+        assert 'v-else-if="props.row._reschedule_pending"' in cell
+
+    def test_every_button_is_labelled(self):
+        cell = self._cell()
+        for label in ('Ask to change', 'Offer for stream', 'Harder settings', "'Watch'"):
+            assert label in cell, label
+
+    def test_the_player_board_uses_it_beside_players(self):
+        src = pathlib.Path('pages/home_tabs/player.py').read_text()
+        names = re.findall(r"\{'name': (MY_ACTIONS_COLUMN|'[a-z_]+')", src)
+        assert names.index('MY_ACTIONS_COLUMN') == names.index("'players'") + 1
+        for retired in ("'stream_volunteer'", "'reschedule'", "'hard_preset'", "'watch'"):
+            assert retired not in names, retired
+
+    def test_the_board_still_fetches_the_state_its_controls_read(self):
+        """The bulk reschedule and hard-preset fetches were gated on their own
+        column names, so folding them into one cell silently emptied both."""
+        from types import SimpleNamespace
+
+        from theme.tables.match import MatchTableView
+
+        board = SimpleNamespace(columns=[{'name': 'players'}, {'name': 'my_actions'}])
+        assert MatchTableView._shows_column(board, 'reschedule')
+        assert MatchTableView._shows_column(board, 'hard_preset')
+        admin = SimpleNamespace(columns=[{'name': 'players'}, {'name': 'watch'}])
+        assert not MatchTableView._shows_column(admin, 'reschedule')
+
+    def test_the_phone_card_reads_it_as_all_four(self):
+        grid = FakeTable()
+        render_grid_slot(
+            grid, [*ADMIN_COLUMNS[:5],
+                   {'name': 'my_actions', 'label': 'Your actions', 'field': 'my_actions'}],
+            admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+            has_edit=False,
+        )
+        tpl = grid.slots['item']
+        for emit in ('request_reschedule', 'toggle_stream_volunteer',
+                     'open_hard_preset', 'toggle_watch'):
+            assert not _guard_on(tpl, f"$parent.$emit('{emit}'").startswith('false'), emit
+
+
+def test_acknowledging_is_a_labelled_button_on_both_layouts():
+    """An 18 px tick with a tooltip read as a status mark, not a control."""
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+    )
+    grid = FakeTable()
+    render_grid_slot(
+        grid, ADMIN_COLUMNS, admin_controls=False, access=MatchBoardAccess(),
+        discord_id='7', has_edit=False,
+    )
+    for tpl in (table.slots['body-cell-players'], grid.slots['item']):
+        ack = tpl[tpl.index("$parent.$emit('acknowledge_match'") - 400:]
+        assert 'label="Acknowledge"' in ack[:500]
+
+
+def test_the_ada_marker_is_at_least_a_24px_target():
+    """WCAG 2.5.8: size xs dense round drew it at 19 px on desktop."""
+    css = pathlib.Path('static/css/styles.css').read_text()
+    assert re.search(r'\.wiz-tap-24\s*\{[^}]*min-width: 24px;[^}]*min-height: 24px;', css)
+    table = FakeTable()
+    register_body_slots(
+        table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+    )
+    grid = FakeTable()
+    render_grid_slot(
+        grid, ADMIN_COLUMNS, admin_controls=False, access=MatchBoardAccess(),
+        discord_id='7', has_edit=False,
+    )
+    for tpl in (table.slots['body-cell-players'], grid.slots['item']):
+        ada = tpl[tpl.index('icon="accessible"'):]
+        ada = ada[:ada.index('>')]
+        assert 'wiz-tap-24' in ada
+        assert 'size="xs"' not in ada

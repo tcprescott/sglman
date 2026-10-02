@@ -68,9 +68,38 @@ class CoroutineQueue:
         except asyncio.CancelledError:
             pass
         self._worker_task = None
+        self.discard_pending()
 
     def enqueue(self, coro: Coroutine) -> None:
         self._queue.put_nowait(coro)
+
+    def discard_pending(self) -> int:
+        """Close every queued coroutine without running it, and say how many.
+
+        For a process that queued work it will never run: a script (the dev
+        seed starts brackets, which queue matchup DMs, with no worker running)
+        or ``stop()``. Left alone, each dropped coroutine is a ``RuntimeWarning:
+        coroutine ... was never awaited`` at interpreter exit, which reads as a
+        bug rather than as a send that deliberately did not happen.
+
+        An un-started wrapper (``discord_queue._run_in_tenant_scope``) holds the
+        real send as an argument, which closing the wrapper does not reach, so
+        un-started coroutines among its arguments are closed too.
+        """
+        dropped = 0
+        while True:
+            try:
+                coro = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return dropped
+            frame = getattr(coro, 'cr_frame', None)
+            inner = [v for v in (frame.f_locals.values() if frame else ())
+                     if isinstance(v, Coroutine)]
+            coro.close()
+            for arg in inner:
+                arg.close()
+            self._queue.task_done()
+            dropped += 1
 
 
 def bind_module_state(module_name: str, queue: CoroutineQueue) -> None:

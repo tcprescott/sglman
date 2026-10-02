@@ -8,8 +8,9 @@ and ``self.repository`` through that composed class.
 
 from typing import Any, Dict, List, Optional
 
-from application.errors import require_found
+from application.errors import AlreadyBookedError, require_found
 from application.events import EventType
+from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services._bracket._composed import ComposedBracketService
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
@@ -95,7 +96,8 @@ class SchedulingMixin(ComposedBracketService):
         )
 
     async def schedule_bracket_match(
-        self, actor: Optional[User], bracket_match_id: int, **match_kwargs: Any
+        self, actor: Optional[User], bracket_match_id: int,
+        *, game_number: Optional[int] = None, **match_kwargs: Any,
     ) -> Match:
         """Schedule an OPEN bracket match into a real ``Match``.
 
@@ -110,6 +112,11 @@ class SchedulingMixin(ComposedBracketService):
         event programme reserves all three nights of a Bo3, and the ones the
         series never needs are cancelled on the clinch). Raises once every slot is
         taken or the series is already decided.
+
+        ``game_number`` is the game the caller *thinks* it is booking (the dialog
+        reads "Schedule game 2 of 3"). It never chooses the slot; it only makes a
+        stale caller fail loudly with :class:`AlreadyBookedError` when that game
+        was taken in the meantime, instead of quietly booking the next one.
 
         **Two authorized callers, two creation paths.** Staff and the tournament's
         admins go through :meth:`MatchService.create_match` and may set crew and a
@@ -155,6 +162,8 @@ class SchedulingMixin(ComposedBracketService):
         games = await self.repository.list_games(bracket_match_id)
         if self.is_decided(bracket_match, games, best_of):
             raise ValueError("This series is already decided.")
+        if game_number is not None:
+            await self._refuse_if_taken(games, game_number, best_of, actor)
         number = await self.next_game_number(bracket_match, best_of)
 
         from application.services.match.match_service import MatchService
@@ -196,6 +205,42 @@ class SchedulingMixin(ComposedBracketService):
             EventType.BRACKET_GAME_SCHEDULED,
         )
         return match
+
+    @staticmethod
+    async def _refuse_if_taken(
+        games, game_number: int, best_of: int, actor: Optional[User],
+    ) -> None:
+        """Refuse a booking for a game someone else filled since the caller looked.
+
+        The dialog says which game it is booking ("Schedule game 2 of 3"), so
+        that is the slot it lost if two players had it open: without this the
+        second Schedule silently took game 3 instead. A slot that is gone for
+        any other reason (cancelled on the clinch, already played) is a plain
+        refusal, not a lost race.
+
+        The booker is read from the auto-acknowledged row ``submit_match_request``
+        writes for its actor; a staff booking (or a roster edit since) leaves no
+        such row, and the error says only when.
+        """
+        game = next((g for g in games if g.game_number == game_number), None)
+        if game is None:
+            return
+        match = None
+        if game.state == BracketMatchGameState.SCHEDULED and game.match_id is not None:
+            match = await MatchRepository.get_by_id(game.match_id, prefetch_relations=False)
+        if match is None or match.scheduled_at is None:
+            raise ValueError(f"Game {game_number} of this series can no longer be scheduled.")
+        booker = next(
+            (a.user for a in await MatchAcknowledgmentRepository.list_for_match(match)
+             if a.auto_acknowledged),
+            None,
+        )
+        raise AlreadyBookedError(
+            what="this match" if best_of == 1 else f"game {game_number} of {best_of}",
+            scheduled_at=match.scheduled_at,
+            booker_name=(booker.display_name or booker.username) if booker else None,
+            booked_by_you=booker is not None and actor is not None and booker.id == actor.id,
+        )
 
     # -- linking a manually-scheduled match onto a matchup -----------------
     async def list_linkable_matches(self, tournament_id: int) -> List[BracketMatch]:
