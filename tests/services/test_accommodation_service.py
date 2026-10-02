@@ -93,15 +93,76 @@ async def test_asking_again_after_withdrawing_reopens_as_new(member):
     assert again.details == 'b'
 
 
-async def test_editing_details_on_a_handled_request_sends_it_back_to_new(member, staff):
+async def test_editing_details_on_an_acknowledged_request_sends_it_back_to_new(member, staff):
     service = AccommodationService()
     request = await service.set_my_request(member, True, 'a')
-    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, None)
+    await service.update_request(staff, request.id, AccommodationStatus.ACKNOWLEDGED, None)
 
     await service.set_my_request(member, True, 'a, and also b')
 
     await request.refresh_from_db()
     assert request.status is AccommodationStatus.NEW
+
+
+async def test_editing_an_arranged_request_keeps_it_arranged_and_flags_it(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, 'chair')
+
+    await service.set_my_request(member, True, 'a, and also b')
+    await service.set_my_request(member, True, 'a, and also c')
+
+    await request.refresh_from_db()
+    assert request.status is AccommodationStatus.ARRANGED
+    assert request.changed_since_arranged is True
+    # What staff arranged against, not the intermediate autosave.
+    assert request.arranged_details == 'a'
+    assert request.details == 'a, and also c'
+    # Still on the boards.
+    assert await service.arranged_notes_for(staff, [member.id]) == {member.id: 'chair'}
+    assert await service.action_needed_count(staff) == 1
+
+
+async def test_typing_an_arranged_request_back_clears_the_flag(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, None)
+
+    await service.set_my_request(member, True, 'ab')
+    await service.set_my_request(member, True, 'a')
+
+    await request.refresh_from_db()
+    assert request.changed_since_arranged is False
+    assert request.arranged_details is None
+
+
+async def test_staff_saving_a_changed_request_marks_it_reviewed(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, 'chair')
+    await service.set_my_request(member, True, 'b')
+
+    # Nothing else edited: the save itself is the review.
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, 'chair')
+
+    await request.refresh_from_db()
+    assert request.status is AccommodationStatus.ARRANGED
+    assert request.changed_since_arranged is False
+    assert request.arranged_details is None
+    assert AuditActions.ACCOMMODATION_CHANGE_REVIEWED in await _actions()
+    assert await service.action_needed_count(staff) == 0
+
+
+async def test_withdrawing_clears_the_changed_flag(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, None)
+    await service.set_my_request(member, True, 'b')
+
+    await service.set_my_request(member, False)
+
+    await request.refresh_from_db()
+    assert request.changed_since_arranged is False and request.arranged_details is None
 
 
 async def test_resaving_identical_details_is_a_no_op(member, staff):
@@ -203,7 +264,7 @@ async def _arranged(member, staff, note):
     return request
 
 
-async def test_schedule_notes_go_to_staff_and_proctors_only(member, staff):
+async def test_schedule_notes_reach_staff_and_proctors_learn_only_that_it_is_arranged(member, staff):
     await _arranged(member, staff, 'chair at station 3')
     proctor = await make_user(discord_id=510, username='proctor')
     await UserRole.create(user=proctor, role=Role.PROCTOR, tenant_id=DEFAULT_TEST_TENANT_ID)
@@ -212,7 +273,8 @@ async def test_schedule_notes_go_to_staff_and_proctors_only(member, staff):
     service = AccommodationService()
 
     assert await service.arranged_notes_for(staff, [member.id]) == {member.id: 'chair at station 3'}
-    assert await service.arranged_notes_for(proctor, [member.id]) == {member.id: 'chair at station 3'}
+    # The note is written under "only staff can read these notes".
+    assert await service.arranged_notes_for(proctor, [member.id]) == {member.id: None}
     assert await service.arranged_notes_for(stream_manager, [member.id]) == {}
     assert await service.arranged_notes_for(member, [member.id]) == {}
     assert await service.arranged_notes_for(None, [member.id]) == {}
@@ -239,3 +301,91 @@ async def test_schedule_notes_are_empty_when_the_flag_is_off(member, staff):
     ).update(enabled=False)
     reset_flag_cache()  # a new request would read the flag fresh
     assert await AccommodationService().arranged_notes_for(staff, [member.id]) == {}
+
+
+# ---------------------------------------------------------------------------
+# Staff notifications and the action-needed count
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def captured_dms(monkeypatch):
+    """Collect each DM's text and button, without a Discord connection."""
+    sent: list = []
+    from application.services import discord as discord_pkg
+    from application.services.discord import DiscordService
+
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+        sent.append({'to': user_id, 'text': message, 'link': link})
+        return True, ''
+
+    monkeypatch.setattr(DiscordService, 'send_dm', fake_send)
+
+    pending: list = []
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', pending.append)
+
+    async def flush() -> list:
+        while pending:
+            await pending.pop(0)
+        return sent
+
+    return flush
+
+
+async def test_a_new_request_dms_staff_with_a_link_to_it_and_no_details(member, staff, captured_dms):
+    request = await AccommodationService().set_my_request(member, True, 'wheelchair ramp')
+
+    sent = await captured_dms()
+    assert [d['to'] for d in sent] == [501]
+    assert 'wheelchair' not in sent[0]['text']
+    assert sent[0]['link'] is not None
+    assert sent[0]['link'].url.endswith(f'/admin/users?ada_request={request.id}')
+
+
+async def test_an_arranged_edit_dms_staff_once_not_per_autosave(member, staff, captured_dms):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, None)
+    await captured_dms()
+    (await captured_dms()).clear()
+
+    await service.set_my_request(member, True, 'ab')
+    await service.set_my_request(member, True, 'abc')
+
+    sent = await captured_dms()
+    assert len(sent) == 1
+    assert 'after it was arranged' in sent[0]['text']
+
+
+async def test_the_count_covers_only_requests_needing_action(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    assert await service.action_needed_count(staff) == 1
+    await service.update_request(staff, request.id, AccommodationStatus.ACKNOWLEDGED, None)
+    assert await service.action_needed_count(staff) == 1
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, None)
+    assert await service.action_needed_count(staff) == 0
+    # Still an open request for the Users-tab filter.
+    assert await service.requesting_user_ids(staff) == {member.id}
+
+
+async def test_the_count_is_staff_only(member):
+    with pytest.raises(PermissionError):
+        await AccommodationService().action_needed_count(member)
+
+
+async def test_removing_a_member_withdraws_their_request_and_clears_details(member, staff, captured_dms):
+    from application.services.tenant_membership_service import TenantMembershipService
+
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'private details')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, 'kept note')
+
+    await TenantMembershipService().remove_member(staff, member)
+
+    await request.refresh_from_db()
+    assert request.status is AccommodationStatus.WITHDRAWN
+    assert request.details is None
+    assert request.staff_notes == 'kept note'
+    assert [r.id for r in await service.list_requests(staff)] == []
+    assert await service.arranged_notes_for(staff, [member.id]) == {}

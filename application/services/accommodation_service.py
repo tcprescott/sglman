@@ -7,13 +7,16 @@ optional details), and the community's STAFF track each request through
 
 Who sees what is the whole design. The requester sees their own checkbox,
 details and status, never the staff notes. STAFF (and super-admins, via
-``AuthService.is_staff``) see everything for their community. Nobody else does,
-and no free text leaves the app: audit rows carry ids and status only, nothing
-is published on the event bus, and there is no REST or MCP surface.
+``AuthService.is_staff``) see everything for their community. PROCTORs learn
+only that an Arranged request exists (the icon on their match boards), never the
+text. Nobody else sees anything, and no free text leaves the app: audit rows
+carry ids and status only, nothing is published on the event bus, the staff DMs
+name the member and nothing more, and there is no REST or MCP surface.
 
 Gated by :attr:`~models.FeatureFlag.ADA_ACCOMMODATIONS`.
 """
 
+import logging
 from typing import Dict, Iterable, List, Optional, Set
 
 from application.errors import require_found
@@ -23,7 +26,13 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_membership_service import TenantMembershipService
+from application.utils.discord_messages_accommodation import (
+    accommodation_changed_dm,
+    accommodation_requested_dm,
+)
 from models import AccommodationRequest, AccommodationStatus, FeatureFlag, Role, User
+
+logger = logging.getLogger(__name__)
 
 DETAILS_MAX_LENGTH = 2000
 STAFF_NOTES_MAX_LENGTH = 4000
@@ -71,15 +80,24 @@ class AccommodationService:
 
         Withdrawing clears the details but keeps the row and its staff notes.
         Asking again after a withdrawal, or changing the details on a request
-        staff already acknowledged or arranged, puts it back to ``NEW`` so the
-        change is not missed. Re-saving identical details is a no-op.
+        staff only acknowledged, puts it back to ``NEW`` so the change is not
+        missed. Changing the details on an ``ARRANGED`` request keeps it
+        Arranged, so the proctors' icon stays on the boards, and flags it
+        ``changed_since_arranged`` until staff review it. Re-saving identical
+        details is a no-op.
+
+        Staff are DM'd when a request opens and when an Arranged one first
+        changes; later autosaves of the same edit stay quiet.
         """
         existing = await self.repository.get_for_user(actor)
 
         if not requested:
             if existing is None or existing.status is AccommodationStatus.WITHDRAWN:
                 return existing
-            await self.repository.update(existing, status=AccommodationStatus.WITHDRAWN, details=None)
+            await self.repository.update(
+                existing, status=AccommodationStatus.WITHDRAWN, details=None,
+                changed_since_arranged=False, arranged_details=None,
+            )
             await self._audit(actor, AuditActions.ACCOMMODATION_WITHDRAWN, existing)
             return existing
 
@@ -90,18 +108,56 @@ class AccommodationService:
                 raise ValueError('Join this community before requesting accommodation.')
             created = await self.repository.create(user=actor, details=details)
             await self._audit(actor, AuditActions.ACCOMMODATION_REQUESTED, created)
+            await self._notify_staff(actor, created, changed=False)
             return created
 
         if existing.status is AccommodationStatus.WITHDRAWN:
             await self.repository.update(existing, status=AccommodationStatus.NEW, details=details)
             await self._audit(actor, AuditActions.ACCOMMODATION_REQUESTED, existing)
+            await self._notify_staff(actor, existing, changed=False)
             return existing
 
         if details == existing.details:
             return existing
+
+        if existing.status is AccommodationStatus.ARRANGED:
+            already_flagged = existing.changed_since_arranged
+            arranged = existing.arranged_details if already_flagged else existing.details
+            # Typing it back to what staff arranged against is no change at all.
+            flagged = details != arranged
+            await self.repository.update(
+                existing, details=details,
+                changed_since_arranged=flagged,
+                arranged_details=arranged if flagged else None,
+            )
+            await self._audit(actor, AuditActions.ACCOMMODATION_UPDATED, existing)
+            if flagged and not already_flagged:
+                await self._notify_staff(actor, existing, changed=True)
+            return existing
+
         await self.repository.update(existing, status=AccommodationStatus.NEW, details=details)
         await self._audit(actor, AuditActions.ACCOMMODATION_UPDATED, existing)
         return existing
+
+    # feature-gate: exempt — soft integration point called from removing a member.
+    async def close_for_removed_member(self, actor: User, member: User) -> None:
+        """Withdraw a removed member's open request, clearing their details.
+
+        Staff must not keep reading the disability details of someone who is no
+        longer in the community, and the boards must not keep their icon. Runs
+        whatever the flag says: it only ever removes data. Staff notes stay, as
+        on any withdrawal.
+        """
+        request = await self.repository.get_for_user(member)
+        if request is None or request.status is AccommodationStatus.WITHDRAWN:
+            return
+        await self.repository.update(
+            request, status=AccommodationStatus.WITHDRAWN, details=None,
+            changed_since_arranged=False, arranged_details=None,
+        )
+        await self._audit(
+            actor, AuditActions.ACCOMMODATION_WITHDRAWN, request, source='member_removed',
+        )
 
     # --- staff side -------------------------------------------------------
 
@@ -116,33 +172,64 @@ class AccommodationService:
         return await self.repository.list_by_status(statuses)
 
     @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
+    async def get_request(self, actor: User, request_id: int) -> Optional[AccommodationRequest]:
+        """One request in this community, for a deep link from a staff DM."""
+        await self._ensure_staff(actor)
+        return await self.repository.get_by_id(request_id)
+
+    @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
     async def requesting_user_ids(self, actor: User) -> Set[int]:
         """Members with an open (not withdrawn) request, for the Users-tab filter."""
         await self._ensure_staff(actor)
         return await self.repository.user_ids_with_status(OPEN_STATUSES)
 
+    @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
+    async def open_requests_by_user(self, actor: User) -> Dict[int, AccommodationRequest]:
+        """Each member's open request, keyed by user id, for the Users-tab ADA column."""
+        await self._ensure_staff(actor)
+        return {r.user_id: r for r in await self.repository.list_by_status(OPEN_STATUSES)}
+
+    @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
+    async def action_needed_count(self, actor: User) -> int:
+        """Requests staff still have to do something about, for the sub-tab label.
+
+        New and Acknowledged ones, plus Arranged ones the member has changed
+        since. A request that's arranged and unchanged is done, so the count can
+        reach zero.
+        """
+        await self._ensure_staff(actor)
+        return await self.repository.count_needing_action()
+
     # feature-gate: exempt — soft integration point; see the docstring below.
     async def arranged_notes_for(
         self, actor: Optional[User], user_ids: Iterable[int],
-    ) -> Dict[int, str]:
-        """Staff notes for players whose request is ``ARRANGED``, keyed by user id.
+    ) -> Dict[int, Optional[str]]:
+        """Players whose request is ``ARRANGED``, keyed by user id.
 
         Feeds the accessibility icon on the admin Schedule and Proctor Station
         boards, which are not themselves flag-gated and are also open to roles
         that must not see this (tournament admins, stream managers). So it is
         soft: it returns ``{}`` rather than raising when the feature is off or
         the viewer is neither STAFF nor a PROCTOR, and every board can call it
-        unconditionally. A proctor gets the staff notes only, never the
-        requester's own details. A note may be ``''`` (arranged, no note yet).
+        unconditionally.
+
+        STAFF get the staff notes (``''`` when arranged with no note). A
+        PROCTOR gets ``None`` for each: they see that something is arranged and
+        are sent to staff for what. Nobody here gets the requester's own
+        details. The notes are written under a disclaimer that says only staff
+        read them, and this is where that promise is kept.
         """
         ids = {i for i in user_ids if i is not None}
         if not ids or actor is None:
             return {}
         if not await FeatureFlagService().is_enabled(FeatureFlag.ADA_ACCOMMODATIONS):
             return {}
-        if not (await AuthService.is_staff(actor) or await AuthService.has_role(actor, Role.PROCTOR)):
+        is_staff = await AuthService.is_staff(actor)
+        if not (is_staff or await AuthService.has_role(actor, Role.PROCTOR)):
             return {}
         requests = await self.repository.list_for_users(ids, AccommodationStatus.ARRANGED)
+        if not is_staff:
+            return {r.user_id: None for r in requests}
         return {r.user_id: r.staff_notes or '' for r in requests}
 
     @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
@@ -158,6 +245,10 @@ class AccommodationService:
         Staff cannot withdraw on someone's behalf (only the requester can), and
         cannot move a withdrawn request out of ``WITHDRAWN``: reopening is the
         requester ticking the box again. Notes stay editable either way.
+
+        Saving a request the member changed after it was arranged marks the
+        change reviewed, even with nothing else edited: the save is staff saying
+        they've read it.
         """
         await self._ensure_staff(actor)
         request = require_found(await self.repository.get_by_id(request_id), 'Accommodation request')
@@ -172,11 +263,17 @@ class AccommodationService:
 
         status_changed = status is not request.status
         notes_changed = staff_notes != request.staff_notes
-        if not (status_changed or notes_changed):
+        reviewed = request.changed_since_arranged
+        if not (status_changed or notes_changed or reviewed):
             return request
 
         previous = request.status
-        await self.repository.update(request, status=status, staff_notes=staff_notes)
+        await self.repository.update(
+            request, status=status, staff_notes=staff_notes,
+            changed_since_arranged=False, arranged_details=None,
+        )
+        if reviewed:
+            await self._audit(actor, AuditActions.ACCOMMODATION_CHANGE_REVIEWED, request)
         if status_changed:
             await self._audit(
                 actor, AuditActions.ACCOMMODATION_STATUS_CHANGED, request,
@@ -185,6 +282,45 @@ class AccommodationService:
         if notes_changed:
             await self._audit(actor, AuditActions.ACCOMMODATION_NOTES_UPDATED, request)
         return request
+
+    async def _notify_staff(
+        self, member: User, request: AccommodationRequest, *, changed: bool,
+    ) -> None:
+        """DM the community's staff, with a button that opens this request.
+
+        Best-effort: a Discord failure never blocks the member's save.
+        """
+        try:
+            from application.repositories.user_role_repository import UserRoleRepository
+            from application.services import notification_links
+            from application.services.discord import DiscordService, discord_queue
+            from application.services.tenant_service import TenantService
+            from application.utils.discord_embeds import (
+                COLOR_JOIN_REQUEST,
+                COLOR_RESCHEDULED,
+                notification_embed,
+            )
+
+            community = await TenantService.current_community_name()
+            name = member.preferred_name
+            if changed:
+                body = accommodation_changed_dm(community, name)
+                title, color = '♿ ADA request changed', COLOR_RESCHEDULED
+            else:
+                body = accommodation_requested_dm(community, name)
+                title, color = '♿ ADA request', COLOR_JOIN_REQUEST
+            embed = notification_embed(
+                title=title, color=color, community_name=community, description=body,
+            )
+            link = await notification_links.admin_ada_request(request.id)
+            service = DiscordService()
+            for staff in await UserRoleRepository.list_users_with_role(Role.STAFF):
+                if staff.discord_id and staff.id != member.id:
+                    discord_queue.enqueue(
+                        service.send_dm(int(staff.discord_id), body, embed=embed, link=link)
+                    )
+        except Exception:
+            logger.exception('ADA request %s: staff notification failed', request.id)
 
     async def _audit(
         self, actor: User, action: str, request: AccommodationRequest, **extra: str,

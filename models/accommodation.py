@@ -13,6 +13,10 @@ class AccommodationRequest(Model):
     ``WITHDRAWN``, ``details`` cleared) so the staff notes survive as history,
     and asking again reopens it as ``NEW``.
 
+    Editing the details of an ``ARRANGED`` request leaves it ``ARRANGED`` and
+    sets ``changed_since_arranged`` (with ``arranged_details`` holding what staff
+    arranged against) until staff review the change.
+
     ``details`` is the requester's own text and ``staff_notes`` is staff-only;
     neither ever leaves the app (audit rows, events, REST and MCP carry ids and
     status only).
@@ -28,6 +32,12 @@ class AccommodationRequest(Model):
     user_id: int
     status = fields.CharEnumField(AccommodationStatus, default=AccommodationStatus.NEW, max_length=20)
     details = fields.TextField(null=True)
+    # A member editing an Arranged request keeps it Arranged (the icon must not
+    # vanish from the boards over a typo) and raises this flag instead, with the
+    # details staff arranged against kept beside the new ones. Staff saving the
+    # request clears both.
+    changed_since_arranged = fields.BooleanField(default=False)
+    arranged_details = fields.TextField(null=True)
     staff_notes = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

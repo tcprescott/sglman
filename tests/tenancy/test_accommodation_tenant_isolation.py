@@ -59,3 +59,23 @@ async def test_schedule_notes_do_not_leak_across_tenants(two_tenants):
         assert await service.arranged_notes_for(staff, [member.id]) == {member.id: 'A-only note'}
     with tenant_scope(b.id):
         assert await service.arranged_notes_for(staff, [member.id]) == {}
+
+
+async def test_the_action_count_and_users_column_do_not_leak_across_tenants(two_tenants):
+    a, b = two_tenants
+    member = await make_user(discord_id=720, username='m3')
+    staff = await make_user(discord_id=721, username='s3')
+    for tenant in (a, b):
+        await TenantMembership.create(user=member, tenant=tenant)
+        await UserRole.create(user=staff, role=Role.STAFF, tenant=tenant)
+    service = AccommodationService()
+    with tenant_scope(a.id):
+        request = await service.set_my_request(member, True, 'x')
+        await service.update_request(staff, request.id, 'arranged', None)
+        await service.set_my_request(member, True, 'changed after arranging')
+        assert await service.action_needed_count(staff) == 1
+        assert set(await service.open_requests_by_user(staff)) == {member.id}
+    with tenant_scope(b.id):
+        assert await service.action_needed_count(staff) == 0
+        assert await service.open_requests_by_user(staff) == {}
+        assert await service.get_request(staff, request.id) is None
