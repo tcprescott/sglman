@@ -111,6 +111,7 @@ async def proctor_station_tab(user: Optional[User] = None) -> None:
             access=access,
             storage_key='proctor',
             table_key=TableKeys.PROCTOR_STATION,
+            show_accommodations=True,
             searchable=True,
             exclude_racetime=True,
             row_sort=proctor_row_order,

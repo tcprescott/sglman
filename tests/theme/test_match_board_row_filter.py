@@ -31,6 +31,7 @@ def _view(rows, *, fetched=None):
     view.row_filter = is_seeded_and_unplayed
     view.on_rows_changed = None
     view.on_set_stage = None
+    view.show_accommodations = False
     view.refreshed = 0
     # The row-flash timer needs a live slot context, which none of these paths
     # has; the highlight is not what is under test.

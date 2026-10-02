@@ -17,6 +17,7 @@ from . import (
     service_health_worker,
     speedgaming_sync_worker,
 )
+from .accommodation_service import AccommodationService
 from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
 from .async_qualifier import (
@@ -116,6 +117,7 @@ from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
+    'AccommodationService',
     'AnalyticsService',
     'ApiTokenService',
     'AsyncQualifierConfig',

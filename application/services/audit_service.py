@@ -161,6 +161,14 @@ class AuditActions:
     FEEDBACK_REVIEWED = 'feedback.reviewed'
     FEEDBACK_REOPENED = 'feedback.reopened'
 
+    # ADA accommodation requests. Details carry ids and status only, never the
+    # requester's text or staff notes.
+    ACCOMMODATION_REQUESTED = 'accommodation.requested'
+    ACCOMMODATION_UPDATED = 'accommodation.updated'
+    ACCOMMODATION_WITHDRAWN = 'accommodation.withdrawn'
+    ACCOMMODATION_STATUS_CHANGED = 'accommodation.status_changed'
+    ACCOMMODATION_NOTES_UPDATED = 'accommodation.notes_updated'
+
     # Equipment lending
     EQUIPMENT_CREATED = 'equipment.created'
     EQUIPMENT_UPDATED = 'equipment.updated'

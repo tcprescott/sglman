@@ -56,6 +56,7 @@ How each shipped subsystem behaves.
 | [features/telemetry.md](features/telemetry.md) | Page views, curated interactions, domain-event mirror, Staff-only report |
 | [features/web-push.md](features/web-push.md) | Declarative Web Push device notifications mirroring Discord DMs |
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
+| [features/ada-accommodations.md](features/ada-accommodations.md) | Per-community ADA accommodation requests from the profile, a STAFF queue with status and private notes. Behind `FeatureFlag.ADA_ACCOMMODATIONS` |
 | [features/payouts.md](features/payouts.md) | Prize pool, placement splits with ties, computed amounts, Matcherino handles and the payout block. Behind `FeatureFlag.PAYOUTS` |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
 | [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |

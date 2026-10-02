@@ -506,6 +506,10 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                         <span v-if="player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
+                    <q-btn v-if="player.ada" icon="accessible" color="primary" size="xs" dense flat round
+                           @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})">
+                        <q-tooltip>ADA accommodation arranged. Tap for staff notes.</q-tooltip>
+                    </q-btn>
                     <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
                         <q-icon name="emoji_events" size="12px" />Winner</span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"

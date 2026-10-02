@@ -84,6 +84,7 @@ class FeatureFlag(str, Enum):
     FEEDBACK = 'feedback'
     EVENT_INFO = 'event_info'
     PAYOUTS = 'payouts'
+    ADA_ACCOMMODATIONS = 'ada_accommodations'
 
 
 class BracketFormat(str, Enum):
@@ -185,6 +186,21 @@ class VolunteerAvailabilityStatus(str, Enum):
     AVAILABLE = 'available'
     UNAVAILABLE = 'unavailable'
     PREFERRED = 'preferred'
+
+
+class AccommodationStatus(str, Enum):
+    """Where a member's ADA accommodation request stands with staff.
+
+    ``WITHDRAWN`` is set only by the requester unchecking the box; staff move a
+    live request between the other three. A requester editing their details on
+    an acknowledged or arranged request sends it back to ``NEW`` so staff see
+    the change.
+    """
+
+    NEW = 'new'
+    ACKNOWLEDGED = 'acknowledged'
+    ARRANGED = 'arranged'
+    WITHDRAWN = 'withdrawn'
 
 
 class FeedbackCategory(str, Enum):

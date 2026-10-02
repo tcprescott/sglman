@@ -75,6 +75,7 @@ class TableKeys:
     ADMIN_DISCORD_EVENT_TOURNAMENTS = 'admin.discord_event_tournaments'
     ADMIN_DISCORD_ROLES = 'admin.discord_roles'
     ADMIN_EQUIPMENT = 'admin.equipment'
+    ADMIN_ACCOMMODATIONS = 'admin.accommodations'
     ADMIN_FEEDBACK = 'admin.feedback'
     ADMIN_PAYOUTS = 'admin.payouts'
     ADMIN_PRESETS = 'admin.presets'
