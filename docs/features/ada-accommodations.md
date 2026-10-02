@@ -23,7 +23,8 @@ Behind `FeatureFlag.ADA_ACCOMMODATIONS` (ships dark).
   who belongs to two communities has two independent requests; neither
   community's staff can see the other's.
 - **STAFF only** on the admin side (`AuthService.is_staff`, so super-admins
-  too). The Users tab is already STAFF-only; the service checks again on every
+  too). The one exception is the schedule icon below: **PROCTORs** also see
+  the staff notes for Arranged requests, and nothing else. The Users tab is already STAFF-only; the service checks again on every
   read and write.
 - **The requester** sees their own checkbox, details and status, never the staff
   notes.
@@ -62,5 +63,14 @@ request requires community membership.
   accommodation" filter. The ADA requests sub-tab lists open requests oldest
   first, with "Show withdrawn", CSV export and an Update dialog for status and
   staff notes.
+
+- **Admin → Schedule and Volunteer → Proctor Station**: a player whose
+  request is **Arranged** gets an accessibility icon beside their name, on the
+  desktop table and the phone card alike. Tapping it opens a popup with the
+  **staff notes** only, never the member's own details. Only STAFF and
+  PROCTORs see it; a tournament admin, crew coordinator or stream manager on
+  the same admin board gets no icon. Other boards (home schedule, player
+  dashboards, the room kiosk) never request the data
+  (`MatchTableView(show_accommodations=True)` is opt-in).
 
 No notifications are sent: staff watch the sub-tab count.

@@ -8,6 +8,7 @@ from application.services.accommodation_service import (
     AccommodationService,
 )
 from application.services.audit_service import AuditActions
+from application.services.feature_flag_service import reset_flag_cache
 from models import (
     AccommodationRequest,
     AccommodationStatus,
@@ -193,3 +194,48 @@ async def test_the_flag_being_off_hides_everything(member, staff):
         await service.set_my_request(member, True, 'a')
     with pytest.raises(FeatureDisabledError):
         await service.list_requests(staff)
+
+
+async def _arranged(member, staff, note):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'member-only details')
+    await service.update_request(staff, request.id, AccommodationStatus.ARRANGED, note)
+    return request
+
+
+async def test_schedule_notes_go_to_staff_and_proctors_only(member, staff):
+    await _arranged(member, staff, 'chair at station 3')
+    proctor = await make_user(discord_id=510, username='proctor')
+    await UserRole.create(user=proctor, role=Role.PROCTOR, tenant_id=DEFAULT_TEST_TENANT_ID)
+    stream_manager = await make_user(discord_id=511, username='sm')
+    await UserRole.create(user=stream_manager, role=Role.STREAM_MANAGER, tenant_id=DEFAULT_TEST_TENANT_ID)
+    service = AccommodationService()
+
+    assert await service.arranged_notes_for(staff, [member.id]) == {member.id: 'chair at station 3'}
+    assert await service.arranged_notes_for(proctor, [member.id]) == {member.id: 'chair at station 3'}
+    assert await service.arranged_notes_for(stream_manager, [member.id]) == {}
+    assert await service.arranged_notes_for(member, [member.id]) == {}
+    assert await service.arranged_notes_for(None, [member.id]) == {}
+
+
+async def test_schedule_notes_never_include_the_members_own_details(member, staff):
+    await _arranged(member, staff, None)
+    notes = await AccommodationService().arranged_notes_for(staff, [member.id])
+    assert notes == {member.id: ''}
+    assert 'member-only' not in str(notes)
+
+
+async def test_schedule_notes_skip_requests_that_are_not_arranged(member, staff):
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'x')
+    await service.update_request(staff, request.id, AccommodationStatus.ACKNOWLEDGED, 'pending venue')
+    assert await service.arranged_notes_for(staff, [member.id]) == {}
+
+
+async def test_schedule_notes_are_empty_when_the_flag_is_off(member, staff):
+    await _arranged(member, staff, 'n')
+    await TenantFeatureFlag.filter(
+        tenant_id=DEFAULT_TEST_TENANT_ID, flag=FeatureFlag.ADA_ACCOMMODATIONS.value,
+    ).update(enabled=False)
+    reset_flag_cache()  # a new request would read the flag fresh
+    assert await AccommodationService().arranged_notes_for(staff, [member.id]) == {}

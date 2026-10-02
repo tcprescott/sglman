@@ -3,6 +3,7 @@ from datetime import datetime
 from nicegui import app, background_tasks, context, ui
 
 from application.services import (
+    AccommodationService,
     MatchDisplayService,
     MatchHardPresetService,
     MatchRescheduleService,
@@ -62,7 +63,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, row_filter=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
-                 scope_tournament_ids=None, table_key=None, searchable=False):
+                 scope_tournament_ids=None, table_key=None, searchable=False,
+                 show_accommodations=False):
         self.columns = columns
         # When set, this board's desktop columns follow the viewer's saved
         # layout. Each surface built on this class passes its **own** key: a
@@ -71,6 +73,10 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # A text box over the visible columns, for the boards where finding one
         # row is the actual task. Not persisted: it is working state.
         self.searchable = searchable
+        # Whether this board marks players with an arranged ADA accommodation.
+        # Opt-in per surface (admin Schedule, Proctor Station); the service still
+        # decides per viewer, so a tournament admin on the same board sees none.
+        self.show_accommodations = show_accommodations
         self._plan = None
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
@@ -157,6 +163,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self.stream_volunteer_service = MatchStreamVolunteerService()
         self.hard_preset_service = MatchHardPresetService()
         self.reschedule_service = MatchRescheduleService()
+        self.accommodation_service = AccommodationService()
         self._setup_ui()
 
     def _bg(self, coro) -> None:
@@ -246,6 +253,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
         self.table.on('acknowledge_match', lambda event: background_tasks.create(
             self._handle_acknowledge_match(event.args, context.client)))
+        if self.show_accommodations:
+            self.table.on('show_accommodation', lambda event: self._show_accommodation(event.args))
 
         for role in ['commentator', 'tracker']:
             self.table.on(f"view_{role}", lambda event, r=role: self._handle_edit_role(r, event))
@@ -417,6 +426,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         volunteered_ids = await self._fetch_stream_volunteered_ids()
         requestable_ids, asked_ids = await self._fetch_reschedule_state()
         hard_preset_states = await self._fetch_hard_preset_states(rows)
+        await self._apply_accommodations(rows)
         stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
@@ -489,6 +499,43 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             return set()
         return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
 
+    async def _apply_accommodations(self, rows) -> None:
+        """Mark each player with an arranged ADA accommodation, in one query.
+
+        Sets ``ada`` and ``ada_note`` on the player dicts the players cell
+        renders. Nothing is set on a board that has not opted in, or for a
+        viewer the service does not admit (it returns ``{}``).
+        """
+        if not self.show_accommodations:
+            return
+        user_ids = {p.get('user_id') for row in rows for p in row.get('players') or []}
+        discord_id = app.storage.user.get('discord_id', None)
+        actor = await self.user_service.get_current_user_from_storage(discord_id) if discord_id else None
+        notes = await self.accommodation_service.arranged_notes_for(actor, user_ids)
+        if not notes:
+            return
+        for row in rows:
+            for player in row.get('players') or []:
+                if player.get('user_id') in notes:
+                    player['ada'] = True
+                    player['ada_note'] = notes[player['user_id']]
+
+    def _show_accommodation(self, args) -> None:
+        """The popup behind a player's accessibility icon: staff notes only."""
+        name = (args or {}).get('name') or 'This player'
+        note = (args or {}).get('note') or ''
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+            with ui.row().classes('items-center gap-2 no-wrap'):
+                ui.icon('accessible', size='sm').classes('text-primary')
+                ui.label(f'ADA accommodation: {name}').classes('text-h6')
+            ui.label('Staff notes').classes('subsection-title q-mt-sm')
+            # Plain text, never markup: staff wrote it.
+            ui.label(note or 'Staff marked this arranged but left no notes.') \
+                .classes('text-body2').style('white-space: pre-wrap')
+            with ui.row().classes('w-full justify-end'):
+                ui.button('Close', on_click=dialog.close).props('flat')
+        dialog.open()
+
     async def _fetch_hard_preset_states(self, rows) -> dict:
         """This viewer's own hard-preset state for every visible row, in bulk.
 
@@ -554,6 +601,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
         match_data['_stream_volunteer'] = self.table.rows[idx].get('_stream_volunteer', False)
         carry_hard_preset_state(match_data, self.table.rows[idx])
+        await self._apply_accommodations([match_data])
         stage_options = self._stage_options()
         if stage_options is not None:
             match_data['stage_options'] = stage_options

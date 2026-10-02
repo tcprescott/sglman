@@ -34,6 +34,14 @@ class AccommodationRepository(TenantScopedRepository[AccommodationRequest]):
         ).order_by('created_at').prefetch_related('user')
 
     @staticmethod
+    async def list_for_users(
+        user_ids: Iterable[int], status: AccommodationStatus,
+    ) -> List[AccommodationRequest]:
+        return await scoped(
+            AccommodationRequest.filter(user_id__in=list(user_ids), status=status)
+        )
+
+    @staticmethod
     async def user_ids_with_status(statuses: Iterable[AccommodationStatus]) -> Set[int]:
         rows = await scoped(
             AccommodationRequest.filter(status__in=list(statuses))

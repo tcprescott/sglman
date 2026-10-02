@@ -331,6 +331,7 @@ class MatchDisplayService:
             'players': [
                 {
                     'name': p.user.preferred_name,
+                    'user_id': p.user_id,
                     'finish_rank': p.finish_rank,
                     'station': p.assigned_station,
                     'discord_id': str(p.user.discord_id) if p.user.discord_id else None,

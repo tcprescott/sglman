@@ -43,3 +43,19 @@ async def test_requests_do_not_leak_across_tenants(two_tenants):
     with tenant_scope(a.id):
         assert [r.id for r in await service.list_requests(staff)] == [mine_a.id]
     assert await AccommodationRequest.filter(user=member).count() == 2
+
+
+async def test_schedule_notes_do_not_leak_across_tenants(two_tenants):
+    a, b = two_tenants
+    member = await make_user(discord_id=710, username='m2')
+    staff = await make_user(discord_id=711, username='s2')
+    for tenant in (a, b):
+        await TenantMembership.create(user=member, tenant=tenant)
+        await UserRole.create(user=staff, role=Role.STAFF, tenant=tenant)
+    service = AccommodationService()
+    with tenant_scope(a.id):
+        request = await service.set_my_request(member, True, 'x')
+        await service.update_request(staff, request.id, 'arranged', 'A-only note')
+        assert await service.arranged_notes_for(staff, [member.id]) == {member.id: 'A-only note'}
+    with tenant_scope(b.id):
+        assert await service.arranged_notes_for(staff, [member.id]) == {}

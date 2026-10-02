@@ -14,15 +14,16 @@ is published on the event bus, and there is no REST or MCP surface.
 Gated by :attr:`~models.FeatureFlag.ADA_ACCOMMODATIONS`.
 """
 
-from typing import List, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set
 
 from application.errors import require_found
 from application.feature_flags import requires_feature
 from application.repositories.accommodation_repository import AccommodationRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_membership_service import TenantMembershipService
-from models import AccommodationRequest, AccommodationStatus, FeatureFlag, User
+from models import AccommodationRequest, AccommodationStatus, FeatureFlag, Role, User
 
 DETAILS_MAX_LENGTH = 2000
 STAFF_NOTES_MAX_LENGTH = 4000
@@ -119,6 +120,30 @@ class AccommodationService:
         """Members with an open (not withdrawn) request, for the Users-tab filter."""
         await self._ensure_staff(actor)
         return await self.repository.user_ids_with_status(OPEN_STATUSES)
+
+    # feature-gate: exempt — soft integration point; see the docstring below.
+    async def arranged_notes_for(
+        self, actor: Optional[User], user_ids: Iterable[int],
+    ) -> Dict[int, str]:
+        """Staff notes for players whose request is ``ARRANGED``, keyed by user id.
+
+        Feeds the accessibility icon on the admin Schedule and Proctor Station
+        boards, which are not themselves flag-gated and are also open to roles
+        that must not see this (tournament admins, stream managers). So it is
+        soft: it returns ``{}`` rather than raising when the feature is off or
+        the viewer is neither STAFF nor a PROCTOR, and every board can call it
+        unconditionally. A proctor gets the staff notes only, never the
+        requester's own details. A note may be ``''`` (arranged, no note yet).
+        """
+        ids = {i for i in user_ids if i is not None}
+        if not ids or actor is None:
+            return {}
+        if not await FeatureFlagService().is_enabled(FeatureFlag.ADA_ACCOMMODATIONS):
+            return {}
+        if not (await AuthService.is_staff(actor) or await AuthService.has_role(actor, Role.PROCTOR)):
+            return {}
+        requests = await self.repository.list_for_users(ids, AccommodationStatus.ARRANGED)
+        return {r.user_id: r.staff_notes or '' for r in requests}
 
     @requires_feature(FeatureFlag.ADA_ACCOMMODATIONS)
     async def update_request(

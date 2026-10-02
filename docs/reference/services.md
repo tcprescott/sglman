@@ -530,6 +530,7 @@ Per-community ADA accommodation requests. Every public method is gated by `Featu
 | `set_my_request(actor, requested, details=None)` | `AccommodationRequest \| None` | Create (members only), update details, withdraw (`requested=False`: clears details, keeps notes) or reopen. Changing details on an acknowledged/arranged request resets it to `NEW`; identical details are a no-op. Audits `accommodation.requested` / `.updated` / `.withdrawn`. |
 | `list_requests(actor, include_withdrawn=False)` | `list[AccommodationRequest]` | STAFF. Open requests oldest first, `user` prefetched. |
 | `requesting_user_ids(actor)` | `set[int]` | STAFF. Users with an open request (the Users-tab filter and column). |
+| `arranged_notes_for(actor, user_ids)` | `dict[int, str]` | Staff notes for `ARRANGED` requests among `user_ids`, for the schedule boards' icon. **Soft-gated** (`# feature-gate: exempt`): returns `{}` when the flag is off or the viewer is neither STAFF nor PROCTOR, so ungated boards can call it unconditionally. Never returns `details`. |
 | `update_request(actor, request_id, status, staff_notes)` | `AccommodationRequest` | STAFF. Sets status (not to/from `WITHDRAWN`) and notes in one save; `NotFoundError` for an unknown or other-tenant id. Audits `accommodation.status_changed` and/or `.notes_updated`. |
 
 Collaborators: `AccommodationRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
