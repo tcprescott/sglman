@@ -90,6 +90,16 @@ raising.
 
 Workers act as the system user described above.
 
+## The player's way into a room
+
+A room is only useful if its players can find it. When `RaceRoomService.create_room_for_match`
+opens a room (auto-open or staff's manual create), each opted-in player gets a DM
+with a **Join the race room** link button straight to the racetime.gg room. My
+Schedule also leads with **Your race room is open** while a room on one of the
+viewer's matches is open or running (`RacetimeRoomService.open_rooms_for_player`;
+the page checks `RACETIME_ROOMS`), each with a **Join the room** button. Before both, the room
+was reachable only from racetime.gg itself.
+
 ## Migrating a community off SahasrahBot
 
 These are one-way doors:
