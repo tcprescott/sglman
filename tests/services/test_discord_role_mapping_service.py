@@ -465,12 +465,23 @@ class TestMappingCrud:
 
 
 class TestSyncAllUsers:
-    async def test_aggregates_and_audits(self, monkeypatch):
+    async def test_aggregates_names_and_audits(self, monkeypatch):
         svc = make_service()
-        svc._provision_current_guild_members = AsyncMock(return_value=2)
-        users = [make_user(1, 100), make_user(2, 200), make_user(3, 300)]
-        monkeypatch.setattr(drms.UserRepository, 'get_all', AsyncMock(return_value=users))
-        svc.sync_user_roles = AsyncMock(side_effect=[
+        member = SimpleNamespace(id=1, discord_id=100, display_name='Member', username='m')
+        holder = SimpleNamespace(id=2, discord_id=200, display_name=None, username='holder')
+        newbie = SimpleNamespace(id=3, discord_id=300, display_name=None, username='newbie')
+        # The holder is also listed as a member: synced once, not twice.
+        svc._provision_current_guild_members = AsyncMock(
+            return_value=([newbie], [holder, newbie]),
+        )
+        monkeypatch.setattr(
+            drms.TenantMembershipService, 'list_members',
+            AsyncMock(return_value=[member, holder]),
+        )
+        tenant = SimpleNamespace(id=1, discord_guild_id=42)
+        monkeypatch.setattr(drms, 'get_current_tenant_id', lambda: 1)
+        monkeypatch.setattr(drms.TenantService, 'get_by_id', AsyncMock(return_value=tenant))
+        svc.sync_user_roles_for_tenant = AsyncMock(side_effect=[
             {'granted': ['proctor'], 'revoked': [], 'skipped': None},
             {'granted': [], 'revoked': ['proctor', 'staff'], 'skipped': None},
             {'granted': [], 'revoked': [], 'skipped': 'discord_unavailable'},
@@ -479,12 +490,21 @@ class TestSyncAllUsers:
         summary = await svc.sync_all_users(actor=make_user())
 
         assert summary == {
-            'users_processed': 3, 'users_created': 2,
+            'users_processed': 3, 'users_created': 1,
             'granted': 1, 'revoked': 2, 'skipped': 1,
+            'created': ['newbie'],
+            'changed': [
+                {'name': 'Member', 'granted': ['proctor'], 'revoked': []},
+                {'name': 'holder', 'granted': [], 'revoked': ['proctor', 'staff']},
+            ],
         }
-        assert svc.sync_user_roles.await_count == 3
-        action = svc.audit_service.write_log.await_args.args[1]
+        # Only this community: the per-tenant sync, with this tenant.
+        assert svc.sync_user_roles_for_tenant.await_count == 3
+        assert all(c.args[1] is tenant for c in svc.sync_user_roles_for_tenant.await_args_list)
+        action, details = svc.audit_service.write_log.await_args.args[1:3]
         assert action == 'role.discord_sync_bulk'
+        assert details['created_user_ids'] == [3]
+        assert details['changed_user_ids'] == [1, 2]
 
     async def test_non_staff_cannot_sync(self, monkeypatch):
         async def deny(*_a, **_kw):
@@ -496,13 +516,11 @@ class TestSyncAllUsers:
 
         monkeypatch.setattr(drms.AuthService, 'can_grant_roles', deny)
         monkeypatch.setattr(drms.AuthService, 'ensure', real_ensure)
-        get_all = AsyncMock(return_value=[])
-        monkeypatch.setattr(drms.UserRepository, 'get_all', get_all)
-
         svc = make_service()
+        svc._provision_current_guild_members = AsyncMock(return_value=([], []))
         with pytest.raises(PermissionError):
             await svc.sync_all_users(actor=make_user())
-        get_all.assert_not_awaited()
+        svc._provision_current_guild_members.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

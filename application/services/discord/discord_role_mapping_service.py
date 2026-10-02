@@ -16,7 +16,6 @@ from application.repositories.discord_tournament_grant_repository import (
     DiscordTournamentGrantRepository,
 )
 from application.repositories.tournament_repository import TournamentRepository
-from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -29,6 +28,10 @@ from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import DiscordRoleMapping, Role, RoleSource, Tenant, TournamentGrant, User
 
 logger = logging.getLogger(__name__)
+
+
+def _name(user: User) -> str:
+    return getattr(user, 'display_name', None) or getattr(user, 'username', None) or f'#{user.id}'
 
 # Audit vocabulary for a per-tournament grant, keyed by which relation it writes.
 # Reuses the actions a staff member's hand-grant already emits so the tournament's
@@ -147,15 +150,21 @@ class DiscordRoleMappingService:
         )
 
     async def sync_all_users(self, actor: User) -> dict:
-        """Force a Discord-role sync for every user with a Discord account.
+        """Force a Discord-role sync for this community, now.
 
         Applies the current mappings immediately instead of waiting for each
-        user to next log in. Reuses the defensive per-user ``sync_user_roles``,
-        so an unreachable Discord or a single bad user never aborts the run.
+        person to next log in. Covers this community's members plus every
+        account holding one of its mapped roles in its server: not every
+        account on the platform, whose other communities this staff member has
+        no say over. Reuses the defensive per-user sync, so an unreachable
+        Discord or a single bad user never aborts the run.
 
-        First provisions an account for every member of the current community's
-        guild who holds a mapped role but has never signed in, so a role handed
-        out before the mapping existed still reaches its holder.
+        First provisions an account for every member of the community's guild
+        who holds a mapped role but has never signed in, so a role handed out
+        before the mapping existed still reaches its holder.
+
+        The summary names who it created and whose roles it changed (``created``
+        and ``changed``, display names), so staff can see what one press did.
         """
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
@@ -164,28 +173,49 @@ class DiscordRoleMappingService:
 
         # Before the user list is read, so the accounts it creates are synced
         # (and handed their roles) by the loop below in the same run.
-        created = await self._provision_current_guild_members()
-        users = await UserRepository.get_all(has_discord=True)
-        summary = {
-            'users_processed': len(users),
-            'users_created': created,
+        created, holders = await self._provision_current_guild_members()
+        tenant_id = get_current_tenant_id()
+        tenant = await TenantService.get_by_id(tenant_id) if tenant_id is not None else None
+        people: dict = {}
+        for user in [*await TenantMembershipService().list_members(), *holders]:
+            if user.discord_id and not getattr(user, 'is_system', False):
+                people.setdefault(user.id, user)
+
+        summary: dict = {
+            'users_processed': len(people),
+            'users_created': len(created),
             'granted': 0,
             'revoked': 0,
             'skipped': 0,
+            'created': [_name(u) for u in created],
+            'changed': [],
         }
-        for user in users:
-            result = await self.sync_user_roles(user)
-            summary['granted'] += (
-                len(result.get('granted') or []) + len(result.get('tournament_granted') or [])
-            )
-            summary['revoked'] += (
-                len(result.get('revoked') or []) + len(result.get('tournament_revoked') or [])
-            )
+        changed_ids: List[int] = []
+        for user in people.values():
+            if tenant is None:
+                summary['skipped'] += 1
+                continue
+            result = await self.sync_user_roles_for_tenant(user, tenant)
+            granted = list(result.get('granted') or []) + list(result.get('tournament_granted') or [])
+            revoked = list(result.get('revoked') or []) + list(result.get('tournament_revoked') or [])
+            summary['granted'] += len(granted)
+            summary['revoked'] += len(revoked)
             if result.get('skipped'):
                 summary['skipped'] += 1
+            if granted or revoked:
+                changed_ids.append(user.id)
+                summary['changed'].append(
+                    {'name': _name(user), 'granted': granted, 'revoked': revoked}
+                )
 
         await self.audit_service.write_log(
-            actor, AuditActions.ROLE_DISCORD_SYNC_BULK, dict(summary)
+            actor, AuditActions.ROLE_DISCORD_SYNC_BULK,
+            {
+                **{k: summary[k] for k in
+                   ('users_processed', 'users_created', 'granted', 'revoked', 'skipped')},
+                'created_user_ids': [u.id for u in created],
+                'changed_user_ids': changed_ids,
+            },
         )
         return summary
 
@@ -205,36 +235,38 @@ class DiscordRoleMappingService:
             return user
         return None
 
-    async def _provision_current_guild_members(self) -> int:
-        """Create accounts for the current guild's mapped-role holders. Never raises.
+    async def _provision_current_guild_members(self) -> Tuple[List[User], List[User]]:
+        """Accounts for the current guild's mapped-role holders. Never raises.
 
         Scoped to the community whose staff pressed the button: its guild, its
-        mappings. Returns how many accounts were created.
+        mappings. Returns ``(created, holders)``: the accounts this made, and
+        every holder's account, new or not.
         """
         tenant_id = get_current_tenant_id()
         try:
             tenant = await TenantService.get_by_id(tenant_id) if tenant_id is not None else None
             if tenant is None or not tenant.discord_guild_id:
-                return 0
+                return [], []
             role_ids = await self._conferring_role_ids([tenant])
             if not role_ids:
-                return 0
+                return [], []
             ok, payload = await DiscordService().list_members_with_roles(
                 tenant.discord_guild_id, role_ids,
             )
         except Exception:
             logger.exception('Failed to list guild members to provision for tenant %s', tenant_id)
-            return 0
+            return [], []
         if not ok or isinstance(payload, str):
             logger.warning(
                 'Skipped provisioning guild members for tenant %s: %s', tenant.id, payload,
             )
-            return 0
+            return [], []
 
-        created = 0
+        created: List[User] = []
+        holders: List[User] = []
         for member in payload:
             try:
-                _user, was_created = await UserService().provision_from_discord_role_sync(
+                user, was_created = await UserService().provision_from_discord_role_sync(
                     member.id, member.username, member.avatar,
                 )
             except Exception:
@@ -242,8 +274,10 @@ class DiscordRoleMappingService:
                     'Failed to provision discord_id=%s for tenant %s', member.id, tenant.id,
                 )
                 continue
-            created += was_created
-        return created
+            holders.append(user)
+            if was_created:
+                created.append(user)
+        return created, holders
 
     async def _conferring_role_ids(self, tenants: Iterable[Tenant]) -> Set[int]:
         """Discord role ids whose mapping would grant something in ``tenants``.

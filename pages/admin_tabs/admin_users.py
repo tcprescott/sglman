@@ -1,7 +1,7 @@
 """Admin Users Management Page"""
 
 
-from nicegui import app, background_tasks, context, ui
+from nicegui import app, context, ui
 
 from application.services import (
     AccommodationService,
@@ -10,9 +10,12 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
+from application.services.tenant_service import TenantService
 from application.tenant_context import require_tenant_id
+from application.utils.timezone import format_local_display
 from models import Role, User
 from pages.admin_tabs.admin_accommodations import render_accommodation_panel
+from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
 from theme.tables.admin_crud import refresh_button
 from theme.tables.export import csv_export_button
@@ -30,8 +33,12 @@ _ROW_ACTIONS = '''
 '''
 
 
-async def admin_users_page(accommodations: bool = False) -> None:
-    """Members table, plus an ADA requests sub-tab when the community has the feature."""
+async def admin_users_page(accommodations: bool = False, ada_request: int | None = None) -> None:
+    """Members table, plus an ADA requests sub-tab when the community has the feature.
+
+    ``ada_request`` is the staff DM's deep link: the ADA sub-tab opens on that
+    request's dialog.
+    """
     with ui.column().classes('page-container-narrow w-full'):
         with ui.row().classes('header-row'):
             ui.label('User Management').classes('page-title')
@@ -45,28 +52,43 @@ async def admin_users_page(accommodations: bool = False) -> None:
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         service = AccommodationService()
 
+        # Counts what needs doing, not every open request: an arranged,
+        # unchanged request is done, and a count that never reaches zero can't
+        # tell staff whether anything is waiting.
         def tab_label(count: int) -> str:
             return f'ADA requests ({count})' if count else 'ADA requests'
 
         with ui.tabs().props('dense inline-label align=left no-caps').classes('w-full') as sub_tabs:
             members_tab = ui.tab('members', label='Members', icon='group')
             ada_tab = ui.tab('ada', label=tab_label(0), icon='accessible')
+        ada_tab.tooltip('New, acknowledged, and changed-since-arranged requests')
 
         async def recount() -> None:
             try:
-                ada_tab.props(f'label="{tab_label(len(await service.requesting_user_ids(actor)))}"')
+                ada_tab.props(f'label="{tab_label(await service.action_needed_count(actor))}"')
             except (ValueError, PermissionError):
                 pass
 
+        opener: dict = {}
+
+        async def open_ada(request_id: int) -> None:
+            sub_tabs.set_value(ada_tab)
+            if opener.get('open'):
+                await opener['open'](request_id)
+
         with ui.tab_panels(sub_tabs, value=members_tab).classes('w-full'):
             with ui.tab_panel(members_tab).classes('q-px-none'):
-                await _members_panel(accommodations=True, actor=actor)
+                await _members_panel(accommodations=True, actor=actor, on_open_ada=open_ada)
             with ui.tab_panel(ada_tab).classes('q-px-none'):
-                await render_accommodation_panel(on_change=recount)
+                opener['open'] = await render_accommodation_panel(on_change=recount)
         await recount()
+        if ada_request is not None:
+            await open_ada(ada_request)
 
 
-async def _members_panel(accommodations: bool, actor: User | None = None) -> None:
+async def _members_panel(
+    accommodations: bool, actor: User | None = None, on_open_ada=None,
+) -> None:
     with ui.column().classes('w-full gap-4'):
         ui.label(
             'Everyone in this community and the roles they hold. Identity is '
@@ -99,17 +121,28 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
                     ui.notify(str(e), color='warning')
                     return
                 ui.notify('Approved.' if approve else 'Declined.', color='positive')
-                join_queue.refresh()
-                await table_view.refresh()
+
+                # Through the view's _bg: refreshing the queue deletes the button
+                # whose handler this is, and the task that outlives it has lost
+                # the tenant unless it's rebound.
+                async def after_decision() -> None:
+                    await join_queue.refresh()
+                    await table_view.refresh()
+                table_view._bg(after_decision())
 
             with ui.card().classes('w-full'):
                 ui.label(f'{len(pending)} pending join request'
                          f"{'s' if len(pending) != 1 else ''}").classes('text-bold')
                 for request in pending:
                     person = request.user
-                    with ui.row().classes('items-start justify-between no-wrap w-full gap-2'):
-                        with ui.column().classes('gap-0'):
-                            ui.label(person.display_name or person.username)
+                    # Wraps on a phone: beside the two buttons the name and the
+                    # message were squeezed to a word a line.
+                    with ui.row().classes('items-start justify-between w-full gap-2'):
+                        with ui.column().classes('gap-0').style('flex: 1 1 12rem; min-width: 0'):
+                            ui.label(person.display_name or person.username) \
+                                .style('overflow-wrap: anywhere')
+                            ui.label(f'Asked {format_local_display(request.updated_at)}') \
+                                .classes('text-caption text-grey')
                             if request.message:
                                 # Plain text, never markup — the requester writes it.
                                 ui.label(request.message).classes('text-caption text-grey')
@@ -128,19 +161,30 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
         selected = {'value': []}
         ada_only = {'value': False}
         ada_ids: set[int] = set()
+        ada_requests: dict = {}
 
         async def load_ada_ids() -> None:
             if not accommodations:
                 return
             try:
-                fresh = await AccommodationService().requesting_user_ids(actor)
+                fresh = await AccommodationService().open_requests_by_user(actor)
             except (ValueError, PermissionError):
-                fresh = set()
+                fresh = {}
+            ada_requests.clear()
+            ada_requests.update(fresh)
             ada_ids.clear()
             ada_ids.update(fresh)
 
+        # The request's own status, so New and Arranged don't read the same.
         def mark_ada(row: dict) -> None:
-            row['ada'] = 'Requested' if row['id'] in ada_ids else ''
+            request = ada_requests.get(row['id'])
+            if request is None:
+                row['ada'] = ''
+                return
+            row['ada'] = STATUS_LABELS[request.status] + (
+                ', changed' if request.changed_since_arranged else ''
+            )
+            row['ada_request_id'] = request.id
 
         columns: list[dict] = [
             {'name': 'username', 'label': 'Username', 'field': 'username', 'sortable': True},
@@ -224,6 +268,8 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
                     ui.button('Add', on_click=submit, color='primary')
             dialog.open()
 
+        community = await TenantService.current_community_name()
+
         async def remove_member(row, client) -> None:
             with client:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -231,13 +277,29 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
                 if user is None:
                     ui.notify('That account no longer exists', color='negative')
                     return
+                name = user.display_name or user.username
+                with ui.dialog() as confirm, ui.card().classes('dialog-card'):
+                    ui.label(f'Remove {name} from {community}?').classes('text-h6') \
+                        .style('overflow-wrap: anywhere')
+                    ui.label(
+                        'They lose access straight away and get a Discord message '
+                        'saying so. An open ADA request of theirs is withdrawn and '
+                        'its details cleared. You can add them back later.'
+                    ).classes('text-body2')
+                    with ui.row().classes('w-full justify-end'):
+                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
+                        ui.button(
+                            'Remove', icon='person_remove',
+                            on_click=lambda: confirm.submit(True),
+                        ).props('color=negative')
+                if not await confirm:
+                    return
                 try:
                     await TenantMembershipService().remove_member(actor, user)
                 except (ValueError, PermissionError) as e:
                     ui.notify(str(e), color='warning')
                     return
-                ui.notify(f'{user.display_name or user.username} removed from this community',
-                          color='positive')
+                ui.notify(f'{name} removed from this community', color='positive')
                 await table_view.refresh()
 
         # Toolbar row — rendered before filter and table for correct visual order
@@ -283,7 +345,7 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
                     role_options[_TA_FILTER] = 'Tournament Admin'
                     role_options[_CC_FILTER] = 'Crew Coordinator'
                     role_select = (
-                        ui.select(options=role_options, value=[], multiple=True)
+                        ui.select(options=role_options, value=[], multiple=True, label='Roles')
                         .props('outlined dense use-chips clearable')
                     )
                     role_select.bind_value(selected, 'value')
@@ -307,8 +369,14 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
         )
         table_view.table.on(
             'remove_member',
-            lambda e: background_tasks.create(remove_member(e.args, context.client)),
+            lambda e: table_view._bg(remove_member(e.args, context.client)),
         )
+        if on_open_ada is not None:
+            async def open_ada(e) -> None:
+                row = e.args.get('row', e.args) if isinstance(e.args, dict) else {}
+                if row.get('ada_request_id'):
+                    await on_open_ada(row['ada_request_id'])
+            table_view.table.on('open_ada', open_ada)
         with gear_slot:
             search_input(table_view.table, placeholder='Search people…')
             # The plan's columns, not the shipped list: the export matches what
