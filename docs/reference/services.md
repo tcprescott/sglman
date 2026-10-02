@@ -259,7 +259,6 @@ One module rather than a private `_url` helper per service, because three mistak
 | `player_match(match_id, *, label='View your match')` | `DMLink \| None` | `/home/player?match=<id>` — the Player tab narrowed to one match (the stage DMs, whose recipients can't open the admin board). |
 | `player_agree(request_id, *, label='Open the request')` | `DMLink \| None` | `/home/player?agree=<id>` — the opponent's reschedule request, open with its Agree button. |
 | `crew_match(match_id, *, label='View your crew slot')` | `DMLink \| None` | `/home/my-crew?match=<id>` — a crew member's own card for that match. |
-| `race_room(url, *, label='Join the race room')` | `DMLink \| None` | The racetime.gg room URL as-is (sync; `None` for a blank URL). |
 | `community_schedule(*, label='View the schedule')` | `DMLink \| None` | `/home/schedule`, for a DM about somebody *else's* match. |
 | `home_tournaments(*, label='View tournaments')` | `DMLink \| None` | `/home/tournaments`, where signup and withdrawal happen (the signup confirmation). |
 | `admin_match(match_id, *, label='Open the match')` | `DMLink \| None` | `/admin/schedule?match_id=<id>` — where crew gets refilled. |
@@ -749,9 +748,9 @@ guards `update_match`. Feature doc:
 | Method | Returns | Description |
 |---|---|---|
 | `submit(match_id, actor, *, reason, kind=RescheduleRequestKind.RESCHEDULE, proposed_at=None)` | `MatchRescheduleRequest` | Raise a request. `PermissionError` for a non-player, or a tournament with `allow_reschedule_requests` off. `ValueError` for a match already under way, one with no time, a SpeedGaming-sourced match (its time belongs to the next sync, so nobody could approve it), a blank reason, a past proposal, or a second open request by the same player. Validates the proposal against tournament hours *now*, so the player is told rather than staff discovering it at Approve. Audits + emits `match.reschedule_requested`; DMs staff and the opponent. |
-| `record_opponent_agreement(request_id, actor)` | `MatchRescheduleRequest` | The match's *other* player agreeing. Advisory: stamped on the request, shown to staff, gates nothing. `PermissionError` for the requester themselves or an outsider. Called by the Discord Agree button, the REST route and My Schedule. |
+| `record_opponent_agreement(request_id, actor)` | `MatchRescheduleRequest` | The match's *other* player agreeing. Advisory: stamped on the request, shown to staff, gates nothing. `PermissionError` for the requester themselves or an outsider; `ValueError` unless the match has exactly two players. Called by the Discord Agree button, the REST route and My Schedule. |
 | `list_awaiting_agreement(actor)` | `list[MatchRescheduleRequest]` | Pending requests on two-player matches where `actor` is the other player, agreed or not — the web Agree card. |
-| `agreement_link_state(request_id, actor)` | `str` | `AGREE_OPEN` / `AGREE_DONE` / `AGREE_DECIDED` / `AGREE_NOT_YOURS`, for the `?agree=` deep link's stale notice. |
+| `agreement_link_state(request_id, actor)` | `str` | `AGREE_OPEN` / `AGREE_DONE` / `AGREE_DECIDED` / `AGREE_NOT_YOURS` (also for a match without exactly two players), for the `?agree=` deep link's stale notice. |
 | `withdraw(request_id, actor)` | `MatchRescheduleRequest` | The requester taking it back. Distinct from a decline so staff can tell a request they refused from one that stopped mattering. |
 | `approve(request_id, actor, *, scheduled_at=None, note=None)` | `MatchRescheduleRequest` | Grant it by making the change. `scheduled_at` lets staff counter with a different time; required when the request named none. Perform-then-record, so a move that fails never leaves a request marked approved over a schedule that did not budge. Other open requests on the match become `SUPERSEDED`. |
 | `decline(request_id, actor, note)` | `MatchRescheduleRequest` | Refuse it. The note is **required** — a refusal with no reason is what this feature replaces. DMs the requester with an "Ask again" button. |
@@ -1270,7 +1269,7 @@ Collaborators: `AuditService`, `RaceRoomProfileRepository`.
 
 ### racetime_room_service.py — RacetimeRoomService
 
-Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption) and `list_open_rooms_for_current_tenant()` the scoped equivalent for the API; `open_rooms_for_player(user)` the open or running rooms on matches that user plays, soonest first (My Schedule's **Your race room is open**; the page checks `RACETIME_ROOMS`); `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lives in [`RaceRoomService`](#race_room_servicepy--raceroomservice).
+Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption) and `list_open_rooms_for_current_tenant()` the scoped equivalent for the API; `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lives in [`RaceRoomService`](#race_room_servicepy--raceroomservice).
 
 Collaborators: `RacetimeRoomRepository`.
 
@@ -1280,7 +1279,7 @@ The racetime room lifecycle mapped onto a `Match` — the business layer both th
 
 | Method | Returns | Description |
 |---|---|---|
-| `create_room_for_match(match, *, actor=None, attach_seed=True)` | `RacetimeRoom` | Idempotent open: one room per match; requires the tournament's authorized bot (its category names the room); attaches the seed via `MatchScheduleService.generate_seed`. Emits `race_room.created` + `race_room.opened`, and DMs each opted-in player a **Join the race room** button (only when it creates the room, never on the idempotent return). |
+| `create_room_for_match(match, *, actor=None, attach_seed=True)` | `RacetimeRoom` | Idempotent open: one room per match; requires the tournament's authorized bot (its category names the room); attaches the seed via `MatchScheduleService.generate_seed`. Emits `race_room.created` + `race_room.opened` |
 | `manual_create_room(actor, match_id)` | `RacetimeRoom` | STAFF/`SYNC_ADMIN`-gated manual open, ignoring the auto toggle. |
 | `auto_open_if_eligible(match, *, now, actor=None)` | `RacetimeRoom \| None` | Open the room iff every automatic-open condition holds (auto toggle, lead window, authorized bot, linked entrants); `None` when not eligible yet. Shared by the 60 s poll and the series push (`BracketService.release_next_game`); deliberately not folded into `create_room_for_match`, which the manual override also reaches. |
 | `mark_in_progress(room, *, actor=None)` | `None` | Sets the match's `started_at`; emits `race_room.started`. |

@@ -455,7 +455,8 @@ declined. It exists so staff are not the ones chasing the other player.
 
 One column, so it only means "the other player". A match with more than two
 players skips the signal entirely rather than recording one person's yes as if
-it were everyone's.
+it were everyone's: no DM, no card, and `record_opponent_agreement` refuses it
+on every route (Discord, web, REST).
 
 ### Each side's surface
 

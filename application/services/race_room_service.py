@@ -91,49 +91,9 @@ class RaceRoomService:
         await self._audit_and_emit(
             actor, room, match, AuditActions.RACE_ROOM_OPENED, EventType.RACE_ROOM_OPENED,
         )
-        await self._notify_players_room_open(match, room)
         if attach_seed:
             await self._attach_seed(match, actor)
         return room
-
-    async def _notify_players_room_open(self, match: Match, room: RacetimeRoom) -> None:
-        """DM each player that their room is open, with a button into it.
-
-        Best-effort: the room is open whether or not Discord takes the message.
-        Players only; crew and watchers have no seat in the race.
-        """
-        try:
-            from application.repositories import MatchRepository
-            from application.services import notification_links
-            from application.services.discord import DiscordService, discord_queue
-            from application.services.tenant_service import TenantService
-            from application.utils.discord_embeds import COLOR_STARTED, match_embed, time_field
-            from application.utils.discord_messages import race_room_open_dm
-
-            link = notification_links.race_room(room.url)
-            if link is None:
-                return
-            tournament = await self._tournament_of(match)
-            players = await MatchRepository.get_players(match.id)
-            names = [p.user.preferred_name for p in players]
-            body = race_room_open_dm(
-                tournament.name, time_field(match.scheduled_at), player_names=names,
-            )
-            embed = match_embed(
-                title='🏁 Your race room is open', color=COLOR_STARTED,
-                tournament=tournament.name,
-                community_name=await TenantService.current_community_name(),
-                player_names=names, when=match.scheduled_at, url=room.url,
-            )
-            service = DiscordService()
-            for player in players:
-                user = player.user
-                if user.discord_id and user.dm_notifications:
-                    discord_queue.enqueue(service.send_dm(
-                        int(user.discord_id), body, embed=embed, link=link,
-                    ))
-        except Exception:
-            logger.exception('race room open DM failed for match %s', match.id)
 
     async def manual_create_room(self, actor: Optional[User], match_id: int) -> RacetimeRoom:
         """Create a room on demand (STAFF / SYNC_ADMIN), ignoring the auto toggle."""

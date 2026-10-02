@@ -767,3 +767,27 @@ class TestAgreeingOnTheWeb:
         user_id, request_id, kwargs = sent[0]
         assert (user_id, request_id) == (9002, request.id)
         assert kwargs['link'].url.endswith(f'/home/player?agree={request.id}')
+
+
+class TestAgreementNeedsTwoPlayers:
+    """One column records agreement; in a bigger match it would read as everyone's."""
+
+    async def test_a_third_player_cannot_stamp_agreement(self, db):
+        m, p1, p2 = await _match()
+        await MatchPlayers.create(match=m, user=await make_user(discord_id=9006, username='p3'))
+        request = await _submit(m, p1, proposed_at=_soon())
+
+        with pytest.raises(ValueError, match='two-player'):
+            await MatchRescheduleService().record_opponent_agreement(request.id, p2)
+
+        await request.refresh_from_db()
+        assert request.opponent_agreed_at is None
+
+    async def test_the_link_says_it_is_not_theirs(self, db):
+        from application.services.match_reschedule_service import AGREE_NOT_YOURS
+
+        m, p1, p2 = await _match()
+        await MatchPlayers.create(match=m, user=await make_user(discord_id=9007, username='p3'))
+        request = await _submit(m, p1, proposed_at=_soon())
+
+        assert await MatchRescheduleService().agreement_link_state(request.id, p2) == AGREE_NOT_YOURS

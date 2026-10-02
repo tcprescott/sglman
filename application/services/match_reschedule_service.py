@@ -137,7 +137,7 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         landed while staff decide.
         """
         rows = await self.repository.list_pending_against(actor.id)
-        return [row for row in rows if len(row.match.players) == 2]
+        return [row for row in rows if await self._is_head_to_head(row.match)]
 
     async def agreement_link_state(self, request_id: int, actor: Optional[User]) -> str:
         """Why a "Open the request" link would or would not offer Agree.
@@ -154,6 +154,8 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         if request.requested_by_id == actor.id:  # type: ignore[attr-defined]
             return AGREE_NOT_YOURS
         if not await self._is_player(request.match, actor):
+            return AGREE_NOT_YOURS
+        if not await self._is_head_to_head(request.match):
             return AGREE_NOT_YOURS
         if request.status is not RescheduleRequestStatus.PENDING:
             return AGREE_DECIDED
@@ -214,6 +216,19 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         except NoValuesFetched:
             rows = await self.match_repository.get_players(match.id)
             return any(p.user_id == user.id for p in rows)  # type: ignore[attr-defined]
+
+    async def _is_head_to_head(self, match: Match) -> bool:
+        """Exactly two players, the only shape opponent agreement can describe.
+
+        One column records it, so in a bigger match one player's yes would read
+        as everyone's. Enforced here rather than only in the listing, because the
+        REST route and a forwarded ``?agree=`` link reach the write directly.
+        """
+        try:
+            players = match.players  # type: ignore[attr-defined]
+            return len(players) == 2
+        except NoValuesFetched:
+            return len(await self.match_repository.get_players(match.id)) == 2
 
     @staticmethod
     def _blocking_state(match: Match) -> Optional[str]:
@@ -398,6 +413,10 @@ class MatchRescheduleService(RescheduleNotificationMixin):
             raise PermissionError("You can't agree with your own request.")
         if not await self._is_player(request.match, actor):
             raise PermissionError("Only the other player in the match can agree to this.")
+        if not await self._is_head_to_head(request.match):
+            raise ValueError(
+                "Agreement only applies to a two-player match. Staff will decide this one."
+            )
 
         if request.opponent_agreed_at is None:
             await self.repository.update(

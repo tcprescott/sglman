@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from application.repositories import RacetimeRoomRepository
 from application.repositories._tenant import scoped
-from models import Match, RaceRoomStatus, RacetimeRoom, User
+from models import Match, RaceRoomStatus, RacetimeRoom
 
 
 class RacetimeRoomService:
@@ -40,15 +40,6 @@ class RacetimeRoomService:
                 status__in=[RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS],
             )
         ).prefetch_related('tenant').order_by('id')
-
-    async def open_rooms_for_player(self, user: User) -> List[RacetimeRoom]:
-        """The open or running rooms on matches ``user`` plays in, soonest first.
-
-        For My Schedule, where a player looks for their match and, for an online
-        one, had no word about the room it is played in. A record lookup, so the
-        caller owns the ``RACETIME_ROOMS`` check, as with the other reads here.
-        """
-        return await self.repository.open_for_player(user.id)
 
     async def set_status(self, room: RacetimeRoom, status: RaceRoomStatus) -> RacetimeRoom:
         """Write a room's cached lifecycle status (tenant-scoped).
