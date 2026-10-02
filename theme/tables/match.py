@@ -19,7 +19,6 @@ from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.export import csv_export_button
 from theme.tables.hard_preset_rows import (
     apply_hard_preset_state,
-    carry_hard_preset_state,
 )
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_filters import (
@@ -37,6 +36,7 @@ from theme.tables.preferences import (
     search_input,
     sticky_header,
 )
+from theme.tables.row_state import carry_viewer_row_state
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -598,9 +598,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             self._notify_rows_changed()
             return
 
-        match_data['_watching'] = self.table.rows[idx].get('_watching', False)
-        match_data['_stream_volunteer'] = self.table.rows[idx].get('_stream_volunteer', False)
-        carry_hard_preset_state(match_data, self.table.rows[idx])
+        carry_viewer_row_state(match_data, self.table.rows[idx])
         await self._apply_accommodations([match_data])
         stage_options = self._stage_options()
         if stage_options is not None:

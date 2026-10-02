@@ -1,8 +1,9 @@
 """Projecting a :class:`HardPresetState` onto a match-table row.
 
-One place, because the row fields are written from three: the board's bulk load,
-a single row refreshed after the dialog, and ``update_row_by_id`` carrying them
-across a re-fetch. Three spellings of the same mapping is how a leak gets in —
+One place, because the row fields are written from two: the board's bulk load
+and a single row refreshed after the dialog (``update_row_by_id`` carries them
+across a re-fetch with every other viewer-stamped field, see
+:mod:`theme.tables.row_state`). Two spellings of the same mapping is how a leak gets in —
 the row dict is sent to the browser, so a field written here reaches whoever is
 looking at the board.
 
@@ -48,14 +49,3 @@ def apply_hard_preset_state(
         if state.override is not None else ''
     )
     row['_hard_name'] = state.preset_name
-
-
-def carry_hard_preset_state(target: Dict[str, Any], source: Dict[str, Any]) -> None:
-    """Copy the row's hard-preset fields across a re-fetch of that row.
-
-    The display service rebuilds a row from the match; these fields are the
-    viewer's own and are not part of it, so without this a refreshed row loses
-    its control.
-    """
-    for field in HARD_PRESET_ROW_FIELDS:
-        target[field] = source.get(field, '' if field.endswith('_name') else False)
