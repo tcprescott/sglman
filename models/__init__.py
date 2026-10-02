@@ -57,6 +57,7 @@ from .enums import (
     FeedbackStatus,
     JoinRequestStatus,
     MatchNotificationLevel,
+    MembershipSource,
     PresetOverride,
     ProviderTaskStatus,
     RaceRoomStatus,
@@ -201,6 +202,7 @@ __all__ = [
     # mcp oauth
     'McpAuthorizationCode',
     'McpOAuthClient',
+    'MembershipSource',
     # volunteer
     'PlayerAvailability',
     'Preset',

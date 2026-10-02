@@ -133,6 +133,17 @@ async def test_addable_users_never_offers_the_system_actor(staff, db):
 # ---------------------------------------------------------------------------
 
 
+async def _age_decision(request_id: int, *, days: int) -> None:
+    """Move a decision ``days`` into the past, past (or inside) the cooldown."""
+    from datetime import datetime, timedelta, timezone
+
+    from models import TenantJoinRequest
+
+    await TenantJoinRequest.filter(id=request_id).update(
+        decided_at=datetime.now(timezone.utc) - timedelta(days=days),
+    )
+
+
 @pytest.fixture
 def captured_dms(monkeypatch):
     """Collect what would have been DM'd, without a Discord connection."""
@@ -162,6 +173,7 @@ async def test_a_denied_request_can_be_reopened_not_duplicated(staff, db):
     service = TenantMembershipService()
     request = await service.request_to_join(outsider, 1, 'let me in')
     await service.deny_request(staff, request.id)
+    await _age_decision(request.id, days=8)
 
     reopened = await service.request_to_join(outsider, 1, 'asking again')
     assert reopened.id == request.id
@@ -311,3 +323,283 @@ async def test_requests_switched_off_leave_the_pending_queue_decidable(staff, ca
     assert [r.id for r in await service.list_pending()] == [request.id]
     await service.approve_request(staff, request.id)
     assert await service.is_member(outsider) is True
+
+
+# ---------------------------------------------------------------------------
+# Every way in closes the queue; the cooldown; who hears about what
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dm_log(monkeypatch):
+    """Each DM's recipient, text and button, without a Discord connection."""
+    sent: list = []
+    from application.services import discord as discord_pkg
+    from application.services.discord import DiscordService
+
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+        sent.append({'to': user_id, 'text': message, 'link': link})
+        return True, ''
+
+    monkeypatch.setattr(DiscordService, 'send_dm', fake_send)
+    pending: list = []
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', pending.append)
+
+    async def flush() -> list:
+        while pending:
+            await pending.pop(0)
+        return sent
+
+    return flush
+
+
+async def _pending_request(user_id: int):
+    from models import TenantJoinRequest
+
+    return await TenantJoinRequest.get(user_id=user_id, tenant_id=1)
+
+
+async def test_add_member_closes_a_pending_request_and_tells_them(staff, dm_log, db):
+    from models import JoinRequestStatus
+
+    outsider = await User.create(discord_id=4400, username='outsider')
+    service = TenantMembershipService()
+    await service.request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await service.add_member(staff, outsider)
+
+    request = await _pending_request(outsider.id)
+    assert request.status is JoinRequestStatus.APPROVED
+    assert request.decided_by_id == staff.id
+    assert await service.list_pending() == []
+    sent = await dm_log()
+    assert [d['to'] for d in sent] == [4400]
+    assert 'added you' in sent[0]['text']
+    assert sent[0]['link'] is not None
+
+
+async def test_a_role_grant_closes_a_pending_request_and_tells_them(staff, dm_log, db):
+    from application.services.user_service import UserService
+    from models import JoinRequestStatus
+
+    outsider = await User.create(discord_id=4401, username='outsider')
+    await TenantMembershipService().request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await UserService().grant_role(outsider, Role.PROCTOR, staff)
+
+    assert (await _pending_request(outsider.id)).status is JoinRequestStatus.APPROVED
+    sent = [d for d in await dm_log() if d['to'] == 4401]
+    assert any('request to join is closed' in d['text'] for d in sent)
+
+
+async def test_ensure_member_without_a_request_dms_nobody(dm_log, db):
+    outsider = await User.create(discord_id=4402, username='outsider')
+    await TenantMembershipService.ensure_member(outsider)
+    assert await dm_log() == []
+
+
+async def test_declining_someone_already_a_member_is_refused(staff, dm_log, db):
+    from models import JoinRequestStatus, TenantJoinRequest
+
+    outsider = await User.create(discord_id=4403, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    # A stale row from before every way in closed the queue.
+    await TenantMembership.create(user=outsider, tenant_id=1)
+    (await dm_log()).clear()
+
+    with pytest.raises(ValueError) as exc:
+        await service.deny_request(staff, request.id)
+
+    assert 'already a member' in str(exc.value)
+    assert (await TenantJoinRequest.get(id=request.id)).status is JoinRequestStatus.PENDING
+    assert await dm_log() == []
+    # Approve still clears it.
+    await service.approve_request(staff, request.id)
+    assert await service.list_pending() == []
+
+
+async def test_a_declined_requester_waits_out_the_cooldown(staff, captured_dms, db):
+    from application.services.tenant_membership_service import JOIN_REQUEST_COOLDOWN
+
+    outsider = await User.create(discord_id=4404, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.deny_request(staff, request.id)
+    captured_dms.clear()
+
+    allowed = await service.next_request_allowed_at(outsider, 1)
+    assert allowed is not None
+    with pytest.raises(ValueError) as exc:
+        await service.request_to_join(outsider, 1, 'again')
+    assert 'can’t ask again until' in str(exc.value)
+    assert captured_dms == []  # staff aren't pinged by the refused ask
+
+    await _age_decision(request.id, days=JOIN_REQUEST_COOLDOWN.days - 1)
+    assert await service.next_request_allowed_at(outsider, 1) is not None
+    await _age_decision(request.id, days=JOIN_REQUEST_COOLDOWN.days + 1)
+    assert await service.next_request_allowed_at(outsider, 1) is None
+    await service.request_to_join(outsider, 1, 'again')
+
+
+async def test_the_cooldown_is_per_community(staff, db):
+    other = await Tenant.create(name='Other', slug='other-cooldown')
+    outsider = await User.create(discord_id=4405, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    with tenant_scope(1):
+        await service.deny_request(staff, request.id)
+
+    assert await service.next_request_allowed_at(outsider, other.id) is None
+    await service.request_to_join(outsider, other.id)
+
+
+async def test_the_decline_dm_says_when_and_links_the_invite(staff, dm_log, db):
+    from application.services.system_config_service import KEY_DISCORD_INVITE_URL
+    from models import SystemConfiguration
+
+    await SystemConfiguration.create(
+        name=KEY_DISCORD_INVITE_URL, value='https://discord.gg/abc123', tenant_id=1,
+    )
+    outsider = await User.create(discord_id=4406, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await service.deny_request(staff, request.id)
+
+    [dm] = await dm_log()
+    assert dm['to'] == 4406
+    assert 'You can ask again from <t:' in dm['text']
+    assert dm['link'].url == 'https://discord.gg/abc123'
+
+
+async def test_the_decline_dm_has_no_button_without_an_invite(staff, dm_log, db):
+    outsider = await User.create(discord_id=4407, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await service.deny_request(staff, request.id)
+
+    [dm] = await dm_log()
+    assert dm['link'] is None
+
+
+async def test_removing_a_member_tells_them(staff, dm_log, db):
+    outsider = await User.create(discord_id=4408, username='outsider')
+    service = TenantMembershipService()
+    await service.add_member(staff, outsider)
+    (await dm_log()).clear()
+
+    await service.remove_member(staff, outsider)
+
+    [dm] = await dm_log()
+    assert dm['to'] == 4408
+    assert 'removed you' in dm['text']
+
+
+# ---------------------------------------------------------------------------
+# Auto-join wins: removal and decline copy say so; who closed what
+# ---------------------------------------------------------------------------
+
+
+async def _auto_join_on() -> None:
+    from application.services.system_config_service import KEY_DISCORD_AUTO_JOIN
+    from models import SystemConfiguration
+
+    await SystemConfiguration.create(name=KEY_DISCORD_AUTO_JOIN, value='true', tenant_id=1)
+    await Tenant.filter(id=1).update(discord_guild_id=555_000_000_000_000_001)
+
+
+async def test_the_removal_dm_promises_a_lockout_only_without_auto_join(staff, dm_log, db):
+    service = TenantMembershipService()
+    one = await User.create(discord_id=4500, username='one')
+    await service.add_member(staff, one)
+    (await dm_log()).clear()
+    await service.remove_member(staff, one)
+    [dm] = await dm_log()
+    assert 'no longer open its pages' in dm['text']
+
+    await _auto_join_on()
+    two = await User.create(discord_id=4501, username='two')
+    await service.add_member(staff, two)
+    (await dm_log()).clear()
+    await service.remove_member(staff, two)
+    [dm] = await dm_log()
+    assert 'no longer open' not in dm['text']
+    assert 'back in the next time you open it' in dm['text']
+
+
+async def test_the_decline_dm_leads_with_the_server_when_auto_join_is_on(staff, dm_log, db):
+    await _auto_join_on()
+    outsider = await User.create(discord_id=4502, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await service.deny_request(staff, request.id)
+
+    [dm] = await dm_log()
+    assert 'joining the server gets you in' in dm['text']
+    assert 'send a new request from <t:' in dm['text']
+    assert ':f>' in dm['text']  # date and time: the cooldown ends at a time of day
+
+
+async def test_the_cooldown_refusal_says_when(staff, captured_dms, db):
+    outsider = await User.create(discord_id=4503, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.deny_request(staff, request.id)
+    with pytest.raises(ValueError) as exc:
+        await service.request_to_join(outsider, 1)
+    assert 'until 20' in str(exc.value)  # a formatted date, e.g. "until 2026-10-09 10:00 EDT"
+
+
+async def test_a_staff_role_grant_records_the_request_it_closed(staff, dm_log, db, monkeypatch):
+    import json
+
+    from application.events import event_bus
+    from application.services.user_service import UserService
+    from models import AuditLog, JoinRequestStatus, MembershipSource
+
+    published: list = []
+    monkeypatch.setattr(event_bus, 'publish', published.append)
+    outsider = await User.create(discord_id=4504, username='outsider')
+    request = await TenantMembershipService().request_to_join(outsider, 1)
+    published.clear()
+
+    await UserService().grant_role(outsider, Role.PROCTOR, staff)
+
+    await request.refresh_from_db()
+    assert request.status is JoinRequestStatus.APPROVED
+    assert request.decided_by_id == staff.id
+    row = await AuditLog.get(action='user.role_granted', user=staff)
+    assert json.loads(row.details)['closed_request_id'] == request.id
+    approved = [e for e in published if e.event_type == 'tenant.join_approved']
+    assert len(approved) == 1 and approved[0].payload['request_id'] == request.id
+    membership = await TenantMembership.get(user=outsider, tenant_id=1)
+    assert membership.source is MembershipSource.ROLE_GRANT
+
+
+async def test_ensure_member_returns_nothing_without_a_request(db):
+    outsider = await User.create(discord_id=4505, username='outsider')
+    assert await TenantMembershipService.ensure_member(outsider) is None
+
+
+async def test_each_way_in_records_its_source(staff, captured_dms, db):
+    from models import MembershipSource
+
+    service = TenantMembershipService()
+    added = await User.create(discord_id=4506, username='added')
+    await service.add_member(staff, added)
+    asked = await User.create(discord_id=4507, username='asked')
+    request = await service.request_to_join(asked, 1)
+    await service.approve_request(staff, request.id)
+
+    rows = await service.memberships_by_user()
+    assert rows[added.id].source is MembershipSource.STAFF
+    assert rows[asked.id].source is MembershipSource.JOIN_REQUEST
+    assert rows[added.id].created_at is not None

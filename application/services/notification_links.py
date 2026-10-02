@@ -33,6 +33,7 @@ from application.utils.app_links import (
     SCHEDULE,
     USERS,
     VOL_SCHEDULE,
+    admin_ada_request_url,
     admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
@@ -221,6 +222,13 @@ async def admin_volunteer_schedule(
 async def admin_users(*, label: str = 'Review the request') -> Optional[DMLink]:
     """The Users tab, where join requests are approved or denied."""
     return await link_for(label, admin_url(USERS))
+
+
+async def admin_ada_request(
+    request_id: int, *, label: str = 'Open the request',
+) -> Optional[DMLink]:
+    """One ADA request's Update dialog, open on arrival."""
+    return await link_for(label, admin_ada_request_url(request_id))
 
 
 async def admin_qualifier_queue(

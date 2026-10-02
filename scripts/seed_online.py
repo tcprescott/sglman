@@ -40,6 +40,7 @@ from models import (
     Match,
     MatchHardPresetOptIn,
     MatchPlayers,
+    MembershipSource,
     Preset,
     PresetOverride,
     RaceRoomProfile,
@@ -631,6 +632,10 @@ async def _seed_speedgaming(
         # this community's schedule who does not belong to it, which the
         # membership-coverage audit reports as a gap.
         await TenantMembership.get_or_create(user=user, tenant=tenant)
+        if user is placeholder:
+            await TenantMembership.filter(user=user, tenant=tenant).update(
+                source=MembershipSource.IMPORT,
+            )
         await TournamentPlayers.get_or_create(tournament=tournament, user=user, tenant=tenant)
         await MatchPlayers.get_or_create(match=sourced_match, user=user, tenant=tenant)
 

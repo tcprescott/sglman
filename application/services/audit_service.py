@@ -168,6 +168,7 @@ class AuditActions:
     ACCOMMODATION_WITHDRAWN = 'accommodation.withdrawn'
     ACCOMMODATION_STATUS_CHANGED = 'accommodation.status_changed'
     ACCOMMODATION_NOTES_UPDATED = 'accommodation.notes_updated'
+    ACCOMMODATION_CHANGE_REVIEWED = 'accommodation.change_reviewed'
 
     # Equipment lending
     EQUIPMENT_CREATED = 'equipment.created'

@@ -330,3 +330,18 @@ class TestJoinRequestIsolation:
 
         assert await TenantMembership.filter(user=hopeful, tenant=tenant_a).count() == 1
         assert await TenantMembership.filter(user=hopeful, tenant=tenant_b).count() == 0
+
+
+async def test_memberships_by_user_is_this_communitys_only(two_tenants):
+    from application.services.tenant_membership_service import TenantMembershipService
+    from application.tenant_context import tenant_scope
+    from models import TenantMembership
+    from tests.factories import make_user
+
+    a, b = two_tenants
+    only_a = await make_user(discord_id=760, username='only-a')
+    await TenantMembership.create(user=only_a, tenant=a)
+    with tenant_scope(a.id):
+        assert only_a.id in await TenantMembershipService().memberships_by_user()
+    with tenant_scope(b.id):
+        assert only_a.id not in await TenantMembershipService().memberships_by_user()

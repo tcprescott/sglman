@@ -25,6 +25,7 @@ from application.services.system_config_service import (
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
 from application.tenant_context import require_tenant_id
+from application.utils.app_links import USERS, admin_url
 from application.utils.timezone import timezone_label
 from models import StationFormat, StationSide
 from pages.admin_tabs.room_tokens_section import render_room_tokens_section
@@ -287,6 +288,12 @@ async def admin_system_config_page() -> None:
             ).classes('w-full')
             ui.label('Controls the format enforced when assigning stations to match players.').classes('text-caption text-grey')
 
+        # Its own section with its own Save, beside the switches. Under the
+        # page-wide Save these sat 2,200px above the button that wrote them,
+        # and closing the door could fail on an unrelated hours error.
+        ui.separator().classes('separator-spacing')
+        ui.label('Joining this community').classes('section-title q-mt-md')
+        with ui.column().classes('wiz-form-column gap-4'):
             join_preview_input = ui.switch(
                 'Show today’s matches to non-members', value=join_preview,
             )
@@ -307,6 +314,10 @@ async def admin_system_config_page() -> None:
                 'ones already waiting stay there for you to decide. Discord '
                 'auto-join below keeps working either way. On by default.'
             ).classes('text-caption text-grey')
+            ui.button(
+                'Open the join queue', icon='manage_accounts',
+                on_click=lambda: ui.navigate.to(admin_url(USERS)),
+            ).props('flat dense no-caps color=primary').classes('self-start')
 
             discord_auto_join_input = ui.switch(
                 'Let Discord server members in without asking', value=discord_auto_join,
@@ -326,9 +337,41 @@ async def admin_system_config_page() -> None:
                 placeholder='https://discord.gg/abc123',
             ).classes('w-full')
             ui.label(
-                'Shown on the join page as a Join the Discord server button. Use an '
-                'invite that doesn’t expire. Leave blank to hide the button.'
+                'Shown on the join page as a Join the Discord server button, and on '
+                'the message a declined requester gets. Use an invite that doesn’t '
+                'expire. Leave blank to hide the button.'
             ).classes('text-caption text-grey')
+
+            async def save_join() -> None:
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                if actor is None:
+                    ui.notify('Sign in again to save these settings.', color='warning')
+                    return
+                try:
+                    invite_raw = SystemConfigService.normalize_discord_invite_url(
+                        discord_invite_input.value,
+                    )
+                    await SystemConfigService.set_raw(
+                        KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
+                    )
+                    await SystemConfigService.set_raw(
+                        KEY_JOIN_REQUESTS,
+                        'true' if join_requests_input.value else 'false', actor,
+                    )
+                    await SystemConfigService.set_raw(
+                        KEY_DISCORD_AUTO_JOIN,
+                        'true' if discord_auto_join_input.value else 'false', actor,
+                    )
+                    await SystemConfigService.set_discord_invite_url(invite_raw, actor)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                discord_invite_input.value = invite_raw
+                ui.notify('Join settings saved', color='positive')
+
+            if can_edit:
+                ui.button('Save join settings', icon='save', on_click=save_join) \
+                    .props('color=primary').classes('self-start')
 
         await _station_pool_section(can_edit)
         await render_room_tokens_section(can_edit)
@@ -394,9 +437,6 @@ async def admin_system_config_page() -> None:
                 stages_raw = int_str(stages_input.value)
                 reminder_raw = int_str(reminder_lead_input.value)
                 tiers_raw = _validate_comp_tiers(comp_tiers_input.value)
-                invite_raw = SystemConfigService.normalize_discord_invite_url(
-                    discord_invite_input.value,
-                )
 
                 hours_mapping: dict[date, tuple[str, str]] = {}
                 for d, fields in hours_inputs.items():
@@ -412,19 +452,6 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_COMP_TIERS, tiers_raw, actor)
                 await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
-                await SystemConfigService.set_raw(
-                    KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
-                )
-                await SystemConfigService.set_raw(
-                    KEY_JOIN_REQUESTS,
-                    'true' if join_requests_input.value else 'false', actor,
-                )
-                await SystemConfigService.set_raw(
-                    KEY_DISCORD_AUTO_JOIN,
-                    'true' if discord_auto_join_input.value else 'false', actor,
-                )
-                await SystemConfigService.set_discord_invite_url(invite_raw, actor)
-                discord_invite_input.value = invite_raw
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')

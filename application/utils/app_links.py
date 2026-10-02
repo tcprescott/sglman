@@ -136,3 +136,12 @@ def admin_reschedule_request_url(request_id: int) -> str:
     a row they must then find and click is the failure the link rules name.
     """
     return admin_url(SCHEDULE, reschedule_request=request_id)
+
+
+def admin_ada_request_url(request_id: int) -> str:
+    """Admin → Users with the ADA requests sub-tab open on one request's dialog.
+
+    A DM that says "this request changed" has to land on that request, not on
+    the members table two sub-tabs away from it.
+    """
+    return admin_url(USERS, ada_request=request_id)

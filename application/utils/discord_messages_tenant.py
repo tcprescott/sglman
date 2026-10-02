@@ -25,18 +25,74 @@ def join_requested_dm(community_name: str, requester_name: str, message: str = '
     return '\n\n'.join(lines)
 
 
-def join_decided_dm(community_name: str, approved: bool) -> str:
+def join_decided_dm(
+    community_name: str,
+    approved: bool,
+    ask_again_from: str = '',
+    has_invite: bool = False,
+    auto_join: bool = False,
+) -> str:
     """DM to the requester once staff decide.
 
     Sent on **both** outcomes: notification that only fires on success leaves the
-    other half of the people who asked wondering whether anyone saw it.
+    other half of the people who asked wondering whether anyone saw it. A
+    decline says when they can send a new request (``ask_again_from`` is
+    Discord ``<t:…>`` markup, so it reads in their own zone). With ``auto_join``
+    on, joining the community's Discord server gets them in regardless, so the
+    decline says that first rather than implying the wait is the only way.
     """
     if approved:
         return (
             f'Your request to join **{community_name}** was approved. '
             f'You can open the community now.'
         )
+    lines = [f"Your request to join **{community_name}** wasn't approved this time."]
+    if auto_join:
+        lines.append(
+            "Members of its Discord server get in automatically, so joining the "
+            'server gets you in.'
+        )
+        if ask_again_from:
+            lines.append(f'You can send a new request from {ask_again_from}.')
+        return ' '.join(lines)
+    if ask_again_from:
+        lines.append(f'You can ask again from {ask_again_from}.')
+    if has_invite:
+        lines.append("If you'd like to know more, ask in the community's Discord server.")
+    else:
+        lines.append("Reach out to the community if you'd like to know more.")
+    return ' '.join(lines)
+
+
+def member_added_dm(community_name: str, *, by_staff: bool) -> str:
+    """DM to someone who just became a member without being approved by the queue.
+
+    ``by_staff`` is Add Member. Otherwise it's a role grant or the Discord
+    role sync, which only sends this when it closed a request they'd filed, so
+    their "you'll get a message either way" promise is kept.
+    """
+    if by_staff:
+        return f'Staff added you to **{community_name}**. You can open the community now.'
     return (
-        f"Your request to join **{community_name}** wasn't approved this time. "
-        f"Reach out to the community if you'd like to know more."
+        f"You're now a member of **{community_name}**, so your request to join "
+        'is closed. You can open the community now.'
+    )
+
+
+def member_removed_dm(community_name: str, auto_join: bool = False) -> str:
+    """DM to someone staff removed from a community.
+
+    With Discord auto-join on, membership follows the server: they're let back
+    in the next time they open the community while they're still in it, so the
+    DM says that rather than promising a lockout that won't hold.
+    """
+    if auto_join:
+        return (
+            f'Staff removed you from **{community_name}**. It lets members of its '
+            "Discord server in automatically, so if you're still in the server "
+            "you'll be back in the next time you open it."
+        )
+    return (
+        f'Staff removed you from **{community_name}**. You can no longer open its '
+        "pages. Reach out to the community if you think that's a mistake."
     )

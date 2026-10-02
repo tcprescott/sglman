@@ -514,7 +514,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         Sets ``ada`` and ``ada_note`` on the player dicts the players cell
         renders. Nothing is set on a board that has not opted in, or for a
-        viewer the service does not admit (it returns ``{}``).
+        viewer the service does not admit (it returns ``{}``). For a proctor
+        the service withholds the note (``None``), and so does this: the
+        popup is told so server-side rather than trusting what the row says.
         """
         if not self.show_accommodations:
             return
@@ -524,6 +526,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         notes = await self.accommodation_service.arranged_notes_for(actor, user_ids)
         if not notes:
             return
+        self._ada_notes_readable = all(n is not None for n in notes.values())
         for row in rows:
             for player in row.get('players') or []:
                 if player.get('user_id') in notes:
@@ -531,17 +534,28 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                     player['ada_note'] = notes[player['user_id']]
 
     def _show_accommodation(self, args) -> None:
-        """The popup behind a player's accessibility icon: staff notes only."""
+        """The popup behind a player's accessibility icon.
+
+        Staff get the staff notes. A proctor gets that it's arranged and who to
+        ask: the notes are written under a "only staff can read these" promise.
+        """
         name = (args or {}).get('name') or 'This player'
-        note = (args or {}).get('note') or ''
+        note = (args or {}).get('note')
+        readable = getattr(self, '_ada_notes_readable', False) and note is not None
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             with ui.row().classes('items-center gap-2 no-wrap'):
                 ui.icon('accessible', size='sm').classes('text-primary')
                 ui.label(f'ADA accommodation: {name}').classes('text-h6')
-            ui.label('Staff notes').classes('subsection-title q-mt-sm')
-            # Plain text, never markup: staff wrote it.
-            ui.label(note or 'Staff marked this arranged but left no notes.') \
-                .classes('text-body2').style('white-space: pre-wrap')
+            if readable:
+                ui.label('Staff notes').classes('subsection-title q-mt-sm')
+                # Plain text, never markup: staff wrote it.
+                ui.label(note or 'Staff marked this arranged but left no notes.') \
+                    .classes('text-body2').style('white-space: pre-wrap')
+            else:
+                ui.label(
+                    f'Staff have arranged an accommodation for {name}. Check with '
+                    'staff for what it involves before the match starts.'
+                ).classes('text-body2 q-mt-sm')
             with ui.row().classes('w-full justify-end'):
                 ui.button('Close', on_click=dialog.close).props('flat')
         dialog.open()

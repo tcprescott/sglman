@@ -201,7 +201,26 @@ any role grant (the invariant above), an approved **join request**, or
 `TenantJoinRequest` is the self-serve enrollment path whose absence used to be
 the documented reason no gate existed: one row per `(user, tenant)` — a denied
 request is re-opened, never appended to — with the community's staff notified
-when it arrives and the requester notified on **both** outcomes.
+when it arrives and the requester notified on **both** outcomes. A declined
+requester waits `JOIN_REQUEST_COOLDOWN` (7 days) before the door takes another
+ask: the door says the date instead of showing the form, `request_to_join`
+refuses meanwhile, and the decline DM gives the date (Discord `<t:…:D>`) plus a
+**Join the Discord server** button when an invite is set.
+
+Every way in closes a pending request, not only the queue: Add Member (closed
+with that staff member as decider, and the person is DM'd that staff added
+them), `ensure_member` from a role grant (decider = the granting staff member),
+the Discord role sync or the SpeedGaming import (no decider), and auto-join.
+`ensure_member` DMs the person only when it closed a request of theirs, since
+the door promised a message either way, and returns the closed request so the
+caller's audit row records `closed_request_id`. Each closure publishes
+`TENANT_JOIN_APPROVED`. Every membership row records its `source`
+(`MembershipSource`) and `created_at`, shown on the Users tab as **Joined** and
+**Via**, with a "Joined in the last 7 days" filter. Decline refuses for
+someone who is already a member, so a leftover row can't tell a member they
+weren't approved; Approve still clears it. Removing a member asks for
+confirmation by name, DMs them, and withdraws their ADA request (clearing its
+details).
 
 **Discord auto-join** is the door's other way through, off by default
 (`SystemConfiguration` key `discord_auto_join`, Admin → Settings).
@@ -212,6 +231,20 @@ member is added on the spot and the page they asked for renders. It grants
 membership only, never roles (role mappings still decide those), closes any
 pending join request as approved with no decider, and audits
 `tenant.member_added` with the user as actor and `source: discord_auto_join`.
+Staff aren't DM'd (nothing needs doing); the Users tab marks the member
+**Joined via Discord**. The person lands with a sticky welcome toast saying why
+they're in (`stash_notice(..., sticky=True, tenant_id=…)`: held for that
+community's pages, shown on up to two loads so it survives the first-visit
+timezone reload, cleared on **Got it**).
+
+**With auto-join on, the server is the membership rule.** A removal or a
+decline doesn't stick against it (`auto_join_active(tenant_id)`), and the copy
+says so: the Remove confirmation tells staff the person is let back in while
+they're in the server (remove them there too), the removal DM says they'll be
+back in on their next visit, and a declined requester's door and DM lead with
+"members of its Discord server get in automatically" before the date a new web
+request opens. Without auto-join, removal locks them out and the cooldown is
+the only route back.
 It never raises, and a bot that cannot answer counts as "not known to be a
 member", so a Discord outage leaves people at the door with its Request access
 button rather than on an error page. Leaving the server does **not** remove the
@@ -221,7 +254,9 @@ validated to a `discord.gg` link) is offered on the door whether or not
 auto-join is on.
 
 **Join requests can be switched off** (`join_requests_enabled`, default on,
-Admin → Settings → Take join requests) independently of auto-join, so a
+Admin → Settings → Joining this community → Take join requests; that section
+has its own **Save join settings**, so it saves apart from the page-wide
+Save) independently of auto-join, so a
 community can admit its Discord server and nobody else. With it off the door
 drops the message box and Request access button, its copy names only the ways in
 that are still open, and `request_to_join` refuses with a `ValueError` (a door
