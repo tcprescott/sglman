@@ -151,7 +151,7 @@ Lending inventory and the checkout workflow. **Reads take any token** — the ga
 
 ### Feedback (`/api/feedback`) · `feedback.py`
 In-app feedback: submit, read your own, and the staff queue.
-- `POST /feedback` (`{message, category?, page_url?}`) · `GET /feedback/mine?limit=` — any token; a person's own submissions carry their review status.
+- `POST /feedback` (`{message, category?, page_url?}`) · `GET /feedback/mine?limit=` — any token; a person's own submissions carry their review status. Submitting needs membership of the community (or super-admin); a non-member gets `400`.
 - `GET /feedback?limit=` — the queue (Staff), mirroring the Admin → Feedback tab.
 - `POST /feedback/{id}/reviewed` (`{reviewed}`) — mark reviewed, or put it back in the queue. Reversible on purpose. The service gates this at `can_view_admin`, which is **wider than the queue's STAFF**: a tournament admin can clear a submission without being able to list them all.
 

@@ -42,6 +42,18 @@ class FeedbackService:
         except ValueError:
             return FeedbackCategory.OTHER
 
+    @staticmethod
+    async def _ensure_member(actor: User) -> None:
+        from application.services.auth_service import AuthService
+        from application.services.tenant_membership_service import TenantMembershipService
+
+        if await AuthService.is_super_admin(actor):
+            return
+        if not await TenantMembershipService().is_member(actor):
+            raise ValueError(
+                'Only members of this community can send it feedback. Ask to join it first.'
+            )
+
     @requires_feature(FeatureFlag.FEEDBACK)
     async def submit(
         self,
@@ -50,10 +62,17 @@ class FeedbackService:
         message: str,
         page_url: str,
     ) -> Feedback:
-        """Record a feedback submission from ``actor``."""
+        """Record a feedback submission from ``actor``.
+
+        Members only (a super-admin, who belongs to no community, passes): the
+        queue is this community's, and the drawer only offers the dialog to its
+        members — but UI-only gating is not gating, and this is reachable over
+        REST too.
+        """
         message = (message or '').strip()
         if not message:
             raise ValueError("Feedback message is required.")
+        await self._ensure_member(actor)
 
         category = self._coerce_category(category)
         page_url = (page_url or '')[:PAGE_URL_MAX_LENGTH]
