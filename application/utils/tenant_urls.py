@@ -68,22 +68,13 @@ def login_path(return_to: Any) -> str:
 def safe_next(path: Any) -> str:
     """A safe same-host absolute return path for a cross-host handoff, or ``/``.
 
-    Rejects anything that isn't a plain same-host absolute path so a ``next``
-    carried across a handoff can never become an open redirect when fed to
-    ``ui.navigate.to``: a non-string, a relative path, a protocol-relative
-    ``//evil.com``, a backslash form ``/\\evil.com`` (browsers normalize ``\\`` to
-    ``/`` per the WHATWG URL spec), any control/whitespace char that could smuggle
-    a second target, and auth routes (which would loop). Shared by the Discord
-    login handoff (``pages/auth.py``) and the secondary-provider link handoff
-    (``pages/_oauth_link.py``).
+    The one gate is :func:`safe_local_path`; this only supplies the ``/``
+    fallback the handoffs need. Shared by the Discord login handoff
+    (``pages/auth.py``: ``/login``, ``/oauth/start``, ``/session/claim``) and
+    the secondary-provider link handoff (``pages/_oauth_link.py``), so a
+    ``next`` carried across a host can never be looser than one that stays.
     """
-    if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
-        return '/'
-    if '\\' in path or any(c in path for c in '\r\n\t '):
-        return '/'
-    if path.split('?', 1)[0] in AUTH_ROUTES:
-        return '/'
-    return path
+    return safe_local_path(path) or '/'
 
 
 def tenant_base_url(tenant: Any) -> str:

@@ -15,6 +15,7 @@ from application.utils.tenant_urls import (
     login_path,
     return_path_for_login,
     safe_local_path,
+    safe_next,
     sanitize_return_path,
 )
 from middleware.auth import referrer_for
@@ -127,3 +128,19 @@ class TestStoredReferrer:
     def test_a_protocol_relative_referrer_is_refused_in_host_mode(self):
         """Host mode has no prefix to anchor on, so the shape check is all there is."""
         assert sanitize_return_path('', '//evil.example/x') == '/'
+
+
+class TestOneGate:
+    """The cross-host handoffs' ``safe_next`` is the same gate with a ``/``
+    fallback, so a ``next`` carried across hosts is never looser than one that
+    stays on this host."""
+
+    @pytest.mark.parametrize('path', [
+        '//evil.example', '/%2F%2Fevil.example', '/../t/other', '/%2e%2e/t/other', '/login',
+    ])
+    def test_handoff_next_refuses_what_login_refuses(self, path):
+        assert safe_local_path(path) is None
+        assert safe_next(path) == '/'
+
+    def test_a_plain_path_survives_the_handoff(self):
+        assert safe_next('/admin/schedule?match_id=1') == '/admin/schedule?match_id=1'
