@@ -62,13 +62,11 @@ def test_a_sticky_notice_survives_a_reload_until_dismissed(storage, monkeypatch)
     stash_notice('Welcome in.', color='positive', sticky=True)
 
     drain_notice()  # the first-visit timezone reload throws this page away
+    assert _KEY in storage
+    shown[-1][1]['on_dismiss']()  # Got it on the page that stayed
     drain_notice()
-    assert [m for m, _ in shown] == ['Welcome in.', 'Welcome in.']
+    assert [m for m, _ in shown] == ['Welcome in.']
     assert shown[0][1]['timeout'] is None
-
-    shown[-1][1]['on_dismiss']()  # Got it
-    drain_notice()
-    assert len(shown) == 2
     assert _KEY not in storage
 
 
@@ -78,8 +76,23 @@ def test_a_sticky_notice_stops_after_its_show_limit(storage, monkeypatch):
     stash_notice('Welcome in.', sticky=True)
     for _ in range(5):
         drain_notice()
-    assert len(shown) == 3
+    assert len(shown) == 2
     assert _KEY not in storage
+
+
+def test_a_tenant_notice_waits_for_its_own_community(storage, monkeypatch):
+    shown = []
+    monkeypatch.setattr('theme.notice.ui.notification', lambda m, **kw: shown.append(m))
+    monkeypatch.setattr('theme.notice.get_current_tenant_id', lambda: 2)
+    stash_notice('Welcome to One.', sticky=True, tenant_id=1)
+
+    drain_notice()  # a page in another community
+    assert shown == []
+    assert storage[_KEY]['message'] == 'Welcome to One.'
+
+    monkeypatch.setattr('theme.notice.get_current_tenant_id', lambda: 1)
+    drain_notice()
+    assert shown == ['Welcome to One.']
 
 
 def test_drain_with_nothing_stashed_is_a_noop(storage, notified):

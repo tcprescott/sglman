@@ -17,6 +17,7 @@ Gated by :attr:`~models.FeatureFlag.ADA_ACCOMMODATIONS`.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional, Set
 
 from application.errors import require_found
@@ -36,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 DETAILS_MAX_LENGTH = 2000
 STAFF_NOTES_MAX_LENGTH = 4000
+
+#: At most one "request opened" DM to staff per request in this window.
+STAFF_DM_WINDOW = timedelta(hours=24)
 
 OPEN_STATUSES = (
     AccommodationStatus.NEW,
@@ -288,8 +292,18 @@ class AccommodationService:
     ) -> None:
         """DM the community's staff, with a button that opens this request.
 
-        Best-effort: a Discord failure never blocks the member's save.
+        Best-effort: a Discord failure never blocks the member's save. An
+        opened request DMs at most once per :data:`STAFF_DM_WINDOW`: the profile
+        checkbox saves on every toggle, and unticking and re-ticking it shouldn't
+        DM every staff member each time.
         """
+        now = datetime.now(timezone.utc)
+        if (
+            not changed
+            and request.staff_notified_at is not None
+            and now - request.staff_notified_at < STAFF_DM_WINDOW
+        ):
+            return
         try:
             from application.repositories.user_role_repository import UserRoleRepository
             from application.services import notification_links
@@ -319,6 +333,7 @@ class AccommodationService:
                     discord_queue.enqueue(
                         service.send_dm(int(staff.discord_id), body, embed=embed, link=link)
                     )
+            await self.repository.update(request, staff_notified_at=now)
         except Exception:
             logger.exception('ADA request %s: staff notification failed', request.id)
 

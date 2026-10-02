@@ -398,6 +398,21 @@ class AsyncQualifierLiveRaceStatus(str, Enum):
     CANCELLED = 'cancelled'
 
 
+class MembershipSource(str, Enum):
+    """How someone became a member of a community (``TenantMembership.source``).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings. Null on
+    rows from before it was recorded.
+    """
+
+    STAFF = 'staff'                          # Add Member, Add User, /platform bootstrap
+    JOIN_REQUEST = 'join_request'            # an approved join request
+    DISCORD_AUTO_JOIN = 'discord_auto_join'  # in the linked Discord server
+    ROLE_GRANT = 'role_grant'                # a role granted by staff
+    DISCORD_ROLE = 'discord_role'            # a role from the Discord role sync
+    IMPORT = 'import'                        # the SpeedGaming import
+
+
 class JoinRequestStatus(str, Enum):
     """Where a request to join a community stands.
 

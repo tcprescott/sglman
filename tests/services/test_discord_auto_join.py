@@ -255,28 +255,39 @@ class TestDoorCopy:
             assert ('ask' in text.lower()) is requests
 
 
-async def test_staff_hear_about_an_auto_join(fake_discord, monkeypatch, db):
-    from models import Role, UserRole
+async def test_an_auto_join_dms_nobody_and_marks_the_membership(fake_discord, monkeypatch, db):
+    from models import MembershipSource, Role, UserRole
 
-    sent: list = []
+    queued: list = []
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', queued.append)
 
-    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
-        sent.append((user_id, message, link))
+    async def no_dm(self, *_a, **_kw):
         return True, ''
 
-    fake_discord.send_dm = fake_send
-    pending: list = []
-    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', pending.append)
+    fake_discord.send_dm = no_dm
     await _configure()
     boss = await User.create(discord_id=9200, username='boss')
     await UserRole.create(user=boss, role=Role.STAFF, tenant_id=1)
     user = await _stranger()
+    await TenantMembershipService().request_to_join(user, 1, 'hi')
+    for coro in queued:
+        coro.close()
+    queued.clear()
 
     assert await TenantMembershipService().join_via_discord(user, 1) is True
-    for coro in pending:
-        await coro
 
-    [(to, text, link)] = sent
-    assert to == 9200
-    assert 'joined' in text and 'Discord server' in text
-    assert link is not None and link.url.endswith('/admin/users')
+    # Nothing needs doing, so staff aren't DM'd; the Users tab shows it instead.
+    assert queued == []
+    membership = await TenantMembership.get(user=user, tenant_id=1)
+    assert membership.source is MembershipSource.DISCORD_AUTO_JOIN
+    request = await TenantJoinRequest.get(user=user, tenant_id=1)
+    row = await AuditLog.filter(action='tenant.member_added', user=user).first()
+    assert json.loads(row.details)['closed_request_id'] == request.id
+
+
+async def test_auto_join_active_needs_the_switch_and_a_guild(db):
+    assert await TenantMembershipService.auto_join_active(1) is False
+    await _configure(guild=False)
+    assert await TenantMembershipService.auto_join_active(1) is False
+    await Tenant.filter(id=1).update(discord_guild_id=GUILD_ID)
+    assert await TenantMembershipService.auto_join_active(1) is True

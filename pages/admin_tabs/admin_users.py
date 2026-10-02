@@ -1,5 +1,6 @@
 """Admin Users Management Page"""
 
+from datetime import datetime, timedelta, timezone
 
 from nicegui import app, context, ui
 
@@ -12,17 +13,38 @@ from application.services import (
 )
 from application.services.tenant_service import TenantService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import format_local_display
-from models import Role, User
+from application.utils.timezone import format_local_datetime, format_local_display
+from models import MembershipSource, Role, User
 from pages.admin_tabs.admin_accommodations import render_accommodation_panel
 from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button
 from theme.tables.export import csv_export_button
 from theme.tables.preferences import TableKeys, preferences_button, search_input
 from theme.tables.user import UserTableView
 
 _TA_FILTER = '_tournament_admin'
+#: The Users-tab "Joined in the last N days" filter.
+RECENT_JOIN_WINDOW = timedelta(days=7)
+
+JOIN_SOURCE_LABELS: dict = {
+    MembershipSource.STAFF: 'Added by staff',
+    MembershipSource.JOIN_REQUEST: 'Join request',
+    MembershipSource.DISCORD_AUTO_JOIN: 'Joined via Discord',
+    MembershipSource.ROLE_GRANT: 'Role grant',
+    MembershipSource.DISCORD_ROLE: 'Discord role sync',
+    MembershipSource.IMPORT: 'SpeedGaming import',
+}
+
+_JOINED_VIA_SLOT = '''<q-td :props="props">
+    <span v-if="props.row.joined_discord" class="wiz-chip wiz-chip--live" style="white-space: nowrap">
+        <q-icon name="forum" size="xs" class="q-mr-xs" />{{ props.value }}
+    </span>
+    <span v-else-if="props.value">{{ props.value }}</span>
+    <span v-else class="text-grey-7">-</span>
+</q-td>'''
 _CC_FILTER = '_crew_coordinator'
 
 _ROW_ACTIONS = '''
@@ -31,6 +53,12 @@ _ROW_ACTIONS = '''
         <q-tooltip>Remove from this community</q-tooltip>
     </q-btn>
 '''
+
+
+async def _in_client(client, coro) -> None:
+    """Await ``coro`` inside ``client``'s slot, for a handler run as a background task."""
+    with client:
+        await coro
 
 
 async def admin_users_page(accommodations: bool = False, ada_request: int | None = None) -> None:
@@ -46,6 +74,12 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
         ui.separator().classes('separator-spacing')
 
         if not accommodations:
+            if ada_request is not None:
+                # A DM link outlives the feature; say why it opens nothing.
+                ui.notify(
+                    'ADA requests aren’t turned on for this community, so that '
+                    'link has nothing to open.', color='warning',
+                )
             await _members_panel(accommodations=False)
             return
 
@@ -160,10 +194,22 @@ async def _members_panel(
 
         selected = {'value': []}
         ada_only = {'value': False}
+        recent_only = {'value': False}
         ada_ids: set[int] = set()
         ada_requests: dict = {}
+        memberships: dict = {}
+        recent_ids: set[int] = set()
 
-        async def load_ada_ids() -> None:
+        async def load_row_data() -> None:
+            fresh_members = await TenantMembershipService().memberships_by_user()
+            memberships.clear()
+            memberships.update(fresh_members)
+            cutoff = datetime.now(timezone.utc) - RECENT_JOIN_WINDOW
+            recent_ids.clear()
+            recent_ids.update(
+                uid for uid, m in fresh_members.items()
+                if m.created_at and m.created_at >= cutoff
+            )
             if not accommodations:
                 return
             try:
@@ -174,6 +220,15 @@ async def _members_panel(
             ada_requests.update(fresh)
             ada_ids.clear()
             ada_ids.update(fresh)
+
+        def decorate(row: dict) -> None:
+            membership = memberships.get(row['id'])
+            row['joined'] = format_local_datetime(membership.created_at) if membership else ''
+            source = membership.source if membership else None
+            row['joined_via'] = JOIN_SOURCE_LABELS.get(source, '') if source else ''
+            row['joined_discord'] = source is MembershipSource.DISCORD_AUTO_JOIN
+            if accommodations:
+                mark_ada(row)
 
         # The request's own status, so New and Arranged don't read the same.
         def mark_ada(row: dict) -> None:
@@ -197,6 +252,10 @@ async def _members_panel(
             # Not sortable: a comma-joined list of role labels sorts on the
             # string, which orders by whoever happens to hold 'Commentator'.
             {'name': 'roles', 'label': 'Roles', 'field': 'roles'},
+            # When and how they got in: Discord auto-join tells nobody, so this
+            # is where staff see it.
+            {'name': 'joined', 'label': 'Joined', 'field': 'joined', 'sortable': True},
+            {'name': 'joined_via', 'label': 'Via', 'field': 'joined_via', 'sortable': True},
             {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
         ]
 
@@ -210,6 +269,8 @@ async def _members_panel(
             qs = User.filter(tenant_memberships__tenant_id=tid).exclude(is_system=True)
             if ada_only['value']:
                 qs = qs.filter(id__in=list(ada_ids))
+            if recent_only['value']:
+                qs = qs.filter(id__in=list(recent_ids))
             if not sel_list:
                 return qs.distinct()
             global_roles = [v for v in sel_list if v in {r.value for r in Role}]
@@ -272,35 +333,44 @@ async def _members_panel(
 
         async def remove_member(row, client) -> None:
             with client:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 user = await UserService().get_user_by_id(row['id'])
                 if user is None:
                     ui.notify('That account no longer exists', color='negative')
                     return
                 name = user.display_name or user.username
-                with ui.dialog() as confirm, ui.card().classes('dialog-card'):
-                    ui.label(f'Remove {name} from {community}?').classes('text-h6') \
-                        .style('overflow-wrap: anywhere')
-                    ui.label(
-                        'They lose access straight away and get a Discord message '
-                        'saying so. An open ADA request of theirs is withdrawn and '
-                        'its details cleared. You can add them back later.'
-                    ).classes('text-body2')
-                    with ui.row().classes('w-full justify-end'):
-                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
-                        ui.button(
-                            'Remove', icon='person_remove',
-                            on_click=lambda: confirm.submit(True),
-                        ).props('color=negative')
-                if not await confirm:
-                    return
-                try:
-                    await TenantMembershipService().remove_member(actor, user)
-                except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
-                    return
-                ui.notify(f'{name} removed from this community', color='positive')
-                await table_view.refresh()
+                # With auto-join on, being in the Discord server is the rule:
+                # removal only lasts until they next open the community.
+                auto_join = await TenantMembershipService.auto_join_active(require_tenant_id())
+                consequence = (
+                    'They get a Discord message saying so. This community lets '
+                    'members of its Discord server in automatically, so while '
+                    'they\'re in the server they\'ll be let back in the next time '
+                    'they open it. Remove them from the server too if you want '
+                    'them out.'
+                    if auto_join else
+                    'They lose access straight away and get a Discord message '
+                    'saying so. You can add them back later.'
+                )
+
+                async def confirmed() -> None:
+                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    try:
+                        await TenantMembershipService().remove_member(actor, user)
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
+                        return
+                    ui.notify(f'{name} removed from this community', color='positive')
+                    await table_view.refresh()
+
+                ConfirmationDialog(
+                    title=f'Remove {name} from {community}?',
+                    message=(
+                        f'{consequence}\n\nAn open ADA request of theirs is '
+                        'withdrawn and its details cleared.'
+                    ),
+                    confirm_text='Remove',
+                    on_confirm=lambda: table_view._bg(_in_client(client, confirmed())),
+                ).open()
 
         # Toolbar row — rendered before filter and table for correct visual order
         with ui.row().classes('full-width'):
@@ -327,7 +397,11 @@ async def _members_panel(
                 filters_card.classes(remove='wiz-filters-open')
 
         def update_filter_badge() -> None:
-            count = len(selected.get('value') or []) + (1 if ada_only['value'] else 0)
+            count = (
+                len(selected.get('value') or [])
+                + (1 if ada_only['value'] else 0)
+                + (1 if recent_only['value'] else 0)
+            )
             filter_badge.set_text(str(count))
             filter_badge.set_visibility(count > 0)
 
@@ -349,6 +423,11 @@ async def _members_panel(
                         .props('outlined dense use-chips clearable')
                     )
                     role_select.bind_value(selected, 'value')
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Recently joined').classes('match-filter-label')
+                    recent_checkbox = ui.checkbox(
+                        f'Joined in the last {RECENT_JOIN_WINDOW.days} days',
+                    ).bind_value(recent_only, 'value')
                 if accommodations:
                     with ui.column().classes('match-filter-column'):
                         ui.label('Accessibility').classes('match-filter-label')
@@ -360,8 +439,9 @@ async def _members_panel(
         table_view = UserTableView(
             columns=columns, get_query=get_query, show_toolbar=False,
             row_actions=_ROW_ACTIONS, table_key=TableKeys.ADMIN_USERS,
-            before_refresh=load_ada_ids,
-            decorate_row=mark_ada if accommodations else None,
+            before_refresh=load_row_data,
+            decorate_row=decorate,
+            extra_slots={'body-cell-joined_via': _JOINED_VIA_SLOT},
             empty_message=(
                 'Nobody is a member of this community yet. Add Member brings an '
                 'existing account in; granting someone a role makes them a member too.'
@@ -392,6 +472,8 @@ async def _members_panel(
         # is a client event, so a bare background task loses the tenant.
         role_select.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
         role_select.on_value_change(lambda _: update_filter_badge())
+        recent_checkbox.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
+        recent_checkbox.on_value_change(lambda _: update_filter_badge())
         if accommodations:
             ada_checkbox.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
             ada_checkbox.on_value_change(lambda _: update_filter_badge())

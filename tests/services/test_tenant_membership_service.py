@@ -434,7 +434,7 @@ async def test_a_declined_requester_waits_out_the_cooldown(staff, captured_dms, 
     assert allowed is not None
     with pytest.raises(ValueError) as exc:
         await service.request_to_join(outsider, 1, 'again')
-    assert 'can’t ask again yet' in str(exc.value)
+    assert 'can’t ask again until' in str(exc.value)
     assert captured_dms == []  # staff aren't pinged by the refused ask
 
     await _age_decision(request.id, days=JOIN_REQUEST_COOLDOWN.days - 1)
@@ -499,3 +499,107 @@ async def test_removing_a_member_tells_them(staff, dm_log, db):
     [dm] = await dm_log()
     assert dm['to'] == 4408
     assert 'removed you' in dm['text']
+
+
+# ---------------------------------------------------------------------------
+# Auto-join wins: removal and decline copy say so; who closed what
+# ---------------------------------------------------------------------------
+
+
+async def _auto_join_on() -> None:
+    from application.services.system_config_service import KEY_DISCORD_AUTO_JOIN
+    from models import SystemConfiguration
+
+    await SystemConfiguration.create(name=KEY_DISCORD_AUTO_JOIN, value='true', tenant_id=1)
+    await Tenant.filter(id=1).update(discord_guild_id=555_000_000_000_000_001)
+
+
+async def test_the_removal_dm_promises_a_lockout_only_without_auto_join(staff, dm_log, db):
+    service = TenantMembershipService()
+    one = await User.create(discord_id=4500, username='one')
+    await service.add_member(staff, one)
+    (await dm_log()).clear()
+    await service.remove_member(staff, one)
+    [dm] = await dm_log()
+    assert 'no longer open its pages' in dm['text']
+
+    await _auto_join_on()
+    two = await User.create(discord_id=4501, username='two')
+    await service.add_member(staff, two)
+    (await dm_log()).clear()
+    await service.remove_member(staff, two)
+    [dm] = await dm_log()
+    assert 'no longer open' not in dm['text']
+    assert 'back in the next time you open it' in dm['text']
+
+
+async def test_the_decline_dm_leads_with_the_server_when_auto_join_is_on(staff, dm_log, db):
+    await _auto_join_on()
+    outsider = await User.create(discord_id=4502, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    (await dm_log()).clear()
+
+    await service.deny_request(staff, request.id)
+
+    [dm] = await dm_log()
+    assert 'joining the server gets you in' in dm['text']
+    assert 'send a new request from <t:' in dm['text']
+    assert ':f>' in dm['text']  # date and time: the cooldown ends at a time of day
+
+
+async def test_the_cooldown_refusal_says_when(staff, captured_dms, db):
+    outsider = await User.create(discord_id=4503, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.deny_request(staff, request.id)
+    with pytest.raises(ValueError) as exc:
+        await service.request_to_join(outsider, 1)
+    assert 'until 20' in str(exc.value)  # a formatted date, e.g. "until 2026-10-09 10:00 EDT"
+
+
+async def test_a_staff_role_grant_records_the_request_it_closed(staff, dm_log, db, monkeypatch):
+    import json
+
+    from application.events import event_bus
+    from application.services.user_service import UserService
+    from models import AuditLog, JoinRequestStatus, MembershipSource
+
+    published: list = []
+    monkeypatch.setattr(event_bus, 'publish', published.append)
+    outsider = await User.create(discord_id=4504, username='outsider')
+    request = await TenantMembershipService().request_to_join(outsider, 1)
+    published.clear()
+
+    await UserService().grant_role(outsider, Role.PROCTOR, staff)
+
+    await request.refresh_from_db()
+    assert request.status is JoinRequestStatus.APPROVED
+    assert request.decided_by_id == staff.id
+    row = await AuditLog.get(action='user.role_granted', user=staff)
+    assert json.loads(row.details)['closed_request_id'] == request.id
+    approved = [e for e in published if e.event_type == 'tenant.join_approved']
+    assert len(approved) == 1 and approved[0].payload['request_id'] == request.id
+    membership = await TenantMembership.get(user=outsider, tenant_id=1)
+    assert membership.source is MembershipSource.ROLE_GRANT
+
+
+async def test_ensure_member_returns_nothing_without_a_request(db):
+    outsider = await User.create(discord_id=4505, username='outsider')
+    assert await TenantMembershipService.ensure_member(outsider) is None
+
+
+async def test_each_way_in_records_its_source(staff, captured_dms, db):
+    from models import MembershipSource
+
+    service = TenantMembershipService()
+    added = await User.create(discord_id=4506, username='added')
+    await service.add_member(staff, added)
+    asked = await User.create(discord_id=4507, username='asked')
+    request = await service.request_to_join(asked, 1)
+    await service.approve_request(staff, request.id)
+
+    rows = await service.memberships_by_user()
+    assert rows[added.id].source is MembershipSource.STAFF
+    assert rows[asked.id].source is MembershipSource.JOIN_REQUEST
+    assert rows[added.id].created_at is not None

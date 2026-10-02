@@ -18,6 +18,7 @@ from application.services.discord.discord_link_service import connect_redirect_u
 from application.tenant_context import get_current_tenant_id, is_host_mode
 from application.utils.mocks.mock_discord import is_mock_discord
 from models import Role, TournamentGrant
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -339,38 +340,41 @@ def _show_sync_result(result: dict) -> None:
     """
     created = result.get('created') or []
     changed = result.get('changed') or []
-    with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-        ui.label('Discord roles synced').classes('text-h6')
-        ui.label(
-            f"Checked {result['users_processed']} "
-            f"{'person' if result['users_processed'] == 1 else 'people'}: "
-            f"{result['granted']} granted, {result['revoked']} revoked"
-            + (f", {result['skipped']} skipped (Discord didn't answer)" if result.get('skipped') else '')
-            + '.'
-        ).classes('text-body2')
-        if created:
-            ui.label(f'New accounts ({len(created)})').classes('subsection-title q-mt-sm')
+    changed_names = {row['name'] for row in changed}
+    with form_dialog('Discord roles synced') as dialog:
+        with ui.column().classes('q-pa-md gap-1 full-width'):
             ui.label(
-                'In the server with a mapped role, never signed in here. They are '
-                'members now.'
-            ).classes('text-caption text-grey')
-            for name in created:
-                ui.label(name).classes('text-body2').style('overflow-wrap: anywhere')
-        if changed:
-            ui.label(f'Roles changed ({len(changed)})').classes('subsection-title q-mt-sm')
-            for row in changed:
-                parts = []
-                if row['granted']:
-                    parts.append('+ ' + ', '.join(_pretty(r) for r in row['granted']))
-                if row['revoked']:
-                    parts.append('− ' + ', '.join(_pretty(r) for r in row['revoked']))
-                with ui.row().classes('items-baseline gap-2 no-wrap'):
-                    ui.label(row['name']).classes('text-body2 text-bold') \
-                        .style('overflow-wrap: anywhere')
-                    ui.label('; '.join(parts)).classes('text-caption')
-        if not created and not changed:
-            ui.label('Nothing needed changing.').classes('text-caption text-grey q-mt-sm')
-        with ui.row().classes('w-full justify-end'):
+                f"Checked {result['users_processed']} "
+                f"{'person' if result['users_processed'] == 1 else 'people'}: "
+                f"{result['granted']} granted, {result['revoked']} revoked"
+                + (f", {result['skipped']} skipped" if result.get('skipped') else '')
+                + '.'
+            ).classes('text-body2')
+            if created:
+                ui.label(f'New accounts ({len(created)})').classes('subsection-title q-mt-sm')
+                ui.label(
+                    'In the server with a mapped role, never signed in here. An '
+                    'account becomes a member once a mapping grants it something.'
+                ).classes('text-caption text-grey')
+                for name in created:
+                    ui.label(
+                        name + (' (member now)' if name in changed_names else '')
+                    ).classes('text-body2').style('overflow-wrap: anywhere')
+            if changed:
+                ui.label(f'Roles changed ({len(changed)})').classes('subsection-title q-mt-sm')
+                for row in changed:
+                    parts = []
+                    if row['granted']:
+                        parts.append('+ ' + ', '.join(_pretty(r) for r in row['granted']))
+                    if row['revoked']:
+                        parts.append('− ' + ', '.join(_pretty(r) for r in row['revoked']))
+                    with ui.row().classes('items-baseline gap-2 no-wrap'):
+                        ui.label(row['name']).classes('text-body2 text-bold') \
+                            .style('overflow-wrap: anywhere')
+                        ui.label('; '.join(parts)).classes('text-caption')
+            if not created and not changed:
+                ui.label('Nothing needed changing.').classes('text-caption text-grey q-mt-sm')
+        with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 

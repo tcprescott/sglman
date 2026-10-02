@@ -546,6 +546,11 @@ async def seed_for_tenant(
                 'decided_at': now_local() - timedelta(days=3),
             },
         )
+        # Kept fresh on every run, not just the first: the cooldown door only
+        # shows while the decline is under a week old.
+        await TenantJoinRequest.filter(
+            user=users['outsider'], tenant=tenant, status=JoinRequestStatus.DENIED,
+        ).update(decided_at=now_utc)
         print(f"    [{tenant.slug}] join requests ok")
 
 

@@ -14,10 +14,10 @@ explicitly rather than going through ``scoped(...)``.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from application.errors import NotFoundError
-from application.events import EventType
+from application.events import Event, EventType, event_bus
 from application.repositories.tenant_join_request_repository import TenantJoinRequestRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
 from application.repositories.user_repository import UserRepository
@@ -31,13 +31,19 @@ from application.utils.discord_embeds import (
     notification_embed,
 )
 from application.utils.discord_messages_tenant import (
-    auto_joined_dm,
     join_decided_dm,
     join_requested_dm,
     member_added_dm,
     member_removed_dm,
 )
-from models import JoinRequestStatus, Role, TenantJoinRequest, User
+from models import (
+    JoinRequestStatus,
+    MembershipSource,
+    Role,
+    TenantJoinRequest,
+    TenantMembership,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +62,10 @@ async def _close_pending_request(
     by Add Member, a role grant or Discord would otherwise sit in the queue,
     where a Decline would tell a member they weren't approved. ``decided_by``
     is the staff member who let them in, or ``None`` when nobody did.
+
+    The approval is published as ``TENANT_JOIN_APPROVED`` here, bare: the
+    audit row belongs to whichever path let them in (``tenant.member_added``,
+    ``user.role_granted``…), and carries ``closed_request_id``.
     """
     request = await TenantJoinRequestRepository.get(user.id, tenant_id)
     if request is None or request.status is not JoinRequestStatus.PENDING:
@@ -63,6 +73,11 @@ async def _close_pending_request(
     await TenantJoinRequestRepository.decide(
         request, JoinRequestStatus.APPROVED, decided_by, datetime.now(timezone.utc),
     )
+    event_bus.publish(Event.create(
+        EventType.TENANT_JOIN_APPROVED,
+        {'target_user_id': user.id, 'request_id': request.id, 'closed_by_membership': True},
+        decided_by,
+    ))
     return request
 
 
@@ -76,6 +91,11 @@ class TenantMembershipService:
         """Everyone who belongs to the tenant in scope, by username."""
         rows = await TenantMembershipRepository.list_for_tenant(require_tenant_id())
         return sorted((m.user for m in rows), key=lambda u: (u.username or '').lower())
+
+    async def memberships_by_user(self) -> Dict[int, TenantMembership]:
+        """This community's membership rows keyed by user id: when and how each joined."""
+        rows = await TenantMembershipRepository.list_for_tenant(require_tenant_id())
+        return {m.user_id: m for m in rows}
 
     async def addable_users(self) -> List[User]:
         """Accounts that could be added to this community but are not in it yet.
@@ -105,7 +125,7 @@ class TenantMembershipService:
         tenant_id = require_tenant_id()
         if await TenantMembershipRepository.is_member(user.id, tenant_id):
             return
-        await TenantMembershipRepository.add(user, tenant_id)
+        await TenantMembershipRepository.add(user, tenant_id, MembershipSource.STAFF)
         closed = await _close_pending_request(user, tenant_id, actor)
         details: dict = {'target_user_id': user.id}
         if closed is not None:
@@ -145,7 +165,9 @@ class TenantMembershipService:
         # Local import: AccommodationService imports this module.
         from application.services.accommodation_service import AccommodationService
         await AccommodationService().close_for_removed_member(actor, user)
-        await self._notify_member(user, member_removed_dm)
+        await self._notify_member(
+            user, member_removed_dm, auto_join=await self.auto_join_active(tenant_id),
+        )
 
     # ---- the door: requests to join --------------------------------------
 
@@ -175,9 +197,13 @@ class TenantMembershipService:
         text = (message or '').strip() or None
         if text and len(text) > 500:
             raise ValueError("That message is a bit long. Keep it under 500 characters.")
-        if await self.next_request_allowed_at(user, tenant_id) is not None:
+        allowed_at = await self.next_request_allowed_at(user, tenant_id)
+        if allowed_at is not None:
+            from application.utils.timezone import format_local_display
+
             raise ValueError(
-                'Staff declined your last request recently, so you can’t ask again yet.'
+                'Staff declined your last request recently, so you can’t ask again '
+                f'until {format_local_display(allowed_at)}.'
             )
 
         request = await TenantJoinRequestRepository.upsert_pending(user, tenant_id, text)
@@ -237,17 +263,22 @@ class TenantMembershipService:
                 if not in_guild:
                     return False
 
-                await TenantMembershipRepository.add(user, tenant_id)
+                await TenantMembershipRepository.add(
+                    user, tenant_id, MembershipSource.DISCORD_AUTO_JOIN,
+                )
                 # Closed as approved with no decider: nobody on staff decided it.
                 # The person learns they're in from the page they're opening
-                # (the gate shows a welcome), so no DM to them.
-                await _close_pending_request(user, tenant_id, None)
+                # (the gate shows a welcome), so no DM to them. Staff aren't
+                # DM'd either: nothing needs doing, and the Users tab marks the
+                # member "Joined via Discord".
+                closed = await _close_pending_request(user, tenant_id, None)
+                details: dict = {'target_user_id': user.id, 'source': 'discord_auto_join'}
+                if closed is not None:
+                    details['closed_request_id'] = closed.id
                 await self.audit_service.write_and_publish(
-                    user, AuditActions.TENANT_MEMBER_ADDED,
-                    {'target_user_id': user.id, 'source': 'discord_auto_join'},
+                    user, AuditActions.TENANT_MEMBER_ADDED, details,
                     EventType.TENANT_MEMBER_ADDED,
                 )
-                await self._notify_staff_of_auto_join(user, tenant_id)
             return True
         except Exception:
             logger.exception(
@@ -284,7 +315,9 @@ class TenantMembershipService:
 
     async def approve_request(self, actor: User, request_id: int) -> TenantJoinRequest:
         request = await self._decidable(actor, request_id)
-        await TenantMembershipRepository.add(request.user, request.tenant_id)
+        await TenantMembershipRepository.add(
+            request.user, request.tenant_id, MembershipSource.JOIN_REQUEST,
+        )
         await TenantJoinRequestRepository.decide(
             request, JoinRequestStatus.APPROVED, actor, datetime.now(timezone.utc),
         )
@@ -359,10 +392,12 @@ class TenantMembershipService:
             return
         community = await TenantService.current_community_name()
         invite = None if approved else await self._invite_link()
+        auto_join = False if approved else await self.auto_join_active(require_tenant_id())
         body = join_decided_dm(
             community, approved,
             ask_again_from='' if approved else self._ask_again_markup(),
             has_invite=invite is not None,
+            auto_join=auto_join,
         )
         embed = notification_embed(
             title='🚪 Join request ' + ('approved' if approved else 'declined'),
@@ -384,9 +419,13 @@ class TenantMembershipService:
 
     @staticmethod
     def _ask_again_markup() -> str:
-        """Discord's date markup for a week from now, so it reads in their zone."""
+        """Discord's date-and-time markup for a week from now, in their own zone.
+
+        Date and time, not date alone: the cooldown ends at the time of day the
+        request was declined.
+        """
         when = datetime.now(timezone.utc) + JOIN_REQUEST_COOLDOWN
-        return f'<t:{int(when.timestamp())}:D>'
+        return f'<t:{int(when.timestamp())}:f>'
 
     @staticmethod
     async def _invite_link():
@@ -427,28 +466,29 @@ class TenantMembershipService:
         except Exception:
             logger.exception('Membership DM to user %s failed', user.id)
 
-    async def _notify_staff_of_auto_join(self, member: User, tenant_id: int) -> None:
-        """Tell staff someone walked in through Discord. Best-effort."""
-        from application.services import notification_links
-        from application.services.discord import DiscordService, discord_queue
+    @staticmethod
+    async def auto_join_active(tenant_id: int) -> bool:
+        """Whether the linked Discord server lets its members straight in here.
+
+        When it does, being in the server *is* the membership rule: a removal or
+        a decline doesn't stick against it, and the copy around both says so.
+        Never raises; an unreadable setting reads as off.
+        """
+        from application.services.system_config_service import (
+            KEY_DISCORD_AUTO_JOIN,
+            SystemConfigService,
+        )
         from application.services.tenant_service import TenantService
 
         try:
-            community = await TenantService.community_name(tenant_id)
-            body = auto_joined_dm(community, member.display_name or member.username)
-            embed = notification_embed(
-                title='🚪 New member', color=COLOR_JOIN_REQUEST,
-                community_name=community, description=body,
-            )
-            link = await notification_links.admin_members()
-            service = DiscordService()
-            for staff in await UserRoleRepository.list_users_with_role(Role.STAFF):
-                if staff.discord_id:
-                    discord_queue.enqueue(
-                        service.send_dm(int(staff.discord_id), body, embed=embed, link=link)
-                    )
+            with tenant_scope(tenant_id):
+                if not await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN):
+                    return False
+            tenant = await TenantService.get_by_id(tenant_id)
+            return bool(tenant and tenant.discord_guild_id)
         except Exception:
-            logger.exception('Auto-join staff DM failed for user %s', member.id)
+            logger.exception('Auto-join setting lookup failed for tenant %s', tenant_id)
+            return False
 
     async def _decidable(self, actor: User, request_id: int) -> TenantJoinRequest:
         """Load a request this actor may decide, in the tenant in scope."""
@@ -466,20 +506,28 @@ class TenantMembershipService:
         return request
 
     @staticmethod
-    async def ensure_member(user: User) -> None:
+    async def ensure_member(
+        user: User,
+        *,
+        actor: Optional[User] = None,
+        source: Optional[MembershipSource] = None,
+    ) -> Optional[TenantJoinRequest]:
         """Idempotent, unaudited membership for the in-scope tenant.
 
         The hook for "a role in a tenant implies membership in it": called from a
         role grant that is audited in its own right, so a second audit row would
-        only be noise.
+        only be noise. Returns the pending join request it closed, if any, so
+        that caller's audit row can name it (``closed_request_id``); ``actor``
+        is recorded as its decider (``None`` for the Discord sync).
 
-        A pending join request is closed when this makes them a member, and
-        they're DM'd that they're in, since the door promised a message either
-        way. Nobody else is DM'd: the role sync and SpeedGaming import call this
-        for people who never asked.
+        A closed request also DMs the person that they're in, since the door
+        promised a message either way. Nobody else is DM'd: the role sync and
+        SpeedGaming import call this for people who never asked.
         """
         tenant_id = require_tenant_id()
-        if not await TenantMembershipRepository.add_returning_created(user, tenant_id):
-            return
-        if await _close_pending_request(user, tenant_id, None) is not None:
+        if not await TenantMembershipRepository.add_returning_created(user, tenant_id, source):
+            return None
+        closed = await _close_pending_request(user, tenant_id, actor)
+        if closed is not None:
             await TenantMembershipService._notify_member(user, member_added_dm, by_staff=False)
+        return closed

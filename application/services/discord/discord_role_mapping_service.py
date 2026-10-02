@@ -25,7 +25,15 @@ from application.services.tenant_membership_service import TenantMembershipServi
 from application.services.tenant_service import TenantService
 from application.services.user_service import UserService
 from application.tenant_context import get_current_tenant_id, tenant_scope
-from models import DiscordRoleMapping, Role, RoleSource, Tenant, TournamentGrant, User
+from models import (
+    DiscordRoleMapping,
+    MembershipSource,
+    Role,
+    RoleSource,
+    Tenant,
+    TournamentGrant,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -392,6 +400,7 @@ class DiscordRoleMappingService:
                 current_discord = {r.role for r in discord_rows}
 
                 granting = desired - current_all
+                closed = None
                 if granting:
                     # A role in a tenant implies membership in it. Once per sync,
                     # not once per role — the write is idempotent either way.
@@ -400,15 +409,23 @@ class DiscordRoleMappingService:
                     # next login (fail-open, as the docstring promises), which is
                     # self-healing. Granting first would instead leave roles with
                     # no membership behind — the state wave 4's gate locks out.
-                    await TenantMembershipService.ensure_member(user)
+                    closed = await TenantMembershipService.ensure_member(
+                        user, source=MembershipSource.DISCORD_ROLE,
+                    )
                 for role in granting:
                     await self.role_repository.add(
                         user, role, granted_by=None, source=RoleSource.DISCORD
                     )
+                    details: dict = {
+                        'role': role.value, 'source': RoleSource.DISCORD.value,
+                        'tenant_id': tenant.id,
+                    }
+                    # On the first grant's row: that's the one that let them in.
+                    if closed is not None:
+                        details['closed_request_id'] = closed.id
+                        closed = None
                     await self.audit_service.write_log(
-                        user,
-                        AuditActions.ROLE_DISCORD_SYNC_GRANTED,
-                        {'role': role.value, 'source': RoleSource.DISCORD.value, 'tenant_id': tenant.id},
+                        user, AuditActions.ROLE_DISCORD_SYNC_GRANTED, details,
                     )
                     summary['granted'].append(role.value)
 
@@ -476,7 +493,9 @@ class DiscordRoleMappingService:
                 continue
             # Same ordering rationale as the role grants above: membership first,
             # so a failure leaves no grant stranded without one.
-            await TenantMembershipService.ensure_member(user)
+            closed = await TenantMembershipService.ensure_member(
+                user, source=MembershipSource.DISCORD_ROLE,
+            )
             await self.tournament_repository.set_tournament_grant(
                 tournament, user, grant, granted=True
             )
@@ -487,6 +506,7 @@ class DiscordRoleMappingService:
                 {
                     'tournament_id': tournament_id, 'target_user_id': user.id,
                     'source': RoleSource.DISCORD.value, 'tenant_id': tenant.id,
+                    **({'closed_request_id': closed.id} if closed is not None else {}),
                 },
             )
             summary['tournament_granted'].append(f'{grant.value}:{tournament_id}')

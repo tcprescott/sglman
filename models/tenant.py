@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from models.enums import JoinRequestStatus
+from models.enums import JoinRequestStatus, MembershipSource
 
 
 class Tenant(Model):
@@ -55,6 +55,10 @@ class TenantMembership(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='memberships', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='tenant_memberships', on_delete=fields.CASCADE)
+    user_id: int
+    # How they got in, so staff can tell a Discord auto-join from a hand-added
+    # member; ``created_at`` is when. Null on rows from before it was recorded.
+    source = fields.CharEnumField(MembershipSource, max_length=32, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:

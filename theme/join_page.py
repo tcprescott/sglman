@@ -323,13 +323,15 @@ def render_join_page(
                 # on submit. Auto-join (if on) still works meanwhile.
                 from application.utils.timezone import format_local_display
 
+                # With auto-join on, the server is the way in and the cooldown
+                # only holds back a new web request; say that first.
+                when = format_local_display(ask_again_at)
                 ui.label(
-                    'Staff declined your request to join. You can ask again from '
-                    f'{format_local_display(ask_again_at)}.'
-                    + (
-                        ' Joining its Discord server gets you in without asking.'
-                        if preview.discord_auto_join else ''
-                    )
+                    'Staff declined your request to join. Members of its Discord '
+                    'server get in automatically, so join it and check again. You '
+                    f'can send a new request from {when}.'
+                    if preview.discord_auto_join else
+                    f'Staff declined your request to join. You can ask again from {when}.'
                 ).classes('error-message')
                 _render_discord(preview, signed_in=True)
                 _render_preview(preview)

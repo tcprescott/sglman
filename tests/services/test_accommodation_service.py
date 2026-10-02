@@ -389,3 +389,22 @@ async def test_removing_a_member_withdraws_their_request_and_clears_details(memb
     assert request.staff_notes == 'kept note'
     assert [r.id for r in await service.list_requests(staff)] == []
     assert await service.arranged_notes_for(staff, [member.id]) == {}
+
+
+async def test_reticking_within_a_day_does_not_dm_staff_again(member, staff, captured_dms):
+    from datetime import datetime, timedelta, timezone
+
+    service = AccommodationService()
+    request = await service.set_my_request(member, True, 'a')
+    await service.set_my_request(member, False)
+    await service.set_my_request(member, True, 'a')
+    await service.set_my_request(member, False)
+    await service.set_my_request(member, True, 'a')
+    assert len(await captured_dms()) == 1
+
+    await AccommodationRequest.filter(id=request.id).update(
+        staff_notified_at=datetime.now(timezone.utc) - timedelta(hours=25),
+    )
+    await service.set_my_request(member, False)
+    await service.set_my_request(member, True, 'a')
+    assert len(await captured_dms()) == 2

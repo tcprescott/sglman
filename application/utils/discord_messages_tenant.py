@@ -26,15 +26,20 @@ def join_requested_dm(community_name: str, requester_name: str, message: str = '
 
 
 def join_decided_dm(
-    community_name: str, approved: bool, ask_again_from: str = '', has_invite: bool = False,
+    community_name: str,
+    approved: bool,
+    ask_again_from: str = '',
+    has_invite: bool = False,
+    auto_join: bool = False,
 ) -> str:
     """DM to the requester once staff decide.
 
     Sent on **both** outcomes: notification that only fires on success leaves the
     other half of the people who asked wondering whether anyone saw it. A
-    decline says when they can ask again (``ask_again_from`` is Discord
-    ``<t:…>`` markup, so it reads in their own zone) and, when the community has
-    a Discord invite, points at the button that opens it.
+    decline says when they can send a new request (``ask_again_from`` is
+    Discord ``<t:…>`` markup, so it reads in their own zone). With ``auto_join``
+    on, joining the community's Discord server gets them in regardless, so the
+    decline says that first rather than implying the wait is the only way.
     """
     if approved:
         return (
@@ -42,6 +47,14 @@ def join_decided_dm(
             f'You can open the community now.'
         )
     lines = [f"Your request to join **{community_name}** wasn't approved this time."]
+    if auto_join:
+        lines.append(
+            "Members of its Discord server get in automatically, so joining the "
+            'server gets you in.'
+        )
+        if ask_again_from:
+            lines.append(f'You can send a new request from {ask_again_from}.')
+        return ' '.join(lines)
     if ask_again_from:
         lines.append(f'You can ask again from {ask_again_from}.')
     if has_invite:
@@ -66,21 +79,20 @@ def member_added_dm(community_name: str, *, by_staff: bool) -> str:
     )
 
 
-def member_removed_dm(community_name: str) -> str:
-    """DM to someone staff removed from a community."""
+def member_removed_dm(community_name: str, auto_join: bool = False) -> str:
+    """DM to someone staff removed from a community.
+
+    With Discord auto-join on, membership follows the server: they're let back
+    in the next time they open the community while they're still in it, so the
+    DM says that rather than promising a lockout that won't hold.
+    """
+    if auto_join:
+        return (
+            f'Staff removed you from **{community_name}**. It lets members of its '
+            "Discord server in automatically, so if you're still in the server "
+            "you'll be back in the next time you open it."
+        )
     return (
         f'Staff removed you from **{community_name}**. You can no longer open its '
         "pages. Reach out to the community if you think that's a mistake."
-    )
-
-
-def auto_joined_dm(community_name: str, member_name: str) -> str:
-    """DM to staff when someone walks in through Discord auto-join.
-
-    The other ways in already reach staff (a request DMs them, Add Member is
-    them). Without this, auto-join was the one that didn't.
-    """
-    return (
-        f'**{member_name}** joined **{community_name}** automatically, as a member '
-        "of its Discord server. They hold no roles yet."
     )

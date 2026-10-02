@@ -197,9 +197,8 @@ async def enforce_membership(
         name = tenant.name if tenant else 'this community'
         stash_notice(
             f'Welcome to {name}. You’re a member now because you’re in its '
-            'Discord server. Leaving the server later won’t remove you; ask its '
-            'staff if you want to leave.',
-            color='positive', sticky=True,
+            'Discord server.',
+            color='positive', sticky=True, tenant_id=tenant_id,
         )
         return False
 

@@ -214,11 +214,6 @@ async def admin_ada_request(
     return await link_for(label, admin_ada_request_url(request_id))
 
 
-async def admin_members(*, label: str = 'Open the members list') -> Optional[DMLink]:
-    """The Users tab, for a DM that reports someone joined rather than asks."""
-    return await link_for(label, admin_url(USERS))
-
-
 async def admin_qualifier_queue(
     qualifier_id: int, *, label: str = 'Open the review queue',
 ) -> Optional[DMLink]:

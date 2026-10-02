@@ -20,17 +20,27 @@ no single universal hook — ``protected_page``'s wrapper is not one, because
 ``/home`` is a bare ``@ui.page``.
 """
 
+from typing import Optional
+
 from nicegui import app, ui
+
+from application.tenant_context import get_current_tenant_id
 
 __all__ = ['drain_notice', 'stash_notice']
 
 # One key, one slot, last write wins. A queue would let two notices pile up
 # across an aborted redirect chain and surface a stale one on a later page.
 _KEY = 'pending_notice'
-_STICKY_SHOWS = 3
+_STICKY_SHOWS = 2
 
 
-def stash_notice(message: str, *, color: str = 'warning', sticky: bool = False) -> None:
+def stash_notice(
+    message: str,
+    *,
+    color: str = 'warning',
+    sticky: bool = False,
+    tenant_id: Optional[int] = None,
+) -> None:
     """Queue a toast for the next page this browser loads.
 
     For the notify-then-redirect case only: ``ui.notify`` followed by
@@ -40,13 +50,15 @@ def stash_notice(message: str, *, color: str = 'warning', sticky: bool = False) 
     it's dismissed, for a message too long to read in five seconds, and keeps
     it stashed until then (for up to :data:`_STICKY_SHOWS` page loads): a
     browser's first visit reloads once to set the timezone cookie, which would
-    otherwise take the toast with it.
+    otherwise take the toast with it. ``tenant_id`` holds it for that
+    community's pages: a welcome to one community must not surface on another.
     """
     if not message:
         return
     app.storage.user[_KEY] = {
         'message': message, 'color': color, 'sticky': sticky,
         'shows': _STICKY_SHOWS if sticky else 1,
+        'tenant_id': tenant_id,
     }
 
 
@@ -61,6 +73,10 @@ def drain_notice() -> None:
     except Exception:
         return
     if not isinstance(notice, dict):
+        return
+    wanted = notice.get('tenant_id')
+    if wanted is not None and wanted != get_current_tenant_id():
+        app.storage.user[_KEY] = notice
         return
     message = notice.get('message')
     if not message:

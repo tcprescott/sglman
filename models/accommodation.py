@@ -38,6 +38,9 @@ class AccommodationRequest(Model):
     # request clears both.
     changed_since_arranged = fields.BooleanField(default=False)
     arranged_details = fields.TextField(null=True)
+    # When staff were last DM'd that this request opened, so ticking the box
+    # off and on again doesn't DM every staff member each time.
+    staff_notified_at = fields.DatetimeField(null=True)
     staff_notes = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

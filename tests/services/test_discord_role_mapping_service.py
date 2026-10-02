@@ -14,7 +14,7 @@ import pytest
 from application.services.discord import discord_role_mapping_service as drms
 from application.services.discord.discord_guild_ops import GuildMember
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
-from models import Role, RoleSource, TournamentGrant
+from models import MembershipSource, Role, RoleSource, TournamentGrant
 from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -84,7 +84,7 @@ def patch_deps(monkeypatch):
         )
         monkeypatch.setattr(drms, 'DiscordService', lambda: fake_discord)
         # "A role implies membership" writes a real row; this suite has no DB.
-        membership = AsyncMock()
+        membership = AsyncMock(return_value=None)
         monkeypatch.setattr(
             drms.TenantMembershipService, 'ensure_member', membership,
         )
@@ -114,7 +114,7 @@ class TestSyncUserRoles:
         )
         # A role in a tenant implies membership in it — the sync is a role-grant
         # path like any other.
-        membership.assert_awaited_once_with(user)
+        membership.assert_awaited_once_with(user, source=MembershipSource.DISCORD_ROLE)
         svc.role_repository.remove.assert_not_awaited()
         assert summary['granted'] == ['proctor']
         assert summary['revoked'] == []
@@ -233,7 +233,7 @@ class TestSyncTournamentGrants:
         svc.grant_repository.add.assert_awaited_once_with(
             user, tournament, TournamentGrant.TOURNAMENT_ADMIN,
         )
-        membership.assert_awaited_once_with(user)
+        membership.assert_awaited_once_with(user, source=MembershipSource.DISCORD_ROLE)
         assert summary['tournament_granted'] == ['tournament_admin:7']
         action = svc.audit_service.write_log.await_args.args[1]
         assert action == 'tournament.admin_granted'

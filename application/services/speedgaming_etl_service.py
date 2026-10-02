@@ -48,7 +48,7 @@ from application.utils.clients.speedgaming_client import (
     get_speedgaming_client,
 )
 from application.utils.hashing import stable_content_hash
-from models import Match, SpeedGamingEventLink, SyncStatus, User
+from models import Match, MembershipSource, SpeedGamingEventLink, SyncStatus, User
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +276,9 @@ class SpeedGamingETLService:
         import itself is audited.
         """
         user = await self._resolve_sg_user(player, actor=actor)
-        await TenantMembershipService.ensure_member(user)
+        await TenantMembershipService.ensure_member(
+            user, actor=actor, source=MembershipSource.IMPORT,
+        )
         return user
 
     async def _resolve_sg_user(self, player: Dict[str, Any], *, actor: User) -> User:
