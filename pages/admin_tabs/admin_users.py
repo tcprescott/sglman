@@ -252,8 +252,30 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
             # table_view exists.
             refresh_button(lambda: table_view.refresh())
 
+        # Below 1024px the CSS collapses .match-filters-card until it carries
+        # .wiz-filters-open, so phones need this toggle (hidden on desktop) or
+        # the filters are unreachable — the match board's pattern.
+        filters_open = {'value': False}
+
+        def toggle_filters() -> None:
+            filters_open['value'] = not filters_open['value']
+            if filters_open['value']:
+                filters_card.classes(add='wiz-filters-open')
+            else:
+                filters_card.classes(remove='wiz-filters-open')
+
+        def update_filter_badge() -> None:
+            count = len(selected.get('value') or []) + (1 if ada_only['value'] else 0)
+            filter_badge.set_text(str(count))
+            filter_badge.set_visibility(count > 0)
+
+        with ui.row().classes('wiz-filter-toggle full-width items-center'):
+            ui.button('Filters', icon='filter_list', on_click=toggle_filters).props('flat color=primary')
+            filter_badge = ui.badge('0').props('color=primary')
+            filter_badge.set_visibility(False)
+
         # Filter card — between toolbar and table, matching match-filters-card pattern
-        with ui.card().classes('match-filters-card'):
+        with ui.card().classes('match-filters-card') as filters_card:
             with ui.row().classes('match-filter-row'):
                 with ui.column().classes('match-filter-column'):
                     ui.label('Filter by Role').classes('match-filter-label')
@@ -301,8 +323,10 @@ async def _members_panel(accommodations: bool, actor: User | None = None) -> Non
         # Same rebind as the tab-switch below: an 'update:model-value' handler
         # is a client event, so a bare background task loses the tenant.
         role_select.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
+        role_select.on_value_change(lambda _: update_filter_badge())
         if accommodations:
             ada_checkbox.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
+            ada_checkbox.on_value_change(lambda _: update_filter_badge())
 
         # Route through the view's _bg so refresh rebinds the tenant captured at
         # build — the selected_tab handler runs detached, and _format_user_row
