@@ -46,6 +46,7 @@ depend on — do not change):
 
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_slots import (
+    MY_ACTIONS_COLUMN,
     SEED_ROLLABLE,
     STAGE_VALUE_JS,
     STREAM_VOLUNTEER_ACTIONABLE,
@@ -89,7 +90,8 @@ _PLAYERS = '''
                         {{ player.name }}<span v-if="player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
-                    <q-btn v-if="player.ada" icon="accessible" color="primary" size="xs" dense flat round
+                    <q-btn v-if="player.ada" icon="accessible" color="primary" size="sm" dense flat round
+                           class="wiz-tap-24"
                            @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})">
                         <q-tooltip>ADA accommodation arranged. Tap for staff notes.</q-tooltip>
                     </q-btn>
@@ -98,9 +100,9 @@ _PLAYERS = '''
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note"> (auto)</span>
                     <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"
-                           icon="check" color="primary" size="xs" dense flat
+                           icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
                            @click="$parent.$emit('acknowledge_match', props.row)">
-                        <q-tooltip>Acknowledge</q-tooltip>
+                        <q-tooltip>Confirm you've seen this match and will play it</q-tooltip>
                     </q-btn>
                 </div>
             </template>
@@ -159,7 +161,7 @@ _CREW_DETAIL = '''
                         </q-icon>
                         <span v-if="__CREW__ && idx < props.row.__KEY__.length - 1">,</span>
                         <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
-                               icon="check" color="primary" size="sm" dense flat no-caps label="Acknowledge"
+                               icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
                                @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
                             <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
                         </q-btn>
@@ -358,9 +360,12 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
 
     ia = 'true' if admin_controls else 'false'
     did = f"'{discord_id}'" if discord_id else 'null'
-    watch_js = 'true' if 'watch' in present else 'false'
-    volunteer_js = 'true' if 'stream_volunteer' in present else 'false'
-    hard_js = 'true' if 'hard_preset' in present else 'false'
+    # The desktop's one "Your actions" cell stands for all four of the player's
+    # own controls, so the card offers each of them wherever that column shows.
+    mine = MY_ACTIONS_COLUMN in present
+    watch_js = 'true' if 'watch' in present or mine else 'false'
+    volunteer_js = 'true' if 'stream_volunteer' in present or mine else 'false'
+    hard_js = 'true' if 'hard_preset' in present or mine else 'false'
 
     # Headline (scheduled time + optional state chip)
     headline = (
@@ -433,8 +438,8 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     # Hoisted above the caption/detail rows when the caller asked for it, with a
     # sibling class that flips the row's divider from top to bottom.
     actions = (_ACTIONS.replace('__PRESENT__', _ACTIONS_PRESENT)
-               if (admin_controls or 'watch' in present or 'stream_volunteer' in present
-                   or 'hard_preset' in present)
+               if (admin_controls or mine or 'watch' in present
+                   or 'stream_volunteer' in present or 'hard_preset' in present)
                else '')
     act_cls = ('mgc-actions mgc-actions--first row items-center' if actions_first
                else 'mgc-actions row items-center')

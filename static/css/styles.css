@@ -1112,6 +1112,15 @@ body.body--dark {
     text-decoration: underline;
 }
 
+/* Bounded and wrapping: "Bracket · Game 1 of 3 · 1-0" on one line made the
+   Tournament column the widest on the board and pushed the crew Sign up
+   buttons past the table's right edge at 1440. */
+.cell-tournament,
+.cell-bracket-link {
+    max-width: 12rem;
+    white-space: normal;
+}
+
 /* NiceGUI ui.link() defaults to blue — adopt the brand link color */
 .nicegui-link {
     color: var(--wiz-link);
@@ -1806,6 +1815,24 @@ body.body--dark {
     padding: 4px;
     min-height: 0;
     min-width: 0;
+}
+
+/* The player's own controls on My Schedule (match_slots.MY_ACTIONS_SLOT):
+   labelled buttons that wrap inside a bounded cell rather than four icon
+   columns running off the table's right edge. */
+.wiz-my-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    max-width: 220px;
+}
+
+/* WCAG 2.5.8's 24 px minimum for an icon-only control that is otherwise drawn
+   at a dense, small size (the ADA marker beside a player's name). */
+.wiz-tap-24 {
+    min-width: 24px;
+    min-height: 24px;
 }
 
 /* Sticky header, opt-in per table (theme/tables/preferences.sticky_header).

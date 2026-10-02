@@ -23,7 +23,11 @@ from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.tables.match import MatchTableView
-from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.match_slots import (
+    MY_ACTIONS_COLUMN,
+    SEED_SLOT_READONLY,
+    state_readonly_slot,
+)
 from theme.tables.preferences import TableKeys
 
 
@@ -350,22 +354,15 @@ async def render_player_dashboard(
             {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             # Not sortable: a joined roster of names.
             {'name': 'players', 'label': 'Players', 'field': 'players'},
+            # Beside Players, because these are the only things on the row this
+            # viewer can act on: Ask to change, the harder-settings choice, the
+            # stream offer and Watch, labelled, in one cell. As four icon columns
+            # after Stage and Seed they started at the table's right edge at 1440
+            # (match_slots.MY_ACTIONS_SLOT).
+            {'name': MY_ACTIONS_COLUMN, 'label': 'Your actions', 'field': MY_ACTIONS_COLUMN},
             {'name': 'stage', 'label': 'Stage', 'field': 'stage',
              'sortable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-            # Beside Watch, because both are this viewer acting on their own
-            # behalf rather than reading the match. Offering is advisory — the
-            # cell's tooltip and the confirmation both say so.
-            {'name': 'stream_volunteer', 'label': 'Stream', 'field': 'stream_volunteer'},
-            # Beside Stream for the same reason: this viewer acting on their own
-            # behalf rather than reading the match.
-            {'name': 'reschedule', 'label': 'Change', 'field': 'reschedule'},
-            # Beside the other two for the same reason, and last of the three
-            # because it is the only one that is nobody else's business: the
-            # cell renders nothing at all unless this viewer's tournament offers
-            # a harder preset and this viewer is playing the match.
-            {'name': 'hard_preset', 'label': 'Settings', 'field': 'hard_preset'},
-            {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
         extra_slots = {

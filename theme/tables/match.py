@@ -28,7 +28,11 @@ from theme.tables.match_filters import (
 )
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
-from theme.tables.match_slots import CANDIDATE_STAGE, register_body_slots
+from theme.tables.match_slots import (
+    CANDIDATE_STAGE,
+    MY_ACTIONS_COLUMN,
+    register_body_slots,
+)
 from theme.tables.preferences import (
     customize_table,
     preferences_button,
@@ -536,6 +540,12 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                 ui.button('Close', on_click=dialog.close).props('flat')
         dialog.open()
 
+    def _shows_column(self, name: str) -> bool:
+        """Whether the board renders ``name``'s control, on its own or inside
+        the player's combined "Your actions" cell (``MY_ACTIONS_COLUMN``)."""
+        names = {c.get('name') for c in self.columns}
+        return name in names or MY_ACTIONS_COLUMN in names
+
     async def _fetch_hard_preset_states(self, rows) -> dict:
         """This viewer's own hard-preset state for every visible row, in bulk.
 
@@ -543,7 +553,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         schedule and the proctor station render matches nobody is choosing
         settings on, so the queries would buy nothing.
         """
-        if not any(c.get('name') == 'hard_preset' for c in self.columns):
+        if not self._shows_column('hard_preset'):
             return {}
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
@@ -565,7 +575,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         schedule, the proctor station and the home schedule all render matches
         and none of them offers the ask, so the two queries would buy nothing.
         """
-        if not any(c.get('name') == 'reschedule' for c in self.columns):
+        if not self._shows_column('reschedule'):
             return set(), set()
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
