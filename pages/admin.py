@@ -84,6 +84,7 @@ def build_admin_tabs(
     reschedule_request: int | None = None,
     qualifier: int | None = None,
     qualifier_tab: str | None = None,
+    ada_request: int | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -144,7 +145,9 @@ def build_admin_tabs(
     if is_staff:
         tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations',
                      'content': (admin_users_page, (),
-                                 {'accommodations': FeatureFlag.ADA_ACCOMMODATIONS in live})})
+                                 {'accommodations': FeatureFlag.ADA_ACCOMMODATIONS in live,
+                                  # The ADA staff DMs' button: opens that request.
+                                  'ada_request': ada_request})})
     if is_staff or is_ta_any:
         tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
     if is_staff or access.is_stream_manager:
@@ -224,6 +227,7 @@ def create() -> None:
         reschedule_request: int | None = None,
         qualifier: int | None = None,
         tab: str | None = None,
+        ada_request: int | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -300,7 +304,7 @@ def create() -> None:
         tabs = build_admin_tabs(
             access, live, reports_kwargs, setup_steps, base_path,
             match_id=match_id, day=day, reschedule_request=reschedule_request,
-            qualifier=qualifier, qualifier_tab=tab,
+            qualifier=qualifier, qualifier_tab=tab, ada_request=ada_request,
         )
 
         base_layout = BaseLayout(

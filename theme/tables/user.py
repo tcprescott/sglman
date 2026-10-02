@@ -75,9 +75,12 @@ class UserTableView:
             <span v-else>-</span>
         </q-td>''')
         self.table.add_slot('body-cell-ada', '''<q-td :props="props">
-            <q-icon v-if="props.value" name="accessible" color="primary" size="sm">
-                <q-tooltip>Has an open ADA accommodation request</q-tooltip>
-            </q-icon>
+            <a v-if="props.value" href="#" class="table-link row items-center no-wrap q-gutter-x-xs"
+               @click.prevent="$parent.$emit('open_ada', props.row)">
+                <q-icon name="accessible" color="primary" size="sm" />
+                <span>{{ props.value }}</span>
+                <q-tooltip>Open this ADA request</q-tooltip>
+            </a>
         </q-td>''')
         self.table.add_slot('body-cell-challonge', '''<q-td :props="props">
             <span v-if="props.value">{{ props.value }}</span>
@@ -124,9 +127,15 @@ class UserTableView:
     def render_grid_slot(self):
         grid_fields = []
         for col in self.columns:
+            # An unlabelled column (the row actions) has its own row below the
+            # fields; as a field it rendered as a lone ":".
+            if not col.get('label'):
+                continue
             field = { 'label': col.get('label', col.get('name', '')), 'key': col.get('name', '') }
             if field['key'] == 'username':
                 field['event'] = 'edit_user'
+            if field['key'] == 'ada':
+                field['event'] = 'open_ada'
             if field['key'] == 'is_active':
                 field['bool'] = True
             grid_fields.append(field)
@@ -141,15 +150,15 @@ class UserTableView:
                 {js_field_array}
             ]" :key="field.key" class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
-                <div class="col-8">
-                <template v-if="field.event">
-                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
+                <div class="col-8" style="overflow-wrap: anywhere; min-width: 0">
+                <template v-if="field.event && props.row[field.key]">
+                    <a href="#" @click.prevent="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
                 </template>
                 <template v-else-if="field.bool">
                     {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
                 </template>
                 <template v-else>
-                    {{{{ props.row[field.key] }}}}
+                    {{{{ props.row[field.key] || '-' }}}}
                 </template>
                 </div>
             </div>

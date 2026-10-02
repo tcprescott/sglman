@@ -13,7 +13,9 @@ converge an absence, and a stale membership from an earlier fixture layout would
 quietly stop them proving anything.
 """
 
-from models import Role, RoleSource, Tenant, TenantMembership, User, UserRole
+from datetime import datetime, timedelta, timezone
+
+from models import MembershipSource, Role, RoleSource, Tenant, TenantMembership, User, UserRole
 
 
 async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
@@ -32,6 +34,32 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
             await TenantMembership.filter(user=u, tenant=tenant).delete()
             continue
         await TenantMembership.get_or_create(user=u, tenant=tenant)
+
+    # How and when each joined, for the Users tab's Joined/Via columns and its
+    # "Joined in the last 7 days" filter. Re-applied every run, relative to now:
+    # everyone joined a month ago by staff hand, bar volunteer_only (an approved
+    # join request, three days ago) and local_only on 'default' (Discord
+    # auto-join, today). So a fresh seed shows the Discord marker and a filter
+    # that narrows to two people rather than everyone.
+    now = datetime.now(timezone.utc)
+    await TenantMembership.filter(tenant=tenant).update(
+        source=MembershipSource.STAFF, created_at=now - timedelta(days=30),
+    )
+    if 'volunteer_only' in users:
+        await TenantMembership.filter(tenant=tenant, user=users['volunteer_only']).update(
+            source=MembershipSource.JOIN_REQUEST, created_at=now - timedelta(days=3),
+        )
+    # Two role holders carry the role paths, so each source shows somewhere.
+    for uname, source in (
+        ('proctor_only', MembershipSource.ROLE_GRANT),
+        ('sm_only', MembershipSource.DISCORD_ROLE),
+    ):
+        if uname in users:
+            await TenantMembership.filter(tenant=tenant, user=users[uname]).update(source=source)
+    if 'local_only' in users and tenant.slug == 'default':
+        await TenantMembership.filter(tenant=tenant, user=users['local_only']).update(
+            source=MembershipSource.DISCORD_AUTO_JOIN, created_at=now - timedelta(hours=2),
+        )
 
     # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
     # qualified + available pool seeded further down so the Vol. Roster tab and

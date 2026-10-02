@@ -15,7 +15,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.tenant_context import require_tenant_id
-from models import Role, RoleSource, Tournament, TournamentPlayers, User
+from models import MembershipSource, Role, RoleSource, Tournament, TournamentPlayers, User
 
 
 def _reject_platform_role(role: Role, verb: str) -> None:
@@ -368,7 +368,9 @@ class UserService:
         # Staff creating an account from their own admin area mean it for their
         # own community — without this the new user would not appear in the very
         # table they were created from.
-        await TenantMembershipService.ensure_member(new_user)
+        await TenantMembershipService.ensure_member(
+            new_user, actor=actor, source=MembershipSource.STAFF,
+        )
         await self.audit_service.write_log(
             actor,
             AuditActions.USER_CREATED,
@@ -453,13 +455,15 @@ class UserService:
         # than on the ambient tenant: grant_role runs *inside* a tenant context,
         # so without this a super-admin grant would make them a member of
         # whichever community happened to grant it.
+        closed = None
         if role is not Role.SUPER_ADMIN:
-            await TenantMembershipService.ensure_member(target)
-        await self.audit_service.write_log(
-            actor,
-            AuditActions.USER_ROLE_GRANTED,
-            {'role': role.value, 'target_user_id': target.id},
-        )
+            closed = await TenantMembershipService.ensure_member(
+                target, actor=actor, source=MembershipSource.ROLE_GRANT,
+            )
+        details: dict = {'role': role.value, 'target_user_id': target.id}
+        if closed is not None:
+            details['closed_request_id'] = closed.id
+        await self.audit_service.write_log(actor, AuditActions.USER_ROLE_GRANTED, details)
 
     async def revoke_role(self, target: User, role: Role, actor: User) -> None:
         await AuthService.ensure(

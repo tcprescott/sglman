@@ -182,7 +182,12 @@ async def enforce_membership(
     platform community picker, which has no tenant and must stay anonymous), so
     it applies the gate itself against this one implementation.
     """
-    from theme.join_page import render_join_page, resolve_join_preview, resolve_join_state
+    from theme.join_page import (
+        render_join_page,
+        resolve_ask_again_at,
+        resolve_join_preview,
+        resolve_join_state,
+    )
 
     if is_super_admin is None:
         is_super_admin = await AuthService.is_super_admin(user)
@@ -193,6 +198,18 @@ async def enforce_membership(
     # The other way through: a community that opened its door to its Discord
     # server lets a server member in here, on the page they were opening.
     if user is not None and await TenantMembershipService().join_via_discord(user, tenant_id):
+        # Only reached for someone who wasn't a member a moment ago, so this is
+        # their first landing. Without it they'd arrive on a schedule with no
+        # idea they'd just joined anything.
+        from theme.notice import stash_notice
+
+        tenant = await TenantService.get_by_id(tenant_id)
+        name = tenant.name if tenant else 'this community'
+        stash_notice(
+            f'Welcome to {name}. You’re a member now because you’re in its '
+            'Discord server.',
+            color='positive', sticky=True, tenant_id=tenant_id,
+        )
         return False
 
     from theme.error_page import prepared_layout
@@ -207,6 +224,7 @@ async def enforce_membership(
         # The door is the community's front page: its name, palette and the
         # public half of its drawer (Event Information, Help), not Wizzrobe's.
         layout=await prepared_layout(user),
+        ask_again_at=await resolve_ask_again_at(user, tenant_id),
     )
     return True
 

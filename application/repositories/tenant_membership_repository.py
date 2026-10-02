@@ -5,9 +5,9 @@ belong to. Queried across tenants (membership is *how* the auth layer decides
 whether a user may see a tenant at all), so it is **not** tenant-scoped.
 """
 
-from typing import List
+from typing import List, Optional
 
-from models import TenantMembership, User
+from models import MembershipSource, TenantMembership, User
 
 
 class TenantMembershipRepository:
@@ -18,11 +18,24 @@ class TenantMembershipRepository:
         return await TenantMembership.exists(user_id=user_id, tenant_id=tenant_id)
 
     @staticmethod
-    async def add(user: User, tenant_id: int) -> TenantMembership:
+    async def add(
+        user: User, tenant_id: int, source: Optional[MembershipSource] = None,
+    ) -> TenantMembership:
+        """Idempotent; ``source`` is recorded only when the row is new."""
         membership, _ = await TenantMembership.get_or_create(
-            user=user, tenant_id=tenant_id,
+            user=user, tenant_id=tenant_id, defaults={'source': source},
         )
         return membership
+
+    @staticmethod
+    async def add_returning_created(
+        user: User, tenant_id: int, source: Optional[MembershipSource] = None,
+    ) -> bool:
+        """:meth:`add`, reporting whether the row is new."""
+        _membership, created = await TenantMembership.get_or_create(
+            user=user, tenant_id=tenant_id, defaults={'source': source},
+        )
+        return created
 
     @staticmethod
     async def remove(user_id: int, tenant_id: int) -> int:

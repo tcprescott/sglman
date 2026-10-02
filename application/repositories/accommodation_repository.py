@@ -6,6 +6,8 @@ Handles database operations for ADA accommodation requests.
 
 from typing import Iterable, List, Optional, Set
 
+from tortoise.expressions import Q
+
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import AccommodationRequest, AccommodationStatus, User
@@ -47,3 +49,13 @@ class AccommodationRepository(TenantScopedRepository[AccommodationRequest]):
             AccommodationRequest.filter(status__in=list(statuses))
         ).values_list('user_id', flat=True)
         return {int(r) for r in rows}  # type: ignore[call-overload]
+
+    @staticmethod
+    async def count_needing_action() -> int:
+        """New and Acknowledged requests, plus Arranged ones changed since."""
+        return await scoped(
+            AccommodationRequest.filter(
+                Q(status__in=[AccommodationStatus.NEW, AccommodationStatus.ACKNOWLEDGED])
+                | Q(status=AccommodationStatus.ARRANGED, changed_since_arranged=True)
+            )
+        ).count()

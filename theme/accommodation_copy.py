@@ -27,10 +27,17 @@ STATUS_CHIP: dict[AccommodationStatus, str] = {
 
 
 def privacy_disclaimer(community: str) -> str:
-    """The warning shown wherever accommodation details are written or read."""
+    """The warning shown wherever accommodation details are written or read.
+
+    Names the one wider audience on purpose: proctors see that a request is
+    arranged (an icon on their match boards), never its text. A disclaimer
+    that left them out would be promising less exposure than there is.
+    """
     staff = f'{community} staff' if community else 'community staff'
     return (
-        f'Only {staff} can see these notes, but we can\'t guarantee they stay '
-        'private. Please don\'t put anything sensitive or personal here. If it '
-        f'is sensitive, contact {staff} directly instead.'
+        f'Only {staff} can read these notes. Once a request is arranged, '
+        'proctors see an accessibility icon beside the player\'s name on the '
+        'match boards, but not what it says. We can\'t guarantee notes stay '
+        'private, so please don\'t put anything sensitive or personal here. If '
+        f'it is sensitive, contact {staff} directly instead.'
     )

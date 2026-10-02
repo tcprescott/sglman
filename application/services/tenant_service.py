@@ -20,7 +20,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.utils.environment import get_platform_host
 from application.utils.hostname import normalize_hostname
-from models import Role, RoleSource, Tenant, User
+from models import MembershipSource, Role, RoleSource, Tenant, User
 
 _SLUG_RE = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$')
 # Top-level paths the platform surface owns; a tenant slug can never be one
@@ -301,7 +301,7 @@ class TenantService:
         from application.tenant_context import tenant_scope
 
         await AuthService.ensure_super_admin(actor)
-        await TenantMembershipRepository.add(user, tenant_id)
+        await TenantMembershipRepository.add(user, tenant_id, MembershipSource.STAFF)
         with tenant_scope(tenant_id):
             await UserRoleRepository.add(user, Role.STAFF, granted_by=actor, source=RoleSource.MANUAL)
         await AuditService().write_log(

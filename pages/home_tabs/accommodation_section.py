@@ -102,6 +102,11 @@ async def render_accommodation_section(user: User) -> None:
                     ui.label('Staff status:').classes('text-caption text-muted')
                     with ui.element('span').classes(f'wiz-chip {STATUS_CHIP[request.status]}'):
                         ui.label(STATUS_LABELS[request.status])
+                if request.changed_since_arranged:
+                    ui.label(
+                        'Staff have been told about your change. What they arranged '
+                        'stays in place while they check it.'
+                    ).classes('text-caption text-muted')
 
             status_row()
         details_block.set_visibility(requested_box.value)
