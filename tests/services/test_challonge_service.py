@@ -546,3 +546,53 @@ class TestClientPaths:
         await client.update_match('T1', '8001', '100', '200', community='speedgaming')
         _, path = client._authed_request.call_args.args
         assert path == '/communities/speedgaming/tournaments/T1/matches/8001.json'
+
+
+# ----------------------------------------------------------------------
+# ChallongeClient participant identity (shapes captured from the live v2.1 API)
+# ----------------------------------------------------------------------
+def _included_participant(pid, username, user_rel):
+    return {
+        'id': pid, 'type': 'participant',
+        'attributes': {'name': username or 'Guest', 'username': username, 'seed': 1},
+        'relationships': {'invitation': {}, 'user': user_rel},
+    }
+
+
+class TestClientParticipantIdentity:
+    def _client(self, responses):
+        from application.utils.clients.challonge_client import ChallongeClient
+        client = ChallongeClient('id', 'secret', token_provider=AsyncMock(return_value='tok'))
+        client._authed_request = AsyncMock(side_effect=responses)
+        return client
+
+    async def test_participants_endpoint_reads_the_user_relationship(self):
+        client = self._client([{'data': [
+            _included_participant('305857241', 'The_Synack', {'data': {'id': '60661', 'type': 'user'}}),
+            _included_participant('305857244', None, {'data': None}),
+        ]}])
+        rows = await client.list_participants('18567901', community='speedgaming')
+        assert [r['challonge_user_id'] for r in rows] == ['60661', None]
+
+    async def test_full_fetch_backfills_user_ids_the_embed_leaves_empty(self):
+        embedded = {'data': {'id': '18567901', 'attributes': {}}, 'included': [
+            _included_participant('305857241', 'The_Synack', {}),
+            _included_participant('305857244', None, {}),
+        ]}
+        listed = {'data': [
+            _included_participant('305857241', 'The_Synack', {'data': {'id': '60661', 'type': 'user'}}),
+            _included_participant('305857244', None, {'data': None}),
+        ]}
+        client = self._client([embedded, listed])
+        full = await client.get_tournament_full('18567901', community='speedgaming')
+        assert [p['challonge_user_id'] for p in full['participants']] == ['60661', None]
+        _, path = client._authed_request.call_args.args
+        assert path == '/communities/speedgaming/tournaments/18567901/participants.json'
+
+    async def test_full_fetch_skips_the_extra_call_with_no_account_entrants(self):
+        embedded = {'data': {'id': '1', 'attributes': {}}, 'included': [
+            _included_participant('1', None, {}),
+        ]}
+        client = self._client([embedded])
+        await client.get_tournament_full('1')
+        assert client._authed_request.await_count == 1

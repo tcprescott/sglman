@@ -1672,7 +1672,7 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 | `ChallongeClient.get_tournament(tournament_id)` | `{id, name, url, state}` | A tournament's summary. |
 | `ChallongeClient.list_participants(tournament_id)` | `list[dict]` | Normalized participant records. |
 | `ChallongeClient.list_matches(tournament_id)` | `list[dict]` | Normalized match records. |
-| `ChallongeClient.get_tournament_full(tournament_id)` | `{tournament, participants, matches}` | Tournament plus embedded participants and matches in one request. |
+| `ChallongeClient.get_tournament_full(tournament_id)` | `{tournament, participants, matches}` | Tournament plus embedded participants and matches in one request. The embed leaves each participant's `user` relationship empty, so when any entrant has a Challonge account (a `username`) it makes one more `/participants` call to backfill `challonge_user_id`. |
 | `ChallongeClient.update_match(tournament_id, match_id, winner_participant_id, loser_participant_id, winner_score='1', loser_score='0')` | `None` | Report a match result (winner flagged `advancing`). |
 | `MockChallongeClient` | — | `MOCK_CHALLONGE` stub returning a canned 4-player single-elim bracket so local dev can click through connect/link/sync/schedule/push. |
 

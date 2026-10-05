@@ -94,7 +94,9 @@ def _normalize_participant(resource: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'participant_id': str(resource.get('id')),
         'name': _attr(resource, 'name', 'display_name'),
-        'challonge_user_id': _opt_str(_attr(resource, 'challonge_user_id', 'user_id')),
+        'challonge_user_id': _opt_str(
+            _attr(resource, 'challonge_user_id', 'user_id') or _rel_id(resource, 'user')
+        ),
         'username': _attr(resource, 'challonge_username', 'username'),
     }
 
@@ -224,7 +226,7 @@ class ChallongeClient:
     async def get_tournament_full(
         self, tournament_id: str, community: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Fetch a tournament with its participants and matches in one request.
+        """Fetch a tournament with its participants and matches, usually in one request.
 
         Challonge embeds the associated participant/match records via the
         ``include_participants`` / ``include_matches`` flags, collapsing what
@@ -251,6 +253,16 @@ class ChallongeClient:
                 participants.append(_normalize_participant(included))
             elif kind in ('match', 'matches'):
                 matches.append(_normalize_match(included))
+        # The embedded participants carry an empty ``user`` relationship; only the
+        # participants endpoint fills it in. An entrant with a Challonge account
+        # (it has a username) needs that id to map to its linked Wizzrobe user.
+        if any(p['username'] and not p['challonge_user_id'] for p in participants):
+            user_ids = {
+                p['participant_id']: p['challonge_user_id']
+                for p in await self.list_participants(tournament_id, community=community)
+            }
+            for p in participants:
+                p['challonge_user_id'] = p['challonge_user_id'] or user_ids.get(p['participant_id'])
         return {'tournament': tournament, 'participants': participants, 'matches': matches}
 
     async def update_match(
