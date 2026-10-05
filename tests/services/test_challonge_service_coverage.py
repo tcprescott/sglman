@@ -193,7 +193,7 @@ class TestLinkTournament:
         api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError(
             'Challonge API error (403): Access resources belonging to your communities', status=403,
         ))
-        with pytest.raises(ValueError, match="reconnect Challonge.*'speedgaming'"):
+        with pytest.raises(ValueError, match="enter 'speedgaming' as the community and reconnect"):
             await make_service(api=api).link_tournament(
                 tournament.id, 'https://speedgaming.challonge.com/testing', actor,
             )

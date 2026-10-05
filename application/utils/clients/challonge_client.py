@@ -46,9 +46,16 @@ class ChallongeAPIError(Exception):
         self.status = status
 
 
-def build_authorize_url(client_id: str, redirect_uri: str, scope: str, state: str) -> str:
-    """Return the Challonge OAuth authorize URL to redirect the browser to."""
-    return (
+def build_authorize_url(
+    client_id: str, redirect_uri: str, scope: str, state: str,
+    community_id: Optional[str] = None,
+) -> str:
+    """Return the Challonge OAuth authorize URL to redirect the browser to.
+
+    ``community_id`` (a subdomain or permalink) asks Challonge to grant access
+    to that community; ``communities:manage`` alone does not prompt for one.
+    """
+    url = (
         f"{AUTHORIZE_URL}"
         f"?client_id={quote(client_id, safe='')}"
         f"&redirect_uri={quote(redirect_uri, safe='')}"
@@ -56,6 +63,9 @@ def build_authorize_url(client_id: str, redirect_uri: str, scope: str, state: st
         f"&scope={quote(scope, safe='')}"
         f"&state={quote(state, safe='')}"
     )
+    if community_id:
+        url += f"&community_id={quote(community_id, safe='')}"
+    return url
 
 
 def _attr(resource: Dict[str, Any], *keys: str) -> Optional[Any]:
