@@ -33,6 +33,7 @@ import aiohttp
 AUTHORIZE_URL = 'https://api.challonge.com/oauth/authorize'
 TOKEN_URL = 'https://api.challonge.com/oauth/token'
 BASE_URL = 'https://api.challonge.com/v2.1'
+_PAGE_SIZE = 100
 
 TokenProvider = Callable[..., Awaitable[str]]
 RequestHook = Callable[[], Awaitable[None]]
@@ -112,16 +113,22 @@ def _normalize_participant(resource: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _normalize_match(resource: Dict[str, Any]) -> Dict[str, Any]:
+    # Final-stage matches of a two-stage tournament carry no player1/player2
+    # relationships; their players appear only in ``points_by_participant``
+    # (player 1 first). Group-stage and single-stage matches carry both.
+    points = _attr(resource, 'points_by_participant') or []
+    by_points = [_opt_str(p.get('participant_id')) for p in points if isinstance(p, dict)]
+    by_points += [None, None]
     return {
         'match_id': str(resource.get('id')),
         'state': _attr(resource, 'state'),
         'round': _attr(resource, 'round'),
         'player1_participant_id': _opt_str(
             _attr(resource, 'player1_id') or _rel_id(resource, 'player1')
-        ),
+        ) or by_points[0],
         'player2_participant_id': _opt_str(
             _attr(resource, 'player2_id') or _rel_id(resource, 'player2')
-        ),
+        ) or by_points[1],
         'winner_participant_id': _opt_str(
             _attr(resource, 'winner_id') or _rel_id(resource, 'winner')
         ),
@@ -215,18 +222,18 @@ class ChallongeClient:
     async def list_participants(
         self, tournament_id: str, community: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        data = await self._authed_request(
-            'GET', f'{_tournament_path(tournament_id, community)}/participants.json',
+        rows = await self._authed_get_all(
+            f'{_tournament_path(tournament_id, community)}/participants.json',
         )
-        return [_normalize_participant(r) for r in (data.get('data') or [])]
+        return [_normalize_participant(r) for r in rows]
 
     async def list_matches(
         self, tournament_id: str, community: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        data = await self._authed_request(
-            'GET', f'{_tournament_path(tournament_id, community)}/matches.json',
+        rows = await self._authed_get_all(
+            f'{_tournament_path(tournament_id, community)}/matches.json',
         )
-        return [_normalize_match(r) for r in (data.get('data') or [])]
+        return [_normalize_match(r) for r in rows]
 
     async def get_tournament_full(
         self, tournament_id: str, community: Optional[str] = None,
@@ -329,6 +336,21 @@ class ChallongeClient:
         async with aiohttp.ClientSession() as session:
             async with session.get(BASE_URL + path, headers=self._headers(token)) as resp:
                 return await self._parse(resp)
+
+    async def _authed_get_all(self, path: str) -> List[Dict[str, Any]]:
+        """GET every page of a list endpoint (25 rows per page by default).
+
+        Asks for 100 per page so a typical bracket is one request, and follows
+        ``links.next`` for anything larger.
+        """
+        rows: List[Dict[str, Any]] = []
+        next_path: Optional[str] = f'{path}?per_page={_PAGE_SIZE}'
+        while next_path:
+            data = await self._authed_request('GET', next_path)
+            rows.extend(data.get('data') or [])
+            next_url = (data.get('links') or {}).get('next')
+            next_path = next_url[len(BASE_URL):] if next_url and next_url.startswith(BASE_URL) else None
+        return rows
 
     async def _authed_request(
         self, method: str, path: str, *, json: Optional[Dict[str, Any]] = None,
