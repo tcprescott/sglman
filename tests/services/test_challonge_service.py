@@ -46,6 +46,8 @@ def test_default_service_scopes_include_communities_manage(monkeypatch):
     from application.services.challonge_service import _service_scopes
     monkeypatch.delenv('CHALLONGE_SCOPES', raising=False)
     assert 'communities:manage' in _service_scopes().split()
+    # change_state (stage control) needs it.
+    assert 'tournaments:write' in _service_scopes().split()
 
 
 class TestServiceAuthorizeUrl:

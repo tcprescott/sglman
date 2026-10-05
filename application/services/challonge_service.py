@@ -22,6 +22,7 @@ from application.errors import require_found
 from application.feature_flags import requires_feature
 from application.repositories import ChallongeRepository, TournamentRepository
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
+from application.services._challonge_stages import ChallongeStageMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
@@ -56,7 +57,10 @@ _SYNC_THROTTLE_WINDOW = timedelta(seconds=60)
 # The Challonge plan's monthly request quota, surfaced in the admin UI.
 CHALLONGE_MONTHLY_QUOTA = 500
 
-_DEFAULT_SERVICE_SCOPES = 'me tournaments:read matches:read matches:write participants:read communities:manage'
+_DEFAULT_SERVICE_SCOPES = (
+    'me tournaments:read tournaments:write matches:read matches:write '
+    'participants:read communities:manage'
+)
 _PLAYER_SCOPES = 'me'
 
 
@@ -77,7 +81,7 @@ def _as_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
-class ChallongeService(ChallongeParticipantAssignmentMixin):
+class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin):
     """Business logic for the Challonge integration."""
 
     def __init__(self) -> None:
@@ -456,7 +460,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin):
         # The full fetch already carries the bracket, so mirror it without a
         # second round-trip.
         await self._mirror_bracket(tournament, full['participants'], full['matches'], actor)
-        await self.repository.set_last_synced_at(tournament, datetime.now(timezone.utc))
+        await self._record_sync(tournament, remote)
         return tournament
 
     @requires_feature(FeatureFlag.CHALLONGE)
@@ -491,6 +495,8 @@ class ChallongeService(ChallongeParticipantAssignmentMixin):
         tournament.challonge_community = None  # type: ignore[assignment]
         tournament.challonge_tournament_url = None
         tournament.challonge_last_synced_at = None
+        tournament.challonge_state = None  # type: ignore[assignment]
+        tournament.challonge_group_stage = False
         await tournament.save()
 
         await self.audit_service.write_log(
@@ -514,8 +520,8 @@ class ChallongeService(ChallongeParticipantAssignmentMixin):
     ) -> Dict[str, int]:
         """Fetch + mirror a linked bracket. Permission is the caller's concern.
 
-        Shared by the admin sync action, the post-push auto re-sync, and the
-        webhook receiver. A non-forced call within the throttle window of the
+        Shared by the admin sync action, the post-push auto re-sync, and a
+        stage change. A non-forced call within the throttle window of the
         last successful sync is a no-op (returns cached counts, no API request).
         """
         if not tournament.challonge_tournament_id:
@@ -534,8 +540,14 @@ class ChallongeService(ChallongeParticipantAssignmentMixin):
         result = await self._mirror_bracket(
             tournament, full['participants'], full['matches'], actor,
         )
-        await self.repository.set_last_synced_at(tournament, datetime.now(timezone.utc))
+        await self._record_sync(tournament, full['tournament'])
         return result
+
+    async def _record_sync(self, tournament: Tournament, remote: Dict[str, Any]) -> None:
+        await self.repository.record_sync(
+            tournament, datetime.now(timezone.utc),
+            remote.get('state'), bool(remote.get('group_stage')),
+        )
 
     @staticmethod
     def _synced_recently(tournament: Tournament) -> bool:

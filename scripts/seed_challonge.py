@@ -50,6 +50,12 @@ async def seed_challonge_for_tenant(
         # writes the FK directly rather than going through the service.
         tournament.allow_player_match_requests = False
         await tournament.save()
+    # A two-stage bracket mid-groups, so Admin -> Challonge offers its next stage
+    # action (Finalize groups and start bracket). Healed on an older dev DB too.
+    if tournament.challonge_state is None:
+        tournament.challonge_state = "group_stages_underway"
+        tournament.challonge_group_stage = True
+        await tournament.save()
 
     # A near-expiry token so the service-health board / tenant subset (PR 5)
     # has a live credential-warning to render. Heal older rows that predate the

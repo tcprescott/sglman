@@ -237,9 +237,15 @@ class ChallongeRepository:
         return participants, matches
 
     @staticmethod
-    async def set_last_synced_at(tournament: Tournament, when: datetime) -> None:
+    async def record_sync(
+        tournament: Tournament, when: datetime, state: Optional[str], group_stage: bool,
+    ) -> None:
         tournament.challonge_last_synced_at = when
-        await tournament.save(update_fields=['challonge_last_synced_at'])
+        tournament.challonge_state = state  # type: ignore[assignment]
+        tournament.challonge_group_stage = group_stage
+        await tournament.save(update_fields=[
+            'challonge_last_synced_at', 'challonge_state', 'challonge_group_stage',
+        ])
 
     # ------------------------------------------------------------------
     # API-usage tally (per UTC calendar month)

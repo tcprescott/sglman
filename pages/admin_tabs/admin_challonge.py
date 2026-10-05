@@ -108,11 +108,15 @@ async def admin_challonge_page() -> None:
                 ui.label('No tournaments are linked to Challonge yet. Link one from its edit dialog '
                          'on the Tournaments tab.').classes('text-muted')
                 return
+            can_change_stages = await service.can_change_stages()
             for t in tournaments:
                 with ui.row().classes('items-center w-full'):
                     ui.label(t.name).classes('text-bold')
                     if t.challonge_tournament_url:
                         ui.link('bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
+                    stage = service.stage_label_for(t)
+                    if stage:
+                        ui.badge(stage).props('outline color=primary')
                     synced = (
                         format_local_display(t.challonge_last_synced_at)
                         if t.challonge_last_synced_at else 'never'
@@ -126,6 +130,17 @@ async def admin_challonge_page() -> None:
                         # refresh calls in sync_one would raise and be lost.
                         on_click=lambda _=None, tid=t.id: sync_one(tid),
                     ).props('flat color=primary')
+                    for action in service.stage_actions_for(t):
+                        stage_btn = ui.button(
+                            action.label, icon='skip_next',
+                            on_click=lambda _=None, row=t, a=action: confirm_stage(row, a),
+                        ).props('flat color=primary')
+                        if not can_change_stages:
+                            stage_btn.disable()
+                            stage_btn.tooltip(
+                                'Reconnect Challonge above to let Wizzrobe change '
+                                'tournament stages'
+                            )
                     ui.button(
                         'Entrants', icon='group',
                         on_click=lambda _=None, row=t: ChallongeParticipantsDialog(row).open(),
@@ -140,6 +155,21 @@ async def admin_challonge_page() -> None:
                             'Detach from Challonge so this tournament can run on a '
                             'native bracket'
                         )
+
+        def confirm_stage(tournament, action) -> None:
+            async def do_advance() -> None:
+                try:
+                    await service.advance_stage(tournament.id, action.key, actor)
+                    ui.notify(f'{tournament.name}: {action.label.lower()} done.', color='positive')
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                await linked_tournaments.refresh()
+                await connection_card.refresh()
+
+            ConfirmationDialog(
+                action.confirm, on_confirm=do_advance, confirm_text=action.label,
+                tone='primary', title=action.label,
+            ).open()
 
         def confirm_unlink(tournament) -> None:
             """The migration path off Challonge, which had no control at all.
