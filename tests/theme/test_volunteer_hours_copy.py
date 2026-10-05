@@ -19,12 +19,10 @@ def _summary(hours, cleared=None, next_tier=None):
 
 
 class TestHoursMessage:
-    def test_no_hours_names_the_first_tier(self):
-        assert hours_message(_summary(0, next_tier=8)) == (
-            'No shifts on the books yet. 8 hours gets you to the first tier.'
-        )
+    def test_no_hours_does_not_mention_tiers(self):
+        assert hours_message(_summary(0, next_tier=8)) == 'No shifts on the books yet.'
 
-    def test_no_hours_and_no_tiers_stays_quiet_about_them(self):
+    def test_no_hours_and_no_tiers(self):
         assert hours_message(_summary(0)) == 'No shifts on the books yet.'
 
     def test_below_the_first_tier_gives_the_gap(self):

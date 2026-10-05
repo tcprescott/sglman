@@ -44,9 +44,6 @@ def hours_message(summary) -> str:
     counting overlapping shifts once.
     """
     if summary.hours <= 0:
-        if summary.next_tier is not None:
-            return (f'No shifts on the books yet. {_hours(summary.next_tier)} hours '
-                    f'gets you to the first tier.')
         return 'No shifts on the books yet.'
     line = f"You're down for {_hours(summary.hours)} hours this event."
     if summary.tier_cleared is not None:
