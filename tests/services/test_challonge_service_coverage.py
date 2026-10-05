@@ -156,6 +156,8 @@ class TestLinkTournament:
         assert returned.challonge_tournament_id == 'T1'
         assert returned.challonge_tournament_url == 'https://challonge.com/spring25'
         assert returned.challonge_community == 'myorg'
+        # The link mirrors the bracket, so it counts as a sync.
+        assert returned.challonge_last_synced_at is not None
         # A subdomain URL is fetched under its community scope, not as ``myorg-spring25``.
         api.get_tournament_full.assert_awaited_once_with('spring25', community='myorg')
 

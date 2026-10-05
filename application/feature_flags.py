@@ -122,7 +122,8 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'bracket matches, and push results.',
             'Community',
             established=True,
-            service_modules=('application/services/challonge_service.py',),
+            service_modules=('application/services/challonge_service.py',
+                             'application/services/_challonge_participants.py'),
         ),
         FeatureFlagSpec(
             FeatureFlag.EQUIPMENT,
