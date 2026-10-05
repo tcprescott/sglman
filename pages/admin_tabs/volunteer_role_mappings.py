@@ -44,7 +44,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
         "mapped: never Staff or a role that runs a subsystem."
     ).classes('text-caption text-grey')
 
-    columns = [
+    columns: list[dict] = [
         {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
         {'name': 'position', 'label': 'Position', 'field': 'position', 'sortable': True},
         {'name': 'app_role', 'label': 'Grants', 'field': 'app_role', 'sortable': True},

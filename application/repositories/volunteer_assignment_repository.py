@@ -5,7 +5,7 @@ Volunteers placed into shifts.
 """
 
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Optional, Set, cast
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerAssignment, VolunteerShift
@@ -102,7 +102,7 @@ class VolunteerAssignmentRepository:
         ids = await scoped(VolunteerAssignment.filter(
             user_id=user_id, auto_generated=False,
         )).values_list('shift__position_id', flat=True)
-        return set(ids)
+        return set(cast(List[int], ids))
 
     @staticmethod
     async def published_user_ids(shift_id: Optional[int] = None) -> Set[int]:
@@ -110,7 +110,7 @@ class VolunteerAssignmentRepository:
         query = scoped(VolunteerAssignment.filter(auto_generated=False))
         if shift_id is not None:
             query = query.filter(shift_id=shift_id)
-        return set(await query.values_list('user_id', flat=True))
+        return set(cast(List[int], await query.values_list('user_id', flat=True)))
 
     @staticmethod
     async def list_for_window(start: datetime, end: datetime) -> List[VolunteerAssignment]:

@@ -192,7 +192,8 @@ class VolunteerScheduleService:
             raise ValueError("A shift needs at least one slot.")
         old_starts, old_ends = shift.starts_at, shift.ends_at
         moved = starts != old_starts or ends != old_ends
-        repositioned = fields.get('position_id', shift.position_id) != shift.position_id
+        old_position_id = shift.position_id  # type: ignore[attr-defined]
+        repositioned = fields.get('position_id', old_position_id) != old_position_id
         shift = await self.shift_repository.update(shift, **fields)
         if repositioned:
             await self.role_mapping_service.reconcile_users(
@@ -332,7 +333,7 @@ class VolunteerScheduleService:
              'user_id': assignment.user_id, 'published_from_draft': True},
             EventType.VOLUNTEER_ASSIGNED,
         )
-        await self.role_mapping_service.reconcile_users(actor, [assignment.user_id])
+        await self.role_mapping_service.reconcile_users(actor, [assignment.user_id])  # type: ignore[attr-defined]
         if notify:
             await self.request_acknowledgment(
                 assignment, assignment.shift, assignment.user,

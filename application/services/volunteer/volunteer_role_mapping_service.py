@@ -84,7 +84,7 @@ class VolunteerRoleMappingService:
         )
         mapping = require_found(await self.mapping_repository.get_by_id(mapping_id), "Mapping")
         details = {
-            'mapping_id': mapping.id, 'position_id': mapping.position_id,
+            'mapping_id': mapping.id, 'position_id': mapping.position.id,
             'position_name': mapping.position.name, 'app_role': mapping.app_role.value,
         }
         await self.mapping_repository.delete(mapping)
@@ -136,7 +136,7 @@ class VolunteerRoleMappingService:
                 # Filtered here too: a stored row is what reaches this side, so a
                 # mapping written before the allow-list existed grants nothing.
                 if m.app_role in mappable:
-                    roles_by_position.setdefault(m.position_id, set()).add(m.app_role)
+                    roles_by_position.setdefault(m.position.id, set()).add(m.app_role)
             users = await self.user_repository.get_by_ids(sorted(ids))
             changed: Dict[int, Dict[str, List[str]]] = {}
             for user in users.values():

@@ -9,7 +9,7 @@ invariant so every method scopes normal roles to the current tenant while
 SUPER_ADMIN operations target the global (NULL-tenant) row.
 """
 
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from application.repositories._tenant import current_tenant_id
 from models import Role, RoleSource, User, UserRole
@@ -61,9 +61,10 @@ class UserRoleRepository:
     @staticmethod
     async def list_user_ids_by_source(source: RoleSource) -> List[int]:
         """Everyone holding a role from ``source`` in the current tenant."""
-        return await UserRole.filter(
+        ids = await UserRole.filter(
             source=source, tenant_id=current_tenant_id()
         ).distinct().values_list('user_id', flat=True)
+        return cast(List[int], ids)
 
     @staticmethod
     async def any_with_role(role: Role) -> bool:

@@ -128,9 +128,13 @@ class VolunteerRoleMapping(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_role_mappings', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Tenant', related_name='volunteer_role_mappings', on_delete=fields.CASCADE,
+    )
     # CASCADE: a deleted position confers nothing, so its mappings go with it.
-    position = fields.ForeignKeyField('models.VolunteerPosition', related_name='role_mappings', on_delete=fields.CASCADE)
+    position = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.VolunteerPosition', related_name='role_mappings', on_delete=fields.CASCADE,
+    )
     app_role = fields.CharEnumField(Role, max_length=32)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
