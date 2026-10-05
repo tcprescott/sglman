@@ -418,7 +418,7 @@ class ChallongeService:
 
         remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier
-        tournament.challonge_community = community
+        tournament.challonge_community = community  # type: ignore[assignment]
         tournament.challonge_tournament_url = remote.get('url')
         # A bracket-run tournament schedules only what the bracket produced, so
         # close the manual player-request path. Staff can re-open it per
@@ -465,7 +465,7 @@ class ChallongeService:
             'matches_removed': matches,
         }
         tournament.challonge_tournament_id = None
-        tournament.challonge_community = None
+        tournament.challonge_community = None  # type: ignore[assignment]
         tournament.challonge_tournament_url = None
         tournament.challonge_last_synced_at = None
         await tournament.save()
