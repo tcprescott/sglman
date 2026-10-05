@@ -80,6 +80,7 @@ class TableKeys:
     ADMIN_DISCORD_EVENTS = 'admin.discord_events'
     ADMIN_DISCORD_EVENT_TOURNAMENTS = 'admin.discord_event_tournaments'
     ADMIN_DISCORD_ROLES = 'admin.discord_roles'
+    ADMIN_VOLUNTEER_ROLE_MAPPINGS = 'admin.volunteer_role_mappings'
     ADMIN_EQUIPMENT = 'admin.equipment'
     ADMIN_ACCOMMODATIONS = 'admin.accommodations'
     ADMIN_FEEDBACK = 'admin.feedback'

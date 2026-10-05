@@ -15,8 +15,12 @@ so the Vol. Roster tab and the auto-scheduler have something real to show
 
 from datetime import date, datetime, timedelta
 
+from application.services.volunteer.volunteer_role_mapping_service import (
+    VolunteerRoleMappingService,
+)
 from application.utils.timezone import parse_local_datetime
 from models import (
+    Role,
     Tenant,
     User,
     VolunteerAssignment,
@@ -25,6 +29,7 @@ from models import (
     VolunteerPosition,
     VolunteerProfile,
     VolunteerQualification,
+    VolunteerRoleMapping,
     VolunteerShift,
 )
 from scripts.seed_support import FULL_RACERS
@@ -243,4 +248,14 @@ async def seed_volunteers_for_tenant(
             shift=draft_shift, user=users["player_three"], tenant=tenant,
             defaults={"assigned_by": staff, "auto_generated": True},
         )
+
+    # Position → role mappings. Race Proctor → PROCTOR lands on proctor_user, who
+    # already holds it by hand, so it shows a manual grant left alone; Broadcast
+    # Tech → STREAM_MANAGER hands FULL_RACERS[1] a volunteer-sourced role. The
+    # rows go through the real reconcile so the UserRole state is the app's own.
+    for pos_name, role in (("Race Proctor", Role.PROCTOR), ("Broadcast Tech", Role.STREAM_MANAGER)):
+        await VolunteerRoleMapping.get_or_create(
+            position=positions[pos_name], app_role=role, tenant=tenant,
+        )
+    await VolunteerRoleMappingService().reconcile_all(staff)
     print(f"    [{tenant.slug}] volunteers ok")

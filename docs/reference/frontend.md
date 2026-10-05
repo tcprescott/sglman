@@ -124,7 +124,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Bare `ui.page`; super-admin only (themed 403 otherwise), **no tenant context** (a themed 404 when reached under `/t/<slug>`); tenant CRUD, with each other section in its own module — `platform_bots.py` (racetime bots), `platform_feature_groups.py` (tiers + a tenant's overrides), `platform_tenant_admins.py` (first staff member), shared bits in `platform_shared.py`; the service-health board is `pages/service_health_view.py`, shared with Admin → Service Health (see [multitenancy.md](../features/multitenancy.md)) |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md). Replaced by the mock user picker under `MOCK_DISCORD` |
 | `/oauth/start`, `/session/claim` | [`pages/auth.py`](../../pages/auth.py) | Custom-domain login handoff: `/oauth/start` begins Discord OAuth on the platform host for an allow-listed tenant domain, `/session/claim` sets the session back on the custom domain. `/oauth/start` falls back to `/login` unless the host OAuth handoff is enabled |
-| `/oauth/discord/connect/callback` | [`pages/auth.py`](../../pages/auth.py) | Bot-authorization callback for Admin → Discord Roles' "Connect Discord server" flow; runs on the platform host with the target tenant carried in the session |
+| `/oauth/discord/connect/callback` | [`pages/auth.py`](../../pages/auth.py) | Bot-authorization callback for Admin → Role Mappings' "Connect Discord server" flow; runs on the platform host with the target tenant carried in the session |
 | `/challonge/connect`, `/challonge/link`, `/challonge/oauth/callback`; `/twitch/link`, `/twitch/oauth/callback`; `/racetime/link`, `/racetime/oauth/callback` | [`challonge_oauth.py`](../../pages/challonge_oauth.py), [`twitch_oauth.py`](../../pages/twitch_oauth.py), [`racetime_oauth.py`](../../pages/racetime_oauth.py) | Bare `ui.page` routes (they serve cross-host OAuth legs); one-time verified-identity linking on the global `User`. `/challonge/connect` is the staff service-account connection from Admin → Challonge |
 | `/oauth/link/start`, `/oauth/link/claim` | [`pages/_oauth_link.py`](../../pages/_oauth_link.py) | `register_link_handoff_pages()` — the provider-agnostic cross-host handoff for identity linking from a custom domain (start on the platform host, claim on the custom domain) |
 | `/oauth/mcp/consent` | [`pages/mcp_consent.py`](../../pages/mcp_consent.py) | Bare `ui.page` that adds itself to `protected_routes`; the MCP OAuth approval screen (see below) |
@@ -353,7 +353,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Equipment | Community | Staff, Equipment Manager | `EQUIPMENT` |
 | Feedback | Community | Staff | `FEEDBACK` |
 | Discord Events | Integrations | Staff, Sync Admin | — |
-| Discord Roles | Integrations | Staff | — |
+| Role Mappings | Integrations | Staff | — (the volunteer-position section needs `VOLUNTEERS`) |
 | Webhooks | Integrations | Staff | — |
 | Reports | System | Staff, Tournament Admin (any), Crew Coordinator (any) | — |
 | Service Health | System | Staff | — |
@@ -406,7 +406,8 @@ Triforce texts has no standalone route: player submission is a dialog off the to
 | [`admin_timezone.py`](../../pages/admin_tabs/admin_timezone.py) | Timezone | Pin one zone for the community or follow each viewer's own (STAFF) via `TimezoneService`; saving reloads the page — see [../timezone-handling.md](../timezone-handling.md) |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
 | [`admin_brackets/`](../../pages/admin_tabs/admin_brackets/) | Brackets | Native bracket authoring, roster/seeding, start, results/overrides, complete & advance (STAFF, `BRACKETS` flag) — see [Admin brackets](#admin-brackets-pagesadmin_tabsadmin_brackets) |
-| [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
+| [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Role Mappings | Map Discord roles (sign-in sync) and volunteer positions (assignment sync) to application roles |
+| [`volunteer_role_mappings.py`](../../pages/admin_tabs/volunteer_role_mappings.py) | Role Mappings | The volunteer-position section, rendered when `VOLUNTEERS` is live |
 | [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
 | [`admin_equipment.py`](../../pages/admin_tabs/admin_equipment.py) | Equipment | Asset CRUD, checkout/checkin, and QR-page links |
 | [`admin_feedback.py`](../../pages/admin_tabs/admin_feedback.py) | Feedback | Review queue for user-submitted feedback; **reversible** (Reopen puts a row back in the queue). Behind `FeatureFlag.FEEDBACK`, as are the drawer's Feedback item and the profile's "Your feedback" card |
@@ -662,13 +663,14 @@ One in-house renderer, consumed by the public pages, the admin Results dialog, a
 
 All colour/size routes through `--bracket-*` custom properties in [`static/css/brackets.css`](../../static/css/brackets.css), linked per page via `add_head_html`.
 
-### Admin Discord roles (`pages/admin_tabs/admin_discord_roles.py`)
+### Admin role mappings (`pages/admin_tabs/admin_discord_roles.py`)
 
-`admin_discord_roles_page()` — Discord-role → app-role mappings for sign-in role sync.
+`admin_discord_roles_page(volunteer_mappings=False)` — the **Role Mappings** tab: Discord-role → app-role mappings for sign-in role sync, then (when `admin.py` passes `volunteer_mappings=True` because `VOLUNTEERS` is live) the volunteer-position section from `volunteer_role_mappings.volunteer_role_mappings_section`.
 
 - Requires the tenant to have a connected Discord server (`Tenant.discord_guild_id`); otherwise the tab offers the "Connect Discord server" flow instead of the mapping table.
 - A hand-rolled `ui.table` of mappings (`DiscordRoleMappingService.list_mappings`), each with a delete button (`remove_mapping`). **Add Mapping** (gated on `AuthService.can_grant_roles`) opens a dialog whose Discord-role select is populated from `DiscordService.list_guild_roles`, persisting via `add_mapping`.
-- Refreshes on tab entry via `wire_tab_refresh('Discord Roles', …)`.
+- Refreshes on tab entry via `wire_tab_refresh('Role Mappings', …)`.
+- The volunteer section is its own table (`TableKeys.ADMIN_VOLUNTEER_ROLE_MAPPINGS`) of position → role rows from `VolunteerRoleMappingService`; its **Add Mapping** dialog offers every position and only `Role.volunteer_mappable()` roles. Shown with or without a connected Discord server.
 
 ### Admin equipment (`pages/admin_tabs/admin_equipment.py`)
 

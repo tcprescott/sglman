@@ -176,7 +176,7 @@ that has a `discord_guild_id`**, syncing each inside its own `tenant_scope` and
 concurrently, since one person may belong to several communities' guilds — login
 latency stays at roughly one Discord round-trip instead of scaling with tenant
 count. Per-tenant mappings are `DiscordRoleMapping` rows managed on the admin
-**Discord Roles** tab.
+**Role Mappings** tab.
 
 ### Accounts for members who have never signed in
 

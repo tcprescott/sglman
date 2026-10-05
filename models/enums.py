@@ -41,6 +41,20 @@ class Role(str, Enum):
         """
         return [role for role in cls if role is not cls.SUPER_ADMIN]
 
+    @classmethod
+    def volunteer_mappable(cls) -> 'list[Role]':
+        """The roles a volunteer position may confer, in declaration order.
+
+        Narrower than ``tenant_grantable`` because a Volunteer Coordinator, not
+        staff, decides who sits on a shift. Mapping a position to STAFF or any
+        role that administers a subsystem would let a coordinator hand that
+        authority to anyone, themselves included, by assigning a shift.
+        """
+        return [
+            cls.PROCTOR, cls.STREAM_MANAGER, cls.TRIFORCE_SUBMITTER,
+            cls.EQUIPMENT_MANAGER, cls.VOLUNTEER,
+        ]
+
 
 class TournamentGrant(str, Enum):
     """Per-tournament authority a Discord role can confer.
@@ -184,6 +198,7 @@ class ApiTokenOrigin(str, Enum):
 class RoleSource(str, Enum):
     MANUAL = 'manual'
     DISCORD = 'discord'
+    VOLUNTEER = 'volunteer'
 
 
 class VolunteerAvailabilityStatus(str, Enum):

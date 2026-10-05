@@ -261,6 +261,10 @@ class AuditActions:
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
     VOLUNTEER_DATA_EXPORTED = 'volunteer.data_exported'
+    VOLUNTEER_ROLE_MAPPING_ADDED = 'volunteer.role_mapping_added'
+    VOLUNTEER_ROLE_MAPPING_REMOVED = 'volunteer.role_mapping_removed'
+    ROLE_VOLUNTEER_SYNC_GRANTED = 'role.volunteer_sync_granted'
+    ROLE_VOLUNTEER_SYNC_REVOKED = 'role.volunteer_sync_revoked'
 
     # Web push (device notifications)
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'

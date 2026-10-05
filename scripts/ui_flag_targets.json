@@ -28,7 +28,7 @@
     { "name": "admin-randomizer-keys", "path": "/admin/randomizer-keys" },
     { "name": "admin-feedback",        "path": "/admin/feedback" },
     { "name": "admin-discord-events",  "path": "/admin/discord-events" },
-    { "name": "admin-discord-roles",   "path": "/admin/discord-roles" },
+    { "name": "admin-role-mappings",   "path": "/admin/role-mappings" },
     { "name": "admin-webhooks",        "path": "/admin/webhooks" },
     { "name": "admin-reports",         "path": "/admin/reports" },
     { "name": "admin-service-health",  "path": "/admin/service-health" },
