@@ -10,7 +10,7 @@ The UI is built entirely with NiceGUI (Quasar/Vue under the hood) mounted into t
 
 **Middleware.** At import time three middlewares are registered on the NiceGUI `app`: `AuthMiddleware`, `TenantMiddleware`, `TransportPrefixMiddleware`. Starlette runs the last-added outermost, so execution is session → transport-strip → tenant → auth: transport paths (`/t/<slug>/_nicegui`, `/_nicegui_ws`, `/static`, `/sw.js`) are un-prefixed first so NiceGUI's assets and socket.io resolve, then the tenant is resolved and the ASGI path rewritten before `AuthMiddleware` reads it. `TransportPrefixMiddleware` is pure-ASGI, so it also covers the websocket scope that `BaseHTTPMiddleware` skips.
 
-**`@app.on_exception _handle_unhandled_ui_exception`** — the backstop for event handlers that miss the `ValueError`→`ui.notify` wrap. Logs with traceback (so it reaches Sentry) and shows a generic negative notify. Never raises itself. A `ui.timer` that outlived its page (`theme/timer_teardown.py:is_timer_teardown_race`) is logged at debug and dropped, since nobody can act on it.
+**`@app.on_exception _handle_unhandled_ui_exception`** — the backstop for event handlers that miss the `ValueError`→`ui.notify` wrap. Logs with traceback (so it reaches Sentry) and shows a generic negative notify. Never raises itself. A `ui.timer` that outlived its page (`application/utils/timer_teardown.py:is_timer_teardown_race`) is logged at debug and dropped, since nobody can act on it. NiceGUI's own default handler (`log.exception` on the `nicegui` logger) runs alongside this one, so `frontend.init()` also installs a filter on that logger for the same race.
 
 **`VersionedStaticFiles`** — a `StaticFiles` subclass that replaces any `Cache-Control`/`Pragma`/`Expires` on HTTP responses with the policy from `theme.assets.cache_control`: `no-store` when `ENVIRONMENT` is `development` (the default), otherwise `immutable` for a year on a stamped URL and `must-revalidate` on an unstamped one.
 
@@ -843,7 +843,7 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 | [`error_page.py`](../../theme/error_page.py) | `render_error_page(...)` — see [Error pages](#error-pages-middlewareerror_handlerspy) |
 | [`equipment_copy.py`](../../theme/equipment_copy.py) | `equipment_guidance(...)` — the asset page's why-no-button sentence; see [Asset detail](#asset-detail-equipmentasset_id-pagesequipmentpy) |
 | [`qualifier_copy.py`](../../theme/qualifier_copy.py) | Shared explanatory copy (Score, Estimate) for the player and admin async-qualifier surfaces, so the two never explain a column differently |
-| [`timer_teardown.py`](../../theme/timer_teardown.py) | `is_timer_teardown_race(exc)` — recognises a `ui.timer` that outlived its page, so `frontend.py`'s exception backstop can drop it quietly |
+| [`timer_teardown.py`](../../theme/timer_teardown.py) | `PageTimer` — use it instead of `ui.timer`. It re-checks `is_deleted` after waiting for the client, so a page closed before its socket settles stops the timer quietly instead of raising from a dead slot. The backstop filters live in `application/utils/timer_teardown.py` |
 | [`assets.py`](../../theme/assets.py) | `asset_url(path)` and `cache_control(...)` — see [Static assets](#static-assets--styling-static) |
 | [`help/`](../../theme/help/__init__.py) | `help_icon(...)`, `render_blocks` / `render_spans` — the safe-markdown renderer shared by `/help`, `/event-info` and tournament descriptions. See [../features/help.md](../features/help.md) |
 

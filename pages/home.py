@@ -15,6 +15,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
 from theme.base import BaseLayout
+from theme.timer_teardown import PageTimer
 
 
 async def _render_platform_landing() -> None:
@@ -170,7 +171,7 @@ def create() -> None:
             with ui.row():
                 ui.label('User not found in the database. Logging out...').classes('text-error')
                 app.storage.user.clear()
-            ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
+            PageTimer(2, lambda: ui.navigate.to('/logout'), once=True)
             return
         # Four tabs, on every community, whatever its feature flags. The count
         # used to run from five to ten, which meant no two communities' phone nav

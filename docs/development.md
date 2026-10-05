@@ -114,9 +114,11 @@ A `RuntimeError: The parent slot of the element has been deleted` from
 `nicegui/timer.py` is **not** a finding. `Timer._run_in_loop` sleeps for its
 interval, waits for the client, and only then enters `self.parent_slot` — while
 its own `_should_stop` (which does check `is_deleted`) is evaluated inside that
-context. Navigating away from any board carrying the 5s roll-label tick lands in
-that gap. `theme/timer_teardown.py` now recognises it and `frontend.py` drops it
-before it reaches Sentry or the flag sweep, so it should not reappear; if
+context. Closing a board carrying the 5s roll-label tick before its socket
+settles lands in that gap. Our timers use `theme.timer_teardown.PageTimer`, which
+re-checks deletion after the wait, and `application/utils/timer_teardown.py`
+filters any remaining instance out of the app's exception handler, the `nicegui`
+logger and Sentry, so it should not reappear; if
 something like it does, **check `main` before believing it is yours** — a stash,
 a restart and a re-run is cheaper than the wrong diagnosis.
 
