@@ -27,7 +27,7 @@ from starlette.responses import RedirectResponse
 
 from application.events import check_in_live
 from application.services import AuthService, CheckInService, TenantService, get_user_from_discord_id
-from application.services.check_in_service import ROSTER_FILTERS, entrant_filters
+from application.services.check_in_rules import ROSTER_FILTERS, entrant_filters
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
@@ -384,7 +384,11 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             PageTimer(1.6, clear, once=True)
         paint()
 
-    chips.on_value_change(lambda e: (state.update(filter=e.value or 'all'), paint()))
+    def on_filter(e) -> None:
+        state['filter'] = e.value or 'all'
+        paint()
+
+    chips.on_value_change(on_filter)
 
     def show_undo(entrant_id: int, name: str) -> None:
         undo_bar.clear()

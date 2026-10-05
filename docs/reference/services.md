@@ -521,7 +521,7 @@ The check-in desk for in-person events whose registration runs on Matcherino. Mi
 | `add_walk_up(actor, event_id, *, user_id=None, name=None, check_in=True)` | `CheckInEntrant` | Staff. A member or a bare name. |
 | `remove_entrant(actor, entrant_id)` | `None` | Staff. Walk-ups only; a Matcherino row would come back on the next sync. |
 
-The roster mutations audit and publish `check_in_entrant.checked_in` / `.check_in_undone` / `.linked` / `.unlinked` / `.walk_up_added` / `.removed` in one `write_and_publish` call, then nudge open desks on [`check_in_live`](../features/event-system.md) (`application/events/check_in_live.py`). Module helper `summarize(entrants) -> RosterCounts` gives the desk's headline numbers (withdrawn rows count only as withdrawn). Value types: `SyncResult`, `RosterCounts`, `CheckInOutcome`.
+The roster mutations audit and publish `check_in_entrant.checked_in` / `.check_in_undone` / `.linked` / `.unlinked` / `.walk_up_added` / `.removed` in one `write_and_publish` call, then nudge open desks on [`check_in_live`](../features/event-system.md) (`application/events/check_in_live.py`). The pure rules live in `check_in_rules.py` (no I/O): `entrant_filters` / `ROSTER_FILTERS` (the desk's filter chips), `summarize(entrants) -> RosterCounts` (withdrawn rows count only as withdrawn), `handle_id`, `resolve_link` (auto-link precedence over an `IdentityLookups`), and the value types `SyncResult`, `RosterCounts`, `CheckInOutcome`.
 
 Collaborators: `CheckInEventRepository`, `CheckInEntrantRepository`, `CheckInUserLookupRepository` (global identity lookups), `UserRepository` (community-scoped candidates), `AuditService`, `AuthService`, `MatcherinoClient`.
 

@@ -7,7 +7,8 @@ import pytest
 
 from application.errors import FeatureDisabledError
 from application.events import check_in_live
-from application.services.check_in_service import CheckInService, handle_id, summarize
+from application.services.check_in_rules import handle_id, summarize
+from application.services.check_in_service import CheckInService
 from application.services.feature_flag_service import reset_flag_cache
 from application.utils.clients.matcherino_client import (
     MatcherinoAPIError,

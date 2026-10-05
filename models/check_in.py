@@ -1,3 +1,5 @@
+from typing import Optional
+
 from tortoise import fields
 from tortoise.models import Model
 
@@ -16,7 +18,10 @@ class CheckInEvent(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='check_in_events', on_delete=fields.CASCADE)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='check_in_events', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
     name = fields.CharField(max_length=255)
     matcherino_bounty_id = fields.IntField(null=True)
     status = fields.CharEnumField(CheckInEventStatus, default=CheckInEventStatus.DRAFT, max_length=16)
@@ -52,8 +57,14 @@ class CheckInEntrant(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='check_in_entrants', on_delete=fields.CASCADE)
-    event = fields.ForeignKeyField('models.CheckInEvent', related_name='entrants', on_delete=fields.CASCADE)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='check_in_entrants', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
+    event: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.CheckInEvent', related_name='entrants', on_delete=fields.CASCADE,
+    )
+    event_id: int
     source = fields.CharEnumField(CheckInEntrantSource, max_length=16)
     matcherino_user_id = fields.CharField(max_length=64, null=True)
     display_name = fields.CharField(max_length=255)
@@ -62,17 +73,19 @@ class CheckInEntrant(Model):
     auth_id = fields.CharField(max_length=128, null=True)
     twitch_login = fields.CharField(max_length=255, null=True)
     registered_at = fields.DatetimeField(null=True)
-    source_data = fields.JSONField(null=True)
-    user = fields.ForeignKeyField(
+    # mypy cannot infer a JSONField's type parameter, as with every sibling.
+    source_data = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    user: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.User', related_name='check_in_entries', null=True, on_delete=fields.SET_NULL
     )
+    user_id: Optional[int]
     link_method = fields.CharEnumField(CheckInLinkMethod, max_length=24, null=True)
-    linked_by = fields.ForeignKeyField(
+    linked_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.User', related_name='check_in_links_made', null=True, on_delete=fields.SET_NULL
     )
     withdrawn_at = fields.DatetimeField(null=True)
     checked_in_at = fields.DatetimeField(null=True)
-    checked_in_by = fields.ForeignKeyField(
+    checked_in_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.User', related_name='check_ins_performed', null=True, on_delete=fields.SET_NULL
     )
     created_at = fields.DatetimeField(auto_now_add=True)

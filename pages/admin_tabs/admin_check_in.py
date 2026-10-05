@@ -74,6 +74,8 @@ async def admin_check_in_page() -> None:
         with ui.row().classes('full-width items-center'):
             async def add_event() -> None:
                 actor = await current_actor()
+                if actor is None:
+                    return
                 await open_event_dialog(service, actor, on_done=_render_table.refresh)
 
             ui.button('New event', icon='add', on_click=add_event).props('color=primary') \
@@ -112,6 +114,8 @@ async def admin_check_in_page() -> None:
                 with client:
                     actor = await current_actor()
                     event = await service.get_event(row['id'])
+                    if actor is None:
+                        return
                     if event is None:
                         ui.notify("Couldn't find that event. Try refreshing.", color='warning')
                         return

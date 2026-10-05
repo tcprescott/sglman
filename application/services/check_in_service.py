@@ -18,10 +18,8 @@ the failure this guards against.
 
 import asyncio
 import difflib
-import re
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.exceptions import IntegrityError
 
@@ -36,6 +34,15 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.check_in_rules import (
+    CheckInOutcome,
+    IdentityLookups,
+    SyncResult,
+    handle_id,
+    norm_name,
+    resolve_link,
+    summarize,
+)
 from application.utils.clients.matcherino_client import (
     MatcherinoAPIError,
     MatcherinoBounty,
@@ -60,102 +67,6 @@ SUGGESTION_THRESHOLD = 0.6
 
 _DESK_DENIED = 'Only staff and check-in desk volunteers can do that.'
 _STAFF_DENIED = 'Only staff can do that.'
-
-
-@dataclass
-class SyncResult:
-    added: int = 0
-    updated: int = 0
-    withdrawn: int = 0
-    rejoined: int = 0
-    auto_linked: int = 0
-    total: int = 0
-
-    def as_dict(self) -> Dict[str, int]:
-        return {
-            'added': self.added, 'updated': self.updated, 'withdrawn': self.withdrawn,
-            'rejoined': self.rejoined, 'auto_linked': self.auto_linked, 'total': self.total,
-        }
-
-
-@dataclass
-class RosterCounts:
-    """Headline numbers for the desk. Withdrawn rows count only as withdrawn."""
-
-    total: int = 0
-    checked_in: int = 0
-    not_yet: int = 0
-    unlinked: int = 0
-    withdrawn: int = 0
-    walk_ups: int = 0
-
-
-@dataclass
-class CheckInOutcome:
-    entrant: CheckInEntrant
-    already: bool = False
-
-
-@dataclass
-class _Lookups:
-    """Candidate accounts for auto-linking, indexed by each identifier."""
-
-    by_matcherino_id: Dict[str, User] = field(default_factory=dict)
-    by_discord_id: Dict[str, User] = field(default_factory=dict)
-    by_twitch_id: Dict[str, User] = field(default_factory=dict)
-    by_twitch_login: Dict[str, User] = field(default_factory=dict)
-    by_handle_id: Dict[str, User] = field(default_factory=dict)
-
-
-_HANDLE_ID = re.compile(r'#\s*(\d+)\s*$')
-_NAME_NOISE = re.compile(r'[^a-z0-9]+')
-
-
-def handle_id(handle: Optional[str]) -> Optional[str]:
-    """The numeric id at the end of a ``name#id`` Matcherino handle, if any."""
-    if not handle:
-        return None
-    match = _HANDLE_ID.search(handle)
-    return match.group(1) if match else None
-
-
-def _norm(name: Optional[str]) -> str:
-    return _NAME_NOISE.sub('', (name or '').lower())
-
-
-#: The desk's filter chips, in display order. ``entrant_filters`` is the one
-#: definition of which chips a row belongs to; ``summarize`` counts from it.
-ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'withdrawn')
-
-
-def entrant_filters(entrant: CheckInEntrant) -> Set[str]:
-    """The filter chips a roster row appears under.
-
-    Someone who left the bounty without checking in counts only as withdrawn;
-    once checked in they count as present whatever Matcherino says.
-    """
-    checked_in = entrant.checked_in_at is not None
-    if entrant.withdrawn_at is not None and not checked_in:
-        return {'withdrawn'}
-    filters = {'all', 'checked_in' if checked_in else 'not_yet'}
-    if entrant.user_id is None:
-        filters.add('unlinked')
-    if entrant.source == CheckInEntrantSource.WALK_UP:
-        filters.add('walk_up')
-    return filters
-
-
-def summarize(entrants: Iterable[CheckInEntrant]) -> RosterCounts:
-    counts = RosterCounts()
-    for entrant in entrants:
-        filters = entrant_filters(entrant)
-        counts.total += 'all' in filters
-        counts.checked_in += 'checked_in' in filters
-        counts.not_yet += 'not_yet' in filters
-        counts.unlinked += 'unlinked' in filters
-        counts.withdrawn += 'withdrawn' in filters
-        counts.walk_ups += 'walk_up' in filters
-    return counts
 
 
 # One sync per event at a time. The app runs as a single process
@@ -394,7 +305,7 @@ class CheckInService:
             for key in changes:
                 setattr(row, key, fields[key])
             if row.withdrawn_at is not None:
-                row.withdrawn_at = None
+                row.withdrawn_at = None  # type: ignore[assignment]
                 changes.add('withdrawn_at')
                 result.rejoined += 1
             if changes:
@@ -468,14 +379,14 @@ class CheckInService:
         taken = await self.entrants.linked_user_ids(event)
         matches: List[Tuple[CheckInEntrant, User, CheckInLinkMethod]] = []
         for row in rows:
-            match = self._resolve(row, lookups)
+            match = resolve_link(row, lookups)
             if match is None or match[0].id in taken:
                 continue
             taken.add(match[0].id)
             matches.append((row, *match))
         return matches
 
-    async def _build_lookups(self, rows: Sequence[CheckInEntrant]) -> _Lookups:
+    async def _build_lookups(self, rows: Sequence[CheckInEntrant]) -> IdentityLookups:
         discord_ids = {
             int(row.auth_id) for row in rows
             if row.auth_provider == 'discord' and (row.auth_id or '').isdigit()
@@ -487,7 +398,7 @@ class CheckInService:
             discord_ids=discord_ids, twitch_ids=twitch_ids,
             twitch_logins=twitch_logins, matcherino_ids=matcherino_ids,
         )
-        lookups = _Lookups()
+        lookups = IdentityLookups()
         for user in users:
             if user.matcherino_user_id:
                 lookups.by_matcherino_id[user.matcherino_user_id] = user
@@ -503,22 +414,6 @@ class CheckInService:
                 if hid in matcherino_ids:
                     lookups.by_handle_id.setdefault(hid, user)
         return lookups
-
-    @staticmethod
-    def _resolve(row: CheckInEntrant, lookups: _Lookups) -> Optional[Tuple[User, CheckInLinkMethod]]:
-        candidates = (
-            (lookups.by_matcherino_id.get(row.matcherino_user_id or ''), CheckInLinkMethod.MATCHERINO_ID),
-            (lookups.by_discord_id.get(row.auth_id or '') if row.auth_provider == 'discord' else None,
-             CheckInLinkMethod.DISCORD_ID),
-            (lookups.by_twitch_id.get(row.auth_id or '') if row.auth_provider == 'twitch' else None,
-             CheckInLinkMethod.TWITCH_ID),
-            (lookups.by_twitch_login.get((row.twitch_login or '').lower()), CheckInLinkMethod.TWITCH_LOGIN),
-            (lookups.by_handle_id.get(row.matcherino_user_id or ''), CheckInLinkMethod.MATCHERINO_HANDLE),
-        )
-        for user, method in candidates:
-            if user is not None:
-                return user, method
-        return None
 
     async def _remember_matcherino_account(
         self, actor: User, user: User, entrant: CheckInEntrant, method: CheckInLinkMethod,
@@ -593,8 +488,8 @@ class CheckInService:
         A suggestion for staff to confirm, never applied on its own. Members
         already linked to someone else on this roster are left out.
         """
-        target = _norm(entrant.display_name)
-        targets = {target, _norm(entrant.twitch_login)} - {''}
+        target = norm_name(entrant.display_name)
+        targets = {target, norm_name(entrant.twitch_login)} - {''}
         if not targets:
             return []
         taken = await self.entrants.linked_user_ids(entrant.event)
@@ -603,8 +498,8 @@ class CheckInService:
             if user.id in taken:
                 continue
             names = {
-                _norm(user.username), _norm(user.display_name), _norm(user.twitch_username),
-                _norm((user.matcherino_username or '').split('#')[0]),
+                norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
+                norm_name((user.matcherino_username or '').split('#')[0]),
             } - {''}
             score = max(
                 (difflib.SequenceMatcher(None, t, n).ratio() for t in targets for n in names),
@@ -621,14 +516,14 @@ class CheckInService:
 
         Backs the member search in the link and walk-up dialogs.
         """
-        needle = _norm(query)
+        needle = norm_name(query)
         if len(needle) < 2:
             return []
         taken = await self.entrants.linked_user_ids(event)
         matches = [
             user for user in await UserRepository.get_community_people()
             if user.id not in taken and any(
-                needle in _norm(name)
+                needle in norm_name(name)
                 for name in (user.username, user.display_name, user.twitch_username,
                              user.matcherino_username)
             )
@@ -676,7 +571,7 @@ class CheckInService:
             entrant, datetime.now(timezone.utc),
         ):
             return entrant
-        entrant.checked_in_at = None
+        entrant.checked_in_at = None  # type: ignore[assignment]
         entrant.checked_in_by = None
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_CHECK_IN_UNDONE, self._entrant_details(entrant),
@@ -811,8 +706,9 @@ class CheckInService:
                 'removed here. Ask them to leave the bounty instead.'
             )
         details = self._entrant_details(entrant)
+        event_id = entrant.event_id
         await self.entrants.delete(entrant)
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_REMOVED, details, EventType.CHECK_IN_ENTRANT_REMOVED,
         )
-        check_in_live.publish(details['event_id'], entrant_id, check_in_live.DELETED)
+        check_in_live.publish(event_id, entrant_id, check_in_live.DELETED)

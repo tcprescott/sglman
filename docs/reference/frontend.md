@@ -692,7 +692,7 @@ Rendered as a `no-print` warning **above** the Print button on the label sheet (
 
 Both routes are `@protected_page(roles=[STAFF, CHECK_IN_DESK], feature=FeatureFlag.EVENT_CHECK_IN)`. `/checkin` lists open events and redirects to the one when there is only one; `/checkin/{event_id}` renders the desk through `CheckInService`. Feature doc: [event-check-in.md](../features/event-check-in.md#the-desk).
 
-- **Phone-first.** The search box, progress bar, filter chips (All / Not yet / Checked in / Unlinked / Walk-ups / Withdrawn, with counts from `summarize`) and the sync-status line stick under the app header. Below `md` each person is a card with a full-width 48 px **Check in** button and Link/Unlink/Undo/Remove behind a ⋮ menu; on desktop it is a table (`customize_table(..., key=TableKeys.CHECK_IN_DESK)`) with the same actions.
+- **Phone-first.** The search box, progress bar, filter chips (All / Not yet / Checked in / Unlinked / Walk-ups / Withdrawn, with membership and counts from `check_in_rules.entrant_filters`) and the sync-status line stick under the app header. Below `md` each person is a card with a full-width 48 px **Check in** button and Link/Unlink/Undo/Remove behind a ⋮ menu; on desktop it is a table (`customize_table(..., key=TableKeys.CHECK_IN_DESK)`) with the same actions.
 - Search runs in the browser (Quasar `filter-method`), so it doesn't wait on the server.
 - After a check-in an **Undo** bar shows for eight seconds. Staff get a floating **Add walk-up** button; **Export CSV** downloads the whole roster.
 - The header shows the last good sync and any `last_sync_error`, so volunteers can see a stale roster.

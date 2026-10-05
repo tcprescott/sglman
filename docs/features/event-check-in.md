@@ -171,7 +171,10 @@ Several phones work one event, and the worker polls it too:
 | `link` / `unlink` | Manual matching |
 | `add_walk_up(event_id, user_id= or name=, check_in=True)` / `remove_entrant` | Walk-ups (staff) |
 
-Module-level `summarize(entrants) -> RosterCounts` gives the desk's headline
+`application/services/check_in_rules.py` holds the pure rules the desk and the
+service share: `entrant_filters(entrant)` (which filter chips a row belongs to,
+over `ROSTER_FILTERS`), `summarize(entrants) -> RosterCounts`, `handle_id`, and
+`resolve_link` (the auto-link precedence). `summarize` gives the desk's headline
 numbers; withdrawn rows count only as withdrawn.
 
 ## Sync worker

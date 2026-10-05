@@ -37,8 +37,7 @@ class CheckInEventRepository(TenantScopedRepository[CheckInEvent]):
         would revert anything staff changed on the event meanwhile.
         """
         await scoped(CheckInEvent.filter(id=event.id)).update(**fields)
-        for key, value in fields.items():
-            setattr(event, key, value)
+        event.update_from_dict(fields)
 
     @staticmethod
     async def get_by_bounty(bounty_id: int) -> Optional[CheckInEvent]:
@@ -81,7 +80,7 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
         rows = await scoped(CheckInEntrant.filter(event=event, user_id__isnull=False)).values_list(
             'user_id', flat=True,
         )
-        return set(rows)
+        return {int(row) for row in rows}  # type: ignore[call-overload]
 
     @staticmethod
     async def get_for_user(event: CheckInEvent, user: User) -> Optional[CheckInEntrant]:
@@ -143,15 +142,14 @@ class CheckInUserLookupRepository:
         twitch_logins: Iterable[str],
         matcherino_ids: Iterable[str],
     ) -> List[User]:
-        clauses = [
-            Q(**{f'{column}__in': values})
-            for column, values in (
-                ('discord_id', list(discord_ids)),
-                ('twitch_user_id', list(twitch_ids)),
-                ('matcherino_user_id', list(matcherino_ids)),
-            )
-            if values
-        ]
+        discord_ids, twitch_ids, matcherino_ids = list(discord_ids), list(twitch_ids), list(matcherino_ids)
+        clauses: List[Q] = []
+        if discord_ids:
+            clauses.append(Q(discord_id__in=discord_ids))
+        if twitch_ids:
+            clauses.append(Q(twitch_user_id__in=twitch_ids))
+        if matcherino_ids:
+            clauses.append(Q(matcherino_user_id__in=matcherino_ids))
         users: Dict[int, User] = {}
         if clauses:
             for user in await User.filter(Q(*clauses, join_type='OR'), is_active=True, is_system=False):
