@@ -38,7 +38,7 @@ async def _tournament(bot, *, auto_open=False, lead=30, seed=None) -> Tournament
     return await Tournament.create(
         name='T', racetime_bot_id=bot.id,
         racetime_auto_create_rooms=auto_open, room_open_minutes_before=lead,
-        seed_generator=seed,
+        seed_generator=seed, racetime_default_goal='Beat the game',
     )
 
 
@@ -81,7 +81,7 @@ async def test_create_room_is_idempotent(db):
     assert room1.id == room2.id
     assert room1.status == RaceRoomStatus.OPEN
     assert room1.category == 'alttpr'
-    assert room1.slug == f'alttpr/match-{match.id}'
+    assert room1.slug.startswith('alttpr/mock-room-')
     assert await RacetimeRoom.filter(match_id=match.id).count() == 1
 
 
@@ -277,3 +277,186 @@ async def test_auto_open_is_idempotent(db):
     await race_room_worker._tick()
 
     assert await RacetimeRoom.all().count() == 1
+
+
+# ---- opening a real room ----------------------------------------------------
+
+async def test_room_is_opened_on_racetime_with_the_profile(db, racetime_rooms):
+    """The row holds racetime's slug, and startrace got the profile's settings."""
+    from models import RaceRoomProfile
+
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    tourn.race_room_profile = await RaceRoomProfile.create(
+        name='House', goal='All Dungeons', invitational=True, start_delay=30,
+        streaming_required=True,
+    )
+    await tourn.save()
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+
+    room = await RaceRoomService().create_room_for_match(match, attach_seed=False)
+
+    [(category, settings)] = racetime_rooms.started
+    assert category == 'alttpr'
+    assert settings.goal == 'All Dungeons'  # the profile's goal beats the default
+    assert settings.invitational and settings.streaming_required
+    assert settings.start_delay == 30
+    assert room.slug.startswith('alttpr/mock-room-')
+    assert room.url == f'https://racetime.gg/{room.slug}'
+    assert room.status == RaceRoomStatus.OPEN
+
+
+async def test_a_refused_startrace_leaves_nothing_behind(db, racetime_rooms, monkeypatch, stub_discord_queue):
+    from application.utils.clients.racetime_client import RacetimeAPIError
+
+    async def refuse(**kwargs):
+        raise RacetimeAPIError('racetime refused (400): bad goal')
+
+    monkeypatch.setattr(racetime_rooms, 'start_race', refuse)
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+
+    with pytest.raises(ValueError, match="racetime.gg didn't open the room"):
+        await RaceRoomService().create_room_for_match(match)
+
+    assert await RacetimeRoom.filter(match_id=match.id).count() == 0
+    assert not await AuditLog.filter(action__startswith='race_room.').exists()
+    assert stub_discord_queue == []
+
+
+async def test_a_room_needs_a_goal(db, racetime_rooms):
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    tourn.racetime_default_goal = None
+    await tourn.save()
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+
+    with pytest.raises(ValueError, match='Set a racetime goal'):
+        await RaceRoomService().create_room_for_match(match)
+    assert racetime_rooms.started == []
+
+
+async def test_concurrent_openers_open_one_room(db, racetime_rooms):
+    """The poll and the series push racing for one match must not open two rooms."""
+    import asyncio
+
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+    svc = RaceRoomService()
+
+    rooms = await asyncio.gather(
+        svc.create_room_for_match(match, attach_seed=False),
+        svc.create_room_for_match(match, attach_seed=False),
+    )
+
+    assert rooms[0].id == rooms[1].id
+    assert len(racetime_rooms.started) == 1
+
+
+async def test_creating_a_room_is_refused_with_the_flag_off(db, racetime_rooms):
+    from application.errors import FeatureDisabledError
+    from application.services.feature_flag_service import reset_flag_cache
+    from models import FeatureFlag, TenantFeatureFlag
+    from tests.conftest import DEFAULT_TEST_TENANT_ID
+
+    await TenantFeatureFlag.filter(
+        tenant_id=DEFAULT_TEST_TENANT_ID, flag=FeatureFlag.RACETIME_ROOMS.value,
+    ).update(enabled=False)
+    reset_flag_cache()
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+    admin = await _user('admin')
+    await UserRole.create(user_id=admin.id, role=Role.SYNC_ADMIN)
+
+    with pytest.raises(FeatureDisabledError):
+        await RaceRoomService().manual_create_room(admin, match.id)
+    with pytest.raises(FeatureDisabledError):
+        await RaceRoomService().open_rooms_for_player(admin)
+    assert racetime_rooms.started == []
+
+
+# ---- the player's route in ---------------------------------------------------
+
+async def test_opening_a_room_dms_each_player_a_button_into_it(db, stub_discord_queue, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    sent = []
+
+    async def _send(user_id, message, *args, **kwargs):
+        sent.append((user_id, message, kwargs))
+        return True, 'ok'
+
+    monkeypatch.setattr(
+        'application.services.discord.discord_service.DiscordService.send_dm',
+        AsyncMock(side_effect=_send),
+    )
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    a, b = await _user('a', 'rt-a'), await _user('b', 'rt-b')
+    muted = await _user('muted', 'rt-m')
+    muted.dm_notifications = False
+    await muted.save()
+    match = await _match_with_players(tourn, [a, b, muted])
+
+    room = await RaceRoomService().create_room_for_match(match, attach_seed=False)
+    for coro in list(stub_discord_queue):
+        await coro
+
+    assert {user_id for user_id, _, _ in sent} == {a.discord_id, b.discord_id}
+    for _, message, kwargs in sent:
+        assert message.startswith('Your race room for **T** is open.')
+        assert kwargs['link'].url == room.url == f'https://racetime.gg/{room.slug}'
+
+
+async def test_an_existing_room_is_not_announced_twice(db, stub_discord_queue):
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
+    svc = RaceRoomService()
+    await svc.create_room_for_match(match, attach_seed=False)
+    queued = len(stub_discord_queue)
+
+    await svc.create_room_for_match(match, attach_seed=False)
+
+    assert len(stub_discord_queue) == queued
+
+
+async def test_a_player_sees_only_their_own_open_rooms(db):
+    bot = await _bot()
+    tourn = await _tournament(bot)
+    a, b, c = await _user('a', 'rt-a'), await _user('b', 'rt-b'), await _user('c', 'rt-c')
+    svc = RaceRoomService()
+    later = datetime.now(timezone.utc) + timedelta(hours=2)
+    soon = datetime.now(timezone.utc) + timedelta(minutes=20)
+    first = await svc.create_room_for_match(
+        await _match_with_players(tourn, [a, b], scheduled_at=later), attach_seed=False,
+    )
+    second = await svc.create_room_for_match(
+        await _match_with_players(tourn, [a, c], scheduled_at=soon), attach_seed=False,
+    )
+    done = await svc.create_room_for_match(
+        await _match_with_players(tourn, [a, b], scheduled_at=soon), attach_seed=False,
+    )
+    await svc.cancel_room(done)
+
+    assert [r.id for r in await svc.open_rooms_for_player(a)] == [second.id, first.id]
+    assert [r.id for r in await svc.open_rooms_for_player(b)] == [first.id]
+
+
+async def test_auto_open_skips_a_tournament_with_no_goal(db, racetime_rooms):
+    bot = await _bot()
+    tourn = await _tournament(bot, auto_open=True)
+    tourn.racetime_default_goal = None
+    await tourn.save()
+    match = await _match_with_players(
+        tourn, [await _user('a', 'rt-a')],
+        scheduled_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    )
+
+    assert await RaceRoomService().auto_open_if_eligible(
+        match, now=datetime.now(timezone.utc),
+    ) is None
+    assert racetime_rooms.started == []

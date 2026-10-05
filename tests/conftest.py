@@ -135,6 +135,22 @@ def _no_external_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def racetime_rooms(monkeypatch):
+    """Every racetime room the suite opens goes to the mock ``startrace`` client.
+
+    Opening a room is a real racetime.gg call outside ``MOCK_RACETIME``; this
+    hands each test one :class:`MockRacetimeRoomsClient` instead, whose
+    ``started`` list records what was asked for. A test of the live client builds
+    ``RacetimeRoomsClient`` directly.
+    """
+    from application.utils.clients import racetime_rooms_client
+
+    client = racetime_rooms_client.MockRacetimeRoomsClient()
+    monkeypatch.setattr(racetime_rooms_client, 'build_rooms_client', lambda: client)
+    return client
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """Isolate the process-global API rate-limiter counters per test.
 

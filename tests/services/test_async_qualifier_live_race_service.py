@@ -81,14 +81,17 @@ async def test_non_admin_cannot_create(db):
         await lrsvc.create_live_race(outsider, pool.id, match_title='X')
 
 
-async def test_open_room_creates_room_and_slug(db):
+async def test_open_room_creates_room_and_slug(db, racetime_rooms):
     qsvc, lrsvc = AsyncQualifierService(), AsyncQualifierLiveRaceService()
     staff = await _staff()
     await _authorized_bot()
     _, _, _, lr = await _live_race(qsvc, lrsvc, staff)
 
     opened = await lrsvc.open_room(staff, lr.id)
-    assert opened.racetime_slug == f'alttpr/qualifier-live-{lr.id}'
+    # racetime's slug, not one made up locally.
+    assert opened.racetime_slug.startswith('alttpr/mock-room-')
+    [(category, settings)] = racetime_rooms.started
+    assert category == 'alttpr' and settings.info_user == lr.match_title
     assert opened.status == AsyncQualifierLiveRaceStatus.PENDING
     room = await RacetimeRoom.get_or_none(slug=opened.racetime_slug)
     assert room is not None and room.match_id is None
