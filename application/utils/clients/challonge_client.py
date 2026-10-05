@@ -41,6 +41,10 @@ RequestHook = Callable[[], Awaitable[None]]
 class ChallongeAPIError(Exception):
     """Raised when the Challonge API returns an error or unexpected payload."""
 
+    def __init__(self, message: str, status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
+
 
 def build_authorize_url(client_id: str, redirect_uri: str, scope: str, state: str) -> str:
     """Return the Challonge OAuth authorize URL to redirect the browser to."""
@@ -316,7 +320,7 @@ class ChallongeClient:
     async def _parse(resp: aiohttp.ClientResponse) -> Dict[str, Any]:
         text = await resp.text()
         if resp.status >= 400:
-            raise ChallongeAPIError(f"Challonge API error ({resp.status}): {text}")
+            raise ChallongeAPIError(f"Challonge API error ({resp.status}): {text}", status=resp.status)
         if not text:
             return {}
         import json as _json
@@ -354,7 +358,7 @@ class MockChallongeClient(ChallongeClient):
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
         return {'access_token': 'mock-access', 'refresh_token': 'mock-refresh', 'expires_in': 604800,
-                'scope': 'me tournaments:read matches:read matches:write participants:read'}
+                'scope': 'me tournaments:read matches:read matches:write participants:read communities:manage'}
 
     async def refresh(self, refresh_token: str) -> Dict[str, Any]:
         return await self.exchange_code('mock', 'mock')

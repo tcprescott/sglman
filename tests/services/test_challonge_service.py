@@ -42,6 +42,12 @@ async def make_user(discord_id: int, username: str = 'u', challonge_user_id=None
 # ----------------------------------------------------------------------
 # parse_tournament_identifier (pure)
 # ----------------------------------------------------------------------
+def test_default_service_scopes_include_communities_manage(monkeypatch):
+    from application.services.challonge_service import _service_scopes
+    monkeypatch.delenv('CHALLONGE_SCOPES', raising=False)
+    assert 'communities:manage' in _service_scopes().split()
+
+
 class TestParseIdentifier:
     def test_plain_slug(self):
         assert ChallongeService.parse_tournament_identifier('abc123') == ('abc123', None)
