@@ -28,6 +28,7 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
 from application.services.feature_flag_service import FeatureFlagService
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.mocks.mock_challonge import is_mock_challonge
 from models import FeatureFlag
 from pages._oauth_link import (
@@ -117,6 +118,7 @@ def create() -> None:
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_service_state'] = state
         app.storage.user['challonge_service_return'] = f'{root_path}{_ADMIN_RETURN}'
+        app.storage.user['challonge_service_tenant'] = get_current_tenant_id()
         return RedirectResponse(ChallongeService.service_authorize_url(state))
 
     @ui.page('/challonge/oauth/callback')
@@ -132,6 +134,11 @@ def create() -> None:
         player_state = app.storage.user.pop('challonge_player_state', None)
         service_return = app.storage.user.pop('challonge_service_return', None) or _ADMIN_RETURN
         player_return = app.storage.user.pop('challonge_player_return', None) or _PROFILE_RETURN
+        # The callback is on the bare platform host, so no tenant is in scope here:
+        # the feature gate and the tenant-scoped writes need the community the
+        # flow started in, pinned server-side at initiation.
+        service_tenant = app.storage.user.pop('challonge_service_tenant', None)
+        player_tenant = app.storage.user.pop('challonge_player_tenant', None)
         if user is None:
             # Not authenticated: bounce to the originating tenant's login rather
             # than the platform host (the returns carry the /t/<slug> prefix).
@@ -146,22 +153,26 @@ def create() -> None:
         # about the admin area.
         state = returned_state(url)
         if player_state is not None and state == player_state:
-            await _finish_player_link(
-                user, read_callback_code(url, player_state, _PROVIDER_LABEL), player_return,
-            )
+            with tenant_scope(player_tenant):
+                await _finish_player_link(
+                    user, read_callback_code(url, player_state, _PROVIDER_LABEL), player_return,
+                )
         elif service_state is not None and state == service_state:
-            await _finish_service_connect(
-                user, read_callback_code(url, service_state, _PROVIDER_LABEL), service_return,
-            )
+            with tenant_scope(service_tenant):
+                await _finish_service_connect(
+                    user, read_callback_code(url, service_state, _PROVIDER_LABEL), service_return,
+                )
         elif (player_state is None) != (service_state is None):
             # Exactly one flow pending and the state did not match it: a provider
             # redirect carrying an error and no usable state. Complete that flow
             # with no code so it reports cancelled/failed and returns to its own
             # path — what the old `or service_state is None` clause was for.
             if player_state is not None:
-                await _finish_player_link(user, None, player_return)
+                with tenant_scope(player_tenant):
+                    await _finish_player_link(user, None, player_return)
             else:
-                await _finish_service_connect(user, None, service_return)
+                with tenant_scope(service_tenant):
+                    await _finish_service_connect(user, None, service_return)
         else:
             # Nothing pending, or both pending and neither matched: this callback
             # belongs to neither flow, so complete neither. Return to the profile,
@@ -216,6 +227,7 @@ def create() -> None:
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_player_state'] = state
         app.storage.user['challonge_player_return'] = f'{root_path}{_PROFILE_RETURN}'
+        app.storage.user['challonge_player_tenant'] = get_current_tenant_id()
         return RedirectResponse(ChallongeService.player_authorize_url(state))
 
 
