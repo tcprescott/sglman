@@ -22,13 +22,13 @@ from models import (
     VolunteerPosition,
     VolunteerShift,
 )
-from tests.factories import utc
+from tests.factories import make_user, utc
 
 _ids = itertools.count(710000)
 
 
-async def _user(name, *roles: Role) -> User:
-    user = await User.create(discord_id=next(_ids), username=name, display_name=name)
+async def _holder(name, *roles: Role) -> User:
+    user = await make_user(next(_ids), name, display_name=name)
     for role in roles:
         await UserRole.create(user=user, role=role)
     return user
@@ -40,8 +40,8 @@ async def _role_row(user: User, role: Role):
 
 @pytest.fixture
 async def setup(db, stub_discord_queue):
-    staff = await _user('staff', Role.STAFF)
-    vol = await _user('vol', Role.VOLUNTEER)
+    staff = await _holder('staff', Role.STAFF)
+    vol = await _holder('vol', Role.VOLUNTEER)
     position = await VolunteerPosition.create(name='Proctor Desk')
     shift = await VolunteerShift.create(
         position=position, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12),
@@ -52,7 +52,7 @@ async def setup(db, stub_discord_queue):
 class TestMappingManagement:
     async def test_only_staff_can_add(self, setup):
         _, _, position, _ = setup
-        coordinator = await _user('coord', Role.VOLUNTEER_COORDINATOR)
+        coordinator = await _holder('coord', Role.VOLUNTEER_COORDINATOR)
         with pytest.raises(PermissionError):
             await VolunteerRoleMappingService().add_mapping(coordinator, position.id, Role.PROCTOR)
 
