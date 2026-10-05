@@ -92,6 +92,10 @@ to grant it `EQUIPMENT_MANAGER` and `VOLUNTEER_COORDINATOR`, which bought nothin
 plain-staff fixture. `SUPER_ADMIN` is exempt — its `UserRole` row carries
 `tenant=NULL` and it is the fixture for *no* local grants.
 
+`checkin_desk` holds `CHECK_IN_DESK` alone, so the check-in desk is exercised by
+someone who can check people in, link and sync, but not add walk-ups or set up
+an event.
+
 ## 5. Re-seeding converges; it never overwrites
 
 `get_or_create` for rows. For a field a fixture gains *later*, `backfill()` writes
@@ -140,6 +144,7 @@ also how the files stay under the 800-line budget.
 | `seed_play_in.py` | Group play-in races — the only rosters longer than two |
 | `seed_onsite.py` | The second venue event, and the archived season |
 | `seed_payouts.py` | Last season's split paid out in full (with two third places), a pool on the running tournament that nobody has placed in, and the Matcherino handles — one winner deliberately without one |
+| `seed_check_in.py` | Event check-in, synced through the real `CheckInService` against the `MOCK_MATCHERINO` roster so pressing Sync in dev changes nothing. One sync yields every automatic link method because three racers carry the identifiers the mock roster matches on (global, via `seed_check_in_identities`): `racer_05` a remembered `matcherino_user_id`, `racer_07` a `twitch_user_id`, `racer_08` a `twitch_username`. On top: a manual link, a withdrawn registrant, a check-in by `checkin_desk`, a member walk-up and a named walk-up, a draft event and a closed one. Only tenants with `EVENT_CHECK_IN` live get rows, which in dev is the default tenant |
 | `seed_crew.py` | Commentator/tracker signups — one row per crew state, including the approved-but-unacknowledged one that is the only fixture rendering the Acknowledge control |
 | `seed_online.py` | Racetime bots/rooms, presets, SpeedGaming, Discord events |
 | `seed_qualifiers.py` | Async qualifiers, open and closed |

@@ -73,6 +73,10 @@ def service():
     svc.position_repository = MagicMock()
     svc.audit_service = make_audit_double()
     svc.discord_service = MagicMock()
+    svc.assignment_repository.published_user_ids = AsyncMock(return_value=set())
+    svc.role_mapping_service = MagicMock(
+        reconcile_users=AsyncMock(return_value={}), reconcile_all=AsyncMock(return_value={}),
+    )
     return svc
 
 

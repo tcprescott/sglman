@@ -5,7 +5,7 @@ Volunteers placed into shifts.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Set, cast
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerAssignment, VolunteerShift
@@ -95,6 +95,22 @@ class VolunteerAssignmentRepository:
             query = query.filter(shift__ends_at__gte=upcoming_after)
         prefetch = _PREFETCH_WITH_SHIFTMATES if with_shiftmates else _PREFETCH
         return await query.order_by('shift__starts_at').prefetch_related(*prefetch)
+
+    @staticmethod
+    async def published_position_ids_for_user(user_id: int) -> Set[int]:
+        """Positions this user holds a published assignment on, any time."""
+        ids = await scoped(VolunteerAssignment.filter(
+            user_id=user_id, auto_generated=False,
+        )).values_list('shift__position_id', flat=True)
+        return set(cast(List[int], ids))
+
+    @staticmethod
+    async def published_user_ids(shift_id: Optional[int] = None) -> Set[int]:
+        """Everyone holding a published assignment, optionally on one shift."""
+        query = scoped(VolunteerAssignment.filter(auto_generated=False))
+        if shift_id is not None:
+            query = query.filter(shift_id=shift_id)
+        return set(cast(List[int], await query.values_list('user_id', flat=True)))
 
     @staticmethod
     async def list_for_window(start: datetime, end: datetime) -> List[VolunteerAssignment]:

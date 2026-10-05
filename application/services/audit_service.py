@@ -177,6 +177,18 @@ class AuditActions:
     EQUIPMENT_CHECKED_OUT = 'equipment.checked_out'
     EQUIPMENT_CHECKED_IN = 'equipment.checked_in'
 
+    # Event check-in
+    CHECK_IN_EVENT_CREATED = 'check_in_event.created'
+    CHECK_IN_EVENT_UPDATED = 'check_in_event.updated'
+    CHECK_IN_EVENT_DELETED = 'check_in_event.deleted'
+    CHECK_IN_EVENT_SYNCED = 'check_in_event.synced'
+    CHECK_IN_ENTRANT_CHECKED_IN = 'check_in_entrant.checked_in'
+    CHECK_IN_ENTRANT_CHECK_IN_UNDONE = 'check_in_entrant.check_in_undone'
+    CHECK_IN_ENTRANT_LINKED = 'check_in_entrant.linked'
+    CHECK_IN_ENTRANT_UNLINKED = 'check_in_entrant.unlinked'
+    CHECK_IN_ENTRANT_WALK_UP_ADDED = 'check_in_entrant.walk_up_added'
+    CHECK_IN_ENTRANT_REMOVED = 'check_in_entrant.removed'
+
     # Player availability
     PLAYER_AVAILABILITY_UPDATED = 'player.availability_updated'
 
@@ -249,6 +261,10 @@ class AuditActions:
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
     VOLUNTEER_DATA_EXPORTED = 'volunteer.data_exported'
+    VOLUNTEER_ROLE_MAPPING_ADDED = 'volunteer.role_mapping_added'
+    VOLUNTEER_ROLE_MAPPING_REMOVED = 'volunteer.role_mapping_removed'
+    ROLE_VOLUNTEER_SYNC_GRANTED = 'role.volunteer_sync_granted'
+    ROLE_VOLUNTEER_SYNC_REVOKED = 'role.volunteer_sync_revoked'
 
     # Web push (device notifications)
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'

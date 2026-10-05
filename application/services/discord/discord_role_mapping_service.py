@@ -24,6 +24,9 @@ from application.services.discord.discord_service import DiscordService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tenant_service import TenantService
 from application.services.user_service import UserService
+from application.services.volunteer.volunteer_role_mapping_service import (
+    VolunteerRoleMappingService,
+)
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import (
     DiscordRoleMapping,
@@ -437,6 +440,10 @@ class DiscordRoleMappingService:
                         {'role': role.value, 'source': RoleSource.DISCORD.value, 'tenant_id': tenant.id},
                     )
                     summary['revoked'].append(role.value)
+                if summary['revoked']:
+                    # The Discord grant may have been the one row standing in for
+                    # a role a volunteer assignment also confers; hand it back.
+                    await VolunteerRoleMappingService().reconcile_users(user, [user.id])
 
                 await self._sync_tournament_grants(
                     user, tenant, mappings, member_role_ids, summary

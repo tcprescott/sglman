@@ -10,6 +10,9 @@ class Role(str, Enum):
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
     EQUIPMENT_MANAGER = 'equipment_manager'
     VOLUNTEER = 'volunteer'
+    # Works the event check-in desk: checks people in, links registrants to
+    # accounts, runs a sync. Walk-ups and event setup stay STAFF-only.
+    CHECK_IN_DESK = 'check_in_desk'
     # Online-tournament admin surfaces (see docs/online-tournaments). Each gates a
     # new subsystem's management UI/worker actions the way STAFF does the rest.
     PRESET_MANAGER = 'preset_manager'
@@ -37,6 +40,20 @@ class Role(str, Enum):
         rather than in three places someone has to remember.
         """
         return [role for role in cls if role is not cls.SUPER_ADMIN]
+
+    @classmethod
+    def volunteer_mappable(cls) -> 'list[Role]':
+        """The roles a volunteer position may confer, in declaration order.
+
+        Narrower than ``tenant_grantable`` because a Volunteer Coordinator, not
+        staff, decides who sits on a shift. Mapping a position to STAFF or any
+        role that administers a subsystem would let a coordinator hand that
+        authority to anyone, themselves included, by assigning a shift.
+        """
+        return [
+            cls.PROCTOR, cls.STREAM_MANAGER, cls.TRIFORCE_SUBMITTER,
+            cls.EQUIPMENT_MANAGER, cls.VOLUNTEER,
+        ]
 
 
 class TournamentGrant(str, Enum):
@@ -85,6 +102,7 @@ class FeatureFlag(str, Enum):
     EVENT_INFO = 'event_info'
     PAYOUTS = 'payouts'
     ADA_ACCOMMODATIONS = 'ada_accommodations'
+    EVENT_CHECK_IN = 'event_check_in'
 
 
 class BracketFormat(str, Enum):
@@ -180,6 +198,7 @@ class ApiTokenOrigin(str, Enum):
 class RoleSource(str, Enum):
     MANUAL = 'manual'
     DISCORD = 'discord'
+    VOLUNTEER = 'volunteer'
 
 
 class VolunteerAvailabilityStatus(str, Enum):
@@ -219,6 +238,35 @@ class EquipmentStatus(str, Enum):
     AVAILABLE = 'available'
     CHECKED_OUT = 'checked_out'
     RETIRED = 'retired'
+
+
+class CheckInEventStatus(str, Enum):
+    """Lifecycle of a :class:`~models.CheckInEvent`.
+
+    Only ``OPEN`` events are polled by the Matcherino sync worker; a ``DRAFT``
+    can still be synced by hand while staff set it up.
+    """
+
+    DRAFT = 'draft'
+    OPEN = 'open'
+    CLOSED = 'closed'
+
+
+class CheckInEntrantSource(str, Enum):
+    MATCHERINO = 'matcherino'
+    WALK_UP = 'walk_up'
+
+
+class CheckInLinkMethod(str, Enum):
+    """How a check-in entrant came to be linked to a Wizzrobe ``User``."""
+
+    MATCHERINO_ID = 'matcherino_id'
+    DISCORD_ID = 'discord_id'
+    TWITCH_ID = 'twitch_id'
+    TWITCH_LOGIN = 'twitch_login'
+    MATCHERINO_HANDLE = 'matcherino_handle'
+    MANUAL = 'manual'
+    WALK_UP = 'walk_up'
 
 
 class StationSide(str, Enum):

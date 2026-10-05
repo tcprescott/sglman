@@ -33,6 +33,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Discord bot, notifications, role sync, mock mode | [docs/features/discord.md](docs/features/discord.md) |
 | Crew signup, match acknowledgment, watching | [docs/features/match-participation.md](docs/features/match-participation.md) |
 | Online tournaments (presets, race rooms, qualifiers, SG sync) | [docs/features/online-tournaments.md](docs/features/online-tournaments.md) |
+| Event check-in (Matcherino roster sync, account matching, the desk) | [docs/features/event-check-in.md](docs/features/event-check-in.md) |
 | Single-worker constraint and the way out of it | [docs/scaling-roadmap.md](docs/scaling-roadmap.md) |
 | Remaining per-feature docs | [docs/features/](docs/features/) |
 
@@ -231,7 +232,7 @@ Detail: [docs/features/feature-flags.md](docs/features/feature-flags.md).
 
 ## Authentication
 
-Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has eleven members: the seven per-tenant community roles `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER`; three per-tenant online-tournament admin roles `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` (each gates a management surface/worker the way STAFF gates the rest); and the one global platform role `SUPER_ADMIN` (its `UserRole` row carries `tenant=NULL`, checked via `AuthService.is_super_admin`, and bypasses the per-tenant role gate). Canonical list: `models.Role` / [docs/reference/authentication.md](docs/reference/authentication.md#roles). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
+Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has twelve members: the eight per-tenant community roles `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER`, `CHECK_IN_DESK`; three per-tenant online-tournament admin roles `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` (each gates a management surface/worker the way STAFF gates the rest); and the one global platform role `SUPER_ADMIN` (its `UserRole` row carries `tenant=NULL`, checked via `AuthService.is_super_admin`, and bypasses the per-tenant role gate). Canonical list: `models.Role` / [docs/reference/authentication.md](docs/reference/authentication.md#roles). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
 
 ```python
 from application.services import AuthService, get_user_from_discord_id

@@ -37,10 +37,8 @@ BACKLOG: dict[str, str] = {
     'TournamentNotificationPreference': _DEBT,
     'Tracker': _DEBT,
     'TriforceText': _DEBT,
-    'VolunteerAssignment': _DEBT,
     'VolunteerAvailability': _DEBT,
     'VolunteerQualification': _DEBT,
-    'VolunteerShift': _DEBT,
     'WebhookDelivery': _DEBT,
 }
 

@@ -410,7 +410,7 @@ async def admin_system_config_page() -> None:
         ui.label('Discord Role Sync').classes('section-title q-mt-md')
         ui.label(
             'Connect a Discord server and configure role mappings on the '
-            'Discord Roles tab. Connecting verifies you manage that server.'
+            'Role Mappings tab. Connecting verifies you manage that server.'
         ).classes('text-caption text-grey')
 
         async def save():

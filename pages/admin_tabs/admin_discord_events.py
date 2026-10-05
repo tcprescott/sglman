@@ -62,7 +62,7 @@ async def admin_discord_events_page() -> None:
                 else:
                     ui.icon('warning', color='warning')
                     ui.label(
-                        'No Discord server connected. Connect one from the Discord Roles '
+                        'No Discord server connected. Connect one from the Role Mappings '
                         'tab before events can sync.'
                     ).classes('text-caption')
 

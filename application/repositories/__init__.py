@@ -18,6 +18,11 @@ from .async_qualifier_repository import (
 from .audit_repository import AuditRepository
 from .bracket_repository import BracketRepository
 from .challonge_repository import ChallongeRepository
+from .check_in_repository import (
+    CheckInEntrantRepository,
+    CheckInEventRepository,
+    CheckInUserLookupRepository,
+)
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
@@ -62,6 +67,7 @@ from .volunteer_availability_repository import VolunteerAvailabilityRepository
 from .volunteer_position_repository import VolunteerPositionRepository
 from .volunteer_profile_repository import VolunteerProfileRepository
 from .volunteer_qualification_repository import VolunteerQualificationRepository
+from .volunteer_role_mapping_repository import VolunteerRoleMappingRepository
 from .volunteer_shift_repository import VolunteerShiftRepository
 from .web_push_repository import WebPushRepository
 from .webhook_delivery_repository import WebhookDeliveryRepository
@@ -79,6 +85,9 @@ __all__ = [
     'AuditRepository',
     'BracketRepository',
     'ChallongeRepository',
+    'CheckInEntrantRepository',
+    'CheckInEventRepository',
+    'CheckInUserLookupRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
@@ -123,6 +132,7 @@ __all__ = [
     'VolunteerPositionRepository',
     'VolunteerProfileRepository',
     'VolunteerQualificationRepository',
+    'VolunteerRoleMappingRepository',
     'VolunteerShiftRepository',
     'WebPushRepository',
     'WebhookDeliveryRepository',

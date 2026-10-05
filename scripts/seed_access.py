@@ -96,6 +96,9 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
         ("sm_only", Role.STREAM_MANAGER),
         ("triforce_sub", Role.TRIFORCE_SUBMITTER),
         ("volunteer_only", Role.VOLUNTEER),
+        # Works the check-in desk and nothing else, so the desk is exercised
+        # by someone who can check people in but not add walk-ups.
+        ("checkin_desk", Role.CHECK_IN_DESK),
     ]
     if tenant.slug == "default":
         # Deliberately one tenant only — a role grant implies membership, so

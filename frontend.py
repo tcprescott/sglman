@@ -29,6 +29,7 @@ from pages import (
     brackets,
     cat_facts,
     challonge_oauth,
+    check_in,
     equipment,
     equipment_labels,
     event_info,
@@ -220,6 +221,7 @@ def init(fastapi_app: FastAPI) -> None:
     # dynamic /equipment/{asset_id} so Starlette matches the labels sheet first.
     equipment_labels.create()
     equipment.create()
+    check_in.create()
     brackets.create()
     room_seeds.create()
     # Registered before ui.run_with so the cached, socket-free spectator views

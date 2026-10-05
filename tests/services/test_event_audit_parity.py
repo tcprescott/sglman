@@ -98,6 +98,11 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ROLE_DISCORD_SYNC_GRANTED,
     AuditActions.ROLE_DISCORD_SYNC_REVOKED,
     AuditActions.ROLE_DISCORD_SYNC_BULK,
+    # Volunteer-position role mapping / sync: the same plumbing, other source.
+    AuditActions.VOLUNTEER_ROLE_MAPPING_ADDED,
+    AuditActions.VOLUNTEER_ROLE_MAPPING_REMOVED,
+    AuditActions.ROLE_VOLUNTEER_SYNC_GRANTED,
+    AuditActions.ROLE_VOLUNTEER_SYNC_REVOKED,
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
     # Per-tenant brand palette — tenant-internal appearance setting, no external
@@ -159,6 +164,11 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.EQUIPMENT_CREATED,
     AuditActions.EQUIPMENT_UPDATED,
     AuditActions.EQUIPMENT_DELETED,
+    # Check-in event setup is tenant-internal config; the desk's actions on
+    # people (check-in, link, walk-up) and syncs are published.
+    AuditActions.CHECK_IN_EVENT_CREATED,
+    AuditActions.CHECK_IN_EVENT_UPDATED,
+    AuditActions.CHECK_IN_EVENT_DELETED,
     # Player availability edits.
     AuditActions.PLAYER_AVAILABILITY_UPDATED,
     # Challonge integration side-effects (result_pushed mirrors match.result_recorded).

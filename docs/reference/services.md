@@ -18,7 +18,7 @@ _Method-level reference for `application/services/` and `application/utils/`. Pa
 
 A few private top-level modules hold the halves of a service that would push it past the length budget: `_tournament_signup.py` (`TournamentSignupMixin`), `_reschedule_notifications.py` (`RescheduleNotificationMixin`), and `_seedgen_dk64r.py` / `_seedgen_types.py` (the DK64R backend and the seed value objects).
 
-Each public subpackage re-exports its names and `application/services/__init__.py` re-exports those in turn, so **`from application.services import MatchService` works regardless of which module a service lives in** — that is the import form callers should use. `bracket_engines`/`tournament_strategies` are the deliberate exception: they are imported by path. `application/utils/` follows the same shape: helpers sit at the top level, with `clients/` for the third-party HTTP clients (Challonge, racetime, SpeedGaming, Twitch, OAuth identity) and `mocks/` for the `MOCK_*` flags and their offline stand-ins.
+Each public subpackage re-exports its names and `application/services/__init__.py` re-exports those in turn, so **`from application.services import MatchService` works regardless of which module a service lives in** — that is the import form callers should use. `bracket_engines`/`tournament_strategies` are the deliberate exception: they are imported by path. `application/utils/` follows the same shape: helpers sit at the top level, with `clients/` for the third-party HTTP clients (Challonge, Matcherino, racetime, SpeedGaming, Twitch, OAuth identity) and `mocks/` for the `MOCK_*` flags and their offline stand-ins.
 
 ## Pattern & conventions
 
@@ -50,6 +50,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](authentication.md#roles) |
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
+| `CheckInService` | [check_in_service.py](../../application/services/check_in_service.py) | Matcherino-backed event check-in: roster sync, auto-linking, the desk's check-in/link actions, walk-ups | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [match-participation.md](../features/match-participation.md) |
 | `DiscordEventReconcilerService` | [discord_event_reconciler_service.py](../../application/services/discord/discord_event_reconciler_service.py) | Idempotent mirror of the schedule into a guild's Discord Scheduled Events | [discord.md](../features/discord.md) |
 | `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
@@ -113,13 +114,14 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
 | `VolunteerHoursService` | [volunteer_hours.py](../../application/services/volunteer/volunteer_hours.py) | Hours served against the per-tenant comp tiers | `VOLUNTEERS` |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
+| `VolunteerRoleMappingService` | [volunteer_role_mapping_service.py](../../application/services/volunteer/volunteer_role_mapping_service.py) | Volunteer-position→app-role mappings and the assignment-driven role sync | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
 | `stage_reminder` (module) | [stage_reminder.py](../../application/services/match/stage_reminder.py) | Background loop DMing a stage match's players and crew shortly before it starts | — |
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-Every service **class** is re-exported from [`application/services/__init__.py`](../../application/services/__init__.py), along with `get_user_from_discord_id` and `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)). The helper and worker modules — `availability_windows`, `async_qualifier_access`, `async_qualifier_scoring`, `discord_queue`, `discord_event_worker`, `notification_links`, `oauth_handoff_service`, `race_room_worker`, `reporting_shared`, `seed_roll_worker`, `service_health_worker`, `speedgaming_sync_worker`, `volunteer_reminder` — are exported as modules (`from application.services import discord_queue`); `stage_reminder` is exported the same way from its own package (`from application.services.match import stage_reminder`), as are the remaining `async_qualifier_*` modules from `application.services.async_qualifier`. A few value types and validators ride along: `BracketConfig`/`validate_bracket_config`, `TournamentConfig`/`validate_tournament_config`, `AsyncQualifierConfig`/`validate_async_qualifier_config`/`validate_counts`/`validate_window`, `AsyncQualifierDraw`, `DraftPolicy`, `HoursSummary`, `HardPresetState`, `MatchParticipants`, `CancellationMixin`, `assert_sg_fields_unchanged`, `IdentityLinkProvider`, `ProbeResult`/`ServiceStatus`, `SetupStep`. The exceptions to "every class" are `MockDiscordService` (reached through the `DiscordService` rebind under `MOCK_DISCORD`) and the internal mixins. Non-class members (`AuditActions`, `MatchStatus`, `TelemetryCategory`) import from their own module (`MatchStatus` also from `application.services.match`).
+Every service **class** is re-exported from [`application/services/__init__.py`](../../application/services/__init__.py), along with `get_user_from_discord_id` and `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)). The helper and worker modules — `availability_windows`, `async_qualifier_access`, `async_qualifier_scoring`, `check_in_sync_worker`, `discord_queue`, `discord_event_worker`, `notification_links`, `oauth_handoff_service`, `race_room_worker`, `reporting_shared`, `seed_roll_worker`, `service_health_worker`, `speedgaming_sync_worker`, `volunteer_reminder` — are exported as modules (`from application.services import discord_queue`); `stage_reminder` is exported the same way from its own package (`from application.services.match import stage_reminder`), as are the remaining `async_qualifier_*` modules from `application.services.async_qualifier`. A few value types and validators ride along: `BracketConfig`/`validate_bracket_config`, `TournamentConfig`/`validate_tournament_config`, `AsyncQualifierConfig`/`validate_async_qualifier_config`/`validate_counts`/`validate_window`, `AsyncQualifierDraw`, `DraftPolicy`, `HoursSummary`, `HardPresetState`, `MatchParticipants`, `CancellationMixin`, `assert_sg_fields_unchanged`, `IdentityLinkProvider`, `ProbeResult`/`ServiceStatus`, `SetupStep`. The exceptions to "every class" are `MockDiscordService` (reached through the `DiscordService` rebind under `MOCK_DISCORD`) and the internal mixins. Non-class members (`AuditActions`, `MatchStatus`, `TelemetryCategory`) import from their own module (`MatchStatus` also from `application.services.match`).
 
 ### api_token_service.py — ApiTokenService
 
@@ -218,6 +220,10 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_manage_equipment(user)` | `bool` | Staff or Equipment Manager — gates asset CRUD and check-in. |
 | `can_checkout_equipment(user)` | `bool` | Any signed-in, active member (self-checkout). Naming another borrower needs `can_manage_equipment`. |
 | `can_checkin_equipment(user)` | `bool` | Staff or Equipment Manager. |
+| `is_check_in_desk(user)` | `bool` | Holds `Role.CHECK_IN_DESK` in the current tenant. |
+| `can_manage_check_in(user)` | `bool` | Staff — gates check-in event CRUD, bounty lookup, and adding/removing walk-ups. |
+| `can_run_check_in_desk(user)` | `bool` | System actor, Staff, or `CHECK_IN_DESK` — gates check-in/undo, link/unlink, and sync. |
+| `can_view_check_in_desk(user)` | `bool` | `FeatureFlag.EVENT_CHECK_IN` live **and** `can_run_check_in_desk`. The nav's source of truth for the **Check-in** link, mirroring the `/checkin` page gate (`BaseLayout` additionally requires an open event). |
 | `can_assign_match_stream(user, match)` | `bool` | Staff or Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
 | `is_system(user)` | `bool` | Field check (`User.is_system`) — the reserved automation actor. Sync (no DB). The `can_manage_*`/`can_admin_qualifier` gates short-circuit on it so workers/bots never hit a `PermissionError`. |
@@ -497,6 +503,30 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 | `my_checkouts(user)` | `list[EquipmentLoan]` | A user's currently-open loans. |
 
 Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipment detail pages render QR codes via [`qrcode_util.py`](#qrcode_utilpy).
+
+### check_in_service.py — CheckInService
+
+The check-in desk for in-person events whose registration runs on Matcherino. Mirrors a bounty's participant list into `CheckInEntrant` rows, auto-links each registrant to a `User` on exact identifiers, and records arrivals. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`. Event setup and walk-ups need `AuthService.can_manage_check_in` (Staff); the desk actions need `can_run_check_in_desk` (Staff, `CHECK_IN_DESK`, or the system actor). Both raise `PermissionError`. Constructor takes an optional `client: MatcherinoClient` (defaults to `get_matcherino_client()`, so `MOCK_MATCHERINO` applies). Constants: `MIN_SYNC_INTERVAL_MINUTES = 1`, `MAX_SYNC_INTERVAL_MINUTES = 120`, `SUGGESTION_LIMIT = 3`. Feature doc: [event-check-in.md](../features/event-check-in.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `create_event(actor, name, bounty_id=None, status=DRAFT, sync_interval_minutes=5)` / `update_event(...)` / `delete_event(actor, event_id)` | `CheckInEvent` / `None` | Staff. One event per bounty per community. Audits `check_in_event.created` / `.updated` / `.deleted`; publishes no event (tenant-internal config). |
+| `preview_bounty(actor, bounty_id)` | `MatcherinoBounty` | Staff. Fetches the bounty title so the admin dialog can confirm an ID before saving. |
+| `list_events()` / `list_open_events()` / `get_event(event_id)` / `has_open_event()` | reads | `has_open_event` drives the nav link. |
+| `sync_event(actor, event_id, *, audit=True)` | `SyncResult` | Desk. Upserts by `matcherino_user_id`, withdraws/rejoins, auto-links. A failure, or an empty response while live rows exist, records `last_sync_error` and changes nothing. Publishes `check_in_event.synced` every time; audits it only when `audit=True` (the worker passes `False`). One `ROSTER` signal on `check_in_live`. |
+| `roster(event)` / `get_entrant(entrant_id)` | reads | |
+| `suggest_users(entrant, limit=3)` / `search_members(event, query, limit=20)` | `list[User]` | Candidates for the link and walk-up dialogs: community members not already on the roster. `suggest_users` ranks by `difflib` name similarity; it only ever suggests. |
+| `check_in(actor, entrant_id)` | `CheckInOutcome(entrant, already)` | Desk. Checking in twice is not an error; `already` says someone got there first. |
+| `undo_check_in(actor, entrant_id)` | `CheckInEntrant` | Desk. |
+| `link(actor, entrant_id, user_id)` / `unlink(actor, entrant_id)` | `CheckInEntrant` | Desk. Manual matching. A link fills `User.matcherino_user_id` / `matcherino_username` only when empty (audited as `user.profile_updated`); an unlink leaves `link_method = MANUAL` so the sync never re-links the row, and clears the id (and the handle, if still the one check-in filled) from the account. |
+| `add_walk_up(actor, event_id, *, user_id=None, name=None, check_in=True)` | `CheckInEntrant` | Staff. A member or a bare name. |
+| `remove_entrant(actor, entrant_id)` | `None` | Staff. Walk-ups only; a Matcherino row would come back on the next sync. |
+
+The roster mutations audit and publish `check_in_entrant.checked_in` / `.check_in_undone` / `.linked` / `.unlinked` / `.walk_up_added` / `.removed` in one `write_and_publish` call, then nudge open desks on [`check_in_live`](../features/event-system.md) (`application/events/check_in_live.py`). The pure rules live in `check_in_rules.py` (no I/O): `entrant_filters` / `ROSTER_FILTERS` (the desk's filter chips), `summarize(entrants) -> RosterCounts` (withdrawn rows count only as withdrawn), `handle_id`, `resolve_link` (auto-link precedence over an `IdentityLookups`), and the value types `SyncResult`, `RosterCounts`, `CheckInOutcome`.
+
+Collaborators: `CheckInEventRepository`, `CheckInEntrantRepository`, `CheckInUserLookupRepository` (global identity lookups), `UserRepository` (community-scoped candidates), `AuditService`, `AuthService`, `MatcherinoClient`.
+
+**check_in_sync_worker.py** — the roster poll (peer of `speedgaming_sync_worker`). Every 60 s it loads every open event with a bounty (cross-tenant, unscoped), then per event, inside `tenant_scope` via `for_each_tenant_scoped` and as the system user, skips one not yet due on its `sync_interval_minutes` or whose tenant has `EVENT_CHECK_IN` off, and otherwise runs `sync_event(..., audit=False)`. After a failure it backs off from the failure time rather than retrying every tick. No environment switch: it only touches events staff have opened. Started/stopped in `main.py`; one tick by hand with `scripts/run_worker_tick.py check_in_sync`.
 
 ### help_service.py — HelpService
 
@@ -1445,7 +1475,23 @@ CRUD for the arbitrary, coordinator-defined position/job list. Positions optiona
 | `update(actor, position, **fields)` | `VolunteerPosition` | Coordinator-only partial update; re-validates name uniqueness and stagger config when those fields change. Audits `volunteer.position_updated`. |
 | `delete(actor, position)` | `None` | Coordinator-only; audits `volunteer.position_deleted`. |
 
-Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`.
+`delete` also reconciles volunteer-sourced roles, since the cascade took the position's assignments and mappings with it.
+
+Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`, `VolunteerRoleMappingService`.
+
+### volunteer_role_mapping_service.py — VolunteerRoleMappingService
+
+Maps a volunteer position onto an app `Role`. A **published** assignment to any shift of a mapped position grants the role as a `RoleSource.VOLUNTEER` `UserRole` row, and it stays while at least one such assignment exists (finished shifts count; drafts don't). Only `Role.volunteer_mappable()` may be mapped: a Volunteer Coordinator decides who's on a shift, so mapping STAFF or a subsystem-admin role would let a coordinator hand that authority to anyone, themselves included.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_mappings()` | `list[VolunteerRoleMapping]` | `@requires_feature(VOLUNTEERS)`; prefetches `position`. |
+| `add_mapping(actor, position_id, app_role)` | `VolunteerRoleMapping` | Staff-only (`can_grant_roles`); rejects a non-mappable role and duplicates. Audits `volunteer.role_mapping_added`, then `reconcile_all`. |
+| `remove_mapping(actor, mapping_id)` | `None` | Staff-only. Audits `volunteer.role_mapping_removed`, then `reconcile_all`. |
+| `reconcile_users(actor, user_ids)` | `dict` | Per user: grant mapped roles they don't hold at all (membership first, `MembershipSource.ROLE_GRANT`), revoke `VOLUNTEER`-sourced rows no longer desired. Audits `role.volunteer_sync_granted` / `role.volunteer_sync_revoked`. **Never raises** and skips when the flag is off (`feature-gate: exempt` soft integration point). |
+| `reconcile_all(actor)` | `dict` | `reconcile_users` over every published assignee plus every holder of a `VOLUNTEER`-sourced role. |
+
+Called after their own commit by `VolunteerScheduleService.assign` (non-draft), `confirm_assignment`, `unassign`, `release`, `delete_shift`, `reset_all_shifts`, `update_shift` (position change only), `VolunteerPositionService.delete`, and by `DiscordRoleMappingService.sync_user_roles_for_tenant` after it revokes anything, so a Discord-held row that was standing in for a volunteer-conferred role is handed back. The reverse handoff isn't automatic: a role the volunteer sync revokes that a Discord mapping would grant comes back on the person's next login or a Sync All Users.
 
 ### volunteer_schedule_service.py — VolunteerScheduleService
 
@@ -1648,6 +1694,10 @@ The category bot's `startrace` call ([racetime_rooms_client.py](../../applicatio
 
 Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, plus `USERS_URL` (Twitch) / `USERINFO_URL` + `IDENTITY_SCOPE` (racetime).
 
+### matcherino_client.py — event check-in
+
+Transport for the two **unofficial** Matcherino endpoints check-in uses ([matcherino_client.py](../../application/utils/clients/matcherino_client.py)), the ones Matcherino's own web app calls: `GET /__api/bounties/participants` (zero-indexed pages of up to `PAGE_SIZE = 500`, capped at `MAX_PAGES = 20`) and `GET /__api/bounties/findById`. Uses `httpx.AsyncClient`. `MatcherinoClient.fetch_participants(bounty_id) -> list[MatcherinoParticipant]` and `fetch_bounty(bounty_id) -> MatcherinoBounty`. The parse is strict about `userId` and `displayName` and raises `MatcherinoAPIError` rather than guessing; an unknown bounty answers `200` with `contents: null`, which reads as empty. `MatcherinoParticipant` keeps the raw dict beside its parsed fields (`auth_provider`, `auth_id`, `twitch_login`, …). `get_matcherino_client()` returns `MockMatcherinoClient` (canned `MOCK_PARTICIPANTS`, no network) under `MOCK_MATCHERINO`. Wire detail: [event-check-in.md](../features/event-check-in.md#the-matcherino-api-is-unofficial).
+
 ### duration.py
 
 Whole-second duration parsing and display for typed finish times
@@ -1734,6 +1784,7 @@ Each `MOCK_*` env var is read through one helper in `application/utils/mocks/` (
 | `is_mock_twitch()` | `MOCK_TWITCH` | A verified Twitch identity for the link/unlink flow. |
 | `is_mock_racetime()` | `MOCK_RACETIME` | A verified racetime identity for link/unlink, the `racetimebot/` runtime, **and** room creation (`build_rooms_client()` returns `MockRacetimeRoomsClient`, whose slugs don't exist on racetime.gg); all three share the one production-refusal switch. |
 | `is_mock_seedgen()` | `MOCK_SEEDGEN` | Seed rolling: `generate_seed` returns a believable permalink instead of reaching a live randomizer, most of which need credentials or are unreachable from a dev sandbox. |
+| `is_mock_matcherino()` (in `clients/matcherino_client.py`) | `MOCK_MATCHERINO` | The Matcherino registration list: `get_matcherino_client()` returns `MockMatcherinoClient`, whose canned roster lines up with dev-seed fixtures so one check-in sync produces every link method. |
 | `is_mock_speedgaming()` (in `clients/speedgaming_client.py`) | `MOCK_SPEEDGAMING` | The SpeedGaming schedule feed: `get_speedgaming_client()` returns `MockSpeedGamingClient`, so the ETL runs against canned episodes. |
 | `is_mock_dk64()` | `MOCK_SEEDGEN` | DK64R only, and one layer lower: rather than short-circuiting the roll, it swaps `_generate_dk64r`'s `aiohttp` session for `MockDK64Session`, an in-process stand-in for the api.dk64rando.com task queue. The convert/submit/poll code runs for real against a fake task that walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS`, which is what puts the presentation layer into the minutes-long waiting state a real DK64 roll causes. Rides on `MOCK_SEEDGEN`, so it inherits the one production refusal. |
 

@@ -76,9 +76,11 @@ class TableKeys:
     ADMIN_USERS = 'admin.users'
     ADMIN_TOURNAMENTS = 'admin.tournaments'
     ADMIN_BRACKETS = 'admin.brackets'
+    ADMIN_CHECK_IN_EVENTS = 'admin.check_in_events'
     ADMIN_DISCORD_EVENTS = 'admin.discord_events'
     ADMIN_DISCORD_EVENT_TOURNAMENTS = 'admin.discord_event_tournaments'
     ADMIN_DISCORD_ROLES = 'admin.discord_roles'
+    ADMIN_VOLUNTEER_ROLE_MAPPINGS = 'admin.volunteer_role_mappings'
     ADMIN_EQUIPMENT = 'admin.equipment'
     ADMIN_ACCOMMODATIONS = 'admin.accommodations'
     ADMIN_FEEDBACK = 'admin.feedback'
@@ -92,6 +94,9 @@ class TableKeys:
     ADMIN_VOLUNTEER_ROSTER = 'admin.volunteer_roster'
     ADMIN_WEBHOOKS = 'admin.webhooks'
     ADMIN_WEBHOOK_DELIVERIES = 'admin.webhook_deliveries'
+
+    # Check-in desk
+    CHECK_IN_DESK = 'check_in.desk'
 
     # Player-facing
     # (No equipment.inventory: browsing the register left the player surface
