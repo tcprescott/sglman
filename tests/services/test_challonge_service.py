@@ -589,7 +589,7 @@ class TestClientParticipantIdentity:
         full = await client.get_tournament_full('18567901', community='speedgaming')
         assert [p['challonge_user_id'] for p in full['participants']] == ['60661', None]
         _, path = client._authed_request.call_args.args
-        assert path == '/communities/speedgaming/tournaments/18567901/participants.json'
+        assert path == '/communities/speedgaming/tournaments/18567901/participants.json?per_page=100'
 
     async def test_full_fetch_skips_the_extra_call_with_no_account_entrants(self):
         embedded = {'data': {'id': '1', 'attributes': {}}, 'included': [
@@ -696,3 +696,57 @@ class TestManualParticipantAssignment:
         monkeypatch.setattr(auth_service.AuthService, 'ensure', ensure)
         with pytest.raises(PermissionError):
             await service.assign_participant_user(jam.id, guest.id, actor)
+
+
+class TestFinalStageMatchShape:
+    def test_players_come_from_points_when_relationships_are_absent(self):
+        # Captured from a live two-stage tournament right after the final stage
+        # started: no player1/player2 relationships at all.
+        from application.utils.clients.challonge_client import _normalize_match
+        resource = {
+            'id': '474720405', 'type': 'match',
+            'attributes': {
+                'state': 'open', 'round': 1, 'identifier': 'A', 'winner_id': None,
+                'points_by_participant': [
+                    {'participant_id': 305857244, 'scores': []},
+                    {'participant_id': 305857246, 'scores': []},
+                ],
+            },
+            'relationships': {'attachments': {'links': {}}},
+        }
+        m = _normalize_match(resource)
+        assert (m['player1_participant_id'], m['player2_participant_id']) == ('305857244', '305857246')
+
+    def test_relationships_still_win_when_present(self):
+        from application.utils.clients.challonge_client import _normalize_match
+        resource = {
+            'id': '1', 'attributes': {'state': 'open', 'round': 1, 'points_by_participant': [
+                {'participant_id': 9, 'scores': []}, {'participant_id': 8, 'scores': []}]},
+            'relationships': {'player1': {'data': {'id': '1'}}, 'player2': {'data': {'id': '2'}}},
+        }
+        m = _normalize_match(resource)
+        assert (m['player1_participant_id'], m['player2_participant_id']) == ('1', '2')
+
+    def test_pending_match_with_no_players_stays_empty(self):
+        from application.utils.clients.challonge_client import _normalize_match
+        m = _normalize_match({'id': '2', 'attributes': {'state': 'pending', 'round': 2}, 'relationships': {}})
+        assert (m['player1_participant_id'], m['player2_participant_id']) == (None, None)
+
+
+class TestClientPagination:
+    async def test_follows_next_links_across_pages(self):
+        from application.utils.clients.challonge_client import ChallongeClient
+        client = ChallongeClient('id', 'secret', token_provider=AsyncMock(return_value='tok'))
+        base = 'https://api.challonge.com/v2.1'
+        client._authed_request = AsyncMock(side_effect=[
+            {'data': [{'id': str(i), 'attributes': {}} for i in range(100)],
+             'links': {'next': f'{base}/tournaments/T/participants.json?page=2&per_page=100'}},
+            {'data': [{'id': '100', 'attributes': {}}], 'links': {'next': None}},
+        ])
+        rows = await client.list_participants('T')
+        assert len(rows) == 101
+        paths = [c.args[1] for c in client._authed_request.await_args_list]
+        assert paths == [
+            '/tournaments/T/participants.json?per_page=100',
+            '/tournaments/T/participants.json?page=2&per_page=100',
+        ]
