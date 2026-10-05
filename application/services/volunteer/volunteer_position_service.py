@@ -9,6 +9,9 @@ from typing import List, Optional
 from application.repositories import VolunteerPositionRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.volunteer.volunteer_role_mapping_service import (
+    VolunteerRoleMappingService,
+)
 from application.tenant_context import require_tenant_id
 from models import User, VolunteerPosition
 
@@ -19,6 +22,7 @@ class VolunteerPositionService:
     def __init__(self) -> None:
         self.repository = VolunteerPositionRepository()
         self.audit_service = AuditService()
+        self.role_mapping_service = VolunteerRoleMappingService()
 
     @staticmethod
     def _validate_stagger(
@@ -113,3 +117,5 @@ class VolunteerPositionService:
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_POSITION_DELETED, {'position_id': position_id},
         )
+        # The cascade took its shifts, assignments and mappings with it.
+        await self.role_mapping_service.reconcile_all(actor)

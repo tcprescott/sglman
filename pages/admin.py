@@ -185,7 +185,11 @@ def build_admin_tabs(
     if is_staff or access.is_sync_admin:
         tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
     if is_staff:
-        tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'group': 'Integrations', 'content': admin_discord_roles_page})
+        tabs.append({
+            'label': 'Role Mappings', 'icon': 'hub', 'group': 'Integrations',
+            'content': (admin_discord_roles_page, (),
+                        {'volunteer_mappings': FeatureFlag.VOLUNTEERS in live}),
+        })
     if is_staff:
         tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'group': 'Integrations', 'content': admin_webhooks_page})
     if is_staff or is_ta_any or is_cc_any:

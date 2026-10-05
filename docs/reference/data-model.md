@@ -165,7 +165,7 @@ value.
 
 ### `Role`
 
-Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Authorization checks are made through `AuthService` — see [role-based-auth.md](authentication.md#roles).
+Used by `UserRole.role`, `DiscordRoleMapping.app_role` and `VolunteerRoleMapping.app_role` (`max_length=32`). `Role.tenant_grantable()` is every role but `SUPER_ADMIN`; `Role.volunteer_mappable()` is the narrower set a volunteer position may confer (`PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `EQUIPMENT_MANAGER`, `VOLUNTEER`), since a coordinator rather than staff decides who is assigned. Authorization checks are made through `AuthService` — see [role-based-auth.md](authentication.md#roles).
 
 | Value | Meaning |
 |---|---|
@@ -210,7 +210,7 @@ a credential minted for one can never be replayed against the other.
 
 ### `RoleSource`
 
-Used by `UserRole.source` (`max_length=16`, default `MANUAL`). Distinguishes roles a Staff member granted by hand from roles derived automatically from Discord, so the login-time sync only ever revokes the roles it created ([discord.md](../features/discord.md)): `MANUAL` = `'manual'` (granted by a Staff member or pre-existing; never auto-revoked), `DISCORD` = `'discord'` (revoked when the mapped Discord role is lost).
+Used by `UserRole.source` (`max_length=16`, default `MANUAL`). Distinguishes roles a Staff member granted by hand from roles derived automatically from Discord, so the login-time sync only ever revokes the roles it created ([discord.md](../features/discord.md)): `MANUAL` = `'manual'` (granted by a Staff member or pre-existing; never auto-revoked), `DISCORD` = `'discord'` (revoked when the mapped Discord role is lost), `VOLUNTEER` = `'volunteer'` (granted from a `VolunteerRoleMapping`; revoked when the holder has no published assignment left on a mapped position). Each sync grants only roles the user doesn't already hold and revokes only rows of its own source.
 
 ### `MatchNotificationLevel`
 
@@ -517,7 +517,7 @@ Junction table mapping users to per-tenant `Role` values; records who granted th
 | `tenant` | FK → `Tenant` | **null**, `CASCADE` | `related_name='user_roles'`. NULL only for the global `SUPER_ADMIN` grant, which stays visible inside any tenant request |
 | `role` | `CharEnumField(Role)` | not null | `max_length=32` |
 | `granted_by` | FK → `User` | null, `SET_NULL` | `related_name='granted_roles'`; null for Discord-synced rows; survives granter deletion |
-| `source` | `CharEnumField(RoleSource)` | not null, default `MANUAL` | `max_length=16`; manual grants are never auto-revoked by the Discord sync |
+| `source` | `CharEnumField(RoleSource)` | not null, default `MANUAL` | `max_length=16`; manual grants are never auto-revoked by the Discord or volunteer sync |
 
 Constraints: `unique_together ('user', 'role', 'tenant')`; index on `role` (the composite is user-first, leaving role-only enumeration uncovered).
 
@@ -525,7 +525,7 @@ Constraints: `unique_together ('user', 'role', 'tenant')`; index on `role` (the 
 
 Maps a Discord guild role to either an application `Role` (community-wide) or a
 `TournamentGrant` on one tournament. Consulted at login by the Discord role sync;
-managed by Staff on the admin **Discord Roles** tab — see [discord.md](../features/discord.md).
+managed by Staff on the admin **Role Mappings** tab — see [discord.md](../features/discord.md).
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -1251,6 +1251,21 @@ Capability matrix: which positions a user can fill. Consulted by the auto-schedu
 
 Constraint: `unique_together (('user', 'position'),)`.
 
+#### `VolunteerRoleMapping`
+
+One volunteer position → one app `Role`. Anyone holding a **published** assignment
+(`auto_generated=False`) on any shift of the position holds the role as a
+`RoleSource.VOLUNTEER` `UserRole` row, for as long as at least one such assignment
+exists, finished shifts included. Managed by Staff on the admin **Role Mappings**
+tab (Volunteers flag); reconciled by `VolunteerRoleMappingService`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `position` | FK → `VolunteerPosition` | not null, `CASCADE` | `related_name='role_mappings'` |
+| `app_role` | `CharEnumField(Role)` | not null | `max_length=32`. Only `Role.volunteer_mappable()` is accepted by the service, and the sync ignores any other stored value |
+
+Constraint: `unique_together (('tenant', 'position', 'app_role'),)`.
+
 ### Availability
 
 Self-declared availability windows. Volunteer and player availability share the `VolunteerAvailabilityStatus` enum and an identical shape; they differ only in audience and which service reads them.
@@ -1747,7 +1762,7 @@ Consult the source for full signatures.
 | `TournamentPayoutRepository` | [`tournament_payout_repository.py`](../../application/repositories/tournament_payout_repository.py) | `TournamentPayout` | `TenantScopedRepository` subclass. `get_by_id` (prefetches `entrant`/`tournament`), `list_for_tournament` (ordered `place, id` so joint placings keep a stable order), `replace_split` (delete-then-create inside one `in_transaction()` — a split is one document, and half of each is worse than either) |
 | `TriforceTextRepository` | [`triforce_text_repository.py`](../../application/repositories/triforce_text_repository.py) | `TriforceText` | `get_by_id`, `list_by_tournament`, `list_by_tournament_and_user`, `list_approved`, `list_approved_user_buckets` (distinct submitter ids with ≥1 approved text, plus a `None` bucket for deleted submitters so their texts stay in the balanced rotation), `list_approved_by_user`, `create`, `update`, `set_moderation`, `delete`. Module-level `APPROVAL_STATUSES = ('pending', 'approved', 'rejected')` is the vocabulary callers pass; a private helper maps it onto the tri-state `approved` column (`pending` → `NULL`) and raises `ValueError` for anything else |
 | `UserRepository` | [`user_repository.py`](../../application/repositories/user_repository.py) | `User` | **Unscoped** — `User` is global, so `create`/`get_by_id` override the base. `get_by_id`, `get_by_ids`, `get_by_discord_id`, `get_by_username`, `get_all` (optional role filter through the `userrole` join; optional has-discord filter), `get_community_people`, `search_by_name`, `create`, `get_or_create_by_discord_id`, `get_or_create_system_user`, `update_discord_info` (username + avatar hash), `set_discord_avatar` (no-op when unchanged), `set_timezone`; SpeedGaming placeholders `get_placeholder_by_speedgaming_id`, `create_placeholder`, `upgrade_placeholder` (+ the base `update`/`delete`) |
-| `UserRoleRepository` | [`user_role_repository.py`](../../application/repositories/user_role_repository.py) | `UserRole` | `add` (idempotent `get_or_create`; a `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation), `remove`, `list_for_user`, `list_for_user_by_source`, `any_with_role`, `list_users_with_role` |
+| `UserRoleRepository` | [`user_role_repository.py`](../../application/repositories/user_role_repository.py) | `UserRole` | `add` (idempotent `get_or_create`; a `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation), `remove`, `list_for_user`, `list_for_user_by_source`, `list_user_ids_by_source`, `any_with_role`, `list_users_with_role` |
 | `DiscordRoleMappingRepository` | [`discord_role_mapping_repository.py`](../../application/repositories/discord_role_mapping_repository.py) | `DiscordRoleMapping` | `get_by_id`, `get_by_id_with_tournament`, `get_all`, `list_for_guild` (both prefetch `tournament`), `get_match` / `get_tournament_match` (exact-tuple lookups, one per mapping shape, used to reject duplicates), `create`, `delete` |
 | `DiscordTournamentGrantRepository` | [`discord_tournament_grant_repository.py`](../../application/repositories/discord_tournament_grant_repository.py) | `DiscordTournamentGrant` | `list_for_user`, `get_match`, `add`, `remove` — the provenance rows deciding which `Tournament.admins` / `.crew_coordinators` grants the guild-role sync may revoke |
 | `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | **Never scoped** — it resolves which tenant a request belongs to. `get_by_id`, `get_by_slug`, `get_by_domain`, `list_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `set_feature_group`, `clear_feature_group`, `delete` |
@@ -1763,9 +1778,10 @@ Consult the source for full signatures.
 | `VolunteerProfileRepository` | [`volunteer_profile_repository.py`](../../application/repositories/volunteer_profile_repository.py) | `VolunteerProfile` | `get_for_user`, `get_or_create_for_user`, `save`, `list_opted_in`, `opted_in_user_ids` |
 | `VolunteerPositionRepository` | [`volunteer_position_repository.py`](../../application/repositories/volunteer_position_repository.py) | `VolunteerPosition` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `VolunteerShiftRepository` | [`volunteer_shift_repository.py`](../../application/repositories/volunteer_shift_repository.py) | `VolunteerShift` | `get_by_id`, `list_for_window`, `list_for_position_window`, `create`, `update`, `delete`, `delete_all` |
-| `VolunteerAssignmentRepository` | [`volunteer_assignment_repository.py`](../../application/repositories/volunteer_assignment_repository.py) | `VolunteerAssignment` | `get_by_id`, `get_for_shift_and_user`, `exists`, `create`, `delete`, `save`, `overlapping_for_user`, `list_for_user` (excludes drafts unless `include_drafts`; `with_shiftmates` adds the sibling-assignment joins), `list_for_window`, `published_for_window`, `list_for_shift`, draft lifecycle `count_auto_for_window` / `list_auto_for_window` / `mark_published` / `delete_auto_for_window`, `due_for_reminder` (**deliberately unscoped** — the reminder worker scans every tenant; skips drafts) |
+| `VolunteerAssignmentRepository` | [`volunteer_assignment_repository.py`](../../application/repositories/volunteer_assignment_repository.py) | `VolunteerAssignment` | `get_by_id`, `get_for_shift_and_user`, `exists`, `create`, `delete`, `save`, `overlapping_for_user`, `list_for_user` (excludes drafts unless `include_drafts`; `with_shiftmates` adds the sibling-assignment joins), `list_for_window`, `published_for_window`, `published_position_ids_for_user`, `published_user_ids` (both skip drafts), `list_for_shift`, draft lifecycle `count_auto_for_window` / `list_auto_for_window` / `mark_published` / `delete_auto_for_window`, `due_for_reminder` (**deliberately unscoped** — the reminder worker scans every tenant; skips drafts) |
 | `VolunteerAvailabilityRepository` | [`volunteer_availability_repository.py`](../../application/repositories/volunteer_availability_repository.py) | `VolunteerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
 | `VolunteerQualificationRepository` | [`volunteer_qualification_repository.py`](../../application/repositories/volunteer_qualification_repository.py) | `VolunteerQualification` | `qualified_position_ids`, `qualified_user_ids_for_position`, `set_for_user`, `list_all` |
+| `VolunteerRoleMappingRepository` | [`volunteer_role_mapping_repository.py`](../../application/repositories/volunteer_role_mapping_repository.py) | `VolunteerRoleMapping` | `TenantScopedRepository` CRUD, `get_by_id` / `list_all` (prefetch `position`), `exists` |
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `list_all_connections`, `save_connection`, `update_connection_tokens`, `clear_connection`; mirror teardown: `delete_mirror` (drops a tournament's participants + matches, leaving the scheduled `Match` rows); participants: `upsert_participant`, `resolve_users_by_challonge_ids`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `rotate`, `delete`, `delete_by_endpoint`, `touch_last_used` |

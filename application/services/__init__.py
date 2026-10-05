@@ -110,6 +110,7 @@ from .volunteer import (
     VolunteerPositionService,
     VolunteerProfileService,
     VolunteerQualificationService,
+    VolunteerRoleMappingService,
     VolunteerScheduleService,
     volunteer_reminder,
 )
@@ -200,6 +201,7 @@ __all__ = [
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerQualificationService',
+    'VolunteerRoleMappingService',
     'VolunteerScheduleService',
     'WebPushService',
     'WebhookService',

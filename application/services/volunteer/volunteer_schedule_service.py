@@ -25,6 +25,9 @@ from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.timezone_service import TimezoneService
+from application.services.volunteer.volunteer_role_mapping_service import (
+    VolunteerRoleMappingService,
+)
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     parse_local_datetime,
@@ -43,6 +46,7 @@ class VolunteerScheduleService:
         self.position_repository = VolunteerPositionRepository()
         self.audit_service = AuditService()
         self.discord_service = DiscordService()
+        self.role_mapping_service = VolunteerRoleMappingService()
 
     # --- Shifts -----------------------------------------------------------
 
@@ -188,7 +192,12 @@ class VolunteerScheduleService:
             raise ValueError("A shift needs at least one slot.")
         old_starts, old_ends = shift.starts_at, shift.ends_at
         moved = starts != old_starts or ends != old_ends
+        repositioned = fields.get('position_id', shift.position_id) != shift.position_id
         shift = await self.shift_repository.update(shift, **fields)
+        if repositioned:
+            await self.role_mapping_service.reconcile_users(
+                actor, await self.assignment_repository.published_user_ids(shift.id),
+            )
         details = {'shift_id': shift.id}
         # Someone who agreed to 08:00–12:00 has not agreed to 16:00–20:00, so a
         # time change withdraws the question and asks it again. A slots-only or
@@ -224,10 +233,12 @@ class VolunteerScheduleService:
             "Only volunteer coordinators can manage shifts.",
         )
         shift_id = shift.id
+        assigned = await self.assignment_repository.published_user_ids(shift_id)
         await self.shift_repository.delete(shift)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_SHIFT_DELETED, {'shift_id': shift_id},
         )
+        await self.role_mapping_service.reconcile_users(actor, assigned)
 
     async def reset_all_shifts(self, actor: User) -> int:
         await AuthService.ensure(
@@ -238,6 +249,7 @@ class VolunteerScheduleService:
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_SHIFTS_RESET, {'deleted_count': deleted},
         )
+        await self.role_mapping_service.reconcile_all(actor)
         return deleted
 
     # --- Assignments ------------------------------------------------------
@@ -292,6 +304,8 @@ class VolunteerScheduleService:
             {'assignment_id': assignment.id, 'shift_id': shift.id,
              'user_id': user.id, 'auto_generated': auto_generated},
         )
+        if not auto_generated:
+            await self.role_mapping_service.reconcile_users(actor, [user.id])
         if notify and not auto_generated:
             await self.request_acknowledgment(assignment, shift, user)
         if not auto_generated:
@@ -318,6 +332,7 @@ class VolunteerScheduleService:
              'user_id': assignment.user_id, 'published_from_draft': True},
             EventType.VOLUNTEER_ASSIGNED,
         )
+        await self.role_mapping_service.reconcile_users(actor, [assignment.user_id])
         if notify:
             await self.request_acknowledgment(
                 assignment, assignment.shift, assignment.user,
@@ -357,6 +372,7 @@ class VolunteerScheduleService:
         )
         # An unpublished draft's removal is silent because its creation was.
         if not was_draft:
+            await self.role_mapping_service.reconcile_users(actor, [details['user_id']])
             await self._notify_removed(user, shift)
 
     async def acknowledge(self, assignment_id: int, user: User) -> VolunteerAssignment:
@@ -411,6 +427,7 @@ class VolunteerScheduleService:
         await self.audit_service.write_and_publish(
             user, AuditActions.VOLUNTEER_RELEASED, details, EventType.VOLUNTEER_RELEASED,
         )
+        await self.role_mapping_service.reconcile_users(user, [user.id])
         await self._notify_coordinators_of_release(user, shift, details)
 
     async def check_in(self, assignment_id: int, actor: User) -> VolunteerAssignment:

@@ -59,6 +59,13 @@ class UserRoleRepository:
         )
 
     @staticmethod
+    async def list_user_ids_by_source(source: RoleSource) -> List[int]:
+        """Everyone holding a role from ``source`` in the current tenant."""
+        return await UserRole.filter(
+            source=source, tenant_id=current_tenant_id()
+        ).distinct().values_list('user_id', flat=True)
+
+    @staticmethod
     async def any_with_role(role: Role) -> bool:
         """Whether anyone holds the role in the current tenant."""
         return await UserRole.filter(role=role, tenant_id=_tenant_id_for_role(role)).exists()

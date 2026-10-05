@@ -388,7 +388,7 @@ gated twice, by [`DiscordLinkService`](../reference/services.md):
 - **App gate** — only tenant `STAFF` (or a global super-admin) may connect or
   disconnect (`can_manage_link`).
 - **Discord gate** — the acting user must administer the target guild. The
-  "Connect Discord server" button (Admin → Discord Roles) runs Discord's
+  "Connect Discord server" button (Admin → Role Mappings) runs Discord's
   **bot-authorization** OAuth flow (`scope=bot`), which Discord only lets a user
   with *Manage Server* complete and which adds the bot if it is absent. The
   callback (`/oauth/discord/connect/callback`, on the platform host) exchanges the

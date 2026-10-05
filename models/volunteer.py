@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import VolunteerAvailabilityStatus
+from .enums import Role, VolunteerAvailabilityStatus
 
 
 class VolunteerProfile(Model):
@@ -115,6 +115,29 @@ class VolunteerQualification(Model):
         table = 'volunteerqualification'
         unique_together = (('user', 'position'),)
         indexes = (('position',),)  # composite is user-first; position-only lookup uncovered
+
+
+class VolunteerRoleMapping(Model):
+    """One volunteer position → one app role, held by anyone on its shifts.
+
+    The volunteer-side sibling of ``DiscordRoleMapping``: a published assignment
+    to any shift of ``position`` grants ``app_role`` (a ``UserRole`` row with
+    ``RoleSource.VOLUNTEER``), and the grant lasts as long as at least one such
+    assignment exists, past shifts included. Only ``Role.volunteer_mappable()``
+    may be stored, because a coordinator, not staff, decides who is assigned.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_role_mappings', on_delete=fields.CASCADE)
+    # CASCADE: a deleted position confers nothing, so its mappings go with it.
+    position = fields.ForeignKeyField('models.VolunteerPosition', related_name='role_mappings', on_delete=fields.CASCADE)
+    app_role = fields.CharEnumField(Role, max_length=32)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'volunteerrolemapping'
+        unique_together = (('tenant', 'position', 'app_role'),)
 
 
 class VolunteerAvailability(Model):

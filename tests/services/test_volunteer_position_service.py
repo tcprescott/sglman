@@ -24,6 +24,7 @@ def service():
     svc.repository.update = AsyncMock()
     svc.repository.delete = AsyncMock()
     svc.audit_service = make_audit_double()
+    svc.role_mapping_service = MagicMock(reconcile_all=AsyncMock(return_value={}))
     return svc
 
 

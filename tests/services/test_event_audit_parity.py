@@ -98,6 +98,11 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ROLE_DISCORD_SYNC_GRANTED,
     AuditActions.ROLE_DISCORD_SYNC_REVOKED,
     AuditActions.ROLE_DISCORD_SYNC_BULK,
+    # Volunteer-position role mapping / sync: the same plumbing, other source.
+    AuditActions.VOLUNTEER_ROLE_MAPPING_ADDED,
+    AuditActions.VOLUNTEER_ROLE_MAPPING_REMOVED,
+    AuditActions.ROLE_VOLUNTEER_SYNC_GRANTED,
+    AuditActions.ROLE_VOLUNTEER_SYNC_REVOKED,
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
     # Per-tenant brand palette — tenant-internal appearance setting, no external

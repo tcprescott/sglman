@@ -36,6 +36,12 @@ ENUM_EXEMPT: dict[str, str] = {
         'not grantable per tenant, so mapping it would be a bug. UserRole.role '
         'is where every Role is covered.'
     ),
+    'VolunteerRoleMapping.app_role': (
+        'Only Role.volunteer_mappable() may be stored; the service refuses every '
+        'other Role, so seeding one would plant a row the app cannot create. '
+        'The seed maps two positions (PROCTOR, STREAM_MANAGER), one of which '
+        'lands as a RoleSource.VOLUNTEER grant.'
+    ),
     'PlayerAvailability.status': (
         'Player availability is opt-out: a player is available for every hour '
         'they have not blocked, so an AVAILABLE row states the default and no '

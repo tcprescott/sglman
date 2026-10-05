@@ -113,6 +113,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
 | `VolunteerHoursService` | [volunteer_hours.py](../../application/services/volunteer/volunteer_hours.py) | Hours served against the per-tenant comp tiers | `VOLUNTEERS` |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
+| `VolunteerRoleMappingService` | [volunteer_role_mapping_service.py](../../application/services/volunteer/volunteer_role_mapping_service.py) | Volunteer-position→app-role mappings and the assignment-driven role sync | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
 | `stage_reminder` (module) | [stage_reminder.py](../../application/services/match/stage_reminder.py) | Background loop DMing a stage match's players and crew shortly before it starts | — |
@@ -1445,7 +1446,23 @@ CRUD for the arbitrary, coordinator-defined position/job list. Positions optiona
 | `update(actor, position, **fields)` | `VolunteerPosition` | Coordinator-only partial update; re-validates name uniqueness and stagger config when those fields change. Audits `volunteer.position_updated`. |
 | `delete(actor, position)` | `None` | Coordinator-only; audits `volunteer.position_deleted`. |
 
-Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`.
+`delete` also reconciles volunteer-sourced roles, since the cascade took the position's assignments and mappings with it.
+
+Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`, `VolunteerRoleMappingService`.
+
+### volunteer_role_mapping_service.py — VolunteerRoleMappingService
+
+Maps a volunteer position onto an app `Role`. A **published** assignment to any shift of a mapped position grants the role as a `RoleSource.VOLUNTEER` `UserRole` row, and it stays while at least one such assignment exists (finished shifts count; drafts don't). Only `Role.volunteer_mappable()` may be mapped: a Volunteer Coordinator decides who's on a shift, so mapping STAFF or a subsystem-admin role would let a coordinator hand that authority to anyone, themselves included.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_mappings()` | `list[VolunteerRoleMapping]` | `@requires_feature(VOLUNTEERS)`; prefetches `position`. |
+| `add_mapping(actor, position_id, app_role)` | `VolunteerRoleMapping` | Staff-only (`can_grant_roles`); rejects a non-mappable role and duplicates. Audits `volunteer.role_mapping_added`, then `reconcile_all`. |
+| `remove_mapping(actor, mapping_id)` | `None` | Staff-only. Audits `volunteer.role_mapping_removed`, then `reconcile_all`. |
+| `reconcile_users(actor, user_ids)` | `dict` | Per user: grant mapped roles they don't hold at all (membership first, `MembershipSource.ROLE_GRANT`), revoke `VOLUNTEER`-sourced rows no longer desired. Audits `role.volunteer_sync_granted` / `role.volunteer_sync_revoked`. **Never raises** and skips when the flag is off (`feature-gate: exempt` soft integration point). |
+| `reconcile_all(actor)` | `dict` | `reconcile_users` over every published assignee plus every holder of a `VOLUNTEER`-sourced role. |
+
+Called after their own commit by `VolunteerScheduleService.assign` (non-draft), `confirm_assignment`, `unassign`, `release`, `delete_shift`, `reset_all_shifts`, `update_shift` (position change only), `VolunteerPositionService.delete`, and by `DiscordRoleMappingService.sync_user_roles_for_tenant` after it revokes anything, so a Discord-held row that was standing in for a volunteer-conferred role is handed back. The reverse handoff isn't automatic: a role the volunteer sync revokes that a Discord mapping would grant comes back on the person's next login or a Sync All Users.
 
 ### volunteer_schedule_service.py — VolunteerScheduleService
 

@@ -119,6 +119,7 @@ from .volunteer import (
     VolunteerPosition,
     VolunteerProfile,
     VolunteerQualification,
+    VolunteerRoleMapping,
     VolunteerShift,
 )
 from .webhook import Webhook, WebhookDelivery
@@ -254,6 +255,7 @@ __all__ = [
     'VolunteerPosition',
     'VolunteerProfile',
     'VolunteerQualification',
+    'VolunteerRoleMapping',
     'VolunteerShift',
     'WebPushSubscription',
     # webhooks
