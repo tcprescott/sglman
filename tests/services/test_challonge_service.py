@@ -46,6 +46,8 @@ def test_default_service_scopes_include_communities_manage(monkeypatch):
     from application.services.challonge_service import _service_scopes
     monkeypatch.delenv('CHALLONGE_SCOPES', raising=False)
     assert 'communities:manage' in _service_scopes().split()
+    # change_state (stage control) needs it.
+    assert 'tournaments:write' in _service_scopes().split()
 
 
 class TestServiceAuthorizeUrl:
@@ -546,3 +548,151 @@ class TestClientPaths:
         await client.update_match('T1', '8001', '100', '200', community='speedgaming')
         _, path = client._authed_request.call_args.args
         assert path == '/communities/speedgaming/tournaments/T1/matches/8001.json'
+
+
+# ----------------------------------------------------------------------
+# ChallongeClient participant identity (shapes captured from the live v2.1 API)
+# ----------------------------------------------------------------------
+def _included_participant(pid, username, user_rel):
+    return {
+        'id': pid, 'type': 'participant',
+        'attributes': {'name': username or 'Guest', 'username': username, 'seed': 1},
+        'relationships': {'invitation': {}, 'user': user_rel},
+    }
+
+
+class TestClientParticipantIdentity:
+    def _client(self, responses):
+        from application.utils.clients.challonge_client import ChallongeClient
+        client = ChallongeClient('id', 'secret', token_provider=AsyncMock(return_value='tok'))
+        client._authed_request = AsyncMock(side_effect=responses)
+        return client
+
+    async def test_participants_endpoint_reads_the_user_relationship(self):
+        client = self._client([{'data': [
+            _included_participant('305857241', 'The_Synack', {'data': {'id': '60661', 'type': 'user'}}),
+            _included_participant('305857244', None, {'data': None}),
+        ]}])
+        rows = await client.list_participants('18567901', community='speedgaming')
+        assert [r['challonge_user_id'] for r in rows] == ['60661', None]
+
+    async def test_full_fetch_backfills_user_ids_the_embed_leaves_empty(self):
+        embedded = {'data': {'id': '18567901', 'attributes': {}}, 'included': [
+            _included_participant('305857241', 'The_Synack', {}),
+            _included_participant('305857244', None, {}),
+        ]}
+        listed = {'data': [
+            _included_participant('305857241', 'The_Synack', {'data': {'id': '60661', 'type': 'user'}}),
+            _included_participant('305857244', None, {'data': None}),
+        ]}
+        client = self._client([embedded, listed])
+        full = await client.get_tournament_full('18567901', community='speedgaming')
+        assert [p['challonge_user_id'] for p in full['participants']] == ['60661', None]
+        _, path = client._authed_request.call_args.args
+        assert path == '/communities/speedgaming/tournaments/18567901/participants.json'
+
+    async def test_full_fetch_skips_the_extra_call_with_no_account_entrants(self):
+        embedded = {'data': {'id': '1', 'attributes': {}}, 'included': [
+            _included_participant('1', None, {}),
+        ]}
+        client = self._client([embedded])
+        await client.get_tournament_full('1')
+        assert client._authed_request.await_count == 1
+
+
+# ----------------------------------------------------------------------
+# Manual participant -> user assignment
+# ----------------------------------------------------------------------
+class TestManualParticipantAssignment:
+    async def _bracket(self):
+        from models import TenantMembership
+        from tests.conftest import DEFAULT_TEST_TENANT_ID
+        actor = await make_user(1, 'staff')
+        verified = await make_user(2, 'synack', challonge_user_id='60661')
+        guest = await make_user(3, 'jamevil')
+        for u in (verified, guest):
+            await TenantMembership.create(user=u, tenant_id=DEFAULT_TEST_TENANT_ID)
+        tournament = await Tournament.create(name='T', challonge_tournament_id='T1')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [
+                {'participant_id': '241', 'name': 'The_Synack', 'challonge_user_id': '60661', 'username': 'The_Synack'},
+                {'participant_id': '244', 'name': 'Jamevil', 'challonge_user_id': None, 'username': None},
+            ],
+            'matches': [],
+        })
+        service = make_service(api=api)
+        await service.sync_bracket(tournament.id, actor)
+        return service, actor, verified, guest, tournament
+
+    async def _participant(self, tournament, cid):
+        return await ChallongeParticipant.get(tournament=tournament, challonge_participant_id=cid)
+
+    async def test_assignment_survives_resync(self, db):
+        service, actor, _, guest, tournament = await self._bracket()
+        jam = await self._participant(tournament, '244')
+        await service.assign_participant_user(jam.id, guest.id, actor)
+
+        await service.sync_bracket(tournament.id, actor, force=True)
+        jam = await self._participant(tournament, '244')
+        assert jam.user_id == guest.id and jam.user_assigned_manually
+
+    async def test_manual_beats_a_verified_account_and_is_flagged(self, db):
+        service, actor, verified, guest, tournament = await self._bracket()
+        synack = await self._participant(tournament, '241')
+        await service.assign_participant_user(synack.id, guest.id, actor)
+        await service.sync_bracket(tournament.id, actor, force=True)
+
+        rows = {r['name']: r for r in await service.list_bracket_participants(tournament.id, actor)}
+        assert rows['The_Synack']['status'] == 'manual'
+        assert rows['The_Synack']['user'].id == guest.id
+        assert rows['The_Synack']['verified_user'].id == verified.id
+        assert rows['Jamevil']['status'] == 'unlinked'
+
+    async def test_clear_falls_back_to_the_verified_account(self, db):
+        service, actor, verified, guest, tournament = await self._bracket()
+        synack = await self._participant(tournament, '241')
+        await service.assign_participant_user(synack.id, guest.id, actor)
+        await service.clear_participant_user(synack.id, actor)
+        synack = await self._participant(tournament, '241')
+        assert synack.user_id == verified.id and not synack.user_assigned_manually
+
+    async def test_one_user_per_bracket(self, db):
+        service, actor, verified, _, tournament = await self._bracket()
+        jam = await self._participant(tournament, '244')
+        with pytest.raises(ValueError, match='already mapped to The_Synack'):
+            await service.assign_participant_user(jam.id, verified.id, actor)
+
+    async def test_assignee_must_be_a_member(self, db):
+        service, actor, _, _, tournament = await self._bracket()
+        outsider = await make_user(9, 'outsider')
+        jam = await self._participant(tournament, '244')
+        with pytest.raises(ValueError, match="isn't a member"):
+            await service.assign_participant_user(jam.id, outsider.id, actor)
+
+    async def test_assignment_is_audited(self, db):
+        from models import AuditLog
+        service, actor, _, guest, tournament = await self._bracket()
+        jam = await self._participant(tournament, '244')
+        await service.assign_participant_user(jam.id, guest.id, actor)
+        await service.clear_participant_user(jam.id, actor)
+        actions = await AuditLog.filter(action__startswith='challonge.participant').values_list('action', flat=True)
+        assert sorted(actions) == ['challonge.participant_assigned', 'challonge.participant_unassigned']
+
+    async def test_requires_tournament_edit_rights(self, db, monkeypatch):
+        from application.services import auth_service
+        service, actor, _, guest, tournament = await self._bracket()
+        jam = await self._participant(tournament, '244')
+
+        async def deny(*_a, **_k):
+            return False
+
+        async def ensure(ok, msg):
+            if not ok:
+                raise PermissionError(msg)
+
+        monkeypatch.setattr(auth_service.AuthService, 'can_edit_tournament', deny)
+        monkeypatch.setattr(auth_service.AuthService, 'ensure', ensure)
+        with pytest.raises(PermissionError):
+            await service.assign_participant_user(jam.id, guest.id, actor)

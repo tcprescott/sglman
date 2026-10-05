@@ -24,6 +24,11 @@ class Tournament(Model):
     challonge_community = fields.CharField(max_length=64, null=True)
     challonge_tournament_url = fields.CharField(max_length=255, null=True)
     challonge_last_synced_at = fields.DatetimeField(null=True)
+    # The linked bracket's state as of the last sync (``pending``,
+    # ``group_stages_underway``, ``underway``, ``awaiting_review``, ...), cached
+    # so the admin page can offer the next stage action without an API call.
+    challonge_state = fields.CharField(max_length=32, null=True)
+    challonge_group_stage = fields.BooleanField(default=False)
     # Hybrid config substrate (see docs/online-tournaments): worker-queried knobs
     # stay typed columns; templates, scoring params, and strategy choices live in
     # this schema-validated JSON blob. Written only through the service layer,

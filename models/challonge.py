@@ -44,6 +44,9 @@ class ChallongeParticipant(Model):
     name = fields.CharField(max_length=255, null=True)
     challonge_user_id = fields.CharField(max_length=64, null=True)
     user = fields.ForeignKeyField('models.User', related_name='challonge_participations', null=True, on_delete=fields.SET_NULL)
+    # Set when a tournament editor assigned ``user`` by hand — an entrant added
+    # by name has no Challonge account to resolve. Sync never overwrites it.
+    user_assigned_manually = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

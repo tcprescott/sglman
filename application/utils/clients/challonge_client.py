@@ -90,11 +90,23 @@ def _rel_id(resource: Dict[str, Any], rel: str) -> Optional[str]:
     return None
 
 
+def _normalize_tournament(resource: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        'id': str(resource.get('id')),
+        'name': _attr(resource, 'name'),
+        'url': _attr(resource, 'full_challonge_url', 'url'),
+        'state': _attr(resource, 'state'),
+        'group_stage': bool(_attr(resource, 'group_stage_enabled')),
+    }
+
+
 def _normalize_participant(resource: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'participant_id': str(resource.get('id')),
         'name': _attr(resource, 'name', 'display_name'),
-        'challonge_user_id': _opt_str(_attr(resource, 'challonge_user_id', 'user_id')),
+        'challonge_user_id': _opt_str(
+            _attr(resource, 'challonge_user_id', 'user_id') or _rel_id(resource, 'user')
+        ),
         'username': _attr(resource, 'challonge_username', 'username'),
     }
 
@@ -198,12 +210,7 @@ class ChallongeClient:
     async def get_tournament(self, tournament_id: str, community: Optional[str] = None) -> Dict[str, Any]:
         data = await self._authed_request('GET', f'{_tournament_path(tournament_id, community)}.json')
         resource = data.get('data') or {}
-        return {
-            'id': str(resource.get('id')),
-            'name': _attr(resource, 'name'),
-            'url': _attr(resource, 'full_challonge_url', 'url'),
-            'state': _attr(resource, 'state'),
-        }
+        return _normalize_tournament(resource)
 
     async def list_participants(
         self, tournament_id: str, community: Optional[str] = None,
@@ -224,7 +231,7 @@ class ChallongeClient:
     async def get_tournament_full(
         self, tournament_id: str, community: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Fetch a tournament with its participants and matches in one request.
+        """Fetch a tournament with its participants and matches, usually in one request.
 
         Challonge embeds the associated participant/match records via the
         ``include_participants`` / ``include_matches`` flags, collapsing what
@@ -237,12 +244,7 @@ class ChallongeClient:
             '?include_participants=1&include_matches=1',
         )
         resource = data.get('data') or {}
-        tournament = {
-            'id': str(resource.get('id')),
-            'name': _attr(resource, 'name'),
-            'url': _attr(resource, 'full_challonge_url', 'url'),
-            'state': _attr(resource, 'state'),
-        }
+        tournament = _normalize_tournament(resource)
         participants: List[Dict[str, Any]] = []
         matches: List[Dict[str, Any]] = []
         for included in (data.get('included') or []):
@@ -251,7 +253,30 @@ class ChallongeClient:
                 participants.append(_normalize_participant(included))
             elif kind in ('match', 'matches'):
                 matches.append(_normalize_match(included))
+        # The embedded participants carry an empty ``user`` relationship; only the
+        # participants endpoint fills it in. An entrant with a Challonge account
+        # (it has a username) needs that id to map to its linked Wizzrobe user.
+        if any(p['username'] and not p['challonge_user_id'] for p in participants):
+            user_ids = {
+                p['participant_id']: p['challonge_user_id']
+                for p in await self.list_participants(tournament_id, community=community)
+            }
+            for p in participants:
+                p['challonge_user_id'] = p['challonge_user_id'] or user_ids.get(p['participant_id'])
         return {'tournament': tournament, 'participants': participants, 'matches': matches}
+
+    async def change_state(
+        self, tournament_id: str, state: str, community: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Apply a ``change_state`` action (``start``, ``finalize_group_stage``, ...).
+
+        Returns the normalized tournament as Challonge reports it afterwards.
+        """
+        body = {'data': {'type': 'TournamentState', 'attributes': {'state': state}}}
+        data = await self._authed_request(
+            'PUT', f'{_tournament_path(tournament_id, community)}/change_state.json', json=body,
+        )
+        return _normalize_tournament(data.get('data') or {})
 
     async def update_match(
         self,
@@ -368,7 +393,7 @@ class MockChallongeClient(ChallongeClient):
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
         return {'access_token': 'mock-access', 'refresh_token': 'mock-refresh', 'expires_in': 604800,
-                'scope': 'me tournaments:read matches:read matches:write participants:read communities:manage'}
+                'scope': 'me tournaments:read tournaments:write matches:read matches:write participants:read communities:manage'}
 
     async def refresh(self, refresh_token: str) -> Dict[str, Any]:
         return await self.exchange_code('mock', 'mock')
@@ -383,7 +408,8 @@ class MockChallongeClient(ChallongeClient):
 
     async def get_tournament(self, tournament_id: str, community: Optional[str] = None) -> Dict[str, Any]:
         return {'id': str(tournament_id), 'name': 'Mock Challonge Tournament',
-                'url': f'https://challonge.com/{tournament_id}', 'state': 'underway'}
+                'url': f'https://challonge.com/{tournament_id}', 'state': 'underway',
+                'group_stage': False}
 
     async def list_participants(
         self, tournament_id: str, community: Optional[str] = None,
@@ -409,3 +435,7 @@ class MockChallongeClient(ChallongeClient):
                            community=None) -> None:
         print(f"[MOCK Challonge] update_match t={tournament_id} m={match_id} "
               f"winner={winner_participant_id} {winner_score}-{loser_score}")
+
+    async def change_state(self, tournament_id, state, community=None) -> Dict[str, Any]:
+        print(f"[MOCK Challonge] change_state t={tournament_id} state={state}")
+        return await self.get_tournament(tournament_id, community=community)

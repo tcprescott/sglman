@@ -182,6 +182,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.CHALLONGE_BRACKET_SYNCED,
     AuditActions.CHALLONGE_RESULT_PUSHED,
     AuditActions.CHALLONGE_WEBHOOK_SYNCED,
+    AuditActions.CHALLONGE_PARTICIPANT_ASSIGNED,
+    AuditActions.CHALLONGE_PARTICIPANT_UNASSIGNED,
+    AuditActions.CHALLONGE_STAGE_ADVANCED,
     # Twitch account linking.
     AuditActions.TWITCH_LINKED,
     AuditActions.TWITCH_UNLINKED,

@@ -337,7 +337,10 @@ async def render_player_dashboard(
                         else:
                             disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
                             disabled_btn.disable()
-                            disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
+                            disabled_btn.tooltip(
+                                f"{opponent_name} isn't matched to a Wizzrobe account yet. They can "
+                                "link Challonge from their profile, or staff can assign them."
+                            )
 
         # The deep-linked matchup's opener, captured during the render below so
         # `?schedule=<id>` can fire the same handler the button does. Per-client

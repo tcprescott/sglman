@@ -153,6 +153,20 @@ class ChallongeRepository:
         return await scoped(ChallongeParticipant.filter(tournament=tournament)).prefetch_related('user')
 
     @staticmethod
+    async def get_participant_by_id(participant_pk: int) -> Optional[ChallongeParticipant]:
+        return await scoped(ChallongeParticipant.filter(id=participant_pk)).prefetch_related(
+            'user', 'tournament',
+        ).first()
+
+    @staticmethod
+    async def set_participant_user(
+        participant: ChallongeParticipant, user: Optional[User], manual: bool,
+    ) -> None:
+        participant.user = user
+        participant.user_assigned_manually = manual
+        await participant.save(update_fields=['user_id', 'user_assigned_manually', 'updated_at'])
+
+    @staticmethod
     async def participant_tournament_ids_for_user(user: User) -> Set[int]:
         rows = await scoped(ChallongeParticipant.filter(user=user)).values_list('tournament_id', flat=True)
         return set(rows)
@@ -223,9 +237,15 @@ class ChallongeRepository:
         return participants, matches
 
     @staticmethod
-    async def set_last_synced_at(tournament: Tournament, when: datetime) -> None:
+    async def record_sync(
+        tournament: Tournament, when: datetime, state: Optional[str], group_stage: bool,
+    ) -> None:
         tournament.challonge_last_synced_at = when
-        await tournament.save(update_fields=['challonge_last_synced_at'])
+        tournament.challonge_state = state  # type: ignore[assignment]
+        tournament.challonge_group_stage = group_stage
+        await tournament.save(update_fields=[
+            'challonge_last_synced_at', 'challonge_state', 'challonge_group_stage',
+        ])
 
     # ------------------------------------------------------------------
     # API-usage tally (per UTC calendar month)
