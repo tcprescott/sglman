@@ -119,7 +119,9 @@ def create() -> None:
         app.storage.user['challonge_service_state'] = state
         app.storage.user['challonge_service_return'] = f'{root_path}{_ADMIN_RETURN}'
         app.storage.user['challonge_service_tenant'] = get_current_tenant_id()
-        return RedirectResponse(ChallongeService.service_authorize_url(state))
+        return RedirectResponse(ChallongeService.service_authorize_url(
+            state, community=request.query_params.get('community'),
+        ))
 
     @ui.page('/challonge/oauth/callback')
     async def challonge_callback(client: Client) -> None:

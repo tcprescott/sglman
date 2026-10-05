@@ -13,6 +13,7 @@ participants; their tokens are not retained.
 
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
@@ -94,10 +95,23 @@ class ChallongeService:
         return bool(os.getenv('CHALLONGE_CLIENT_ID') and os.getenv('CHALLONGE_CLIENT_SECRET'))
 
     @staticmethod
-    def service_authorize_url(state: str) -> str:
+    def service_authorize_url(state: str, community: Optional[str] = None) -> str:
         return build_authorize_url(
             os.getenv('CHALLONGE_CLIENT_ID', ''), _redirect_uri(), _service_scopes(), state,
+            community_id=ChallongeService.normalize_community(community),
         )
+
+    @staticmethod
+    def normalize_community(value: Optional[str]) -> Optional[str]:
+        """Reduce a typed community (``speedgaming``, ``speedgaming.challonge.com``,
+        or any URL on it) to its bare subdomain, or None when it isn't one."""
+        raw = (value or '').strip().lower()
+        if not raw:
+            return None
+        if '.challonge.com' in raw:
+            _, community = ChallongeService.parse_tournament_identifier(raw)
+            raw = community or ''
+        return raw if re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,62}', raw) else None
 
     @staticmethod
     def player_authorize_url(state: str) -> str:
@@ -417,9 +431,9 @@ class ChallongeService:
             if community and e.status == 403:
                 raise ValueError(
                     f"Challonge won't let the connected account read tournaments in the "
-                    f"'{community}' community. Disconnect and reconnect Challonge from "
-                    f"Admin → Challonge, signing in as an admin of '{community}' and "
-                    f"sharing that community when Challonge asks."
+                    f"'{community}' community. In Admin → Challonge, enter "
+                    f"'{community}' as the community and reconnect, signing in as one "
+                    f"of its admins."
                 ) from e
             raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 

@@ -48,6 +48,32 @@ def test_default_service_scopes_include_communities_manage(monkeypatch):
     assert 'communities:manage' in _service_scopes().split()
 
 
+class TestServiceAuthorizeUrl:
+    def test_no_community(self, monkeypatch):
+        monkeypatch.setenv('CHALLONGE_CLIENT_ID', 'cid')
+        url = ChallongeService.service_authorize_url('st')
+        assert 'community_id' not in url
+        assert 'communities%3Amanage' in url
+
+    def test_community_is_requested(self, monkeypatch):
+        monkeypatch.setenv('CHALLONGE_CLIENT_ID', 'cid')
+        url = ChallongeService.service_authorize_url('st', community='SpeedGaming')
+        assert url.endswith('&community_id=speedgaming')
+
+    @pytest.mark.parametrize('raw, expected', [
+        ('speedgaming', 'speedgaming'),
+        (' SpeedGaming ', 'speedgaming'),
+        ('speedgaming.challonge.com', 'speedgaming'),
+        ('https://speedgaming.challonge.com/testing', 'speedgaming'),
+        ('https://challonge.com/testing', None),
+        ('', None),
+        (None, None),
+        ('bad slug&x=1', None),
+    ])
+    def test_normalize_community(self, raw, expected):
+        assert ChallongeService.normalize_community(raw) == expected
+
+
 class TestParseIdentifier:
     def test_plain_slug(self):
         assert ChallongeService.parse_tournament_identifier('abc123') == ('abc123', None)

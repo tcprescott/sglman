@@ -55,14 +55,38 @@ async def admin_challonge_page() -> None:
                             f"API requests this month: {used} / {quota}"
                         ).classes('text-caption ' + ('text-error' if warn else 'text-muted'))
                     if is_staff:
+                        connect_controls('Reconnect')
                         ui.button('Disconnect', icon='link_off', on_click=disconnect).props('flat color=negative')
                 else:
                     ui.label('The Wizzrobe Challonge account is not connected.').classes('text-muted')
                     if is_staff:
-                        ui.button(
-                            'Connect Challonge', icon='link',
-                            on_click=lambda: ui.navigate.to('/challonge/connect'),
-                        ).props('color=primary')
+                        connect_controls('Connect Challonge')
+
+        def connect_controls(label: str) -> None:
+            with ui.row().classes('items-center w-full'):
+                community = ui.input(
+                    'Community (optional)',
+                    placeholder='speedgaming',
+                ).props('dense outlined clearable').classes('grow').tooltip(
+                    'The subdomain of an organization Challonge page, e.g. '
+                    'speedgaming for speedgaming.challonge.com. Needed to link '
+                    'its tournaments; sign in as one of its admins.'
+                )
+
+                def go() -> None:
+                    typed = (community.value or '').strip()
+                    slug = ChallongeService.normalize_community(typed)
+                    if typed and slug is None:
+                        ui.notify(
+                            "That doesn't look like a Challonge community subdomain.",
+                            color='warning',
+                        )
+                        return
+                    ui.navigate.to(
+                        f'/challonge/connect?community={slug}' if slug else '/challonge/connect'
+                    )
+
+                ui.button(label, icon='link', on_click=go).props('color=primary')
 
         async def disconnect() -> None:
             try:

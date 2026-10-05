@@ -503,7 +503,7 @@ Two tab functions live in this module.
 
 `admin_challonge_page()` — manages the shared Challonge service-account connection.
 
-- A `@ui.refreshable` connection card from `ChallongeService.get_connection_status` (configured/connected state, username, scopes, token expiry, monthly request quota) with **Connect** (→ `/challonge/connect`) / **Disconnect** for staff.
+- A `@ui.refreshable` connection card from `ChallongeService.get_connection_status` (configured/connected state, username, scopes, token expiry, monthly request quota) with **Connect** / **Reconnect** (→ `/challonge/connect`, plus `?community=<subdomain>` when staff fill the optional Community field, forwarded to Challonge as `community_id` so the grant covers that organization's tournaments) / **Disconnect** for staff.
 - A `@ui.refreshable` "Linked tournaments" list (`Tournament.filter(challonge_tournament_id__isnull=False, tenant_id=…)`) with last-synced timestamps and a per-tournament **Sync** button (`ChallongeService.sync_bracket(..., force=True)`).
 
 ### Admin brackets (`pages/admin_tabs/admin_brackets/`)
