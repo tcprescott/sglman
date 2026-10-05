@@ -9,6 +9,8 @@ from application.errors import NotFoundError, require_found
 
 from . import (
     availability_windows,
+    check_in_rules,
+    check_in_sync_worker,
     notification_links,
     oauth_handoff_service,
     race_room_worker,
@@ -36,6 +38,7 @@ from .auth_service import AuthService, get_user_from_discord_id
 from .bracket_config import BracketConfig, validate_bracket_config
 from .bracket_service import BracketService
 from .challonge_service import ChallongeService
+from .check_in_service import CheckInService
 from .crew_service import CrewService
 from .discord import (
     DiscordEventReconcilerService,
@@ -130,6 +133,7 @@ __all__ = [
     'BracketService',
     'CancellationMixin',
     'ChallongeService',
+    'CheckInService',
     'CrewService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
@@ -207,6 +211,8 @@ __all__ = [
     'async_qualifier_access',
     'async_qualifier_scoring',
     'availability_windows',
+    'check_in_rules',
+    'check_in_sync_worker',
     'discord_event_worker',
     'discord_queue',
     'get_user_from_discord_id',

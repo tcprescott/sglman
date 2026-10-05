@@ -343,6 +343,39 @@ class AuthService:
         return await AuthService.can_manage_equipment(user)
 
     @staticmethod
+    async def is_check_in_desk(user: Optional[User]) -> bool:
+        return await AuthService.has_role(user, Role.CHECK_IN_DESK)
+
+    @staticmethod
+    async def can_manage_check_in(user: Optional[User]) -> bool:
+        """Set up check-in events, add walk-ups, and remove roster rows."""
+        return await AuthService.is_staff(user)
+
+    @staticmethod
+    async def can_run_check_in_desk(user: Optional[User]) -> bool:
+        """Work the desk: check people in, link registrants, run a sync."""
+        if AuthService.is_system(user):
+            return True
+        return await AuthService.is_staff(user) or await AuthService.is_check_in_desk(user)
+
+    @staticmethod
+    async def can_view_check_in_desk(user: Optional[User]) -> bool:
+        """Whether the check-in desk is reachable for ``user`` in this tenant.
+
+        The nav's source of truth, so the header link and the page gate agree:
+        the feature must be live and the viewer must be able to work the desk.
+        Reads the flag lazily, as :meth:`can_view_volunteer` does.
+        """
+        if user is None:
+            return False
+        from application.services.feature_flag_service import FeatureFlagService
+        from models import FeatureFlag
+
+        if not await FeatureFlagService().is_enabled(FeatureFlag.EVENT_CHECK_IN):
+            return False
+        return await AuthService.can_run_check_in_desk(user)
+
+    @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
         """Set a match's stage or is_stream_candidate flag.
         Stream Managers can do this globally; TAs can do it for their own tournaments.

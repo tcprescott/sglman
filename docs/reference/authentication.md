@@ -14,7 +14,7 @@ Two non-session credentials exist alongside this, both stored in `ApiToken` and 
 
 ## Roles
 
-Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — eleven members. The first seven are per-tenant community roles; the next three are per-tenant online-tournament admin roles; `super_admin` is the one global platform role.
+Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — twelve members. The first eight are per-tenant community roles; the next three are per-tenant online-tournament admin roles; `super_admin` is the one global platform role.
 
 | Role | Who has it | Grants |
 |---|---|---|
@@ -25,6 +25,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — e
 | `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
 | `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
 | `volunteer` | General volunteers | Volunteer workflows on `/volunteer` (no Admin access) |
+| `check_in_desk` | Check-in volunteers | Work the event check-in desk at `/checkin`: check people in, link registrants to accounts, sync (`can_run_check_in_desk`). Walk-ups and event setup stay staff-only. No Admin access |
 | `preset_manager` | Seed-preset authors | Author/edit the tenant's seed-rolling presets (`can_manage_presets`) |
 | `sync_admin` | Sync/integration admins | Manage upstream sync config: SpeedGaming links, Discord events, racetime bot/room config (`can_manage_sync`) |
 | `qualifier_admin` | Qualifier admins | Administer async qualifiers — author pools/permalinks, work the reviewer queue (`can_admin_qualifier`) |
@@ -209,6 +210,7 @@ Signed-out readability is **not** publication: the app serves a blanket `robots.
 | `protected_tab_page` | `/volunteer` ([`pages/volunteer.py`](../../pages/volunteer.py)) | `roles=[VOLUNTEER, PROCTOR, STAFF]`, `feature=VOLUNTEERS` |
 | `protected_page` | `/equipment/{asset_id}` ([`pages/equipment.py`](../../pages/equipment.py)) | `feature=EQUIPMENT` |
 | `protected_page` | `/equipment/qr-labels` ([`pages/equipment_labels.py`](../../pages/equipment_labels.py)) | `roles=[STAFF, EQUIPMENT_MANAGER]`, `feature=EQUIPMENT` |
+| `protected_page` | `/checkin`, `/checkin/{event_id}` ([`pages/check_in.py`](../../pages/check_in.py)) | `roles=[STAFF, CHECK_IN_DESK]`, `feature=EVENT_CHECK_IN` |
 | `protected_page` | `/qualifiers`, `/qualifiers/{qualifier_id}` ([`pages/qualifiers.py`](../../pages/qualifiers.py)) | `feature=ASYNC_QUALIFIERS` |
 | `public_page` | `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` ([`pages/brackets.py`](../../pages/brackets.py)) | `feature=BRACKETS`; spectator surfaces that must work signed out |
 | `public_page` | `/event-info`, `/event-info/{slug}` ([`pages/event_info.py`](../../pages/event_info.py)) | `feature=EVENT_INFO` |
@@ -285,6 +287,9 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | `can_manage_equipment(user)` | Staff or equipment manager — CRUD on lending assets, private notes/owner |
 | `can_checkout_equipment(user)` | Any signed-in, active member that is not the system account — **deliberately role-less**, because a loaner's QR code is scanned by whoever holds it. Grants self-checkout only; naming another borrower is `can_manage_equipment` |
 | `can_checkin_equipment(user)` | `can_manage_equipment` |
+| `can_manage_check_in(user)` | Staff — check-in event setup, walk-ups, removing a walk-up |
+| `can_run_check_in_desk(user)` | Staff, `CHECK_IN_DESK`, or the system user — check in, undo, link/unlink, sync |
+| `can_view_check_in_desk(user)` | `EVENT_CHECK_IN` live **and** `can_run_check_in_desk`; the nav link's source of truth |
 | `can_manage_presets(user)` | The shared `_system_admin_staff_or` cascade with `PRESET_MANAGER` |
 | `can_manage_sync(user)` | The same cascade with `SYNC_ADMIN` — SpeedGaming links, Discord events, racetime bot/room config |
 | `can_admin_qualifier(user, qualifier=None)` | The same cascade with `QUALIFIER_ADMIN`, **or** — when a qualifier is passed — membership in its `admins` M2M |

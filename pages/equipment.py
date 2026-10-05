@@ -21,6 +21,7 @@ from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
 from theme.equipment_copy import equipment_guidance
+from theme.realtime import refresh_on_reconnect
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -230,34 +231,5 @@ def create() -> None:
                 return
             await EquipmentDialog(actor, equipment=asset, on_saved=render_detail.refresh).open()
 
-        _refresh_on_reconnect(render_detail)
+        refresh_on_reconnect(render_detail.refresh)
         await render_detail()
-
-
-def _refresh_on_reconnect(refreshable) -> None:
-    """Re-read the asset when the socket comes back, rather than resume.
-
-    This is only the *short* blip. An outage longer than ``reconnect_timeout``
-    (3.0 s by default) means the server has already dropped the client, and the
-    framework then does a full page reload (``try_reconnect`` →
-    ``window.location.reload()``) which re-reads everything on its own. This
-    handler covers the case where the same client survives and would otherwise
-    keep showing pre-blip state — including a status the operator's own eaten
-    click never changed.
-    """
-    client = context.client
-    # on_connect also fires for the initial handshake, where the page has just
-    # been built; refreshing there would double every first render.
-    seen_first = {'value': False}
-
-    async def reread() -> None:
-        with client:
-            await refreshable.refresh()
-
-    def handle_connect() -> None:
-        if not seen_first['value']:
-            seen_first['value'] = True
-            return
-        background_tasks.create(reread())
-
-    client.on_connect(handle_connect)

@@ -18,6 +18,11 @@ from .async_qualifier_repository import (
 from .audit_repository import AuditRepository
 from .bracket_repository import BracketRepository
 from .challonge_repository import ChallongeRepository
+from .check_in_repository import (
+    CheckInEntrantRepository,
+    CheckInEventRepository,
+    CheckInUserLookupRepository,
+)
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
@@ -79,6 +84,9 @@ __all__ = [
     'AuditRepository',
     'BracketRepository',
     'ChallongeRepository',
+    'CheckInEntrantRepository',
+    'CheckInEventRepository',
+    'CheckInUserLookupRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',

@@ -58,6 +58,7 @@ USER_SPECS = [
     ("sm_only",       "Stream Manager Only"),
     ("triforce_sub",  "Triforce Submitter"),
     ("volunteer_only", "Volunteer Only"),
+    ("checkin_desk",  "Check-in Desk"),
 ]
 
 #: Racers who exist to fill a group play-in start list — staff-run races of ten

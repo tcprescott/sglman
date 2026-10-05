@@ -58,6 +58,7 @@ from models import (
 from scripts.seed_access import seed_access_for_tenant
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_check_in import seed_check_in_for_tenant, seed_check_in_identities
 from scripts.seed_crew import seed_crew_for_tenant
 from scripts.seed_discord import seed_discord_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
@@ -150,6 +151,7 @@ async def seed_users() -> dict[str, User]:
         users[username] = u
     await seed_timezone_preferences(users)
     await seed_matcherino_handles(users)
+    await seed_check_in_identities(users)
     await link_racetime_identities(users)
     await link_twitch_identities(users)
     # Before anything else writes a provider id: clicking Link as one of these
@@ -410,6 +412,9 @@ async def seed_for_tenant(
 
         # --- Equipment lending (scripts/seed_equipment.py) -------------------
         equipment = await seed_equipment_for_tenant(tenant, users, staff, now)
+
+        # --- Event check-in (scripts/seed_check_in.py) ----------------------
+        await seed_check_in_for_tenant(tenant, users)
 
         # --- API + room tokens (scripts/seed_tokens.py) -------------------
         await seed_tokens_for_tenant(tenant, staff, now)

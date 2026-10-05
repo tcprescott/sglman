@@ -127,6 +127,9 @@ class BaseLayout:
         # is a public page, and someone who has not signed in is squarely who it
         # is written for.
         self._show_event_info = False
+        # The check-in desk, offered only while an event is open and to people
+        # who can work it. False on the synchronous error path, like Feedback.
+        self._show_check_in = False
         # Whether the viewer belongs to this community (or is a super-admin).
         # Gates what only a member can use: Feedback, whose submit the service
         # refuses to anyone else, and the home sections on a tab-less page.
@@ -214,6 +217,9 @@ class BaseLayout:
             self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
         if self._tenant_id is not None:
             self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
+        if self._is_member and await AuthService.can_view_check_in_desk(self.user):
+            from application.services import CheckInService
+            self._show_check_in = await CheckInService().has_open_event()
         await self._load_theme_colors()
         return self
 
@@ -249,6 +255,8 @@ class BaseLayout:
         self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
         if self._show_volunteer:
             self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
+        if self._show_check_in:
+            self.top_menu.append({'label': 'Check-in', 'icon': 'how_to_reg', 'url': '/checkin'})
         if self._show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 
