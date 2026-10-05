@@ -675,6 +675,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `average_match_duration` | `IntField` | null | Minutes |
 | `max_match_duration` | `IntField` | null | Minutes |
 | `challonge_tournament_id` | `CharField(64)` | null | Linked Challonge tournament id (enables bracket sync) |
+| `challonge_community` | `CharField(64)` | null | Organization subdomain for `<community>.challonge.com` tournaments; v2.1 calls are scoped under `/communities/<community>/` |
 | `challonge_tournament_url` | `CharField(255)` | null | Challonge bracket URL |
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
 | `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments.md](../features/online-tournaments.md) |

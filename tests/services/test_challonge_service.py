@@ -44,18 +44,24 @@ async def make_user(discord_id: int, username: str = 'u', challonge_user_id=None
 # ----------------------------------------------------------------------
 class TestParseIdentifier:
     def test_plain_slug(self):
-        assert ChallongeService.parse_tournament_identifier('abc123') == 'abc123'
+        assert ChallongeService.parse_tournament_identifier('abc123') == ('abc123', None)
 
     def test_numeric_id(self):
-        assert ChallongeService.parse_tournament_identifier('12345') == '12345'
+        assert ChallongeService.parse_tournament_identifier('12345') == ('12345', None)
 
     def test_root_url(self):
-        assert ChallongeService.parse_tournament_identifier('https://challonge.com/abc123') == 'abc123'
+        assert ChallongeService.parse_tournament_identifier('https://challonge.com/abc123') == ('abc123', None)
 
     def test_subdomain_url(self):
         assert (
-            ChallongeService.parse_tournament_identifier('https://myorg.challonge.com/spring25')
-            == 'myorg-spring25'
+            ChallongeService.parse_tournament_identifier('https://speedgaming.challonge.com/testing')
+            == ('testing', 'speedgaming')
+        )
+
+    def test_www_is_not_a_community(self):
+        assert (
+            ChallongeService.parse_tournament_identifier('https://www.challonge.com/abc123')
+            == ('abc123', None)
         )
 
     def test_blank_raises(self):
@@ -135,6 +141,19 @@ class TestSyncBracket:
         assert cmatch.state == ChallongeMatchState.OPEN
         assert cmatch.participant1_id == alice_p.id
         assert cmatch.participant2_id == bob_p.id
+
+    async def test_community_tournament_syncs_under_its_community(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(
+            name='T', challonge_tournament_id='T1', challonge_community='speedgaming',
+        )
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [], 'matches': [],
+        })
+        await make_service(api=api).sync_bracket(tournament.id, actor)
+        api.get_tournament_full.assert_awaited_once_with('T1', community='speedgaming')
 
     async def test_requires_linked_tournament(self, db):
         actor = await make_user(1, 'admin')
@@ -280,7 +299,23 @@ class TestPushMatchResult:
         assert kwargs['loser_participant_id'] == '200'
         assert kwargs['match_id'] == '8001'
         assert kwargs['tournament_id'] == 'T1'
+        assert kwargs['community'] is None
         api.get_tournament_full.assert_awaited_once()
+
+    async def test_pushes_under_community(self, db):
+        actor, match, cmatch = await self._setup()
+        tournament = await Tournament.get(id=cmatch.tournament_id)
+        tournament.challonge_community = 'speedgaming'
+        await tournament.save()
+        api = MagicMock()
+        api.update_match = AsyncMock()
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [], 'matches': [],
+        })
+        await make_service(api=api).push_match_result(match, actor)
+        _, kwargs = api.update_match.call_args
+        assert kwargs['community'] == 'speedgaming'
 
     async def test_no_winner_recorded_raises(self, db):
         actor, match, _ = await self._setup(winner_rank_set=False)
@@ -446,3 +481,36 @@ class TestParticipantTournamentIds:
         user = await make_user(1, 'alice', challonge_user_id='1001')
         await Tournament.create(name='In', challonge_tournament_id='T1')
         assert await make_service().participant_tournament_ids(user) == set()
+
+
+# ----------------------------------------------------------------------
+# ChallongeClient path building
+# ----------------------------------------------------------------------
+class TestClientPaths:
+    def _client(self):
+        from application.utils.clients.challonge_client import ChallongeClient
+        client = ChallongeClient('id', 'secret', token_provider=AsyncMock(return_value='tok'))
+        client._authed_request = AsyncMock(return_value={'data': {}})
+        return client
+
+    async def test_root_tournament_path(self):
+        client = self._client()
+        await client.get_tournament_full('testing')
+        method, path = client._authed_request.call_args.args
+        assert method == 'GET'
+        assert path == '/tournaments/testing.json?include_participants=1&include_matches=1'
+
+    async def test_community_tournament_path(self):
+        client = self._client()
+        await client.get_tournament_full('testing', community='speedgaming')
+        _, path = client._authed_request.call_args.args
+        assert path == (
+            '/communities/speedgaming/tournaments/testing.json'
+            '?include_participants=1&include_matches=1'
+        )
+
+    async def test_community_update_match_path(self):
+        client = self._client()
+        await client.update_match('T1', '8001', '100', '200', community='speedgaming')
+        _, path = client._authed_request.call_args.args
+        assert path == '/communities/speedgaming/tournaments/T1/matches/8001.json'
