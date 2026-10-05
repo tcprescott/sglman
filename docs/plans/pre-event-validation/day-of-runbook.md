@@ -56,6 +56,7 @@ mitigation.
 | **racetime.gg** | Room opening, race state sync | On-site matches, brackets, everything else | Run affected races manually; record results by hand in the app |
 | **A randomizer** | Rolling for that game | Every other randomizer | Roll on the randomizer's own site and paste the permalink onto the match |
 | **SpeedGaming feed** | New and changed episodes syncing | Matches already materialized | Schedule by hand in the app; reconcile after |
+| **Matcherino** | Roster syncing new registrations into check-in | The desk, on the last good roster: check-in, linking, walk-ups | Staff add late registrants as walk-ups; the next good sync reconciles |
 | **Challonge** | Mirror updates | Native brackets, all match ops | If the tournament is Challonge-mirrored, update Challonge by hand after |
 | **Push services** | Device notifications | Discord DMs | Nothing to do; it is a mirror |
 | **PostgreSQL** | Everything | Nothing | This is the one that ends the day. Restore per PG6 (⟨measure⟩ recovery time). Staff fall back to paper for the schedule |

@@ -191,6 +191,20 @@ class EventType:
     TOURNAMENT_PRIZE_POOL_UPDATED = 'tournament.prize_pool_updated'
     TOURNAMENT_PAYOUT_UPDATED = 'tournament.payout_updated'
 
+    # Event check-in (mirrors AuditActions.CHECK_IN_*). Someone arriving is what
+    # a subscriber wants to hear about (a welcome post, a live attendance count),
+    # and the roster mutations around it keep a mirror honest. Creating and
+    # editing the event itself stays audit-only, as tenant-internal config. A
+    # sync is published so a subscriber learns the registration list moved,
+    # including the worker's polls, which write no audit row.
+    CHECK_IN_EVENT_SYNCED = 'check_in_event.synced'
+    CHECK_IN_ENTRANT_CHECKED_IN = 'check_in_entrant.checked_in'
+    CHECK_IN_ENTRANT_CHECK_IN_UNDONE = 'check_in_entrant.check_in_undone'
+    CHECK_IN_ENTRANT_LINKED = 'check_in_entrant.linked'
+    CHECK_IN_ENTRANT_UNLINKED = 'check_in_entrant.unlinked'
+    CHECK_IN_ENTRANT_WALK_UP_ADDED = 'check_in_entrant.walk_up_added'
+    CHECK_IN_ENTRANT_REMOVED = 'check_in_entrant.removed'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
@@ -230,6 +244,10 @@ class EventType:
         TENANT_JOIN_REQUESTED, TENANT_JOIN_APPROVED, TENANT_JOIN_DENIED,
         TOURNAMENT_ENROLLED, TOURNAMENT_WITHDRAWN,
         TOURNAMENT_PRIZE_POOL_UPDATED, TOURNAMENT_PAYOUT_UPDATED,
+        CHECK_IN_EVENT_SYNCED, CHECK_IN_ENTRANT_CHECKED_IN,
+        CHECK_IN_ENTRANT_CHECK_IN_UNDONE, CHECK_IN_ENTRANT_LINKED,
+        CHECK_IN_ENTRANT_UNLINKED, CHECK_IN_ENTRANT_WALK_UP_ADDED,
+        CHECK_IN_ENTRANT_REMOVED,
     })
 
     # Wildcard a subscriber can register to receive every event.

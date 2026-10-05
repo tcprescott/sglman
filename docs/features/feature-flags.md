@@ -90,6 +90,7 @@ the key is set, and rolling without one raises. See
 | `event_info` | Community | no (ships dark) | `/event-info*`, the drawer's Event Information item (`theme/base.py`); `help_icon` resolves the flag itself before reading a handbook snippet (no REST router exists) | `event_info_service.py` |
 | `ada_accommodations` | Community | no (ships dark) | the profile's ADA accommodation card, the Users tab's ADA requests sub-tab, filter and column (no REST router or MCP tool exists) | `accommodation_service.py` |
 | `payouts` | Operations | no (ships dark) | admin Payouts tab, the profile's Matcherino-handle card, `/tournaments/{id}/payouts` + `/prize-pool` API, the MCP `get_tournament_payouts` tool | `payout_service.py` |
+| `event_check_in` | Operations | no (ships dark) | `/checkin` + `/checkin/{event_id}`, the **Check-in** nav link (`AuthService.can_view_check_in_desk`), admin Check-in tab, sync worker skips (no REST router or MCP tool exists) | `check_in_service.py`, `check_in_sync_worker.py` |
 
 `established=True` marks a feature that was **already in live use** when its flag
 was added. [Migration 30](../../migrations/models/30_20260715000000_feature_flags.py)

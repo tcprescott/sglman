@@ -196,6 +196,15 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Community',
             service_modules=('application/services/accommodation_service.py',),
         ),
+        FeatureFlagSpec(
+            FeatureFlag.EVENT_CHECK_IN,
+            'Event Check-in',
+            'A phone-friendly check-in desk for in-person events, with the '
+            "roster pulled from the event's Matcherino registrations.",
+            'Operations',
+            service_modules=('application/services/check_in_service.py',
+                             'application/services/check_in_sync_worker.py'),
+        ),
     )
 }
 

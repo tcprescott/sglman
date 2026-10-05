@@ -395,6 +395,28 @@ protection is deliberately off because `Host` and TLS terminate at the proxy.
 **Pass:** discovery documents advertise the public URL; a client that compares
 them connects.
 
+### MC1 · Real bounty syncs — S2, cause A
+Create a check-in event with the event's real Matcherino bounty ID (the admin
+dialog's Look up should show its title), open it, and press Sync.
+**Pass:** the roster count matches the bounty's participant count; Discord and
+Twitch sign-ins of people with Wizzrobe accounts arrive linked.
+
+### MC2 · Repeated polls do not churn — S2, cause A
+Leave the event open through several worker cycles.
+**Pass:** no duplicate rows, nobody marked withdrawn who is still on the bounty,
+and someone who leaves the bounty shows as withdrawn on the next poll.
+
+### MC3 · Matcherino unreachable or changed — S2, cause A
+Block api.matcherino.com (or point the event at a bounty that answers empty).
+**Pass:** the desk header says the sync failed and when; the roster is untouched;
+check-in, linking and walk-ups keep working; the next good sync clears the error.
+
+### MC4 · Two phones, one desk — S2, cause E
+Two volunteers on real phones over the venue network check people in on the
+same event.
+**Pass:** each phone shows the other's check-ins within a couple of seconds; the
+same person tapped on both reports "already checked in by …" on the second.
+
 ---
 
 ## S9 · PostgreSQL and concurrency
@@ -673,6 +695,10 @@ either side of the boundary and confirm both render correctly.
 | MCP1 | S2 | | | | |
 | MCP2 | S2 | | | | |
 | MCP3 | S1 | | | | |
+| MC1 | S2 | | | | |
+| MC2 | S2 | | | | |
+| MC3 | S2 | | | | |
+| MC4 | S2 | | | | |
 | PG1 | S1 | | | | |
 | PG2 | S1 | | | | |
 | PG3 | S2 | | | | |

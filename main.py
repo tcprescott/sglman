@@ -174,6 +174,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # it would mean a restart silently stranding rolls that were already running.
     from application.services import seed_roll_worker
     seed_roll_worker.start()
+    # Check-in roster sync: polls each open check-in event's Matcherino bounty
+    # on its cadence. No env switch — it only touches events staff have opened,
+    # and skips tenants with EVENT_CHECK_IN off.
+    from application.services import check_in_sync_worker
+    check_in_sync_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Pre-match stage reminder: DMs a stage match's players and approved crew
@@ -196,6 +201,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
     await race_room_worker.stop()
     await seed_roll_worker.stop()
+    await check_in_sync_worker.stop()
     await speedgaming_sync_worker.stop()
     await discord_event_worker.stop()
     await service_health_worker.stop()

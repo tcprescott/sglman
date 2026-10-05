@@ -150,6 +150,7 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `MOCK_TWITCH_IDENTITY` | no | `1` | `application/utils/clients/twitch_client.py` | Which canned mock identity the mock link flow returns. Only read under `MOCK_TWITCH`. |
 | `SPEEDGAMING_SYNC_ENABLED` | no | off | `application/utils/environment.py` | Master switch for the SpeedGaming ETL sync worker. Off → no outbound polls. On → each active `SpeedGamingEventLink` is polled on its cadence and materialized into `Match` rows. |
 | `MOCK_SPEEDGAMING` | no | off | `application/utils/clients/speedgaming_client.py` | Scripted fake returning canned episodes, so the ETL is exercisable without speedgaming.org. **Refused in production.** |
+| `MOCK_MATCHERINO` | no | off | `application/utils/clients/matcherino_client.py` | Dev only. Swaps in `MockMatcherinoClient`, whose canned bounty roster lines up with the dev-seed fixtures, so event check-in syncs without calling Matcherino's unofficial API. Set by `./start.sh mock` and `validate`. **Refused in production.** |
 | `DISCORD_EVENTS_SYNC_ENABLED` | no | off | `application/utils/environment.py` | Master switch for the Discord Scheduled Events reconciler worker. Off → nothing runs on a timer; the admin **Discord Events** tab still reconciles on demand. |
 | `SERVICE_HEALTH_ENABLED` | no | off | `application/utils/environment.py` | Master switch for the platform service-health probe loop (~2 min cadence, some probes reach external hosts). Off → `/platform` still probes on demand. |
 | `SERVICE_HEALTH_ALERT_DM` | no | off | `application/utils/environment.py` | Opt in to DMing every super-admin on an unhealthy transition. Transitions always publish a `service_health.alert` event and capture to Sentry regardless. |
@@ -199,9 +200,9 @@ Shutdown reverses this: the workers stop, the queue workers are cancelled (any s
 | Host binding | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | uvicorn default (`127.0.0.1`) | `0.0.0.0` (required in a container) |
 | Workers | n/a (reload implies one process) | n/a | one | `--workers 1` |
 | Port | 8000 | 8000 | 8000 | 8000 |
-| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME` | same as `mock` | `ENVIRONMENT=production` |
+| Forced env | — | `ENVIRONMENT=development`, `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO` | same as `mock` | `ENVIRONMENT=production` |
 
-`mock` is the one-command offline dev loop — no Discord, Challonge, Twitch, racetime.gg or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
+`mock` is the one-command offline dev loop — no Discord, Challonge, Twitch, racetime.gg, Matcherino or randomizer credentials needed. `validate` is `mock` without the watcher, for browser runs where a mid-run reload would tear down open pages and fill the log with teardown tracebacks; see [development.md](development.md#running-the-server-and-the-two-ways-it-bites).
 
 `./start.sh stop` stops whichever of them is running. Use it rather than `pkill -f`, which reliably kills its own shell instead — the reasoning is in [development.md](development.md#stopping-it-never-pkill--f), and `enforce_safe_commands.py` blocks the form.
 

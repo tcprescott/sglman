@@ -45,7 +45,7 @@ async def _flag(tenant_id: int, flag: FeatureFlag, *, available: bool, enabled: 
 # --- registry ---------------------------------------------------------------
 
 def test_registry_covers_every_flag():
-    assert len(FEATURE_FLAG_REGISTRY) == 12
+    assert len(FEATURE_FLAG_REGISTRY) == 13
     assert set(FEATURE_FLAG_REGISTRY) == set(FeatureFlag)
 
 
@@ -65,6 +65,8 @@ def test_established_flags_are_the_in_use_features():
     # Event Information ships dark too: no community had one before the flag
     # existed, so there is nothing to backfill and nothing to preserve.
     assert FeatureFlag.EVENT_INFO not in established_flags()
+    # Event check-in is new, so it ships dark as well.
+    assert FeatureFlag.EVENT_CHECK_IN not in established_flags()
 
 
 # --- effective state: available AND enabled ---------------------------------

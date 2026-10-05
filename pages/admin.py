@@ -18,6 +18,7 @@ from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_brackets import admin_brackets_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
+from pages.admin_tabs.admin_check_in import admin_check_in_page
 from pages.admin_tabs.admin_discord_events import admin_discord_events_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
@@ -156,6 +157,8 @@ def build_admin_tabs(
     # job this replaces, and the service scopes each of them to their own events.
     if (is_staff or is_ta_any) and FeatureFlag.PAYOUTS in live:
         tabs.append({'label': 'Payouts', 'icon': 'payments', 'group': 'Operations', 'content': admin_payouts_page})
+    if is_staff and FeatureFlag.EVENT_CHECK_IN in live:
+        tabs.append({'label': 'Check-in', 'icon': 'how_to_reg', 'group': 'Operations', 'content': admin_check_in_page})
     if is_staff or access.is_preset_manager:
         tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
         tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})

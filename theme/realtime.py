@@ -1,35 +1,43 @@
-"""Presentation-side bridge for live match updates.
+"""Presentation-side bridge for live updates pushed from the service layer.
 
 Views call :func:`register_view` at build time with an async ``on_change`` handler.
 Each registration captures the current NiceGUI ``Client`` and subscribes a callback
-to :mod:`application.events.match_live`. When a match changes, the callback schedules the
-handler inside the captured client's context so UI mutations land in the right
-browser. Subscriptions are cleaned up automatically when the client disconnects.
+to a live channel — :mod:`application.events.match_live` by default, or
+:mod:`application.events.check_in_live` for the check-in desk. When the channel
+publishes, the callback schedules the handler inside the captured client's
+context so UI mutations land in the right browser, with whatever arguments the
+channel published. Subscriptions are cleaned up automatically when the client
+disconnects.
 """
 
-from typing import Awaitable, Callable, Dict, List
+from types import ModuleType
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from nicegui import app, background_tasks, context
 from nicegui.storage import request_contextvar
 
 from application.events import match_live
 
-OnChange = Callable[[int, str], Awaitable[None]]
+OnChange = Callable[..., Awaitable[None]]
 
-# client.id -> list of subscription tokens, so we can release them on disconnect.
-_client_tokens: Dict[str, List[int]] = {}
+# client.id -> (channel, token) pairs, so we can release them on disconnect.
+_client_tokens: Dict[str, List[Tuple[ModuleType, int]]] = {}
 _disconnect_installed = False
 
 
-def register_view(on_change: OnChange) -> None:
-    """Subscribe ``on_change(match_id, change_type)`` for the current client.
+def register_view(on_change: OnChange, channel: Optional[ModuleType] = None) -> None:
+    """Subscribe ``on_change`` to ``channel`` for the current client.
 
-    Must be called during page/view construction (a NiceGUI client context).
+    ``channel`` is a live-channel module with ``subscribe``/``unsubscribe``;
+    it defaults to ``match_live``, whose handlers take
+    ``(match_id, change_type)``. Must be called during page/view construction
+    (a NiceGUI client context).
     """
+    channel = channel if channel is not None else match_live
     client = context.client
     client_id = client.id
 
-    async def _runner(match_id: int, change_type: str) -> None:
+    async def _runner(*args: Any) -> None:
         # Enter the captured client's context so refresh()/update_row_by_id
         # resolve to the right browser (mirrors the proven `with client:`
         # pattern in theme/tables/match.py). app.storage.user is keyed off
@@ -46,15 +54,15 @@ def register_view(on_change: OnChange) -> None:
         token = request_contextvar.set(request)
         try:
             with client:
-                await on_change(match_id, change_type)
+                await on_change(*args)
         finally:
             request_contextvar.reset(token)
 
-    def _callback(match_id: int, change_type: str) -> None:
-        background_tasks.create(_runner(match_id, change_type))
+    def _callback(*args: Any) -> None:
+        background_tasks.create(_runner(*args))
 
-    token = match_live.subscribe(_callback)
-    _client_tokens.setdefault(client_id, []).append(token)
+    token = channel.subscribe(_callback)
+    _client_tokens.setdefault(client_id, []).append((channel, token))
     _install_disconnect_cleanup()
 
 
@@ -67,5 +75,35 @@ def _install_disconnect_cleanup() -> None:
 
 
 def _on_disconnect(client) -> None:
-    for token in _client_tokens.pop(client.id, []):
-        match_live.unsubscribe(token)
+    for channel, token in _client_tokens.pop(client.id, []):
+        channel.unsubscribe(token)
+
+
+def refresh_on_reconnect(refresh: Callable[[], Awaitable[Any]]) -> None:
+    """Re-read the view when the socket comes back, rather than resume.
+
+    This is only the *short* blip. An outage longer than ``reconnect_timeout``
+    (3.0 s by default) means the server has already dropped the client, and the
+    framework then does a full page reload (``try_reconnect`` →
+    ``window.location.reload()``) which re-reads everything on its own. This
+    handler covers the case where the same client survives and would otherwise
+    keep showing pre-blip state — including a status the operator's own eaten
+    click never changed, or a push from another device that arrived while the
+    socket was down.
+    """
+    client = context.client
+    # on_connect also fires for the initial handshake, where the page has just
+    # been built; refreshing there would double every first render.
+    seen_first = {'value': False}
+
+    async def reread() -> None:
+        with client:
+            await refresh()
+
+    def handle_connect() -> None:
+        if not seen_first['value']:
+            seen_first['value'] = True
+            return
+        background_tasks.create(reread())
+
+    client.on_connect(handle_connect)

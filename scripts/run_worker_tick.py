@@ -41,6 +41,7 @@ WORKERS = {
     'stage_reminder': 'application.services.match.stage_reminder',
     'service_health': 'application.services.service_health_worker',
     'race_room': 'application.services.race_room_worker',
+    'check_in_sync': 'application.services.check_in_sync_worker',
 }
 
 

@@ -47,7 +47,7 @@ N>1 rather than merely duplicating work:
 
 | Singleton | What breaks |
 |---|---|
-| `match_live` subscribers | a change committed in A never refreshes a browser on B — live schedule and bracket views go silently stale |
+| `match_live` / `check_in_live` subscribers | a change committed in A never refreshes a browser on B — live schedule, bracket and check-in desk views go silently stale |
 | OAuth handoff nonce store | mint on A, claim on B → login fails; single-use stops being globally enforced |
 | Per-match seed lock | two processes roll a seed for the same match, last-writer-wins |
 | NiceGUI element trees + socket.io | no cross-process client manager |

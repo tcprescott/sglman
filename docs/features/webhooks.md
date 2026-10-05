@@ -104,7 +104,8 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 Everything in [`EventType.ALL`](../../application/events/event_types.py) — the
 `match.*`, `crew.*`, `volunteer.*`, `bracket.*`, `race_room.*`, `sg_sync.*`,
 `discord_event.*`, `async_qualifier.*`, `tenant.member_*` / `tenant.join_*` and
-`tournament.*` (enrolment, prize pool, payouts) families, listed per publisher in
+`tournament.*` (enrolment, prize pool, payouts), `check_in_event.synced` and
+`check_in_entrant.*` families, listed per publisher in
 [event-system.md](event-system.md). Select `*` to receive all of them. The one
 member no webhook can receive is `service_health.alert`: it is platform-level
 (no tenant), and delivery is tenant-scoped.

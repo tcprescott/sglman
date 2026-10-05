@@ -71,6 +71,12 @@ class User(Model):
     # handle. Global like the rest of identity — someone who wins in two
     # communities has one Matcherino account.
     matcherino_username = fields.CharField(max_length=255, null=True)
+    # Matcherino's numeric account id. Unlike the handle above this is only
+    # written from evidence: a check-in match on an OAuth-verified Discord or
+    # Twitch id, or a link confirmed at the desk (never from the typed handle),
+    # so it is unique. It is how a registrant linked at one event is recognised
+    # at the next, whatever they have since renamed themselves.
+    matcherino_user_id = fields.CharField(max_length=64, null=True, unique=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
