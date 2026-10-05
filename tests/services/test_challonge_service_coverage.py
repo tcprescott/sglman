@@ -186,6 +186,18 @@ class TestLinkTournament:
         with pytest.raises(ValueError, match='Could not find that Challonge tournament'):
             await make_service(api=api).link_tournament(tournament.id, 'abc', actor)
 
+    async def test_community_403_explains_how_to_reconnect(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError(
+            'Challonge API error (403): Access resources belonging to your communities', status=403,
+        ))
+        with pytest.raises(ValueError, match="reconnect Challonge.*'speedgaming'"):
+            await make_service(api=api).link_tournament(
+                tournament.id, 'https://speedgaming.challonge.com/testing', actor,
+            )
+
 
 # ----------------------------------------------------------------------
 # _map_state (pure)

@@ -54,7 +54,7 @@ _SYNC_THROTTLE_WINDOW = timedelta(seconds=60)
 # The Challonge plan's monthly request quota, surfaced in the admin UI.
 CHALLONGE_MONTHLY_QUOTA = 500
 
-_DEFAULT_SERVICE_SCOPES = 'me tournaments:read matches:read matches:write participants:read'
+_DEFAULT_SERVICE_SCOPES = 'me tournaments:read matches:read matches:write participants:read communities:manage'
 _PLAYER_SCOPES = 'me'
 
 
@@ -414,6 +414,13 @@ class ChallongeService:
         try:
             full = await self._api_client().get_tournament_full(identifier, community=community)
         except ChallongeAPIError as e:
+            if community and e.status == 403:
+                raise ValueError(
+                    f"Challonge won't let the connected account read tournaments in the "
+                    f"'{community}' community. Disconnect and reconnect Challonge from "
+                    f"Admin → Challonge, signing in as an admin of '{community}' and "
+                    f"sharing that community when Challonge asks."
+                ) from e
             raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 
         remote = full['tournament']
