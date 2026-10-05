@@ -10,6 +10,7 @@ from application.services import AuthService, ChallongeService, get_user_from_di
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_display
 from models import Tournament
+from theme.dialog.challonge_participants_dialog import ChallongeParticipantsDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 
@@ -125,6 +126,12 @@ async def admin_challonge_page() -> None:
                         # refresh calls in sync_one would raise and be lost.
                         on_click=lambda _=None, tid=t.id: sync_one(tid),
                     ).props('flat color=primary')
+                    ui.button(
+                        'Entrants', icon='group',
+                        on_click=lambda _=None, row=t: ChallongeParticipantsDialog(row).open(),
+                    ).props('flat color=primary').tooltip(
+                        'Match bracket entrants to community members'
+                    )
                     if is_staff:
                         ui.button(
                             'Unlink', icon='link_off',

@@ -75,12 +75,22 @@ async def seed_challonge_for_tenant(
         ("cp_2", "Player Two", "cu_1002", users["player_two"]),
         ("cp_3", "Player Three", None, users["player_three"]),
         ("cp_4", "Player Four", None, users["player_four"]),
+        # Added to the bracket by name with nobody assigned yet: the state the
+        # Entrants dialog exists to fix.
+        ("cp_5", "Name-Only Entrant", None, None),
     ]
     for cp_id, name, challonge_uid, user in participant_specs:
+        # An entrant with a user but no Challonge account can only have been
+        # assigned by hand; heal rows seeded before the flag existed.
+        manual = user is not None and challonge_uid is None
         part, _ = await ChallongeParticipant.get_or_create(
             tournament=tournament, challonge_participant_id=cp_id, tenant=tenant,
-            defaults={"name": name, "challonge_user_id": challonge_uid, "user": user},
+            defaults={"name": name, "challonge_user_id": challonge_uid, "user": user,
+                      "user_assigned_manually": manual},
         )
+        if part.user_assigned_manually != manual:
+            part.user_assigned_manually = manual
+            await part.save()
         participants[cp_id] = part
 
     await ChallongeMatch.get_or_create(

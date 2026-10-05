@@ -202,6 +202,8 @@ class AuditActions:
     CHALLONGE_TOURNAMENT_UNLINKED = 'challonge.tournament_unlinked'
     CHALLONGE_BRACKET_SYNCED = 'challonge.bracket_synced'
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
+    CHALLONGE_PARTICIPANT_ASSIGNED = 'challonge.participant_assigned'
+    CHALLONGE_PARTICIPANT_UNASSIGNED = 'challonge.participant_unassigned'
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 
     # Twitch integration

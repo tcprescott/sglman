@@ -153,6 +153,20 @@ class ChallongeRepository:
         return await scoped(ChallongeParticipant.filter(tournament=tournament)).prefetch_related('user')
 
     @staticmethod
+    async def get_participant_by_id(participant_pk: int) -> Optional[ChallongeParticipant]:
+        return await scoped(ChallongeParticipant.filter(id=participant_pk)).prefetch_related(
+            'user', 'tournament',
+        ).first()
+
+    @staticmethod
+    async def set_participant_user(
+        participant: ChallongeParticipant, user: Optional[User], manual: bool,
+    ) -> None:
+        participant.user = user
+        participant.user_assigned_manually = manual
+        await participant.save(update_fields=['user_id', 'user_assigned_manually', 'updated_at'])
+
+    @staticmethod
     async def participant_tournament_ids_for_user(user: User) -> Set[int]:
         rows = await scoped(ChallongeParticipant.filter(user=user)).values_list('tournament_id', flat=True)
         return set(rows)
