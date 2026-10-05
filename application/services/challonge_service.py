@@ -365,26 +365,30 @@ class ChallongeService:
     # Tournament linking + bracket sync
     # ------------------------------------------------------------------
     @staticmethod
-    def parse_tournament_identifier(id_or_url: str) -> str:
-        """Extract a Challonge tournament identifier from a raw id or URL.
+    def parse_tournament_identifier(id_or_url: str) -> Tuple[str, Optional[str]]:
+        """Extract a Challonge ``(tournament identifier, community)`` from a raw id or URL.
 
-        ``https://challonge.com/abc123``           -> ``abc123``
-        ``https://user.challonge.com/abc123``       -> ``user-abc123``
-        ``abc123`` / ``12345``                      -> unchanged
+        ``https://challonge.com/abc123``           -> ``('abc123', None)``
+        ``https://user.challonge.com/abc123``       -> ``('abc123', 'user')``
+        ``abc123`` / ``12345``                      -> ``(value, None)``
+
+        The community is the organization subdomain; v2.1 resolves a subdomain
+        tournament only under ``/communities/<subdomain>/``.
         """
         value = (id_or_url or '').strip()
         if not value:
             raise ValueError("Provide a Challonge tournament ID or URL.")
         if '://' not in value and '.challonge.com' not in value and '/' not in value:
-            return value
+            return value, None
         parsed = urlparse(value if '://' in value else f'https://{value}')
         slug = parsed.path.strip('/').split('/')[0]
         host = (parsed.hostname or '').lower()
+        community = None
         if host.endswith('.challonge.com'):
             subdomain = host[:-len('.challonge.com')]
             if subdomain and subdomain != 'www':
-                return f"{subdomain}-{slug}"
-        return slug or value
+                community = subdomain
+        return slug or value, community
 
     @requires_feature(FeatureFlag.CHALLONGE)
     async def link_tournament(self, tournament_id: int, id_or_url: str, actor: User) -> Tournament:
@@ -406,14 +410,15 @@ class ChallongeService:
                 "a native bracket or a Challonge link, never both."
             )
 
-        identifier = self.parse_tournament_identifier(id_or_url)
+        identifier, community = self.parse_tournament_identifier(id_or_url)
         try:
-            full = await self._api_client().get_tournament_full(identifier)
+            full = await self._api_client().get_tournament_full(identifier, community=community)
         except ChallongeAPIError as e:
             raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 
         remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier
+        tournament.challonge_community = community
         tournament.challonge_tournament_url = remote.get('url')
         # A bracket-run tournament schedules only what the bracket produced, so
         # close the manual player-request path. Staff can re-open it per
@@ -460,6 +465,7 @@ class ChallongeService:
             'matches_removed': matches,
         }
         tournament.challonge_tournament_id = None
+        tournament.challonge_community = None
         tournament.challonge_tournament_url = None
         tournament.challonge_last_synced_at = None
         await tournament.save()
@@ -499,7 +505,9 @@ class ChallongeService:
                 'skipped': True,
             }
 
-        full = await self._api_client().get_tournament_full(tournament.challonge_tournament_id)
+        full = await self._api_client().get_tournament_full(
+            tournament.challonge_tournament_id, community=tournament.challonge_community,
+        )
         result = await self._mirror_bracket(
             tournament, full['participants'], full['matches'], actor,
         )
@@ -668,6 +676,7 @@ class ChallongeService:
             match_id=cmatch.challonge_match_id,
             winner_participant_id=winner_pid,
             loser_participant_id=loser_pid,
+            community=cmatch.tournament.challonge_community,
         )
         await self.audit_service.write_log(
             actor, AuditActions.CHALLONGE_RESULT_PUSHED,

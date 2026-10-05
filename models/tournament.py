@@ -19,6 +19,9 @@ class Tournament(Model):
     average_match_duration = fields.IntField(null=True)  # in minutes
     max_match_duration = fields.IntField(null=True)  # in minutes
     challonge_tournament_id = fields.CharField(max_length=64, null=True)
+    # Organization subdomain (``<community>.challonge.com``); v2.1 scopes those
+    # tournaments under ``/communities/<community>/``.
+    challonge_community = fields.CharField(max_length=64, null=True)
     challonge_tournament_url = fields.CharField(max_length=255, null=True)
     challonge_last_synced_at = fields.DatetimeField(null=True)
     # Hybrid config substrate (see docs/online-tournaments): worker-queried knobs

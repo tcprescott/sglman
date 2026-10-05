@@ -296,7 +296,7 @@ Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth
 | `unlink_player(user, actor)` | `None` | Clear a user's Challonge link; audits `challonge.player_unlinked`. |
 | `exchange_player_code(code)` | `dict` | Exchange a player's auth code and return `{user_id, username}` (token used once, discarded). |
 | `exchange_service_code(code)` | `dict` | Exchange the service-account auth code for a token payload. |
-| `parse_tournament_identifier(id_or_url)` (static) | `str` | Extract a Challonge identifier from a raw id or URL (handles subdomain brackets). |
+| `parse_tournament_identifier(id_or_url)` (static) | `tuple[str, str \| None]` | Extract a Challonge `(identifier, community)` from a raw id or URL; a `<community>.challonge.com` URL yields its subdomain as the community. |
 | `link_tournament(tournament_id, id_or_url, actor)` | `Tournament` | Gated by `can_edit_tournament`; fetches the bracket, stores the link, and mirrors participants/matches in the same round-trip; audits `challonge.tournament_linked`. |
 | `unlink_tournament(tournament_id, actor)` | `Tournament` | The migration path off Challonge: clears the link and deletes the local mirror (participants + `ChallongeMatch` rows), leaving the scheduled `Match` rows and the remote bracket untouched. The tournament becomes eligible for a native bracket. Audits `challonge.tournament_unlinked`. |
 | `sync_bracket(tournament_id, actor, force=False)` | `dict[str, int]` | Gated by `can_edit_tournament`; re-fetch and mirror the bracket; non-forced calls inside the throttle window are a no-op (`{skipped: True}`). Audits `challonge.bracket_synced`. |

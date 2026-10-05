@@ -106,6 +106,16 @@ def _opt_str(value: Any) -> Optional[str]:
     return None if value is None else str(value)
 
 
+def _tournament_path(tournament_id: str, community: Optional[str] = None) -> str:
+    # A tournament hosted on an organization subdomain (``org.challonge.com/x``)
+    # only resolves under its community scope; v2.1 rejects the v1-style
+    # ``org-x`` identifier.
+    path = f'/tournaments/{quote(str(tournament_id), safe="")}'
+    if community:
+        path = f'/communities/{quote(community, safe="")}{path}'
+    return path
+
+
 class ChallongeClient:
     """Async Challonge v2.1 client."""
 
@@ -171,8 +181,8 @@ class ChallongeClient:
     # ------------------------------------------------------------------
     # Authenticated service calls (token via token_provider)
     # ------------------------------------------------------------------
-    async def get_tournament(self, tournament_id: str) -> Dict[str, Any]:
-        data = await self._authed_request('GET', f'/tournaments/{tournament_id}.json')
+    async def get_tournament(self, tournament_id: str, community: Optional[str] = None) -> Dict[str, Any]:
+        data = await self._authed_request('GET', f'{_tournament_path(tournament_id, community)}.json')
         resource = data.get('data') or {}
         return {
             'id': str(resource.get('id')),
@@ -181,15 +191,25 @@ class ChallongeClient:
             'state': _attr(resource, 'state'),
         }
 
-    async def list_participants(self, tournament_id: str) -> List[Dict[str, Any]]:
-        data = await self._authed_request('GET', f'/tournaments/{tournament_id}/participants.json')
+    async def list_participants(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        data = await self._authed_request(
+            'GET', f'{_tournament_path(tournament_id, community)}/participants.json',
+        )
         return [_normalize_participant(r) for r in (data.get('data') or [])]
 
-    async def list_matches(self, tournament_id: str) -> List[Dict[str, Any]]:
-        data = await self._authed_request('GET', f'/tournaments/{tournament_id}/matches.json')
+    async def list_matches(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        data = await self._authed_request(
+            'GET', f'{_tournament_path(tournament_id, community)}/matches.json',
+        )
         return [_normalize_match(r) for r in (data.get('data') or [])]
 
-    async def get_tournament_full(self, tournament_id: str) -> Dict[str, Any]:
+    async def get_tournament_full(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Fetch a tournament with its participants and matches in one request.
 
         Challonge embeds the associated participant/match records via the
@@ -199,7 +219,8 @@ class ChallongeClient:
         """
         data = await self._authed_request(
             'GET',
-            f'/tournaments/{tournament_id}.json?include_participants=1&include_matches=1',
+            f'{_tournament_path(tournament_id, community)}.json'
+            '?include_participants=1&include_matches=1',
         )
         resource = data.get('data') or {}
         tournament = {
@@ -226,6 +247,7 @@ class ChallongeClient:
         loser_participant_id: str,
         winner_score: str = '1',
         loser_score: str = '0',
+        community: Optional[str] = None,
     ) -> None:
         """Report a match result. The winner is flagged ``advancing: true``."""
         body = {
@@ -248,7 +270,8 @@ class ChallongeClient:
             }
         }
         await self._authed_request(
-            'PUT', f'/tournaments/{tournament_id}/matches/{match_id}.json', json=body,
+            'PUT', f'{_tournament_path(tournament_id, community)}/matches/{match_id}.json',
+            json=body,
         )
 
     # ------------------------------------------------------------------
@@ -344,17 +367,23 @@ class MockChallongeClient(ChallongeClient):
         p = _MOCK_PARTICIPANTS[(idx - 1) % len(_MOCK_PARTICIPANTS)]
         return {'user_id': p['challonge_user_id'], 'username': p['username']}
 
-    async def get_tournament(self, tournament_id: str) -> Dict[str, Any]:
+    async def get_tournament(self, tournament_id: str, community: Optional[str] = None) -> Dict[str, Any]:
         return {'id': str(tournament_id), 'name': 'Mock Challonge Tournament',
                 'url': f'https://challonge.com/{tournament_id}', 'state': 'underway'}
 
-    async def list_participants(self, tournament_id: str) -> List[Dict[str, Any]]:
+    async def list_participants(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         return [dict(p) for p in _MOCK_PARTICIPANTS]
 
-    async def list_matches(self, tournament_id: str) -> List[Dict[str, Any]]:
+    async def list_matches(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         return [dict(m) for m in _MOCK_MATCHES]
 
-    async def get_tournament_full(self, tournament_id: str) -> Dict[str, Any]:
+    async def get_tournament_full(
+        self, tournament_id: str, community: Optional[str] = None,
+    ) -> Dict[str, Any]:
         return {
             'tournament': await self.get_tournament(tournament_id),
             'participants': [dict(p) for p in _MOCK_PARTICIPANTS],
@@ -362,6 +391,7 @@ class MockChallongeClient(ChallongeClient):
         }
 
     async def update_match(self, tournament_id, match_id, winner_participant_id,
-                           loser_participant_id, winner_score='1', loser_score='0') -> None:
+                           loser_participant_id, winner_score='1', loser_score='0',
+                           community=None) -> None:
         print(f"[MOCK Challonge] update_match t={tournament_id} m={match_id} "
               f"winner={winner_participant_id} {winner_score}-{loser_score}")

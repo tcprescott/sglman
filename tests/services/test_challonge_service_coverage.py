@@ -155,8 +155,9 @@ class TestLinkTournament:
         await returned.refresh_from_db()
         assert returned.challonge_tournament_id == 'T1'
         assert returned.challonge_tournament_url == 'https://challonge.com/spring25'
-        # The URL was parsed to a subdomain-qualified identifier before the fetch.
-        api.get_tournament_full.assert_awaited_once_with('myorg-spring25')
+        assert returned.challonge_community == 'myorg'
+        # A subdomain URL is fetched under its community scope, not as ``myorg-spring25``.
+        api.get_tournament_full.assert_awaited_once_with('spring25', community='myorg')
 
         participant = await ChallongeParticipant.get(tournament=returned, challonge_participant_id='9001')
         assert participant.user_id == linked.id
