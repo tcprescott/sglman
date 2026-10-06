@@ -1,6 +1,6 @@
 """Admin → Check-in: set up the events the check-in desk runs (Staff).
 
-Each event names a Matcherino bounty whose registrations become the desk's
+Each event names a Matcherino venue whose badge sales become the desk's
 roster. Opening an event puts it on the desk and starts the background sync;
 the desk itself lives at ``/checkin``.
 """
@@ -28,7 +28,7 @@ _COLUMNS: list[dict] = [
     {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
     {'name': 'name', 'label': 'Event', 'field': 'name', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status_label', 'align': 'left', 'sortable': True},
-    {'name': 'bounty', 'label': 'Matcherino bounty', 'field': 'bounty', 'align': 'left'},
+    {'name': 'venue', 'label': 'Matcherino venue', 'field': 'venue', 'align': 'left'},
     {'name': 'synced', 'label': 'Last sync', 'field': 'synced', 'align': 'left'},
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
@@ -50,13 +50,13 @@ _ACTIONS = f'''
 
 
 def _synced_text(event) -> str:
-    if event.matcherino_bounty_id is None:
+    if event.matcherino_venue_id is None:
         return 'Walk-ups only'
     if event.last_sync_error:
         return f'Failed: {event.last_sync_error}'
     if event.last_synced_at is None:
         return 'Not yet'
-    return f'{format_local_display(event.last_synced_at)} · {event.last_sync_count or 0} registered'
+    return f'{format_local_display(event.last_synced_at)} · {event.last_sync_count or 0} with badges'
 
 
 async def admin_check_in_page() -> None:
@@ -66,8 +66,8 @@ async def admin_check_in_page() -> None:
         with ui.row().classes('header-row'):
             ui.label('Check-in').classes('page-title')
         ui.label(
-            'Each event pulls its roster from a Matcherino bounty. Open an event to '
-            'put it on the check-in desk; the desk syncs on its own while it is open.'
+            "Each event pulls its roster from a Matcherino venue's badge sales. Open an "
+            'event to put it on the check-in desk; the desk syncs on its own while it is open.'
         ).classes('text-caption text-grey-7')
         ui.separator().classes('separator-spacing')
 
@@ -92,7 +92,7 @@ async def admin_check_in_page() -> None:
                     'name': e.name,
                     'status': e.status.value,
                     'status_label': _STATUS_LABELS.get(e.status.value, e.status.value),
-                    'bounty': str(e.matcherino_bounty_id) if e.matcherino_bounty_id else '—',
+                    'venue': str(e.matcherino_venue_id) if e.matcherino_venue_id else '—',
                     'synced': _synced_text(e),
                     'sync_error': bool(e.last_sync_error),
                 }

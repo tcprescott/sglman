@@ -263,7 +263,6 @@ class CheckInLinkMethod(str, Enum):
     MATCHERINO_ID = 'matcherino_id'
     DISCORD_ID = 'discord_id'
     TWITCH_ID = 'twitch_id'
-    TWITCH_LOGIN = 'twitch_login'
     MATCHERINO_HANDLE = 'matcherino_handle'
     MANUAL = 'manual'
     WALK_UP = 'walk_up'

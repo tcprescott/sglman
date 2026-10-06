@@ -9,12 +9,13 @@ from .enums import CheckInEntrantSource, CheckInEventStatus, CheckInLinkMethod
 class CheckInEvent(Model):
     """An in-person event whose attendees are checked in at a desk.
 
-    Registration happens on Matcherino: ``matcherino_bounty_id`` names the
-    bounty whose participant list is mirrored into :class:`CheckInEntrant`
-    rows. It is nullable so an event can run on walk-ups alone. The sync
-    bookkeeping (``last_synced_at``/``last_sync_error``/``last_sync_count``)
-    is shown at the desk because the Matcherino endpoint is unofficial: when
-    it breaks, the volunteers need to see that the roster is stale.
+    Registration happens on Matcherino: ``matcherino_venue_id`` names the
+    ticketed venue whose badge sales are mirrored into :class:`CheckInPass`
+    rows, one :class:`CheckInEntrant` per buyer. It is nullable so an event can
+    run on walk-ups alone. The sync bookkeeping
+    (``last_synced_at``/``last_sync_error``/``last_sync_count``) is shown at the
+    desk because the Matcherino endpoints are unofficial: when they break, the
+    volunteers need to see that the roster is stale.
     """
 
     id = fields.IntField(pk=True)
@@ -23,7 +24,7 @@ class CheckInEvent(Model):
     )
     tenant_id: int
     name = fields.CharField(max_length=255)
-    matcherino_bounty_id = fields.IntField(null=True)
+    matcherino_venue_id = fields.IntField(null=True)
     status = fields.CharEnumField(CheckInEventStatus, default=CheckInEventStatus.DRAFT, max_length=16)
     sync_interval_minutes = fields.IntField(default=5)
     last_synced_at = fields.DatetimeField(null=True)
@@ -33,27 +34,29 @@ class CheckInEvent(Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
     entrants: fields.ReverseRelation["CheckInEntrant"]
+    tiers: fields.ReverseRelation["CheckInTier"]
+    passes: fields.ReverseRelation["CheckInPass"]
 
     class Meta:
         table = 'checkinevent'
-        unique_together = (('tenant', 'matcherino_bounty_id'),)
+        unique_together = (('tenant', 'matcherino_venue_id'),)
 
 
 class CheckInEntrant(Model):
     """One person on a check-in event's roster.
 
-    A ``MATCHERINO`` row mirrors a bounty participant, keyed by
-    ``matcherino_user_id``; a ``WALK_UP`` row was added by staff at the desk.
-    ``user`` is the matched Wizzrobe account, which is a nice-to-have rather
-    than a requirement — plenty of registrants have none.
+    A ``MATCHERINO`` row is a badge buyer, keyed by ``matcherino_user_id``,
+    with the identity Matcherino served on their purchase; a ``WALK_UP`` row
+    was added by staff at the desk. ``user`` is the matched Wizzrobe account,
+    which is a nice-to-have rather than a requirement — plenty of buyers have
+    none.
 
-    ``source_data`` is the participant object exactly as Matcherino last served
-    it. Nothing reads it today; it is kept so a field Matcherino starts serving
-    later (registration tiers are the expected one) can be backfilled from rows
-    already synced instead of waiting on a fresh sync.
+    ``source_data`` is the buyer's Matcherino account object as last served,
+    kept so a field nothing reads yet can be backfilled from rows already
+    synced. ``registered_at`` is their earliest badge purchase.
 
-    A registrant who leaves the bounty gets ``withdrawn_at`` rather than being
-    deleted, so a check-in already recorded against them survives.
+    A buyer whose every badge is refunded or gone gets ``withdrawn_at`` rather
+    than being deleted, so a check-in already recorded against them survives.
     """
 
     id = fields.IntField(pk=True)
@@ -71,7 +74,6 @@ class CheckInEntrant(Model):
     avatar_url = fields.CharField(max_length=512, null=True)
     auth_provider = fields.CharField(max_length=32, null=True)
     auth_id = fields.CharField(max_length=128, null=True)
-    twitch_login = fields.CharField(max_length=255, null=True)
     registered_at = fields.DatetimeField(null=True)
     # mypy cannot infer a JSONField's type parameter, as with every sibling.
     source_data = fields.JSONField(null=True)  # type: ignore[var-annotated]
@@ -91,7 +93,89 @@ class CheckInEntrant(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    passes: fields.ReverseRelation["CheckInPass"]
+
     class Meta:
         table = 'checkinentrant'
         unique_together = (('event', 'matcherino_user_id'), ('event', 'user'))
         indexes = (('event', 'checked_in_at'),)
+
+
+class CheckInTier(Model):
+    """A kind of badge sold on the event's Matcherino venue (Base, VIP, Day Pass).
+
+    Mirrors a Matcherino *pass*. ``amount_cents`` orders tiers, and an entrant
+    holding several badges shows under the most expensive one they still hold.
+    A tier Matcherino stops listing is kept: badges already sold still point
+    at it.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='check_in_tiers', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
+    event: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.CheckInEvent', related_name='tiers', on_delete=fields.CASCADE,
+    )
+    event_id: int
+    matcherino_pass_id = fields.IntField()
+    title = fields.CharField(max_length=255)
+    amount_cents = fields.IntField(default=0)
+    role = fields.CharField(max_length=32, null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    passes: fields.ReverseRelation["CheckInPass"]
+
+    class Meta:
+        table = 'checkintier'
+        unique_together = (('event', 'matcherino_pass_id'),)
+
+
+class CheckInPass(Model):
+    """One badge bought on the event's Matcherino venue.
+
+    One row per purchase, not per person: a buyer can hold several badges (one
+    of them often for a friend, whom the venue doesn't name), and ``code`` is
+    what that friend shows at the door. ``entrant`` is the buyer's roster row.
+
+    ``refunded_at`` is Matcherino's refund; ``removed_at`` marks a purchase
+    that dropped out of the feed, kept rather than deleted for the same reason
+    an entrant is withdrawn rather than deleted. ``source_data`` holds the
+    purchase as served, minus the buyer's contact details and the payment
+    ledger, which check-in has no use for.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='check_in_passes', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
+    event: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.CheckInEvent', related_name='passes', on_delete=fields.CASCADE,
+    )
+    event_id: int
+    tier: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.CheckInTier', related_name='passes', on_delete=fields.CASCADE,
+    )
+    tier_id: int
+    entrant: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.CheckInEntrant', related_name='passes', null=True, on_delete=fields.SET_NULL,
+    )
+    entrant_id: Optional[int]
+    matcherino_purchase_id = fields.IntField()
+    buyer_matcherino_user_id = fields.CharField(max_length=64)
+    code = fields.CharField(max_length=32)
+    purchased_at = fields.DatetimeField(null=True)
+    refunded_at = fields.DatetimeField(null=True)
+    removed_at = fields.DatetimeField(null=True)
+    # mypy cannot infer a JSONField's type parameter, as with every sibling.
+    source_data = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'checkinpass'
+        unique_together = (('event', 'matcherino_purchase_id'),)
+        indexes = (('event', 'code'),)

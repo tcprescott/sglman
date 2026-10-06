@@ -1,6 +1,6 @@
 """Matcherino check-in sync worker.
 
-Polls each open :class:`~models.CheckInEvent` that has a bounty, on that event's
+Polls each open :class:`~models.CheckInEvent` that has a venue, on that event's
 own ``sync_interval_minutes``, so the desk's roster keeps up with late
 registrations without anyone pressing Sync. Each event's work runs inside its
 tenant's ``tenant_scope`` as the reserved system ``User``, and skips tenants

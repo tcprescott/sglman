@@ -2,8 +2,8 @@
 
 ``/checkin`` lists the open check-in events (and goes straight to the one when
 there is only one); ``/checkin/{event_id}`` is the desk itself: a search box
-pinned to the top, filter chips with counts, and one card per person with a
-full-width Check in button.
+pinned to the top, filter chips with counts (one per badge type too), and one
+card per person showing the badges they bought and a full-width Check in button.
 
 Built phone-first. Below ``md`` the roster is a card grid; on a desktop it is a
 table with the same actions. Search filters in the browser (Quasar's
@@ -27,13 +27,21 @@ from starlette.responses import RedirectResponse
 
 from application.events import check_in_live
 from application.services import AuthService, CheckInService, TenantService, get_user_from_discord_id
-from application.services.check_in_rules import ROSTER_FILTERS, entrant_filters
+from application.services.check_in_rules import ROSTER_FILTERS, active_badges, entrant_filters, tier_filter
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
 from application.utils.timezone import format_local_display, format_local_time
 from middleware.auth import protected_page
-from models import CheckInEntrant, CheckInEntrantSource, CheckInEvent, CheckInEventStatus, FeatureFlag, Role
+from models import (
+    CheckInEntrant,
+    CheckInEntrantSource,
+    CheckInEvent,
+    CheckInEventStatus,
+    CheckInTier,
+    FeatureFlag,
+    Role,
+)
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
@@ -51,7 +59,6 @@ _LINK_LABELS = {
     'matcherino_id': 'seen before',
     'discord_id': 'via Discord',
     'twitch_id': 'via Twitch',
-    'twitch_login': 'via Twitch',
     'matcherino_handle': 'via profile handle',
     'manual': 'linked by staff',
     'walk_up': 'walk-up',
@@ -63,13 +70,21 @@ _FILTER_LABELS = {
     'checked_in': 'Checked in',
     'unlinked': 'Unlinked',
     'walk_up': 'Walk-ups',
+    'volunteer': 'Volunteers',
     'withdrawn': 'Withdrawn',
 }
 FILTERS = {key: _FILTER_LABELS[key] for key in ROSTER_FILTERS}
 
+
+def _filters(tiers: List[CheckInTier]) -> Dict[str, str]:
+    """The fixed chips, then one per badge type, dearest first."""
+    return {**FILTERS, **{tier_filter(tier.id): tier.title for tier in tiers}}
+
+
 # Desktop columns. The mobile card below is bespoke and does not read these.
 _COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
+    {'name': 'badges', 'label': 'Badge', 'field': 'tier', 'align': 'left', 'sortable': True},
     {'name': 'account', 'label': 'Wizzrobe account', 'field': 'account', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status_label', 'align': 'left', 'sortable': True},
     {'name': 'provider', 'label': 'Signed in with', 'field': 'provider', 'align': 'left'},
@@ -80,11 +95,14 @@ _COLUMNS: list[dict] = [
 _EXPORT_COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name'},
     {'name': 'matcherino_id', 'label': 'Matcherino ID', 'field': 'matcherino_id'},
+    {'name': 'badges', 'label': 'Badges', 'field': 'badges_text'},
+    {'name': 'codes', 'label': 'Badge codes', 'field': 'codes_text'},
     {'name': 'provider', 'label': 'Signed in with', 'field': 'provider'},
     {'name': 'account', 'label': 'Wizzrobe account', 'field': 'account'},
     {'name': 'linked_via', 'label': 'Linked via', 'field': 'linked_via'},
     {'name': 'source', 'label': 'Source', 'field': 'source'},
-    {'name': 'registered', 'label': 'Registered', 'field': 'registered'},
+    {'name': 'volunteer', 'label': 'Volunteer', 'field': 'volunteer_text'},
+    {'name': 'registered', 'label': 'Bought', 'field': 'registered'},
     {'name': 'status', 'label': 'Status', 'field': 'status_label'},
     {'name': 'checked_in', 'label': 'Checked in at', 'field': 'checked_in_when'},
     {'name': 'checked_in_by', 'label': 'Checked in by', 'field': 'checked_in_by'},
@@ -99,8 +117,11 @@ _STATUS_BADGES = '''
     <q-badge v-if="props.row.checked_in" color="positive" class="q-mr-xs">
         <q-icon name="check" size="14px" class="q-mr-xs"/>{{ props.row.checked_in_label }}
     </q-badge>
-    <q-badge v-if="props.row.withdrawn" color="grey-7" class="q-mr-xs">Left the bounty</q-badge>
+    <q-badge v-if="props.row.withdrawn" :color="props.row.refunded ? 'negative' : 'grey-7'" class="q-mr-xs">
+        {{ props.row.withdrawn_label }}</q-badge>
     <q-badge v-if="props.row.walk_up" color="info" class="q-mr-xs">Walk-up</q-badge>
+    <q-badge v-if="props.row.volunteer" color="purple-7" class="q-mr-xs">
+        <q-icon name="volunteer_activism" size="14px" class="q-mr-xs"/>Volunteer</q-badge>
 '''
 
 _MENU = f'''
@@ -144,6 +165,20 @@ _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
     {_MENU}
 </q-td>'''
 
+# Every badge someone holds, dearest first, each with the code their QR
+# encodes: a buyer with two badges is often holding one for a friend.
+_BADGE_CHIPS = '''
+    <q-chip v-for="b in props.row.badges" :key="b.code" dense square color="indigo-1"
+            text-color="indigo-10" class="q-ml-none q-mr-xs">
+        {{ b.title }}<span class="text-caption q-ml-xs text-grey-8">#{{ b.code }}</span>
+    </q-chip>
+'''
+
+_BADGES_CELL = f'''<q-td :props="props">
+    {_BADGE_CHIPS}
+    <span v-if="!props.row.badges.length" class="text-grey-7">—</span>
+</q-td>'''
+
 _ACCOUNT_CELL = '''<q-td :props="props">
     <span v-if="props.row.account">{{ props.row.account }}</span>
     <span v-else class="text-warning">Not linked</span>
@@ -166,6 +201,7 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
                 {{{{ props.row.account }}}} · {{{{ props.row.linked_via }}}}
             </div>
             <div v-else class="text-caption text-warning">Not linked to an account</div>
+            <div v-if="props.row.badges.length" class="q-mt-xs">{_BADGE_CHIPS}</div>
             <div class="q-mt-xs">{_STATUS_BADGES}</div>
         </div>
         {_MENU}
@@ -177,17 +213,22 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
 </div>'''
 
 
-def _row(entrant: CheckInEntrant, can_manage: bool) -> Dict:
+def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dict:
     user = entrant.user
     checked_by = entrant.checked_in_by
     account = user.preferred_name if user else ''
     checked_in = entrant.checked_in_at is not None
     withdrawn = entrant.withdrawn_at is not None
     walk_up = entrant.source == CheckInEntrantSource.WALK_UP
+    volunteer = entrant.user_id is not None and entrant.user_id in volunteers
+    all_badges = list(entrant.passes)
+    held = active_badges(all_badges)
+    refunded = not held and any(b.refunded_at is not None for b in all_badges)
+    withdrawn_label = 'Refunded' if refunded else 'No badge'
     if checked_in:
         status_label = 'Checked in'
     elif withdrawn:
-        status_label = 'Left the bounty'
+        status_label = withdrawn_label
     else:
         status_label = 'Not yet'
     checked_in_label = ''
@@ -196,9 +237,10 @@ def _row(entrant: CheckInEntrant, can_manage: bool) -> Dict:
         if checked_by is not None:
             checked_in_label += f' by {checked_by.preferred_name}'
     provider = '' if walk_up else provider_label(entrant.auth_provider)
+    badges = [{'title': b.tier.title, 'code': b.code} for b in held]
     search = ' '.join(filter(None, [
         entrant.display_name, account, user.username if user else '',
-        entrant.twitch_login, user.twitch_username if user else '',
+        user.twitch_username if user else '', *(b.code for b in held),
     ])).lower()
     return {
         'id': entrant.id,
@@ -210,6 +252,10 @@ def _row(entrant: CheckInEntrant, can_manage: bool) -> Dict:
         'provider': provider,
         'source': 'Walk-up' if walk_up else 'Matcherino',
         'matcherino_id': entrant.matcherino_user_id or '',
+        'badges': badges,
+        'tier': badges[0]['title'] if badges else '',
+        'badges_text': ', '.join(b['title'] for b in badges),
+        'codes_text': ', '.join(b['code'] for b in badges),
         'registered': format_local_display(entrant.registered_at) if entrant.registered_at else '',
         'status_label': status_label,
         'checked_in': checked_in,
@@ -217,11 +263,15 @@ def _row(entrant: CheckInEntrant, can_manage: bool) -> Dict:
         'checked_in_when': format_local_display(entrant.checked_in_at) if checked_in else '',
         'checked_in_by': checked_by.preferred_name if checked_by else '',
         'withdrawn': withdrawn,
+        'withdrawn_label': withdrawn_label,
+        'refunded': refunded,
         'walk_up': walk_up,
+        'volunteer': volunteer,
+        'volunteer_text': 'Yes' if volunteer else '',
         'unlinked': user is None,
         'can_remove': walk_up and can_manage,
         'search': search,
-        'filters': sorted(entrant_filters(entrant)),
+        'filters': sorted(entrant_filters(entrant, held, volunteer)),
         '_flash': False,
     }
 
@@ -232,8 +282,8 @@ def _matches(row: Dict, key: str) -> bool:
 
 def _sync_line(event: CheckInEvent) -> tuple[str, str]:
     """The desk's one-line sync status, and the class to show it in."""
-    if event.matcherino_bounty_id is None:
-        return 'Walk-ups only: no Matcherino bounty linked.', 'text-grey-7'
+    if event.matcherino_venue_id is None:
+        return 'Walk-ups only: no Matcherino venue linked.', 'text-grey-7'
     if event.last_sync_error:
         when = format_local_time(event.updated_at) if event.updated_at else ''
         return (
@@ -244,7 +294,7 @@ def _sync_line(event: CheckInEvent) -> tuple[str, str]:
         return 'Not synced with Matcherino yet.', 'text-grey-7'
     return (
         f'Synced with Matcherino at {format_local_time(event.last_synced_at)} · '
-        f'{event.last_sync_count or 0} registered', 'text-grey-7',
+        f'{event.last_sync_count or 0} with badges', 'text-grey-7',
     )
 
 
@@ -297,7 +347,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     can_manage = await AuthService.can_manage_check_in(user)
     render_context = capture_render_context()
     client = context.client
-    state: Dict = {'event': event, 'rows': [], 'filter': 'all', 'flash': set()}
+    state: Dict = {'event': event, 'rows': [], 'tiers': [], 'filter': 'all', 'flash': set()}
 
     with ui.column().classes('page-container-narrow w-full gap-2 q-px-sm'):
         with ui.column().classes('checkin-toolbar w-full gap-1 q-py-sm'):
@@ -305,7 +355,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 title = ui.label(event.name).classes('text-h6 ellipsis col')
                 sync_btn = ui.button(icon='sync').props('flat round color=primary') \
                     .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync with Matcherino now')
-                if event.matcherino_bounty_id is None:
+                if event.matcherino_venue_id is None:
                     sync_btn.set_visibility(False)
             closed_notice = ui.label('This event is closed. You can still record late check-ins.') \
                 .classes('text-caption text-warning')
@@ -322,6 +372,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             .classes('w-full checkin-table').props(':grid="Quasar.Screen.lt.md" flat hide-pagination')
         table._props[':filter-method'] = _FILTER_METHOD
         table.add_slot('body-cell-status', _STATUS_CELL)
+        table.add_slot('body-cell-badges', _BADGES_CELL)
         table.add_slot('body-cell-account', _ACCOUNT_CELL)
         table.add_slot('body-cell-actions', _ACTIONS_CELL)
         table.add_slot('item', _GRID_CARD)
@@ -330,7 +381,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         # After the card slot, never before: the card must not follow a saved layout.
         customize_table(table, _COLUMNS, key=TableKeys.CHECK_IN_DESK, page_size=0)
         with box_slot:
-            box = search_input(table, placeholder='Search by name', width='w-full')
+            box = search_input(table, placeholder='Search by name or badge code', width='w-full')
             box.props('autofocus outlined').classes('col')
 
         # Bottom padding so the last card scrolls clear of the walk-up button.
@@ -348,8 +399,12 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     def paint() -> None:
         current = state['event']
         rows = state['rows']
-        counts = {key: sum(1 for r in rows if _matches(r, key)) for key in FILTERS}
-        chips.options = {key: f'{label} {counts[key]}' for key, label in FILTERS.items()}
+        filters = _filters(state['tiers'])
+        if state['filter'] not in filters:
+            state['filter'] = 'all'
+            chips.value = 'all'
+        counts = {key: sum(1 for r in rows if _matches(r, key)) for key in filters}
+        chips.options = {key: f'{label} {counts[key]}' for key, label in filters.items()}
         chips.update()
         visible = [dict(r, _flash=r['id'] in state['flash']) for r in rows if _matches(r, state['filter'])]
         table.rows = visible
@@ -362,7 +417,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         sync_label.classes(replace=f'text-caption {cls}')
         title.text = current.name
         closed_notice.set_visibility(current.status == CheckInEventStatus.CLOSED)
-        sync_btn.set_visibility(current.matcherino_bounty_id is not None)
+        sync_btn.set_visibility(current.matcherino_venue_id is not None)
 
     async def reload(flash: Optional[int] = None) -> None:
         current = await service.get_event(state['event'].id)
@@ -371,8 +426,10 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             ui.navigate.to('/checkin')
             return
         state['event'] = current
+        state['tiers'] = await service.tiers_for(current)
+        volunteers = await service.volunteer_user_ids()
         state['rows'] = sorted(
-            (_row(e, can_manage) for e in await service.roster(current)),
+            (_row(e, can_manage, volunteers) for e in await service.roster(current)),
             key=lambda r: r['name'].casefold(),
         )
         if flash is not None:
@@ -390,10 +447,13 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
 
     chips.on_value_change(on_filter)
 
-    def show_undo(entrant_id: int, name: str) -> None:
+    def show_undo(entrant_id: int, name: str, badges: str) -> None:
         undo_bar.clear()
         with undo_bar:
-            ui.label(f'Checked in {name}').classes('ellipsis col')
+            with ui.column().classes('col gap-0'):
+                ui.label(f'Checked in {name}').classes('ellipsis')
+                if badges:
+                    ui.label(f'Hand over: {badges}').classes('text-caption ellipsis')
 
             async def undo() -> None:
                 undo_bar.set_visibility(False)
@@ -430,7 +490,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 color='info',
             )
         else:
-            show_undo(entrant.id, entrant.display_name)
+            show_undo(entrant.id, entrant.display_name, row.get('badges_text', ''))
         await reload()
 
     async def handle_link(row) -> None:
@@ -471,11 +531,11 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             return
         finally:
             sync_btn.props(remove='loading')
-        parts = [f'{result.total} registered']
+        parts = [f'{result.total} with badges']
         if result.added:
             parts.append(f'{result.added} new')
         if result.withdrawn:
-            parts.append(f'{result.withdrawn} left')
+            parts.append(f'{result.withdrawn} no longer hold one')
         if result.auto_linked:
             parts.append(f'{result.auto_linked} linked')
         ui.notify('Synced: ' + ', '.join(parts) + '.', color='positive')

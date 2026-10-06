@@ -103,7 +103,7 @@ async def open_link_dialog(
 async def open_walk_up_dialog(
     service: CheckInService, actor: User, event: CheckInEvent, on_done: OnDone,
 ) -> None:
-    """Add someone who isn't registered on Matcherino. Staff only."""
+    """Add someone who didn't buy a badge on Matcherino. Staff only."""
     chosen: dict = {'user': None}
 
     with form_dialog('Add walk-up') as dialog:
@@ -176,32 +176,33 @@ async def open_event_dialog(
             name = ui.input('Event name', value=event.name if event else '').props('outlined dense') \
                 .classes('w-full')
             with ui.row().classes('w-full items-start no-wrap gap-2'):
-                bounty = ui.number(
-                    'Matcherino bounty ID',
-                    value=event.matcherino_bounty_id if event else None,
+                venue = ui.number(
+                    'Matcherino venue ID',
+                    value=event.matcherino_venue_id if event else None,
                     format='%d', min=1,
                 ).props('outlined dense clearable').classes('col')
                 lookup_btn = ui.button('Look up', icon='travel_explore').props('flat no-caps') \
                     .classes(REQUIRES_SOCKET_CLASS)
             found = ui.label(
-                "The number at the end of the event's Matcherino link. "
-                'Leave it empty for a walk-up-only event.'
+                'The number in the link to the event\'s badge page, matcherino.com/events/<number>. '
+                "That's the venue, not the tournaments bounty. Leave it empty for a walk-up-only event."
             ).classes('text-caption text-grey-7')
 
             async def look_up() -> None:
-                if not bounty.value:
-                    ui.notify('Enter a bounty ID first.', color='warning')
+                if not venue.value:
+                    ui.notify('Enter a venue ID first.', color='warning')
                     return
                 try:
-                    found_bounty = await service.preview_bounty(actor, int(bounty.value))
+                    preview = await service.preview_venue(actor, int(venue.value))
                 except (ValueError, PermissionError) as e:
                     found.text = str(e)
                     found.classes(replace='text-caption text-warning')
                     return
-                found.text = f'Found: {found_bounty.title}'
+                badge_types = ', '.join(t.title for t in preview.tiers) or 'none yet'
+                found.text = f'Found: {preview.venue.title}. Badges: {badge_types}.'
                 found.classes(replace='text-caption text-positive')
                 if not (name.value or '').strip():
-                    name.value = found_bounty.title
+                    name.value = preview.venue.title
 
             lookup_btn.on_click(look_up)
             status = ui.select(
@@ -214,17 +215,17 @@ async def open_event_dialog(
             ).props('outlined dense').classes('w-full')
 
         async def submit() -> None:
-            bounty_id = int(bounty.value) if bounty.value else None
+            venue_id = int(venue.value) if venue.value else None
             try:
                 if event is None:
                     await service.create_event(
-                        actor, name.value, bounty_id=bounty_id,
+                        actor, name.value, venue_id=venue_id,
                         status=CheckInEventStatus(status.value),
                         sync_interval_minutes=int(interval.value or 5),
                     )
                 else:
                     await service.update_event(
-                        actor, event.id, name.value, bounty_id,
+                        actor, event.id, name.value, venue_id,
                         CheckInEventStatus(status.value), int(interval.value or 5),
                     )
             except (ValueError, PermissionError) as e:
