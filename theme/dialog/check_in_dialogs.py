@@ -10,8 +10,9 @@ from typing import Awaitable, Callable, List, Optional
 
 from nicegui import ui
 
-from application.services import CheckInService
-from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, User
+from application.services import CheckInService, SystemConfigService
+from application.services.check_in_rules import comp_label
+from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, Role, User
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog._helpers import dialog_actions, form_dialog, submit_on_enter
 from theme.notify import notify_error
@@ -214,6 +215,24 @@ async def open_event_dialog(
                 value=event.sync_interval_minutes if event else 5, min=1, max=120, format='%d',
             ).props('outlined dense').classes('w-full')
 
+            ui.label('Comps').classes('text-subtitle2 q-mt-sm')
+            comp_roles = ui.select(
+                {role.value: comp_label(role.value) for role in Role.tenant_grantable()},
+                label='Comp everyone with these roles', multiple=True,
+                value=list(event.comp_roles) if event else [],
+            ).props('outlined dense use-chips clearable').classes('w-full')
+            tiers = await SystemConfigService.get_volunteer_comp_tiers()
+            threshold = f'{tiers[0]:g}' if tiers else None
+            comp_volunteers = ui.switch(
+                f'Comp volunteers scheduled for {threshold}+ hours' if threshold
+                else 'Comp volunteers (no comp tier set in Admin → Settings)',
+                value=event.comp_volunteers if event else False,
+            )
+            ui.label(
+                'Comped people show up on the desk without buying a badge. '
+                'Volunteer hours are published shifts in the event window.'
+            ).classes('text-caption text-grey-7')
+
         async def submit() -> None:
             venue_id = int(venue.value) if venue.value else None
             try:
@@ -222,11 +241,13 @@ async def open_event_dialog(
                         actor, name.value, venue_id=venue_id,
                         status=CheckInEventStatus(status.value),
                         sync_interval_minutes=int(interval.value or 5),
+                        comp_roles=comp_roles.value or [], comp_volunteers=bool(comp_volunteers.value),
                     )
                 else:
                     await service.update_event(
                         actor, event.id, name.value, venue_id,
                         CheckInEventStatus(status.value), int(interval.value or 5),
+                        comp_roles=comp_roles.value or [], comp_volunteers=bool(comp_volunteers.value),
                     )
             except (ValueError, PermissionError) as e:
                 notify_error(e)

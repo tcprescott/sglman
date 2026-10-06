@@ -82,8 +82,8 @@ appears in an error message.
 
 | Model | What |
 |---|---|
-| `CheckInEvent` | Tenant-scoped. `name`, nullable `matcherino_venue_id` (unique per tenant), `status` (`DRAFT`/`OPEN`/`CLOSED`), `sync_interval_minutes`, and the sync bookkeeping `last_synced_at`/`last_sync_error`/`last_sync_count` (buyers holding a badge) |
-| `CheckInEntrant` | One person on a roster. `source` (`MATCHERINO`/`WALK_UP`), `matcherino_user_id`, `display_name`, the identity hints (`auth_provider`, `auth_id`), `registered_at` (their first badge purchase), `source_data` (their trimmed Matcherino account), the matched `user` + `link_method` + `linked_by`, `withdrawn_at`, `checked_in_at` + `checked_in_by` |
+| `CheckInEvent` | Tenant-scoped. `name`, nullable `matcherino_venue_id` (unique per tenant), the comp rules `comp_roles` (list of `Role` values) and `comp_volunteers`, `status` (`DRAFT`/`OPEN`/`CLOSED`), `sync_interval_minutes`, and the sync bookkeeping `last_synced_at`/`last_sync_error`/`last_sync_count` (buyers holding a badge) |
+| `CheckInEntrant` | One person on a roster. `source` (`MATCHERINO`/`WALK_UP`/`COMP`), `matcherino_user_id`, `display_name`, the identity hints (`auth_provider`, `auth_id`), `registered_at` (their first badge purchase), `comp_reasons` (why they're comped: `Role` values and `'volunteer'`), `source_data` (their trimmed Matcherino account), the matched `user` + `link_method` + `linked_by`, `withdrawn_at`, `checked_in_at` + `checked_in_by` |
 | `CheckInTier` | Tenant-scoped. One badge type on the venue: `matcherino_pass_id`, `title`, `amount_cents`, `role` (`player`/`spectator`) |
 | `CheckInPass` | Tenant-scoped. One purchase: `tier`, the buyer's `entrant`, `buyer_matcherino_user_id`, the door `code`, `purchased_at`, `refunded_at`, `removed_at`, trimmed `source_data` |
 | `User.matcherino_user_id` | Matcherino's numeric account id. Global and **unique**, unlike the self-entered `matcherino_username` |
@@ -110,6 +110,42 @@ badges sold under it still point at it (the purchase embeds its `pass`).
 `link_method = MANUAL` with `user = NULL` means staff unlinked the row on
 purpose. The sync never auto-links such a row again; staff unlink exactly when
 an automatic match was wrong.
+
+## Comps
+
+Some people get in without buying a badge. Each check-in event sets its own
+comp rules in the event dialog:
+
+- **Comp roles** (`CheckInEvent.comp_roles`, a list of `Role` values): everyone
+  holding one of these roles in the community. Any role a community can grant
+  is allowed; `SUPER_ADMIN` isn't.
+- **Comp volunteers** (`comp_volunteers`): anyone whose published volunteer
+  shifts inside the community's event window add up to the **lowest volunteer
+  comp tier** (Admin → Settings; 8 hours for SGL). These are *scheduled* hours,
+  the same total the volunteer roster shows, because most shifts haven't
+  happened yet when the desk opens. Unpublished auto-scheduler drafts don't
+  count, and nobody is comped this way while volunteering is turned off.
+
+Each sync works out who is comped (`check_in_comps.comped_users`) before it
+touches the roster, then:
+
+- A comped person who isn't on the roster gets a `COMP` row (source and link
+  method `COMP`) tied to their account.
+- A comped person who is already there (a buyer, a walk-up) keeps their row and
+  gains `comp_reasons`. A comped buyer is never withdrawn for having no badge.
+- Someone who stops qualifying loses their comp. A `COMP` row is withdrawn,
+  unless they've already checked in, in which case they stay present as with a
+  refund. A buyer keeps their row and just loses the Comp chip.
+- A comp who later turns out to be a buyer (the purchase auto-links to their
+  account, or staff link it by hand) stays one person: the purchase row takes
+  over the comp and any check-in already recorded, and the `COMP` row is
+  deleted (`check_in_comps.absorb_comp_row`).
+
+A `COMP` row can't be relinked, unlinked or removed at the desk; change the
+event's comp rules instead. An event with comp rules but no venue still syncs
+(the worker polls it too), so a staff-and-volunteers-only door works. A
+Matcherino failure stops the whole sync, comps included, so the roster never
+changes halfway.
 
 ### Handouts are a follow-up
 
@@ -150,7 +186,7 @@ run the desk can already see the sale. Name similarity is only ever **suggested*
 Two buyers that resolve to one account link only the first.
 
 **What a link writes to the account.** `matcherino_username` is where prize money
-is sent, so this is deliberately narrow (`_remember_matcherino_account`):
+is sent, so this is deliberately narrow (`check_in_accounts.remember_matcherino_account`):
 
 - Only a `DISCORD_ID` or `TWITCH_ID` match (OAuth-verified ids)
   or a manual link (a person at the desk confirmed it) records anything. A
@@ -159,7 +195,7 @@ is sent, so this is deliberately narrow (`_remember_matcherino_account`):
 - It fills `User.matcherino_user_id` and `matcherino_username` **only when
   empty**, never takes an id another account holds, and writes a
   `user.profile_updated` audit row with `source: check_in`.
-- Unlinking undoes it (`_forget_matcherino_account`): staff unlink when a match
+- Unlinking undoes it (`forget_matcherino_account`): staff unlink when a match
   was wrong, and a wrong id left in place would re-link that person at every
   later event and lock the real owner out. The id is cleared if it matches the
   row; the handle only if it is still exactly the one check-in filled in.
@@ -211,7 +247,7 @@ Several phones work one event, and the worker polls it too:
 | `create_event` / `update_event` / `delete_event` | Event CRUD. One event per venue per community |
 | `preview_venue` → `VenuePreview(venue, tiers)` | The venue's title and badge types for the admin dialog. Reading the badge types needs the stored login, so a venue that previews is one the sync can read |
 | `list_events` / `list_open_events` / `get_event` / `has_open_event` | Reads |
-| `sync_event(actor, event_id, audit=True)` | Upsert buyers by `matcherino_user_id`, withdraw/rejoin on badges held, auto-link, then upsert badge types and badges. Returns `SyncResult` (`total` buyers holding a badge, `badges` held). `audit=False` is the worker's poll |
+| `sync_event(actor, event_id, audit=True)` | Work out comps, then upsert buyers by `matcherino_user_id`, withdraw/rejoin on badges held, auto-link, then upsert badge types and badges. then reconcile comp rows. Needs a venue or comp rules. Returns `SyncResult` (`total` buyers holding a badge, `badges` held, `comped`). `audit=False` is the worker's poll |
 | `roster` / `get_entrant` | Reads, with each entrant's badges and their tiers prefetched |
 | `tiers_for(event)` | The badge types, dearest first, for the desk's chips |
 | `volunteer_user_ids()` | Accounts with a published volunteer assignment in this community (drafts excluded), for the **Volunteer** chip. An empty set when `FeatureFlag.VOLUNTEERS` is off, never an error |
@@ -219,6 +255,10 @@ Several phones work one event, and the worker polls it too:
 | `check_in` → `CheckInOutcome(entrant, already)` / `undo_check_in` | The desk's main actions |
 | `link` / `unlink` | Manual matching |
 | `add_walk_up(event_id, user_id= or name=, check_in=True)` / `remove_entrant` | Walk-ups (staff) |
+
+`application/services/check_in_comps.py` works out and applies comps (see
+[Comps](#comps)); `check_in_accounts.py` holds the identity lookups and what a
+link writes back to the account.
 
 `application/services/check_in_sales.py` is the data half of the sync:
 `buyers_of(sales)`, `buyer_fields`, and the `apply_tiers` / `apply_badges`
@@ -261,7 +301,7 @@ events staff have opened. Run one tick by hand with
   open (`BaseLayout` via `AuthService.can_view_check_in_desk`).
 - `/checkin/{event_id}` is the desk. It's phone-first: the search box, progress
   bar, filter chips (All / Not yet / Checked in / Unlinked / Walk-ups /
-  Volunteers / Withdrawn, then one per badge type, with counts) and sync status stick under the app header. Below
+  Volunteers / Comps / Withdrawn, then one per badge type, with counts) and sync status stick under the app header. Below
   `md` each person is a card with a full-width 48 px Check in button;
   Link/Unlink/Undo/Remove sit behind a ⋮ menu. On desktop it's a table with the
   same actions.
@@ -293,6 +333,8 @@ lists its badge types (and refuses a plain bounty ID, the usual mix-up), and a
 service, so pressing Sync in dev changes nothing. The sales are lined up with
 fixtures so one sync produces every link method (see the comment above
 `MOCK_PURCHASES`), all four badge types, a two-badge buyer and a refunded buyer,
+comps for Staff and volunteers (staff_user as a `COMP` row; player_one at exactly
+8 scheduled hours and player_two above every tier comped on top of their badges),
 and the seed adds a manual link, a buyer whose badge left the feed, a
 check-in by `checkin_desk` (the fixture holding only `CHECK_IN_DESK`), a member
 walk-up and a named walk-up, a draft event and a closed one. Tenants without the
@@ -308,4 +350,10 @@ flag are skipped.
   `httpx.MockTransport`, the sign-in and token cache, 401 re-minting, the
   missing-login and short-read errors, and that neither token leaks into a
   message.
+- `tests/services/test_check_in_badges_and_comps.py`: badges and tiers, the
+  volunteer chip, and comps (roles, the hour threshold, drafts, the flag off,
+  losing and regaining a comp, a comped buyer, a comp merging into a later
+  purchase or a manual link, what the desk can't do to a comp row, a
+  comps-only event under the worker). Shared fixtures live in
+  `tests/services/check_in_support.py`.
 - `tests/tenancy/test_check_in_tenant_isolation.py`: all four models.

@@ -1,5 +1,8 @@
 """CheckInService: the Matcherino venue sync, account matching, and the desk's actions."""
 
+# ruff: noqa: F811 — the shared fixtures are imported from check_in_support, and
+# pytest injects them as same-named test arguments.
+
 import json
 from datetime import timedelta
 
@@ -7,14 +10,13 @@ import pytest
 
 from application.errors import FeatureDisabledError
 from application.events import check_in_live
-from application.services.check_in_rules import active_badges, entrant_filters, handle_id, summarize, tier_filter
+from application.services.check_in_rules import handle_id, summarize
 from application.services.check_in_service import CheckInService
 from application.services.feature_flag_service import reset_flag_cache
 from application.utils.clients.matcherino_client import (
     MatcherinoAPIError,
     MockMatcherinoClient,
     mock_purchase,
-    mock_tier,
 )
 from models import (
     AuditLog,
@@ -22,72 +24,24 @@ from models import (
     CheckInEntrantSource,
     CheckInEventStatus,
     CheckInLinkMethod,
-    CheckInPass,
-    CheckInTier,
     FeatureFlag,
-    Role,
     TenantFeatureFlag,
     TenantMembership,
-    User,
-    UserRole,
 )
 from tests.conftest import DEFAULT_TEST_TENANT_ID
 from tests.factories import make_user
-
-VENUE = 182105
-
-
-class ScriptedClient(MockMatcherinoClient):
-    """A mock whose sales a test can change between syncs, or make fail."""
-
-    def __init__(self, purchases):
-        super().__init__(purchases)
-        self.error = None
-
-    def set(self, purchases, tiers=None):
-        self._purchases = purchases
-        if tiers is not None:
-            self._tiers = tiers
-
-    async def fetch_sales(self, venue_id):
-        if self.error is not None:
-            raise self.error
-        return await super().fetch_sales(venue_id)
-
-
-async def _with_role(discord_id: int, username: str, role: Role) -> User:
-    user = await make_user(discord_id=discord_id, username=username)
-    await UserRole.create(user=user, role=role, tenant_id=DEFAULT_TEST_TENANT_ID)
-    return user
-
-
-@pytest.fixture
-async def staff(db):
-    return await _with_role(1, 'staff', Role.STAFF)
-
-
-@pytest.fixture
-async def desk(db):
-    return await _with_role(2, 'desk', Role.CHECK_IN_DESK)
-
-
-@pytest.fixture
-def client():
-    return ScriptedClient([])
-
-
-@pytest.fixture
-def service(client):
-    return CheckInService(client=client)
-
-
-@pytest.fixture
-async def event(service, staff):
-    return await service.create_event(staff, 'SGL 2026', venue_id=VENUE, status=CheckInEventStatus.OPEN)
-
-
-async def _rows(event):
-    return {row.matcherino_user_id: row for row in await CheckInEntrant.filter(event=event)}
+from tests.services.check_in_support import (  # noqa: F401 — fixtures
+    VENUE,
+    ScriptedClient,
+    client,
+    desk,
+    event,
+    service,
+    staff,
+)
+from tests.services.check_in_support import (
+    rows as _rows,
+)
 
 
 class TestAutoLink:
@@ -355,9 +309,9 @@ class TestSyncRoster:
 
         assert await AuditLog.filter(action='check_in_event.synced').count() == 1
 
-    async def test_an_event_with_no_venue_cannot_sync(self, service, staff):
+    async def test_an_event_with_no_venue_or_comps_cannot_sync(self, service, staff):
         walkups_only = await service.create_event(staff, 'Walk-ups only')
-        with pytest.raises(ValueError, match="isn't linked"):
+        with pytest.raises(ValueError, match='nothing to sync'):
             await service.sync_event(staff, walkups_only.id)
 
     async def test_a_sync_tells_open_desks(self, service, client, staff, event, monkeypatch):
@@ -368,154 +322,6 @@ class TestSyncRoster:
         await service.sync_event(staff, event.id)
 
         assert seen[-1] == (event.id, None, check_in_live.ROSTER)
-
-
-BASE = mock_tier(1, 'Base', 8000)
-VIP = mock_tier(2, 'VIP', 11000)
-
-
-async def _badges(event):
-    return {b.matcherino_purchase_id: b for b in await CheckInPass.filter(event=event).prefetch_related('tier')}
-
-
-class TestBadges:
-    async def test_each_purchase_is_a_badge_under_its_tier(self, service, client, staff, event):
-        client.set([
-            mock_purchase(100, 'Two Badges', tier=BASE, purchase_id=1, code=11111111,
-                          purchased_at='2026-03-01T00:00:00Z'),
-            mock_purchase(100, 'Two Badges', tier=VIP, purchase_id=2, code=22222222,
-                          purchased_at='2026-02-01T00:00:00Z'),
-            mock_purchase(200, 'One Badge', tier=BASE, purchase_id=3),
-        ], tiers=[BASE, VIP])
-
-        result = await service.sync_event(staff, event.id)
-
-        assert (result.total, result.badges, result.added) == (2, 3, 2)
-        rows = await _rows(event)
-        badges = await _badges(event)
-        assert {b.entrant_id for b in badges.values()} == {rows['100'].id, rows['200'].id}
-        assert (badges[1].code, badges[1].tier.title, badges[2].tier.title) == ('11111111', 'Base', 'VIP')
-        assert rows['100'].registered_at.month == 2
-        assert {t.title: t.amount_cents for t in await CheckInTier.filter(event=event)} == {
-            'Base': 8000, 'VIP': 11000}
-
-        entrant = await service.get_entrant(rows['100'].id)
-        held = active_badges(entrant.passes)
-        assert [b.tier.title for b in held] == ['VIP', 'Base']
-        assert {tier_filter(held[0].tier_id), tier_filter(held[1].tier_id)} <= entrant_filters(entrant, held)
-
-    async def test_buyer_contact_details_are_not_stored(self, service, client, staff, event):
-        raw = mock_purchase(100, 'Private')
-        raw.update(email='person@example.com', phone='555-0100', firstName='Pat', address1='1 Main St')
-        raw['transactions'] = [{'amount': 8000}]
-        raw['user']['email'] = 'person@example.com'
-        client.set([raw])
-
-        await service.sync_event(staff, event.id)
-
-        badge = (await CheckInPass.filter(event=event))[0]
-        entrant = (await _rows(event))['100']
-        stored = json.dumps([badge.source_data, entrant.source_data])
-        assert 'example.com' not in stored and '555-0100' not in stored and 'Main St' not in stored
-        assert 'transactions' not in badge.source_data
-
-    async def test_a_refund_withdraws_a_buyer_with_nothing_left(self, service, client, staff, event):
-        client.set([mock_purchase(100, 'Refunded', purchase_id=1),
-                    mock_purchase(200, 'Keeps one', purchase_id=2),
-                    mock_purchase(200, 'Keeps one', purchase_id=3, tier=VIP)], tiers=[BASE, VIP])
-        await service.sync_event(staff, event.id)
-
-        client.set([mock_purchase(100, 'Refunded', purchase_id=1, refunded_at='2026-09-20T10:00:00Z'),
-                    mock_purchase(200, 'Keeps one', purchase_id=2),
-                    mock_purchase(200, 'Keeps one', purchase_id=3, tier=VIP,
-                                  refunded_at='2026-09-20T10:00:00Z')], tiers=[BASE, VIP])
-        result = await service.sync_event(staff, event.id)
-
-        rows = await _rows(event)
-        badges = await _badges(event)
-        assert result.withdrawn == 1
-        assert rows['100'].withdrawn_at is not None and rows['200'].withdrawn_at is None
-        assert badges[1].refunded_at is not None and badges[3].refunded_at is not None
-
-    async def test_a_purchase_that_leaves_the_feed_is_removed_not_deleted(self, service, client, staff, event):
-        client.set([mock_purchase(100, 'A', purchase_id=1), mock_purchase(200, 'B', purchase_id=2)])
-        await service.sync_event(staff, event.id)
-
-        client.set([mock_purchase(100, 'A', purchase_id=1)])
-        await service.sync_event(staff, event.id)
-
-        badges = await _badges(event)
-        assert badges[2].removed_at is not None and badges[1].removed_at is None
-        assert (await _rows(event))['200'].withdrawn_at is not None
-
-    async def test_a_buyer_refunded_before_the_first_sync_arrives_withdrawn(self, service, client, staff, event):
-        client.set([mock_purchase(100, 'Too late', refunded_at='2026-09-20T10:00:00Z')])
-
-        result = await service.sync_event(staff, event.id)
-
-        assert (result.total, result.badges, result.added) == (0, 0, 1)
-        assert (await _rows(event))['100'].withdrawn_at is not None
-
-    async def test_a_renamed_tier_is_updated(self, service, client, staff, event):
-        client.set([mock_purchase(100, 'A', tier=BASE)], tiers=[BASE])
-        await service.sync_event(staff, event.id)
-
-        renamed = mock_tier(1, 'Base Badge', 9000)
-        client.set([mock_purchase(100, 'A', tier=renamed)], tiers=[renamed])
-        await service.sync_event(staff, event.id)
-
-        tier = await CheckInTier.get(event=event)
-        assert (tier.title, tier.amount_cents) == ('Base Badge', 9000)
-
-    async def test_a_tier_deleted_from_the_venue_still_resolves(self, service, client, staff, event):
-        gone = mock_tier(9, 'Early Bird', 6000)
-        client.set([mock_purchase(100, 'Early', tier=gone)], tiers=[BASE])
-
-        await service.sync_event(staff, event.id)
-
-        badge = (await _badges(event))[50_100]
-        assert badge.tier.title == 'Early Bird'
-
-
-class TestVolunteers:
-    async def _shift(self):
-        from datetime import datetime, timezone
-
-        from models import VolunteerPosition, VolunteerShift
-        position = await VolunteerPosition.create(name='Check-in Desk', tenant_id=DEFAULT_TEST_TENANT_ID)
-        start = datetime(2026, 10, 10, 9, tzinfo=timezone.utc)
-        return await VolunteerShift.create(position=position, starts_at=start, ends_at=start + timedelta(hours=4),
-                                           tenant_id=DEFAULT_TEST_TENANT_ID)
-
-    async def test_a_published_assignment_marks_a_volunteer_and_a_draft_does_not(self, service, staff):
-        from models import VolunteerAssignment
-
-        shift = await self._shift()
-        published = await make_user(discord_id=301, username='published')
-        drafted = await make_user(discord_id=302, username='drafted')
-        await VolunteerAssignment.create(shift=shift, user=published, tenant_id=DEFAULT_TEST_TENANT_ID)
-        await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True,
-                                         tenant_id=DEFAULT_TEST_TENANT_ID)
-
-        assert await service.volunteer_user_ids() == {published.id}
-
-    async def test_volunteering_off_marks_nobody_and_does_not_raise(self, service, staff):
-        from models import VolunteerAssignment
-
-        shift = await self._shift()
-        person = await make_user(discord_id=303, username='person')
-        await VolunteerAssignment.create(shift=shift, user=person, tenant_id=DEFAULT_TEST_TENANT_ID)
-        await TenantFeatureFlag.filter(
-            tenant_id=DEFAULT_TEST_TENANT_ID, flag=FeatureFlag.VOLUNTEERS.value,
-        ).update(enabled=False)
-        reset_flag_cache()
-
-        assert await service.volunteer_user_ids() == set()
-
-    def test_a_volunteer_gets_the_volunteer_chip(self):
-        entrant = CheckInEntrant(source=CheckInEntrantSource.MATCHERINO, display_name='x', user_id=5)
-        assert 'volunteer' in entrant_filters(entrant, volunteer=True)
-        assert 'volunteer' not in entrant_filters(entrant)
 
 
 class TestDesk:

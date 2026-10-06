@@ -50,8 +50,13 @@ _ACTIONS = f'''
 
 
 def _synced_text(event) -> str:
-    if event.matcherino_venue_id is None:
+    comps = bool(event.comp_roles) or event.comp_volunteers
+    if event.matcherino_venue_id is None and not comps:
         return 'Walk-ups only'
+    if event.matcherino_venue_id is None and event.last_synced_at is None:
+        return 'Comps only · not synced yet'
+    if event.matcherino_venue_id is None:
+        return f'Comps only · {format_local_display(event.last_synced_at)}'
     if event.last_sync_error:
         return f'Failed: {event.last_sync_error}'
     if event.last_synced_at is None:

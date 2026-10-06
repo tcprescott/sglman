@@ -12,7 +12,12 @@ class CheckInEvent(Model):
     Registration happens on Matcherino: ``matcherino_venue_id`` names the
     ticketed venue whose badge sales are mirrored into :class:`CheckInPass`
     rows, one :class:`CheckInEntrant` per buyer. It is nullable so an event can
-    run on walk-ups alone. The sync bookkeeping
+    run on walk-ups and comps alone.
+
+    ``comp_roles`` (a list of ``Role`` values) and ``comp_volunteers`` say who
+    gets a complimentary badge without buying one: holders of those roles in
+    the community, and volunteers whose scheduled shifts reach the community's
+    lowest volunteer comp tier. The sync puts them on the roster. The sync bookkeeping
     (``last_synced_at``/``last_sync_error``/``last_sync_count``) is shown at the
     desk because the Matcherino endpoints are unofficial: when they break, the
     volunteers need to see that the roster is stale.
@@ -25,6 +30,9 @@ class CheckInEvent(Model):
     tenant_id: int
     name = fields.CharField(max_length=255)
     matcherino_venue_id = fields.IntField(null=True)
+    # mypy cannot infer a JSONField's type parameter, as with every sibling.
+    comp_roles = fields.JSONField(default=list)  # type: ignore[var-annotated]
+    comp_volunteers = fields.BooleanField(default=False)
     status = fields.CharEnumField(CheckInEventStatus, default=CheckInEventStatus.DRAFT, max_length=16)
     sync_interval_minutes = fields.IntField(default=5)
     last_synced_at = fields.DatetimeField(null=True)
@@ -47,7 +55,9 @@ class CheckInEntrant(Model):
 
     A ``MATCHERINO`` row is a badge buyer, keyed by ``matcherino_user_id``,
     with the identity Matcherino served on their purchase; a ``WALK_UP`` row
-    was added by staff at the desk. ``user`` is the matched Wizzrobe account,
+    was added by staff at the desk; a ``COMP`` row is someone comped by the
+    event's comp rules who bought no badge. ``comp_reasons`` lists why a row
+    (of any source) is comped: ``Role`` values and ``'volunteer'``. ``user`` is the matched Wizzrobe account,
     which is a nice-to-have rather than a requirement — plenty of buyers have
     none.
 
@@ -55,8 +65,9 @@ class CheckInEntrant(Model):
     kept so a field nothing reads yet can be backfilled from rows already
     synced. ``registered_at`` is their earliest badge purchase.
 
-    A buyer whose every badge is refunded or gone gets ``withdrawn_at`` rather
-    than being deleted, so a check-in already recorded against them survives.
+    A buyer whose every badge is refunded or gone, and who isn't comped, gets
+    ``withdrawn_at`` (so does a ``COMP`` row that stops qualifying) rather than
+    being deleted, so a check-in already recorded against them survives.
     """
 
     id = fields.IntField(pk=True)
@@ -75,6 +86,7 @@ class CheckInEntrant(Model):
     auth_provider = fields.CharField(max_length=32, null=True)
     auth_id = fields.CharField(max_length=128, null=True)
     registered_at = fields.DatetimeField(null=True)
+    comp_reasons = fields.JSONField(null=True)  # type: ignore[var-annotated]
     # mypy cannot infer a JSONField's type parameter, as with every sibling.
     source_data = fields.JSONField(null=True)  # type: ignore[var-annotated]
     user: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(

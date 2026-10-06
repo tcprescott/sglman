@@ -13,6 +13,10 @@ the states a volunteer meets:
 * jemgold and blueshell link to player_one and player_two, whose published
   shifts from ``seed_volunteers`` give them the Volunteer chip; player_three's
   only shift is an unpublished draft, so Player Three gets none;
+* the event comps Staff and volunteers: staff_user, who bought no badge, gets
+  a ``COMP`` row; player_one (exactly 8 scheduled hours, the lowest comp tier)
+  and player_two (over every tier) add a comp to the badges they bought;
+  proctor_user, under 8 hours, gets nothing;
 * someone whose badge disappeared from the venue (withdrawn);
 * player_one already checked in by the check-in desk volunteer;
 * two walk-ups checked in by staff, one a member (racer_09) and one name-only;
@@ -38,6 +42,7 @@ from models import (
     CheckInEvent,
     CheckInEventStatus,
     FeatureFlag,
+    Role,
     Tenant,
     User,
 )
@@ -70,6 +75,12 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
     if event is None:
         event = await service.create_event(
             staff, LIVE_EVENT, venue_id=VENUE_ID, status=CheckInEventStatus.OPEN,
+            comp_roles=[Role.STAFF], comp_volunteers=True,
+        )
+    elif not event.comp_roles:
+        event = await service.update_event(
+            staff, event.id, event.name, event.matcherino_venue_id, event.status,
+            event.sync_interval_minutes, comp_roles=[Role.STAFF], comp_volunteers=True,
         )
     if not await CheckInEntrant.exists(event=event, matcherino_user_id=WITHDRAWN_ID):
         await CheckInEntrant.create(

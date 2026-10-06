@@ -13,6 +13,7 @@ from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
     CheckInEntrant,
+    CheckInEntrantSource,
     CheckInEvent,
     CheckInEventStatus,
     CheckInLinkMethod,
@@ -53,14 +54,15 @@ class CheckInEventRepository(TenantScopedRepository[CheckInEvent]):
 
     @staticmethod
     async def list_syncable_all() -> List[CheckInEvent]:
-        """Open events with a Matcherino venue, across every tenant.
+        """Open events with a Matcherino venue or comp rules, across every tenant.
 
         Deliberately cross-tenant: this is the sync worker's scan, which then
         runs each event inside its own ``tenant_scope``.
         """
-        return await CheckInEvent.filter(
-            status=CheckInEventStatus.OPEN, matcherino_venue_id__isnull=False,
-        )
+        return [
+            event for event in await CheckInEvent.filter(status=CheckInEventStatus.OPEN)
+            if event.matcherino_venue_id is not None or event.comp_roles or event.comp_volunteers
+        ]
 
 
 class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
@@ -82,6 +84,18 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
     async def matcherino_rows_by_user_id(event: CheckInEvent) -> Dict[str, CheckInEntrant]:
         rows = await scoped(CheckInEntrant.filter(event=event, matcherino_user_id__isnull=False))
         return {row.matcherino_user_id: row for row in rows}
+
+    @staticmethod
+    async def rows_by_user_id(event: CheckInEvent) -> Dict[int, CheckInEntrant]:
+        rows = await scoped(CheckInEntrant.filter(event=event, user_id__isnull=False))
+        return {row.user_id: row for row in rows if row.user_id is not None}
+
+    @staticmethod
+    async def comp_rows_by_user_id(event: CheckInEvent) -> Dict[int, CheckInEntrant]:
+        rows = await scoped(CheckInEntrant.filter(
+            event=event, source=CheckInEntrantSource.COMP, user_id__isnull=False,
+        ))
+        return {row.user_id: row for row in rows if row.user_id is not None}
 
     @staticmethod
     async def linked_user_ids(event: CheckInEvent) -> set[int]:

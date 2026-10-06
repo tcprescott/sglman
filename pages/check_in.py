@@ -27,7 +27,13 @@ from starlette.responses import RedirectResponse
 
 from application.events import check_in_live
 from application.services import AuthService, CheckInService, TenantService, get_user_from_discord_id
-from application.services.check_in_rules import ROSTER_FILTERS, active_badges, entrant_filters, tier_filter
+from application.services.check_in_rules import (
+    ROSTER_FILTERS,
+    active_badges,
+    comp_label,
+    entrant_filters,
+    tier_filter,
+)
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
@@ -62,6 +68,7 @@ _LINK_LABELS = {
     'matcherino_handle': 'via profile handle',
     'manual': 'linked by staff',
     'walk_up': 'walk-up',
+    'comp': 'comped',
 }
 
 _FILTER_LABELS = {
@@ -71,6 +78,7 @@ _FILTER_LABELS = {
     'unlinked': 'Unlinked',
     'walk_up': 'Walk-ups',
     'volunteer': 'Volunteers',
+    'comp': 'Comps',
     'withdrawn': 'Withdrawn',
 }
 FILTERS = {key: _FILTER_LABELS[key] for key in ROSTER_FILTERS}
@@ -102,6 +110,7 @@ _EXPORT_COLUMNS: list[dict] = [
     {'name': 'linked_via', 'label': 'Linked via', 'field': 'linked_via'},
     {'name': 'source', 'label': 'Source', 'field': 'source'},
     {'name': 'volunteer', 'label': 'Volunteer', 'field': 'volunteer_text'},
+    {'name': 'comp', 'label': 'Comp', 'field': 'comp_text'},
     {'name': 'registered', 'label': 'Bought', 'field': 'registered'},
     {'name': 'status', 'label': 'Status', 'field': 'status_label'},
     {'name': 'checked_in', 'label': 'Checked in at', 'field': 'checked_in_when'},
@@ -128,11 +137,12 @@ _MENU = f'''
     <q-btn flat round dense icon="more_vert" class="{REQUIRES_SOCKET_CLASS}" aria-label="More actions">
         <q-menu auto-close>
             <q-list style="min-width: 200px">
-                <q-item clickable @click="$parent.$emit('link', props.row)">
+                <q-item v-if="!props.row.comp_only" clickable @click="$parent.$emit('link', props.row)">
                     <q-item-section avatar><q-icon name="link"/></q-item-section>
                     <q-item-section>{{{{ props.row.account ? 'Change linked account' : 'Link an account' }}}}</q-item-section>
                 </q-item>
-                <q-item v-if="props.row.account" clickable @click="$parent.$emit('unlink', props.row)">
+                <q-item v-if="props.row.account && !props.row.comp_only" clickable
+                        @click="$parent.$emit('unlink', props.row)">
                     <q-item-section avatar><q-icon name="link_off"/></q-item-section>
                     <q-item-section>Unlink account</q-item-section>
                 </q-item>
@@ -166,8 +176,11 @@ _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
 </q-td>'''
 
 # Every badge someone holds, dearest first, each with the code their QR
-# encodes: a buyer with two badges is often holding one for a friend.
+# encodes: a buyer with two badges is often holding one for a friend. A comp
+# leads, since it is what the desk hands a comped person.
 _BADGE_CHIPS = '''
+    <q-chip v-if="props.row.comp_text" dense square color="amber-2" text-color="brown-10"
+            icon="card_giftcard" class="q-ml-none q-mr-xs">Comp · {{ props.row.comp_text }}</q-chip>
     <q-chip v-for="b in props.row.badges" :key="b.code" dense square color="indigo-1"
             text-color="indigo-10" class="q-ml-none q-mr-xs">
         {{ b.title }}<span class="text-caption q-ml-xs text-grey-8">#{{ b.code }}</span>
@@ -176,7 +189,7 @@ _BADGE_CHIPS = '''
 
 _BADGES_CELL = f'''<q-td :props="props">
     {_BADGE_CHIPS}
-    <span v-if="!props.row.badges.length" class="text-grey-7">—</span>
+    <span v-if="!props.row.badges.length && !props.row.comp_text" class="text-grey-7">—</span>
 </q-td>'''
 
 _ACCOUNT_CELL = '''<q-td :props="props">
@@ -201,7 +214,7 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
                 {{{{ props.row.account }}}} · {{{{ props.row.linked_via }}}}
             </div>
             <div v-else class="text-caption text-warning">Not linked to an account</div>
-            <div v-if="props.row.badges.length" class="q-mt-xs">{_BADGE_CHIPS}</div>
+            <div v-if="props.row.badges.length || props.row.comp_text" class="q-mt-xs">{_BADGE_CHIPS}</div>
             <div class="q-mt-xs">{_STATUS_BADGES}</div>
         </div>
         {_MENU}
@@ -220,11 +233,16 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
     checked_in = entrant.checked_in_at is not None
     withdrawn = entrant.withdrawn_at is not None
     walk_up = entrant.source == CheckInEntrantSource.WALK_UP
+    comp_only = entrant.source == CheckInEntrantSource.COMP
+    comp_text = ', '.join(comp_label(reason) for reason in entrant.comp_reasons or [])
     volunteer = entrant.user_id is not None and entrant.user_id in volunteers
     all_badges = list(entrant.passes)
     held = active_badges(all_badges)
     refunded = not held and any(b.refunded_at is not None for b in all_badges)
-    withdrawn_label = 'Refunded' if refunded else 'No badge'
+    if comp_only:
+        withdrawn_label = 'No longer comped'
+    else:
+        withdrawn_label = 'Refunded' if refunded else 'No badge'
     if checked_in:
         status_label = 'Checked in'
     elif withdrawn:
@@ -236,7 +254,7 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         checked_in_label = format_local_time(entrant.checked_in_at)
         if checked_by is not None:
             checked_in_label += f' by {checked_by.preferred_name}'
-    provider = '' if walk_up else provider_label(entrant.auth_provider)
+    provider = '' if walk_up or comp_only else provider_label(entrant.auth_provider)
     badges = [{'title': b.tier.title, 'code': b.code} for b in held]
     search = ' '.join(filter(None, [
         entrant.display_name, account, user.username if user else '',
@@ -250,11 +268,15 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'account': account,
         'linked_via': _LINK_LABELS.get(entrant.link_method.value, '') if entrant.link_method and user else '',
         'provider': provider,
-        'source': 'Walk-up' if walk_up else 'Matcherino',
+        'source': 'Walk-up' if walk_up else 'Comp' if comp_only else 'Matcherino',
+        'comp_text': comp_text,
+        'comp_only': comp_only,
         'matcherino_id': entrant.matcherino_user_id or '',
         'badges': badges,
         'tier': badges[0]['title'] if badges else '',
-        'badges_text': ', '.join(b['title'] for b in badges),
+        'badges_text': ', '.join(
+            ([f'Comp badge ({comp_text})'] if comp_text else []) + [b['title'] for b in badges]
+        ),
         'codes_text': ', '.join(b['code'] for b in badges),
         'registered': format_local_display(entrant.registered_at) if entrant.registered_at else '',
         'status_label': status_label,
@@ -280,10 +302,19 @@ def _matches(row: Dict, key: str) -> bool:
     return key in row['filters']
 
 
+def _can_sync(event: CheckInEvent) -> bool:
+    return event.matcherino_venue_id is not None or bool(event.comp_roles) or event.comp_volunteers
+
+
 def _sync_line(event: CheckInEvent) -> tuple[str, str]:
     """The desk's one-line sync status, and the class to show it in."""
-    if event.matcherino_venue_id is None:
+    comps = bool(event.comp_roles) or event.comp_volunteers
+    if event.matcherino_venue_id is None and not comps:
         return 'Walk-ups only: no Matcherino venue linked.', 'text-grey-7'
+    if event.matcherino_venue_id is None:
+        if event.last_synced_at is None:
+            return 'Comps only: not synced yet.', 'text-grey-7'
+        return f'Comps only · updated at {format_local_time(event.last_synced_at)}', 'text-grey-7'
     if event.last_sync_error:
         when = format_local_time(event.updated_at) if event.updated_at else ''
         return (
@@ -354,8 +385,8 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             with ui.row().classes('w-full items-center no-wrap gap-2'):
                 title = ui.label(event.name).classes('text-h6 ellipsis col')
                 sync_btn = ui.button(icon='sync').props('flat round color=primary') \
-                    .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync with Matcherino now')
-                if event.matcherino_venue_id is None:
+                    .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')
+                if not _can_sync(event):
                     sync_btn.set_visibility(False)
             closed_notice = ui.label('This event is closed. You can still record late check-ins.') \
                 .classes('text-caption text-warning')
@@ -417,7 +448,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         sync_label.classes(replace=f'text-caption {cls}')
         title.text = current.name
         closed_notice.set_visibility(current.status == CheckInEventStatus.CLOSED)
-        sync_btn.set_visibility(current.matcherino_venue_id is not None)
+        sync_btn.set_visibility(_can_sync(current))
 
     async def reload(flash: Optional[int] = None) -> None:
         current = await service.get_event(state['event'].id)
@@ -534,8 +565,10 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         parts = [f'{result.total} with badges']
         if result.added:
             parts.append(f'{result.added} new')
+        if result.comped:
+            parts.append(f'{result.comped} comped')
         if result.withdrawn:
-            parts.append(f'{result.withdrawn} no longer hold one')
+            parts.append(f'{result.withdrawn} withdrawn')
         if result.auto_linked:
             parts.append(f'{result.auto_linked} linked')
         ui.notify('Synced: ' + ', '.join(parts) + '.', color='positive')

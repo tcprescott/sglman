@@ -255,6 +255,7 @@ class CheckInEventStatus(str, Enum):
 class CheckInEntrantSource(str, Enum):
     MATCHERINO = 'matcherino'
     WALK_UP = 'walk_up'
+    COMP = 'comp'
 
 
 class CheckInLinkMethod(str, Enum):
@@ -266,6 +267,7 @@ class CheckInLinkMethod(str, Enum):
     MATCHERINO_HANDLE = 'matcherino_handle'
     MANUAL = 'manual'
     WALK_UP = 'walk_up'
+    COMP = 'comp'
 
 
 class StationSide(str, Enum):

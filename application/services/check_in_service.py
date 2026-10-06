@@ -38,11 +38,15 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.check_in_accounts import (
+    build_lookups,
+    forget_matcherino_account,
+    remember_matcherino_account,
+)
+from application.services.check_in_comps import absorb_comp_row, apply_comps, comped_users, has_comp_rules
 from application.services.check_in_rules import (
     CheckInOutcome,
-    IdentityLookups,
     SyncResult,
-    handle_id,
     is_active_badge,
     norm_name,
     resolve_link,
@@ -67,6 +71,7 @@ from models import (
     CheckInPass,
     CheckInTier,
     FeatureFlag,
+    Role,
     User,
 )
 
@@ -132,6 +137,16 @@ class CheckInService:
             )
         return name, venue_id, sync_interval_minutes
 
+    @staticmethod
+    def _clean_comp_roles(comp_roles: Optional[Sequence[object]]) -> List[str]:
+        """Role values a community may comp, in ``Role`` order, deduplicated."""
+        wanted = {getattr(role, 'value', role) for role in comp_roles or []}
+        grantable = [role.value for role in Role.tenant_grantable()]
+        unknown = wanted - set(grantable)
+        if unknown:
+            raise ValueError(f"Those roles can't be comped: {', '.join(sorted(map(str, unknown)))}.")
+        return [value for value in grantable if value in wanted]
+
     async def _ensure_venue_free(self, venue_id: Optional[int], event_id: Optional[int] = None) -> None:
         if venue_id is None:
             return
@@ -147,22 +162,28 @@ class CheckInService:
         venue_id: Optional[int] = None,
         status: CheckInEventStatus = CheckInEventStatus.DRAFT,
         sync_interval_minutes: int = 5,
+        *,
+        comp_roles: Optional[Sequence[object]] = None,
+        comp_volunteers: bool = False,
     ) -> CheckInEvent:
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
         name, venue_id, sync_interval_minutes = self._clean_event_fields(
             name, venue_id, sync_interval_minutes,
         )
+        roles = self._clean_comp_roles(comp_roles)
         await self._ensure_venue_free(venue_id)
         try:
             event = await self.events.create(
                 name=name, matcherino_venue_id=venue_id, status=status,
                 sync_interval_minutes=sync_interval_minutes,
+                comp_roles=roles, comp_volunteers=comp_volunteers,
             )
         except IntegrityError as e:
             raise ValueError(f'Venue {venue_id} is already used by another event.') from e
         await self.audit_service.write_log(
             actor, AuditActions.CHECK_IN_EVENT_CREATED,
-            {'event_id': event.id, 'name': name, 'venue_id': venue_id, 'status': status.value},
+            {'event_id': event.id, 'name': name, 'venue_id': venue_id, 'status': status.value,
+             'comp_roles': roles, 'comp_volunteers': comp_volunteers},
         )
         return event
 
@@ -175,12 +196,18 @@ class CheckInService:
         venue_id: Optional[int],
         status: CheckInEventStatus,
         sync_interval_minutes: int,
+        *,
+        comp_roles: Optional[Sequence[object]] = None,
+        comp_volunteers: Optional[bool] = None,
     ) -> CheckInEvent:
+        """Edit an event. ``comp_roles`` / ``comp_volunteers`` left ``None`` keep their values."""
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
         event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
         name, venue_id, sync_interval_minutes = self._clean_event_fields(
             name, venue_id, sync_interval_minutes,
         )
+        roles = event.comp_roles if comp_roles is None else self._clean_comp_roles(comp_roles)
+        volunteers = event.comp_volunteers if comp_volunteers is None else comp_volunteers
         await self._ensure_venue_free(venue_id, event.id)
         if venue_id != event.matcherino_venue_id and await self.entrants.has_matcherino_rows(event):
             raise ValueError(
@@ -192,6 +219,7 @@ class CheckInService:
             for key, value in (
                 ('name', name), ('matcherino_venue_id', venue_id), ('status', status),
                 ('sync_interval_minutes', sync_interval_minutes),
+                ('comp_roles', roles), ('comp_volunteers', volunteers),
             )
             if getattr(event, key) != value
         }
@@ -257,41 +285,40 @@ class CheckInService:
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def sync_event(self, actor: User, event_id: int, *, audit: bool = True) -> SyncResult:
-        """Mirror the venue's badge sales into the roster and auto-link the buyers.
+        """Mirror the venue's badge sales and the event's comps into the roster.
 
-        ``audit=False`` is the worker's poll: it still publishes the domain
-        event, but writes no audit row every few minutes.
+        Comps are worked out first, so a comped buyer is never withdrawn for
+        having no badge; then the badge sales (when there is a venue); then the
+        comp rows (:mod:`check_in_comps`). A Matcherino failure changes nothing,
+        comps included. ``audit=False`` is the worker's poll: it still publishes
+        the domain event, but writes no audit row every few minutes.
         """
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
         async with _sync_lock(event_id):
             event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
-            if event.matcherino_venue_id is None:
-                raise ValueError("This event isn't linked to a Matcherino venue.")
-            try:
-                sales = await self.client.fetch_sales(event.matcherino_venue_id)
-                # Read after the fetch, so desk actions made while it ran are seen.
-                existing = await self.entrants.matcherino_rows_by_user_id(event)
-                stored = await self.passes.by_purchase_id(event)
-                if not sales.purchases and any(is_active_badge(p) for p in stored.values()):
-                    raise MatcherinoAPIError(
-                        'Matcherino returned no badges for a venue that had some'
-                    )
-            except MatcherinoAPIError as e:
-                # updated_at marks when it failed: the desk shows it and the
-                # worker backs off from it.
-                await self.events.record_sync(
-                    event, last_sync_error=str(e)[:1000], updated_at=datetime.now(timezone.utc),
-                )
-                check_in_live.publish(event.id, None, check_in_live.ROSTER)
+            if event.matcherino_venue_id is None and not has_comp_rules(event):
                 raise ValueError(
-                    f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}"
-                ) from e
+                    "This event has no Matcherino venue and comps nobody, so there's nothing to sync."
+                )
+            comped = await comped_users(event)
+            if event.matcherino_venue_id is not None:
+                result = await self._sync_sales(actor, event, comped)
+            else:
+                result = SyncResult()
+            now = datetime.now(timezone.utc)
             try:
-                result = await self._apply_sales(actor, event, sales, existing, stored)
+                comps = await apply_comps(self.entrants, event, comped, now)
             except IntegrityError as e:
                 raise ValueError(
                     'The roster changed while syncing. Try Sync again in a moment.'
                 ) from e
+            result.added += comps.added
+            result.withdrawn += comps.withdrawn
+            result.rejoined += comps.rejoined
+            result.comped = len(comped)
+            await self.events.record_sync(
+                event, last_synced_at=now, last_sync_error=None, last_sync_count=result.total,
+            )
 
         details = {'event_id': event.id, 'venue_id': event.matcherino_venue_id, **result.as_dict()}
         if audit:
@@ -303,6 +330,35 @@ class CheckInService:
         check_in_live.publish(event.id, None, check_in_live.ROSTER)
         return result
 
+    async def _sync_sales(self, actor: User, event: CheckInEvent, comped: Dict[int, List[str]]) -> SyncResult:
+        """Fetch the venue's sales and apply them; on a Matcherino failure, record it and raise."""
+        assert event.matcherino_venue_id is not None
+        try:
+            sales = await self.client.fetch_sales(event.matcherino_venue_id)
+            # Read after the fetch, so desk actions made while it ran are seen.
+            existing = await self.entrants.matcherino_rows_by_user_id(event)
+            stored = await self.passes.by_purchase_id(event)
+            if not sales.purchases and any(is_active_badge(p) for p in stored.values()):
+                raise MatcherinoAPIError(
+                    'Matcherino returned no badges for a venue that had some'
+                )
+        except MatcherinoAPIError as e:
+            # updated_at marks when it failed: the desk shows it and the
+            # worker backs off from it.
+            await self.events.record_sync(
+                event, last_sync_error=str(e)[:1000], updated_at=datetime.now(timezone.utc),
+            )
+            check_in_live.publish(event.id, None, check_in_live.ROSTER)
+            raise ValueError(
+                f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}"
+            ) from e
+        try:
+            return await self._apply_sales(actor, event, sales, existing, stored, comped)
+        except IntegrityError as e:
+            raise ValueError(
+                'The roster changed while syncing. Try Sync again in a moment.'
+            ) from e
+
     async def _apply_sales(
         self,
         actor: User,
@@ -310,11 +366,14 @@ class CheckInService:
         sales: VenueSales,
         existing: Dict[str, CheckInEntrant],
         stored: Dict[int, CheckInPass],
+        comped: Dict[int, List[str]],
     ) -> SyncResult:
         """One roster row per buyer, one badge row per purchase.
 
         A buyer with no unrefunded badge is withdrawn, and so is a row whose
-        buyer has dropped out of the sales altogether.
+        buyer has dropped out of the sales altogether, unless their account is
+        comped. A buyer matched to someone already on the roster as a comp
+        takes over that comp row (:func:`absorb_comp_row`).
         """
         now = datetime.now(timezone.utc)
         buyers = buyers_of(sales)
@@ -340,7 +399,7 @@ class CheckInService:
                 result.updated += 1
 
         for user_id, row in existing.items():
-            holds = user_id in holding
+            holds = user_id in holding or row.user_id in comped
             if holds and row.withdrawn_at is not None:
                 row.withdrawn_at = None  # type: ignore[assignment]
                 result.rejoined += 1
@@ -355,13 +414,22 @@ class CheckInService:
             row for row in [*created, *existing.values()]
             if row.user_id is None and row.link_method != CheckInLinkMethod.MANUAL
         ]
-        matches = await self._auto_link_matches(event, unlinked) if unlinked else []
+        comp_rows = await self.entrants.comp_rows_by_user_id(event)
+        matches = await self._auto_link_matches(event, unlinked, set(comp_rows)) if unlinked else []
         new_rows = {id(row) for row in created}
         linked: List[Tuple[CheckInEntrant, User, CheckInLinkMethod]] = []
         for row, user, method in matches:
+            comp_row = comp_rows.pop(user.id, None)
+            if comp_row is not None:
+                absorbed = absorb_comp_row(comp_row, row)
+                await self.entrants.delete(comp_row)
+                if id(row) not in new_rows and absorbed:
+                    touched[row.id] = (row, touched.get(row.id, (row, set()))[1] | set(absorbed))
             if id(row) in new_rows:
                 row.user = user
                 row.link_method = method
+                if user.id in comped:
+                    row.withdrawn_at = None  # type: ignore[assignment]
                 linked.append((row, user, method))
 
         result.added = len(created)
@@ -378,7 +446,7 @@ class CheckInService:
                 row.link_method = method
                 linked.append((row, user, method))
         for row, user, method in linked:
-            await self._remember_matcherino_account(actor, user, row, method)
+            await remember_matcherino_account(self.audit_service, actor, user, row, method)
         result.auto_linked = len(linked)
 
         tiers = await apply_tiers(self.tiers, event, sales)
@@ -386,14 +454,10 @@ class CheckInService:
         # badges look their buyer's row up again.
         rows = await self.entrants.matcherino_rows_by_user_id(event)
         await apply_badges(self.passes, event, sales.purchases, stored, tiers, rows, now)
-
-        await self.events.record_sync(
-            event, last_synced_at=now, last_sync_error=None, last_sync_count=result.total,
-        )
         return result
 
     async def _auto_link_matches(
-        self, event: CheckInEvent, rows: Sequence[CheckInEntrant],
+        self, event: CheckInEvent, rows: Sequence[CheckInEntrant], absorbable: frozenset | set = frozenset(),
     ) -> List[Tuple[CheckInEntrant, User, CheckInLinkMethod]]:
         """The account each row's identifiers name exactly, one row per account.
 
@@ -401,10 +465,11 @@ class CheckInService:
         Discord or Twitch id comes from the account they signed in to Matcherino
         with, so finding the Wizzrobe account it belongs to reveals nothing new
         to staff who can already see the sale. Fuzzy name matches are only
-        ever *suggested* (:meth:`suggest_users`), never applied.
+        ever *suggested* (:meth:`suggest_users`), never applied. Accounts in
+        ``absorbable`` (held only by a comp row) are still free to match.
         """
-        lookups = await self._build_lookups(rows)
-        taken = await self.entrants.linked_user_ids(event)
+        lookups = await build_lookups(rows)
+        taken = await self.entrants.linked_user_ids(event) - set(absorbable)
         matches: List[Tuple[CheckInEntrant, User, CheckInLinkMethod]] = []
         for row in rows:
             match = resolve_link(row, lookups)
@@ -413,87 +478,6 @@ class CheckInService:
             taken.add(match[0].id)
             matches.append((row, *match))
         return matches
-
-    async def _build_lookups(self, rows: Sequence[CheckInEntrant]) -> IdentityLookups:
-        discord_ids = {
-            int(row.auth_id) for row in rows
-            if row.auth_provider == 'discord' and (row.auth_id or '').isdigit()
-        }
-        twitch_ids = {row.auth_id for row in rows if row.auth_provider == 'twitch' and row.auth_id}
-        matcherino_ids = {row.matcherino_user_id for row in rows if row.matcherino_user_id}
-        users = await self.lookup.users_by_identifiers(
-            discord_ids=discord_ids, twitch_ids=twitch_ids, matcherino_ids=matcherino_ids,
-        )
-        lookups = IdentityLookups()
-        for user in users:
-            if user.matcherino_user_id:
-                lookups.by_matcherino_id[user.matcherino_user_id] = user
-            if user.discord_id is not None:
-                lookups.by_discord_id[str(user.discord_id)] = user
-            if user.twitch_user_id:
-                lookups.by_twitch_id[user.twitch_user_id] = user
-        if matcherino_ids - set(lookups.by_matcherino_id):
-            for user in await self.lookup.users_with_unverified_handle():
-                hid = handle_id(user.matcherino_username)
-                if hid in matcherino_ids:
-                    lookups.by_handle_id.setdefault(hid, user)
-        return lookups
-
-    async def _remember_matcherino_account(
-        self, actor: User, user: User, entrant: CheckInEntrant, method: CheckInLinkMethod,
-    ) -> None:
-        """Record the Matcherino account on the user, filling only what is empty.
-
-        Only from evidence that the account is theirs: an OAuth-verified Discord
-        or Twitch id, or a person at the desk confirming it. A match on the
-        handle the user typed is *not* promoted — that handle is self-asserted,
-        and it keeps matching on its own anyway. Never overwrites a handle the
-        player typed, never takes an id another account holds, and is audited,
-        because ``matcherino_username`` is where prize money is sent.
-        """
-        if not entrant.matcherino_user_id or method in (
-            CheckInLinkMethod.MATCHERINO_HANDLE, CheckInLinkMethod.MATCHERINO_ID,
-        ):
-            return
-        fields: Dict[str, object] = {}
-        if not user.matcherino_user_id:
-            holder = await self.lookup.user_with_matcherino_id(entrant.matcherino_user_id)
-            if holder is None:
-                fields['matcherino_user_id'] = entrant.matcherino_user_id
-        if not user.matcherino_username:
-            fields['matcherino_username'] = f'{entrant.display_name}#{entrant.matcherino_user_id}'
-        if not fields:
-            return
-        await UserRepository.update(user, **fields)
-        await self.audit_service.write_log(
-            actor, AuditActions.USER_PROFILE_UPDATED,
-            {'user_id': user.id, 'source': 'check_in', 'entrant_id': entrant.id,
-             'link_method': method.value, 'changed': fields},
-        )
-
-    async def _forget_matcherino_account(self, actor: User, user: User, entrant: CheckInEntrant) -> None:
-        """Undo what :meth:`_remember_matcherino_account` recorded for this account.
-
-        Staff unlink when a match was wrong, which means this Matcherino account
-        isn't this person's: left in place, the id would re-link them at every
-        later event and lock the real owner out. The handle is cleared only if
-        it is still exactly the one check-in filled in.
-        """
-        if not entrant.matcherino_user_id:
-            return
-        fields: Dict[str, object] = {}
-        if user.matcherino_user_id == entrant.matcherino_user_id:
-            fields['matcherino_user_id'] = None
-        if user.matcherino_username == f'{entrant.display_name}#{entrant.matcherino_user_id}':
-            fields['matcherino_username'] = None
-        if not fields:
-            return
-        await UserRepository.update(user, **fields)
-        await self.audit_service.write_log(
-            actor, AuditActions.USER_PROFILE_UPDATED,
-            {'user_id': user.id, 'source': 'check_in', 'entrant_id': entrant.id,
-             'changed': fields},
-        )
 
     # --- Roster reads ---
 
@@ -622,6 +606,13 @@ class CheckInService:
         return entrant
 
     @staticmethod
+    def _refuse_comp_row(entrant: CheckInEntrant) -> None:
+        if entrant.source == CheckInEntrantSource.COMP:
+            raise ValueError(
+                "A comp is tied to the account it was given to. Change the event's comp rules instead."
+            )
+
+    @staticmethod
     async def _linkable_user(user_id: int) -> User:
         user = require_found(await UserRepository.get_by_id(user_id), 'User')
         if user.is_system or not user.is_active:
@@ -631,11 +622,17 @@ class CheckInService:
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def link(self, actor: User, entrant_id: int, user_id: int) -> CheckInEntrant:
         entrant = await self._entrant_for_desk(actor, entrant_id)
+        self._refuse_comp_row(entrant)
         user = await self._linkable_user(user_id)
         if entrant.user_id == user.id:
             return entrant
         other = await self.entrants.get_for_user(entrant.event, user)
-        if other is not None:
+        absorbed: List[str] = []
+        if other is not None and other.source == CheckInEntrantSource.COMP:
+            # They were comped before anyone matched this purchase to them.
+            absorbed = absorb_comp_row(other, entrant)
+            await self.entrants.delete(other)
+        elif other is not None:
             raise ValueError(f'{user.preferred_name} is already on this roster as {other.display_name}.')
         if entrant.matcherino_user_id:
             holder = await self.lookup.user_with_matcherino_id(entrant.matcherino_user_id)
@@ -647,10 +644,12 @@ class CheckInService:
         entrant.link_method = CheckInLinkMethod.MANUAL
         entrant.linked_by = actor
         try:
-            await self.entrants.save(entrant, ['user_id', 'link_method', 'linked_by_id', 'updated_at'])
+            await self.entrants.save(
+                entrant, ['user_id', 'link_method', 'linked_by_id', *absorbed, 'updated_at'],
+            )
         except IntegrityError as e:
             raise ValueError(f'{user.preferred_name} was just added to this roster by someone else.') from e
-        await self._remember_matcherino_account(actor, user, entrant, CheckInLinkMethod.MANUAL)
+        await remember_matcherino_account(self.audit_service, actor, user, entrant, CheckInLinkMethod.MANUAL)
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_LINKED, self._entrant_details(entrant),
             EventType.CHECK_IN_ENTRANT_LINKED,
@@ -665,9 +664,10 @@ class CheckInService:
         The row is marked ``MANUAL`` with no user, which tells the sync not to
         auto-link it again: staff unlink precisely when a match was wrong. For
         the same reason the Matcherino id the link recorded on the account is
-        cleared (:meth:`_forget_matcherino_account`).
+        cleared (:func:`forget_matcherino_account`).
         """
         entrant = await self._entrant_for_desk(actor, entrant_id)
+        self._refuse_comp_row(entrant)
         if entrant.user_id is None:
             return entrant
         previous_user = entrant.user
@@ -677,7 +677,7 @@ class CheckInService:
         entrant.linked_by = actor
         await self.entrants.save(entrant, ['user_id', 'link_method', 'linked_by_id', 'updated_at'])
         if previous_user is not None:
-            await self._forget_matcherino_account(actor, previous_user, entrant)
+            await forget_matcherino_account(self.audit_service, actor, previous_user, entrant)
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_UNLINKED,
             {**self._entrant_details(entrant), 'user_id': previous_user_id},
@@ -741,6 +741,11 @@ class CheckInService:
         """
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
         entrant = require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry')
+        if entrant.source == CheckInEntrantSource.COMP:
+            raise ValueError(
+                "Comps come from the event's comp rules and come back on the next sync. "
+                'Change the rules to remove someone.'
+            )
         if entrant.source != CheckInEntrantSource.WALK_UP:
             raise ValueError(
                 "Matcherino badge holders come back on the next sync, so they can't be "

@@ -22,12 +22,13 @@ class SyncResult:
     auto_linked: int = 0
     total: int = 0
     badges: int = 0
+    comped: int = 0
 
     def as_dict(self) -> Dict[str, int]:
         return {
             'added': self.added, 'updated': self.updated, 'withdrawn': self.withdrawn,
             'rejoined': self.rejoined, 'auto_linked': self.auto_linked, 'total': self.total,
-            'badges': self.badges,
+            'badges': self.badges, 'comped': self.comped,
         }
 
 
@@ -78,7 +79,16 @@ def norm_name(name: Optional[str]) -> str:
 #: The desk's filter chips, in display order. ``entrant_filters`` is the one
 #: definition of which chips a row belongs to; ``summarize`` counts from it.
 #: One ``tier_filter`` chip per badge type follows these on the desk.
-ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'volunteer', 'withdrawn')
+ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'volunteer', 'comp', 'withdrawn')
+
+#: The comp reason for a volunteer who reached the comp threshold; every other
+#: reason is a ``Role`` value.
+VOLUNTEER_COMP = 'volunteer'
+
+
+def comp_label(reason: str) -> str:
+    """``'staff'`` → ``'Staff'``, ``'check_in_desk'`` → ``'Check In Desk'``."""
+    return reason.replace('_', ' ').title()
 
 
 def tier_filter(tier_id: int) -> str:
@@ -109,7 +119,8 @@ def entrant_filters(
     Someone whose badges were all refunded, and who hasn't checked in, counts
     only as withdrawn; once checked in they count as present whatever Matcherino
     says. ``badges`` (with tiers loaded) adds a chip per badge type they hold;
-    ``volunteer`` (their account has a volunteer assignment) adds ``volunteer``.
+    ``volunteer`` (their account has a volunteer assignment) adds ``volunteer``;
+    a row with ``comp_reasons`` adds ``comp``.
     """
     checked_in = entrant.checked_in_at is not None
     if entrant.withdrawn_at is not None and not checked_in:
@@ -121,6 +132,8 @@ def entrant_filters(
         filters.add('walk_up')
     if volunteer:
         filters.add('volunteer')
+    if entrant.comp_reasons:
+        filters.add('comp')
     filters.update(tier_filter(b.tier_id) for b in active_badges(badges))
     return filters
 
