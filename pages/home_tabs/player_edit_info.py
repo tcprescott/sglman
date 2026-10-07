@@ -389,9 +389,10 @@ async def render_edit_info_tab():
             with ui.card().classes('card-full-width'):
                 ui.label('Matcherino handle').classes('section-title')
                 ui.label(
-                    'Where prize money is sent. Copy it from your Matcherino '
-                    'profile, including the number after the hash. Nobody checks '
-                    'it for you, so a typo is a payout that goes nowhere.'
+                    'Where prize money is sent, and how your event ticket gets '
+                    'linked to this profile at check-in. Copy it from your '
+                    'Matcherino profile, including the number after the hash. '
+                    "It's verified before any payout goes out."
                 ).classes('text-muted text-caption')
                 matcherino_input = ui.input(
                     'Matcherino handle',
