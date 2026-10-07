@@ -310,3 +310,53 @@ def test_claim_failure_paths_are_all_safe_next_guarded(link):
 ])
 def test_safe_next_guards_cross_host_return(raw, expected):
     assert safe_next(raw) == expected
+
+
+# --- the platform-host exchange runs inside the target community -------------
+
+async def test_handoff_exchange_runs_in_the_target_tenant(link, monkeypatch):
+    # The platform host resolves no tenant, and Challonge's exchange_player_code
+    # is @requires_feature(CHALLONGE): with nothing in scope it raised
+    # FeatureDisabledError and every custom-domain Challonge link handed back
+    # r=failed. The start leg pins the tenant it resolved from the target domain.
+    from nicegui import app
+
+    from application.tenant_context import get_current_tenant_id, tenant_scope
+
+    store = {
+        'oauth_link_provider': 'demo', 'oauth_link_state': 'st8',
+        'oauth_link_host': 'foo.gg', 'oauth_link_next': '/home/profile',
+        'oauth_link_bind_commit': 'c' * 64, 'oauth_link_tenant': 7,
+    }
+    monkeypatch.setattr(type(app.storage), 'user', property(lambda self: store))
+    seen = []
+
+    async def exchange(code):
+        seen.append((code, get_current_tenant_id()))
+        return {'user_id': '42', 'name': 'someone'}
+
+    link.register_link_handoff_provider(link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: '', exchange=exchange, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
+    ))
+    went = []
+    monkeypatch.setattr(link.ui.navigate, 'to', went.append)
+
+    with tenant_scope(None):
+        handled = await link.handle_link_handoff_callback(
+            'https://main.gg/demo/oauth/callback?code=abc&state=st8',
+        )
+        assert get_current_tenant_id() is None
+
+    assert handled is True
+    assert seen == [('abc', 7)]
+    assert went and went[0].startswith('https://foo.gg/oauth/link/claim?token=')
+    assert 'oauth_link_tenant' not in store
+
+
+def test_link_start_pins_the_target_tenant(link):
+    import inspect
+    src = inspect.getsource(link.register_link_handoff_pages)
+    start = src[src.index("@ui.page('/oauth/link/start')"):src.index("@ui.page('/oauth/link/claim')")]
+    assert "app.storage.user['oauth_link_tenant'] = tenant.id" in start
