@@ -42,7 +42,7 @@ from starlette.responses import RedirectResponse
 from application.services import oauth_handoff_service as handoff_service
 from application.services.auth_service import get_user_from_discord_id
 from application.services.tenant_service import TenantService
-from application.tenant_context import get_current_tenant_id, is_host_mode
+from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
 from application.utils.environment import (
     get_base_url,
     get_platform_host,
@@ -277,6 +277,7 @@ def _pop_link_handoff_keys() -> dict:
         'host': app.storage.user.pop('oauth_link_host', None),
         'next': app.storage.user.pop('oauth_link_next', None),
         'bind_commit': app.storage.user.pop('oauth_link_bind_commit', None),
+        'tenant': app.storage.user.pop('oauth_link_tenant', None),
     }
 
 
@@ -335,8 +336,12 @@ async def handle_link_handoff_callback(url: str) -> bool:
         # Cancelled / denied / state mismatch — send the user back to their domain.
         ui.navigate.to(_link_handback_url(host, provider_key, _HANDBACK_DENIED, next_path))
         return True
+    # The platform host resolves no tenant, and each provider's exchange is
+    # feature-gated per community — so it runs under the tenant the start leg
+    # resolved from the target domain, or every gated provider hands back failed.
     try:
-        data = await provider.exchange(code)
+        with tenant_scope(keys['tenant']):
+            data = await provider.exchange(code)
     except Exception:
         logger.exception('%s link handoff exchange failed', provider.label)
         ui.navigate.to(_link_handback_url(host, provider_key, _HANDBACK_FAILED, next_path))
@@ -390,6 +395,7 @@ def register_link_handoff_pages() -> None:
         app.storage.user['oauth_link_host'] = target
         app.storage.user['oauth_link_next'] = next_path
         app.storage.user['oauth_link_bind_commit'] = bind_commit
+        app.storage.user['oauth_link_tenant'] = tenant.id
         if provider.is_mock():
             return RedirectResponse(_mock_callback_url(provider, state))
         return RedirectResponse(provider.authorize_url(state))
