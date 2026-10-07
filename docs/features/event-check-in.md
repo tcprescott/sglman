@@ -147,6 +147,29 @@ event's comp rules instead. An event with comp rules but no venue still syncs
 Matcherino failure stops the whole sync, comps included, so the roster never
 changes halfway.
 
+## Lanyards
+
+The lanyard tells the desk what to hand someone, so it's the one thing the desk
+shows loudly. Each person gets exactly one, the highest they qualify for
+(`check_in_rules.lanyard_for`):
+
+| Lanyard | Who |
+|---|---|
+| **Staff** | Comped by one of the event's comp roles |
+| **Volunteer** | Has any published volunteer assignment in the community (or a volunteer comp) |
+| **VIP** / **Base** / **Day Pass** | The best badge type they still hold, by that badge type's lanyard |
+
+So a staffer who bought a VIP badge wears Staff, and a Day Pass only shows for
+someone who holds no other badge. Walk-ups with no comp or badge get none.
+
+Each badge type (`CheckInTier.lanyard`, a `CheckInTierLanyard`: VIP, Base or
+Day Pass) has its own lanyard. The sync guesses it once when the badge type
+first appears (`check_in_sales.guess_lanyard`: "VIP" in the title → VIP, "Day"
+→ Day Pass, else Base), and staff can change it in the event dialog
+(`CheckInService.set_tier_lanyard`, audited as `check_in_tier.updated`). The
+sync never overwrites a lanyard after that. Migration 85 applied the same guess
+to badge types already synced.
+
 ### Handouts are a follow-up
 
 Tiers tell the desk *which* badge someone gets. What each tier is handed beyond
@@ -265,9 +288,9 @@ link writes back to the account.
 upserts.
 
 `application/services/check_in_rules.py` holds the pure rules the desk and the
-service share: `entrant_filters(entrant, badges)` (which filter chips a row
-belongs to, over `ROSTER_FILTERS` plus a `tier_filter(tier_id)` chip per badge
-type held), `active_badges` (unrefunded, unremoved, dearest first),
+service share: `lanyard_for` (see [Lanyards](#lanyards)), `entrant_filters(entrant)`
+(the roster states a row belongs to, over `ROSTER_FILTERS`; the desk offers only
+`DESK_FILTERS`), `active_badges` (unrefunded, unremoved, dearest first),
 `summarize(entrants) -> RosterCounts`, `handle_id`, and `resolve_link` (the
 auto-link precedence). `summarize` gives the desk's headline numbers; withdrawn
 rows count only as withdrawn.
@@ -287,6 +310,7 @@ events staff have opened. Run one tick by hand with
 | Action | Audit | Event |
 |---|---|---|
 | `check_in_event.created` / `updated` / `deleted` | yes | no (tenant-internal config) |
+| `check_in_tier.updated` (a badge type's lanyard) | yes | no (tenant-internal config) |
 | `check_in_event.synced` | manual syncs only | yes, polls included |
 | `check_in_entrant.checked_in` / `check_in_undone` | yes | yes |
 | `check_in_entrant.linked` / `unlinked` | yes | yes |
@@ -300,14 +324,21 @@ events staff have opened. Run one tick by hand with
   only one. The **Check-in** nav item appears for desk roles while an event is
   open (`BaseLayout` via `AuthService.can_view_check_in_desk`).
 - `/checkin/{event_id}` is the desk. It's phone-first: the search box, progress
-  bar, filter chips (All / Not yet / Checked in / Unlinked / Walk-ups /
-  Volunteers / Comps / Withdrawn, then one per badge type, with counts) and sync status stick under the app header. Below
+  bar, the All / Not yet / Checked in switch (the app's `.wiz-segmented`
+  control, with counts) and sync status stick under the app header. All also
+  lists people whose badge was refunded, so a search still finds them, marked
+  **Refunded**; they don't count towards the progress bar. Below
   `md` each person is a card with a full-width 48 px Check in button;
   Link/Unlink/Undo/Remove sit behind a ⋮ menu. On desktop it's a table with the
   same actions.
+- Each person shows **one lanyard** in its own colour (Staff red, Volunteer
+  purple, VIP gold, Base blue, Day Pass teal): what the volunteer hands over. A
+  buyer holding more than one badge gets a note naming the extra ones ("+ Base
+  badge"), since each needs its own lanyard.
 - Search runs in the browser (Quasar `filter-method`), so it doesn't wait on the
-  server.
-- After a check-in an Undo bar shows for eight seconds.
+  server. It matches badge codes as well as names.
+- After a check-in an Undo bar shows for eight seconds with "Hand over: VIP
+  lanyard" (plus any extra badges).
 - Staff get a floating **Add walk-up** button.
 - Export CSV downloads the whole roster, not just the filtered view.
 

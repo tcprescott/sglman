@@ -258,6 +258,19 @@ class CheckInEntrantSource(str, Enum):
     COMP = 'comp'
 
 
+class CheckInTierLanyard(str, Enum):
+    """The lanyard a Matcherino badge type earns at the check-in desk.
+
+    Staff pick one per badge type. ``Staff`` and ``Volunteer`` lanyards aren't
+    here: those come from a comp role or a volunteer assignment, and outrank
+    any badge (``check_in_rules.lanyard_for``).
+    """
+
+    VIP = 'vip'
+    BASE = 'base'
+    DAY_PASS = 'day_pass'
+
+
 class CheckInLinkMethod(str, Enum):
     """How a check-in entrant came to be linked to a Wizzrobe ``User``."""
 

@@ -182,6 +182,7 @@ class AuditActions:
     CHECK_IN_EVENT_UPDATED = 'check_in_event.updated'
     CHECK_IN_EVENT_DELETED = 'check_in_event.deleted'
     CHECK_IN_EVENT_SYNCED = 'check_in_event.synced'
+    CHECK_IN_TIER_UPDATED = 'check_in_tier.updated'
     CHECK_IN_ENTRANT_CHECKED_IN = 'check_in_entrant.checked_in'
     CHECK_IN_ENTRANT_CHECK_IN_UNDONE = 'check_in_entrant.check_in_undone'
     CHECK_IN_ENTRANT_LINKED = 'check_in_entrant.linked'

@@ -70,6 +70,7 @@ from models import (
     CheckInLinkMethod,
     CheckInPass,
     CheckInTier,
+    CheckInTierLanyard,
     FeatureFlag,
     Role,
     User,
@@ -489,6 +490,28 @@ class CheckInService:
     async def tiers_for(self, event: CheckInEvent) -> List[CheckInTier]:
         """The event's badge types, most expensive first."""
         return await self.tiers.list_for_event(event)
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def set_tier_lanyard(self, actor: User, tier_id: int, lanyard: object) -> CheckInTier:
+        """Set which lanyard a badge type's holders get. Staff only; the sync keeps it."""
+        await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
+        tier = require_found(await self.tiers.get_by_id(tier_id), 'Badge type')
+        try:
+            value = CheckInTierLanyard(getattr(lanyard, 'value', lanyard))
+        except ValueError as e:
+            raise ValueError("That isn't a lanyard a badge type can give.") from e
+        if tier.lanyard == value:
+            return tier
+        previous = tier.lanyard
+        tier.lanyard = value
+        await self.tiers.save(tier, ['lanyard', 'updated_at'])
+        await self.audit_service.write_log(
+            actor, AuditActions.CHECK_IN_TIER_UPDATED,
+            {'event_id': tier.event_id, 'tier_id': tier.id, 'title': tier.title,
+             'lanyard': {'from': previous.value, 'to': value.value}},
+        )
+        check_in_live.publish(tier.event_id, None, check_in_live.ROSTER)
+        return tier
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def volunteer_user_ids(self) -> set[int]:

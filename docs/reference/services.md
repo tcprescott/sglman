@@ -520,7 +520,8 @@ The check-in desk for in-person events whose registration runs on Matcherino. Mi
 | `list_events()` / `list_open_events()` / `get_event(event_id)` / `has_open_event()` | reads | `has_open_event` drives the nav link. |
 | `sync_event(actor, event_id, *, audit=True)` | `SyncResult` | Desk. Needs a venue or comp rules. Works out comps first (`check_in_comps.comped_users`), then upserts buyers by `matcherino_user_id`, withdraws those holding no badge and restores those who hold one again, auto-links, then upserts badge types and badges (`check_in_sales`). A failure, or an empty response while live rows exist, records `last_sync_error` and changes nothing. Publishes `check_in_event.synced` every time; audits it only when `audit=True` (the worker passes `False`). One `ROSTER` signal on `check_in_live`. |
 | `roster(event)` / `get_entrant(entrant_id)` | reads | Each entrant's `passes__tier` prefetched. |
-| `tiers_for(event)` | `list[CheckInTier]` | Badge types, dearest first, for the desk's chips. |
+| `tiers_for(event)` | `list[CheckInTier]` | Badge types, dearest first, for the event dialog's lanyard pickers. |
+| `set_tier_lanyard(actor, tier_id, lanyard)` | `CheckInTier` | Staff. Sets the lanyard a badge type's holders get (VIP / Base / Day Pass); the sync never overwrites it. Audits `check_in_tier.updated`. |
 | `volunteer_user_ids()` | `set[int]` | Users with a published (non-draft) `VolunteerAssignment` in this tenant, for the desk's **Volunteer** chip. A soft cross-subsystem read: empty, not raising, when `VOLUNTEERS` is off. |
 | `suggest_users(entrant, limit=3)` / `search_members(event, query, limit=20)` | `list[User]` | Candidates for the link and walk-up dialogs: community members not already on the roster. `suggest_users` ranks by `difflib` name similarity; it only ever suggests. |
 | `check_in(actor, entrant_id)` | `CheckInOutcome(entrant, already)` | Desk. Checking in twice is not an error; `already` says someone got there first. |

@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from models import CheckInEntrant, CheckInEntrantSource, CheckInLinkMethod, CheckInPass, User
+from models import CheckInEntrant, CheckInEntrantSource, CheckInLinkMethod, CheckInPass, CheckInTierLanyard, User
 
 
 @dataclass
@@ -76,10 +76,10 @@ def norm_name(name: Optional[str]) -> str:
     return _NAME_NOISE.sub('', (name or '').lower())
 
 
-#: The desk's filter chips, in display order. ``entrant_filters`` is the one
-#: definition of which chips a row belongs to; ``summarize`` counts from it.
-#: One ``tier_filter`` chip per badge type follows these on the desk.
-ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'volunteer', 'comp', 'withdrawn')
+#: The roster states ``entrant_filters`` sorts a row into; ``summarize`` counts
+#: from it. The desk offers only ``DESK_FILTERS`` as chips.
+ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'withdrawn')
+DESK_FILTERS = ('all', 'not_yet', 'checked_in')
 
 #: The comp reason for a volunteer who reached the comp threshold; every other
 #: reason is a ``Role`` value.
@@ -91,8 +91,14 @@ def comp_label(reason: str) -> str:
     return reason.replace('_', ' ').title()
 
 
-def tier_filter(tier_id: int) -> str:
-    return f'tier:{tier_id}'
+#: The lanyards the desk hands out, highest first. Someone who qualifies for
+#: several gets the first: a staffer who bought a VIP badge wears Staff, and a
+#: Day Pass only shows for someone holding no other badge.
+LANYARDS = ('staff', 'volunteer', CheckInTierLanyard.VIP.value, CheckInTierLanyard.BASE.value,
+            CheckInTierLanyard.DAY_PASS.value)
+LANYARD_LABELS = {
+    'staff': 'Staff', 'volunteer': 'Volunteer', 'vip': 'VIP', 'base': 'Base', 'day_pass': 'Day Pass',
+}
 
 
 def is_active_badge(badge: CheckInPass) -> bool:
@@ -111,16 +117,31 @@ def active_badges(badges: Iterable[CheckInPass]) -> List[CheckInPass]:
     )
 
 
-def entrant_filters(
+def lanyard_for(
     entrant: CheckInEntrant, badges: Iterable[CheckInPass] = (), volunteer: bool = False,
-) -> Set[str]:
-    """The filter chips a roster row appears under.
+) -> Optional[str]:
+    """The one lanyard this person gets, or None (a walk-up with no badge).
+
+    ``staff`` for anyone comped by a role (the event's comp roles), then
+    ``volunteer`` for anyone with a published volunteer assignment
+    (``volunteer``) or a volunteer comp, then the best lanyard among the
+    badge types they still hold (``badges`` with tiers loaded).
+    """
+    reasons = entrant.comp_reasons or []
+    if any(reason != VOLUNTEER_COMP for reason in reasons):
+        return 'staff'
+    if volunteer or VOLUNTEER_COMP in reasons:
+        return 'volunteer'
+    held = {badge.tier.lanyard.value for badge in badges if is_active_badge(badge)}
+    return next((lanyard for lanyard in LANYARDS if lanyard in held), None)
+
+
+def entrant_filters(entrant: CheckInEntrant) -> Set[str]:
+    """The roster states a row belongs to.
 
     Someone whose badges were all refunded, and who hasn't checked in, counts
     only as withdrawn; once checked in they count as present whatever Matcherino
-    says. ``badges`` (with tiers loaded) adds a chip per badge type they hold;
-    ``volunteer`` (their account has a volunteer assignment) adds ``volunteer``;
-    a row with ``comp_reasons`` adds ``comp``.
+    says.
     """
     checked_in = entrant.checked_in_at is not None
     if entrant.withdrawn_at is not None and not checked_in:
@@ -130,11 +151,6 @@ def entrant_filters(
         filters.add('unlinked')
     if entrant.source == CheckInEntrantSource.WALK_UP:
         filters.add('walk_up')
-    if volunteer:
-        filters.add('volunteer')
-    if entrant.comp_reasons:
-        filters.add('comp')
-    filters.update(tier_filter(b.tier_id) for b in active_badges(badges))
     return filters
 
 

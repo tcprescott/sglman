@@ -11,8 +11,8 @@ from typing import Awaitable, Callable, List, Optional
 from nicegui import ui
 
 from application.services import CheckInService, SystemConfigService
-from application.services.check_in_rules import comp_label
-from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, Role, User
+from application.services.check_in_rules import LANYARD_LABELS, comp_label
+from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, CheckInTierLanyard, Role, User
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog._helpers import dialog_actions, form_dialog, submit_on_enter
 from theme.notify import notify_error
@@ -233,6 +233,20 @@ async def open_event_dialog(
                 'Volunteer hours are published shifts in the event window.'
             ).classes('text-caption text-grey-7')
 
+            lanyard_selects: dict = {}
+            badge_types = await service.tiers_for(event) if event else []
+            if badge_types:
+                ui.label('Lanyards').classes('text-subtitle2 q-mt-sm')
+                ui.label(
+                    'Which lanyard each badge type gets. Comped staff and anyone with a volunteer '
+                    'shift get Staff or Volunteer whatever they bought.'
+                ).classes('text-caption text-grey-7')
+                options = {value.value: LANYARD_LABELS[value.value] for value in CheckInTierLanyard}
+                for tier in badge_types:
+                    lanyard_selects[tier.id] = (tier, ui.select(
+                        options, label=tier.title, value=tier.lanyard.value,
+                    ).props('outlined dense').classes('w-full'))
+
         async def submit() -> None:
             venue_id = int(venue.value) if venue.value else None
             try:
@@ -249,6 +263,9 @@ async def open_event_dialog(
                         CheckInEventStatus(status.value), int(interval.value or 5),
                         comp_roles=comp_roles.value or [], comp_volunteers=bool(comp_volunteers.value),
                     )
+                    for tier, select in lanyard_selects.values():
+                        if select.value != tier.lanyard.value:
+                            await service.set_tier_lanyard(actor, tier.id, select.value)
             except (ValueError, PermissionError) as e:
                 notify_error(e)
                 return
