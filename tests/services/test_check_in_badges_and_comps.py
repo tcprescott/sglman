@@ -24,6 +24,7 @@ from models import (
     FeatureFlag,
     Role,
     TenantFeatureFlag,
+    TenantMembership,
     UserRole,
 )
 from tests.conftest import DEFAULT_TEST_TENANT_ID
@@ -319,6 +320,20 @@ class TestComps:
         rows = [r for r in await CheckInEntrant.filter(event=event) if r.user_id == comped.id]
         assert [r.id for r in rows] == [purchase_row.id]
         assert rows[0].comp_reasons == ['staff']
+
+    async def test_the_link_dialog_offers_a_comp_but_the_walk_up_dialog_does_not(
+        self, service, client, staff, desk,
+    ):
+        comped = await _with_role(445, 'needle_volunteer', Role.STAFF)
+        await TenantMembership.create(user=comped, tenant_id=DEFAULT_TEST_TENANT_ID)
+        event = await service.create_event(staff, 'Offer', venue_id=VENUE, comp_roles=[Role.STAFF])
+        client.set([mock_purchase(100, 'Needle Volunteer')])
+        await service.sync_event(staff, event.id)
+        purchase_row = await service.get_entrant((await _rows(event))['100'].id)
+
+        assert comped.id in [u.id for u in await service.search_members(event, 'needle', for_link=True)]
+        assert comped.id in [u.id for u in await service.suggest_users(purchase_row)]
+        assert comped.id not in [u.id for u in await service.search_members(event, 'needle')]
 
     async def test_a_comp_row_cannot_be_relinked_unlinked_or_removed(self, service, staff, desk):
         event = await self._comp_event(service, staff)

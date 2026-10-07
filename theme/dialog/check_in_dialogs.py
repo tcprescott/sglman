@@ -102,7 +102,7 @@ async def open_link_dialog(
             results = ui.column().classes('w-full gap-0')
 
             async def search(e) -> None:
-                users = await service.search_members(entrant.event, e.value or '')
+                users = await service.search_members(entrant.event, e.value or '', for_link=True)
                 _member_results(
                     results, users, pick,
                     'Type at least two letters.' if len(e.value or '') < 2 else 'No members match.',
