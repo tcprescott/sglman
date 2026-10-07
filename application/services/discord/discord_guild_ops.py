@@ -25,6 +25,19 @@ from application.utils.mocks import mock_discord_data
 logger = logging.getLogger(__name__)
 
 
+def log_discord_failure(what: str, exc: Exception) -> None:
+    """Log a guild/event operation that fell through to its catch-all.
+
+    These methods report failure as a ``(False, message)`` tuple, so the
+    traceback dies here unless it is logged here. Discord refusing (missing
+    permission, rate limit, 5xx) is a warning; anything else is our bug.
+    """
+    if isinstance(exc, discord.DiscordException):
+        logger.warning('%s: %s', what, exc)
+    else:
+        logger.exception('%s', what, exc_info=exc)
+
+
 @dataclass(frozen=True)
 class GuildMember:
     """The slice of a guild member that role sync needs to provision an account.
@@ -75,6 +88,7 @@ class GuildOpsMixin:
             data = [{"id": g.id, "name": g.name} for g in guilds]
             return True, data
         except Exception as e:
+            log_discord_failure("Failed to retrieve guilds", e)
             return False, f"Failed to retrieve guilds: {e!s}"
 
     async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
@@ -117,6 +131,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while retrieving roles: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to retrieve roles", e)
             return False, f"Failed to retrieve roles: {e!s}"
 
     async def _modify_role(
@@ -164,6 +179,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while {gerund} role: {e!s}"
         except Exception as e:
+            log_discord_failure(f"Failed to {verb} role", e)
             return False, f"Failed to {verb} role: {e!s}"
 
     async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
@@ -230,6 +246,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while reading member roles: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to read member roles", e)
             return False, f"Failed to read member roles: {e!s}"
 
     async def list_members_with_roles(
@@ -276,6 +293,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while listing members: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to list members", e)
             return False, f"Failed to list members: {e!s}"
 
     async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
@@ -301,6 +319,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while reading guild: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to read guild", e)
             return False, f"Failed to read guild: {e!s}"
 
     async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
@@ -343,6 +362,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while checking permissions: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to check permissions", e)
             return False, f"Failed to check permissions: {e!s}"
 
     async def is_guild_member(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
@@ -378,6 +398,7 @@ class GuildOpsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while reading member: {e!s}"
         except Exception as e:
+            log_discord_failure("Failed to read member", e)
             return False, f"Failed to read member: {e!s}"
 
 

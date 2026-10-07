@@ -5,11 +5,12 @@ global ``SUPER_ADMIN`` role. Manages tenant CRUD (name, slug, domain, guild id,
 active). Runs tenant-agnostically — its queries pass explicit ids, so the
 per-tenant scoping never applies.
 
-The page stacks four sections; this module owns the tenants table and stacks the
+The page stacks five sections; this module owns the tenants table and stacks the
 rest from their own modules, which is what keeps it inside the file-length
 guideline: :mod:`pages.platform_bots` (racetime bots),
 :mod:`pages.platform_feature_groups` (tiers, and one tenant's overrides),
-:mod:`pages.platform_tenant_admins` (a community's first staff member) and
+:mod:`pages.platform_tenant_admins` (a community's first staff member),
+:mod:`pages.platform_logging` (runtime log levels) and
 :mod:`pages.service_health_view` (the health board, shared with the admin tab).
 """
 
@@ -31,6 +32,7 @@ from pages.platform_feature_groups import (
     open_tenant_features_dialog,
     render_feature_groups_section,
 )
+from pages.platform_logging import render_logging_section
 from pages.platform_shared import ACTIVE_ICON_SLOT
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
@@ -203,6 +205,10 @@ def create() -> None:
             ui.separator().classes('q-my-lg')
 
             await render_feature_groups_section(user)
+
+            ui.separator().classes('q-my-lg')
+
+            await render_logging_section(user)
 
             ui.separator().classes('q-my-lg')
 

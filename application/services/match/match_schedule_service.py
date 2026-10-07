@@ -415,7 +415,7 @@ class MatchScheduleService(MatchNotificationMixin):
                 # words. Telling someone minutes before a race that alttpr.com is
                 # down — rather than "check the server logs" — is the difference
                 # between waiting a minute and calling off the match.
-                logger.warning(
+                logger.error(
                     'Seed generation for match %s failed after %d attempt(s): %s',
                     match_id, e.attempts, e,
                 )

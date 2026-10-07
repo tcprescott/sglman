@@ -87,7 +87,9 @@ class SeedRollService:
                 task.settings_snapshot,
             )
         except Exception as exc:
-            logger.warning('Provider task %s failed: %s', task.id, exc)
+            logger.error(
+                'Provider task %s (%s) failed: %s', task.id, task.provider, exc, exc_info=exc,
+            )
             await self._fail(task, str(exc))
             return ProviderTaskStatus.FAILED
 
@@ -107,7 +109,7 @@ class SeedRollService:
 
         match = await self._match_for(task)
         if match is None:
-            logger.warning(
+            logger.error(
                 'Provider task %s finished with no match to give the seed to', task.id,
             )
             return

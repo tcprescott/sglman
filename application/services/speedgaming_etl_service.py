@@ -122,6 +122,7 @@ class SpeedGamingETLService:
                 link.event_slug, window_start, window_end, link.content_type
             )
         except SpeedGamingAPIError as e:
+            logger.error('SpeedGaming fetch for %s failed: %s', link.event_slug, e)
             await self.event_link_repo.update(
                 link, last_synced_at=now, last_status='error', last_error=str(e)[:1000]
             )

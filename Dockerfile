@@ -16,6 +16,11 @@ RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false 
 # Copy app code
 COPY . .
 
+# The commit this image was built from; Sentry reports it as the release so a
+# regression points at the deploy that introduced it. Set by publish.yml.
+ARG GIT_SHA=""
+ENV GIT_SHA=${GIT_SHA}
+
 # Run as an unprivileged user rather than root
 RUN useradd --create-home --uid 10001 appuser \
     && chmod +x start.sh \

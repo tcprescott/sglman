@@ -166,7 +166,9 @@ class TimezoneService:
         try:
             return (await TimezoneService.get_settings(tenant_id))['name']
         except Exception:
-            logger.warning('Falling back to %s: tenant timezone unreadable', FALLBACK_TIMEZONE)
+            logger.warning(
+                'Falling back to %s: tenant timezone unreadable', FALLBACK_TIMEZONE, exc_info=True,
+            )
             return FALLBACK_TIMEZONE
 
     @staticmethod
@@ -258,6 +260,8 @@ class TimezoneService:
         try:
             settings = await TimezoneService.get_settings(tenant_id)
         except Exception:
-            logger.warning('Falling back to %s: tenant timezone unreadable', FALLBACK_TIMEZONE)
+            logger.warning(
+                'Falling back to %s: tenant timezone unreadable', FALLBACK_TIMEZONE, exc_info=True,
+            )
             return FALLBACK_TIMEZONE
         return TimezoneService.pick(settings, user, browser_timezone)

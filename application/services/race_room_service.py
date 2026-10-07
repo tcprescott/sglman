@@ -89,7 +89,7 @@ async def start_racetime_room(bot, settings: RaceRoomSettings) -> str:
             client_secret=bot.client_secret, settings=settings,
         )
     except RacetimeAPIError as exc:
-        logger.warning('racetime startrace failed for %s: %s', bot.category, exc)
+        logger.error('racetime startrace failed for %s: %s', bot.category, exc)
         raise ValueError(f"racetime.gg didn't open the room: {exc}") from exc
 
 
@@ -142,7 +142,7 @@ class RaceRoomService:
                     opened_at=datetime.now(timezone.utc),
                 )
             except Exception:
-                logger.error(
+                logger.exception(
                     'racetime room %s was opened for match %s but not recorded; '
                     'close it on racetime.gg', slug, match.id,
                 )

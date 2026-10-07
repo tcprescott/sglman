@@ -230,9 +230,13 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         _mirror_dm_to_web_push(user_id, message, navigate=link.url if link else None)
         try:
             if self._bot is None:
+                logger.error('Discord DM to %s not sent: bot not initialized', user_id)
                 return False, "Discord bot not initialized"
 
             if not self._bot.is_ready():
+                # Every DM fails this way while the gateway is down, so this is
+                # the line that says Discord notifications have stopped.
+                logger.error('Discord DM to %s not sent: bot is not connected', user_id)
                 return False, "Discord bot is not connected. Please try again in a moment."
 
             user = await self._bot.fetch_user(user_id)
@@ -254,8 +258,12 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         except discord.Forbidden:
             return False, "Cannot send DM to this user (DMs may be disabled)"
         except discord.HTTPException as e:
+            logger.warning('Discord DM to %s failed with HTTP %s: %s', user_id, e.status, e)
             return False, f"Failed to send message: {e!s}"
         except Exception as e:
+            # Not Discord refusing the send: a bug on our side (a bad embed, an
+            # unregistered view). Callers only see the tuple, so log it here.
+            logger.exception('Discord DM to %s crashed', user_id)
             return False, f"Discord bot error: {e!s}"
 
     # The five view-bearing senders below are thin wrappers over send_dm: each

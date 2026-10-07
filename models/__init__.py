@@ -95,7 +95,7 @@ from .mcp import McpAuthorizationCode, McpOAuthClient
 from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
-from .system import RoomToken, SystemConfiguration
+from .system import LogLevelOverride, RoomToken, SystemConfiguration
 from .tenant import Tenant, TenantJoinRequest, TenantMembership
 from .tournament import (
     GeneratedSeeds,
@@ -204,6 +204,7 @@ __all__ = [
     # tournament
     'GeneratedSeeds',
     'JoinRequestStatus',
+    'LogLevelOverride',
     'Match',
     'MatchAcknowledgment',
     'MatchHardPresetOptIn',

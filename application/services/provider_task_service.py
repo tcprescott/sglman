@@ -110,7 +110,7 @@ class ProviderTaskService:
             if await self.claim(task, ProviderTaskStatus.ABANDONED):
                 await task.save(update_fields=['error'])
                 abandoned += 1
-                logger.warning(
+                logger.error(
                     'Abandoned provider task %s (%s/%s) after %s',
                     task.id, task.provider, task.operation, TASK_MAX_AGE,
                 )

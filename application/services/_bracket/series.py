@@ -380,7 +380,7 @@ class SeriesMixin(ComposedBracketService):
         if game.state != BracketMatchGameState.SCHEDULED:
             return False
         if game.match_id is None:
-            logger.warning(
+            logger.error(
                 'series game %s is unresolved but has no scheduled match; '
                 'not holding later games', game.id,
             )

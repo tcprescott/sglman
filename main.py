@@ -32,6 +32,7 @@ from application.services.match import stage_reminder
 from application.services.volunteer import volunteer_reminder
 from application.utils.easter_eggs import random_fact
 from application.utils.http_headers import header_safe
+from application.utils.log_levels import default_root_level, register_trace_level
 from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
@@ -41,8 +42,9 @@ from migrations.tortoise_config import DB_URL, TORTOISE_ORM
 # Configure application logging once, at import of the entrypoint. Without this
 # app loggers fall through to Python's lastResort handler: INFO is dropped and
 # WARNING+ has no timestamps. basicConfig is a no-op if handlers already exist.
+register_trace_level()
 logging.basicConfig(
-    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    level=default_root_level(),
     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
 )
 logger = logging.getLogger('wizzrobe.main')
@@ -119,6 +121,18 @@ async def close_discord_bot() -> None:
             logger.exception('Discord bot task errored during shutdown')
         _bot_task = None
 
+async def _apply_stored_log_levels() -> None:
+    """Reapply the log levels a super-admin set on /platform before a restart.
+
+    A diagnostic setting must never stop the app booting, so any failure here
+    is reported and boot carries on at the default levels.
+    """
+    from application.services import LogLevelService
+    try:
+        await LogLevelService().apply_persisted()
+    except Exception:
+        logger.exception('Could not apply stored log levels; continuing with defaults')
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -126,6 +140,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Initializes and tears down the database and Discord bot on application startup and shutdown.
     """
     await init_db()
+    await _apply_stored_log_levels()
     # Importing discordbot registers its interaction handlers and DM view
     # factories with discord_service's registries — the one-way wiring that
     # replaced the old bidirectional import cycle.

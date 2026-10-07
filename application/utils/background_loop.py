@@ -21,6 +21,7 @@ from typing import Awaitable, Callable, Iterable, Optional, TypeVar
 
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
+from application.utils.sentry import sentry_tags
 
 _default_logger = logging.getLogger(__name__)
 
@@ -54,10 +55,11 @@ class BackgroundLoop:
 
     async def _loop(self) -> None:
         while True:
-            try:
-                await self._tick()
-            except Exception as e:  # never let the loop die
-                self._logger.exception('%s tick failed: %s', self.name, e)
+            with sentry_tags(worker=self.name):
+                try:
+                    await self._tick()
+                except Exception as e:  # never let the loop die
+                    self._logger.exception('%s tick failed: %s', self.name, e)
             await asyncio.sleep(self._interval)
 
     def start(self) -> None:
@@ -114,13 +116,18 @@ async def for_each_tenant_scoped(
         tenant_id = tenant_id_of(item)
         if tenant_id is None:
             continue
-        try:
-            # The community's own clock, bound alongside its tenant: a worker has
-            # no viewer, so anything it renders locally (a reminder DM, an export)
-            # would otherwise fall back to the default zone and tell every
-            # community the same wrong time.
-            tz = await TimezoneService.tenant_timezone_name(tenant_id)
-            with tenant_scope(tenant_id), tz_scope(tz):
-                await handle(item)
-        except Exception:
-            log.exception('scoped work failed for %s', describe(item))
+        # The tenant is bound around the except too, so the failure is logged
+        # (and reaches Sentry) tagged with the community it happened in.
+        with tenant_scope(tenant_id), sentry_tags(work_item=describe(item)):
+            try:
+                # The community's own clock, bound alongside its tenant: a worker has
+                # no viewer, so anything it renders locally (a reminder DM, an export)
+                # would otherwise fall back to the default zone and tell every
+                # community the same wrong time.
+                tz = await TimezoneService.tenant_timezone_name(tenant_id)
+                with tz_scope(tz):
+                    await handle(item)
+            except Exception:
+                log.exception(
+                    'scoped work failed for %s (tenant %s)', describe(item), tenant_id,
+                )

@@ -28,6 +28,7 @@ from mcp.types import ToolAnnotations
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
+from application.utils.sentry import sentry_tags
 from mcpserver.auth import Gate, authorize, current_actor, resolve_tenant
 from mcpserver.errors import map_service_error
 from models import FeatureFlag
@@ -97,7 +98,8 @@ def register(
                 with tz_scope(await TimezoneService.tenant_timezone_name(tenant.id)):
                     return await fn(**kwargs)
         except Exception as exc:
-            raise map_service_error(exc) from exc
+            with sentry_tags(mcp_tool=name, tenant_slug=kwargs.get('tenant')):
+                raise map_service_error(exc, tool=name) from exc
 
     # func_metadata builds the JSON schema from inspect.signature(func,
     # eval_str=True), which follows __wrapped__ back to fn — so the schema comes

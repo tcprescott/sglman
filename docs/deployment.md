@@ -110,7 +110,7 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `STORAGE_SECRET` | **yes, always** | — | `application/utils/environment.py`, `frontend.py`, `pages/auth.py`, `application/services/oauth_handoff_service.py` | Signs the NiceGUI session holding auth state. Blank aborts startup in any environment; production also requires ≥32 characters. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `NICEGUI_REDIS_URL` | production: recommended | unset | `nicegui.storage`, `application/utils/environment.py`, `frontend.py` | Moves `app.storage.user` from a file inside the container into Redis, so a redeploy no longer signs every user out mid-event. Set by compose to `redis://redis:6379/0`. Unset → file-backed (`.nicegui/`), and a production boot logs a warning saying so. Set but unreachable → startup aborts rather than failing at the first login. |
 | `NICEGUI_REDIS_KEY_PREFIX` | no | `nicegui:` | `nicegui.storage` | Key namespace, so one Redis can serve more than one deployment. |
-| `LOG_LEVEL` | no | `INFO` | `main.py` | Root level for the application logger; separate from uvicorn's `--log-level`, which `start.sh` pins to `info`. |
+| `LOG_LEVEL` | no | `INFO` | `main.py`, `application/utils/log_levels.py` | Root level for the application logger (`TRACE` accepted); separate from uvicorn's `--log-level`, which `start.sh` pins to `info`. Per-module levels set on `/platform` → Logging override it and persist across restarts. See [observability.md](features/observability.md). |
 | `DISCORD_TOKEN` | yes, unless mock | — | `main.py`, `pages/auth.py`, `application/services/service_health_service.py` | Bot token, also used by the OAuth API client. Unset → bot skipped with a warning and Discord features dead. |
 | `DISCORD_CLIENT_ID` | yes, for real OAuth | — | `pages/auth.py` | Discord application client ID; derives `OAUTH_URL`. |
 | `DISCORD_CLIENT_SECRET` | yes, for real OAuth | — | `pages/auth.py` | OAuth authorization-code exchange. |
@@ -128,8 +128,11 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `MOCK_DK64_SECONDS` | no | `20` | `application/utils/mocks/mock_dk64.py` | Wall-clock seconds a simulated DK64 roll takes, so the waiting UI can be exercised. Only read when `MOCK_SEEDGEN` is on; the test suite pins it to `0`. |
 | `MOCK_DK64_OUTCOME` | no | `finished` | `application/utils/mocks/mock_dk64.py` | Ending the simulated DK64 task reaches: `finished`, `failed`, `http_error`, or `stuck` (never finishes, for the generation-timeout branch). |
 | `MOCK_DK64_BROKEN_STAGE` | no | unset | `application/utils/mocks/mock_dk64.py` | Fails a pre-poll DK64 call instead: `convert` or `submit`. |
-| `SENTRY_DSN` | no | `''` | `application/utils/sentry.py` | Enables Sentry error reporting; events tagged with `ENVIRONMENT` and the logged-in user. No-op when blank. |
-| `SENTRY_TRACES_SAMPLE_RATE` | no | `0` | `application/utils/sentry.py` | Fraction (`0`–`1`) of requests traced for performance. Only read when `SENTRY_DSN` is set. |
+| `SENTRY_DSN` | no | `''` | `application/utils/sentry.py` | Enables Sentry error reporting; events tagged with `ENVIRONMENT`, the release, the tenant and the logged-in user. No-op when blank. See [observability.md](features/observability.md). |
+| `SENTRY_TRACES_SAMPLE_RATE` | no | `0.1` in production, else `0` | `application/utils/sentry.py` | Fraction (`0`–`1`) of requests traced for performance. Only read when `SENTRY_DSN` is set. |
+| `SENTRY_LOGS_LEVEL` | no | `INFO` | `application/utils/sentry.py` | Minimum level shipped to Sentry Logs; `off` disables them. Access and outbound-HTTP lines are never shipped. |
+| `SENTRY_RELEASE` | no | `wizzrobe@<GIT_SHA>` | `application/utils/sentry.py` | Release name on every Sentry event. Defaults from `GIT_SHA`; unset when neither is present. |
+| `GIT_SHA` | no | baked in by `publish.yml` | `Dockerfile` | The commit the image was built from (a build arg). Feeds the Sentry release. |
 | `TELEMETRY_ENABLED` | no | `true` | `application/utils/environment.py` | Runtime kill-switch for telemetry **capture**; reads and reports are unaffected. See [telemetry.md](features/telemetry.md). |
 | `CHALLONGE_CLIENT_ID` | no | — | `application/services/challonge_service.py` | Challonge OAuth client ID. The integration counts as configured only when this and the secret are both set. |
 | `CHALLONGE_CLIENT_SECRET` | no | — | `application/services/challonge_service.py` | Used for the service-account and per-player authorization-code exchanges. |

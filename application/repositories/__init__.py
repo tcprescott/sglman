@@ -33,6 +33,7 @@ from .equipment_repository import EquipmentRepository
 from .feature_flag_group_repository import FeatureFlagGroupRepository
 from .feature_flag_repository import TenantFeatureFlagRepository
 from .feedback_repository import FeedbackRepository
+from .log_level_override_repository import LogLevelOverrideRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_hard_preset_repository import MatchHardPresetRepository
 from .match_repository import MatchRepository
@@ -99,6 +100,7 @@ __all__ = [
     'EquipmentRepository',
     'FeatureFlagGroupRepository',
     'FeedbackRepository',
+    'LogLevelOverrideRepository',
     'MatchAcknowledgmentRepository',
     'MatchHardPresetRepository',
     'MatchRepository',

@@ -55,7 +55,7 @@ async def _tick() -> None:
         try:
             result = await service.sync_event(system_user, event.id, audit=False)
         except ValueError as e:
-            logger.warning('Check-in sync for event %s failed: %s', event.id, e)
+            logger.error('Check-in sync for event %s failed: %s', event.id, e)
             return
         logger.info('Check-in sync for event %s: %s', event.id, result.as_dict())
 

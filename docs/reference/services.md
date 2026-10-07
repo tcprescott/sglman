@@ -1259,6 +1259,19 @@ The **provider-parameterized account-linking engine** behind both secondary-iden
 
 These are the **identity-link** OAuth credentials only; the race-room bots use their own per-category credentials on `RacetimeBot` rows. Collaborators: `AuditService`, the [OAuth identity clients](#oauth-identity-clients), the [mock switches](#mock-switches).
 
+### log_level_service.py — LogLevelService
+
+Runtime per-logger levels behind `/platform` → Logging ([observability.md](../features/observability.md#runtime-log-levels-platform--logging)). SUPER_ADMIN-gated, no tenant context; audit rows are platform-level (`tenant=NULL`). A change is applied to the live logging tree and stored as a `LogLevelOverride`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_rows(actor)` | `[LoggerLevelRow]` | Every known logger (`log_levels.KNOWN_LOGGERS`, root first) plus any custom overridden one, with the stored level, the effective level, and who/when. |
+| `set_level(actor, logger_name, level)` | `None` | Validate name and level, upsert, apply; audits `log_level.set` (with the previous level). |
+| `clear(actor, logger_name)` | `None` | Delete the override; the logger inherits again (root returns to `LOG_LEVEL`); audits `log_level.cleared`. No-op if none. |
+| `apply_persisted()` | `int` | Startup only (`main.py` lifespan, after `init_db`): reapply every row, skipping and logging any that no longer parses. |
+
+Collaborators: `AuditService`, `LogLevelOverrideRepository`, [`log_levels.py`](#log_levelspy).
+
 ### racetime_bot_service.py — RacetimeBotService
 
 Platform administration of the shared, **global** racetime bots (one per game category, each holding that category's OAuth credentials). All mutations are SUPER_ADMIN-gated and run on `/platform` with no tenant context, so their audit rows are platform-level (`tenant=NULL`). The `client_secret` is a privileged secret: `serialize()` omits it, `update_bot` only rewrites it when a new value is supplied (blank = unchanged), and the audit log records only that the field changed — never its value.
@@ -1823,7 +1836,24 @@ Sentry error-monitoring initialization ([sentry.py](../../application/utils/sent
 
 | Function | Returns | Description |
 |---|---|---|
-| `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment` from `get_environment()`, `send_default_pii=False`, an optional `SENTRY_TRACES_SAMPLE_RATE`, and a `before_send` hook that drops the NiceGUI timer-teardown race (see [timer_teardown.py](#timer_teardownpy)) and scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies from every other outgoing event. |
+| `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment`, `release` (`SENTRY_RELEASE` / `GIT_SHA`), `send_default_pii=False`, `SENTRY_TRACES_SAMPLE_RATE` (default `0.1` in production), Sentry Logs at `SENTRY_LOGS_LEVEL` (INFO), and a `before_send` hook that drops the NiceGUI timer-teardown race (see [timer_teardown.py](#timer_teardownpy)), tags the tenant in scope, fills in the session user for websocket handlers, and scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies. |
+| `sentry_tags(**tags)` | context manager | Fork the scope and tag every event/log inside the block; `None` values skipped. Used by workers, queues, Discord and racetime handlers, MCP tools. |
+| `tag_current_scope(**tags)` | `None` | Add a tag learned mid-block to the scope already in effect. |
+
+Full picture: [observability.md](../features/observability.md).
+
+### log_levels.py
+
+Pure helpers for runtime logger levels ([log_levels.py](../../application/utils/log_levels.py)).
+
+| Name | Description |
+|---|---|
+| `TRACE` / `register_trace_level()` | Level 5, named at startup so records and `LOG_LEVEL=TRACE` work. |
+| `LEVELS` | `TRACE` … `CRITICAL`, the picker's options. |
+| `KNOWN_LOGGERS` | The loggers offered by name on `/platform`, each with what it covers. |
+| `level_number(level)` / `normalize_logger_name(name)` | Validate (raise `ValueError`); `'root'`/`''` is the root logger. |
+| `apply_level(name, level)` | Set on the live tree; `None` restores inheritance (root → `default_root_level()`). |
+| `effective_level_name(name)` | The level a logger actually runs at. |
 
 ### timer_teardown.py
 

@@ -22,6 +22,7 @@ from typing import Awaitable, Callable, Optional, Tuple, Union
 import discord
 from discord.ext import commands
 
+from application.services.discord.discord_guild_ops import log_discord_failure
 from application.utils.mocks import mock_discord_data
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class ScheduledEventsMixin:
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while {gerund} event: {e!s}"
         except Exception as e:
+            log_discord_failure(f"Failed to {verb} event", e)
             return False, f"Failed to {verb} event: {e!s}"
 
     async def create_scheduled_event(

@@ -298,6 +298,7 @@ class WebhookService:
             try:
                 await self._ensure_public_host(urlparse(webhook.url).hostname or '')
             except ValueError as exc:
+                logger.warning('Webhook %s delivery blocked by SSRF check: %s', webhook.id, exc)
                 await self.delivery_repository.create(
                     webhook=webhook,
                     event_type=event.event_type,
@@ -326,6 +327,13 @@ class WebhookService:
                     error = str(exc)
                 if attempt < self.MAX_ATTEMPTS - 1:
                     await asyncio.sleep(self.RETRY_BACKOFF_BASE ** attempt)
+        if not success:
+            # A community's own endpoint: a warning for the log trail, not a
+            # Sentry event — the delivery row is what staff act on.
+            logger.warning(
+                'Webhook %s gave up on %s after %d attempt(s): %s',
+                webhook.id, event.event_type, attempts, error,
+            )
         await self.delivery_repository.create(
             webhook=webhook,
             event_type=event.event_type,

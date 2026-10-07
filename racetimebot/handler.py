@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 
 from application.tenant_context import tenant_scope
+from application.utils.sentry import sentry_tags
 from models import RacetimeRoom
 from racetimebot.transport import RaceRoomEvent
 
@@ -54,6 +55,11 @@ class RaceHandler:
         self.lifecycle = lifecycle
 
     async def on_event(self, event: RaceRoomEvent) -> None:
+        with sentry_tags(racetime_room=event.slug, racetime_category=self.category):
+            await self._on_event(event)
+
+    async def _on_event(self, event: RaceRoomEvent) -> None:
+        tenant_id = None
         try:
             room = await self.room_service.get_by_slug(event.slug)
             if room is None:
@@ -62,11 +68,14 @@ class RaceHandler:
                     event.slug, self.category,
                 )
                 return
-            with tenant_scope(room.tenant_id):
+            tenant_id = room.tenant_id
+            with tenant_scope(tenant_id):
                 await self.lifecycle.handle_event(room, event)
         except Exception:
             # A crashing handler must never take down the bot or its siblings.
-            logger.exception(
-                'racetime handler failed for room %r (category %s)',
-                event.slug, self.category,
-            )
+            # Re-bound so the failure is tagged with the room's community.
+            with tenant_scope(tenant_id):
+                logger.exception(
+                    'racetime handler failed for room %r (category %s, tenant %s)',
+                    event.slug, self.category, tenant_id,
+                )

@@ -51,7 +51,7 @@ async def notify_run_reviewed(
             link=_qualifier_link(run, 'View the leaderboard'),
         )
     except Exception:
-        logger.debug("Failed to DM run-reviewed notification", exc_info=True)
+        logger.warning("Failed to DM run-reviewed notification", exc_info=True)
 
 
 async def notify_reattempt_granted(run: AsyncQualifierRun, reason: str) -> None:
@@ -71,7 +71,7 @@ async def notify_reattempt_granted(run: AsyncQualifierRun, reason: str) -> None:
             link=_qualifier_link(run, 'Start your next run'),
         )
     except Exception:
-        logger.debug("Failed to DM reattempt-granted notification", exc_info=True)
+        logger.warning("Failed to DM reattempt-granted notification", exc_info=True)
 
 
 async def notify_run_expiring(run: AsyncQualifierRun, deadline: datetime) -> None:
@@ -94,7 +94,7 @@ async def notify_run_expiring(run: AsyncQualifierRun, deadline: datetime) -> Non
             link=_qualifier_link(run, 'Submit or forfeit'),
         )
     except Exception:
-        logger.debug("Failed to DM run-expiring notification", exc_info=True)
+        logger.warning("Failed to DM run-expiring notification", exc_info=True)
 
 
 async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
@@ -113,7 +113,7 @@ async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
             link=_qualifier_link(run, 'View the leaderboard'),
         )
     except Exception:
-        logger.debug("Failed to DM run-expired notification", exc_info=True)
+        logger.warning("Failed to DM run-expired notification", exc_info=True)
 
 
 def _qualifier_url(run: AsyncQualifierRun) -> str:
@@ -155,7 +155,7 @@ async def notify_review_queue_waiting(
             await service.send_dm(int(reviewer.discord_id), message, link=link)
             sent += 1
         except Exception:
-            logger.debug("Failed to DM review-queue notification", exc_info=True)
+            logger.warning("Failed to DM review-queue notification", exc_info=True)
     return sent
 
 

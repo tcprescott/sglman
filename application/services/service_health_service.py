@@ -413,7 +413,13 @@ class ServiceHealthService:
         try:
             import sentry_sdk
             level = 'error' if result.status == ServiceStatus.DOWN else 'warning'
-            sentry_sdk.capture_message(summary, level=level)
+            # The message carries the probe's own words, which vary run to run;
+            # fingerprint on probe + status so one outage is one Sentry issue.
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag('health_probe', result.key)
+                scope.set_tag('health_status', result.status.value)
+                scope.fingerprint = ['service-health', result.key, result.status.value]
+                sentry_sdk.capture_message(summary, level=level)
         except Exception:
             logger.exception('Sentry capture failed for health alert %s', result.key)
 

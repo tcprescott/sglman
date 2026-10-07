@@ -203,6 +203,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.RACE_ROOM_PROFILE_CREATED,
     AuditActions.RACE_ROOM_PROFILE_UPDATED,
     AuditActions.RACE_ROOM_PROFILE_DELETED,
+    # Runtime log levels: platform-level (tenant=NULL) diagnostics, so a
+    # tenant-scoped webhook would reach nobody.
+    AuditActions.LOG_LEVEL_SET,
+    AuditActions.LOG_LEVEL_CLEARED,
     # Racetime bot runtime health: platform-level (tenant=NULL) connection-state
     # transitions written by the connection loop. A webhook is tenant-scoped, so
     # a platform-level health event would reach zero subscribers — kept audit-only.

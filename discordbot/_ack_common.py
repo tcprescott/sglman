@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable, Optional
 import discord
 
 from application.utils.discord_messages import MSG_NO_ACCOUNT
+from application.utils.sentry import sentry_tags, tag_current_scope
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +68,6 @@ async def run_dm_interaction(
       5. Run ``handle`` with a ``send`` helper; ``ValueError`` replies with its text,
          any other exception is logged and replies with ``unexpected_error_message``.
     """
-    from application.services import UserService
-    from application.tenant_context import tenant_scope
-
     async def send(message: str) -> None:
         await send_ephemeral(interaction, message, log_label=log_label)
 
@@ -79,6 +77,32 @@ async def run_dm_interaction(
         logger.exception("Failed to defer Discord %s interaction", log_label)
 
     custom_id = (interaction.data or {}).get('custom_id', '')
+    with sentry_tags(
+        discord_interaction=log_label, discord_custom_id=custom_id,
+        discord_user_id=getattr(interaction.user, 'id', None),
+    ):
+        await _run_parsed(
+            interaction, custom_id, send=send, log_label=log_label, parse=parse,
+            resolve_tenant=resolve_tenant, not_found_message=not_found_message,
+            handle=handle, unexpected_error_message=unexpected_error_message,
+        )
+
+
+async def _run_parsed(
+    interaction: discord.Interaction,
+    custom_id: str,
+    *,
+    send: SendFn,
+    log_label: str,
+    parse: Callable[[str], Any],
+    resolve_tenant: Callable[[Any], Awaitable[Optional[int]]],
+    not_found_message: str,
+    handle: Callable[[discord.Interaction, Any, Any, SendFn], Awaitable[None]],
+    unexpected_error_message: str,
+) -> None:
+    from application.services import UserService
+    from application.tenant_context import tenant_scope
+
     try:
         parsed = parse(custom_id)
     except DMInteractionError as e:
@@ -92,6 +116,7 @@ async def run_dm_interaction(
         if tenant_id is None:
             await send(not_found_message)
             return
+        tag_current_scope(tenant_id=tenant_id)
 
         with tenant_scope(tenant_id):
             user = await UserService().get_user_by_discord_id(str(interaction.user.id))
@@ -103,5 +128,8 @@ async def run_dm_interaction(
     except ValueError as e:
         await send(str(e))
     except Exception:
-        logger.exception("Discord %s handler failed", log_label)
+        logger.exception(
+            "Discord %s handler failed (custom_id=%s, discord user %s)",
+            log_label, custom_id, getattr(interaction.user, 'id', None),
+        )
         await send(unexpected_error_message)
