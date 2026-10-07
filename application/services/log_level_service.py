@@ -63,7 +63,7 @@ class LogLevelService:
         return rows
 
     async def set_level(self, actor: Optional[User], logger_name: str, level: str) -> None:
-        await AuthService.ensure_super_admin(actor)
+        actor = await self._require_super_admin(actor)
         name = normalize_logger_name(logger_name)
         level = (level or '').strip().upper()
         level_number(level)
@@ -79,7 +79,7 @@ class LogLevelService:
 
     async def clear(self, actor: Optional[User], logger_name: str) -> None:
         """Drop the override; the logger goes back to inheriting its parent."""
-        await AuthService.ensure_super_admin(actor)
+        actor = await self._require_super_admin(actor)
         name = normalize_logger_name(logger_name)
         existing = await self.repository.get_by_name(name)
         if existing is None:
@@ -112,6 +112,13 @@ class LogLevelService:
         if applied:
             logger.warning('Applied %d stored log-level override(s)', applied)
         return applied
+
+    @staticmethod
+    async def _require_super_admin(actor: Optional[User]) -> User:
+        await AuthService.ensure_super_admin(actor)
+        if actor is None:
+            raise PermissionError('Super-admin privileges required')
+        return actor
 
     @staticmethod
     def _row(name: str, description: str, override) -> LoggerLevelRow:

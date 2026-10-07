@@ -34,10 +34,8 @@ async def render_logging_section(user) -> None:
     """Build the logger table, wire its row actions, and load it."""
     with ui.row().classes('w-full items-center justify-between'):
         ui.label('Logging').classes('section-title')
-        ui.button(
-            'Other logger', icon='add',
-            on_click=lambda: _open_level_dialog(user, table, None),
-        ).props('color=primary')
+        # Filled once the table exists; the header is drawn first.
+        header_row = ui.row().classes('items-center')
     ui.label(
         'Set how much each part of the app writes to the container log. Changes '
         'apply immediately and survive restarts until you reset them. Sentry '
@@ -62,6 +60,12 @@ async def render_logging_section(user) -> None:
         field_slots={'override': _LEVEL_CHIP},
         wrap=True,
     )
+
+    with header_row:
+        ui.button(
+            'Other logger', icon='add',
+            on_click=lambda: _open_level_dialog(user, table, None),
+        ).props('color=primary')
 
     async def _on_set(e) -> None:
         _open_level_dialog(user, table, e.args)

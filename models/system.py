@@ -64,7 +64,7 @@ class LogLevelOverride(Model):
     logger_name = fields.CharField(max_length=255, unique=True)
     level = fields.CharField(max_length=16)
     # SET_NULL: the override outlives whoever set it; the audit row keeps who.
-    updated_by = fields.ForeignKeyField(
+    updated_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.User', related_name='log_level_overrides',
         null=True, on_delete=fields.SET_NULL,
     )

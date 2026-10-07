@@ -66,7 +66,7 @@ def _scrub_event(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Dict[
     return event
 
 
-def _session_user() -> Optional[Dict[str, str]]:
+def _session_user() -> Optional[Dict[str, Any]]:
     """The signed-in user from the NiceGUI session, or None outside one.
 
     ``AuthMiddleware`` sets the Sentry user on the HTTP request's scope, but a
@@ -175,10 +175,10 @@ def init_sentry() -> None:
         environment=get_environment(),
         release=_release(),
         send_default_pii=False,
-        before_send=_before_send,
+        before_send=_before_send,  # type: ignore[arg-type]
         traces_sample_rate=_traces_sample_rate(),
         enable_logs=logs_level is not None,
-        before_send_log=_before_send_log,
+        before_send_log=_before_send_log,  # type: ignore[arg-type]
         integrations=[
             LoggingIntegration(
                 level=logging.INFO,
