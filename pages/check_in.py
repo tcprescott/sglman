@@ -46,6 +46,7 @@ from models import (
     CheckInEntrantSource,
     CheckInEvent,
     CheckInEventStatus,
+    CheckInLinkMethod,
     FeatureFlag,
     Role,
 )
@@ -288,6 +289,12 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'walk_up': walk_up,
         'volunteer_text': 'Yes' if volunteer else '',
         'unlinked': user is None,
+        # A buyer with no account gets asked for one at check-in. Named walk-ups
+        # and rows staff unlinked on purpose were left unlinked deliberately.
+        'prompt_link': (
+            user is None and entrant.source == CheckInEntrantSource.MATCHERINO
+            and entrant.link_method != CheckInLinkMethod.MANUAL
+        ),
         'can_remove': walk_up and can_manage,
         'search': search,
         # Everyone is under All, withdrawn rows too, so a search still finds
@@ -504,13 +511,14 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         await reload()
         return True
 
-    async def handle_checkin(row) -> None:
+    async def check_in_entrant(entrant_id: int) -> None:
         try:
-            outcome = await service.check_in(user, row['id'])
+            outcome = await service.check_in(user, entrant_id)
         except (ValueError, PermissionError) as e:
             notify_error(e)
             return
         entrant = outcome.entrant
+        await reload()
         if outcome.already:
             by = entrant.checked_in_by.preferred_name if entrant.checked_in_by else 'someone'
             ui.notify(
@@ -518,9 +526,26 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 f'{format_local_time(entrant.checked_in_at)}.',
                 color='info',
             )
-        else:
-            show_undo(entrant.id, entrant.display_name, row.get('lanyard_label', ''), row.get('extra_badges', ''))
-        await reload()
+            return
+        # Read the lanyard after the reload: linking just before can change it.
+        row = next((r for r in state['rows'] if r['id'] == entrant.id), {})
+        show_undo(entrant.id, entrant.display_name, row.get('lanyard_label', ''), row.get('extra_badges', ''))
+
+    async def handle_checkin(row) -> None:
+        if row.get('prompt_link'):
+            entrant = await service.get_entrant(row['id'])
+            if entrant is None:
+                ui.notify('That person is no longer on the roster.', color='warning')
+                await reload()
+                return
+            # Another desk may have linked or checked them in since this row was drawn.
+            if entrant.user_id is None and entrant.checked_in_at is None:
+                await open_link_dialog(
+                    service, user, entrant, on_done=reload,
+                    then_check_in=lambda: check_in_entrant(entrant.id),
+                )
+                return
+        await check_in_entrant(row['id'])
 
     async def handle_link(row) -> None:
         entrant = await service.get_entrant(row['id'])

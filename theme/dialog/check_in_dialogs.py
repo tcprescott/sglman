@@ -56,11 +56,18 @@ def _member_results(container: ui.column, users: List[User], on_pick: Callable[[
 
 async def open_link_dialog(
     service: CheckInService, actor: User, entrant: CheckInEntrant, on_done: OnDone,
+    then_check_in: Optional[OnDone] = None,
 ) -> None:
-    """Pick the Wizzrobe account a registrant belongs to."""
-    suggestions = await service.suggest_users(entrant)
+    """Pick the Wizzrobe account a registrant belongs to.
 
-    with form_dialog(f'Link {entrant.display_name}') as dialog:
+    With ``then_check_in`` this is the desk's check-in prompt for an unlinked
+    buyer: linking (or skipping) runs ``then_check_in`` in place of ``on_done``,
+    and Cancel records nothing.
+    """
+    suggestions = await service.suggest_users(entrant)
+    title = f'Check in {entrant.display_name}' if then_check_in else f'Link {entrant.display_name}'
+
+    with form_dialog(title) as dialog:
         async def pick(user: User) -> None:
             try:
                 await service.link(actor, entrant.id, user.id)
@@ -69,9 +76,19 @@ async def open_link_dialog(
                 return
             dialog.close()
             ui.notify(f'Linked to {user.preferred_name}.', color='positive')
-            await on_done()
+            await (then_check_in or on_done)()
+
+        async def skip() -> None:
+            dialog.close()
+            if then_check_in:
+                await then_check_in()
 
         with ui.column().classes('q-pa-md gap-3 full-width'):
+            if then_check_in:
+                ui.label(
+                    "Their badge isn't linked to a Wizzrobe account yet. Ask them for their "
+                    "Discord or Twitch name and pick their account, or skip if they don't have one."
+                ).classes('text-body2')
             if entrant.matcherino_user_id:
                 ui.label(
                     f'Matcherino: {entrant.display_name} · signed in with '
@@ -98,6 +115,9 @@ async def open_link_dialog(
             box.on_value_change(search)
         with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
+            if then_check_in:
+                ui.button('Skip, just check in', icon='how_to_reg', on_click=skip) \
+                    .props('color=primary no-caps').classes(REQUIRES_SOCKET_CLASS)
     dialog.open()
 
 

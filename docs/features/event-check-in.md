@@ -337,6 +337,11 @@ events staff have opened. Run one tick by hand with
   badge"), since each needs its own lanyard.
 - Search runs in the browser (Quasar `filter-method`), so it doesn't wait on the
   server. It matches badge codes as well as names.
+- Tapping Check in on a Matcherino buyer with no linked account opens the link
+  dialog first, titled "Check in <name>": pick their account (link, then check
+  in) or **Skip, just check in**. Cancel records nothing. Named walk-ups and
+  rows staff unlinked on purpose (`link_method = MANUAL`) skip the prompt, and
+  so does a row another desk linked or checked in since the card was drawn.
 - After a check-in an Undo bar shows for eight seconds with "Hand over: VIP
   lanyard" (plus any extra badges).
 - Staff get a floating **Add walk-up** button.
