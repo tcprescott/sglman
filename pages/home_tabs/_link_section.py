@@ -18,6 +18,7 @@ from application.utils.environment import host_oauth_handoff_enabled
 from application.utils.timezone import format_local_date
 from models import User
 from pages._oauth_link import platform_link_redirect
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 __all__ = ['LinkSectionConfig', 'render_connected_accounts_section']
@@ -48,6 +49,10 @@ class LinkSectionConfig:
     # a confirmation dialog. None means the unlink is cheap and reversible and
     # goes through on one click, which is the right answer for most of them.
     unlink_confirmation: Optional[str] = None
+    # For a provider whose OAuth consent page breaks when the reader is signed
+    # out there: its sign-in page. Link then opens a dialog asking them to sign
+    # in first instead of sending them straight to the provider.
+    sign_in_first_url: Optional[str] = None
 
 
 def _render_provider_row(
@@ -99,10 +104,15 @@ def _render_provider_row(
                     .classes('text-caption') \
                     .tooltip(f'Open your profile on the main site to link {config.title}.')
             else:
-                ui.button('Link', icon='link',
-                          on_click=lambda: ui.navigate.to(config.link_route)) \
+                ui.button('Link', icon='link', on_click=start_link) \
                     .props(f'flat dense color=primary aria-label="{config.link_button_label}"') \
                     .tooltip(config.link_button_label)
+
+    def start_link() -> None:
+        if config.sign_in_first_url:
+            open_sign_in_first_dialog(config)
+        else:
+            ui.navigate.to(config.link_route)
 
     async def unlink() -> None:
         # In place: the row re-renders under the same document, so ui.notify is
@@ -131,6 +141,28 @@ def _render_provider_row(
         dialog.open()
 
     row()
+
+
+def open_sign_in_first_dialog(config: LinkSectionConfig) -> None:
+    """Ask the reader to sign in to the provider before starting its OAuth."""
+    def go() -> None:
+        dialog.close()
+        ui.navigate.to(config.link_route)
+
+    with form_dialog(f'Sign in to {config.title} first') as dialog:
+        with ui.column().classes('q-pa-md gap-2'):
+            ui.label(
+                f"If you aren't signed in to {config.title} already, it shows an "
+                f'"authentication required" error instead of a sign-in page.'
+            )
+            ui.label(
+                f'Open {config.title}, sign in, then come back here and continue.'
+            )
+            ui.link(f'Open {config.title} sign-in', config.sign_in_first_url, new_tab=True)
+        with dialog_actions().classes('justify-end'):
+            ui.button('Cancel', on_click=dialog.close).props('flat')
+            ui.button("I'm signed in, continue", on_click=go).props('color=primary')
+    dialog.open()
 
 
 async def render_connected_accounts_section(

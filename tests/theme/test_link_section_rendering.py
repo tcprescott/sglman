@@ -16,9 +16,13 @@ import dataclasses
 from types import SimpleNamespace
 
 import pytest
-from nicegui import ui
+from nicegui import context, ui
 
-from pages.home_tabs._link_section import LinkSectionConfig, _render_provider_row
+from pages.home_tabs._link_section import (
+    LinkSectionConfig,
+    _render_provider_row,
+    open_sign_in_first_dialog,
+)
 from tests.factories import utc
 
 
@@ -57,6 +61,10 @@ def render(user, config, main_site_url=None) -> str:
     """Render one row and return its visible text plus its controls' labels."""
     with ui.card() as card:
         _render_provider_row(user, config, main_site_url)
+    return collect_text(card)
+
+
+def collect_text(card) -> str:
     parts = []
 
     def walk(element):
@@ -95,6 +103,8 @@ def test_every_link_section_config_field_is_rendered():
     behavioural = {
         'icon', 'link_route', 'user_id_attr', 'username_attr', 'linked_at_attr',
         'service_factory', 'unlinked_message', 'unlink_confirmation',
+        # Read by the Link button's handler; covered by the sign-in-first tests.
+        'sign_in_first_url',
     }
     config = make_config()
     unlinked = render(link_holder(), config)
@@ -194,3 +204,21 @@ def test_a_linked_row_on_a_custom_domain_can_still_unlink(custom_domain):
     # Unlinking is a local write with no OAuth round trip, so the dead-end branch
     # must not swallow it.
     assert 'Unlink Provider X account' in render(link_holder('x1', 'XName'), make_config())
+
+
+# --- sign in to the provider first -------------------------------------------
+
+def test_the_sign_in_first_dialog_links_to_the_providers_sign_in_page():
+    # Challonge answers a signed-out reader with a bare 401 JSON page rather than
+    # a login form, so the dialog has to send them to sign in before the OAuth.
+    config = make_config(sign_in_first_url='https://x.example/login')
+    open_sign_in_first_dialog(config)
+    text = collect_text(context.client.layout)
+    assert 'Sign in to Provider X first' in text
+    assert 'https://x.example/login' in text
+    assert "I'm signed in, continue" in text
+
+
+def test_challonge_asks_players_to_sign_in_to_challonge_first():
+    from pages.home_tabs.challonge_link_section import CONFIG
+    assert CONFIG.sign_in_first_url == 'https://challonge.com/user_session/new'
