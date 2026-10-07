@@ -58,6 +58,7 @@ from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
 from .help_service import HelpService
 from .identity_link_service import IdentityLinkProvider, IdentityLinkService
+from .log_level_service import LoggerLevelRow, LogLevelService
 from .match import (
     CancellationMixin,
     HardPresetState,
@@ -154,6 +155,8 @@ __all__ = [
     'HoursSummary',
     'IdentityLinkProvider',
     'IdentityLinkService',
+    'LogLevelService',
+    'LoggerLevelRow',
     'MatchDisplayService',
     'MatchHardPresetService',
     'MatchParticipants',

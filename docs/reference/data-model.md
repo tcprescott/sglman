@@ -2,7 +2,7 @@
 
 *Reference for the [`models/`](../../models/) package (every model and enum), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer above these repositories is documented in [services.md](services.md).*
 
-> **Package layout.** Models live in per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `bracket`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`, `feature_flag`, `mcp`, `preferences`), with the shared enums in `models/enums.py` and the column-fit validators in `models/column_guards.py`. The package defines 72 models. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.
+> **Package layout.** Models live in per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `bracket`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`, `feature_flag`, `mcp`, `preferences`), with the shared enums in `models/enums.py` and the column-fit validators in `models/column_guards.py`. The package defines 79 models. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.
 
 ## Overview
 
@@ -1010,6 +1010,17 @@ Named stream stage ("Stage 1", "Stage 2", …) that matches can be assigned to.
 
 Constraint: `unique_together (('tenant', 'name'),)`. Relationship: reverse accessor `matches`.
 
+#### `LogLevelOverride`
+
+**Global** (no `tenant` FK). One stored level for a stdlib logger, set by a super-admin on `/platform` → Logging and reapplied at startup by `LogLevelService.apply_persisted`. See [observability.md](../features/observability.md#runtime-log-levels-platform--logging).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `logger_name` | `CharField(255)` | not null, **unique** | Dotted `logging.getLogger` name; `''` is the root logger |
+| `level` | `CharField(16)` | not null | One of `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `updated_by` | FK → `User` | null, `SET_NULL` | Who last set it; the audit row keeps the history |
+| `created_at` / `updated_at` | `DatetimeField` | auto | |
+
 #### `SystemConfiguration`
 
 Key-value application settings. Accessed directly by `SystemConfigService` (typed get/set; no repository) — see [services.md](services.md).
@@ -1890,6 +1901,7 @@ Consult the source for full signatures.
 | `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` |
 | `RandomizerCredentialRepository` | [`randomizer_credential_repository.py`](../../application/repositories/randomizer_credential_repository.py) | `RandomizerCredential` | `list_all`, `get_by_natural_key`, `upsert`, `delete_by_natural_key`, `configured_pairs` |
 | `AsyncQualifierRepository`, `AsyncQualifierPoolRepository`, `AsyncQualifierPermalinkRepository`, `AsyncQualifierRunRepository`, `AsyncQualifierLiveRaceRepository`, `AsyncQualifierReviewNoteRepository` (one module) | [`async_qualifier_repository.py`](../../application/repositories/async_qualifier_repository.py) | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | Qualifier/pool/permalink/run CRUD + `list_active`, `get_with_permalinks`, `list_for_pool`, `list_for_user`; **unscoped** worker scans `list_active_all`, `list_in_progress_all`, `list_stale_claims_all`; draw support `lock_user_for_draw` (SELECT … FOR UPDATE), `get_active_for_user`, `played_permalink_ids_for_user_in_pool`, `valid_run_counts_by_permalink_for_pool` (a `GROUP BY`), `count_valid_runs_for_user_in_pool`; the availability read's batched pair `played_permalink_ids_for_user_by_pool` / `valid_run_counts_for_user_by_pool` (keyed by pool, one query each whatever the pool count) and `count_self_spent_reattempts`; scoring/review `list_scored_for_leaderboard` (the board's projected read — scoring finishers *and* spent-but-unscoreable slots), `list_valid_for_qualifier`, `list_approved_finished_for_permalink`, `list_pending_review`, `pending_review_backlog`, `settle_review`, `outcome_tally_for_users`, `list_for_qualifier(limit=, offset=)` + `count_for_qualifier` (the API's paged runs read); live races `get_by_racetime_slug`, `list_for_live_race`; review notes `list_for_run`, `create` |
+| `LogLevelOverrideRepository` | [`log_level_override_repository.py`](../../application/repositories/log_level_override_repository.py) | `LogLevelOverride` | **Global — never tenant-scoped.** `list_all` (prefetches `updated_by`), `get_by_name`, `upsert(logger_name, level, updated_by)`, `delete` |
 | `RacetimeBotRepository` | [`racetime_bot_repository.py`](../../application/repositories/racetime_bot_repository.py) | `RacetimeBot`, `RacetimeBotTenant` | **Global — never tenant-scoped** (bots managed on `/platform` with explicit ids). bots `list_all`, `list_active`, `get_by_id`, `get_by_category`, `create`, `update`, `delete`; SUPER_ADMIN authorization grants `get_grant`, `list_grants_for_bot`, `create_grant`, `set_grant_active`, `delete_grant`, `list_active_for_tenant(tenant_id)` (explicit id, no ambient scope) |
 | `RacetimeRoomRepository` | [`racetime_room_repository.py`](../../application/repositories/racetime_room_repository.py) | `RacetimeRoom` | Scoped `get_by_id`, `get_by_match`, `for_matches`, `list_all`, `create`, `update`; **unscoped routing** `get_by_slug` (inbound racetime events carry only the slug → resolve slug→room→tenant with no ambient scope, like the API-token-hash lookup); worker scans `list_open_all`, `matches_due_for_auto_open(window_start, window_end)` |
 | `RaceRoomProfileRepository` | [`race_room_profile_repository.py`](../../application/repositories/race_room_profile_repository.py) | `RaceRoomProfile` | `list_all`, `get_by_id`, `get_by_name`, `create`, `update`, `delete` |

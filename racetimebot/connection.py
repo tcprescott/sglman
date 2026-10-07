@@ -91,11 +91,13 @@ class CategoryConnection:
             try:
                 await transport.authenticate()
             except RacetimeAuthError as exc:
+                logger.error('racetime bot %s failed to authenticate: %s', self.category, exc)
                 await self.bot_service.record_error(
                     self.bot_id, self.system_user, str(exc), auth_failed=True,
                 )
                 return 'auth_failed', False
             except RacetimeTransientError as exc:
+                logger.warning('racetime bot %s could not connect: %s', self.category, exc)
                 await self.bot_service.record_error(self.bot_id, self.system_user, str(exc))
                 return 'transient', False
 
@@ -103,6 +105,7 @@ class CategoryConnection:
             try:
                 await transport.run(self.handler.on_event, self._heartbeat)
             except RacetimeTransientError as exc:
+                logger.warning('racetime bot %s lost its connection: %s', self.category, exc)
                 await self.bot_service.record_error(self.bot_id, self.system_user, str(exc))
                 return 'transient', True
             return 'stopped', True
@@ -127,13 +130,18 @@ class CategoryConnection:
                 raise
             except Exception as exc:
                 logger.exception('racetime connection for %s crashed', self.category)
-                await self.bot_service.record_error(self.bot_id, self.system_user, str(exc))
+                try:
+                    await self.bot_service.record_error(self.bot_id, self.system_user, str(exc))
+                except Exception:
+                    # Recording is bookkeeping; letting it escape would end the
+                    # connection loop for good with nothing to restart it.
+                    logger.exception('failed to record racetime bot %s error', self.category)
                 outcome, connected = 'transient', False
 
             if connected:
                 backoff = INITIAL_BACKOFF_SECONDS
             if outcome == 'auth_failed':
-                logger.warning(
+                logger.error(
                     'racetime bot %s auth failed — not retrying until restarted', self.category,
                 )
                 return

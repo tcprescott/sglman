@@ -40,6 +40,7 @@ from models import (
     FeatureFlag,
     FeatureFlagGroup,
     JoinRequestStatus,
+    LogLevelOverride,
     McpOAuthClient,
     PlayerAvailability,
     RacetimeBot,
@@ -174,6 +175,17 @@ async def seed_super_admin(users: dict[str, User]) -> None:
         defaults={'granted_by': None},
     )
     print('  super admin ok (global, tenant=NULL)')
+
+
+async def seed_log_levels(users: dict[str, User]) -> None:
+    """One stored log-level override, so /platform's Logging section shows a
+    set row next to the inherited ones. httpx at WARNING quiets one INFO line per
+    outbound call, which is a setting a dev box is glad of anyway."""
+    await LogLevelOverride.get_or_create(
+        logger_name='httpx',
+        defaults={'level': 'WARNING', 'updated_by': users['super_admin']},
+    )
+    print('  log level override ok (global)')
 
 
 async def seed_feature_groups() -> dict:
@@ -622,6 +634,7 @@ async def seed_all() -> None:
     """
     users = await seed_users()
     await seed_super_admin(users)
+    await seed_log_levels(users)
     await seed_table_preferences(users)
     await seed_mcp_oauth(users)
     bots = await seed_racetime_bots()

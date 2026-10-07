@@ -107,7 +107,7 @@ def _resolve_vapid_config(raw_key: str, subject: str, base_url: str) -> Optional
     try:
         return _VapidConfig(_parse_private_key(raw_key), subject)
     except (ValueError, TypeError) as exc:
-        logger.warning('Invalid VAPID_PRIVATE_KEY; web push disabled: %s', exc)
+        logger.error('Invalid VAPID_PRIVATE_KEY; web push disabled: %s', exc)
         return None
 
 

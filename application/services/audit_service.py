@@ -234,6 +234,10 @@ class AuditActions:
     RACETIME_BOT_ERROR = 'racetime_bot.error'
     RACETIME_BOT_RESTARTED = 'racetime_bot.restarted'
 
+    # Runtime log levels (platform-level, tenant=NULL; set on /platform)
+    LOG_LEVEL_SET = 'log_level.set'
+    LOG_LEVEL_CLEARED = 'log_level.cleared'
+
     # Racetime race-room lifecycle (tenant-scoped; mirrored on the event bus as
     # ``race_room.*`` domain events — the system user is the actor)
     RACE_ROOM_CREATED = 'race_room.created'

@@ -12,6 +12,7 @@ can recover. Only transport and authentication failures are HTTP-level.
 """
 
 import logging
+from typing import Optional
 
 from mcp.server.fastmcp.exceptions import ToolError
 
@@ -28,7 +29,7 @@ INVALID_REQUEST = 'invalid_request'
 INTERNAL_ERROR = 'internal_error'
 
 
-def map_service_error(exc: Exception) -> ToolError:
+def map_service_error(exc: Exception, tool: Optional[str] = None) -> ToolError:
     """Translate a service-layer exception into a ``ToolError``.
 
     Ordering mirrors ``ServiceErrorRoute`` exactly, including the subtlety that
@@ -45,5 +46,5 @@ def map_service_error(exc: Exception) -> ToolError:
         return ToolError(f'{INVALID_REQUEST}: {exc}')
     # Anything else is a bug. Log it with a traceback (which reaches Sentry) but
     # hand the model an opaque message — the same posture as the 500 page.
-    logger.exception('Unhandled exception in an MCP tool', exc_info=exc)
+    logger.exception('Unhandled exception in MCP tool %s', tool or '(unknown)', exc_info=exc)
     return ToolError(f'{INTERNAL_ERROR}: The server hit an unexpected error.')

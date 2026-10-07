@@ -16,6 +16,8 @@ from collections.abc import Coroutine
 from types import ModuleType
 from typing import Optional
 
+from application.utils.sentry import sentry_tags
+
 _default_logger = logging.getLogger(__name__)
 
 
@@ -46,12 +48,14 @@ class CoroutineQueue:
     async def _worker(self) -> None:
         while True:
             coro = await self._queue.get()
-            try:
-                await coro
-            except Exception:
-                self._logger.exception("%s worker error", self.name)
-            finally:
-                self._queue.task_done()
+            label = coroutine_label(coro)
+            with sentry_tags(queue=self.name, queued_call=label):
+                try:
+                    await coro
+                except Exception:
+                    self._logger.exception("%s worker error in %s", self.name, label)
+                finally:
+                    self._queue.task_done()
 
     def start(self) -> None:
         self._worker_task = asyncio.get_event_loop().create_task(self._worker())
@@ -100,6 +104,22 @@ class CoroutineQueue:
                 arg.close()
             self._queue.task_done()
             dropped += 1
+
+
+def coroutine_label(coro: Coroutine) -> str:
+    """Name a queued coroutine by what it will run, not by its wrapper.
+
+    Both queues wrap the real call (``_run_in_tenant_scope(send_dm(...))``), so
+    the wrapper's own name says nothing; the un-started wrapper still holds the
+    inner coroutine in its frame locals, which is the name worth reporting.
+    """
+    name = getattr(coro, '__qualname__', type(coro).__name__)
+    frame = getattr(coro, 'cr_frame', None)
+    if frame is not None:
+        for value in frame.f_locals.values():
+            if isinstance(value, Coroutine):
+                return f"{name}({getattr(value, '__qualname__', type(value).__name__)})"
+    return name
 
 
 def bind_module_state(module_name: str, queue: CoroutineQueue) -> None:

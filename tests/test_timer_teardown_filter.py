@@ -154,7 +154,8 @@ class TestTheSentryPath:
     def test_the_same_error_from_application_code_is_sent(self):
         exc = _raised_in('pages.home_tabs.event', RuntimeError(MESSAGE))
         hint = {'exc_info': (type(exc), exc, exc.__traceback__)}
-        assert _before_send({'level': 'error'}, hint) == {'level': 'error'}
+        sent = _before_send({'level': 'error'}, hint)
+        assert sent is not None and sent['level'] == 'error'
 
     def test_other_events_are_still_scrubbed(self):
         event = {'request': {'headers': {'Authorization': 'Bearer x'}, 'cookies': {'a': 'b'}}}

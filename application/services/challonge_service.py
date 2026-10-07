@@ -737,7 +737,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
         except (ValueError, ChallongeAPIError):
             # Logged rather than printed so a silently-stale bracket leaves a
             # diagnostic trail in structured logs and Sentry.
-            logger.warning(
+            logger.error(
                 "Challonge post-push re-sync failed for tournament %s",
                 cmatch.tournament_id, exc_info=True,
             )
