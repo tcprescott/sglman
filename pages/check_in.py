@@ -528,7 +528,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             )
             return
         # Read the lanyard after the reload: linking just before can change it.
-        row = next((r for r in state['rows'] if r['id'] == entrant.id), {})
+        row: Dict = next((r for r in state['rows'] if r['id'] == entrant.id), {})
         show_undo(entrant.id, entrant.display_name, row.get('lanyard_label', ''), row.get('extra_badges', ''))
 
     async def handle_checkin(row) -> None:
