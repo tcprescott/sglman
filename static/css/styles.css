@@ -2666,6 +2666,13 @@ ol.wiz-help-list { list-style-type: decimal; }
     border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Five filters don't fit a phone's width as equal segments, so the switch
+   scrolls sideways there instead of squeezing its labels. */
+@media (max-width: 599px) {
+    .wiz-segmented.checkin-filters { overflow-x: auto; scrollbar-width: none; }
+    .wiz-segmented.checkin-filters .q-btn { flex: 0 0 auto; padding: 4px 12px; }
+}
+
 .checkin-lanyard {
     font-size: 0.95rem;
     letter-spacing: 0.02em;

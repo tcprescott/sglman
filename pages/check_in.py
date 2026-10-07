@@ -77,6 +77,8 @@ _FILTER_LABELS = {
     'all': 'All',
     'not_yet': 'Not yet',
     'checked_in': 'Checked in',
+    'comped': 'Comped',
+    'walk_up': 'Walk-ups',
 }
 FILTERS = {key: _FILTER_LABELS[key] for key in DESK_FILTERS}
 
@@ -403,7 +405,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 counts_label = ui.label().classes('text-caption text-weight-medium')
             # The app's segmented control (.wiz-segmented, as on the Event page).
             chips = ui.toggle(FILTERS, value='all').props('no-caps dense unelevated') \
-                .classes('wiz-segmented')
+                .classes('wiz-segmented checkin-filters')
             sync_label = ui.label().classes('text-caption')
 
         table = ui.table(columns=_COLUMNS, rows=[], row_key='id', pagination=0) \

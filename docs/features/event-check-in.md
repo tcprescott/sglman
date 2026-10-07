@@ -326,8 +326,10 @@ events staff have opened. Run one tick by hand with
   only one. The **Check-in** nav item appears for desk roles while an event is
   open (`BaseLayout` via `AuthService.can_view_check_in_desk`).
 - `/checkin/{event_id}` is the desk. It's phone-first: the search box, progress
-  bar, the All / Not yet / Checked in switch (the app's `.wiz-segmented`
-  control, with counts) and sync status stick under the app header. All also
+  bar, the All / Not yet / Checked in / Comped / Walk-ups switch (the app's
+  `.wiz-segmented` control, with counts; it scrolls sideways on a phone) and
+  sync status stick under the app header. **Comped** is everyone with a comp,
+  buyers and walk-ups comped on top of a badge included. All also
   lists people whose badge was refunded, so a search still finds them, marked
   **Refunded**; they don't count towards the progress bar. Below
   `md` each person is a card with a full-width 48 px Check in button;

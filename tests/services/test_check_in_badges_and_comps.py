@@ -8,7 +8,7 @@ from datetime import timedelta
 
 import pytest
 
-from application.services.check_in_rules import active_badges, lanyard_for
+from application.services.check_in_rules import active_badges, entrant_filters, lanyard_for, summarize
 from application.services.check_in_sales import guess_lanyard
 from application.services.feature_flag_service import reset_flag_cache
 from application.utils.clients.matcherino_client import mock_purchase, mock_tier
@@ -334,6 +334,24 @@ class TestComps:
         assert comped.id in [u.id for u in await service.search_members(event, 'needle', for_link=True)]
         assert comped.id in [u.id for u in await service.suggest_users(purchase_row)]
         assert comped.id not in [u.id for u in await service.search_members(event, 'needle')]
+
+    async def test_the_comped_filter_covers_comp_rows_and_comped_buyers(self, service, client, staff):
+        buyer = await _with_role(446, 'comped_buyer', Role.STAFF)
+        event = await service.create_event(staff, 'Filter', venue_id=VENUE, comp_roles=[Role.STAFF])
+        client.set([
+            mock_purchase(100, 'Comped Buyer', tier=VIP, auth_provider='discord', auth_id='446'),
+            mock_purchase(200, 'Plain Buyer', tier=BASE),
+        ])
+        await service.sync_event(staff, event.id)
+        await service.add_walk_up(staff, event.id, name='Walk In')
+
+        roster = await service.roster(event)
+        comped = {r.display_name for r in roster if 'comped' in entrant_filters(r)}
+        counts = summarize(roster)
+
+        assert comped == {'staff', 'Comped Buyer'}
+        assert (counts.comped, counts.walk_ups) == (2, 1)
+        assert buyer.id in {r.user_id for r in roster}
 
     async def test_a_comp_row_cannot_be_relinked_unlinked_or_removed(self, service, staff, desk):
         event = await self._comp_event(service, staff)
