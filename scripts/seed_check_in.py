@@ -1,16 +1,26 @@
 """Dev seed for event check-in.
 
-Runs the real ``CheckInService`` sync against the MOCK_MATCHERINO roster
-(``MOCK_PARTICIPANTS``), so the dev database holds what a sync actually produces
-and pressing Sync in dev changes nothing. The roster is lined up with fixtures
-(see the comment above ``MOCK_PARTICIPANTS``) so that one sync yields every link
-method; on top of it the desk is put into the states a volunteer meets:
+Runs the real ``CheckInService`` sync against the MOCK_MATCHERINO venue
+(``MOCK_TIERS`` and ``MOCK_PURCHASES``), so the dev database holds what a sync
+actually produces (the ``CheckInTier`` and ``CheckInPass`` rows come from that
+sync, not from inserts here) and pressing Sync in dev changes nothing. The sales
+are lined up with fixtures (see the comment above ``MOCK_PURCHASES``) so that one
+sync yields every link method the sync still produces, all four badge types, a
+buyer holding two badges and a refunded buyer; on top of it the desk is put into
+the states a volunteer meets:
 
-* ``Player Three`` linked to player_three by hand, two registrants unlinked;
-* someone who registered and then left the bounty (withdrawn);
+* ``Player Three`` linked to player_three by hand, several buyers unlinked;
+* jemgold and blueshell link to player_one and player_two, whose published
+  shifts from ``seed_volunteers`` give them the Volunteer chip; player_three's
+  only shift is an unpublished draft, so Player Three gets none;
+* the event comps Staff and volunteers: staff_user, who bought no badge, gets
+  a ``COMP`` row; player_one (exactly 8 scheduled hours, the lowest comp tier)
+  and player_two (over every tier) add a comp to the badges they bought;
+  proctor_user, under 8 hours, gets nothing;
+* someone whose badge disappeared from the venue (withdrawn);
 * player_one already checked in by the check-in desk volunteer;
 * two walk-ups checked in by staff, one a member (racer_09) and one name-only;
-* a draft event with no bounty and last year's closed event, for the admin list.
+* a draft event with no venue and last year's closed event, for the admin list.
 
 Idempotent: re-running syncs again (a no-op against the same roster) and skips
 anything already in place. Only tenants with check-in live get rows — the
@@ -24,9 +34,7 @@ from application.services.feature_flag_service import FeatureFlagService, reset_
 from application.utils.clients.matcherino_client import (
     MOCK_REMEMBERED_ID,
     MOCK_TWITCH_RACER_ID,
-    MOCK_TWITCH_RACER_LOGIN,
     MockMatcherinoClient,
-    mock_participant,
 )
 from models import (
     CheckInEntrant,
@@ -34,6 +42,7 @@ from models import (
     CheckInEvent,
     CheckInEventStatus,
     FeatureFlag,
+    Role,
     Tenant,
     User,
 )
@@ -42,16 +51,15 @@ from scripts.seed_support import backfill
 LIVE_EVENT = 'Wizzrobe Live — Check-in'
 DRAFT_EVENT = 'Spring Meetup (walk-ups only)'
 CLOSED_EVENT = 'Wizzrobe Live 2025'
-BOUNTY_ID = 900100
+VENUE_ID = 900100
 WITHDRAWN_ID = '900099'
 
 
 async def seed_check_in_identities(users: dict[str, User]) -> None:
-    """Give three racers the identifiers the mock roster matches on. Global."""
+    """Give two racers the identifiers the mock sales match on. Global."""
     await backfill(users['racer_05'], matcherino_user_id=str(MOCK_REMEMBERED_ID))
     await backfill(users['racer_07'], twitch_user_id=MOCK_TWITCH_RACER_ID)
-    await backfill(users['racer_08'], twitch_username=MOCK_TWITCH_RACER_LOGIN)
-    print('  check-in identities ok (racer_05/07/08 match the mock Matcherino roster)')
+    print('  check-in identities ok (racer_05/07 match the mock Matcherino sales)')
 
 
 async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
@@ -66,14 +74,19 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
     event = await CheckInEvent.get_or_none(tenant=tenant, name=LIVE_EVENT)
     if event is None:
         event = await service.create_event(
-            staff, LIVE_EVENT, bounty_id=BOUNTY_ID, status=CheckInEventStatus.OPEN,
+            staff, LIVE_EVENT, venue_id=VENUE_ID, status=CheckInEventStatus.OPEN,
+            comp_roles=[Role.STAFF], comp_volunteers=True,
+        )
+    elif not event.comp_roles:
+        event = await service.update_event(
+            staff, event.id, event.name, event.matcherino_venue_id, event.status,
+            event.sync_interval_minutes, comp_roles=[Role.STAFF], comp_volunteers=True,
         )
     if not await CheckInEntrant.exists(event=event, matcherino_user_id=WITHDRAWN_ID):
         await CheckInEntrant.create(
             tenant=tenant, event=event, source=CheckInEntrantSource.MATCHERINO,
             matcherino_user_id=WITHDRAWN_ID, display_name='Changed Their Mind',
             auth_provider='gplus',
-            source_data=mock_participant(int(WITHDRAWN_ID), 'Changed Their Mind'),
             withdrawn_at=datetime.now(timezone.utc),
         )
     await service.sync_event(staff, event.id, audit=False)
@@ -95,4 +108,4 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
         await service.create_event(staff, DRAFT_EVENT)
     if not await CheckInEvent.exists(tenant=tenant, name=CLOSED_EVENT):
         await service.create_event(staff, CLOSED_EVENT, status=CheckInEventStatus.CLOSED)
-    print(f'    [{tenant.slug}] check-in ok (open event with a synced roster, a draft, a closed one)')
+    print(f'    [{tenant.slug}] check-in ok (open event with synced badge sales, a draft, a closed one)')

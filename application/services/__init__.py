@@ -9,7 +9,10 @@ from application.errors import NotFoundError, require_found
 
 from . import (
     availability_windows,
+    check_in_accounts,
+    check_in_comps,
     check_in_rules,
+    check_in_sales,
     check_in_sync_worker,
     notification_links,
     oauth_handoff_service,
@@ -213,7 +216,10 @@ __all__ = [
     'async_qualifier_access',
     'async_qualifier_scoring',
     'availability_windows',
+    'check_in_accounts',
+    'check_in_comps',
     'check_in_rules',
+    'check_in_sales',
     'check_in_sync_worker',
     'discord_event_worker',
     'discord_queue',

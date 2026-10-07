@@ -124,7 +124,7 @@ a restart and a re-run is cheaper than the wrong diagnosis.
 
 ## Local development without Discord (MOCK_DISCORD)
 
-The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO` and `ENVIRONMENT=development` in one command (`MOCK_MATCHERINO` serves a canned bounty roster to [event check-in](features/event-check-in.md), so the desk's Sync works offline; refused in production). With `MOCK_DISCORD`:
+The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME`, `MOCK_MATCHERINO` and `ENVIRONMENT=development` in one command (`MOCK_MATCHERINO` serves canned venue badge sales to [event check-in](features/event-check-in.md), so the desk's Sync works offline; refused in production). With `MOCK_DISCORD`:
 
 - `/login` renders a **user picker** instead of redirecting to Discord OAuth — pick any user in the database or use "Create test user". Picked and created users are real rows that persist across restarts.
 - All `DiscordService` calls (DMs, guild member lookups, …) are stubbed no-ops, and the **bot does not start**, so `DISCORD_TOKEN` is not required.

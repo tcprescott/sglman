@@ -21,6 +21,8 @@ from .challonge_repository import ChallongeRepository
 from .check_in_repository import (
     CheckInEntrantRepository,
     CheckInEventRepository,
+    CheckInPassRepository,
+    CheckInTierRepository,
     CheckInUserLookupRepository,
 )
 from .commentator_repository import CommentatorRepository
@@ -87,6 +89,8 @@ __all__ = [
     'ChallongeRepository',
     'CheckInEntrantRepository',
     'CheckInEventRepository',
+    'CheckInPassRepository',
+    'CheckInTierRepository',
     'CheckInUserLookupRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',

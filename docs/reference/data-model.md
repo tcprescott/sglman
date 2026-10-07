@@ -40,8 +40,8 @@ community owns or produces is tenant-scoped.**
 `Stage.name`, `Station.name`, `VolunteerPosition.name`,
 `SystemConfiguration.name`,
 `RaceRoomProfile.name` → `(tenant, name)`; `Equipment.asset_number` →
-`(tenant, asset_number)`; `CheckInEvent.matcherino_bounty_id` →
-`(tenant, matcherino_bounty_id)`; `TenantFeatureFlag.flag` → `(tenant, flag)`;
+`(tenant, asset_number)`; `CheckInEvent.matcherino_venue_id` →
+`(tenant, matcherino_venue_id)`; `TenantFeatureFlag.flag` → `(tenant, flag)`;
 `ChallongeApiUsage.period` → `(tenant, period)`; `VolunteerProfile` →
 `(tenant, user)` (opt-in is per tenant, so `User.volunteer_profiles` is a plural
 reverse relation, not a one-to-one); `DiscordRoleMapping` →
@@ -125,6 +125,10 @@ erDiagram
     User ||--o{ EquipmentLoan : "checked_out_by"
     User |o--o{ EquipmentLoan : "checked_in_by"
     CheckInEvent ||--o{ CheckInEntrant : "event"
+    CheckInEvent ||--o{ CheckInTier : "event"
+    CheckInEvent ||--o{ CheckInPass : "event"
+    CheckInTier ||--o{ CheckInPass : "tier"
+    CheckInEntrant |o--o{ CheckInPass : "entrant"
     User |o--o{ CheckInEntrant : "user"
     User |o--o{ CheckInEntrant : "linked_by"
     User |o--o{ CheckInEntrant : "checked_in_by"
@@ -257,7 +261,7 @@ Used by `Equipment.status` (`max_length=20`, default `AVAILABLE`), kept in sync 
 
 ### `CheckInEventStatus` / `CheckInEntrantSource` / `CheckInLinkMethod`
 
-`CheckInEvent.status` (`max_length=16`, default `DRAFT`): `DRAFT` = `'draft'` (being set up; can still be synced by hand), `OPEN` = `'open'` (the only status the sync worker polls and the desk lists), `CLOSED` = `'closed'`. `CheckInEntrant.source` (`max_length=16`): `MATCHERINO` = `'matcherino'` (mirrors a bounty participant), `WALK_UP` = `'walk_up'` (added by staff at the desk). `CheckInEntrant.link_method` (`max_length=24`, null = unlinked) records how the row got its `user`: the five automatic rules `MATCHERINO_ID` = `'matcherino_id'`, `DISCORD_ID` = `'discord_id'`, `TWITCH_ID` = `'twitch_id'`, `TWITCH_LOGIN` = `'twitch_login'`, `MATCHERINO_HANDLE` = `'matcherino_handle'` (tried in that order), then `MANUAL` = `'manual'` (a staff link; with `user` NULL it marks a deliberate unlink the sync never overrides) and `WALK_UP` = `'walk_up'`. See [event-check-in.md](../features/event-check-in.md#matching-registrants-to-accounts).
+`CheckInEvent.status` (`max_length=16`, default `DRAFT`): `DRAFT` = `'draft'` (being set up; can still be synced by hand), `OPEN` = `'open'` (the only status the sync worker polls and the desk lists), `CLOSED` = `'closed'`. `CheckInEntrant.source` (`max_length=16`): `MATCHERINO` = `'matcherino'` (a buyer on the event's Matcherino venue), `WALK_UP` = `'walk_up'` (added by staff at the desk), `COMP` = `'comp'` (comped by the event's comp rules without buying a badge). `CheckInEntrant.link_method` (`max_length=24`, null = unlinked) records how the row got its `user`: the four automatic rules `MATCHERINO_ID` = `'matcherino_id'`, `DISCORD_ID` = `'discord_id'`, `TWITCH_ID` = `'twitch_id'`, `MATCHERINO_HANDLE` = `'matcherino_handle'` (tried in that order; the former `TWITCH_LOGIN` was folded into `TWITCH_ID` by migration 83), then `MANUAL` = `'manual'` (a staff link; with `user` NULL it marks a deliberate unlink the sync never overrides), `WALK_UP` = `'walk_up'` and `COMP` = `'comp'` (a `COMP` row's account). See [event-check-in.md](../features/event-check-in.md#matching-buyers-to-accounts).
 
 ### `StationSide`
 
@@ -510,7 +514,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `is_placeholder` | `BooleanField` | default `False` | Flags an unresolved SpeedGaming player kept as a first-class `User` so its `MatchPlayers` row stays NOT NULL |
 | `speedgaming_id` | `CharField(64)` | null, `unique=True` | SG-side id used to re-find the same placeholder across syncs and to **upgrade it in place** once a `discord_id` appears |
 | `matcherino_username` | `CharField(255)` | null | Matcherino handle (`name#id`), where prize money is sent. Self-entered, so deliberately **not** unique — a typo under a unique constraint would lock the rightful owner out of their own handle. Global, like the rest of identity. See [payouts.md](../features/payouts.md) |
-| `matcherino_user_id` | `CharField(64)` | null, `unique=True` | Matcherino's numeric account id. Written only by a check-in link (a Discord/Twitch id match or a manual link, never a typed-handle match), only when empty, and cleared again by an unlink; so it is unique: it recognises a registrant linked at one event at the next. Global. See [event-check-in.md](../features/event-check-in.md#matching-registrants-to-accounts) |
+| `matcherino_user_id` | `CharField(64)` | null, `unique=True` | Matcherino's numeric account id. Written only by a check-in link (a Discord/Twitch id match or a manual link, never a typed-handle match), only when empty, and cleared again by an unlink; so it is unique: it recognises a registrant linked at one event at the next. Global. See [event-check-in.md](../features/event-check-in.md#matching-buyers-to-accounts) |
 
 The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch and racetime.gg identities are likewise **identity only** — the user's access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
@@ -1196,23 +1200,25 @@ Matcherino-backed check-in desk for in-person events. Managed by `CheckInService
 
 #### `CheckInEvent`
 
-An in-person event whose attendees are checked in at the desk, optionally mirroring one Matcherino bounty's participant list.
+An in-person event whose attendees are checked in at the desk, optionally mirroring one Matcherino venue's badge sales.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `name` | `CharField(255)` | not null | |
-| `matcherino_bounty_id` | `IntField` | null | The bounty whose participants are mirrored. Null = a walk-ups-only event the worker never polls |
+| `matcherino_venue_id` | `IntField` | null | The ticketed venue whose badge sales are mirrored. Null with no comp rules = a walk-ups-only event the worker never polls |
+| `comp_roles` | `JSONField` | default `[]` | `Role` values whose holders in the community are comped |
+| `comp_volunteers` | `BooleanField` | default `False` | Comp volunteers whose published shifts in the event window reach the lowest volunteer comp tier |
 | `status` | `CharEnumField(CheckInEventStatus)` | default `DRAFT` | `max_length=16` |
 | `sync_interval_minutes` | `IntField` | default `5` | The worker's per-event poll cadence |
 | `last_synced_at` | `DatetimeField` | null | Last **good** sync. A failed sync leaves it alone |
 | `last_sync_error` | `TextField` | null | Set when a sync fails or comes back empty while live rows exist; shown in the desk header so volunteers know the roster is stale |
-| `last_sync_count` | `IntField` | null | Participants served by the last good sync |
+| `last_sync_count` | `IntField` | null | Buyers holding a badge at the last good sync |
 
-Relationships: reverse accessor `entrants`. Constraint: `unique_together (('tenant', 'matcherino_bounty_id'),)` (one event per bounty per community; NULLs don't collide).
+Relationships: reverse accessors `entrants`, `tiers`, `passes`. Constraint: `unique_together (('tenant', 'matcherino_venue_id'),)` (one event per venue per community; NULLs don't collide).
 
 #### `CheckInEntrant`
 
-One person on an event's roster: a mirrored Matcherino registrant or a staff-added walk-up. A registrant who leaves the bounty gets `withdrawn_at`, never a delete, so a recorded check-in survives.
+One person on an event's roster: a Matcherino badge buyer or a staff-added walk-up. A buyer with no unrefunded badge left gets `withdrawn_at`, never a delete, so a recorded check-in survives.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -1222,17 +1228,49 @@ One person on an event's roster: a mirrored Matcherino registrant or a staff-add
 | `display_name` | `CharField(255)` | not null | |
 | `avatar_url` | `CharField(512)` | null | |
 | `auth_provider` / `auth_id` | `CharField(32)` / `CharField(128)` | null | The account the person signed in to Matcherino with (`discord` snowflake or `twitch` user id); the basis of exact matching |
-| `twitch_login` | `CharField(255)` | null | From the participant's `socials`, when listed |
-| `registered_at` | `DatetimeField` | null | When they joined the bounty |
-| `source_data` | `JSONField` | null | The participant object exactly as last served, kept so a field Matcherino adds later (registration tiers) can be backfilled |
+| `registered_at` | `DatetimeField` | null | Their earliest unrefunded badge purchase |
+| `comp_reasons` | `JSONField` | null | Why they're comped: `Role` values and `'volunteer'`. Null = not comped |
+| `source_data` | `JSONField` | null | The buyer's Matcherino account as last served, trimmed to an allowlist (id, names, sign-in provider and id, avatar) |
 | `user` | FK → `User` | null, `SET_NULL` | The matched account. `related_name='check_in_entries'` |
 | `link_method` | `CharEnumField(CheckInLinkMethod)` | null | `max_length=24`. `MANUAL` with `user` NULL = a deliberate unlink |
 | `linked_by` | FK → `User` | null, `SET_NULL` | Who made a manual link. `related_name='check_in_links_made'` |
-| `withdrawn_at` | `DatetimeField` | null | Left the bounty; cleared on rejoin |
+| `withdrawn_at` | `DatetimeField` | null | No badge held any more (refunded or gone from the feed) and not comped, or a `COMP` row that stopped qualifying; cleared when either changes back |
 | `checked_in_at` | `DatetimeField` | null | Null = not yet arrived |
 | `checked_in_by` | FK → `User` | null, `SET_NULL` | `related_name='check_ins_performed'` |
 
-Constraints: `unique_together (('event', 'matcherino_user_id'), ('event', 'user'))` (one row per registrant and one per account; NULLs are distinct, so walk-ups and unlinked rows don't collide). Index on `(event, checked_in_at)`.
+Relationships: reverse accessor `passes`. Constraints: `unique_together (('event', 'matcherino_user_id'), ('event', 'user'))` (one row per buyer and one per account; NULLs are distinct, so walk-ups and unlinked rows don't collide). Index on `(event, checked_in_at)`.
+
+#### `CheckInTier`
+
+One badge type sold on the event's venue (a Matcherino *pass*: Base, VIP, Day Pass). Kept when the venue deletes it, since badges sold under it still point at it.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `event` | FK → `CheckInEvent` | not null, `CASCADE` | `related_name='tiers'` |
+| `matcherino_pass_id` | `IntField` | not null | The sync's upsert key |
+| `title` | `CharField(255)` | not null | |
+| `amount_cents` | `IntField` | default `0` | Price; orders tiers, dearest first |
+| `role` | `CharField(32)` | null | Matcherino's `player` / `spectator` |
+
+Relationships: reverse accessor `passes`. Constraint: `unique_together (('event', 'matcherino_pass_id'),)`.
+
+#### `CheckInPass`
+
+One badge purchase. Per purchase rather than per person: a buyer can hold several, one often for a friend the venue doesn't name.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `event` | FK → `CheckInEvent` | not null, `CASCADE` | `related_name='passes'` |
+| `tier` | FK → `CheckInTier` | not null, `CASCADE` | `related_name='passes'` |
+| `entrant` | FK → `CheckInEntrant` | null, `SET_NULL` | The buyer's roster row. `related_name='passes'` |
+| `matcherino_purchase_id` | `IntField` | not null | The sync's upsert key |
+| `buyer_matcherino_user_id` | `CharField(64)` | not null | |
+| `code` | `CharField(32)` | not null | The door code the badge's QR encodes; the desk searches it |
+| `purchased_at` / `refunded_at` | `DatetimeField` | null | Matcherino's |
+| `removed_at` | `DatetimeField` | null | Dropped out of the feed; cleared if it returns |
+| `source_data` | `JSONField` | null | The purchase trimmed to an allowlist: never the buyer's name, email, phone, address or payment ledger |
+
+Constraint: `unique_together (('event', 'matcherino_purchase_id'),)`. Index on `(event, code)`.
 
 ### Volunteering
 
@@ -1880,7 +1918,7 @@ src_folder = "./."
 
 **Migration history.** The history was squashed into a single init migration, [`migrations/models/0_20260608213149_init.py`](../../migrations/models/0_20260608213149_init.py), with migrations 1–19 adding the equipment, volunteering, availability, Challonge, API-token, feedback, web-push, and Twitch-linking tables/columns plus the FK-hotpath indexes (below). Together they create all model tables, the two M2M through tables (`"TournamentAdmins"`, `"TournamentCrewCoordinators"` with unique `(tournament_id, user_id)` indexes), and the `aerich` bookkeeping table. Its `downgrade()` returns empty SQL, so the init migration is not reversible.
 
-**Multitenancy onward (migrations 20 to head).** The head is **migration 78** (the number 61 is used twice — two files merged in the same window — so the chain has 80 files). In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns); **40** — the `BracketState.CANCELLED` state; **41** — the venue `Station` pool; **42** — `Match.needs_review`; **43–44** — async-qualifier run measurement (`measured_seconds`, then `reattempt_granted_by`); **45** — `TenantJoinRequest`, the self-serve enrollment path behind the membership gate; **46** — `Tournament.required_commentators`/`required_trackers`, the per-tournament crew requirement the coverage surfaces read (defaults `1`/`1` reproduce the previous behaviour on existing rows); **47** — the per-user/per-tenant display timezone; **48–50** — seed and permalink provenance plus async-qualifier run expiry; **51** — the feedback gate; **52** — `UserTablePreference`; **53** — renames `streamroom` to `stage` and `match.stream_room_id` to `stage_id`, carrying the indexes, FK constraints and identity sequence across with it; **54** — `Station.side`/`position`; **55** — `User.discord_avatar`; **56** — per-tournament Discord role grants (`DiscordRoleMapping.tournament_grant`/`tournament`, `app_role` made nullable, `DiscordTournamentGrant`); **57** — `MatchStreamVolunteer` (and drops `match.review_note`); **58** — `MatchRescheduleRequest` plus `Tournament.allow_reschedule_requests`; **59** — `Tournament.signups_open_at`/`signups_close_at`; **60** — `ProviderTask`; **61** (two files) — a data backfill of `tournament.seed_generator` from the linked preset's randomizer, and the stage-reminder columns (`Match.stage_reminder_sent_at`, `Tournament.stage_reminder_minutes`); **62** — payouts (`TournamentPayout`, `Tournament.prize_pool`/`prize_bonus`, `User.matcherino_username`); **63** — `RoomToken`; **64** — player availability becomes opt-out (clears the old opt-in `AVAILABLE`/`UNAVAILABLE` rows); **65** — drops the dead `tournament.staff_administered` and `team_size` columns; **66** — the qualifier leaderboard index on `asyncqualifierrun`; **67** — `AsyncQualifierLiveRaceStatus.CANCELLED` (column comment only); **68** — clears the stale score on qualifier runs that no longer count; **69** — `AsyncQualifier.review_backlog_notified_at`; **70–71** — `AsyncQualifier.window_state_notified`, then a backfill stamping every existing qualifier's current window state so nothing is announced twice; **72** — `AsyncQualifierLiveRace.unmatched_handles`; **73** — the harder-preset opt-in (`Tournament.hard_preset`, `Match.preset_override`, `MatchHardPresetOptIn`); **74–76** — ADA accommodations (`AccommodationRequest`, then `changed_since_arranged`, then `TenantMembership.source` and `staff_notified_at`); **77–78** — event check-in (`CheckInEvent` and `User.matcherino_user_id`, then `CheckInEntrant`).
+**Multitenancy onward (migrations 20 to head).** The head is **migration 78** (the number 61 is used twice — two files merged in the same window — so the chain has 80 files). In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns); **40** — the `BracketState.CANCELLED` state; **41** — the venue `Station` pool; **42** — `Match.needs_review`; **43–44** — async-qualifier run measurement (`measured_seconds`, then `reattempt_granted_by`); **45** — `TenantJoinRequest`, the self-serve enrollment path behind the membership gate; **46** — `Tournament.required_commentators`/`required_trackers`, the per-tournament crew requirement the coverage surfaces read (defaults `1`/`1` reproduce the previous behaviour on existing rows); **47** — the per-user/per-tenant display timezone; **48–50** — seed and permalink provenance plus async-qualifier run expiry; **51** — the feedback gate; **52** — `UserTablePreference`; **53** — renames `streamroom` to `stage` and `match.stream_room_id` to `stage_id`, carrying the indexes, FK constraints and identity sequence across with it; **54** — `Station.side`/`position`; **55** — `User.discord_avatar`; **56** — per-tournament Discord role grants (`DiscordRoleMapping.tournament_grant`/`tournament`, `app_role` made nullable, `DiscordTournamentGrant`); **57** — `MatchStreamVolunteer` (and drops `match.review_note`); **58** — `MatchRescheduleRequest` plus `Tournament.allow_reschedule_requests`; **59** — `Tournament.signups_open_at`/`signups_close_at`; **60** — `ProviderTask`; **61** (two files) — a data backfill of `tournament.seed_generator` from the linked preset's randomizer, and the stage-reminder columns (`Match.stage_reminder_sent_at`, `Tournament.stage_reminder_minutes`); **62** — payouts (`TournamentPayout`, `Tournament.prize_pool`/`prize_bonus`, `User.matcherino_username`); **63** — `RoomToken`; **64** — player availability becomes opt-out (clears the old opt-in `AVAILABLE`/`UNAVAILABLE` rows); **65** — drops the dead `tournament.staff_administered` and `team_size` columns; **66** — the qualifier leaderboard index on `asyncqualifierrun`; **67** — `AsyncQualifierLiveRaceStatus.CANCELLED` (column comment only); **68** — clears the stale score on qualifier runs that no longer count; **69** — `AsyncQualifier.review_backlog_notified_at`; **70–71** — `AsyncQualifier.window_state_notified`, then a backfill stamping every existing qualifier's current window state so nothing is announced twice; **72** — `AsyncQualifierLiveRace.unmatched_handles`; **73** — the harder-preset opt-in (`Tournament.hard_preset`, `Match.preset_override`, `MatchHardPresetOptIn`); **74–76** — ADA accommodations (`AccommodationRequest`, then `changed_since_arranged`, then `TenantMembership.source` and `staff_notified_at`); **77–78** — event check-in (`CheckInEvent` and `User.matcherino_user_id`, then `CheckInEntrant`); **82** — check-in moves from a bounty to a venue (drops `matcherino_bounty_id` and `twitch_login` rather than renaming, adds `matcherino_venue_id`, `CheckInTier`, `CheckInPass`; hand-written, since aerich offered a rename and dropped the old unique pair as an index); **83** — folds `link_method = 'twitch_login'` into `'twitch_id'`; **84** — check-in comps (`CheckInEvent.comp_roles` / `comp_volunteers`, `CheckInEntrant.comp_reasons`, the `COMP` source and link method; `comp_roles` defaults to `[]` by hand, since aerich added it `NOT NULL` with no default).
 
 **Foreign-key / reverse-lookup indexes (migration 19).** Tortoise does not index FK columns on Postgres, and a `unique_together` composite only serves lookups on its *leftmost* column — so single-column reverse-relation reads (e.g. `matchwatcher` by `match_id`, `tournamentplayers` by `user_id`) previously sequential-scanned. [`migrations/models/19_20260711000000_add_fk_hotpath_indexes.py`](../../migrations/models/19_20260711000000_add_fk_hotpath_indexes.py) adds single-column indexes on the hot FK/reverse-lookup columns of the growing tables (`match.tournament_id`/`stage_id`, `matchplayers.user_id`, `matchwatcher.match_id`, `tournamentplayers.user_id`, `tournamentnotificationpreference.tournament_id`, `equipmentloan.equipment_id`/`borrower_id`, `challongematch.match_id`/`participant1_id`/`participant2_id`, `challongeparticipant.user_id`, `volunteerassignment.user_id`, `volunteerqualification.position_id`, `volunteershift.position_id`, `volunteeravailability.user_id`, `playeravailability.user_id`, `userrole.role`, `feedback.created_at`) plus a composite `triforcetext(tournament_id, user_id)`. Each is mirrored by a `Meta.indexes` (or field-level `index=True`) declaration in the `models/` package so `generate_schemas()` builds the same schema in tests.
 

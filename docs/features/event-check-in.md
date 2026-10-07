@@ -3,41 +3,77 @@
 Behind `FeatureFlag.EVENT_CHECK_IN`, off by default. For in-person events whose
 registration runs on Matcherino.
 
-Staff create a check-in event and give it the Matcherino bounty ID. Wizzrobe
-mirrors the bounty's participant list into a local roster, matches each
-registrant to a Wizzrobe account where it can, and volunteers check people in at
-a phone-friendly desk. Matcherino only tells us who registered; who has *arrived*
-is recorded here.
+Staff create a check-in event and give it the Matcherino **venue** ID: the
+ticketed event that sells badges (SpeedGaming Live 2026 is venue 182105), not
+the tournaments bounty attached to it (182107). Wizzrobe mirrors the venue's
+badge sales into a local roster, one row per buyer with the badges they hold,
+matches each buyer to a Wizzrobe account where it can, and volunteers check
+people in at a phone-friendly desk. Matcherino only tells us who bought a
+badge; who has *arrived* is recorded here.
 
-Matching to an account is a nice-to-have. An unlinked registrant checks in like
+Matching to an account is a nice-to-have. An unlinked buyer checks in like
 anyone else.
+
+Until October 2026 the roster came from the bounty's participant list
+(`/bounties/participants`). That path is gone: the bounty had no badge tiers,
+and every badge buyer is auto-joined to the tournaments bounty anyway.
 
 ## The Matcherino API is unofficial
 
 Matcherino has no public API. `application/utils/clients/matcherino_client.py`
-calls the two endpoints its own web app uses, with Matcherino's go-ahead but no
-support promise:
+calls the endpoints its own web app uses, with Matcherino's go-ahead but no
+support promise. Full wire shapes and everything else we know about the API:
+[matcherino-api.md](../reference/matcherino-api.md).
 
 | Endpoint | Use |
 |---|---|
-| `GET /__api/bounties/participants?bountyId=&page=&pageSize=` | The roster. Zero-indexed pages of up to 500 |
-| `GET /__api/bounties/findById?id=` | The bounty title, so staff can confirm an ID before saving |
+| `POST /__api/auth/token` `{"appName": "WEB", "refreshToken"}` | Mints the access token (a JWT, 24 h) sent as `x-mno-auth: Bearer …` |
+| `GET /__api/venues/admin/purchaseData?venueId=` | Every badge purchase, in one unpaged list. Venue admins only |
+| `POST /__api/venues/pass/listPrivate` `{"venueId"}` | The venue's badge types (Matcherino *passes*) with `qtySold`. Venue admins only |
+| `GET /__api/bounties/findById?id=` | The venue's title (`kind: "venue"`), so staff can confirm an ID before saving |
 
-Both answer `{"status", "body"}` envelopes; failures come back as
-`{"status": 500, "error": {"message"}}`. An **unknown bounty is not an error**:
-it is `200` with `contents: null`, which reads exactly like an empty bounty.
+All answer `{"status", "body"}` envelopes; failures come back as
+`{"status": 4xx/5xx, "error": {"message"}}`. The two POSTs send JSON as
+`text/plain`, as the web app does.
 
-Everything downstream assumes the endpoint can break without warning:
+### The stored login
 
-- The parse is strict about the two fields check-in needs (`userId`,
-  `displayName`) and raises `MatcherinoAPIError` rather than guessing.
-- A sync that fails, **or comes back empty while the roster has live rows**,
-  records `CheckInEvent.last_sync_error` and changes nothing. Withdrawing every
-  registrant because one response was bad is the failure this guards against.
+The two venue endpoints need a signed-in **admin of the venue**. Wizzrobe holds
+one platform-wide credential, `MATCHERINO_REFRESH_TOKEN`: the refresh token of
+a Matcherino account that administers every venue being synced. Matcherino's
+refresh token does not rotate, so one stored value keeps working until that
+account signs out everywhere or Matcherino revokes it. To get one, sign in to
+matcherino.com as that account and copy the `refreshToken` the web app posts to
+`/__api/auth/token` (steps in
+[matcherino-api.md](../reference/matcherino-api.md#authentication)).
+
+The client mints an access token on first use and caches it for the process
+until five minutes before it expires. A 401/403 re-mints once and retries; a
+second refusal raises `MatcherinoAuthError` saying the account must administer
+the venue. With the variable unset, a sync fails before calling Matcherino and
+the desk shows "Matcherino ticket sync isn't set up". Neither token ever
+appears in an error message.
+
+### Built to break safely
+
+- Each parse is strict about what check-in needs (purchase `id`, `passId`,
+  `userId`, `code`, the buyer's `id` and `displayName`) and raises
+  `MatcherinoAPIError` rather than guessing.
+- **Contact details never reach the database.** Purchases carry the buyer's
+  name, email, phone and address fields (empty today, because SG Live doesn't
+  require them) plus a payment ledger. `source_data` is an allowlist of the
+  fields check-in can use, so a venue that starts collecting addresses doesn't
+  start storing them here.
+- **A short read is a failure.** The purchase list is compared with the sum of
+  each badge type's `qtySold`; fewer purchases than that means the list was cut
+  off, and a cut-off list would look like people being refunded.
+- A sync that fails, **or comes back with no badges while the roster has live
+  ones**, records `CheckInEvent.last_sync_error` and changes nothing.
 - The desk shows the last good sync time and the error in its header, so
   volunteers can see the roster is stale.
 - Check-in itself never touches Matcherino. If the endpoint dies mid-event the
-  desk keeps working on the last roster, and staff add late arrivals as walk-ups.
+  desk keeps working on the last roster, and staff add late buyers as walk-ups.
+  Matcherino's own door scan (`venues/pass/use`) is deliberately not called.
 
 `MOCK_MATCHERINO` swaps in `MockMatcherinoClient` (refused under
 `ENVIRONMENT=production`). `./start.sh mock` and `validate` set it.
@@ -46,73 +82,120 @@ Everything downstream assumes the endpoint can break without warning:
 
 | Model | What |
 |---|---|
-| `CheckInEvent` | Tenant-scoped. `name`, nullable `matcherino_bounty_id` (unique per tenant), `status` (`DRAFT`/`OPEN`/`CLOSED`), `sync_interval_minutes`, and the sync bookkeeping `last_synced_at`/`last_sync_error`/`last_sync_count` |
-| `CheckInEntrant` | One person on a roster. `source` (`MATCHERINO`/`WALK_UP`), `matcherino_user_id`, `display_name`, the identity hints (`auth_provider`, `auth_id`, `twitch_login`), `registered_at`, `source_data`, the matched `user` + `link_method` + `linked_by`, `withdrawn_at`, `checked_in_at` + `checked_in_by` |
+| `CheckInEvent` | Tenant-scoped. `name`, nullable `matcherino_venue_id` (unique per tenant), the comp rules `comp_roles` (list of `Role` values) and `comp_volunteers`, `status` (`DRAFT`/`OPEN`/`CLOSED`), `sync_interval_minutes`, and the sync bookkeeping `last_synced_at`/`last_sync_error`/`last_sync_count` (buyers holding a badge) |
+| `CheckInEntrant` | One person on a roster. `source` (`MATCHERINO`/`WALK_UP`/`COMP`), `matcherino_user_id`, `display_name`, the identity hints (`auth_provider`, `auth_id`), `registered_at` (their first badge purchase), `comp_reasons` (why they're comped: `Role` values and `'volunteer'`), `source_data` (their trimmed Matcherino account), the matched `user` + `link_method` + `linked_by`, `withdrawn_at`, `checked_in_at` + `checked_in_by` |
+| `CheckInTier` | Tenant-scoped. One badge type on the venue: `matcherino_pass_id`, `title`, `amount_cents`, `role` (`player`/`spectator`) |
+| `CheckInPass` | Tenant-scoped. One purchase: `tier`, the buyer's `entrant`, `buyer_matcherino_user_id`, the door `code`, `purchased_at`, `refunded_at`, `removed_at`, trimmed `source_data` |
 | `User.matcherino_user_id` | Matcherino's numeric account id. Global and **unique**, unlike the self-entered `matcherino_username` |
 
 `unique_together` on the entrant is `(event, matcherino_user_id)` and
-`(event, user)`: one row per registrant, and one row per account. Postgres
-treats `NULL`s as distinct, so walk-ups and unlinked rows don't collide.
+`(event, user)`: one row per buyer, and one row per account. Postgres treats
+`NULL`s as distinct, so walk-ups and unlinked rows don't collide. Badge types are
+unique per `(event, matcherino_pass_id)` and badges per
+`(event, matcherino_purchase_id)`.
 
-A registrant who leaves the bounty gets `withdrawn_at`, never a delete, so a
-check-in already recorded against them survives. Rejoining clears it.
+**Badges are per purchase, not per person.** A buyer can hold several: in the
+SG Live 2026 sales three buyers bought two badges the same day (Base with Super
+VIP, Base with VIP, Base with a Day Pass), almost certainly one for a friend.
+The venue doesn't name the friend, so the badge's `code` is how the desk finds
+them. Check-in stays one tap per *person*; the card lists every badge they hold
+so the volunteer hands over both.
+
+A buyer whose badges are all refunded, or gone from the feed, gets
+`withdrawn_at`, never a delete, so a check-in already recorded against them
+survives. A new badge clears it. A badge that drops out of the feed gets
+`removed_at` for the same reason. A badge type the venue deletes keeps its row;
+badges sold under it still point at it (the purchase embeds its `pass`).
 
 `link_method = MANUAL` with `user = NULL` means staff unlinked the row on
 purpose. The sync never auto-links such a row again; staff unlink exactly when
 an automatic match was wrong.
 
-### Room for registration tiers
+## Comps
 
-Matcherino may later expose registration tiers (VIP vs regular), which would
-tell the desk what to hand someone. Neither endpoint serves them today. The
-design leaves room without building anything speculative:
+Some people get in without buying a badge. Each check-in event sets its own
+comp rules in the event dialog:
 
-- `CheckInEntrant.source_data` holds the participant object exactly as last
-  served. A field Matcherino starts sending can be backfilled from rows already
-  synced.
-- `MatcherinoParticipant` keeps the raw dict beside its parsed fields, so reading
-  a new field is one attribute and one assignment in `sync_event`.
-- The intended extension is three tables (`CheckInTier` per event,
-  `CheckInTierItem` for what a tier is handed, `CheckInHandout` for what someone
-  has received) plus a nullable `CheckInEntrant.tier` FK with a `tier_source`, so
-  a sync never overwrites a tier staff set by hand. None of it changes a column
-  that exists now.
+- **Comp roles** (`CheckInEvent.comp_roles`, a list of `Role` values): everyone
+  holding one of these roles in the community. Any role a community can grant
+  is allowed; `SUPER_ADMIN` isn't.
+- **Comp volunteers** (`comp_volunteers`): anyone whose published volunteer
+  shifts inside the community's event window add up to the **lowest volunteer
+  comp tier** (Admin → Settings; 8 hours for SGL). These are *scheduled* hours,
+  the same total the volunteer roster shows, because most shifts haven't
+  happened yet when the desk opens. Unpublished auto-scheduler drafts don't
+  count, and nobody is comped this way while volunteering is turned off.
 
-## Matching registrants to accounts
+Each sync works out who is comped (`check_in_comps.comped_users`) before it
+touches the roster, then:
 
-Each participant carries the account they signed in to Matcherino with:
+- A comped person who isn't on the roster gets a `COMP` row (source and link
+  method `COMP`) tied to their account.
+- A comped person who is already there (a buyer, a walk-up) keeps their row and
+  gains `comp_reasons`. A comped buyer is never withdrawn for having no badge.
+- Someone who stops qualifying loses their comp. A `COMP` row is withdrawn,
+  unless they've already checked in, in which case they stay present as with a
+  refund. A buyer keeps their row and just loses the Comp chip.
+- A comp who later turns out to be a buyer (the purchase auto-links to their
+  account, or staff link it by hand) stays one person: the purchase row takes
+  over the comp and any check-in already recorded, and the `COMP` row is
+  deleted (`check_in_comps.absorb_comp_row`).
+
+A `COMP` row can't be relinked, unlinked or removed at the desk; change the
+event's comp rules instead. An event with comp rules but no venue still syncs
+(the worker polls it too), so a staff-and-volunteers-only door works. A
+Matcherino failure stops the whole sync, comps included, so the roster never
+changes halfway.
+
+### Handouts are a follow-up
+
+Tiers tell the desk *which* badge someone gets. What each tier is handed beyond
+the badge (lanyard, VIP swag), and who has received it, is not tracked. The
+intended extension is two tables, `CheckInTierItem` (what a `CheckInTier` is
+handed) and `CheckInHandout` (what an entrant has received). It changes no
+column that exists now. Tiers come only from Matcherino; there is no manual
+tier for walk-ups or door sales, which should be sold as Matcherino badges.
+
+## Matching buyers to accounts
+
+Each purchase carries the account the buyer signed in to Matcherino with:
 `authProvider` + `authId`. For `discord` the id is the Discord snowflake; for
-`twitch` it is the Twitch user id. In a 164-person sample, 133 had one of the
-two.
+`twitch` it is the Twitch user id. Of SG Live 2026's 169 buyers, 137 had one of
+the two (70 Twitch, 67 Discord); the rest signed in with Google (29), Facebook,
+YouTube, Battle.net or Twitter.
 
 `CheckInService._auto_link` tries these in order and takes the first hit:
 
 | Rule | Matches |
 |---|---|
-| `MATCHERINO_ID` | `User.matcherino_user_id` = the participant's `userId` (a link remembered from an earlier event) |
+| `MATCHERINO_ID` | `User.matcherino_user_id` = the buyer's `userId` (a link remembered from an earlier event) |
 | `DISCORD_ID` | Discord sign-in, `authId` = `User.discord_id` |
 | `TWITCH_ID` | Twitch sign-in, `authId` = `User.twitch_user_id` |
-| `TWITCH_LOGIN` | a Twitch login in `socials` = `User.twitch_username` |
 | `MATCHERINO_HANDLE` | the `#id` suffix of a self-entered `User.matcherino_username` = `userId` |
 
-Exact identifiers only, matched across all of Wizzrobe: a registrant's Discord or
-Twitch id is already public on the bounty, so finding its account reveals
-nothing. Name similarity is only ever **suggested** (`suggest_users`, ranked
+The bounty feed also listed linked Twitch logins (`socials`), which a
+`TWITCH_LOGIN` rule matched against `User.twitch_username`. Purchases carry no
+socials, so that rule went with the bounty path; migration 83 folds the rows it
+had linked into `TWITCH_ID`, which the desk shows the same way.
+
+Exact identifiers only, matched across all of Wizzrobe: a buyer's Discord or
+Twitch id is the account they signed in to Matcherino with, and staff who can
+run the desk can already see the sale. Name similarity is only ever **suggested** (`suggest_users`, ranked
 `difflib` against community members) for staff to confirm.
 
-Two registrations that resolve to one account link only the first.
+Two buyers that resolve to one account link only the first.
 
 **What a link writes to the account.** `matcherino_username` is where prize money
-is sent, so this is deliberately narrow (`_remember_matcherino_account`):
+is sent, so this is deliberately narrow (`check_in_accounts.remember_matcherino_account`):
 
-- Only a `DISCORD_ID`, `TWITCH_ID` or `TWITCH_LOGIN` match (OAuth-verified ids)
+- Only a `DISCORD_ID` or `TWITCH_ID` match (OAuth-verified ids)
   or a manual link (a person at the desk confirmed it) records anything. A
   `MATCHERINO_HANDLE` match is **not** promoted: the handle is self-typed, and it
   keeps matching on its own.
 - It fills `User.matcherino_user_id` and `matcherino_username` **only when
   empty**, never takes an id another account holds, and writes a
   `user.profile_updated` audit row with `source: check_in`.
-- Unlinking undoes it (`_forget_matcherino_account`): staff unlink when a match
+- Unlinking undoes it (`forget_matcherino_account`): staff unlink when a match
   was wrong, and a wrong id left in place would re-link that person at every
   later event and lock the real owner out. The id is cleared if it matches the
   row; the handle only if it is still exactly the one check-in filled in.
@@ -121,7 +204,7 @@ is sent, so this is deliberately narrow (`_remember_matcherino_account`):
 
 | Action | Who |
 |---|---|
-| Create, edit, open/close, delete events; look up a bounty | `STAFF` (`AuthService.can_manage_check_in`) |
+| Create, edit, open/close, delete events; look up a venue | `STAFF` (`AuthService.can_manage_check_in`) |
 | Check in, undo, link, unlink, sync | `STAFF` or `CHECK_IN_DESK` (`can_run_check_in_desk`); the system user for the worker |
 | Add a walk-up, remove a walk-up | `STAFF` only |
 
@@ -129,9 +212,10 @@ is sent, so this is deliberately narrow (`_remember_matcherino_account`):
 the Users dialog and the Discord role-mapping picker on its own (both read
 `Role.tenant_grantable()`).
 
-Only walk-ups can be removed: a Matcherino row would come back on the next sync.
-An event's bounty can't change once it has a Matcherino roster (the next sync
-would withdraw everyone); create a new event instead.
+Only walk-ups can be removed: a Matcherino row would come back on the next sync
+(refund the badge instead). An event's venue can't change once it has a
+Matcherino roster (the next sync would withdraw everyone); create a new event
+instead.
 
 ## Concurrency
 
@@ -148,11 +232,10 @@ Several phones work one event, and the worker polls it too:
   unlinked mid-sync is left as the desk set it.
 - **The sync writes only its bookkeeping columns** on the event
   (`record_sync`), so a staff edit made during a slow fetch is not reverted.
-- **A short read is a failure.** The client compares the distinct participants
-  it got with page 0's `itemCount` and raises on a shortfall or on hitting the
-  page cap, so a dropped page never looks like people leaving.
+- **A short read is a failure** (see above), so a cut-off list never looks like
+  people being refunded.
 - A unique-constraint race that slips through anyway (a walk-up, an event's
-  bounty, a link) surfaces as a `ValueError` message, not a raw error.
+  venue, a link) surfaces as a `ValueError` message, not a raw error.
 
 ## The service
 
@@ -161,26 +244,38 @@ Several phones work one event, and the worker polls it too:
 
 | Method | Does |
 |---|---|
-| `create_event` / `update_event` / `delete_event` | Event CRUD. One event per bounty per community |
-| `preview_bounty` | Fetches the bounty title for the admin dialog |
+| `create_event` / `update_event` / `delete_event` | Event CRUD. One event per venue per community |
+| `preview_venue` → `VenuePreview(venue, tiers)` | The venue's title and badge types for the admin dialog. Reading the badge types needs the stored login, so a venue that previews is one the sync can read |
 | `list_events` / `list_open_events` / `get_event` / `has_open_event` | Reads |
-| `sync_event(actor, event_id, audit=True)` | Upsert by `matcherino_user_id`, withdraw/rejoin, auto-link. Returns `SyncResult`. `audit=False` is the worker's poll |
-| `roster` / `get_entrant` | Reads |
+| `sync_event(actor, event_id, audit=True)` | Work out comps, then upsert buyers by `matcherino_user_id`, withdraw/rejoin on badges held, auto-link, then upsert badge types and badges. then reconcile comp rows. Needs a venue or comp rules. Returns `SyncResult` (`total` buyers holding a badge, `badges` held, `comped`). `audit=False` is the worker's poll |
+| `roster` / `get_entrant` | Reads, with each entrant's badges and their tiers prefetched |
+| `tiers_for(event)` | The badge types, dearest first, for the desk's chips |
+| `volunteer_user_ids()` | Accounts with a published volunteer assignment in this community (drafts excluded), for the **Volunteer** chip. An empty set when `FeatureFlag.VOLUNTEERS` is off, never an error |
 | `suggest_users` / `search_members(event, query)` | Candidate accounts for the link and walk-up dialogs, community members not already on the roster |
 | `check_in` → `CheckInOutcome(entrant, already)` / `undo_check_in` | The desk's main actions |
 | `link` / `unlink` | Manual matching |
 | `add_walk_up(event_id, user_id= or name=, check_in=True)` / `remove_entrant` | Walk-ups (staff) |
 
+`application/services/check_in_comps.py` works out and applies comps (see
+[Comps](#comps)); `check_in_accounts.py` holds the identity lookups and what a
+link writes back to the account.
+
+`application/services/check_in_sales.py` is the data half of the sync:
+`buyers_of(sales)`, `buyer_fields`, and the `apply_tiers` / `apply_badges`
+upserts.
+
 `application/services/check_in_rules.py` holds the pure rules the desk and the
-service share: `entrant_filters(entrant)` (which filter chips a row belongs to,
-over `ROSTER_FILTERS`), `summarize(entrants) -> RosterCounts`, `handle_id`, and
-`resolve_link` (the auto-link precedence). `summarize` gives the desk's headline
-numbers; withdrawn rows count only as withdrawn.
+service share: `entrant_filters(entrant, badges)` (which filter chips a row
+belongs to, over `ROSTER_FILTERS` plus a `tier_filter(tier_id)` chip per badge
+type held), `active_badges` (unrefunded, unremoved, dearest first),
+`summarize(entrants) -> RosterCounts`, `handle_id`, and `resolve_link` (the
+auto-link precedence). `summarize` gives the desk's headline numbers; withdrawn
+rows count only as withdrawn.
 
 ## Sync worker
 
 `application/services/check_in_sync_worker.py`, a 60 s `run_worker_loop` tick.
-It scans open events with a bounty (cross-tenant), and syncs each one inside its
+It scans open events with a venue (cross-tenant), and syncs each one inside its
 tenant's scope as the system user once `sync_interval_minutes` has passed. After
 a failure it backs off from the failure time rather than retrying every tick.
 Tenants with the flag off are skipped. No environment switch: it only touches
@@ -206,7 +301,7 @@ events staff have opened. Run one tick by hand with
   open (`BaseLayout` via `AuthService.can_view_check_in_desk`).
 - `/checkin/{event_id}` is the desk. It's phone-first: the search box, progress
   bar, filter chips (All / Not yet / Checked in / Unlinked / Walk-ups /
-  Withdrawn, with counts) and sync status stick under the app header. Below
+  Volunteers / Comps / Withdrawn, then one per badge type, with counts) and sync status stick under the app header. Below
   `md` each person is a card with a full-width 48 px Check in button;
   Link/Unlink/Undo/Remove sit behind a ⋮ menu. On desktop it's a table with the
   same actions.
@@ -228,15 +323,19 @@ in-process and share the match board's single-worker constraint
 ## Admin
 
 Admin → **Check-in** (Operations group, STAFF + flag): the events table, a
-New/Edit dialog with a **Look up** button that confirms the bounty by title, and
-a **Desk** shortcut per event.
+New/Edit dialog with a **Look up** button that confirms the venue by title and
+lists its badge types (and refuses a plain bounty ID, the usual mix-up), and a
+**Desk** shortcut per event.
 
 ## Dev seed
 
-`scripts/seed_check_in.py` syncs the `MOCK_MATCHERINO` roster through the real
-service, so pressing Sync in dev changes nothing. The roster is lined up with
+`scripts/seed_check_in.py` syncs the `MOCK_MATCHERINO` venue through the real
+service, so pressing Sync in dev changes nothing. The sales are lined up with
 fixtures so one sync produces every link method (see the comment above
-`MOCK_PARTICIPANTS`), and the seed adds a manual link, a withdrawn registrant, a
+`MOCK_PURCHASES`), all four badge types, a two-badge buyer and a refunded buyer,
+comps for Staff and volunteers (staff_user as a `COMP` row; player_one at exactly
+8 scheduled hours and player_two above every tier comped on top of their badges),
+and the seed adds a manual link, a buyer whose badge left the feed, a
 check-in by `checkin_desk` (the fixture holding only `CHECK_IN_DESK`), a member
 walk-up and a named walk-up, a draft event and a closed one. Tenants without the
 flag are skipped.
@@ -244,8 +343,17 @@ flag are skipped.
 ## Tests
 
 - `tests/services/test_check_in_service.py`: matching rules and precedence, sync
-  idempotency, withdraw/rejoin, the empty-response and API-error guards,
-  permissions, walk-ups, the worker.
+  idempotency, withdraw/rejoin, badges per purchase, refunds, removed badges,
+  renamed and deleted badge types, that contact details aren't stored, the
+  empty-response and API-error guards, permissions, walk-ups, the worker.
 - `tests/utils/test_matcherino_client.py`: the wire shape through
-  `httpx.MockTransport`.
-- `tests/tenancy/test_check_in_tenant_isolation.py`: both models.
+  `httpx.MockTransport`, the sign-in and token cache, 401 re-minting, the
+  missing-login and short-read errors, and that neither token leaks into a
+  message.
+- `tests/services/test_check_in_badges_and_comps.py`: badges and tiers, the
+  volunteer chip, and comps (roles, the hour threshold, drafts, the flag off,
+  losing and regaining a comp, a comped buyer, a comp merging into a later
+  purchase or a manual link, what the desk can't do to a comp row, a
+  comps-only event under the worker). Shared fixtures live in
+  `tests/services/check_in_support.py`.
+- `tests/tenancy/test_check_in_tenant_isolation.py`: all four models.

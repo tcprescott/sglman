@@ -32,7 +32,7 @@ from .challonge import (
     ChallongeMatch,
     ChallongeParticipant,
 )
-from .check_in import CheckInEntrant, CheckInEvent
+from .check_in import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier
 from .column_guards import FieldValueError, install_column_guards
 from .discord_events import DiscordScheduledEvent
 from .enums import (
@@ -180,6 +180,8 @@ __all__ = [
     'CheckInEvent',
     'CheckInEventStatus',
     'CheckInLinkMethod',
+    'CheckInPass',
+    'CheckInTier',
     # match / crew
     'Commentator',
     'DiscordEventSource',

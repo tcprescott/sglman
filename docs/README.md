@@ -34,6 +34,7 @@ Layer-by-layer detail, kept in step with the source.
 | [reference/authentication.md](reference/authentication.md) | Discord OAuth, `AuthMiddleware`, `protected_page` / `public_page`, `AuthService`, the role matrix |
 | [reference/discord-integration.md](reference/discord-integration.md) | `discordbot/`, `application/services/discord/`, the DM queue, `racetimebot/` |
 | [reference/seed-generation.md](reference/seed-generation.md) | Randomizer backends, `presets/`, per-tenant credentials |
+| [reference/matcherino-api.md](reference/matcherino-api.md) | Matcherino's private API: auth, venue and badge endpoints, wire shapes, what's known from the bundle |
 | [reference/dev-seed.md](reference/dev-seed.md) | `scripts/seed_*.py` — the fixture standard and what enforces it |
 | [reference/frontend.md](reference/frontend.md) | `frontend.py`, `pages/`, `theme/`, `static/` |
 
@@ -57,7 +58,7 @@ How each shipped subsystem behaves.
 | [features/web-push.md](features/web-push.md) | Declarative Web Push device notifications mirroring Discord DMs |
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
 | [features/ada-accommodations.md](features/ada-accommodations.md) | Per-community ADA accommodation requests from the profile, a STAFF queue with status and private notes. Behind `FeatureFlag.ADA_ACCOMMODATIONS` |
-| [features/event-check-in.md](features/event-check-in.md) | Matcherino-backed check-in desk for in-person events: roster sync over the unofficial API, account matching, walk-ups, the `CHECK_IN_DESK` role. Behind `FeatureFlag.EVENT_CHECK_IN` |
+| [features/event-check-in.md](features/event-check-in.md) | Matcherino-backed check-in desk for in-person events: badge-sale sync over the unofficial API, badge tiers, account matching, walk-ups, the `CHECK_IN_DESK` role. Behind `FeatureFlag.EVENT_CHECK_IN` |
 | [features/payouts.md](features/payouts.md) | Prize pool, placement splits with ties, computed amounts, Matcherino handles and the payout block. Behind `FeatureFlag.PAYOUTS` |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
 | [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |

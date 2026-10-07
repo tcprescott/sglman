@@ -10,8 +10,9 @@ from typing import Awaitable, Callable, List, Optional
 
 from nicegui import ui
 
-from application.services import CheckInService
-from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, User
+from application.services import CheckInService, SystemConfigService
+from application.services.check_in_rules import comp_label
+from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, Role, User
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog._helpers import dialog_actions, form_dialog, submit_on_enter
 from theme.notify import notify_error
@@ -103,7 +104,7 @@ async def open_link_dialog(
 async def open_walk_up_dialog(
     service: CheckInService, actor: User, event: CheckInEvent, on_done: OnDone,
 ) -> None:
-    """Add someone who isn't registered on Matcherino. Staff only."""
+    """Add someone who didn't buy a badge on Matcherino. Staff only."""
     chosen: dict = {'user': None}
 
     with form_dialog('Add walk-up') as dialog:
@@ -176,32 +177,33 @@ async def open_event_dialog(
             name = ui.input('Event name', value=event.name if event else '').props('outlined dense') \
                 .classes('w-full')
             with ui.row().classes('w-full items-start no-wrap gap-2'):
-                bounty = ui.number(
-                    'Matcherino bounty ID',
-                    value=event.matcherino_bounty_id if event else None,
+                venue = ui.number(
+                    'Matcherino venue ID',
+                    value=event.matcherino_venue_id if event else None,
                     format='%d', min=1,
                 ).props('outlined dense clearable').classes('col')
                 lookup_btn = ui.button('Look up', icon='travel_explore').props('flat no-caps') \
                     .classes(REQUIRES_SOCKET_CLASS)
             found = ui.label(
-                "The number at the end of the event's Matcherino link. "
-                'Leave it empty for a walk-up-only event.'
+                'The number in the link to the event\'s badge page, matcherino.com/events/<number>. '
+                "That's the venue, not the tournaments bounty. Leave it empty for a walk-up-only event."
             ).classes('text-caption text-grey-7')
 
             async def look_up() -> None:
-                if not bounty.value:
-                    ui.notify('Enter a bounty ID first.', color='warning')
+                if not venue.value:
+                    ui.notify('Enter a venue ID first.', color='warning')
                     return
                 try:
-                    found_bounty = await service.preview_bounty(actor, int(bounty.value))
+                    preview = await service.preview_venue(actor, int(venue.value))
                 except (ValueError, PermissionError) as e:
                     found.text = str(e)
                     found.classes(replace='text-caption text-warning')
                     return
-                found.text = f'Found: {found_bounty.title}'
+                badge_types = ', '.join(t.title for t in preview.tiers) or 'none yet'
+                found.text = f'Found: {preview.venue.title}. Badges: {badge_types}.'
                 found.classes(replace='text-caption text-positive')
                 if not (name.value or '').strip():
-                    name.value = found_bounty.title
+                    name.value = preview.venue.title
 
             lookup_btn.on_click(look_up)
             status = ui.select(
@@ -213,19 +215,39 @@ async def open_event_dialog(
                 value=event.sync_interval_minutes if event else 5, min=1, max=120, format='%d',
             ).props('outlined dense').classes('w-full')
 
+            ui.label('Comps').classes('text-subtitle2 q-mt-sm')
+            comp_roles = ui.select(
+                {role.value: comp_label(role.value) for role in Role.tenant_grantable()},
+                label='Comp everyone with these roles', multiple=True,
+                value=list(event.comp_roles) if event else [],
+            ).props('outlined dense use-chips clearable').classes('w-full')
+            tiers = await SystemConfigService.get_volunteer_comp_tiers()
+            threshold = f'{tiers[0]:g}' if tiers else None
+            comp_volunteers = ui.switch(
+                f'Comp volunteers scheduled for {threshold}+ hours' if threshold
+                else 'Comp volunteers (no comp tier set in Admin → Settings)',
+                value=event.comp_volunteers if event else False,
+            )
+            ui.label(
+                'Comped people show up on the desk without buying a badge. '
+                'Volunteer hours are published shifts in the event window.'
+            ).classes('text-caption text-grey-7')
+
         async def submit() -> None:
-            bounty_id = int(bounty.value) if bounty.value else None
+            venue_id = int(venue.value) if venue.value else None
             try:
                 if event is None:
                     await service.create_event(
-                        actor, name.value, bounty_id=bounty_id,
+                        actor, name.value, venue_id=venue_id,
                         status=CheckInEventStatus(status.value),
                         sync_interval_minutes=int(interval.value or 5),
+                        comp_roles=comp_roles.value or [], comp_volunteers=bool(comp_volunteers.value),
                     )
                 else:
                     await service.update_event(
-                        actor, event.id, name.value, bounty_id,
+                        actor, event.id, name.value, venue_id,
                         CheckInEventStatus(status.value), int(interval.value or 5),
+                        comp_roles=comp_roles.value or [], comp_volunteers=bool(comp_volunteers.value),
                     )
             except (ValueError, PermissionError) as e:
                 notify_error(e)

@@ -395,19 +395,21 @@ protection is deliberately off because `Host` and TLS terminate at the proxy.
 **Pass:** discovery documents advertise the public URL; a client that compares
 them connects.
 
-### MC1 · Real bounty syncs — S2, cause A
-Create a check-in event with the event's real Matcherino bounty ID (the admin
-dialog's Look up should show its title), open it, and press Sync.
-**Pass:** the roster count matches the bounty's participant count; Discord and
-Twitch sign-ins of people with Wizzrobe accounts arrive linked.
+### MC1 · Real venue syncs — S2, cause A
+With `MATCHERINO_REFRESH_TOKEN` set for an account that administers the venue,
+create a check-in event with the event's real Matcherino venue ID (the admin
+dialog's Look up should show its title and badge types), open it, and press Sync.
+**Pass:** the roster count matches the venue's badge holders on Matcherino's
+Tickets page; every badge type appears as a filter chip with the right count;
+Discord and Twitch sign-ins of people with Wizzrobe accounts arrive linked.
 
 ### MC2 · Repeated polls do not churn — S2, cause A
 Leave the event open through several worker cycles.
-**Pass:** no duplicate rows, nobody marked withdrawn who is still on the bounty,
-and someone who leaves the bounty shows as withdrawn on the next poll.
+**Pass:** no duplicate rows, nobody marked withdrawn who still holds a badge,
+and someone whose only badge is refunded shows as Refunded on the next poll.
 
 ### MC3 · Matcherino unreachable or changed — S2, cause A
-Block api.matcherino.com (or point the event at a bounty that answers empty).
+Block api.matcherino.com, or unset `MATCHERINO_REFRESH_TOKEN` and restart.
 **Pass:** the desk header says the sync failed and when; the roster is untouched;
 check-in, linking and walk-ups keep working; the next good sync clears the error.
 

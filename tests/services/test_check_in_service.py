@@ -1,4 +1,7 @@
-"""CheckInService: the Matcherino sync, account matching, and the desk's actions."""
+"""CheckInService: the Matcherino venue sync, account matching, and the desk's actions."""
+
+# ruff: noqa: F811 — the shared fixtures are imported from check_in_support, and
+# pytest injects them as same-named test arguments.
 
 import json
 from datetime import timedelta
@@ -13,7 +16,7 @@ from application.services.feature_flag_service import reset_flag_cache
 from application.utils.clients.matcherino_client import (
     MatcherinoAPIError,
     MockMatcherinoClient,
-    mock_participant,
+    mock_purchase,
 )
 from models import (
     AuditLog,
@@ -22,93 +25,45 @@ from models import (
     CheckInEventStatus,
     CheckInLinkMethod,
     FeatureFlag,
-    Role,
     TenantFeatureFlag,
     TenantMembership,
-    User,
-    UserRole,
 )
 from tests.conftest import DEFAULT_TEST_TENANT_ID
 from tests.factories import make_user
-
-BOUNTY = 182107
-
-
-class ScriptedClient(MockMatcherinoClient):
-    """A mock whose roster a test can change between syncs, or make fail."""
-
-    def __init__(self, participants):
-        super().__init__(participants)
-        self.error = None
-
-    def set(self, participants):
-        self._participants = participants
-
-    async def fetch_participants(self, bounty_id):
-        if self.error is not None:
-            raise self.error
-        return await super().fetch_participants(bounty_id)
-
-
-async def _with_role(discord_id: int, username: str, role: Role) -> User:
-    user = await make_user(discord_id=discord_id, username=username)
-    await UserRole.create(user=user, role=role, tenant_id=DEFAULT_TEST_TENANT_ID)
-    return user
-
-
-@pytest.fixture
-async def staff(db):
-    return await _with_role(1, 'staff', Role.STAFF)
-
-
-@pytest.fixture
-async def desk(db):
-    return await _with_role(2, 'desk', Role.CHECK_IN_DESK)
-
-
-@pytest.fixture
-def client():
-    return ScriptedClient([])
-
-
-@pytest.fixture
-def service(client):
-    return CheckInService(client=client)
-
-
-@pytest.fixture
-async def event(service, staff):
-    return await service.create_event(staff, 'SGL 2026', bounty_id=BOUNTY, status=CheckInEventStatus.OPEN)
-
-
-async def _rows(event):
-    return {row.matcherino_user_id: row for row in await CheckInEntrant.filter(event=event)}
+from tests.services.check_in_support import (  # noqa: F401 — fixtures
+    VENUE,
+    ScriptedClient,
+    client,
+    desk,
+    event,
+    service,
+    staff,
+)
+from tests.services.check_in_support import (
+    rows as _rows,
+)
 
 
 class TestAutoLink:
     async def test_each_identifier_links_its_account(self, service, client, staff, event):
         by_discord = await make_user(discord_id=300000000000000010, username='disc_person')
         by_twitch_id = await make_user(discord_id=11, username='twitch_person', twitch_user_id='700000010')
-        by_twitch_login = await make_user(discord_id=12, username='login_person', twitch_username='LoginPerson42')
         by_matcherino_id = await make_user(discord_id=13, username='known', matcherino_user_id='500')
         by_handle = await make_user(discord_id=14, username='typed', matcherino_username='Typed Name#600')
         client.set([
-            mock_participant(100, 'DiscPerson', auth_provider='discord', auth_id='300000000000000010'),
-            mock_participant(200, 'TwitchPerson', auth_provider='twitch', auth_id='700000010'),
-            mock_participant(300, 'LoginFan', auth_provider='discord', auth_id='300000000000000020',
-                             twitch_login='LoginPerson42'),
-            mock_participant(500, 'Known', auth_provider='gplus'),
-            mock_participant(600, 'Renamed Since', auth_provider='facebook'),
-            mock_participant(700, 'Nobody', auth_provider='gplus'),
+            mock_purchase(100, 'DiscPerson', auth_provider='discord', auth_id='300000000000000010'),
+            mock_purchase(200, 'TwitchPerson', auth_provider='twitch', auth_id='700000010'),
+            mock_purchase(500, 'Known', auth_provider='gplus'),
+            mock_purchase(600, 'Renamed Since', auth_provider='facebook'),
+            mock_purchase(700, 'Nobody', auth_provider='gplus'),
         ])
 
         result = await service.sync_event(staff, event.id)
 
         rows = await _rows(event)
-        assert result.added == 6 and result.auto_linked == 5
+        assert result.added == 5 and result.auto_linked == 4
         assert (rows['100'].user_id, rows['100'].link_method) == (by_discord.id, CheckInLinkMethod.DISCORD_ID)
         assert (rows['200'].user_id, rows['200'].link_method) == (by_twitch_id.id, CheckInLinkMethod.TWITCH_ID)
-        assert (rows['300'].user_id, rows['300'].link_method) == (by_twitch_login.id, CheckInLinkMethod.TWITCH_LOGIN)
         assert (rows['500'].user_id, rows['500'].link_method) == (by_matcherino_id.id, CheckInLinkMethod.MATCHERINO_ID)
         assert (rows['600'].user_id, rows['600'].link_method) == (by_handle.id, CheckInLinkMethod.MATCHERINO_HANDLE)
         assert rows['700'].user_id is None
@@ -116,7 +71,7 @@ class TestAutoLink:
     async def test_the_remembered_matcherino_id_wins_over_discord(self, service, client, staff, event):
         remembered = await make_user(discord_id=20, username='remembered', matcherino_user_id='100')
         await make_user(discord_id=999, username='discord-owner')
-        client.set([mock_participant(100, 'x', auth_provider='discord', auth_id='999')])
+        client.set([mock_purchase(100, 'x', auth_provider='discord', auth_id='999')])
 
         await service.sync_event(staff, event.id)
 
@@ -128,8 +83,8 @@ class TestAutoLink:
         fresh = await make_user(discord_id=31, username='fresh')
         typed = await make_user(discord_id=32, username='typed', matcherino_username='my own#1')
         client.set([
-            mock_participant(100, 'Fresh', auth_provider='discord', auth_id='31'),
-            mock_participant(200, 'Typed', auth_provider='discord', auth_id='32'),
+            mock_purchase(100, 'Fresh', auth_provider='discord', auth_id='31'),
+            mock_purchase(200, 'Typed', auth_provider='discord', auth_id='32'),
         ])
 
         await service.sync_event(staff, event.id)
@@ -140,10 +95,10 @@ class TestAutoLink:
         assert (typed.matcherino_user_id, typed.matcherino_username) == ('200', 'my own#1')
 
     async def test_two_registrations_for_one_account_link_only_the_first(self, service, client, staff, event):
-        owner = await make_user(discord_id=40, username='owner', twitch_username='owner')
+        owner = await make_user(discord_id=40, username='owner', twitch_user_id='700000040')
         client.set([
-            mock_participant(100, 'Owner', auth_provider='discord', auth_id='40'),
-            mock_participant(200, 'Owner alt', auth_provider='twitch', auth_id='x', twitch_login='owner'),
+            mock_purchase(100, 'Owner', auth_provider='discord', auth_id='40'),
+            mock_purchase(200, 'Owner alt', auth_provider='twitch', auth_id='700000040'),
         ])
 
         await service.sync_event(staff, event.id)
@@ -153,7 +108,7 @@ class TestAutoLink:
         assert rows['200'].user_id is None
 
     async def test_a_later_sync_links_someone_who_has_since_signed_up(self, service, client, staff, event):
-        client.set([mock_participant(100, 'Late', auth_provider='discord', auth_id='50')])
+        client.set([mock_purchase(100, 'Late', auth_provider='discord', auth_id='50')])
         await service.sync_event(staff, event.id)
         assert (await _rows(event))['100'].user_id is None
 
@@ -167,7 +122,7 @@ class TestAutoLink:
 class TestRememberedAccounts:
     async def test_a_typed_handle_links_but_is_not_promoted(self, service, client, staff, event):
         typed = await make_user(discord_id=15, username='typed', matcherino_username='Me#600')
-        client.set([mock_participant(600, 'Someone', auth_provider='gplus')])
+        client.set([mock_purchase(600, 'Someone', auth_provider='gplus')])
 
         await service.sync_event(staff, event.id)
 
@@ -177,7 +132,7 @@ class TestRememberedAccounts:
 
     async def test_remembering_is_audited(self, service, client, staff, event):
         await make_user(discord_id=16, username='fresh')
-        client.set([mock_participant(100, 'Fresh', auth_provider='discord', auth_id='16')])
+        client.set([mock_purchase(100, 'Fresh', auth_provider='discord', auth_id='16')])
 
         await service.sync_event(staff, event.id)
 
@@ -188,7 +143,7 @@ class TestRememberedAccounts:
 
     async def test_unlink_forgets_what_the_link_recorded(self, service, client, staff, desk, event):
         wrong = await make_user(discord_id=17, username='wrong')
-        client.set([mock_participant(100, 'Real Owner', auth_provider='gplus')])
+        client.set([mock_purchase(100, 'Real Owner', auth_provider='gplus')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
         await service.link(desk, entrant.id, wrong.id)
@@ -200,7 +155,7 @@ class TestRememberedAccounts:
 
     async def test_unlink_keeps_a_handle_the_player_typed(self, service, client, staff, desk, event):
         owner = await make_user(discord_id=18, username='owner', matcherino_username='mine#100')
-        client.set([mock_participant(100, 'Owner', auth_provider='discord', auth_id='18')])
+        client.set([mock_purchase(100, 'Owner', auth_provider='discord', auth_id='18')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
 
@@ -213,7 +168,7 @@ class TestRememberedAccounts:
 
 class TestRaces:
     async def test_two_desks_tapping_one_person_record_one_check_in(self, service, client, staff, desk, event):
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
         stale = await service.get_entrant(entrant.id)
@@ -237,11 +192,11 @@ class TestRaces:
         from models import CheckInEvent
 
         class EditsMidFetch(ScriptedClient):
-            async def fetch_participants(self, bounty_id):
+            async def fetch_sales(self, venue_id):
                 await CheckInEvent.filter(id=event.id).update(status=CheckInEventStatus.CLOSED, name='Renamed')
-                return await super().fetch_participants(bounty_id)
+                return await super().fetch_sales(venue_id)
 
-        await CheckInService(client=EditsMidFetch([mock_participant(100, 'A')])).sync_event(staff, event.id)
+        await CheckInService(client=EditsMidFetch([mock_purchase(100, 'A')])).sync_event(staff, event.id)
 
         await event.refresh_from_db()
         assert (event.status, event.name) == (CheckInEventStatus.CLOSED, 'Renamed')
@@ -250,7 +205,7 @@ class TestRaces:
     async def test_concurrent_syncs_do_not_collide(self, service, client, staff, event):
         import asyncio
 
-        client.set([mock_participant(100, 'A'), mock_participant(200, 'B')])
+        client.set([mock_purchase(100, 'A'), mock_purchase(200, 'B')])
 
         results = await asyncio.gather(
             service.sync_event(staff, event.id), service.sync_event(staff, event.id, audit=False),
@@ -262,17 +217,17 @@ class TestRaces:
     async def test_a_link_made_during_a_sync_is_kept(self, service, client, staff, desk, event):
         await make_user(discord_id=19, username='auto-target')
         chosen = await make_user(discord_id=20, username='chosen')
-        client.set([mock_participant(100, 'A', auth_provider='gplus')])
+        client.set([mock_purchase(100, 'A', auth_provider='gplus')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
 
         class LinksMidFetch(ScriptedClient):
-            async def fetch_participants(self, bounty_id):
+            async def fetch_sales(self, venue_id):
                 await service.link(desk, entrant.id, chosen.id)
-                return [p for p in await super().fetch_participants(bounty_id)]
+                return await super().fetch_sales(venue_id)
 
         await CheckInService(client=LinksMidFetch(
-            [mock_participant(100, 'A', auth_provider='discord', auth_id='19')],
+            [mock_purchase(100, 'A', auth_provider='discord', auth_id='19')],
         )).sync_event(staff, event.id)
 
         assert (await _rows(event))['100'].user_id == chosen.id
@@ -280,7 +235,7 @@ class TestRaces:
 
 class TestSyncRoster:
     async def test_a_repeat_sync_changes_nothing(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A'), mock_participant(200, 'B')])
+        client.set([mock_purchase(100, 'A'), mock_purchase(200, 'B')])
         await service.sync_event(staff, event.id)
 
         again = await service.sync_event(staff, event.id)
@@ -289,23 +244,23 @@ class TestSyncRoster:
         assert await CheckInEntrant.filter(event=event).count() == 2
 
     async def test_leaving_withdraws_and_rejoining_restores(self, service, client, staff, event):
-        client.set([mock_participant(100, 'Stays'), mock_participant(200, 'Leaves')])
+        client.set([mock_purchase(100, 'Stays'), mock_purchase(200, 'Leaves')])
         await service.sync_event(staff, event.id)
 
-        client.set([mock_participant(100, 'Stays')])
+        client.set([mock_purchase(100, 'Stays')])
         left = await service.sync_event(staff, event.id)
         assert left.withdrawn == 1
         assert (await _rows(event))['200'].withdrawn_at is not None
 
-        client.set([mock_participant(100, 'Stays'), mock_participant(200, 'Leaves')])
+        client.set([mock_purchase(100, 'Stays'), mock_purchase(200, 'Leaves')])
         back = await service.sync_event(staff, event.id)
         assert back.rejoined == 1
         assert (await _rows(event))['200'].withdrawn_at is None
 
     async def test_profile_changes_are_picked_up(self, service, client, staff, event):
-        client.set([mock_participant(100, 'Old Name')])
+        client.set([mock_purchase(100, 'Old Name')])
         await service.sync_event(staff, event.id)
-        client.set([mock_participant(100, 'New Name')])
+        client.set([mock_purchase(100, 'New Name')])
 
         result = await service.sync_event(staff, event.id)
 
@@ -315,7 +270,7 @@ class TestSyncRoster:
         assert row.source_data['displayName'] == 'New Name'
 
     async def test_an_empty_response_keeps_the_roster(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
         client.set([])
 
@@ -324,10 +279,10 @@ class TestSyncRoster:
 
         await event.refresh_from_db()
         assert (await _rows(event))['100'].withdrawn_at is None
-        assert 'no registrants' in event.last_sync_error
+        assert 'no badges' in event.last_sync_error
 
     async def test_an_api_failure_keeps_the_roster_and_says_so(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
         client.error = MatcherinoAPIError('shape changed')
 
@@ -348,21 +303,21 @@ class TestSyncRoster:
         assert event.last_sync_error is None
 
     async def test_a_manual_sync_is_audited_and_a_poll_is_not(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
         await service.sync_event(staff, event.id, audit=False)
 
         assert await AuditLog.filter(action='check_in_event.synced').count() == 1
 
-    async def test_an_event_with_no_bounty_cannot_sync(self, service, staff):
+    async def test_an_event_with_no_venue_or_comps_cannot_sync(self, service, staff):
         walkups_only = await service.create_event(staff, 'Walk-ups only')
-        with pytest.raises(ValueError, match="isn't linked"):
+        with pytest.raises(ValueError, match='nothing to sync'):
             await service.sync_event(staff, walkups_only.id)
 
     async def test_a_sync_tells_open_desks(self, service, client, staff, event, monkeypatch):
         seen = []
         monkeypatch.setattr(check_in_live, '_subscribers', {1: lambda *a: seen.append(a)})
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
 
         await service.sync_event(staff, event.id)
 
@@ -371,7 +326,7 @@ class TestSyncRoster:
 
 class TestDesk:
     async def _entrant(self, service, client, staff, event, user_id=100, name='A'):
-        client.set([mock_participant(user_id, name)])
+        client.set([mock_purchase(user_id, name)])
         await service.sync_event(staff, event.id)
         return (await _rows(event))[str(user_id)]
 
@@ -413,13 +368,13 @@ class TestDesk:
             person.id, CheckInLinkMethod.MANUAL, desk.id)
         assert person.matcherino_user_id == '100'
 
-        next_event = await service.create_event(staff, 'SGL 2027', bounty_id=BOUNTY + 1)
+        next_event = await service.create_event(staff, 'SGL 2027', venue_id=VENUE + 1)
         await service.sync_event(staff, next_event.id)
         assert (await _rows(next_event))['100'].link_method == CheckInLinkMethod.MATCHERINO_ID
 
     async def test_link_refuses_someone_already_on_the_roster(self, service, client, staff, desk, event):
-        client.set([mock_participant(100, 'A', auth_provider='discord', auth_id='80'),
-                    mock_participant(200, 'B')])
+        client.set([mock_purchase(100, 'A', auth_provider='discord', auth_id='80'),
+                    mock_purchase(200, 'B')])
         await make_user(discord_id=80, username='already')
         await service.sync_event(staff, event.id)
         rows = await _rows(event)
@@ -439,7 +394,7 @@ class TestDesk:
 
     async def test_unlink_stops_the_sync_relinking(self, service, client, staff, desk, event):
         await make_user(discord_id=90, username='wrong')
-        client.set([mock_participant(100, 'A', auth_provider='discord', auth_id='90')])
+        client.set([mock_purchase(100, 'A', auth_provider='discord', auth_id='90')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
         assert entrant.user_id is not None
@@ -465,7 +420,7 @@ class TestDesk:
     async def test_member_search_skips_people_already_on_the_roster(self, service, client, staff, event):
         linked = await make_user(discord_id=94, username='needle_linked')
         await TenantMembership.create(user=linked, tenant_id=DEFAULT_TEST_TENANT_ID)
-        client.set([mock_participant(100, 'A', auth_provider='discord', auth_id='94')])
+        client.set([mock_purchase(100, 'A', auth_provider='discord', auth_id='94')])
         await service.sync_event(staff, event.id)
         found = await make_user(discord_id=93, username='needle_person')
         await TenantMembership.create(user=found, tenant_id=DEFAULT_TEST_TENANT_ID)
@@ -507,23 +462,23 @@ class TestWalkUps:
         await service.remove_entrant(staff, walk_up.id)
         assert not await CheckInEntrant.exists(id=walk_up.id)
 
-        client.set([mock_participant(100, 'Registered')])
+        client.set([mock_purchase(100, 'Registered')])
         await service.sync_event(staff, event.id)
-        with pytest.raises(ValueError, match='leave the bounty'):
+        with pytest.raises(ValueError, match='Refund their badge'):
             await service.remove_entrant(staff, (await _rows(event))['100'].id)
 
 
 class TestEvents:
-    async def test_a_bounty_belongs_to_one_event(self, service, staff, event):
+    async def test_a_venue_belongs_to_one_event(self, service, staff, event):
         with pytest.raises(ValueError, match='already used'):
-            await service.create_event(staff, 'Again', bounty_id=BOUNTY)
+            await service.create_event(staff, 'Again', venue_id=VENUE)
 
-    async def test_a_live_rosters_bounty_cannot_change(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A')])
+    async def test_a_live_rosters_venue_cannot_change(self, service, client, staff, event):
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
 
         with pytest.raises(ValueError, match='Create a new event'):
-            await service.update_event(staff, event.id, 'SGL 2026', BOUNTY + 5, CheckInEventStatus.OPEN, 5)
+            await service.update_event(staff, event.id, 'SGL 2026', VENUE + 5, CheckInEventStatus.OPEN, 5)
 
     async def test_desk_volunteers_cannot_set_up_events(self, service, desk):
         with pytest.raises(PermissionError):
@@ -531,29 +486,35 @@ class TestEvents:
 
     async def test_update_validates_and_audits(self, service, staff, event):
         with pytest.raises(ValueError, match='Sync every'):
-            await service.update_event(staff, event.id, 'SGL', BOUNTY, CheckInEventStatus.OPEN, 0)
+            await service.update_event(staff, event.id, 'SGL', VENUE, CheckInEventStatus.OPEN, 0)
 
-        await service.update_event(staff, event.id, 'SGL 2026', BOUNTY, CheckInEventStatus.CLOSED, 5)
+        await service.update_event(staff, event.id, 'SGL 2026', VENUE, CheckInEventStatus.CLOSED, 5)
 
         await event.refresh_from_db()
         assert event.status == CheckInEventStatus.CLOSED
         assert await AuditLog.filter(action='check_in_event.updated').count() == 1
 
     async def test_delete_removes_the_roster(self, service, client, staff, event):
-        client.set([mock_participant(100, 'A')])
+        client.set([mock_purchase(100, 'A')])
         await service.sync_event(staff, event.id)
 
         await service.delete_event(staff, event.id)
 
         assert await CheckInEntrant.all().count() == 0
 
-    async def test_preview_reports_a_missing_bounty(self, service, staff):
+    async def test_preview_reports_a_missing_venue(self, service, staff):
         class Missing(MockMatcherinoClient):
-            async def fetch_bounty(self, bounty_id):
-                raise MatcherinoAPIError('Matcherino has no bounty 5.')
+            async def fetch_venue(self, venue_id):
+                raise MatcherinoAPIError('Matcherino has no venue 5.')
 
-        with pytest.raises(ValueError, match="Couldn't find that bounty"):
-            await CheckInService(client=Missing()).preview_bounty(staff, 5)
+        with pytest.raises(ValueError, match="Couldn't read that venue"):
+            await CheckInService(client=Missing()).preview_venue(staff, 5)
+
+    async def test_preview_lists_badge_types_dearest_first(self, service, staff):
+        preview = await service.preview_venue(staff, VENUE)
+
+        assert preview.venue.title == 'Mock Matcherino Venue'
+        assert [t.title for t in preview.tiers][:2] == ['Super VIP Tier Badge', 'VIP Tier Badge']
 
     async def test_the_flag_being_off_hides_everything(self, service, staff):
         await TenantFeatureFlag.filter(
@@ -568,9 +529,9 @@ class TestEvents:
 
 
 async def test_summary_counts_withdrawn_rows_separately(service, staff, client, event):
-    client.set([mock_participant(100, 'Here'), mock_participant(200, 'Gone')])
+    client.set([mock_purchase(100, 'Here'), mock_purchase(200, 'Gone')])
     await service.sync_event(staff, event.id)
-    client.set([mock_participant(100, 'Here')])
+    client.set([mock_purchase(100, 'Here')])
     await service.sync_event(staff, event.id)
     await service.add_walk_up(staff, event.id, name='Walk')
 
@@ -593,7 +554,7 @@ class TestWorker:
 
         monkeypatch.setattr(
             'application.services.check_in_service.get_matcherino_client',
-            lambda: MockMatcherinoClient([mock_participant(100, 'Polled')]),
+            lambda: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
         )
         await check_in_sync_worker._tick()
 
@@ -609,7 +570,7 @@ class TestWorker:
         reset_flag_cache()
         monkeypatch.setattr(
             'application.services.check_in_service.get_matcherino_client',
-            lambda: MockMatcherinoClient([mock_participant(100, 'Polled')]),
+            lambda: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
         )
         await check_in_sync_worker._tick()
 

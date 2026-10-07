@@ -1,17 +1,26 @@
 """
 Check-in Repository - Data Access Layer
 
-Check-in events and the entrants on their rosters.
+Check-in events, the entrants on their rosters, and the Matcherino badge
+types and badges behind them.
 """
 
 from typing import Dict, Iterable, List, Optional
 
 from tortoise.expressions import Q
-from tortoise.functions import Lower
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, CheckInLinkMethod, User
+from models import (
+    CheckInEntrant,
+    CheckInEntrantSource,
+    CheckInEvent,
+    CheckInEventStatus,
+    CheckInLinkMethod,
+    CheckInPass,
+    CheckInTier,
+    User,
+)
 
 
 class CheckInEventRepository(TenantScopedRepository[CheckInEvent]):
@@ -40,19 +49,20 @@ class CheckInEventRepository(TenantScopedRepository[CheckInEvent]):
         event.update_from_dict(fields)
 
     @staticmethod
-    async def get_by_bounty(bounty_id: int) -> Optional[CheckInEvent]:
-        return await scoped(CheckInEvent.filter(matcherino_bounty_id=bounty_id)).first()
+    async def get_by_venue(venue_id: int) -> Optional[CheckInEvent]:
+        return await scoped(CheckInEvent.filter(matcherino_venue_id=venue_id)).first()
 
     @staticmethod
     async def list_syncable_all() -> List[CheckInEvent]:
-        """Open events with a Matcherino bounty, across every tenant.
+        """Open events with a Matcherino venue or comp rules, across every tenant.
 
         Deliberately cross-tenant: this is the sync worker's scan, which then
         runs each event inside its own ``tenant_scope``.
         """
-        return await CheckInEvent.filter(
-            status=CheckInEventStatus.OPEN, matcherino_bounty_id__isnull=False,
-        )
+        return [
+            event for event in await CheckInEvent.filter(status=CheckInEventStatus.OPEN)
+            if event.matcherino_venue_id is not None or event.comp_roles or event.comp_volunteers
+        ]
 
 
 class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
@@ -62,18 +72,30 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
     async def get_by_id(obj_id: int) -> Optional[CheckInEntrant]:
         return await CheckInEntrant.get_or_none(
             id=obj_id, tenant_id=current_tenant_id(),
-        ).prefetch_related('user', 'event', 'checked_in_by')
+        ).prefetch_related('user', 'event', 'checked_in_by', 'passes__tier')
 
     @staticmethod
     async def list_for_event(event: CheckInEvent) -> List[CheckInEntrant]:
         return await scoped(CheckInEntrant.filter(event=event)).order_by(
             'display_name',
-        ).prefetch_related('user', 'checked_in_by')
+        ).prefetch_related('user', 'checked_in_by', 'passes__tier')
 
     @staticmethod
     async def matcherino_rows_by_user_id(event: CheckInEvent) -> Dict[str, CheckInEntrant]:
         rows = await scoped(CheckInEntrant.filter(event=event, matcherino_user_id__isnull=False))
         return {row.matcherino_user_id: row for row in rows}
+
+    @staticmethod
+    async def rows_by_user_id(event: CheckInEvent) -> Dict[int, CheckInEntrant]:
+        rows = await scoped(CheckInEntrant.filter(event=event, user_id__isnull=False))
+        return {row.user_id: row for row in rows if row.user_id is not None}
+
+    @staticmethod
+    async def comp_rows_by_user_id(event: CheckInEvent) -> Dict[int, CheckInEntrant]:
+        rows = await scoped(CheckInEntrant.filter(
+            event=event, source=CheckInEntrantSource.COMP, user_id__isnull=False,
+        ))
+        return {row.user_id: row for row in rows if row.user_id is not None}
 
     @staticmethod
     async def linked_user_ids(event: CheckInEvent) -> set[int]:
@@ -126,6 +148,41 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
         await entrant.save(update_fields=list(fields))
 
 
+class CheckInTierRepository(TenantScopedRepository[CheckInTier]):
+    model = CheckInTier
+
+    @staticmethod
+    async def by_pass_id(event: CheckInEvent) -> Dict[int, CheckInTier]:
+        return {tier.matcherino_pass_id: tier for tier in await scoped(CheckInTier.filter(event=event))}
+
+    @staticmethod
+    async def list_for_event(event: CheckInEvent) -> List[CheckInTier]:
+        return await scoped(CheckInTier.filter(event=event)).order_by('-amount_cents', 'title')
+
+    @staticmethod
+    async def save(tier: CheckInTier, fields: Iterable[str]) -> None:
+        await tier.save(update_fields=list(fields))
+
+
+class CheckInPassRepository(TenantScopedRepository[CheckInPass]):
+    model = CheckInPass
+
+    @staticmethod
+    async def by_purchase_id(event: CheckInEvent) -> Dict[int, CheckInPass]:
+        return {p.matcherino_purchase_id: p for p in await scoped(CheckInPass.filter(event=event))}
+
+    @staticmethod
+    async def bulk_create(passes: List[CheckInPass]) -> None:
+        tenant_id = current_tenant_id()
+        for badge in passes:
+            badge.tenant_id = tenant_id
+        await CheckInPass.bulk_create(passes)
+
+    @staticmethod
+    async def save(badge: CheckInPass, fields: Iterable[str]) -> None:
+        await badge.save(update_fields=list(fields))
+
+
 class CheckInUserLookupRepository:
     """Global identity lookups for matching registrants to accounts.
 
@@ -139,7 +196,6 @@ class CheckInUserLookupRepository:
         *,
         discord_ids: Iterable[int],
         twitch_ids: Iterable[str],
-        twitch_logins: Iterable[str],
         matcherino_ids: Iterable[str],
     ) -> List[User]:
         discord_ids, twitch_ids, matcherino_ids = list(discord_ids), list(twitch_ids), list(matcherino_ids)
@@ -150,18 +206,9 @@ class CheckInUserLookupRepository:
             clauses.append(Q(twitch_user_id__in=twitch_ids))
         if matcherino_ids:
             clauses.append(Q(matcherino_user_id__in=matcherino_ids))
-        users: Dict[int, User] = {}
-        if clauses:
-            for user in await User.filter(Q(*clauses, join_type='OR'), is_active=True, is_system=False):
-                users[user.id] = user
-        logins = [login.lower() for login in twitch_logins]
-        if logins:
-            # Stored as Twitch's display name, so compare case-insensitively.
-            for user in await User.annotate(twitch_lower=Lower('twitch_username')).filter(
-                twitch_lower__in=logins, is_active=True, is_system=False,
-            ):
-                users[user.id] = user
-        return list(users.values())
+        if not clauses:
+            return []
+        return await User.filter(Q(*clauses, join_type='OR'), is_active=True, is_system=False)
 
     @staticmethod
     async def users_with_unverified_handle() -> List[User]:
