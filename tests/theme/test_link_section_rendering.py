@@ -211,8 +211,7 @@ def test_a_linked_row_on_a_custom_domain_can_still_unlink(custom_domain):
 def test_the_sign_in_first_dialog_links_to_the_providers_sign_in_page():
     # Challonge answers a signed-out reader with a bare 401 JSON page rather than
     # a login form, so the dialog has to send them to sign in before the OAuth.
-    config = make_config(sign_in_first_url='https://x.example/login')
-    open_sign_in_first_dialog(config)
+    open_sign_in_first_dialog(make_config(), 'https://x.example/login')
     text = collect_text(context.client.layout)
     assert 'Sign in to Provider X first' in text
     assert 'https://x.example/login' in text

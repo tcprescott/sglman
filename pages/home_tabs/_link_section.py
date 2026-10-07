@@ -110,7 +110,7 @@ def _render_provider_row(
 
     def start_link() -> None:
         if config.sign_in_first_url:
-            open_sign_in_first_dialog(config)
+            open_sign_in_first_dialog(config, config.sign_in_first_url)
         else:
             ui.navigate.to(config.link_route)
 
@@ -143,7 +143,7 @@ def _render_provider_row(
     row()
 
 
-def open_sign_in_first_dialog(config: LinkSectionConfig) -> None:
+def open_sign_in_first_dialog(config: LinkSectionConfig, sign_in_url: str) -> None:
     """Ask the reader to sign in to the provider before starting its OAuth."""
     def go() -> None:
         dialog.close()
@@ -158,7 +158,7 @@ def open_sign_in_first_dialog(config: LinkSectionConfig) -> None:
             ui.label(
                 f'Open {config.title}, sign in, then come back here and continue.'
             )
-            ui.link(f'Open {config.title} sign-in', config.sign_in_first_url, new_tab=True)
+            ui.link(f'Open {config.title} sign-in', sign_in_url, new_tab=True)
         with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button("I'm signed in, continue", on_click=go).props('color=primary')
