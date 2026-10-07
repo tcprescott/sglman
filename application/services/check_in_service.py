@@ -535,12 +535,13 @@ class CheckInService:
         """Community members whose names look like the registrant's.
 
         A suggestion for staff to confirm, never applied on its own. Members
-        already linked to someone else on this roster are left out.
+        already linked to someone else on this roster are left out, except a
+        comp, whose row a link folds into this one (:meth:`link`).
         """
         targets = {norm_name(entrant.display_name)} - {''}
         if not targets:
             return []
-        taken = await self.entrants.linked_user_ids(entrant.event)
+        taken = await self._taken_user_ids(entrant.event, for_link=True)
         scored: List[Tuple[float, User]] = []
         for user in await UserRepository.get_community_people():
             if user.id in taken:
@@ -559,15 +560,20 @@ class CheckInService:
         return [user for _, user in scored[:limit]]
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
-    async def search_members(self, event: CheckInEvent, query: str, limit: int = 20) -> List[User]:
+    async def search_members(
+        self, event: CheckInEvent, query: str, limit: int = 20, *, for_link: bool = False,
+    ) -> List[User]:
         """Community members not yet on this roster, matching ``query``.
 
-        Backs the member search in the link and walk-up dialogs.
+        Backs the member search in the link and walk-up dialogs. With
+        ``for_link`` it also offers people on the roster only as a comp: a
+        comped volunteer who also bought a badge must be findable so their
+        purchase can be linked and the comp folded into it.
         """
         needle = norm_name(query)
         if len(needle) < 2:
             return []
-        taken = await self.entrants.linked_user_ids(event)
+        taken = await self._taken_user_ids(event, for_link=for_link)
         matches = [
             user for user in await UserRepository.get_community_people()
             if user.id not in taken and any(
@@ -577,6 +583,12 @@ class CheckInService:
             )
         ]
         return matches[:limit]
+
+    async def _taken_user_ids(self, event: CheckInEvent, *, for_link: bool) -> set[int]:
+        taken = await self.entrants.linked_user_ids(event)
+        if for_link:
+            taken -= set(await self.entrants.comp_rows_by_user_id(event))
+        return taken
 
     # --- Desk actions ---
 

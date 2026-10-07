@@ -139,7 +139,9 @@ touches the roster, then:
 - A comp who later turns out to be a buyer (the purchase auto-links to their
   account, or staff link it by hand) stays one person: the purchase row takes
   over the comp and any check-in already recorded, and the `COMP` row is
-  deleted (`check_in_comps.absorb_comp_row`).
+  deleted (`check_in_comps.absorb_comp_row`). So the link dialog's suggestions
+  and member search still offer someone who is on the roster only as a comp
+  (`search_members(..., for_link=True)`); the walk-up search doesn't.
 
 A `COMP` row can't be relinked, unlinked or removed at the desk; change the
 event's comp rules instead. An event with comp rules but no venue still syncs
@@ -274,7 +276,7 @@ Several phones work one event, and the worker polls it too:
 | `roster` / `get_entrant` | Reads, with each entrant's badges and their tiers prefetched |
 | `tiers_for(event)` | The badge types, dearest first, for the desk's chips |
 | `volunteer_user_ids()` | Accounts with a published volunteer assignment in this community (drafts excluded), for the **Volunteer** chip. An empty set when `FeatureFlag.VOLUNTEERS` is off, never an error |
-| `suggest_users` / `search_members(event, query)` | Candidate accounts for the link and walk-up dialogs, community members not already on the roster |
+| `suggest_users` / `search_members(event, query, for_link=False)` | Candidate accounts for the link and walk-up dialogs, community members not already on the roster. Linking (`suggest_users`, `for_link=True`) also offers comp-only members, since the link folds their comp in |
 | `check_in` → `CheckInOutcome(entrant, already)` / `undo_check_in` | The desk's main actions |
 | `link` / `unlink` | Manual matching |
 | `add_walk_up(event_id, user_id= or name=, check_in=True)` / `remove_entrant` | Walk-ups (staff) |
