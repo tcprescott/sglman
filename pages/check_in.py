@@ -28,11 +28,13 @@ from starlette.responses import RedirectResponse
 from application.events import check_in_live
 from application.services import AuthService, CheckInService, TenantService, get_user_from_discord_id
 from application.services.check_in_rules import (
-    ROSTER_FILTERS,
+    DESK_FILTERS,
+    LANYARD_LABELS,
+    LANYARDS,
     active_badges,
     comp_label,
     entrant_filters,
-    tier_filter,
+    lanyard_for,
 )
 from application.table_preferences_context import table_prefs_scope
 from application.tenant_context import tenant_scope
@@ -44,14 +46,13 @@ from models import (
     CheckInEntrantSource,
     CheckInEvent,
     CheckInEventStatus,
-    CheckInTier,
     FeatureFlag,
     Role,
 )
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
-from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog, provider_label
+from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
 from theme.notify import notify_error
 from theme.realtime import refresh_on_reconnect, register_view
 from theme.tables.admin_crud import capture_render_context
@@ -75,27 +76,21 @@ _FILTER_LABELS = {
     'all': 'All',
     'not_yet': 'Not yet',
     'checked_in': 'Checked in',
-    'unlinked': 'Unlinked',
-    'walk_up': 'Walk-ups',
-    'volunteer': 'Volunteers',
-    'comp': 'Comps',
-    'withdrawn': 'Withdrawn',
 }
-FILTERS = {key: _FILTER_LABELS[key] for key in ROSTER_FILTERS}
+FILTERS = {key: _FILTER_LABELS[key] for key in DESK_FILTERS}
 
-
-def _filters(tiers: List[CheckInTier]) -> Dict[str, str]:
-    """The fixed chips, then one per badge type, dearest first."""
-    return {**FILTERS, **{tier_filter(tier.id): tier.title for tier in tiers}}
+# One colour per lanyard, matching nothing else on the desk so it reads at a glance.
+_LANYARD_COLORS = {
+    'staff': 'red-8', 'volunteer': 'purple-7', 'vip': 'amber-8', 'base': 'blue-7', 'day_pass': 'teal-7',
+}
 
 
 # Desktop columns. The mobile card below is bespoke and does not read these.
 _COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
-    {'name': 'badges', 'label': 'Badge', 'field': 'tier', 'align': 'left', 'sortable': True},
+    {'name': 'lanyard', 'label': 'Lanyard', 'field': 'lanyard_rank', 'align': 'left', 'sortable': True},
     {'name': 'account', 'label': 'Wizzrobe account', 'field': 'account', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status_label', 'align': 'left', 'sortable': True},
-    {'name': 'provider', 'label': 'Signed in with', 'field': 'provider', 'align': 'left'},
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
 
@@ -103,9 +98,9 @@ _COLUMNS: list[dict] = [
 _EXPORT_COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name'},
     {'name': 'matcherino_id', 'label': 'Matcherino ID', 'field': 'matcherino_id'},
+    {'name': 'lanyard', 'label': 'Lanyard', 'field': 'lanyard_label'},
     {'name': 'badges', 'label': 'Badges', 'field': 'badges_text'},
     {'name': 'codes', 'label': 'Badge codes', 'field': 'codes_text'},
-    {'name': 'provider', 'label': 'Signed in with', 'field': 'provider'},
     {'name': 'account', 'label': 'Wizzrobe account', 'field': 'account'},
     {'name': 'linked_via', 'label': 'Linked via', 'field': 'linked_via'},
     {'name': 'source', 'label': 'Source', 'field': 'source'},
@@ -129,8 +124,6 @@ _STATUS_BADGES = '''
     <q-badge v-if="props.row.withdrawn" :color="props.row.refunded ? 'negative' : 'grey-7'" class="q-mr-xs">
         {{ props.row.withdrawn_label }}</q-badge>
     <q-badge v-if="props.row.walk_up" color="info" class="q-mr-xs">Walk-up</q-badge>
-    <q-badge v-if="props.row.volunteer" color="purple-7" class="q-mr-xs">
-        <q-icon name="volunteer_activism" size="14px" class="q-mr-xs"/>Volunteer</q-badge>
 '''
 
 _MENU = f'''
@@ -175,21 +168,19 @@ _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
     {_MENU}
 </q-td>'''
 
-# Every badge someone holds, dearest first, each with the code their QR
-# encodes: a buyer with two badges is often holding one for a friend. A comp
-# leads, since it is what the desk hands a comped person.
-_BADGE_CHIPS = '''
-    <q-chip v-if="props.row.comp_text" dense square color="amber-2" text-color="brown-10"
-            icon="card_giftcard" class="q-ml-none q-mr-xs">Comp · {{ props.row.comp_text }}</q-chip>
-    <q-chip v-for="b in props.row.badges" :key="b.code" dense square color="indigo-1"
-            text-color="indigo-10" class="q-ml-none q-mr-xs">
-        {{ b.title }}<span class="text-caption q-ml-xs text-grey-8">#{{ b.code }}</span>
-    </q-chip>
+# The lanyard is what the desk hands over, so it is the one loud thing on the
+# row. A buyer holding more than one badge (often one for a friend) gets a note,
+# since the extra badge needs its own lanyard.
+_LANYARD_CHIP = '''
+    <q-chip v-if="props.row.lanyard" square :color="props.row.lanyard_color" text-color="white"
+            icon="badge" class="q-ml-none text-weight-bold checkin-lanyard">{{ props.row.lanyard_label }}</q-chip>
+    <span v-if="props.row.extra_badges" class="text-caption text-weight-medium text-warning">
+        + {{ props.row.extra_badges }}</span>
 '''
 
-_BADGES_CELL = f'''<q-td :props="props">
-    {_BADGE_CHIPS}
-    <span v-if="!props.row.badges.length && !props.row.comp_text" class="text-grey-7">—</span>
+_LANYARD_CELL = f'''<q-td :props="props">
+    {_LANYARD_CHIP}
+    <span v-if="!props.row.lanyard" class="text-grey-7">—</span>
 </q-td>'''
 
 _ACCOUNT_CELL = '''<q-td :props="props">
@@ -214,7 +205,7 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
                 {{{{ props.row.account }}}} · {{{{ props.row.linked_via }}}}
             </div>
             <div v-else class="text-caption text-warning">Not linked to an account</div>
-            <div v-if="props.row.badges.length || props.row.comp_text" class="q-mt-xs">{_BADGE_CHIPS}</div>
+            <div v-if="props.row.lanyard" class="q-mt-xs">{_LANYARD_CHIP}</div>
             <div class="q-mt-xs">{_STATUS_BADGES}</div>
         </div>
         {_MENU}
@@ -238,6 +229,12 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
     volunteer = entrant.user_id is not None and entrant.user_id in volunteers
     all_badges = list(entrant.passes)
     held = active_badges(all_badges)
+    lanyard = lanyard_for(entrant, held, volunteer)
+    lanyard_label = LANYARD_LABELS[lanyard] if lanyard else ''
+    # A second badge is someone else's (usually a friend the venue doesn't
+    # name): list every badge after the highest, which is taken as their own.
+    badge_lanyards = sorted((b.tier.lanyard.value for b in held), key=LANYARDS.index)
+    extra_badges = ', '.join(f'{LANYARD_LABELS[value]} badge' for value in badge_lanyards[1:])
     refunded = not held and any(b.refunded_at is not None for b in all_badges)
     if comp_only:
         withdrawn_label = 'No longer comped'
@@ -254,7 +251,6 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         checked_in_label = format_local_time(entrant.checked_in_at)
         if checked_by is not None:
             checked_in_label += f' by {checked_by.preferred_name}'
-    provider = '' if walk_up or comp_only else provider_label(entrant.auth_provider)
     badges = [{'title': b.tier.title, 'code': b.code} for b in held]
     search = ' '.join(filter(None, [
         entrant.display_name, account, user.username if user else '',
@@ -267,15 +263,17 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'avatar': entrant.avatar_url or '',
         'account': account,
         'linked_via': _LINK_LABELS.get(entrant.link_method.value, '') if entrant.link_method and user else '',
-        'provider': provider,
         'source': 'Walk-up' if walk_up else 'Comp' if comp_only else 'Matcherino',
         'comp_text': comp_text,
         'comp_only': comp_only,
         'matcherino_id': entrant.matcherino_user_id or '',
-        'badges': badges,
-        'tier': badges[0]['title'] if badges else '',
+        'lanyard': lanyard or '',
+        'lanyard_label': lanyard_label,
+        'lanyard_color': _LANYARD_COLORS.get(lanyard or '', 'grey-7'),
+        'lanyard_rank': LANYARDS.index(lanyard) if lanyard else len(LANYARDS),
+        'extra_badges': extra_badges,
         'badges_text': ', '.join(
-            ([f'Comp badge ({comp_text})'] if comp_text else []) + [b['title'] for b in badges]
+            ([f'Comp ({comp_text})'] if comp_text else []) + [b['title'] for b in badges]
         ),
         'codes_text': ', '.join(b['code'] for b in badges),
         'registered': format_local_display(entrant.registered_at) if entrant.registered_at else '',
@@ -288,12 +286,13 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'withdrawn_label': withdrawn_label,
         'refunded': refunded,
         'walk_up': walk_up,
-        'volunteer': volunteer,
         'volunteer_text': 'Yes' if volunteer else '',
         'unlinked': user is None,
         'can_remove': walk_up and can_manage,
         'search': search,
-        'filters': sorted(entrant_filters(entrant, held, volunteer)),
+        # Everyone is under All, withdrawn rows too, so a search still finds
+        # someone whose badge was refunded (and says so).
+        'filters': sorted((entrant_filters(entrant) & set(DESK_FILTERS)) | {'all'}),
         '_flash': False,
     }
 
@@ -378,7 +377,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     can_manage = await AuthService.can_manage_check_in(user)
     render_context = capture_render_context()
     client = context.client
-    state: Dict = {'event': event, 'rows': [], 'tiers': [], 'filter': 'all', 'flash': set()}
+    state: Dict = {'event': event, 'rows': [], 'filter': 'all', 'flash': set()}
 
     with ui.column().classes('page-container-narrow w-full gap-2 q-px-sm'):
         with ui.column().classes('checkin-toolbar w-full gap-1 q-py-sm'):
@@ -395,15 +394,16 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 progress = ui.linear_progress(value=0, show_value=False, size='8px').classes('col') \
                     .props('rounded color=positive')
                 counts_label = ui.label().classes('text-caption text-weight-medium')
-            with ui.element('div').classes('w-full checkin-filters'):
-                chips = ui.toggle(FILTERS, value='all').props('no-caps dense unelevated toggle-color=primary')
+            # The app's segmented control (.wiz-segmented, as on the Event page).
+            chips = ui.toggle(FILTERS, value='all').props('no-caps dense unelevated') \
+                .classes('wiz-segmented')
             sync_label = ui.label().classes('text-caption')
 
         table = ui.table(columns=_COLUMNS, rows=[], row_key='id', pagination=0) \
             .classes('w-full checkin-table').props(':grid="Quasar.Screen.lt.md" flat hide-pagination')
         table._props[':filter-method'] = _FILTER_METHOD
         table.add_slot('body-cell-status', _STATUS_CELL)
-        table.add_slot('body-cell-badges', _BADGES_CELL)
+        table.add_slot('body-cell-lanyard', _LANYARD_CELL)
         table.add_slot('body-cell-account', _ACCOUNT_CELL)
         table.add_slot('body-cell-actions', _ACTIONS_CELL)
         table.add_slot('item', _GRID_CARD)
@@ -430,17 +430,14 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     def paint() -> None:
         current = state['event']
         rows = state['rows']
-        filters = _filters(state['tiers'])
-        if state['filter'] not in filters:
-            state['filter'] = 'all'
-            chips.value = 'all'
-        counts = {key: sum(1 for r in rows if _matches(r, key)) for key in filters}
-        chips.options = {key: f'{label} {counts[key]}' for key, label in filters.items()}
+        counts = {key: sum(1 for r in rows if _matches(r, key)) for key in FILTERS}
+        chips.options = {key: f'{label} {counts[key]}' for key, label in FILTERS.items()}
         chips.update()
         visible = [dict(r, _flash=r['id'] in state['flash']) for r in rows if _matches(r, state['filter'])]
         table.rows = visible
         table.update()
-        total = counts['all']
+        # Withdrawn rows are listed under All but aren't expected at the door.
+        total = counts['checked_in'] + counts['not_yet']
         progress.value = (counts['checked_in'] / total) if total else 0
         counts_label.text = f"{counts['checked_in']} of {total} checked in"
         text, cls = _sync_line(current)
@@ -457,7 +454,6 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             ui.navigate.to('/checkin')
             return
         state['event'] = current
-        state['tiers'] = await service.tiers_for(current)
         volunteers = await service.volunteer_user_ids()
         state['rows'] = sorted(
             (_row(e, can_manage, volunteers) for e in await service.roster(current)),
@@ -478,13 +474,15 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
 
     chips.on_value_change(on_filter)
 
-    def show_undo(entrant_id: int, name: str, badges: str) -> None:
+    def show_undo(entrant_id: int, name: str, lanyard: str, extra: str) -> None:
         undo_bar.clear()
         with undo_bar:
             with ui.column().classes('col gap-0'):
                 ui.label(f'Checked in {name}').classes('ellipsis')
-                if badges:
-                    ui.label(f'Hand over: {badges}').classes('text-caption ellipsis')
+                if lanyard:
+                    hand_over = f'Hand over: {lanyard} lanyard'
+                    ui.label(f'{hand_over}, plus {extra}' if extra else hand_over) \
+                        .classes('text-caption text-weight-bold ellipsis')
 
             async def undo() -> None:
                 undo_bar.set_visibility(False)
@@ -521,7 +519,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 color='info',
             )
         else:
-            show_undo(entrant.id, entrant.display_name, row.get('badges_text', ''))
+            show_undo(entrant.id, entrant.display_name, row.get('lanyard_label', ''), row.get('extra_badges', ''))
         await reload()
 
     async def handle_link(row) -> None:

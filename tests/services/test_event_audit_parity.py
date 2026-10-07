@@ -164,11 +164,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.EQUIPMENT_CREATED,
     AuditActions.EQUIPMENT_UPDATED,
     AuditActions.EQUIPMENT_DELETED,
-    # Check-in event setup is tenant-internal config; the desk's actions on
-    # people (check-in, link, walk-up) and syncs are published.
+    # Check-in event setup (and a badge type's lanyard) is tenant-internal
+    # config; the desk's actions on people (check-in, link, walk-up) and
+    # syncs are published.
     AuditActions.CHECK_IN_EVENT_CREATED,
     AuditActions.CHECK_IN_EVENT_UPDATED,
     AuditActions.CHECK_IN_EVENT_DELETED,
+    AuditActions.CHECK_IN_TIER_UPDATED,
     # Player availability edits.
     AuditActions.PLAYER_AVAILABILITY_UPDATED,
     # Challonge integration side-effects (result_pushed mirrors match.result_recorded).

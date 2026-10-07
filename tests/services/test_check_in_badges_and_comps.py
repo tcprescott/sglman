@@ -8,16 +8,19 @@ from datetime import timedelta
 
 import pytest
 
-from application.services.check_in_rules import active_badges, entrant_filters, tier_filter
+from application.services.check_in_rules import active_badges, lanyard_for
+from application.services.check_in_sales import guess_lanyard
 from application.services.feature_flag_service import reset_flag_cache
 from application.utils.clients.matcherino_client import mock_purchase, mock_tier
 from models import (
+    AuditLog,
     CheckInEntrant,
     CheckInEntrantSource,
     CheckInEventStatus,
     CheckInLinkMethod,
     CheckInPass,
     CheckInTier,
+    CheckInTierLanyard,
     FeatureFlag,
     Role,
     TenantFeatureFlag,
@@ -72,7 +75,7 @@ class TestBadges:
         entrant = await service.get_entrant(rows['100'].id)
         held = active_badges(entrant.passes)
         assert [b.tier.title for b in held] == ['VIP', 'Base']
-        assert {tier_filter(held[0].tier_id), tier_filter(held[1].tier_id)} <= entrant_filters(entrant, held)
+        assert lanyard_for(entrant, held) == 'vip'
 
     async def test_buyer_contact_details_are_not_stored(self, service, client, staff, event):
         raw = mock_purchase(100, 'Private')
@@ -182,10 +185,10 @@ class TestVolunteers:
 
         assert await service.volunteer_user_ids() == set()
 
-    def test_a_volunteer_gets_the_volunteer_chip(self):
+    def test_any_volunteer_assignment_earns_the_volunteer_lanyard(self):
         entrant = CheckInEntrant(source=CheckInEntrantSource.MATCHERINO, display_name='x', user_id=5)
-        assert 'volunteer' in entrant_filters(entrant, volunteer=True)
-        assert 'volunteer' not in entrant_filters(entrant)
+        assert lanyard_for(entrant, volunteer=True) == 'volunteer'
+        assert lanyard_for(entrant) is None
 
 
 class TestComps:
@@ -225,7 +228,7 @@ class TestComps:
         assert (row.source, row.link_method, row.comp_reasons) == (
             CheckInEntrantSource.COMP, CheckInLinkMethod.COMP, ['staff'])
         assert (result.added, result.comped) == (1, 1)
-        assert 'comp' in entrant_filters(row)
+        assert lanyard_for(row) == 'staff'
 
     async def test_volunteers_at_the_lowest_tier_are_comped_and_drafts_do_not_count(
         self, service, staff, window,
@@ -344,3 +347,58 @@ class TestComps:
         await check_in_sync_worker._tick()
 
         assert staff.id in await self._by_user(event)
+
+
+class TestLanyards:
+    """One lanyard per person: Staff > Volunteer > VIP > Base > Day Pass."""
+
+    def _badge(self, lanyard, *, refunded=False):
+        """A stand-in badge: the rule reads only the tier's lanyard and the two dates."""
+        from datetime import datetime, timezone
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            tier=SimpleNamespace(lanyard=lanyard), removed_at=None,
+            refunded_at=datetime(2026, 9, 1, tzinfo=timezone.utc) if refunded else None,
+        )
+
+    def _entrant(self, comp_reasons=None):
+        return CheckInEntrant(source=CheckInEntrantSource.MATCHERINO, display_name='x', user_id=5,
+                              comp_reasons=comp_reasons)
+
+    def test_precedence(self):
+        vip, base, day = (self._badge(lanyard) for lanyard in (
+            CheckInTierLanyard.VIP, CheckInTierLanyard.BASE, CheckInTierLanyard.DAY_PASS))
+        assert lanyard_for(self._entrant(['staff']), [vip], volunteer=True) == 'staff'
+        assert lanyard_for(self._entrant(), [vip], volunteer=True) == 'volunteer'
+        assert lanyard_for(self._entrant(['volunteer']), [vip]) == 'volunteer'
+        assert lanyard_for(self._entrant(), [day, base, vip]) == 'vip'
+        assert lanyard_for(self._entrant(), [day, base]) == 'base'
+        assert lanyard_for(self._entrant(), [day]) == 'day_pass'
+
+    def test_a_refunded_badge_earns_nothing(self):
+        refunded = self._badge(CheckInTierLanyard.VIP, refunded=True)
+        assert lanyard_for(self._entrant(), [refunded, self._badge(CheckInTierLanyard.DAY_PASS)]) == 'day_pass'
+        assert lanyard_for(self._entrant(), [refunded]) is None
+
+    def test_new_badge_types_get_a_lanyard_guessed_from_their_title(self):
+        assert guess_lanyard('SG Live SUPER VIP Tier Badge') == CheckInTierLanyard.VIP
+        assert guess_lanyard('SG Live Day Pass') == CheckInTierLanyard.DAY_PASS
+        assert guess_lanyard('SG Live Base Tier Badge') == CheckInTierLanyard.BASE
+
+    async def test_staff_set_a_lanyard_and_the_sync_keeps_it(self, service, client, staff, desk, event):
+        day = mock_tier(7, 'Day Pass', 4000)
+        client.set([mock_purchase(100, 'A', tier=day)], tiers=[day])
+        await service.sync_event(staff, event.id)
+        tier = await CheckInTier.get(event=event)
+        assert tier.lanyard == CheckInTierLanyard.DAY_PASS
+
+        with pytest.raises(PermissionError):
+            await service.set_tier_lanyard(desk, tier.id, 'base')
+        await service.set_tier_lanyard(staff, tier.id, 'base')
+        await service.sync_event(staff, event.id)
+
+        await tier.refresh_from_db()
+        assert tier.lanyard == CheckInTierLanyard.BASE
+        assert await AuditLog.filter(action='check_in_tier.updated').count() == 1
+        with pytest.raises(ValueError, match="isn't a lanyard"):
+            await service.set_tier_lanyard(staff, tier.id, 'staff')

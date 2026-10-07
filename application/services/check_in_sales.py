@@ -16,7 +16,7 @@ from application.utils.clients.matcherino_client import (
     MatcherinoTier,
     VenueSales,
 )
-from models import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier
+from models import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, CheckInTierLanyard
 
 
 @dataclass
@@ -53,6 +53,16 @@ def buyer_fields(buyer: Buyer) -> Dict[str, object]:
     }
 
 
+def guess_lanyard(title: str) -> CheckInTierLanyard:
+    """A new badge type's lanyard, from its name. Staff can change it after."""
+    lowered = title.lower()
+    if 'vip' in lowered:
+        return CheckInTierLanyard.VIP
+    if 'day' in lowered:
+        return CheckInTierLanyard.DAY_PASS
+    return CheckInTierLanyard.BASE
+
+
 async def apply_tiers(
     repo: CheckInTierRepository, event: CheckInEvent, sales: VenueSales,
 ) -> Dict[int, CheckInTier]:
@@ -69,7 +79,9 @@ async def apply_tiers(
         fields = {'title': tier.title[:255], 'amount_cents': tier.amount_cents, 'role': tier.role}
         row = tiers.get(pass_id)
         if row is None:
-            tiers[pass_id] = await repo.create(event=event, matcherino_pass_id=pass_id, **fields)
+            tiers[pass_id] = await repo.create(
+                event=event, matcherino_pass_id=pass_id, lanyard=guess_lanyard(tier.title), **fields,
+            )
             continue
         changes = [key for key, value in fields.items() if getattr(row, key) != value]
         if changes:

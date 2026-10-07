@@ -54,6 +54,7 @@ from .enums import (
     CheckInEntrantSource,
     CheckInEventStatus,
     CheckInLinkMethod,
+    CheckInTierLanyard,
     DiscordEventSource,
     EquipmentStatus,
     FeatureFlag,
@@ -182,6 +183,7 @@ __all__ = [
     'CheckInLinkMethod',
     'CheckInPass',
     'CheckInTier',
+    'CheckInTierLanyard',
     # match / crew
     'Commentator',
     'DiscordEventSource',

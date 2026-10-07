@@ -3,7 +3,7 @@ from typing import Optional
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import CheckInEntrantSource, CheckInEventStatus, CheckInLinkMethod
+from .enums import CheckInEntrantSource, CheckInEventStatus, CheckInLinkMethod, CheckInTierLanyard
 
 
 class CheckInEvent(Model):
@@ -116,8 +116,10 @@ class CheckInEntrant(Model):
 class CheckInTier(Model):
     """A kind of badge sold on the event's Matcherino venue (Base, VIP, Day Pass).
 
-    Mirrors a Matcherino *pass*. ``amount_cents`` orders tiers, and an entrant
-    holding several badges shows under the most expensive one they still hold.
+    Mirrors a Matcherino *pass*. ``amount_cents`` orders tiers. ``lanyard`` is
+    what the desk hands its holders; the sync guesses it from the title once
+    (``VIP`` in the name → VIP, ``Day`` → Day Pass, else Base) and staff can
+    change it, after which the sync leaves it alone.
     A tier Matcherino stops listing is kept: badges already sold still point
     at it.
     """
@@ -135,6 +137,7 @@ class CheckInTier(Model):
     title = fields.CharField(max_length=255)
     amount_cents = fields.IntField(default=0)
     role = fields.CharField(max_length=32, null=True)
+    lanyard = fields.CharEnumField(CheckInTierLanyard, max_length=16, default=CheckInTierLanyard.BASE)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
