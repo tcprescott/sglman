@@ -12,7 +12,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
 | Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
 | Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc (there's no `SGL 2026` preset on the site) | `mmr` | n/a | **no** (stub). The keyed API makes it buildable, see [4-mmr-seedgen.md](4-mmr-seedgen.md) |
-| Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | **outdated** (`sgl25`) | yes, once updated |
+| Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | `sgl2026` built-in (from the site's `SGL 2026 Tournament`, `dev_9.1.38-0`) | yes |
 | Super Metroid Any% | none (vanilla) | — | — | — | n/a |
 | Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | **outdated** (`community_race_s4`) | yes, once updated |
 | Super Metroid: DASH | dashrando.net | Settings listed on the event page | `smdash` | n/a | **no** (stub) |
@@ -28,7 +28,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 - **HMG preset.** Settled on SahasrahBot's `hmg` preset (open, 7/7, defeat Ganon, boots start) on alttpr.com, not the doors branch the rules doc mentions. It's a built-in now (`presets/alttpr/hmg.yaml`); import it with the others.
 - **FFR flags disagree.** The planning sheet's "Long Link" opens v4.8.6 (`s=47D73892`). The FFR wiki (the tournament's rules page) links v4.9.7 flags. Ask DarkmoonEX which is right.
 - **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
-- **OoTR and SM Map presets are last year's.** `sgl25` → SGL 2026 Tournament; `community_race_s4` → Community Race Season 5.
+- **SM Map preset is last year's.** `community_race_s4` → Community Race Season 5. (OoTR is done: `presets/ootr/sgl2026.json` is the `settings` object of generatorDev's `SGL 2026 Tournament` preset, copied verbatim, and `_generate_ootr` rolls it on `dev_9.1.38-0`.)
 - **SM Map screenshot is cropped.** The rules doc shows the preset as an image that stops at "Save the animals". Anything below that (QoL details, item progression tweaks) isn't in the doc, so assume the stock preset.
 - **DK64 race rooms.** DK64R rolls asynchronously (`ASYNC_RANDOMIZERS`), so the seed is queued, not instant. Check that's acceptable for a proctor handing seeds out at the desk.
 

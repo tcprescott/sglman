@@ -358,7 +358,7 @@ class SeedGenerationService(DK64RBackend):
         """
         Generate an Ocarina of Time Randomizer seed.
         """
-        settings = json.loads(await _read_bundled_preset("presets/ootr/sgl25.json"))
+        settings = json.loads(await _read_bundled_preset("presets/ootr/sgl2026.json"))
 
         # The OOTR API authenticates via a ``key`` query parameter; guard
         # against silently sending key=None when it is not configured.
@@ -370,7 +370,7 @@ class SeedGenerationService(DK64RBackend):
             json=settings,
             params={
                 "key": api_key,
-                "version": "8.3.0",
+                "version": "dev_9.1.38-0",
                 "encrypt": "true"
             }
         ) as resp:

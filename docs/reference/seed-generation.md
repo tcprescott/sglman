@@ -120,7 +120,7 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `_generate_ff1r` | yes | Local URL construction: random seed substituted into a fixed flags URL |
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
-| `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl25.json` |
+| `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl2026.json` |
 | `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); needs the tenant's `dk64r.api_key` (Donkey Kong 64) |
 | `_generate_mmr` | yes | **Stub** — raises `ValueError` (Majora's Mask) |
 | `_generate_smdash` | yes | **Stub** — raises `ValueError` (Super Metroid: DASH) |
@@ -190,7 +190,7 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-8-6.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` | Random 8-hex-digit seed substituted into a hard-coded flags URL on the version-pinned 4.8.6 site; the site builds the game client-side, so the URL *is* the seed |
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (**not** a URL, so tables render it as plain text) | Random seed number + hard-coded flags string; players enter both into the offline tool |
 | `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` | `multipart/form-data` with a `spoiler_token` part (never defaulted — a leaked token unlocks spoiler logs for race seeds) and a `settings` part carrying the raw preset JSON |
-| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=8.3.0`, `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
+| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl2026.json`](../../presets/ootr/sgl2026.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=dev_9.1.38-0` (the generatorDev build SGL 2026 races on), `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
 | `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` | Asynchronous submit → poll → result; see below |
 | `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
 | `smdash` | Super Metroid: DASH | none yet (**stub**) | — | — | raises `ValueError` | |
@@ -271,7 +271,7 @@ presets/                       # built-in files imported into the Preset table
 ├── dk64r/
 │   └── sgl.json               # _generate_dk64r fallback (settings-string shape; placeholder value)
 ├── ootr/
-│   └── sgl25.json             # used by _generate_ootr (hard-coded until coverage expansion)
+│   └── sgl2026.json           # used by _generate_ootr (hard-coded until coverage expansion)
 └── smmap/
     └── community_race_s4.json # used by _generate_smmap (hard-coded until coverage expansion)
 ```
