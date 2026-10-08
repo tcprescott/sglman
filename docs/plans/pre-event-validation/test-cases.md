@@ -227,7 +227,7 @@ error with no half-written seed on the match.
 **Pass:** clear message, match left rollable, error captured in Sentry.
 
 ### RG7 · Stub randomizers — S3, cause A
-`mmr`, `smdash` and `wwr` are registered but not wired. Confirm they are not
+`mmr` and `wwr` are registered but not wired. Confirm they are not
 offered for an October tournament, and that rolling one raises cleanly.
 **Pass:** not selectable; no traceback reaches the user.
 

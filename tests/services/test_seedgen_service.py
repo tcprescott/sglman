@@ -56,9 +56,14 @@ class TestAvailableRandomizers:
 
     def test_stub_randomizers_are_registered(self):
         # Registered for selection but not yet wired to an upstream API.
-        for stub in ('mmr', 'smdash', 'wwr'):
+        for stub in ('mmr', 'wwr'):
             assert stub in SeedGenerationService.AVAILABLE_RANDOMIZERS
             assert stub in SeedGenerationService.STUB_RANDOMIZERS
+
+    def test_smdash_is_no_longer_a_stub(self):
+        assert 'smdash' in SeedGenerationService.AVAILABLE_RANDOMIZERS
+        assert 'smdash' not in SeedGenerationService.STUB_RANDOMIZERS
+        assert 'smdash' in SeedGenerationService.PRESET_AWARE_RANDOMIZERS
 
     def test_dk64r_is_no_longer_a_stub(self):
         # Promoted to a real backend (api.dk64rando.com); still selectable.
@@ -72,11 +77,11 @@ class TestAvailableRandomizers:
 
 
 class TestStubGenerators:
-    @pytest.mark.parametrize('randomizer', ['mmr', 'smdash', 'wwr'])
+    @pytest.mark.parametrize('randomizer', ['mmr', 'wwr'])
     def test_generator_method_exists(self, service, randomizer):
         assert hasattr(service, f'_generate_{randomizer}')
 
-    @pytest.mark.parametrize('randomizer', ['mmr', 'smdash', 'wwr'])
+    @pytest.mark.parametrize('randomizer', ['mmr', 'wwr'])
     async def test_raises_not_implemented(self, service, randomizer):
         # Stub generators raise ValueError (the documented user-error contract),
         # so a user-reachable roll surfaces a 400 / UI warning rather than an
@@ -166,7 +171,7 @@ class TestGenerateSeedPreset:
 
 
 class TestMockSeedgen:
-    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test'])
+    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'test'])
     async def test_returns_mock_url_without_network(self, service, monkeypatch, randomizer):
         # No ALTTPR.generate / aiohttp / credential rows needed: the mock returns
         # before any backend is reached — even for randomizers that would
