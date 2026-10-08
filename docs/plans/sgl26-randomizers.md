@@ -11,7 +11,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
 | Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
-| Majora's Mask Randomizer | mmrandomizer.com | Generator preset `SGL 2026` | `mmr` | n/a | **no** (stub) |
+| Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc (there's no `SGL 2026` preset on the site) | `mmr` | n/a | **no** (stub). The keyed API makes it buildable, see [4-mmr-seedgen.md](4-mmr-seedgen.md) |
 | Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | **outdated** (`sgl25`) | yes, once updated |
 | Super Metroid Any% | none (vanilla) | — | — | — | n/a |
 | Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | **outdated** (`community_race_s4`) | yes, once updated |

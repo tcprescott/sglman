@@ -11,6 +11,93 @@ Wind Waker is a separate problem with a separate answer:
 [5-wwr-seedgen.md](5-wwr-seedgen.md). The two share only the stub mechanics at
 the bottom of each file.
 
+## Update, October 2026: mmrandomizer.com has a seed API
+
+This changes the answer. [mmrandomizer.com](https://mmrandomizer.com/generator)
+now hosts the generator (MMR 2.0, built by the same people as ootrandomizer.com's
+web generator), and it publishes an [API](https://mmrandomizer.com/api/docs)
+with the same shape as the OoTR one `_generate_ootr` already calls. Everything
+below this section, the SGL25 bundle and the seed-number and sidecar routes,
+was written before this existed and is kept for reference only.
+
+| Call | What it does |
+|---|---|
+| `POST /api/v2/seed/create?key=…[&version=…][&locked][&encrypt]` | Body is a flat JSON settings map (`GameplaySettings.*` keys, plus an optional `seed`). Returns `{id, version, spoilers}` |
+| `GET /api/v2/seed/status?key=…&id=…` | `status` 0 generating, 1 done, 3 failed; plus `progress` and queue position |
+| `GET /api/v2/seed/details` | Settings and spoiler logs. Needs a spoiler-access scope, which we don't need |
+| `GET /api/v2/seed/patch` | Raw patch file. We don't need it either |
+| `GET /api/version?branch=master` | Public. Read on 2026-10-08: `currentlyActiveVersion` is `2.0.0-0`, the only version available |
+
+The API is private: every call except `/api/version` needs a key, which you get
+by asking TreZ on the MMR Discord. A keyless `seed/create` returns 403. Encrypted
+seeds need the `can_create_encrypt` scope. Calls are rate-limited to 20 per 10
+seconds, and a full queue answers 423.
+
+The seed page (`https://mmrandomizer.com/seed/get?id=<id>`) patches the player's
+own ROM in the browser, using a WASM patcher with the player's own cosmetics.
+That removes all four blockers listed under "Why the artifact route does not
+fit" below. We'd need no .NET, no base ROM, no file storage, and no central
+cosmetics pass. It also settles the spoiler question: `locked` hides the log, so
+players can't read their own spoiler the way they could by self-rolling from a
+seed number.
+
+The site's own "race seed" button sends `encrypt`, `web_lock` and `create_spoiler`
+together, to the browser-only `/seed/create` endpoint. Calling that endpoint
+from a server would be scraping, so the keyed API is the route to use.
+
+### What the backend would look like
+
+`_generate_mmr` would be `_generate_ootr` with a different host: POST the preset's
+settings to `/api/v2/seed/create` with `key`, a pinned `version`, and
+`locked`/`encrypt`. Then raise `SeedProviderBadResponse` when no `id` comes back,
+and return `RolledSeed(url=f"https://mmrandomizer.com/seed/get?id={id}")`.
+Generation finishes after the call returns, but the seed page shows its own
+progress, so we can hand out the URL straight away the way OoTR does. Polling
+`status` (the `ASYNC_RANDOMIZERS` / `ProviderTask` path DK64R uses) only matters
+if we want to catch a failed generation before players open the link.
+
+The work involved:
+
+1. A `CredentialSpec` for `mmr.api_key`, set per tenant on the Randomizer Keys tab.
+2. The generator above. It should read `preset.settings`, so add `mmr` to
+   `PRESET_AWARE_RANDOMIZERS` and remove it from `STUB_RANDOMIZERS`.
+3. `presets/mmr/sgl2026.json` as a built-in.
+4. Tests modelled on the OoTR ones, with mocked HTTP.
+
+That's roughly the size of the original OoTR integration, and much smaller than
+any option below.
+
+### SGL 2026 settings
+
+The rules doc says "Settings Presets → `SGL 2026` → Load", but there isn't a
+preset with that name on the site. It has `SGL 2026 Summer Series` (protected)
+and `SGLive 2025`. The rules doc also links a file,
+[`SGL_2026.json`](https://zsr.link/MMRSGL2026Settings) (on Google Drive), which
+is in the same flat format the API accepts (`{"name": "SGL 2026", "settings":
+{…121 keys}}`). Compared with `SGL 2026 Summer Series`, seven keys differ: the
+junk-location string, the hint-priority order, the spoiler-log flag, and some
+web-only and enemy defaults. So they're two different rulesets, and the file is
+the better candidate. Compared with `SGLive 2025`, 22 keys differ.
+
+`SGL_2026.json` doesn't set `GameplaySettings.DrawHash`. `SGLive 2025` set it
+to `true`. If players compare the file-select hash icons before a race, someone
+should check the default.
+
+### Open questions (current)
+
+1. **API key.** Ask TreZ for a key with the `can_create_encrypt` scope, for the
+   `sgl26` tenant.
+2. **Which settings.** Is it `SGL_2026.json` from the rules doc, or the site's
+   `SGL 2026 Summer Series`? Ask the MMR admins (Vidya James, Dastar, KLO).
+3. **Version pin.** `2.0.0-0` is the only version available today. Ask whether
+   upstream will keep it available through the event, or whether races move to
+   whatever is current, the way SM Map Rando's rules say.
+4. **Encrypted vs. locked.** `locked` hides the spoiler by default. `encrypt`
+   also encrypts the patch, which is what OoTR does for SGL. Confirm which one
+   the admins want.
+
+---
+
 ## How it was rolled at SGL25
 
 A self-contained bundle, `MM-Randomizer-SGL.zip` (106 MB), was assembled for the
@@ -149,7 +236,7 @@ Four conditions, in order of how likely they are to sink it:
   largest option by a wide margin, and only warranted if condition 1 above rules
   out seed numbers.
 
-## Open questions
+## Open questions (pre-API, superseded)
 
 1. Is a player self-rolling from a shared seed number acceptable for a
    tournament, given they could re-roll with `-spoiler`?
