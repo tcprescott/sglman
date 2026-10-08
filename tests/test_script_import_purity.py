@@ -25,7 +25,9 @@ SCRIPTS = REPO / 'scripts'
 
 # Scripts the test suite imports (directly or transitively). These must stay
 # import-pure; the rest may load .env at import because only a shell runs them.
-IMPORTED_BY_TESTS = ['seed_dev.py', 'seed_fledgling.py', 'backfill_memberships.py']
+IMPORTED_BY_TESTS = [
+    'seed_dev.py', 'seed_fledgling.py', 'backfill_memberships.py', 'import_sgl_tournaments.py',
+]
 
 
 def _module_level_calls(path: Path) -> set[str]:

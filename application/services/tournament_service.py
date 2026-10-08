@@ -213,6 +213,7 @@ class TournamentService(TournamentSignupMixin):
         rules_url: Optional[str] = None,
         tournament_format: Optional[str] = None,
         triforce_access_message: Optional[str] = None,
+        randomizer_notes: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
         is_active: bool = True,
@@ -279,6 +280,7 @@ class TournamentService(TournamentSignupMixin):
             rules_url=rules_url.strip() if rules_url else None,
             tournament_format=tournament_format.strip() if tournament_format else None,
             triforce_access_message=triforce_access_message.strip() if triforce_access_message else None,
+            randomizer_notes=randomizer_notes.strip() if randomizer_notes else None,
             average_match_duration=average_match_duration,
             max_match_duration=max_match_duration,
             is_active=is_active,
@@ -321,6 +323,7 @@ class TournamentService(TournamentSignupMixin):
         rules_url: Optional[str] = None,
         tournament_format: Optional[str] = None,
         triforce_access_message: Optional[str] = None,
+        randomizer_notes: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
         is_active: Optional[bool] = None,
@@ -373,6 +376,8 @@ class TournamentService(TournamentSignupMixin):
             update_data['triforce_access_message'] = (
                 triforce_access_message.strip() if triforce_access_message else None
             )
+        if randomizer_notes is not None:
+            update_data['randomizer_notes'] = randomizer_notes.strip() if randomizer_notes else None
         if average_match_duration is not None:
             update_data['average_match_duration'] = average_match_duration
         if max_match_duration is not None:

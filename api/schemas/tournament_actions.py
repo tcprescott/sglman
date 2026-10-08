@@ -35,6 +35,7 @@ class TournamentCreateRequest(BaseModel):
     rules_url: Optional[str] = None
     tournament_format: Optional[str] = None
     triforce_access_message: Optional[str] = None
+    randomizer_notes: Optional[str] = None
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
     is_active: bool = True
@@ -58,6 +59,7 @@ class TournamentUpdateRequest(BaseModel):
     rules_url: Optional[str] = None
     tournament_format: Optional[str] = None
     triforce_access_message: Optional[str] = None
+    randomizer_notes: Optional[str] = None
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
     is_active: Optional[bool] = None

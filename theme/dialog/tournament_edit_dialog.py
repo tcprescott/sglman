@@ -231,6 +231,14 @@ class TournamentDialog:
                         'Tournament Format',
                         value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '',
                     ).classes('input-full-width')
+                    randomizer_notes_input = ui.textarea(
+                        'Randomizer Notes',
+                        value=self.tournament.randomizer_notes if self.tournament and self.tournament.randomizer_notes else '',
+                    ).classes('input-full-width')
+                    randomizer_notes_input.tooltip(
+                        'Settings, preset and build players race on. Shown on the '
+                        'Tournaments tab; supports the same formatting as the description.'
+                    )
 
                     ui.separator()
                     ui.label('Stream crew').classes('text-bold')
@@ -543,6 +551,7 @@ class TournamentDialog:
                                 rules_url=rules_url_input.value,
                                 tournament_format=tournament_format_input.value,
                                 triforce_access_message=triforce_access_message_input.value,
+                                randomizer_notes=randomizer_notes_input.value,
                                 average_match_duration=average_match_duration_input.value,
                                 max_match_duration=max_match_duration_input.value,
                                 is_active=is_active_checkbox.value,
@@ -570,6 +579,7 @@ class TournamentDialog:
                             rules_url=rules_url_input.value,
                             tournament_format=tournament_format_input.value,
                             triforce_access_message=triforce_access_message_input.value,
+                            randomizer_notes=randomizer_notes_input.value,
                             average_match_duration=average_match_duration_input.value,
                             max_match_duration=max_match_duration_input.value,
                             is_active=is_active_checkbox.value,

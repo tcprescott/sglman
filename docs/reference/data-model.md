@@ -676,6 +676,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `rules_url` | `CharField(255)` | null | |
 | `tournament_format` | `CharField(255)` | null | |
 | `triforce_access_message` | `TextField` | null | Custom message shown to players on the triforce-texts tab |
+| `randomizer_notes` | `TextField` | null | Settings, preset and build the tournament races on; shown to everyone on the Tournaments tab through the safe-markdown renderer (migration 86). Empty for now; SGL 2026 research in [plans/sgl26-randomizers.md](../plans/sgl26-randomizers.md) |
 | `average_match_duration` | `IntField` | null | Minutes |
 | `max_match_duration` | `IntField` | null | Minutes |
 | `challonge_tournament_id` | `CharField(64)` | null | Linked Challonge tournament id (enables bracket sync) |
