@@ -124,6 +124,9 @@ class SeedGenerationService(DK64RBackend):
     }
     PROVIDER_ATTEMPTS: ClassVar[dict] = {
         'dk64r': 1,
+        # DASH saves the seed upstream before answering, so a retry after a
+        # timeout mints a second seed and orphans the first.
+        'smdash': 1,
     }
 
     @classmethod
@@ -422,15 +425,18 @@ class SeedGenerationService(DK64RBackend):
             await raise_for_status(resp, provider='smdash', operation='generate_seed')
             location = resp.headers.get('Location') if resp.status in (301, 302, 303, 307, 308) else None
 
-        if not location or '/seed/' not in location:
+        seed_url = urllib.parse.urljoin(_DASH_BASE_URL + '/', location) if location else ''
+        parsed = urllib.parse.urlparse(seed_url)
+        if (
+            parsed.scheme != 'https'
+            or parsed.hostname not in ('www.dashrando.net', 'dashrando.net')
+            or not re.fullmatch(r'/seed/[A-Za-z0-9_-]+', parsed.path)
+        ):
             raise SeedProviderBadResponse(
                 'DASH did not redirect to a seed page.',
                 provider='smdash', operation='generate_seed',
             )
-        return RolledSeed(
-            url=urllib.parse.urljoin(_DASH_BASE_URL + '/', location),
-            settings={'preset': tag, 'race': True},
-        )
+        return RolledSeed(url=seed_url, settings={'preset': tag, 'race': True})
 
     async def _generate_dk64r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """Generate a Donkey Kong 64 Randomizer seed via the api.dk64rando.com queue.

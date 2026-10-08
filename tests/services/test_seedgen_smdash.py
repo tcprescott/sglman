@@ -52,6 +52,9 @@ def dash(monkeypatch):
 
 
 class TestGenerateSmdash:
+    def test_rolls_once_because_upstream_saves_every_seed(self):
+        assert SeedGenerationService.PROVIDER_ATTEMPTS['smdash'] == 1
+
     async def test_rolls_the_bundled_sgl26_preset_as_a_race_seed(self, service, dash):
         call = await service.generate_seed_call('smdash')
         assert call.value.url == 'https://www.dashrando.net/seed/abc123'
@@ -85,6 +88,9 @@ class TestGenerateSmdash:
     @pytest.mark.parametrize('response', [
         _FakeResp(200, body='<html>'),
         _FakeResp(307, {'Location': 'https://www.dashrando.net/generate'}),
+        _FakeResp(307, {'Location': '/error?from=/seed/x'}),
+        _FakeResp(307, {'Location': 'https://evil.example/seed/abc'}),
+        _FakeResp(307, {'Location': 'http://www.dashrando.net/seed/abc'}),
         _FakeResp(307, {}),
     ])
     async def test_a_response_that_is_not_a_seed_redirect_is_bad(self, service, dash, response):

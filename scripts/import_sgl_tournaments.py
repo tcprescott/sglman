@@ -51,17 +51,21 @@ _NS = {
 }
 _R_ID = '{%s}id' % _NS['r']
 
-# Rows with no match (NMG, SM Any%, MMR, which is rolled offline, the NES
-# events) get no generator.
-_SEED_GENERATORS: List[Tuple[str, Optional[str]]] = [
-    (r'link to the past randomizer', 'alttpr'),
-    (r'donkey kong 64', 'dk64r'),
-    (r'final fantasy randomizer', 'ff1r'),
-    (r'ocarina of time', 'ootr'),
-    (r'super metroid map', 'smmap'),
-    (r'super metroid:? dash', 'smdash'),
-    (r'legend of zelda randomizer', 'z1r'),
-    (r'wind waker', 'wwr'),
+# (name pattern, randomizer, required preset). First match wins, so HMG is
+# claimed before plain ALttPR. A required preset must exist on the tenant or the
+# row gets no generator: without one, alttpr rolls its casualboots fallback,
+# which neither tournament races. Rows with no match (ALttP NMG, SM Any%, MMR,
+# which is rolled offline, and Best of NES) get no generator.
+_SEED_GENERATORS: List[Tuple[str, str, Optional[str]]] = [
+    (r'link to the past randomizer.*(hybrid|major glitches)', 'alttpr', 'hmg'),
+    (r'link to the past randomizer', 'alttpr', 'openboots'),
+    (r'donkey kong 64', 'dk64r', None),
+    (r'final fantasy randomizer', 'ff1r', None),
+    (r'ocarina of time', 'ootr', None),
+    (r'super metroid map', 'smmap', None),
+    (r'super metroid:? dash', 'smdash', None),
+    (r'legend of zelda randomizer', 'z1r', None),
+    (r'wind waker', 'wwr', None),
 ]
 
 
@@ -78,6 +82,7 @@ class SheetTournament:
     fields: Dict[str, Any] = field(default_factory=dict)
     challonge_url: Optional[str] = None
     deadline: Optional[datetime] = None
+    required_preset: Optional[str] = None
 
 
 # --- xlsx reading -----------------------------------------------------------
@@ -170,11 +175,19 @@ def parse_minutes(text: str) -> Optional[int]:
     return round(sum(numbers[:2]) / len(numbers[:2]))
 
 
-def seed_generator_for(name: str) -> Optional[str]:
-    for pattern, key in _SEED_GENERATORS:
+def _seed_generator_entry(name: str) -> Tuple[Optional[str], Optional[str]]:
+    for pattern, key, preset in _SEED_GENERATORS:
         if re.search(pattern, name, re.IGNORECASE):
-            return key
-    return None
+            return key, preset
+    return None, None
+
+
+def seed_generator_for(name: str) -> Optional[str]:
+    return _seed_generator_entry(name)[0]
+
+
+def required_preset_for(name: str) -> Optional[str]:
+    return _seed_generator_entry(name)[1]
 
 
 def _excel_datetime(serial: float) -> datetime:
@@ -249,7 +262,9 @@ def parse_tournaments(rows: List[List[Cell]]) -> List[SheetTournament]:
         deadline_cell = get(row, 'Deadline')
         deadline = _excel_datetime(deadline_cell.number) if deadline_cell.number else None
 
-        out.append(SheetTournament(name, fields, challonge_url, deadline))
+        out.append(SheetTournament(
+            name, fields, challonge_url, deadline, required_preset_for(name),
+        ))
     return out
 
 
@@ -266,7 +281,7 @@ async def run(args: argparse.Namespace) -> int:
     from application.tenant_context import tenant_scope
     from application.utils.timezone import parse_local_datetime
     from migrations.tortoise_config import TORTOISE_ORM
-    from models import Tenant, Tournament, User
+    from models import Preset, Tenant, Tournament, User
 
     sheet = parse_tournaments(read_sheet(load_workbook_bytes(args.source), args.sheet))
     mode = 'APPLY' if args.apply else 'DRY RUN'
@@ -295,6 +310,19 @@ async def run(args: argparse.Namespace) -> int:
             }
             for entry in sheet:
                 wanted = dict(entry.fields)
+                if entry.required_preset:
+                    preset = await Preset.get_or_none(
+                        tenant_id=tenant.id,
+                        randomizer=wanted.get('seed_generator'),
+                        name=entry.required_preset,
+                    )
+                    if preset is not None:
+                        wanted['preset_id'] = preset.id
+                    else:
+                        wanted.pop('seed_generator', None)
+                        print(f"! {entry.name}: no {entry.required_preset!r} preset on "
+                              f"{args.tenant!r}; leaving seeds off. Import built-ins on the "
+                              "Presets tab and re-run.")
                 if entry.deadline:
                     wanted['signups_close_at'] = parse_local_datetime(
                         entry.deadline.strftime('%Y-%m-%d'), entry.deadline.strftime('%H:%M'), tz=tz,
