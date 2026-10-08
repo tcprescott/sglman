@@ -85,7 +85,7 @@ def test_parses_rows_up_to_the_side_events_header():
 def test_maps_hyperlinks_durations_and_deadline():
     ootr, sm, nes = parse_tournaments(read_sheet(_workbook(), 'Onsite'))
 
-    assert ootr.challonge_url == 'https://speedgaming.challonge.com/sgl26ootr'
+    assert ootr.challonge_url is None
     assert ootr.fields['bracket_url'] == 'https://www.start.gg/tournament/ootr'
     assert ootr.fields['rules_url'] == 'https://docs.example/ootr'
     assert ootr.fields['tournament_format'] == 'Single Elim Bo1; Final Bo3'

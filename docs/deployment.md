@@ -277,7 +277,7 @@ docker compose exec wizzrobe poetry run python scripts/import_sgl_tournaments.py
 | Ave Time / WCS Time | `average_match_duration` / `max_match_duration` (a range uses its midpoint) |
 | Rules (hyperlink) | `rules_url` |
 | Brackets link, else Challonge link | `bracket_url` |
-| Challonge (hyperlink) | Challonge link via `ChallongeService.link_tournament` |
+| Challonge (hyperlink) | Challonge link via `ChallongeService.link_tournament`, skipped when the Brackets column is filled in (the bracket runs elsewhere, e.g. start.gg) |
 | Deadline | `signups_close_at`, read on the community's clock |
 | Admin, Qualifiers, Trophies, Seed Generation | `description` |
 | Tournament name (keyword table in the script) | `seed_generator` |

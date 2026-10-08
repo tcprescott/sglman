@@ -227,7 +227,12 @@ def parse_tournaments(rows: List[List[Cell]]) -> List[SheetTournament]:
         challonge_url = challonge.link or (
             f'https://challonge.com/{challonge.text.strip()}' if challonge.text.strip() else None
         )
-        bracket_url = get(row, 'Brackets').link or challonge_url
+        brackets = get(row, 'Brackets')
+        if brackets.text.strip() or brackets.link:
+            # The bracket runs elsewhere (start.gg for OoTR); the Challonge
+            # column is then only a signup page and must not be linked.
+            challonge_url = None
+        bracket_url = brackets.link or challonge_url
         if bracket_url:
             fields['bracket_url'] = bracket_url
 
