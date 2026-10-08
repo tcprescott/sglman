@@ -3,6 +3,9 @@
 Each event names a Matcherino venue whose badge sales become the desk's
 roster. Opening an event puts it on the desk and starts the background sync;
 the desk itself lives at ``/checkin``.
+
+The Matcherino login card above the events (``theme.matcherino_login_card``)
+holds the refresh token the sync signs in with.
 """
 
 from nicegui import background_tasks, context, ui
@@ -13,6 +16,7 @@ from models import CheckInEventStatus
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_event_dialog
+from theme.matcherino_login_card import matcherino_login_card
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -75,6 +79,8 @@ async def admin_check_in_page() -> None:
             'event to put it on the check-in desk; the desk syncs on its own while it is open.'
         ).classes('text-caption text-grey-7')
         ui.separator().classes('separator-spacing')
+
+        await matcherino_login_card()
 
         with ui.row().classes('full-width items-center'):
             async def add_event() -> None:

@@ -54,6 +54,7 @@ from application.services.check_in_rules import (
 )
 from application.services.check_in_sales import apply_badges, apply_tiers, buyer_fields, buyers_of
 from application.services.feature_flag_service import FeatureFlagService
+from application.services.matcherino_login_service import MatcherinoLoginService
 from application.utils.clients.matcherino_client import (
     MatcherinoAPIError,
     MatcherinoClient,
@@ -113,13 +114,14 @@ class CheckInService:
         self.passes = CheckInPassRepository()
         self.lookup = CheckInUserLookupRepository()
         self.audit_service = AuditService()
+        self.login_service = MatcherinoLoginService()
         self._client = client
 
-    @property
-    def client(self) -> MatcherinoClient:
-        if self._client is None:
-            self._client = get_matcherino_client()
-        return self._client
+    async def _matcherino(self) -> MatcherinoClient:
+        # Never cached on the service: the worker shares one across tenants, each with its own login.
+        if self._client is not None:
+            return self._client
+        return get_matcherino_client(await self.login_service.resolve())
 
     # --- Events (staff) ---
 
@@ -259,9 +261,10 @@ class CheckInService:
         venue that previews here is one the sync can read.
         """
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
+        client = await self._matcherino()
         try:
-            venue = await self.client.fetch_venue(venue_id)
-            tiers = await self.client.fetch_tiers(venue_id)
+            venue = await client.fetch_venue(venue_id)
+            tiers = await client.fetch_tiers(venue_id)
         except MatcherinoAPIError as e:
             raise ValueError(f"Couldn't read that venue on Matcherino: {e}") from e
         return VenuePreview(venue=venue, tiers=sorted(tiers, key=lambda t: -t.amount_cents))
@@ -334,25 +337,24 @@ class CheckInService:
     async def _sync_sales(self, actor: User, event: CheckInEvent, comped: Dict[int, List[str]]) -> SyncResult:
         """Fetch the venue's sales and apply them; on a Matcherino failure, record it and raise."""
         assert event.matcherino_venue_id is not None
+        client = await self._matcherino()
         try:
-            sales = await self.client.fetch_sales(event.matcherino_venue_id)
+            sales = await client.fetch_sales(event.matcherino_venue_id)
             # Read after the fetch, so desk actions made while it ran are seen.
             existing = await self.entrants.matcherino_rows_by_user_id(event)
             stored = await self.passes.by_purchase_id(event)
             if not sales.purchases and any(is_active_badge(p) for p in stored.values()):
-                raise MatcherinoAPIError(
-                    'Matcherino returned no badges for a venue that had some'
-                )
+                raise MatcherinoAPIError('Matcherino returned no badges for a venue that had some')
         except MatcherinoAPIError as e:
+            await self.login_service.note_sync_result(e)
             # updated_at marks when it failed: the desk shows it and the
             # worker backs off from it.
             await self.events.record_sync(
                 event, last_sync_error=str(e)[:1000], updated_at=datetime.now(timezone.utc),
             )
             check_in_live.publish(event.id, None, check_in_live.ROSTER)
-            raise ValueError(
-                f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}"
-            ) from e
+            raise ValueError(f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}") from e
+        await self.login_service.note_sync_result()
         try:
             return await self._apply_sales(actor, event, sales, existing, stored, comped)
         except IntegrityError as e:

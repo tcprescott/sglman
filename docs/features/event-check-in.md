@@ -38,21 +38,54 @@ All answer `{"status", "body"}` envelopes; failures come back as
 
 ### The stored login
 
-The two venue endpoints need a signed-in **admin of the venue**. Wizzrobe holds
-one platform-wide credential, `MATCHERINO_REFRESH_TOKEN`: the refresh token of
-a Matcherino account that administers every venue being synced. Matcherino's
-refresh token does not rotate, so one stored value keeps working until that
-account signs out everywhere or Matcherino revokes it. To get one, sign in to
-matcherino.com as that account and copy the `refreshToken` the web app posts to
-`/__api/auth/token` (steps in
-[matcherino-api.md](../reference/matcherino-api.md#authentication)).
+The two venue endpoints need a signed-in **admin of the venue**. Each community
+saves its own login, a `MatcherinoLogin` row holding the refresh token of a
+Matcherino account that administers that community's venues. Staff paste it in
+the **Matcherino login** card at the top of **Admin → Check-in**
+(`theme/matcherino_login_card.py`), which also explains where to find it: sign
+in to matcherino.com as that account in a private window, click the card's
+**Copy Matcherino login** bookmarklet there, close the window without signing
+out, and paste. Signing out of Matcherino (or a Matcherino tab idling for six
+hours, which signs out on its own) revokes the token, so a session nobody comes
+back to keeps it alive (detail in
+[matcherino-api.md](../reference/matcherino-api.md#authentication)). The card
+accepts the bare token, the `/auth/token` request payload, or the
+`credentials` cookie's value, URL-encoded or not.
 
-The client mints an access token on first use and caches it for the process
-until five minutes before it expires. A 401/403 re-mints once and retries; a
-second refusal raises `MatcherinoAuthError` saying the account must administer
-the venue. With the variable unset, a sync fails before calling Matcherino and
-the desk shows "Matcherino ticket sync isn't set up". Neither token ever
-appears in an error message.
+The bookmarklet copies to the clipboard rather than opening Wizzrobe: a private
+window isn't signed in to Wizzrobe, and a URL that pre-filled the card could be
+used to plant someone else's token. Off matcherino.com it only says to drag it
+to the bookmarks bar.
+
+Saving signs in to Matcherino once with the pasted token and refuses it if
+Matcherino does, so a typo or a pasted access token fails at the form rather
+than at the desk. The card then shows which Matcherino account the login
+belongs to, when it was saved and by whom, and never the token itself. When
+Matcherino stops accepting a saved token, syncs fail with a message pointing
+back at the card; paste a fresh one there. The login is write-only, audited as
+`matcherino_login.set` / `.cleared` without the value, and read unmasked only by
+`CheckInService` (`MatcherinoLoginService.resolve`). It replaces the former
+deployment-wide `MATCHERINO_REFRESH_TOKEN` environment variable, which is no
+longer read.
+
+**Refused-login alert.** The card's **DM when Matcherino refuses it** picker
+names one Staff member (or nobody). After each Matcherino read the sync calls
+`MatcherinoLoginService.note_sync_result`: a `MatcherinoAuthError` DMs that
+person once, with an **Update the Matcherino login** button to Admin →
+Check-in; a good read or a freshly saved token re-arms it. The once-only claim
+is one conditional `UPDATE` of `MatcherinoLogin.alerted_at`, so two syncs
+failing together send one DM. An outage (anything that isn't a refusal) alerts
+nobody, since a new token wouldn't fix it; the desk shows it. A recipient who
+has lost Staff is skipped. Removing the login clears the recipient with it.
+
+The client mints an access token on first use and caches it in the process,
+keyed by a hash of the refresh token, until five minutes before it expires: two
+communities never share an access token, and replacing a login misses the
+cache. A 401/403 re-mints once and retries; a second refusal raises
+`MatcherinoAuthError` saying the account must administer the venue. With no
+login saved, a sync fails before calling Matcherino and the desk shows
+"Matcherino ticket sync isn't set up". Neither token ever appears in an error
+message.
 
 ### Built to break safely
 
@@ -362,7 +395,8 @@ in-process and share the match board's single-worker constraint
 
 ## Admin
 
-Admin → **Check-in** (Operations group, STAFF + flag): the events table, a
+Admin → **Check-in** (Operations group, STAFF + flag): the **Matcherino login**
+card ([the stored login](#the-stored-login)), the events table, a
 New/Edit dialog with a **Look up** button that confirms the venue by title and
 lists its badge types (and refuses a plain bounty ID, the usual mix-up), and a
 **Desk** shortcut per event.
@@ -377,8 +411,9 @@ comps for Staff and volunteers (staff_user as a `COMP` row; player_one at exactl
 8 scheduled hours and player_two above every tier comped on top of their badges),
 and the seed adds a manual link, a buyer whose badge left the feed, a
 check-in by `checkin_desk` (the fixture holding only `CHECK_IN_DESK`), a member
-walk-up and a named walk-up, a draft event and a closed one. Tenants without the
-flag are skipped.
+walk-up and a named walk-up, a draft event and a closed one, and a placeholder
+Matcherino login so the card shows its saved state. Tenants without the flag are
+skipped.
 
 ## Tests
 

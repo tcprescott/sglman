@@ -22,6 +22,7 @@ VOL_SCHEDULE = 'vol-schedule'
 CHALLONGE = 'challonge'
 USERS = 'users'
 QUALIFIERS = 'qualifiers'
+CHECK_IN = 'check-in'
 
 # Home tab slugs.
 HOME_PLAYER = 'player'
@@ -145,3 +146,8 @@ def admin_ada_request_url(request_id: int) -> str:
     the members table two sub-tabs away from it.
     """
     return admin_url(USERS, ada_request=request_id)
+
+
+def admin_check_in_url() -> str:
+    """Admin → Check-in, whose first control is the Matcherino login card."""
+    return admin_url(CHECK_IN)

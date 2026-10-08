@@ -132,10 +132,14 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # a security fact, not a domain one.
     AuditActions.ROOM_TOKEN_CREATED,
     AuditActions.ROOM_TOKEN_REVOKED,
-    # Randomizer credential rotation — same reasoning: a community's API-key
-    # activity is not something to broadcast to arbitrary webhook receivers.
+    # Randomizer credential and Matcherino login rotation — same reasoning: a
+    # community's credential activity is not something to broadcast to
+    # arbitrary webhook receivers.
     AuditActions.RANDOMIZER_CREDENTIAL_SET,
     AuditActions.RANDOMIZER_CREDENTIAL_CLEARED,
+    AuditActions.MATCHERINO_LOGIN_SET,
+    AuditActions.MATCHERINO_LOGIN_CLEARED,
+    AuditActions.MATCHERINO_LOGIN_ALERTS_UPDATED,
     # Webhook meta: a webhook about webhook config (incl. secret regen) is a footgun.
     AuditActions.WEBHOOK_CREATED,
     AuditActions.WEBHOOK_UPDATED,

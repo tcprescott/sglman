@@ -189,6 +189,9 @@ class AuditActions:
     CHECK_IN_ENTRANT_UNLINKED = 'check_in_entrant.unlinked'
     CHECK_IN_ENTRANT_WALK_UP_ADDED = 'check_in_entrant.walk_up_added'
     CHECK_IN_ENTRANT_REMOVED = 'check_in_entrant.removed'
+    MATCHERINO_LOGIN_SET = 'matcherino_login.set'
+    MATCHERINO_LOGIN_CLEARED = 'matcherino_login.cleared'
+    MATCHERINO_LOGIN_ALERTS_UPDATED = 'matcherino_login.alerts_updated'
 
     # Player availability
     PLAYER_AVAILABILITY_UPDATED = 'player.availability_updated'

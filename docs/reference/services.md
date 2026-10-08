@@ -51,6 +51,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CheckInService` | [check_in_service.py](../../application/services/check_in_service.py) | Matcherino-backed event check-in: roster sync, auto-linking, the desk's check-in/link actions, walk-ups | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
+| `MatcherinoLoginService` | [matcherino_login_service.py](../../application/services/matcherino_login_service.py) | The per-community Matcherino login check-in syncs with: status, verified save, remove, sync-time resolve | [event-check-in.md](../features/event-check-in.md#the-stored-login), `EVENT_CHECK_IN` |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [match-participation.md](../features/match-participation.md) |
 | `DiscordEventReconcilerService` | [discord_event_reconciler_service.py](../../application/services/discord/discord_event_reconciler_service.py) | Idempotent mirror of the schedule into a guild's Discord Scheduled Events | [discord.md](../features/discord.md) |
 | `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
@@ -272,6 +273,7 @@ One module rather than a private `_url` helper per service, because three mistak
 | `admin_volunteer_schedule(day=None, *, label='Open the shift')` | `DMLink \| None` | The volunteer roster on the shift's day (the community's clock, not the reader's). |
 | `admin_users(*, label='Review the request')` | `DMLink \| None` | `/admin/users`, where join requests are decided. |
 | `admin_ada_request(request_id, *, label='Open the request')` | `DMLink \| None` | `/admin/users?ada_request=<id>`, that ADA request's dialog open. |
+| `admin_matcherino_login(*, label='Update the Matcherino login')` | `DMLink \| None` | `/admin/check-in`, whose first control is the Matcherino login card. |
 | `admin_qualifier_queue(qualifier_id, *, label='Open the review queue')` | `DMLink \| None` | `/admin/qualifiers?qualifier=<id>&tab=queue` — one qualifier's review queue, open. |
 
 Paths come from the pure [`app_links.py`](#additional-utilities), shared with the pages that render the same routes. Detail: [discord.md → Calls to action](../features/discord.md#calls-to-action).
@@ -513,7 +515,7 @@ Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipme
 
 ### check_in_service.py — CheckInService
 
-The check-in desk for in-person events whose registration runs on Matcherino. Mirrors a ticketed venue's badge sales into `CheckInTier` / `CheckInPass` rows and one `CheckInEntrant` per buyer, auto-links each buyer to a `User` on exact identifiers, and records arrivals. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`. Event setup and walk-ups need `AuthService.can_manage_check_in` (Staff); the desk actions need `can_run_check_in_desk` (Staff, `CHECK_IN_DESK`, or the system actor). Both raise `PermissionError`. Constructor takes an optional `client: MatcherinoClient` (defaults to `get_matcherino_client()`, so `MOCK_MATCHERINO` applies). Constants: `MIN_SYNC_INTERVAL_MINUTES = 1`, `MAX_SYNC_INTERVAL_MINUTES = 120`, `SUGGESTION_LIMIT = 3`. Feature doc: [event-check-in.md](../features/event-check-in.md).
+The check-in desk for in-person events whose registration runs on Matcherino. Mirrors a ticketed venue's badge sales into `CheckInTier` / `CheckInPass` rows and one `CheckInEntrant` per buyer, auto-links each buyer to a `User` on exact identifiers, and records arrivals. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`. Event setup and walk-ups need `AuthService.can_manage_check_in` (Staff); the desk actions need `can_run_check_in_desk` (Staff, `CHECK_IN_DESK`, or the system actor). Both raise `PermissionError`. Constructor takes an optional `client: MatcherinoClient`; without one, each Matcherino call builds `get_matcherino_client(<this community's saved login>)` (so `MOCK_MATCHERINO` applies), never caching it on the service, because the sync worker shares one service across tenants. Constants: `MIN_SYNC_INTERVAL_MINUTES = 1`, `MAX_SYNC_INTERVAL_MINUTES = 120`, `SUGGESTION_LIMIT = 3`. Feature doc: [event-check-in.md](../features/event-check-in.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -903,6 +905,22 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 The DK64R backend (task queue, settings-string expansion, preset catalogue) lives in the private `_seedgen_dk64r.py` as the `DK64RBackend` mixin; the value objects shared with everything that persists a roll (`RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll`) live in `_seedgen_types.py`.
 
 Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs.
+
+### matcherino_login_service.py — MatcherinoLoginService
+
+The Matcherino account a community's check-in sync signs in as — the per-tenant successor to the `MATCHERINO_REFRESH_TOKEN` environment variable. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`; `status`/`set_login`/`clear_login` need `AuthService.can_manage_check_in` (Staff). Constructor takes an optional `client_factory` (defaults to `get_matcherino_client`) used to check a token before saving it.
+
+| Member | Returns | Description |
+|---|---|---|
+| `status(actor)` | `MatcherinoLoginStatus` | `configured`, `matcherino_user_id`, `updated_at`, `updated_by` (display name). **Never the token.** |
+| `set_login(actor, pasted)` | `MatcherinoLoginStatus` | Accepts the bare token or the whole `{"appName", "refreshToken"}` payload copied from DevTools (`normalize_refresh_token`). Rejects blank, whitespace or over-long input without calling Matcherino; otherwise signs in once (`MatcherinoClient.verify_login`) and saves only if Matcherino accepts it, recording the account id from the access token's `sub`. Audits `matcherino_login.set` with `replaced` and the account ids, never the token. |
+| `clear_login(actor)` | `None` | Idempotent. Audits `matcherino_login.cleared`. |
+| `alert_candidates(actor)` | `list[User]` | The community's Staff (system user excluded), by name: who may be picked to hear about a refused login. |
+| `set_alert_user(actor, user_id)` | `MatcherinoLoginStatus` | Needs a saved login; `user_id` must be a candidate, or `None` for nobody. Leaves the "saved" time alone. Audits `matcherino_login.alerts_updated`. |
+| `note_sync_result(error=None)` | `None` | The sync's report after each Matcherino read. `None` re-arms the alert; a `MatcherinoAuthError` claims it (`claim_alert`) and, if this call won and the recipient is still Staff with a Discord id, queues one DM (`discord_messages_check_in.matcherino_login_refused_dm`) with `notification_links.admin_matcherino_login()`. Other errors do nothing. Never raises. |
+| `resolve()` | `str \| None` | The saved token, unmasked. Not role-gated: its only caller is `CheckInService`, whose boundary already authorized the actor. Never call it from anything that renders. |
+
+No events, for the same reason as randomizer credentials. Collaborators: `MatcherinoLoginRepository`, `AuditService`, `AuthService`, `matcherino_client`.
 
 ### randomizer_credential_service.py — RandomizerCredentialService
 
@@ -1777,6 +1795,7 @@ This module holds the match lifecycle. Every other domain has a sibling of its o
 | `discord_messages_reschedule.py` | Reschedule requests | `reschedule_requested_dm` (to staff), `reschedule_opponent_dm`, `reschedule_decided_dm`, `reschedule_agree_confirmation` |
 | `discord_messages_tenant.py` | Community join requests (`TenantMembershipService`) | `join_requested_dm`, `join_decided_dm`, `member_added_dm`, `member_removed_dm` |
 | `discord_messages_accommodation.py` | ADA requests (`AccommodationService`) | `accommodation_requested_dm`, `accommodation_changed_dm` |
+| `discord_messages_check_in.py` | Event check-in (`MatcherinoLoginService`) | `matcherino_login_refused_dm` |
 
 All builders are pure functions returning `str` (`DMLink` is a `NamedTuple`); optional fields passed as `None`/`''` are omitted from the rendered message.
 

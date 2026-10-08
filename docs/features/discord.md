@@ -65,6 +65,7 @@ tenant costs the button, not the DM.
 | Join declined (to requester) | Join the Discord server | the community's `discord_invite_url`, when set; otherwise no button. The date a new request opens is `<t:…:f>` (date and time); with auto-join on, the copy leads with "joining the server gets you in" |
 | Added by staff / request closed by a role grant (to the person) | Find a tournament | `/home/tournaments` |
 | ADA request opened / changed after arranging (to staff) | Open the request | `/admin/users?ada_request=<id>` — that request's dialog, open |
+| Matcherino refused the check-in login (to the one person picked on the card) | Update the Matcherino login | `/admin/check-in` — the Matcherino login card is its first control |
 | Stage assigned / cleared / reminder | View your match · View your crew slot · View the schedule | per audience: players `/home/player?match=<id>`, crew `/home/my-crew?match=<id>`, watchers `/home/schedule` |
 | Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |
 | Harder preset agreed / broken | View your match | `/home/player?match=<id>` |

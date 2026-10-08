@@ -20,7 +20,10 @@ the states a volunteer meets:
 * someone whose badge disappeared from the venue (withdrawn);
 * player_one already checked in by the check-in desk volunteer;
 * two walk-ups checked in by staff, one a member (racer_09) and one name-only;
-* a draft event with no venue and last year's closed event, for the admin list.
+* a draft event with no venue and last year's closed event, for the admin list;
+* a saved Matcherino login whose refused-login alerts go to staff_user, so
+  Admin → Check-in shows the configured card. Under MOCK_MATCHERINO it is never
+  sent anywhere.
 
 Idempotent: re-running syncs again (a no-op against the same roster) and skips
 anything already in place. Only tenants with check-in live get rows — the
@@ -31,6 +34,7 @@ from datetime import datetime, timezone
 
 from application.services.check_in_service import CheckInService
 from application.services.feature_flag_service import FeatureFlagService, reset_flag_cache
+from application.services.matcherino_login_service import MatcherinoLoginService
 from application.utils.clients.matcherino_client import (
     MOCK_REMEMBERED_ID,
     MOCK_TWITCH_RACER_ID,
@@ -42,6 +46,7 @@ from models import (
     CheckInEvent,
     CheckInEventStatus,
     FeatureFlag,
+    MatcherinoLogin,
     Role,
     Tenant,
     User,
@@ -53,6 +58,7 @@ DRAFT_EVENT = 'Spring Meetup (walk-ups only)'
 CLOSED_EVENT = 'Wizzrobe Live 2025'
 VENUE_ID = 900100
 WITHDRAWN_ID = '900099'
+PLACEHOLDER_LOGIN = 'placeholder-matcherino-login'
 
 
 async def seed_check_in_identities(users: dict[str, User]) -> None:
@@ -108,4 +114,9 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
         await service.create_event(staff, DRAFT_EVENT)
     if not await CheckInEvent.exists(tenant=tenant, name=CLOSED_EVENT):
         await service.create_event(staff, CLOSED_EVENT, status=CheckInEventStatus.CLOSED)
-    print(f'    [{tenant.slug}] check-in ok (open event with synced badge sales, a draft, a closed one)')
+    if not await MatcherinoLogin.exists(tenant=tenant):
+        logins = MatcherinoLoginService(client_factory=lambda _: MockMatcherinoClient())
+        await logins.set_login(staff, PLACEHOLDER_LOGIN)
+        await logins.set_alert_user(staff, staff.id)
+    print(f'    [{tenant.slug}] check-in ok (open event with synced badge sales, a draft, a closed one, '
+          'a saved Matcherino login)')
