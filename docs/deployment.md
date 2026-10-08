@@ -260,6 +260,30 @@ docker compose exec wizzrobe poetry run python scripts/seed_tenant.py \
 docker compose exec wizzrobe poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]
 ```
 
+### Importing SGL tournaments from the planning sheet
+
+`scripts/import_sgl_tournaments.py` reads the published SGL planning workbook (the `Onsite` tab's tournament table) and creates or updates the community's tournaments to match, then links each to its Challonge bracket. Writes go through `TournamentService`/`ChallongeService` as the `--actor` staff member, so they're permission-checked and audited. It's a dry run unless you pass `--apply`, matches existing tournaments by name, never blanks a field from an empty cell, and leaves an already-linked Challonge bracket alone, so re-running is safe.
+
+```bash
+docker compose exec wizzrobe poetry run python scripts/import_sgl_tournaments.py --actor <discord_id>          # preview
+docker compose exec wizzrobe poetry run python scripts/import_sgl_tournaments.py --actor <discord_id> --apply  # write
+# --tenant (default sgl26), --source <pubhtml URL or .xlsx path>, --sheet (default Onsite), --skip-challonge
+```
+
+| Sheet column | Tournament field |
+|---|---|
+| Tournament | `name` (the match key) |
+| Format | `tournament_format` (lines joined with `; `) |
+| Ave Time / WCS Time | `average_match_duration` / `max_match_duration` (a range uses its midpoint) |
+| Rules (hyperlink) | `rules_url` |
+| Brackets link, else Challonge link | `bracket_url` |
+| Challonge (hyperlink) | Challonge link via `ChallongeService.link_tournament` |
+| Deadline | `signups_close_at`, read on the community's clock |
+| Admin, Qualifiers, Trophies, Seed Generation | `description` |
+| Tournament name (keyword table in the script) | `seed_generator` |
+
+Admins are only recorded in the description; the script doesn't grant tournament-admin membership.
+
 `scripts/seed_dev.py` seeds two tenants of fixtures for local dev. See [features/multitenancy.md](features/multitenancy.md) for the addressing model and how a request resolves to a tenant.
 
 ### Backup and restore
