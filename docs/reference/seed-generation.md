@@ -265,6 +265,7 @@ An import is a **copy**, not a subscription. Nothing re-syncs a preset after the
 presets/                       # built-in files imported into the Preset table
 ├── alttpr/
 │   ├── casualboots.yaml       # also the _generate_alttpr fallback when no preset
+│   ├── openboots.yaml         # SahasrahBot's openboots, raced at SGL 2026
 │   └── sglive2025.yaml
 ├── dk64r/
 │   └── sgl.json               # _generate_dk64r fallback (settings-string shape; placeholder value)

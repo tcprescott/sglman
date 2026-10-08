@@ -8,7 +8,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 |---|---|---|---|---|---|
 | ALttP Any% NMG | none (vanilla) | — | — | — | n/a |
 | ALttPR Hybrid Major Glitches | ALttPR doors branch | HMG logic, 7/7 open defeat Ganon; branch TBD | none | none | no |
-| ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | **missing** (`casualboots`, `sglive2025` exist) | yes, once the preset exists |
+| ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
 | Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
 | Majora's Mask Randomizer | mmrandomizer.com | Generator preset `SGL 2026` | `mmr` | n/a | **no** (stub) |
@@ -24,7 +24,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 
 ## Open questions
 
-- **ALttPR presets.** `openboots` doesn't exist in `sgl26` yet. Create it before anyone rolls from the schedule.
+- **ALttPR presets.** `openboots` is now a built-in (`presets/alttpr/openboots.yaml`, copied verbatim from SahasrahBot). Run Admin → Presets → Import built-ins on `sgl26` after deploy, then attach it to the tournament.
 - **HMG branch.** The rules doc says the doors branch will be picked closer to the event, pending cavestate key-behaviour fixes. Nobody has confirmed which one yet.
 - **FFR flags disagree.** The planning sheet's "Long Link" opens v4.8.6 (`s=47D73892`). The FFR wiki (the tournament's rules page) links v4.9.7 flags. Ask DarkmoonEX which is right.
 - **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
