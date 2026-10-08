@@ -52,6 +52,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import unquote
 
 import httpx
 
@@ -284,10 +285,13 @@ def _cache_key(refresh_token: str) -> str:
 def normalize_refresh_token(text: Optional[str]) -> str:
     """The refresh token from what staff pasted, or ``''`` when there is none.
 
-    Takes the bare token, or the whole ``{"appName": "WEB", "refreshToken": …}``
-    request payload copied from DevTools, since that is what the steps show.
+    Takes the bare token, or any JSON object carrying ``refreshToken``: the
+    ``/auth/token`` request payload, or the value of the ``credentials`` cookie
+    the web app keeps it in (which may arrive URL-encoded).
     """
     value = (text or '').strip()
+    if value.lower().startswith('%7b'):
+        value = unquote(value)
     if value.startswith('{'):
         try:
             payload = json.loads(value)

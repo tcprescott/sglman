@@ -90,11 +90,35 @@ and caches it per login for the whole process until five minutes before it
 expires. On a 401 or 403 it mints again once and retries. A second refusal
 means the account doesn't administer that venue.
 
-**Getting a refresh token.** Sign in to matcherino.com as that account, open
-DevTools → Network, reload any page, and select the `token` request to
-`api.matcherino.com/__api/auth/token`. Copy `refreshToken` from its request
-payload. Treat the value like a password: anyone holding it is that account.
-Don't share a HAR captured while signed in, since it contains this token.
+**Where the web app keeps it** (from the bundle, 8 October 2026). The login
+lives in a cookie named `credentials` on matcherino.com, holding the JSON
+`{"appName": "WEB", "refreshToken": "<uuid>"}` (sometimes URL-encoded, so it
+starts `%7B`). The app writes it with `document.cookie`, so it is **not**
+HttpOnly and any script on the page can read it. Its lifetime is short: 45
+minutes when the session is authorized, rewritten for 60 minutes on every click
+or keypress. The app re-mints the access token on a timer 60 seconds before it
+expires.
+
+**What kills a refresh token.** Signing out sends the cookie's credentials in
+`DELETE /__api/auth/token`, then clears the cookie, so it **revokes the refresh
+token server-side**. The app also signs out by itself: every 5 minutes it checks
+an inactivity counter in `localStorage` (`mnoUserInactivity`,
+`mnoUserInactivityTime`) and signs out once it reaches 21600 seconds (6 hours
+idle) or once the `credentials` cookie is gone. So a token copied from a browser
+that later signs out, by hand or by idling, stops working. Whether Matcherino
+also expires refresh tokens on its own is unknown. When the cookie has already
+expired before the idle sign-out fires, the `DELETE` carries no credentials, and
+whether that still revokes anything is unconfirmed.
+
+**Getting a refresh token.** Sign in to matcherino.com as that account in a
+**private window**, take the token, then close the window without signing out,
+so nothing is left to revoke it. Taking it is either the **Copy Matcherino
+login** bookmarklet on Admin → Check-in (it reads the `credentials` cookie and
+copies `refreshToken` to the clipboard), or DevTools → Application → Cookies →
+`credentials`, or DevTools → Network → the `token` request's payload. The card
+accepts any of the three as pasted. Treat the value like a password: anyone
+holding it is that account. Don't share a HAR captured while signed in, since it
+contains this token.
 
 ## Venue and badge endpoints (what check-in uses)
 

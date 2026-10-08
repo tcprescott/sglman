@@ -273,6 +273,7 @@ One module rather than a private `_url` helper per service, because three mistak
 | `admin_volunteer_schedule(day=None, *, label='Open the shift')` | `DMLink \| None` | The volunteer roster on the shift's day (the community's clock, not the reader's). |
 | `admin_users(*, label='Review the request')` | `DMLink \| None` | `/admin/users`, where join requests are decided. |
 | `admin_ada_request(request_id, *, label='Open the request')` | `DMLink \| None` | `/admin/users?ada_request=<id>`, that ADA request's dialog open. |
+| `admin_matcherino_login(*, label='Update the Matcherino login')` | `DMLink \| None` | `/admin/check-in`, whose first control is the Matcherino login card. |
 | `admin_qualifier_queue(qualifier_id, *, label='Open the review queue')` | `DMLink \| None` | `/admin/qualifiers?qualifier=<id>&tab=queue` — one qualifier's review queue, open. |
 
 Paths come from the pure [`app_links.py`](#additional-utilities), shared with the pages that render the same routes. Detail: [discord.md → Calls to action](../features/discord.md#calls-to-action).
@@ -914,6 +915,9 @@ The Matcherino account a community's check-in sync signs in as — the per-tenan
 | `status(actor)` | `MatcherinoLoginStatus` | `configured`, `matcherino_user_id`, `updated_at`, `updated_by` (display name). **Never the token.** |
 | `set_login(actor, pasted)` | `MatcherinoLoginStatus` | Accepts the bare token or the whole `{"appName", "refreshToken"}` payload copied from DevTools (`normalize_refresh_token`). Rejects blank, whitespace or over-long input without calling Matcherino; otherwise signs in once (`MatcherinoClient.verify_login`) and saves only if Matcherino accepts it, recording the account id from the access token's `sub`. Audits `matcherino_login.set` with `replaced` and the account ids, never the token. |
 | `clear_login(actor)` | `None` | Idempotent. Audits `matcherino_login.cleared`. |
+| `alert_candidates(actor)` | `list[User]` | The community's Staff (system user excluded), by name: who may be picked to hear about a refused login. |
+| `set_alert_user(actor, user_id)` | `MatcherinoLoginStatus` | Needs a saved login; `user_id` must be a candidate, or `None` for nobody. Leaves the "saved" time alone. Audits `matcherino_login.alerts_updated`. |
+| `note_sync_result(error=None)` | `None` | The sync's report after each Matcherino read. `None` re-arms the alert; a `MatcherinoAuthError` claims it (`claim_alert`) and, if this call won and the recipient is still Staff with a Discord id, queues one DM (`discord_messages_check_in.matcherino_login_refused_dm`) with `notification_links.admin_matcherino_login()`. Other errors do nothing. Never raises. |
 | `resolve()` | `str \| None` | The saved token, unmasked. Not role-gated: its only caller is `CheckInService`, whose boundary already authorized the actor. Never call it from anything that renders. |
 
 No events, for the same reason as randomizer credentials. Collaborators: `MatcherinoLoginRepository`, `AuditService`, `AuthService`, `matcherino_client`.
@@ -1791,6 +1795,7 @@ This module holds the match lifecycle. Every other domain has a sibling of its o
 | `discord_messages_reschedule.py` | Reschedule requests | `reschedule_requested_dm` (to staff), `reschedule_opponent_dm`, `reschedule_decided_dm`, `reschedule_agree_confirmation` |
 | `discord_messages_tenant.py` | Community join requests (`TenantMembershipService`) | `join_requested_dm`, `join_decided_dm`, `member_added_dm`, `member_removed_dm` |
 | `discord_messages_accommodation.py` | ADA requests (`AccommodationService`) | `accommodation_requested_dm`, `accommodation_changed_dm` |
+| `discord_messages_check_in.py` | Event check-in (`MatcherinoLoginService`) | `matcherino_login_refused_dm` |
 
 All builders are pure functions returning `str` (`DMLink` is a `NamedTuple`); optional fields passed as `None`/`''` are omitted from the rendered message.
 

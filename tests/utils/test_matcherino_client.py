@@ -233,6 +233,7 @@ async def test_verifying_a_login_always_signs_in_and_reports_the_account(monkeyp
     ('  3f1c-uuid  ', '3f1c-uuid'),
     ('"3f1c-uuid"', '3f1c-uuid'),
     ('{"appName":"WEB","refreshToken":"3f1c-uuid"}', '3f1c-uuid'),
+    ('%7B%22refreshToken%22%3A%223f1c-uuid%22%2C%22appName%22%3A%22WEB%22%7D', '3f1c-uuid'),
     ('{"appName":"WEB"}', ''),
     ('', ''),
     (None, ''),

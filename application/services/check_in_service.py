@@ -344,19 +344,17 @@ class CheckInService:
             existing = await self.entrants.matcherino_rows_by_user_id(event)
             stored = await self.passes.by_purchase_id(event)
             if not sales.purchases and any(is_active_badge(p) for p in stored.values()):
-                raise MatcherinoAPIError(
-                    'Matcherino returned no badges for a venue that had some'
-                )
+                raise MatcherinoAPIError('Matcherino returned no badges for a venue that had some')
         except MatcherinoAPIError as e:
+            await self.login_service.note_sync_result(e)
             # updated_at marks when it failed: the desk shows it and the
             # worker backs off from it.
             await self.events.record_sync(
                 event, last_sync_error=str(e)[:1000], updated_at=datetime.now(timezone.utc),
             )
             check_in_live.publish(event.id, None, check_in_live.ROSTER)
-            raise ValueError(
-                f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}"
-            ) from e
+            raise ValueError(f"Couldn't sync with Matcherino, so the roster wasn't changed. {e}") from e
+        await self.login_service.note_sync_result()
         try:
             return await self._apply_sales(actor, event, sales, existing, stored, comped)
         except IntegrityError as e:

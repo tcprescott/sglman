@@ -4,6 +4,7 @@ Matcherino Login Repository - Data Access Layer
 The one stored Matcherino login per tenant that the check-in sync signs in as.
 """
 
+from datetime import datetime
 from typing import Optional
 
 from application.repositories._base import TenantScopedRepository
@@ -16,7 +17,7 @@ class MatcherinoLoginRepository(TenantScopedRepository[MatcherinoLogin]):
 
     @staticmethod
     async def get_current() -> Optional[MatcherinoLogin]:
-        return await scoped(MatcherinoLogin.all()).prefetch_related('updated_by').first()
+        return await scoped(MatcherinoLogin.all()).prefetch_related('updated_by', 'alert_user').first()
 
     @staticmethod
     async def upsert(
@@ -28,6 +29,7 @@ class MatcherinoLoginRepository(TenantScopedRepository[MatcherinoLogin]):
                 'refresh_token': refresh_token,
                 'matcherino_user_id': matcherino_user_id,
                 'updated_by': updated_by,
+                'alerted_at': None,
             },
         )
         return login
@@ -35,3 +37,26 @@ class MatcherinoLoginRepository(TenantScopedRepository[MatcherinoLogin]):
     @staticmethod
     async def delete_current() -> int:
         return await scoped(MatcherinoLogin.all()).delete()
+
+    @staticmethod
+    async def set_alert_user(user_id: Optional[int]) -> int:
+        # A queryset update, so choosing who hears about failures leaves the
+        # login's "saved" time alone.
+        return await scoped(MatcherinoLogin.all()).update(alert_user_id=user_id, alerted_at=None)
+
+    @staticmethod
+    async def claim_alert(now: datetime) -> Optional[MatcherinoLogin]:
+        """Mark the current failure as alerted; the login if this call won the claim.
+
+        One conditional UPDATE, so two syncs failing at once send one DM.
+        """
+        claimed = await scoped(
+            MatcherinoLogin.filter(alerted_at__isnull=True, alert_user_id__isnull=False)
+        ).update(alerted_at=now)
+        if not claimed:
+            return None
+        return await scoped(MatcherinoLogin.all()).prefetch_related('alert_user').first()
+
+    @staticmethod
+    async def clear_alert() -> int:
+        return await scoped(MatcherinoLogin.filter(alerted_at__isnull=False)).update(alerted_at=None)

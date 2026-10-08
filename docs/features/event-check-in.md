@@ -41,11 +41,21 @@ All answer `{"status", "body"}` envelopes; failures come back as
 The two venue endpoints need a signed-in **admin of the venue**. Each community
 saves its own login, a `MatcherinoLogin` row holding the refresh token of a
 Matcherino account that administers that community's venues. Staff paste it in
-the **Matcherino login** card at the top of **Admin → Check-in**, which also
-explains where to find it: sign in to matcherino.com as that account and copy
-the `refreshToken` the web app posts to `/__api/auth/token` (steps in
+the **Matcherino login** card at the top of **Admin → Check-in**
+(`theme/matcherino_login_card.py`), which also explains where to find it: sign
+in to matcherino.com as that account in a private window, click the card's
+**Copy Matcherino login** bookmarklet there, close the window without signing
+out, and paste. Signing out of Matcherino (or a Matcherino tab idling for six
+hours, which signs out on its own) revokes the token, so a session nobody comes
+back to keeps it alive (detail in
 [matcherino-api.md](../reference/matcherino-api.md#authentication)). The card
-accepts the bare token or the whole request payload.
+accepts the bare token, the `/auth/token` request payload, or the
+`credentials` cookie's value, URL-encoded or not.
+
+The bookmarklet copies to the clipboard rather than opening Wizzrobe: a private
+window isn't signed in to Wizzrobe, and a URL that pre-filled the card could be
+used to plant someone else's token. Off matcherino.com it only says to drag it
+to the bookmarks bar.
 
 Saving signs in to Matcherino once with the pasted token and refuses it if
 Matcherino does, so a typo or a pasted access token fails at the form rather
@@ -57,6 +67,16 @@ back at the card; paste a fresh one there. The login is write-only, audited as
 `CheckInService` (`MatcherinoLoginService.resolve`). It replaces the former
 deployment-wide `MATCHERINO_REFRESH_TOKEN` environment variable, which is no
 longer read.
+
+**Refused-login alert.** The card's **DM when Matcherino refuses it** picker
+names one Staff member (or nobody). After each Matcherino read the sync calls
+`MatcherinoLoginService.note_sync_result`: a `MatcherinoAuthError` DMs that
+person once, with an **Update the Matcherino login** button to Admin →
+Check-in; a good read or a freshly saved token re-arms it. The once-only claim
+is one conditional `UPDATE` of `MatcherinoLogin.alerted_at`, so two syncs
+failing together send one DM. An outage (anything that isn't a refusal) alerts
+nobody, since a new token wouldn't fix it; the desk shows it. A recipient who
+has lost Staff is skipped. Removing the login clears the recipient with it.
 
 The client mints an access token on first use and caches it in the process,
 keyed by a hash of the refresh token, until five minutes before it expires: two

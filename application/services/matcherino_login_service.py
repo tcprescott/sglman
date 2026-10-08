@@ -16,11 +16,18 @@ form rather than surfacing later as a failed sync at the desk.
 :meth:`status` reports configured-or-not and whose account it is, never the
 value; the audit entries never carry it; :meth:`resolve` is the single unmasked
 read and only ``CheckInService`` calls it.
+
+**Failure alerts go to one person.** Staff pick who hears when Matcherino
+refuses the saved login (``alert_user``, any Staff member). The sync reports
+each outcome through :meth:`note_sync_result`: a refusal DMs that person once,
+with a button to the card, and a good sync or a freshly saved token re-arms it.
+A Matcherino outage is not a refusal and alerts nobody; the desk shows it.
 """
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Callable, Optional
+from datetime import datetime, timezone
+from typing import Callable, List, Optional
 
 from application.feature_flags import requires_feature
 from application.repositories import MatcherinoLoginRepository
@@ -34,7 +41,9 @@ from application.utils.clients.matcherino_client import (
     get_matcherino_client,
     normalize_refresh_token,
 )
-from models import FeatureFlag, User
+from models import FeatureFlag, Role, User
+
+logger = logging.getLogger(__name__)
 
 _STAFF_DENIED = 'Only staff can change the Matcherino login.'
 
@@ -47,6 +56,8 @@ class MatcherinoLoginStatus:
     matcherino_user_id: Optional[str] = None
     updated_at: Optional[datetime] = None
     updated_by: Optional[str] = None
+    alert_user_id: Optional[int] = None
+    alert_user: Optional[str] = None
 
 
 class MatcherinoLoginService:
@@ -70,6 +81,8 @@ class MatcherinoLoginService:
             matcherino_user_id=login.matcherino_user_id,
             updated_at=login.updated_at,
             updated_by=login.updated_by.preferred_name if login.updated_by else None,
+            alert_user_id=login.alert_user_id,
+            alert_user=login.alert_user.preferred_name if login.alert_user else None,
         )
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
@@ -127,3 +140,65 @@ class MatcherinoLoginService:
         """
         login = await self.repository.get_current()
         return login.refresh_token if login else None
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def alert_candidates(self, actor: Optional[User]) -> List[User]:
+        """Who may be picked to hear about a refused login: the community's Staff."""
+        await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
+        from application.repositories.user_role_repository import UserRoleRepository
+
+        staff = await UserRoleRepository.list_users_with_role(Role.STAFF)
+        return sorted((u for u in staff if not u.is_system), key=lambda u: u.preferred_name.lower())
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def set_alert_user(self, actor: User, user_id: Optional[int]) -> MatcherinoLoginStatus:
+        """Choose who is DMed when Matcherino refuses the login; ``None`` alerts nobody."""
+        await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
+        login = await self.repository.get_current()
+        if login is None:
+            raise ValueError('Save a Matcherino login first.')
+        if user_id is not None and user_id not in {u.id for u in await self.alert_candidates(actor)}:
+            raise ValueError('Pick a staff member of this community.')
+        await self.repository.set_alert_user(user_id)
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCHERINO_LOGIN_ALERTS_UPDATED,
+            {'alert_user_id': user_id, 'previous_alert_user_id': login.alert_user_id},
+        )
+        return await self.status(actor)
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def note_sync_result(self, error: Optional[Exception] = None) -> None:
+        """Called by the sync after each Matcherino read: alert on a refusal, re-arm on success.
+
+        Best-effort: a failure to alert never changes how the sync itself ends.
+        """
+        try:
+            if error is None:
+                await self.repository.clear_alert()
+            elif isinstance(error, MatcherinoAuthError):
+                await self._alert(str(error))
+        except Exception:
+            logger.exception('Matcherino login alert bookkeeping failed')
+
+    async def _alert(self, reason: str) -> None:
+        login = await self.repository.claim_alert(datetime.now(timezone.utc))
+        recipient = login.alert_user if login else None
+        if recipient is None or not recipient.discord_id:
+            return
+        if not await AuthService.can_manage_check_in(recipient):
+            logger.warning('Matcherino login alert skipped: user %s is no longer staff', recipient.id)
+            return
+        from application.services import notification_links
+        from application.services.discord import DiscordService, discord_queue
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import COLOR_CANCELLED, notification_embed
+        from application.utils.discord_messages_check_in import matcherino_login_refused_dm
+
+        community = await TenantService.current_community_name()
+        body = matcherino_login_refused_dm(community, reason)
+        embed = notification_embed(
+            title='🎟️ Matcherino login refused', color=COLOR_CANCELLED,
+            community_name=community, description=body,
+        )
+        link = await notification_links.admin_matcherino_login()
+        discord_queue.enqueue(DiscordService().send_dm(int(recipient.discord_id), body, embed=embed, link=link))

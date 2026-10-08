@@ -206,6 +206,11 @@ class MatcherinoLogin(Model):
     sync, never to a page, and never writes it into an audit entry.
     ``matcherino_user_id`` is the account the token signed in as when it was
     saved, so staff can see whose login it is without seeing the secret.
+
+    ``alert_user`` is the one person DMed when Matcherino refuses the login
+    during a sync; ``alerted_at`` marks that the DM for the current failure has
+    gone out, so a sync retrying every few minutes sends it once. A good sync or
+    a freshly saved token clears it.
     """
 
     id = fields.IntField(pk=True)
@@ -220,6 +225,11 @@ class MatcherinoLogin(Model):
         'models.User', related_name='matcherino_logins_updated', null=True, on_delete=fields.SET_NULL,
     )
     updated_by_id: Optional[int]
+    alert_user: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.User', related_name='matcherino_login_alerts', null=True, on_delete=fields.SET_NULL,
+    )
+    alert_user_id: Optional[int]
+    alerted_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

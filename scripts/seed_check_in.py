@@ -21,8 +21,9 @@ the states a volunteer meets:
 * player_one already checked in by the check-in desk volunteer;
 * two walk-ups checked in by staff, one a member (racer_09) and one name-only;
 * a draft event with no venue and last year's closed event, for the admin list;
-* a saved Matcherino login, so Admin → Check-in shows the configured card.
-  Under MOCK_MATCHERINO it is never sent anywhere.
+* a saved Matcherino login whose refused-login alerts go to staff_user, so
+  Admin → Check-in shows the configured card. Under MOCK_MATCHERINO it is never
+  sent anywhere.
 
 Idempotent: re-running syncs again (a no-op against the same roster) and skips
 anything already in place. Only tenants with check-in live get rows — the
@@ -114,8 +115,8 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
     if not await CheckInEvent.exists(tenant=tenant, name=CLOSED_EVENT):
         await service.create_event(staff, CLOSED_EVENT, status=CheckInEventStatus.CLOSED)
     if not await MatcherinoLogin.exists(tenant=tenant):
-        await MatcherinoLoginService(client_factory=lambda _: MockMatcherinoClient()).set_login(
-            staff, PLACEHOLDER_LOGIN,
-        )
+        logins = MatcherinoLoginService(client_factory=lambda _: MockMatcherinoClient())
+        await logins.set_login(staff, PLACEHOLDER_LOGIN)
+        await logins.set_alert_user(staff, staff.id)
     print(f'    [{tenant.slug}] check-in ok (open event with synced badge sales, a draft, a closed one, '
           'a saved Matcherino login)')

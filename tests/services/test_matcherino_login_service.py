@@ -141,3 +141,117 @@ async def test_with_no_saved_login_the_sync_says_where_to_add_one(staff):
         await service.sync_event(staff, event.id)
     await event.refresh_from_db()
     assert 'no Matcherino login is saved' in event.last_sync_error
+
+
+# ---------------------------------------------------------------------------
+# Refused-login alerts
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def captured_dms(monkeypatch):
+    """Collect each DM's recipient, text and button, without a Discord connection."""
+    sent: list = []
+    from application.services import discord as discord_pkg
+    from application.services.discord import DiscordService
+
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+        sent.append({'to': user_id, 'text': message, 'link': link})
+        return True, ''
+
+    monkeypatch.setattr(DiscordService, 'send_dm', fake_send)
+    pending: list = []
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', pending.append)
+
+    async def flush() -> list:
+        while pending:
+            await pending.pop(0)
+        return sent
+
+    return flush
+
+
+REFUSED = MatcherinoAuthError('Matcherino refused the saved Matcherino login (Admin → Check-in).')
+
+
+@pytest.fixture
+async def alerting(staff):
+    await _service().set_login(staff, TOKEN)
+    await _service().set_alert_user(staff, staff.id)
+    return MatcherinoLoginService()
+
+
+async def test_a_refusal_dms_the_chosen_person_once_with_a_link_to_the_card(alerting, staff, captured_dms):
+    await alerting.note_sync_result(REFUSED)
+    await alerting.note_sync_result(REFUSED)
+
+    sent = await captured_dms()
+    assert [d['to'] for d in sent] == [int(staff.discord_id)]
+    assert sent[0]['link'].url.endswith('/admin/check-in')
+    assert 'refused the saved' in sent[0]['text'] and TOKEN not in sent[0]['text']
+
+
+async def test_a_good_sync_or_a_new_token_rearms_the_alert(alerting, staff, captured_dms):
+    await alerting.note_sync_result(REFUSED)
+    await alerting.note_sync_result()
+    await alerting.note_sync_result(REFUSED)
+    await _service().set_login(staff, TOKEN)
+    await alerting.note_sync_result(REFUSED)
+
+    assert len(await captured_dms()) == 3
+
+
+async def test_an_outage_is_not_a_refusal_and_alerts_nobody(alerting, captured_dms):
+    await alerting.note_sync_result(MatcherinoAPIError("Couldn't reach Matcherino: ConnectError"))
+    assert await captured_dms() == []
+
+
+async def test_nobody_chosen_means_no_dm(staff, captured_dms):
+    await _service().set_login(staff, TOKEN)
+    await MatcherinoLoginService().note_sync_result(REFUSED)
+    assert await captured_dms() == []
+
+
+async def test_a_recipient_who_lost_staff_is_not_dmed(alerting, staff, captured_dms):
+    from models import UserRole
+
+    await UserRole.filter(user=staff, role=Role.STAFF).delete()
+    await alerting.note_sync_result(REFUSED)
+    assert await captured_dms() == []
+
+
+async def test_only_a_staff_member_can_be_the_recipient(staff):
+    player = await with_role(7, 'player', Role.VOLUNTEER)
+    with pytest.raises(ValueError, match='Save a Matcherino login first'):
+        await _service().set_alert_user(staff, staff.id)
+    await _service().set_login(staff, TOKEN)
+    with pytest.raises(ValueError, match='staff member'):
+        await _service().set_alert_user(staff, player.id)
+
+    status = await _service().set_alert_user(staff, staff.id)
+    assert (status.alert_user_id, status.alert_user) == (staff.id, 'staff')
+    assert (await _service().set_alert_user(staff, None)).alert_user_id is None
+    assert await AuditLog.filter(action='matcherino_login.alerts_updated').count() == 2
+
+
+async def test_choosing_a_recipient_keeps_the_saved_time(alerting, staff):
+    before = (await alerting.status(staff)).updated_at
+    await alerting.set_alert_user(staff, None)
+    assert (await alerting.status(staff)).updated_at == before
+
+
+async def test_a_refused_sync_alerts_through_the_check_in_service(alerting, staff, captured_dms, monkeypatch):
+    class Refusing(MockMatcherinoClient):
+        async def fetch_sales(self, venue_id):
+            raise REFUSED
+
+    monkeypatch.setattr(
+        'application.services.check_in_service.get_matcherino_client', lambda token: Refusing(),
+    )
+    service = CheckInService()
+    event = await service.create_event(staff, 'SGL 2026', venue_id=VENUE)
+    for _ in range(2):
+        with pytest.raises(ValueError):
+            await service.sync_event(staff, event.id)
+
+    assert len(await captured_dms()) == 1

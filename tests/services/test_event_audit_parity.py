@@ -139,6 +139,7 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.RANDOMIZER_CREDENTIAL_CLEARED,
     AuditActions.MATCHERINO_LOGIN_SET,
     AuditActions.MATCHERINO_LOGIN_CLEARED,
+    AuditActions.MATCHERINO_LOGIN_ALERTS_UPDATED,
     # Webhook meta: a webhook about webhook config (incl. secret regen) is a footgun.
     AuditActions.WEBHOOK_CREATED,
     AuditActions.WEBHOOK_UPDATED,
