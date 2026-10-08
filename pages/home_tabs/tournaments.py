@@ -203,6 +203,12 @@ async def tournaments_tab() -> None:
                 if t.rules_url:
                     ui.link('Rules', t.rules_url, new_tab=True).classes('text-caption')
 
+                if t.randomizer_notes:
+                    with ui.expansion('Randomizer notes', icon='tune') \
+                            .classes('w-full').props('dense'):
+                        with ui.element('div').classes('wiz-help-prose'):
+                            render_blocks(parse_blocks(t.randomizer_notes))
+
                 with ui.expansion(
                     f'{card.entrant_count} signed up', icon='group',
                 ).classes('w-full').props('dense'):

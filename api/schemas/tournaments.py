@@ -19,6 +19,7 @@ class TournamentResponse(BaseModel):
     rules_url: Optional[str] = None
     tournament_format: Optional[str] = None
     triforce_access_message: Optional[str] = None
+    randomizer_notes: Optional[str] = None
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
     # Approved crew a streamed match needs before the coverage reports call it

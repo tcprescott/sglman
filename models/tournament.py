@@ -16,6 +16,9 @@ class Tournament(Model):
     rules_url = fields.CharField(max_length=255, null=True)
     tournament_format = fields.CharField(max_length=255, null=True)
     triforce_access_message = fields.TextField(null=True)
+    # The randomizer settings, preset and build a tournament races on, as the
+    # same safe-markdown subset the description renders through.
+    randomizer_notes = fields.TextField(null=True)
     average_match_duration = fields.IntField(null=True)  # in minutes
     max_match_duration = fields.IntField(null=True)  # in minutes
     challonge_tournament_id = fields.CharField(max_length=64, null=True)

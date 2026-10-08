@@ -106,6 +106,7 @@ class TestCreateTournament:
             rules_url=' https://r.x ',
             tournament_format=' DE ',
             triforce_access_message=' Buy access at https://shop.x ',
+            randomizer_notes=' Preset: openboots \n',
             actor=make_user(),
         )
         kwargs = service.repository.create.await_args.kwargs
@@ -113,6 +114,7 @@ class TestCreateTournament:
         assert kwargs['rules_url'] == 'https://r.x'
         assert kwargs['tournament_format'] == 'DE'
         assert kwargs['triforce_access_message'] == 'Buy access at https://shop.x'
+        assert kwargs['randomizer_notes'] == 'Preset: openboots'
 
     async def test_non_staff_actor_denied(self, service, monkeypatch):
         from application.services import auth_service
@@ -255,6 +257,11 @@ class TestCrewRequirement:
         kw = service.repository.update.await_args.kwargs
         assert kw['required_trackers'] == 0
         assert 'required_commentators' not in kw
+
+    async def test_update_clears_randomizer_notes_with_an_empty_string(self, service):
+        tournament = make_tournament()
+        await service.update_tournament(tournament, randomizer_notes='', actor=make_user())
+        assert service.repository.update.await_args.kwargs['randomizer_notes'] is None
 
     async def test_update_rejects_a_negative_requirement(self, service):
         with pytest.raises(ValueError, match='cannot be negative'):

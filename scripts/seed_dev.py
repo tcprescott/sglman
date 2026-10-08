@@ -294,6 +294,12 @@ async def seed_for_tenant(
                 "Submit your triforce text once you have played a match — "
                 "approved texts go into the seeds we roll for finals."
             ),
+            "randomizer_notes": (
+                "Rolled from the `casualboots` preset on "
+                "[alttpr.com](https://alttpr.com/en/randomizer).\n\n"
+                "- Standard state, boots start\n"
+                "- Defeat Ganon, 7/7 crystals\n"
+            ),
         }
         dev_tournament_meta["signups_open_at"] = now_local() - timedelta(days=3)
         dev_tournament_meta["signups_close_at"] = now_local() + timedelta(days=14)
