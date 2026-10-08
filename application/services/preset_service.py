@@ -160,6 +160,8 @@ class PresetService:
         backends (DK64R) block until their seed is ready, which can take minutes.
         Both outcomes are audited; a failure re-raises for the caller to show.
         """
+        if actor is None:
+            raise PermissionError("Cannot manage presets")
         await AuthService.ensure(
             await AuthService.can_manage_presets(actor), "Cannot manage presets"
         )
