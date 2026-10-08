@@ -54,12 +54,13 @@ _R_ID = '{%s}id' % _NS['r']
 # (name pattern, randomizer, required preset). First match wins, so HMG is
 # claimed before plain ALttPR. A required preset must exist on the tenant or the
 # row gets no generator: without one, alttpr rolls its casualboots fallback,
-# which neither tournament races. Rows with no match (ALttP NMG, SM Any%, MMR,
+# which neither ALttPR tournament races, and dk64r rolls a placeholder settings
+# string that upstream rejects. Rows with no match (ALttP NMG, SM Any%, MMR,
 # which is rolled offline, and Best of NES) get no generator.
 _SEED_GENERATORS: List[Tuple[str, str, Optional[str]]] = [
     (r'link to the past randomizer.*(hybrid|major glitches)', 'alttpr', 'hmg'),
     (r'link to the past randomizer', 'alttpr', 'openboots'),
-    (r'donkey kong 64', 'dk64r', None),
+    (r'donkey kong 64', 'dk64r', 'Season 5 Race Settings'),
     (r'final fantasy randomizer', 'ff1r', None),
     (r'ocarina of time', 'ootr', None),
     (r'super metroid map', 'smmap', None),
