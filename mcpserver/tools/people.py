@@ -6,7 +6,7 @@ deliberate difference at :func:`list_match_crew` — documented at the tool.
 
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from api._helpers import load_community_user_or_404
 from api._match_view import MATCH_PREFETCH
@@ -187,7 +187,7 @@ async def get_player_availability(
     return out
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_users, gate=Gate.STAFF, title='List users')
     register(mcp, get_user, gate=Gate.ACTOR, title='Get user')
     register(

@@ -17,7 +17,7 @@ service is what makes the hiding true for every other caller.
 
 from typing import List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.errors import require_found
 from application.services import EquipmentService
@@ -99,7 +99,7 @@ async def get_equipment(
     )
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(
         mcp, list_equipment, gate=Gate.ACTOR,
         feature=FeatureFlag.EQUIPMENT, title='List equipment',

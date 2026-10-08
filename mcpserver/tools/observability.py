@@ -12,7 +12,7 @@ instead of letting a model discover the refusal a round-trip later.
 
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.services import (
     AuditService,
@@ -227,7 +227,7 @@ async def list_feedback(
     ]
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_audit_log, gate=Gate.ADMIN, title='Search audit log')
     register(mcp, telemetry_summary, gate=Gate.STAFF, title='Telemetry summary')
     register(mcp, telemetry_top, gate=Gate.STAFF, title='Telemetry leaderboards')

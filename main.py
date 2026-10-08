@@ -18,8 +18,8 @@ from tortoise import Tortoise
 import api
 import frontend
 
-# Safe to import at module scope: mcpserver builds its FastMCP instance inside
-# mount(), not at import time. FastMCP.__init__ calls logging.basicConfig, which
+# Safe to import at module scope: mcpserver builds its MCPServer instance inside
+# mount(), not at import time. MCPServer.__init__ calls logging.basicConfig, which
 # would otherwise win the race against the basicConfig below and strip the log
 # format for the whole process.
 import mcpserver

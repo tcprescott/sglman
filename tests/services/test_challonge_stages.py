@@ -88,7 +88,7 @@ class TestAdvanceStage:
             {}, ChallongeAPIError('Challonge API error (422): {"errors":[{"detail":"Nope"}]}', status=422),
         ]
         api.get_tournament_full.return_value['tournament']['state'] = 'group_stages_finalized'
-        with pytest.raises(ValueError, match="finished 'finalize group stage' but refused the next step: Nope."):
+        with pytest.raises(ValueError, match=r"finished 'finalize group stage' but refused the next step: Nope\."):
             await service.advance_stage(tournament.id, 'advance_to_bracket', actor)
         await tournament.refresh_from_db()
         assert tournament.challonge_state == 'group_stages_finalized'
@@ -99,7 +99,7 @@ class TestAdvanceStage:
         api.change_state.side_effect = ChallongeAPIError(
             'Challonge API error (422): {"errors":{"detail":"All group matches must be complete"}}', status=422,
         )
-        with pytest.raises(ValueError, match='refused to finalize groups and start bracket: All group matches must be complete.'):
+        with pytest.raises(ValueError, match=r'refused to finalize groups and start bracket: All group matches must be complete\.'):
             await service.advance_stage(tournament.id, 'advance_to_bracket', actor)
         api.get_tournament_full.assert_not_awaited()
 

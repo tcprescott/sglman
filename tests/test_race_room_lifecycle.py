@@ -317,7 +317,7 @@ async def test_a_refused_startrace_leaves_nothing_behind(db, racetime_rooms, mon
     tourn = await _tournament(bot)
     match = await _match_with_players(tourn, [await _user('a', 'rt-a')])
 
-    with pytest.raises(ValueError, match="racetime.gg didn't open the room"):
+    with pytest.raises(ValueError, match=r"racetime\.gg didn't open the room"):
         await RaceRoomService().create_room_for_match(match)
 
     assert await RacetimeRoom.filter(match_id=match.id).count() == 0

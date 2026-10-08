@@ -15,7 +15,7 @@ tool catalogue:
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from api._match_view import MATCH_PREFETCH, serialize_match
 from api.schemas.matches import MatchResponse
@@ -135,7 +135,7 @@ async def match_operations_report(
     )
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_matches, gate=Gate.ACTOR, title='List matches')
     register(mcp, get_match, gate=Gate.ACTOR, title='Get match')
     register(mcp, get_schedule, gate=Gate.ACTOR, title='Get daily schedule')

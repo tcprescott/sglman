@@ -22,7 +22,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Callable, Dict, FrozenSet, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from application.services.timezone_service import TimezoneService
@@ -54,7 +54,7 @@ def write_tool_names() -> FrozenSet[str]:
 
 
 def register(
-    mcp: FastMCP,
+    mcp: MCPServer,
     fn: Callable,
     *,
     gate: Gate,
@@ -119,6 +119,6 @@ def register(
         # never needs confirmation; a write one usually does, and a destructive
         # one always does.
         annotations=ToolAnnotations(
-            readOnlyHint=not write, destructiveHint=destructive
+            read_only_hint=not write, destructive_hint=destructive
         ),
     )

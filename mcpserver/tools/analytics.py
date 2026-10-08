@@ -14,7 +14,7 @@ peaks, and where the pressure is.
 
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.services import AnalyticsService, ReportsService
 from mcpserver.auth import Gate
@@ -182,7 +182,7 @@ async def matches_active_at(
     ]
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, capacity_forecast, gate=Gate.ADMIN, title='Capacity forecast')
     register(
         mcp, stage_utilization, gate=Gate.ADMIN,

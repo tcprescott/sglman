@@ -26,7 +26,7 @@ from typing import Any, Iterable, Optional, Tuple
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 import mcpserver
 from application.services.api_token_service import MCP_TOKEN_PREFIX
@@ -42,7 +42,7 @@ MCP_HEADERS = {
 
 
 @functools.cache
-def _catalogue() -> FastMCP:
+def _catalogue() -> MCPServer:
     """The tool catalogue, built once per process.
 
     ``build_server()`` costs ~230ms, effectively all of it in the 77
@@ -55,7 +55,7 @@ def _catalogue() -> FastMCP:
     return mcpserver.server.build_server()
 
 
-def _cached_build_server() -> FastMCP:
+def _cached_build_server() -> MCPServer:
     """What ``mcpserver.mount()`` calls during the suite.
 
     The *server* is reusable; its transport is not — ``session_manager.run()``
@@ -64,8 +64,7 @@ def _cached_build_server() -> FastMCP:
     ``build_server()`` that was ever per-session to begin with.
     """
     mcp = _catalogue()
-    mcp._session_manager = None
-    mcp.streamable_http_app()
+    mcpserver.server.start_transport(mcp)
     return mcp
 
 

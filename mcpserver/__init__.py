@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.routing import Route
 
 from application.utils.environment import env_flag
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 MCP_PATH = '/mcp'
 
-_mcp: Optional[FastMCP] = None
+_mcp: Optional[MCPServer] = None
 
 
 def mount(app: FastAPI) -> None:

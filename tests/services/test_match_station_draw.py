@@ -204,7 +204,7 @@ class TestRefusals:
         match = _match()
         match.tournament = SimpleNamespace(is_racetime_enabled=True)
         service._require_match = AsyncMock(return_value=match)
-        with pytest.raises(ValueError, match='racetime.gg'):
+        with pytest.raises(ValueError, match=r'racetime\.gg'):
             await service.suggest_stations(1)
 
     async def test_the_draw_writes_nothing(self, service):

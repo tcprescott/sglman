@@ -19,7 +19,7 @@ Versions come from [`pyproject.toml`](../pyproject.toml) (Poetry); only major/mi
 | Database | PostgreSQL (16-alpine in docker-compose) |
 | Discord bot | discord.py ≥2.7 |
 | Discord OAuth | zenora |
-| MCP server | `mcp` (FastMCP) ≥1.28 |
+| MCP server | `mcp` (MCPServer) ≥2.3 |
 | Session store | Redis 7 via `NICEGUI_REDIS_URL` (optional; falls back to a local file) |
 | Seed generation | pyz3r (ALTTPR) + HTTP APIs for other randomizers |
 | Testing | pytest ≥9, pytest-asyncio (`asyncio_mode = "auto"`), pytest-xdist (parallel by default), aiosqlite (in-memory test DB) |

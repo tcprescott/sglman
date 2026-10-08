@@ -60,7 +60,7 @@ class SwissEngine:
 
         # Scale points by 2 so half-point draws survive integer conversion, then
         # sort best-first deterministically for a stable rank assignment.
-        scaled = {p.ref: int(round(p.points * 2)) for p in active}
+        scaled = {p.ref: round(p.points * 2) for p in active}
         ordered = sorted(active, key=lambda p: (-scaled[p.ref], p.ref))
 
         # Encode a deterministic rank tiebreak into the integer points so the

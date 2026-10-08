@@ -154,7 +154,7 @@ class TestSeatMatch:
 
     async def test_racetime_tournament_rejects_check_in(self, service):
         match = MockMatch(is_racetime_enabled=True)
-        with pytest.raises(ValueError, match="racetime.gg"):
+        with pytest.raises(ValueError, match=r"racetime\.gg"):
             await service.seat_match(match)
 
     async def test_racetime_tournament_does_not_seat(self, service):

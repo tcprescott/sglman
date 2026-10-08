@@ -11,7 +11,7 @@ it sits behind the coordinator's gate.
 
 from typing import Any, Dict, List
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.services import AnalyticsService
 from application.services.volunteer.volunteer_position_service import (
@@ -105,7 +105,7 @@ async def list_volunteer_positions(
     ]
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(
         mcp, list_volunteer_positions, gate=Gate.ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer positions',

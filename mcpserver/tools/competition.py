@@ -8,7 +8,7 @@ a message confirming the feature exists but is switched off.
 
 from typing import Any, Dict, List
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.errors import require_found
 from application.services import BracketService
@@ -284,7 +284,7 @@ async def list_async_qualifier_live_races(
     ]
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(
         mcp, list_brackets, gate=Gate.ACTOR,
         feature=FeatureFlag.BRACKETS, title='List brackets',

@@ -153,7 +153,7 @@ class AsyncQualifierLiveRaceService:
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_live_race(self, actor: Optional[User], live_race_id: int) -> AsyncQualifierLiveRace:
-        live_race, qualifier = await self._require_live_race_admin(actor, live_race_id)
+        live_race, _qualifier = await self._require_live_race_admin(actor, live_race_id)
         return live_race
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)

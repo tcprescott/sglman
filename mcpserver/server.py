@@ -1,7 +1,7 @@
-"""FastMCP server construction.
+"""MCP server construction.
 
 Kept in a function rather than at module scope for a non-obvious reason:
-``FastMCP.__init__`` calls ``configure_logging()``, which calls
+``MCPServer.__init__`` calls ``configure_logging()``, which calls
 ``logging.basicConfig``. Constructing the server at import time would win the
 race against ``main.py``'s own ``basicConfig`` and strip timestamps, levels and
 logger names from every log line in the process. Building it from ``mount()``,
@@ -10,7 +10,7 @@ which runs after logging is configured, keeps our format.
 
 from typing import List
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import Tool as MCPTool
 
@@ -46,8 +46,38 @@ members read them in, so convert before quoting a time to a person.\
 """
 
 
-class WizzrobeMCP(FastMCP):
-    """FastMCP that hides the write tools from a read-only connection.
+def start_transport(mcp: MCPServer) -> None:
+    """Build the streamable-HTTP session manager that mcpserver/asgi.py drives.
+
+    Called for its side effect only. The Starlette app it returns is discarded —
+    we need the bare path, and a Mount would answer /mcp with a 307 to /mcp/.
+    Every call mints a fresh manager, whose ``run()`` may be entered once.
+    """
+    mcp.streamable_http_app(
+        # CORRECTNESS, not scaling. In stateful mode the MCP server task is
+        # spawned once per session and snapshots the context of whichever request
+        # created it — so a second request on that session would run tools under
+        # the first request's identity. Stateless mode spawns a task per HTTP
+        # request, which inherits that request's actor. Do not change this.
+        stateless_http=True,
+        # Plain JSON responses instead of SSE. The app's BaseHTTPMiddleware stack
+        # (security headers, fun facts) wraps /mcp, and BaseHTTPMiddleware around
+        # a long-lived SSE stream is a known source of hangs on client disconnect.
+        json_response=True,
+        # We serve the path ourselves from mcpserver/__init__.py; leaving this at
+        # its '/mcp' default would put the real endpoint at '/mcp/mcp'.
+        streamable_http_path='/',
+        # Off because TLS and Host both terminate at the reverse proxy. The
+        # default would auto-enable it (host defaults to 127.0.0.1) and then
+        # reject every production request with 421 Invalid Host header.
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        ),
+    )
+
+
+class WizzrobeMCP(MCPServer):
+    """MCPServer that hides the write tools from a read-only connection.
 
     Every write is refused at the gate regardless, so this is not the security
     boundary — it is a context one. A read-only client offered nineteen tools it
@@ -70,34 +100,9 @@ class WizzrobeMCP(FastMCP):
         return [tool for tool in tools if tool.name not in hidden]
 
 
-def build_server() -> FastMCP:
+def build_server() -> MCPServer:
     """Construct the MCP server with every tool registered."""
-    mcp = WizzrobeMCP(
-        name='Wizzrobe',
-        instructions=INSTRUCTIONS,
-        # CORRECTNESS, not scaling. In stateful mode the MCP server task is
-        # spawned once per session and snapshots the context of whichever request
-        # created it — so a second request on that session would run tools under
-        # the first request's identity. Stateless mode spawns a task per HTTP
-        # request, which inherits that request's actor. Do not change this.
-        stateless_http=True,
-        # Plain JSON responses instead of SSE. The app's BaseHTTPMiddleware stack
-        # (security headers, fun facts) wraps /mcp, and BaseHTTPMiddleware around
-        # a long-lived SSE stream is a known source of hangs on client disconnect.
-        json_response=True,
-        # We serve the path ourselves from mcpserver/__init__.py; leaving this at
-        # its '/mcp' default would put the real endpoint at '/mcp/mcp'.
-        streamable_http_path='/',
-        # Off because TLS and Host both terminate at the reverse proxy. The
-        # default would auto-enable it (host defaults to 127.0.0.1) and then
-        # reject every production request with 421 Invalid Host header.
-        transport_security=TransportSecuritySettings(
-            enable_dns_rebinding_protection=False,
-        ),
-    )
+    mcp = WizzrobeMCP(name='Wizzrobe', instructions=INSTRUCTIONS)
     register_all(mcp)
-    # Called for its side effect only: it lazily constructs the session manager
-    # that mcpserver/asgi.py drives. The Starlette app it returns is discarded —
-    # we need the bare path, and a Mount would answer /mcp with a 307 to /mcp/.
-    mcp.streamable_http_app()
+    start_transport(mcp)
     return mcp

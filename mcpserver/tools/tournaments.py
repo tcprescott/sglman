@@ -7,7 +7,7 @@ around the call does the rest.
 
 from typing import List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from api.schemas.tournaments import TournamentResponse
 from application.errors import require_found
@@ -179,7 +179,7 @@ async def suggest_match_time(
     )
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_tournaments, gate=Gate.ACTOR, title='List tournaments')
     register(mcp, get_tournament, gate=Gate.ACTOR, title='Get tournament')
     register(mcp, list_tournament_signups, gate=Gate.ACTOR, title='List tournament signups')
