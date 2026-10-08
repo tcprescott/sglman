@@ -10,13 +10,13 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | ALttPR Hybrid Major Glitches | alttpr.com / SahasrahBot | SahasrahBot preset `hmg` | `alttpr` | `hmg` built-in, needs importing | yes, once imported |
 | ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
-| Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
+| Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (hard-coded v4.9.7 flags) | yes |
 | Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc | — | — | no, rolled offline (Wizzrobe has no `mmr`) |
 | Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | `sgl2026` built-in (from the site's `SGL 2026 Tournament`, `dev_9.1.38-0`) | yes |
 | Super Metroid Any% | none (vanilla) | — | — | — | n/a |
 | Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | `community_race_s5` built-in (site preset, verbatim) | yes |
 | Super Metroid: DASH | dashrando.net | Upstream preset `sgl26` (matches the event page) | `smdash` | `sgl26` fallback | yes (keyless) |
-| The Legend of Zelda Randomizer | Z1R executable (Self Service) | Flag string | `z1r` | n/a | yes |
+| The Legend of Zelda Randomizer | Z1R executable (Self Service) | Flag string `12TDBKH6…` from the rules doc | `z1r` | n/a (hard-coded 2026 flags) | yes |
 | Wind Waker Randomizer | tanjo3 wwrando build | Permalink + build `dev_tanjo3.1.10.7.3` | `wwr` | n/a | **no** (stub) |
 | Best of NES (Relay, High Score) | none | — | — | — | n/a |
 
@@ -26,7 +26,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 
 - **ALttPR presets.** `openboots` is now a built-in (`presets/alttpr/openboots.yaml`, copied verbatim from SahasrahBot). Run Admin → Presets → Import built-ins on `sgl26` after deploy, then attach it to the tournament.
 - **HMG preset.** Settled on SahasrahBot's `hmg` preset (open, 7/7, defeat Ganon, boots start) on alttpr.com, not the doors branch the rules doc mentions. It's a built-in now (`presets/alttpr/hmg.yaml`); import it with the others.
-- **FFR flags disagree.** The planning sheet's "Long Link" opens v4.8.6 (`s=47D73892`). The FFR wiki (the tournament's rules page) links v4.9.7 flags. Ask DarkmoonEX which is right.
+- **FFR flags: settled.** The rules page (the FFR wiki) is authoritative, so `_generate_ff1r` builds from its v4.9.7 "Tournament Flags" link, not the sheet's v4.8.6 link.
 - **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
 - **OoTR and SM Map presets: done.** `presets/ootr/sgl2026.json` is the `settings` object of generatorDev's `SGL 2026 Tournament` preset, copied verbatim, and `_generate_ootr` rolls it on `dev_9.1.38-0`. `presets/smmap/community_race_s5.json` is maprando.com's `Community Race Season 5` preset, copied verbatim. Both generators read their bundled file directly, so neither needs importing.
 - **DASH: done.** dashrando.net defines an `sgl26` preset upstream (`Preset_SGL26` in `packages/core/lib/presets.ts`) that matches all eleven settings on the event page. `GET https://www.dashrando.net/generate/sgl26?race=1` rolls one server-side and 307s to `/seed/<key>`, with no key needed. `_generate_smdash` does exactly that.

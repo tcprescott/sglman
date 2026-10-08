@@ -305,7 +305,7 @@ class SeedGenerationService(DK64RBackend):
         Purely local: the flag string is fixed and only the seed number varies,
         so there is no upstream to fail.
         """
-        url = 'https://4-8-6.finalfantasyrandomizer.com/?s=00000000&f=6XOcCG.geJ.YDwt9.jijRao2NoTvBlq0V2VvHuAxjtMhlVRYso0wmNtUopSO9Xzt2k8Gn7v9d6ysABeksoaTevatcw4ZKZoMV95h1NQISZlbvlK8FEwtAAT5KWQUztLnkzQuDcO36uLraMFFQpGq0YsZrZHr7YdUoUxsW5.IutAsHfjB'
+        url = 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3NWYWa-shYkqHmG37-rS90EfpcUfUjp78ZR6KibBTdXQJnVpIePSloACp-y7pmGE2-q9cgwtGhrPz.mWHn.CIpIv7SBX0Cq6Q-JkRCpdP4JdINmzfSpJnbrJIUV7i9Zc0bReCbdLdiHKyjE6C-v9OEgBo-lQpuYWgo7KPkEA5Q58DLpK5GPOujIdXYCxVNLqv'
         seed = ('%008x' % random.randrange(16 ** 8)).upper()
         up = urllib.parse.urlparse(url)
         qs = urllib.parse.parse_qs(up.query)
@@ -320,7 +320,7 @@ class SeedGenerationService(DK64RBackend):
 
         Returns a "seed - flags" string rather than a URL; purely local.
         """
-        flags = '5K!ELDXj35eUlQNR4XAhcL18nJBPgbC4Hpw'
+        flags = '12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA'
         seed = random.randint(0, 8999999999999999999)
         return RolledSeed(
             url=f"{seed} - {flags}", settings={'seed': str(seed), 'flags': flags},
