@@ -397,7 +397,9 @@ CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discor
 |---|---|---|
 | `list_all_mappings()` / `list_mappings(guild_id)` | `List[DiscordRoleMapping]` | All mappings, or those scoped to one guild. |
 | `add_mapping(guild_id, discord_role_id, discord_role_name, actor, app_role=None, tournament_grant=None, tournament_id=None)` | `DiscordRoleMapping` | Staff-only. Exactly one of `app_role` / `tournament_grant` — the latter requires a `tournament_id` in this tenant, the former forbids one. Rejects exact duplicates; every violation is a `ValueError`. Audits `discord_role.mapping_added`. |
+| `add_mappings(guild_id, discord_roles, actor, app_roles=(), tournament_grants=(), tournament_id=None)` | `(created, already_mapped)` | Staff-only bulk add behind the admin dialog: every `(id, name)` in `discord_roles` × every grant. Validates every role, grant and the tournament before the first write; skips pairs that already exist instead of raising. One `discord_role.mapping_added` audit row per created mapping. |
 | `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
+| `remove_mappings(mapping_ids, actor)` | `int` | Staff-only bulk remove; skips ids already gone and returns how many it removed. Audits each. |
 | `sync_all_users(actor)` | `dict` | Staff-only (`can_grant_roles`) bulk re-sync, applying current mappings immediately. First provisions an account for each member of the current tenant's guild who holds a mapped role and has none (`DiscordService.list_members_with_roles`; a Discord failure logs and creates nothing). Syncs **this community only** (`sync_user_roles_for_tenant`), over its members plus the guild's mapped-role holders. Returns `{users_processed, users_created, granted, revoked, skipped}` counts plus `created` (names) and `changed` (`[{name, granted, revoked}]`). Audits `role.discord_sync_bulk` with the counts and `created_user_ids` / `changed_user_ids`. |
 | `provision_member(tenants, member)` | `User \| None` | The account for a `GuildMember` whose roles one of `tenants` maps (a grantable app role, or a tournament grant on an active tournament), created via `UserService.provision_from_discord_role_sync` if missing. `None` when no held role confers anything. Called by the live `sync_member_roles`. |
 | `sync_user_roles_for_tenant(user, tenant)` | `dict` | The per-tenant half of `sync_user_roles`, inside `tenant_scope(tenant.id)` against that tenant's `discord_guild_id`. Never raises. |
@@ -447,7 +449,7 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 Every `send_dm_with_*` also takes the optional `embed=None, link=None` pair and passes them through to `send_dm`.
 | `get_bot()` | `commands.Bot \| None` | The underlying bot instance. |
 | `list_guilds()` | `(bool, list[{id, name}] \| str)` | Guilds the bot is connected to. |
-| `list_guild_roles(guild_id)` | `(bool, list[{id, name}] \| str)` | All roles in a guild (fetch with cached fallback). |
+| `list_guild_roles(guild_id)` | `(bool, list[{id, name, color, mappable}] \| str)` | All roles in a guild (fetch with cached fallback). `color` is Discord's RGB int (0 = none); `mappable` is False for `@everyone` and bot/integration-managed roles. |
 | `add_role_to_user(guild_id, user_id, role_id, reason=None)` | `(bool, str)` | Grant a Discord role to a guild member. |
 | `remove_role_from_user(guild_id, user_id, role_id, reason=None)` | `(bool, str)` | Remove a Discord role from a guild member. |
 | `get_member_role_ids(guild_id, user_id)` | `(bool, set[int] \| str)` | The member's role ids (`@everyone` excluded); `(True, set())` for a non-member. Feeds `DiscordRoleMappingService.sync_user_roles`. |
@@ -1509,7 +1511,9 @@ Maps a volunteer position onto an app `Role`. A **published** assignment to any 
 |---|---|---|
 | `list_mappings()` | `list[VolunteerRoleMapping]` | `@requires_feature(VOLUNTEERS)`; prefetches `position`. |
 | `add_mapping(actor, position_id, app_role)` | `VolunteerRoleMapping` | Staff-only (`can_grant_roles`); rejects a non-mappable role and duplicates. Audits `volunteer.role_mapping_added`, then `reconcile_all`. |
+| `add_mappings(actor, position_ids, app_roles)` | `(created, already_mapped)` | Every position × every role. Checks all of them before the first write, skips existing pairs, audits each created row, then **one** `reconcile_all`. |
 | `remove_mapping(actor, mapping_id)` | `None` | Staff-only. Audits `volunteer.role_mapping_removed`, then `reconcile_all`. |
+| `remove_mappings(actor, mapping_ids)` | `int` | Bulk remove; skips ids already gone, audits each, then one `reconcile_all`. |
 | `reconcile_users(actor, user_ids)` | `dict` | Per user: grant mapped roles they don't hold at all (membership first, `MembershipSource.ROLE_GRANT`), revoke `VOLUNTEER`-sourced rows no longer desired. Audits `role.volunteer_sync_granted` / `role.volunteer_sync_revoked`. **Never raises** and skips when the flag is off (`feature-gate: exempt` soft integration point). |
 | `reconcile_all(actor)` | `dict` | `reconcile_users` over every published assignee plus every holder of a `VOLUNTEER`-sourced role. |
 

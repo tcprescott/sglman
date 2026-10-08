@@ -92,6 +92,7 @@ def enable_mobile_grid(
     table_key: Optional[str] = None,
     required: Optional[AbstractSet[str]] = None,
     wrap: bool = False,
+    selectable: bool = False,
 ) -> ui.table:
     """Make ``table`` render as stacked cards below ``breakpoint``.
 
@@ -129,6 +130,9 @@ def enable_mobile_grid(
         wrap: ship "wrap long values" on for this table — for tables carrying a
             prose column that would otherwise run off the right edge. The viewer
             can still turn it off in the preferences modal.
+        selectable: put a selection checkbox on each card, for a table built
+            with ``selection='multiple'``. QTable's own checkbox column does not
+            exist in grid mode, so without it a phone cannot select anything.
     """
     field_slots = field_slots or {}
     table.props(f':grid="Quasar.Screen.{breakpoint}"')
@@ -155,6 +159,9 @@ def enable_mobile_grid(
         f'<div class="row items-center justify-end q-gutter-x-sm q-mt-sm">{actions}</div>'
         if actions.strip() else ''
     )
+
+    if selectable:
+        rows.insert(0, '<div class="row justify-end"><q-checkbox dense v-model="props.selected" /></div>')
 
     if row_click_event:
         card_open = (

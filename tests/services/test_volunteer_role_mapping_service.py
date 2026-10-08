@@ -86,6 +86,51 @@ class TestMappingManagement:
         assert await _role_row(vol, Role.PROCTOR) is None
 
 
+class TestBulkMappings:
+    async def test_add_mappings_creates_every_pair_and_skips_existing(self, setup):
+        staff, vol, position, shift = setup
+        other = await VolunteerPosition.create(name='Stream Desk')
+        await VolunteerScheduleService().assign(staff, shift, vol, notify=False)
+        service = VolunteerRoleMappingService()
+        await service.add_mapping(staff, position.id, Role.PROCTOR)
+
+        created, skipped = await service.add_mappings(
+            staff, [position.id, other.id], [Role.PROCTOR, Role.STREAM_MANAGER],
+        )
+
+        assert (created, skipped) == (3, 1)
+        row = await _role_row(vol, Role.STREAM_MANAGER)
+        assert row is not None and row.source == RoleSource.VOLUNTEER
+
+    async def test_add_mappings_writes_nothing_when_one_role_is_refused(self, setup):
+        staff, _, position, _ = setup
+        service = VolunteerRoleMappingService()
+        with pytest.raises(ValueError):
+            await service.add_mappings(staff, [position.id], [Role.PROCTOR, Role.STAFF])
+        assert await service.list_mappings() == []
+
+    async def test_remove_mappings_revokes_and_skips_missing(self, setup):
+        staff, vol, position, shift = setup
+        await VolunteerScheduleService().assign(staff, shift, vol, notify=False)
+        service = VolunteerRoleMappingService()
+        await service.add_mappings(staff, [position.id], [Role.PROCTOR, Role.STREAM_MANAGER])
+        ids = [m.id for m in await service.list_mappings()]
+
+        removed = await service.remove_mappings(staff, [*ids, 999999])
+
+        assert removed == 2
+        assert await _role_row(vol, Role.PROCTOR) is None
+        assert await _role_row(vol, Role.STREAM_MANAGER) is None
+
+    async def test_only_staff_can_bulk_add(self, setup):
+        _, _, position, _ = setup
+        coordinator = await _holder('coord2', Role.VOLUNTEER_COORDINATOR)
+        with pytest.raises(PermissionError):
+            await VolunteerRoleMappingService().add_mappings(
+                coordinator, [position.id], [Role.PROCTOR],
+            )
+
+
 class TestAssignmentLifecycle:
     async def test_assign_grants_and_unassign_revokes(self, setup):
         staff, vol, position, shift = setup

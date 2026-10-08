@@ -8,7 +8,7 @@ an account for a guild member who holds a mapped role but has never signed in.
 
 import asyncio
 import logging
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import Iterable, List, Optional, Sequence, Set, Tuple
 
 from application.errors import require_found
 from application.repositories.discord_role_mapping_repository import DiscordRoleMappingRepository
@@ -90,10 +90,93 @@ class DiscordRoleMappingService:
         tournament grant must name the tournament it lands on — a guild role is
         guild-wide, so without one there is nothing to scope the grant to.
         """
+        await self._ensure_can_manage(actor)
+        mapping = await self._add_one(
+            guild_id, discord_role_id, discord_role_name, actor,
+            app_role, tournament_grant, tournament_id,
+        )
+        if mapping is None:
+            raise ValueError(
+                "That Discord role is already mapped to this app role" if app_role is not None
+                else "That Discord role is already mapped to this tournament grant"
+            )
+        return mapping
+
+    async def add_mappings(
+        self,
+        guild_id: int,
+        discord_roles: Sequence[Tuple[int, str]],
+        actor: User,
+        app_roles: Sequence[Role] = (),
+        tournament_grants: Sequence[TournamentGrant] = (),
+        tournament_id: Optional[int] = None,
+    ) -> Tuple[int, int]:
+        """Map every ``discord_roles`` entry onto every grant; ``(created, already_mapped)``.
+
+        A pair that already exists is skipped rather than failing the batch, so
+        adding "these five roles get Proctor" works when two of them already do.
+        Every check runs before the first write: a bad grant or tournament leaves
+        nothing half-created.
+        """
+        await self._ensure_can_manage(actor)
+        if not discord_roles:
+            raise ValueError("Pick at least one Discord role")
+        if not app_roles and not tournament_grants:
+            raise ValueError("Pick at least one thing to grant")
+        for role in app_roles:
+            self._check_app_role(role)
+        if tournament_grants:
+            if tournament_id is None:
+                raise ValueError("Pick the tournament this grant applies to")
+            require_found(await self.tournament_repository.get_by_id(tournament_id), "Tournament")
+
+        grants: List[Tuple[Optional[Role], Optional[TournamentGrant]]] = [
+            *((role, None) for role in app_roles),
+            *((None, grant) for grant in tournament_grants),
+        ]
+        created = skipped = 0
+        for discord_role_id, discord_role_name in discord_roles:
+            for app_role, grant in grants:
+                mapping = await self._add_one(
+                    guild_id, discord_role_id, discord_role_name, actor,
+                    app_role, grant, tournament_id if grant is not None else None,
+                )
+                if mapping is None:
+                    skipped += 1
+                else:
+                    created += 1
+        return created, skipped
+
+    @staticmethod
+    async def _ensure_can_manage(actor: User) -> None:
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
             "Only Staff can manage Discord role mappings",
         )
+
+    @staticmethod
+    def _check_app_role(app_role: Role) -> None:
+        if app_role not in Role.tenant_grantable():
+            # The other half of the same door ``UserService.grant_role``
+            # closes: a mapping is a *standing* grant, so this one would have
+            # handed platform authority to whoever holds a guild role the
+            # community's own staff control, on their next login.
+            raise ValueError(
+                "Super Admin is a platform role and cannot be mapped from a "
+                "Discord role."
+            )
+
+    async def _add_one(
+        self,
+        guild_id: int,
+        discord_role_id: int,
+        discord_role_name: str,
+        actor: User,
+        app_role: Optional[Role],
+        tournament_grant: Optional[TournamentGrant],
+        tournament_id: Optional[int],
+    ) -> Optional[DiscordRoleMapping]:
+        """Validate and create one mapping; None when that exact pair already exists."""
         if (app_role is None) == (tournament_grant is None):
             raise ValueError("Choose either an application role or a tournament grant")
 
@@ -103,19 +186,11 @@ class DiscordRoleMappingService:
             'discord_role_name': discord_role_name,
         }
         if app_role is not None:
-            if app_role not in Role.tenant_grantable():
-                # The other half of the same door ``UserService.grant_role``
-                # closes: a mapping is a *standing* grant, so this one would have
-                # handed platform authority to whoever holds a guild role the
-                # community's own staff control, on their next login.
-                raise ValueError(
-                    "Super Admin is a platform role and cannot be mapped from a "
-                    "Discord role."
-                )
+            self._check_app_role(app_role)
             if tournament_id is not None:
                 raise ValueError("An application role applies community-wide, not to one tournament")
             if await self.mapping_repository.get_match(guild_id, discord_role_id, app_role):
-                raise ValueError("That Discord role is already mapped to this app role")
+                return None
             details['app_role'] = app_role.value
         else:
             if tournament_id is None:
@@ -126,7 +201,7 @@ class DiscordRoleMappingService:
             if await self.mapping_repository.get_tournament_match(
                 guild_id, discord_role_id, tournament_grant, tournament_id  # type: ignore[arg-type]
             ):
-                raise ValueError("That Discord role is already mapped to this tournament grant")
+                return None
             details['tournament_grant'] = tournament_grant.value  # type: ignore[union-attr]
             details['tournament_id'] = tournament.id
 
@@ -140,11 +215,27 @@ class DiscordRoleMappingService:
         return mapping
 
     async def remove_mapping(self, mapping_id: int, actor: User) -> None:
-        await AuthService.ensure(
-            await AuthService.can_grant_roles(actor),
-            "Only Staff can manage Discord role mappings",
-        )
+        await self._ensure_can_manage(actor)
         mapping = require_found(await self.mapping_repository.get_by_id(mapping_id), "Mapping")
+        await self._remove_one(mapping, actor)
+
+    async def remove_mappings(self, mapping_ids: Sequence[int], actor: User) -> int:
+        """Remove each mapping in ``mapping_ids``; returns how many were removed.
+
+        An id that is already gone (another tab removed it) is skipped, so the
+        rest of a multi-row removal still lands.
+        """
+        await self._ensure_can_manage(actor)
+        removed = 0
+        for mapping_id in mapping_ids:
+            mapping = await self.mapping_repository.get_by_id(mapping_id)
+            if mapping is None:
+                continue
+            await self._remove_one(mapping, actor)
+            removed += 1
+        return removed
+
+    async def _remove_one(self, mapping: DiscordRoleMapping, actor: User) -> None:
         details = {
             'guild_id': mapping.guild_id,
             'discord_role_id': mapping.discord_role_id,
