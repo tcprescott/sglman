@@ -54,8 +54,9 @@ def test_is_a_filterable_multiselect(slot):
 
 def test_selectable_grid_card_has_a_checkbox(slot):
     columns = [{'name': 'name', 'label': 'Name', 'field': 'name'}]
+    # table-prefs: exempt — a throwaway table that only inspects the card slot
     table = ui.table(columns=columns, rows=[], row_key='name', selection='multiple')
-    enable_mobile_grid(table, columns, selectable=True)  # table-prefs: exempt — test table
+    enable_mobile_grid(table, columns, selectable=True)
     assert 'v-model="props.selected"' in table.slots['item'].template
 
 
