@@ -115,6 +115,20 @@ class TestImportBuiltins:
         assert 'goal' in casual.settings
         assert 'settings' not in casual.settings
 
+    async def test_a_txt_beside_a_file_supplies_its_description(self, service, actor):
+        await service.import_builtins(actor)
+        hmg = await service.repository.get_by_natural_key('alttpr', 'hmg')
+        ootr = await service.repository.get_by_natural_key('ootr', 'sgl2026')
+        assert hmg.description.startswith('SGL 2026 HMG')
+        assert ootr.description.startswith('SGL 2026 Tournament')
+        # The description never leaks into the settings sent upstream.
+        assert 'description' not in ootr.settings
+
+    async def test_a_file_description_beats_the_txt(self, service, actor):
+        await service.import_builtins(actor)
+        openboots = await service.repository.get_by_natural_key('alttpr', 'openboots')
+        assert openboots.description == 'You get to start with Pegasus Boots!'
+
     async def test_import_is_idempotent(self, service, actor):
         first = await service.import_builtins(actor)
         assert first

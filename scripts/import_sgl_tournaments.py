@@ -69,6 +69,40 @@ _SEED_GENERATORS: List[Tuple[str, str, Optional[str]]] = [
     (r'wind waker', 'wwr', None),
 ]
 
+# Where a tournament's rules doc and the sheet's "Seed Generation" cell
+# disagree, the rules doc is authoritative and wins in the description.
+_SEED_GENERATION_OVERRIDES: List[Tuple[str, str]] = [
+    # The sheet links v4.8.6; the FFR wiki's SGLive page names v4.9.7 flags,
+    # which is what Wizzrobe rolls.
+    (r'final fantasy randomizer',
+     'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3NWYWa-shYkqHmG37-rS90EfpcU'
+     'fUjp78ZR6KibBTdXQJnVpIePSloACp-y7pmGE2-q9cgwtGhrPz.mWHn.CIpIv7SBX0Cq6Q-JkRCpdP4JdINmzfSpJn'
+     'brJIUV7i9Zc0bReCbdLdiHKyjE6C-v9OEgBo-lQpuYWgo7KPkEA5Q58DLpK5GPOujIdXYCxVNLqv'),
+    # The race runs on generatorDev; the stable generator's copy of the preset
+    # doesn't make all locations reachable.
+    (r'ocarina of time', 'https://ootrandomizer.com/generatorDev'),
+    # The sheet links release s8-v2; the rules doc names this build.
+    (r'wind waker', 'https://github.com/tanjo3/wwrando/releases/tag/dev_tanjo3.1.10.7.3'),
+]
+
+# Sheet typos corrected in the description, as (wrong word, right word).
+_TYPO_FIXES: List[Tuple[str, str]] = [
+    ('Ansyc', 'Async'),
+]
+
+
+def seed_generation_for(name: str, sheet_value: str) -> str:
+    for pattern, value in _SEED_GENERATION_OVERRIDES:
+        if re.search(pattern, name, re.IGNORECASE):
+            return value
+    return sheet_value
+
+
+def _fix_typos(text: str) -> str:
+    for wrong, right in _TYPO_FIXES:
+        text = re.sub(rf'\b{wrong}\b', right, text)
+    return text
+
 
 @dataclass
 class Cell:
@@ -250,12 +284,13 @@ def parse_tournaments(rows: List[List[Cell]]) -> List[SheetTournament]:
 
         description = []
         for label, column in (('Admins', 'Admin'), ('Qualifiers', 'Qualifiers'), ('Trophies', 'Trophies')):
-            text = _one_line(get(row, column).text)
+            text = _fix_typos(_one_line(get(row, column).text))
             if text and text.lower() != 'no':
                 description.append(f'{label}: {text}')
         seed_cell = get(row, 'Seed Generation')
         seed_text = seed_cell.link or seed_cell.text.strip()
         if seed_text and seed_text.upper() != 'N/A':
+            seed_text = seed_generation_for(name, seed_text)
             description.append(f'Seed generation: {seed_text}')
         if description:
             fields['description'] = '\n'.join(description)
