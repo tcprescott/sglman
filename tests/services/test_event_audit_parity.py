@@ -123,6 +123,8 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.PRESET_UPDATED,
     AuditActions.PRESET_DELETED,
     AuditActions.PRESET_IMPORTED,
+    # A diagnostic roll by staff, not a match seed: nothing a subscriber acts on.
+    AuditActions.PRESET_TEST_ROLLED,
     # Secrets — leaking these to arbitrary receivers is a risk.
     AuditActions.APITOKEN_CREATED,
     AuditActions.APITOKEN_REVOKED,

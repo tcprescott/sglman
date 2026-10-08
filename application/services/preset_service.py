@@ -16,6 +16,7 @@ upstream, and nobody has to transcribe a settings blob to race them.
 import asyncio
 import json
 import os
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -29,6 +30,17 @@ from models import Preset, User
 
 # Where the committed built-in presets live (one subdirectory per randomizer).
 _BUILTINS_DIR = 'presets'
+
+
+@dataclass(frozen=True)
+class PresetTestRoll:
+    """A diagnostic roll of one preset: the seed, and whether the preset drove it."""
+
+    randomizer: str
+    seed_url: str
+    # False for backends that roll their bundled settings and ignore the
+    # preset's: the roll proves the randomizer works, not that this row does.
+    used_preset_settings: bool
 
 
 class PresetService:
@@ -139,6 +151,44 @@ class PresetService:
             {'preset_id': preset.id, 'name': preset.name, 'randomizer': preset.randomizer},
         )
         await self.repository.delete(preset)
+
+    async def test_roll(self, actor: Optional[User], preset_id: int) -> PresetTestRoll:
+        """Roll one seed from a preset so staff can check the randomizer works.
+
+        Goes through the same provider envelope a match roll does, but records no
+        ``GeneratedSeeds`` row, so test seeds never mix with match seeds. Task-queue
+        backends (DK64R) block until their seed is ready, which can take minutes.
+        Both outcomes are audited; a failure re-raises for the caller to show.
+        """
+        if actor is None:
+            raise PermissionError("Cannot manage presets")
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(actor), "Cannot manage presets"
+        )
+        preset = await self._require(preset_id)
+        if preset.randomizer not in SeedGenerationService.AVAILABLE_RANDOMIZERS:
+            raise ValueError(f"Unknown randomizer: {preset.randomizer}")
+        details: Dict[str, Any] = {
+            'preset_id': preset.id, 'name': preset.name, 'randomizer': preset.randomizer,
+        }
+        try:
+            call = await SeedGenerationService().generate_seed_call(
+                preset.randomizer, preset, surface='preset_test',
+            )
+        except ValueError as e:
+            await self.audit_service.write_log(
+                actor, AuditActions.PRESET_TEST_ROLLED, {**details, 'ok': False, 'error': str(e)},
+            )
+            raise
+        await self.audit_service.write_log(
+            actor, AuditActions.PRESET_TEST_ROLLED,
+            {**details, 'ok': True, 'seed_url': call.value.url},
+        )
+        return PresetTestRoll(
+            randomizer=preset.randomizer,
+            seed_url=call.value.url,
+            used_preset_settings=preset.randomizer in SeedGenerationService.PRESET_AWARE_RANDOMIZERS,
+        )
 
     async def import_builtins(self, actor: Optional[User]) -> List[Preset]:
         """Import the committed ``presets/`` files as starting rows.

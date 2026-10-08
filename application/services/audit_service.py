@@ -284,6 +284,7 @@ class AuditActions:
     PRESET_UPDATED = 'preset.updated'
     PRESET_DELETED = 'preset.deleted'
     PRESET_IMPORTED = 'preset.imported'
+    PRESET_TEST_ROLLED = 'preset.test_rolled'
     RANDOMIZER_CREDENTIAL_SET = 'randomizer_credential.set'
     RANDOMIZER_CREDENTIAL_CLEARED = 'randomizer_credential.cleared'
 
