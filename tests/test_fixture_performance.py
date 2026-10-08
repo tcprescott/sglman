@@ -230,11 +230,14 @@ class TestCachesAreIntact:
         assert hasattr(mcp_conftest._catalogue, 'cache_info'), (
             '_catalogue() lost its @functools.cache (tests/mcp/conftest.py).'
         )
-        first, second = mcp_conftest._cached_build_server(), mcp_conftest._cached_build_server()
+        first = mcp_conftest._cached_build_server()
+        spent = first.session_manager
+        second = mcp_conftest._cached_build_server()
         assert first is second, 'the cached MCP server is being rebuilt per call'
-        assert first._session_manager is not None, (
-            'the cached server was handed back without a session manager; '
-            'streamable_http_app() has to run again after it is cleared.'
+        assert second.session_manager is not spent, (
+            'the cached server was handed back with the previous session manager, '
+            'whose run() can only be entered once; start_transport() has to mint '
+            'a new one per session.'
         )
 
 
