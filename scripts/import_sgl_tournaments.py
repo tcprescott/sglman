@@ -51,10 +51,8 @@ _NS = {
 }
 _R_ID = '{%s}id' % _NS['r']
 
-# First match wins, so the hybrid row is claimed before plain ALttPR. Rows with
-# no match (NMG, SM Any%, the NES events) get no generator.
+# Rows with no match (NMG, SM Any%, the NES events) get no generator.
 _SEED_GENERATORS: List[Tuple[str, Optional[str]]] = [
-    (r'link to the past.*(hybrid|major glitches)', None),
     (r'link to the past randomizer', 'alttpr'),
     (r'donkey kong 64', 'dk64r'),
     (r'final fantasy randomizer', 'ff1r'),

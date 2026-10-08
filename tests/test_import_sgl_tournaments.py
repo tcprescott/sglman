@@ -111,8 +111,8 @@ def test_parse_minutes():
     assert parse_minutes('') is None
 
 
-def test_seed_generator_claims_hybrid_before_alttpr():
-    assert seed_generator_for('A Link to the Past Randomizer Hybrid Major Glitches') is None
+def test_seed_generator_maps_alttpr_variants():
+    assert seed_generator_for('A Link to the Past Randomizer Hybrid Major Glitches') == 'alttpr'
     assert seed_generator_for('A Link to the Past Any% No Major Glitches') is None
     assert seed_generator_for('A Link to the Past Randomizer') == 'alttpr'
     assert seed_generator_for('Super Metroid: DASH') == 'smdash'

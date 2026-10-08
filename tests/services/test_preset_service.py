@@ -101,6 +101,7 @@ class TestImportBuiltins:
         assert ('alttpr', 'casualboots') in names
         assert ('alttpr', 'sglive2025') in names
         assert ('alttpr', 'openboots') in names
+        assert ('alttpr', 'hmg') in names
 
     async def test_alttpr_import_stores_settings_subtree(self, service, actor):
         await service.import_builtins(actor)

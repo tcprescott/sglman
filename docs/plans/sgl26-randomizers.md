@@ -7,7 +7,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | Tournament | Generator | Settings source | `seed_generator` | Wizzrobe preset (`sgl26`) | Wizzrobe can roll? |
 |---|---|---|---|---|---|
 | ALttP Any% NMG | none (vanilla) | — | — | — | n/a |
-| ALttPR Hybrid Major Glitches | ALttPR doors branch | HMG logic, 7/7 open defeat Ganon; branch TBD | none | none | no |
+| ALttPR Hybrid Major Glitches | alttpr.com / SahasrahBot | SahasrahBot preset `hmg` | `alttpr` | `hmg` built-in, needs importing | yes, once imported |
 | ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
 | Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
@@ -25,7 +25,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 ## Open questions
 
 - **ALttPR presets.** `openboots` is now a built-in (`presets/alttpr/openboots.yaml`, copied verbatim from SahasrahBot). Run Admin → Presets → Import built-ins on `sgl26` after deploy, then attach it to the tournament.
-- **HMG branch.** The rules doc says the doors branch will be picked closer to the event, pending cavestate key-behaviour fixes. Nobody has confirmed which one yet.
+- **HMG preset.** Settled on SahasrahBot's `hmg` preset (open, 7/7, defeat Ganon, boots start) on alttpr.com, not the doors branch the rules doc mentions. It's a built-in now (`presets/alttpr/hmg.yaml`); import it with the others.
 - **FFR flags disagree.** The planning sheet's "Long Link" opens v4.8.6 (`s=47D73892`). The FFR wiki (the tournament's rules page) links v4.9.7 flags. Ask DarkmoonEX which is right.
 - **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
 - **OoTR and SM Map presets are last year's.** `sgl25` → SGL 2026 Tournament; `community_race_s4` → Community Race Season 5.
@@ -38,7 +38,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 Vanilla, not a randomizer: Any% NMG, no save & quit, standard speedrun.com rules. One amendment: after any save & quit, return to the screen you saved on, then carry on with no penalty. Races run on racetime.gg/alttp, a proctor timer, or untimed side by side.
 
 ### A Link to the Past Randomizer Hybrid Major Glitches
-- HMG logic, rolled as open, 7/7 crystals, defeat Ganon, on the ALttPR **doors** branch (exact branch TBD).
+- SahasrahBot preset `hmg`: HMG logic, open, 7/7 crystals, defeat Ganon, Pegasus Boots start, rolled on alttpr.com. (The rules doc mentioned a doors branch; the preset supersedes that.)
 - Required: overworld OOB clips, plus Mire→Hera, Hera→Swamp, Ice Palace lobby, Kikiskip.
 - Allowed, never required: underworld minor glitches, overworld mirrorless bunny clipping, fake flutes.
 - Glitch ruleset, fair play and goal: HMG 2025 rules.
