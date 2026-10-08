@@ -5,10 +5,12 @@ import zipfile
 from datetime import datetime
 
 from scripts.import_sgl_tournaments import (
+    _fix_typos,
     parse_minutes,
     parse_tournaments,
     read_sheet,
     required_preset_for,
+    seed_generation_for,
     seed_generator_for,
 )
 
@@ -112,9 +114,10 @@ def test_parse_minutes():
     assert parse_minutes('') is None
 
 
-def test_alttpr_rows_require_their_sgl26_preset():
+def test_preset_rolled_rows_require_their_sgl26_preset():
     assert required_preset_for('A Link to the Past Randomizer Hybrid Major Glitches') == 'hmg'
     assert required_preset_for('A Link to the Past Randomizer') == 'openboots'
+    assert required_preset_for('Donkey Kong 64 Randomizer') == 'Season 5 Race Settings'
     assert required_preset_for('Ocarina of Time Randomizer') is None
     assert required_preset_for('A Link to the Past Any% No Major Glitches') is None
 
@@ -124,3 +127,29 @@ def test_seed_generator_maps_alttpr_variants():
     assert seed_generator_for('A Link to the Past Any% No Major Glitches') is None
     assert seed_generator_for('A Link to the Past Randomizer') == 'alttpr'
     assert seed_generator_for('Super Metroid: DASH') == 'smdash'
+
+
+def test_rules_doc_seed_links_override_the_sheet():
+    assert seed_generation_for('Ocarina of Time Randomizer', 'https://ootrandomizer.com/generator') \
+        == 'https://ootrandomizer.com/generatorDev'
+    assert seed_generation_for('Wind Waker Randomizer', 'https://x/s8-v2').endswith('dev_tanjo3.1.10.7.3')
+    assert seed_generation_for('Final Fantasy Randomizer', 'https://4-8-6.example').startswith(
+        'https://4-9-7.finalfantasyrandomizer.com/')
+    assert seed_generation_for('Super Metroid: DASH', 'https://www.dashrando.net/generate') \
+        == 'https://www.dashrando.net/generate'
+
+
+def test_ffr_description_link_matches_the_flags_wizzrobe_rolls():
+    import re
+    from pathlib import Path
+
+    rolled = re.search(
+        r"url = '(https://[0-9-]+\.finalfantasyrandomizer\.com/[^']+)'",
+        Path('application/services/seedgen_service.py').read_text(),
+    ).group(1)
+    assert seed_generation_for('Final Fantasy Randomizer', '') == rolled
+
+
+def test_sheet_typos_are_fixed_as_whole_words():
+    assert _fix_typos('Ansyc Qualifiers') == 'Async Qualifiers'
+    assert _fix_typos('Ansycable') == 'Ansycable'

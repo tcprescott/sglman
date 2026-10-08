@@ -1,0 +1,1 @@
+Placeholder, not a real DK64 settings string: it will fail to roll. Use Season 5 Race Settings, or paste a settings string from dk64randomizer.com.

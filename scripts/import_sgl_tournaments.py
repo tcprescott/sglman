@@ -54,12 +54,13 @@ _R_ID = '{%s}id' % _NS['r']
 # (name pattern, randomizer, required preset). First match wins, so HMG is
 # claimed before plain ALttPR. A required preset must exist on the tenant or the
 # row gets no generator: without one, alttpr rolls its casualboots fallback,
-# which neither tournament races. Rows with no match (ALttP NMG, SM Any%, MMR,
+# which neither ALttPR tournament races, and dk64r rolls a placeholder settings
+# string that upstream rejects. Rows with no match (ALttP NMG, SM Any%, MMR,
 # which is rolled offline, and Best of NES) get no generator.
 _SEED_GENERATORS: List[Tuple[str, str, Optional[str]]] = [
     (r'link to the past randomizer.*(hybrid|major glitches)', 'alttpr', 'hmg'),
     (r'link to the past randomizer', 'alttpr', 'openboots'),
-    (r'donkey kong 64', 'dk64r', None),
+    (r'donkey kong 64', 'dk64r', 'Season 5 Race Settings'),
     (r'final fantasy randomizer', 'ff1r', None),
     (r'ocarina of time', 'ootr', None),
     (r'super metroid map', 'smmap', None),
@@ -67,6 +68,40 @@ _SEED_GENERATORS: List[Tuple[str, str, Optional[str]]] = [
     (r'legend of zelda randomizer', 'z1r', None),
     (r'wind waker', 'wwr', None),
 ]
+
+# Where a tournament's rules doc and the sheet's "Seed Generation" cell
+# disagree, the rules doc is authoritative and wins in the description.
+_SEED_GENERATION_OVERRIDES: List[Tuple[str, str]] = [
+    # The sheet links v4.8.6; the FFR wiki's SGLive page names v4.9.7 flags,
+    # which is what Wizzrobe rolls.
+    (r'final fantasy randomizer',
+     'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3NWYWa-shYkqHmG37-rS90EfpcU'
+     'fUjp78ZR6KibBTdXQJnVpIePSloACp-y7pmGE2-q9cgwtGhrPz.mWHn.CIpIv7SBX0Cq6Q-JkRCpdP4JdINmzfSpJn'
+     'brJIUV7i9Zc0bReCbdLdiHKyjE6C-v9OEgBo-lQpuYWgo7KPkEA5Q58DLpK5GPOujIdXYCxVNLqv'),
+    # The race runs on generatorDev; the stable generator's copy of the preset
+    # doesn't make all locations reachable.
+    (r'ocarina of time', 'https://ootrandomizer.com/generatorDev'),
+    # The sheet links release s8-v2; the rules doc names this build.
+    (r'wind waker', 'https://github.com/tanjo3/wwrando/releases/tag/dev_tanjo3.1.10.7.3'),
+]
+
+# Sheet typos corrected in the description, as (wrong word, right word).
+_TYPO_FIXES: List[Tuple[str, str]] = [
+    ('Ansyc', 'Async'),
+]
+
+
+def seed_generation_for(name: str, sheet_value: str) -> str:
+    for pattern, value in _SEED_GENERATION_OVERRIDES:
+        if re.search(pattern, name, re.IGNORECASE):
+            return value
+    return sheet_value
+
+
+def _fix_typos(text: str) -> str:
+    for wrong, right in _TYPO_FIXES:
+        text = re.sub(rf'\b{wrong}\b', right, text)
+    return text
 
 
 @dataclass
@@ -249,12 +284,13 @@ def parse_tournaments(rows: List[List[Cell]]) -> List[SheetTournament]:
 
         description = []
         for label, column in (('Admins', 'Admin'), ('Qualifiers', 'Qualifiers'), ('Trophies', 'Trophies')):
-            text = _one_line(get(row, column).text)
+            text = _fix_typos(_one_line(get(row, column).text))
             if text and text.lower() != 'no':
                 description.append(f'{label}: {text}')
         seed_cell = get(row, 'Seed Generation')
         seed_text = seed_cell.link or seed_cell.text.strip()
         if seed_text and seed_text.upper() != 'N/A':
+            seed_text = seed_generation_for(name, seed_text)
             description.append(f'Seed generation: {seed_text}')
         if description:
             fields['description'] = '\n'.join(description)

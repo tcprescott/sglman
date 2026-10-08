@@ -1,0 +1,1 @@
+SGL 2026: Major/Minor split, area randomization, bosses shuffled and known, Double Jump, Pressure Valve and Heat Shield. dashrando.net's sgl26 preset.

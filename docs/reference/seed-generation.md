@@ -280,7 +280,7 @@ presets/                       # built-in files imported into the Preset table
     └── community_race_s5.json # used by _generate_smmap (hard-coded until coverage expansion)
 ```
 
-For ALTTPR-style files the payload lives under a top-level `settings` key (with sibling `goal_name`/`description`/`customizer` metadata); `import_builtins` stores that `settings` subtree so it is handed to the randomizer unchanged. Other backends store the whole parsed file as `settings`. Only the `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`) read `preset.settings`; the other generators still open their hard-coded paths.
+For ALTTPR-style files the payload lives under a top-level `settings` key (with sibling `goal_name`/`description`/`customizer` metadata); `import_builtins` stores that `settings` subtree so it is handed to the randomizer unchanged. Other backends store the whole parsed file as `settings`. A `<name>.txt` beside a settings file supplies its description when the file carries none, so a file copied verbatim from upstream (and, for the JSON backends, sent upstream verbatim) never needs editing to have one. Only the `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`) read `preset.settings`; the other generators still open their hard-coded paths.
 
 ## Adding a randomizer or preset
 

@@ -317,7 +317,10 @@ class PresetService:
 
         For ALTTPR-style files the settings live under a top-level ``settings``
         key (with a sibling ``description``); other backends store the payload at
-        the top level. Blocking file IO — call via ``asyncio.to_thread``.
+        the top level. A ``<name>.txt`` beside the file supplies the description
+        when the file has none, so a settings file copied verbatim from upstream
+        (and, for the JSON backends, sent upstream verbatim) never needs editing
+        to carry one. Blocking file IO — call via ``asyncio.to_thread``.
         """
         entries: List[Dict[str, Any]] = []
         if not os.path.isdir(_BUILTINS_DIR):
@@ -342,6 +345,10 @@ class PresetService:
                 else:
                     settings = parsed
                     description = None
+                sidecar = os.path.join(sub, f'{stem}.txt')
+                if not description and os.path.isfile(sidecar):
+                    with open(sidecar, 'r', encoding='utf-8') as f:
+                        description = f.read().strip() or None
                 entries.append({
                     'randomizer': randomizer,
                     'name': stem,
