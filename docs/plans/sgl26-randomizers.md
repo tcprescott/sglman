@@ -7,29 +7,31 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | Tournament | Generator | Settings source | `seed_generator` | Wizzrobe preset (`sgl26`) | Wizzrobe can roll? |
 |---|---|---|---|---|---|
 | ALttP Any% NMG | none (vanilla) | — | — | — | n/a |
-| ALttPR Hybrid Major Glitches | ALttPR doors branch | HMG logic, 7/7 open defeat Ganon; branch TBD | none | none | no |
-| ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | **missing** (`casualboots`, `sglive2025` exist) | yes, once the preset exists |
+| ALttPR Hybrid Major Glitches | alttpr.com / SahasrahBot | SahasrahBot preset `hmg` | `alttpr` | `hmg` built-in, needs importing | yes, once imported |
+| ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
-| Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
-| Majora's Mask Randomizer | mmrandomizer.com | Generator preset `SGL 2026` | `mmr` | n/a | **no** (stub) |
-| Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | **outdated** (`sgl25`) | yes, once updated |
+| Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (hard-coded v4.9.7 flags) | yes |
+| Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc | — | — | no, rolled offline (Wizzrobe has no `mmr`) |
+| Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | `sgl2026` built-in (from the site's `SGL 2026 Tournament`, `dev_9.1.38-0`) | yes |
 | Super Metroid Any% | none (vanilla) | — | — | — | n/a |
-| Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | **outdated** (`community_race_s4`) | yes, once updated |
-| Super Metroid: DASH | dashrando.net | Settings listed on the event page | `smdash` | n/a | **no** (stub) |
-| The Legend of Zelda Randomizer | Z1R executable (Self Service) | Flag string | `z1r` | n/a | yes |
+| Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | `community_race_s5` built-in (site preset, verbatim) | yes |
+| Super Metroid: DASH | dashrando.net | Upstream preset `sgl26` (matches the event page) | `smdash` | `sgl26` fallback | yes (keyless) |
+| The Legend of Zelda Randomizer | Z1R executable (Self Service) | Flag string `12TDBKH6…` from the rules doc | `z1r` | n/a (hard-coded 2026 flags) | yes |
 | Wind Waker Randomizer | tanjo3 wwrando build | Permalink + build `dev_tanjo3.1.10.7.3` | `wwr` | n/a | **no** (stub) |
 | Best of NES (Relay, High Score) | none | — | — | — | n/a |
 
-`seed_generator` is what the importer sets from the tournament name. "Stub" means `SeedGenerationService.STUB_RANDOMIZERS`: registered, but rolling raises. See [4-mmr-seedgen.md](4-mmr-seedgen.md) and [5-wwr-seedgen.md](5-wwr-seedgen.md).
+`seed_generator` is what the importer sets from the tournament name. "Stub" means `SeedGenerationService.STUB_RANDOMIZERS`: registered, but rolling raises. See [5-wwr-seedgen.md](5-wwr-seedgen.md).
 
 ## Open questions
 
-- **ALttPR presets.** `openboots` doesn't exist in `sgl26` yet. Create it before anyone rolls from the schedule.
-- **HMG branch.** The rules doc says the doors branch will be picked closer to the event, pending cavestate key-behaviour fixes. Nobody has confirmed which one yet.
-- **FFR flags disagree.** The planning sheet's "Long Link" opens v4.8.6 (`s=47D73892`). The FFR wiki (the tournament's rules page) links v4.9.7 flags. Ask DarkmoonEX which is right.
+- **ALttPR presets.** `openboots` is now a built-in (`presets/alttpr/openboots.yaml`, copied verbatim from SahasrahBot). Run Admin → Presets → Import built-ins on `sgl26` after deploy, then attach it to the tournament.
+- **HMG preset.** Settled on SahasrahBot's `hmg` preset (open, 7/7, defeat Ganon, boots start) on alttpr.com, not the doors branch the rules doc mentions. It's a built-in now (`presets/alttpr/hmg.yaml`); import it with the others.
+- **FFR flags: settled.** The rules page (the FFR wiki) is authoritative, so `_generate_ff1r` builds from its v4.9.7 "Tournament Flags" link, not the sheet's v4.8.6 link.
 - **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
-- **OoTR and SM Map presets are last year's.** `sgl25` → SGL 2026 Tournament; `community_race_s4` → Community Race Season 5.
-- **SM Map screenshot is cropped.** The rules doc shows the preset as an image that stops at "Save the animals". Anything below that (QoL details, item progression tweaks) isn't in the doc, so assume the stock preset.
+- **OoTR and SM Map presets: done.** `presets/ootr/sgl2026.json` is the `settings` object of generatorDev's `SGL 2026 Tournament` preset, copied verbatim, and `_generate_ootr` rolls it on `dev_9.1.38-0`. `presets/smmap/community_race_s5.json` is maprando.com's `Community Race Season 5` preset, copied verbatim. Both generators read their bundled file directly, so neither needs importing.
+- **DASH: done.** dashrando.net defines an `sgl26` preset upstream (`Preset_SGL26` in `packages/core/lib/presets.ts`) that matches all eleven settings on the event page. `GET https://www.dashrando.net/generate/sgl26?race=1` rolls one server-side and 307s to `/seed/<key>`, with no key needed. `_generate_smdash` does exactly that.
+- **WWR: deferred** to a separate PR.
+- **SM Map screenshot is cropped (moot now).** The rules doc shows the preset as an image that stops at "Save the animals". Anything below that (QoL details, item progression tweaks) isn't in the doc, so assume the stock preset.
 - **DK64 race rooms.** DK64R rolls asynchronously (`ASYNC_RANDOMIZERS`), so the seed is queued, not instant. Check that's acceptable for a proctor handing seeds out at the desk.
 
 ## Per tournament
@@ -38,7 +40,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 Vanilla, not a randomizer: Any% NMG, no save & quit, standard speedrun.com rules. One amendment: after any save & quit, return to the screen you saved on, then carry on with no penalty. Races run on racetime.gg/alttp, a proctor timer, or untimed side by side.
 
 ### A Link to the Past Randomizer Hybrid Major Glitches
-- HMG logic, rolled as open, 7/7 crystals, defeat Ganon, on the ALttPR **doors** branch (exact branch TBD).
+- SahasrahBot preset `hmg`: HMG logic, open, 7/7 crystals, defeat Ganon, Pegasus Boots start, rolled on alttpr.com. (The rules doc mentioned a doors branch; the preset supersedes that.)
 - Required: overworld OOB clips, plus Mire→Hera, Hera→Swamp, Ice Palace lobby, Kikiskip.
 - Allowed, never required: underworld minor glitches, overworld mirrorless bunny clipping, fake flutes.
 - Glitch ruleset, fair play and goal: HMG 2025 rules.
@@ -60,6 +62,7 @@ Vanilla, not a randomizer: Any% NMG, no save & quit, standard speedrun.com rules
 - Double elim Bo1, finals Bo3 with no winners'-bracket advantage. FFR General Rules & Guidance apply.
 
 ### Majora's Mask Randomizer
+- Rolled offline by the admins. Wizzrobe has no MMR support.
 - mmrandomizer.com → Settings Presets → `SGL 2026` → Load. [Settings file](https://zsr.link/MMRSGL2026Settings).
 - Start with sword, shield, Giant's Mask, Garo Mask, Song of Time, Song of Soaring, Goron Lullaby intro, Epona's Song.
 - 3 remains for moon access. The Oath hint comes after the third dungeon if Oath to Order isn't found.

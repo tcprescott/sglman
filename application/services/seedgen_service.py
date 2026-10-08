@@ -3,13 +3,14 @@ Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
 Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, and Test.
-Registers not-yet-implemented stubs: MMR, SMDASH, WWR.
+Registers a not-yet-implemented stub: WWR.
 """
 
 import asyncio
 import copy
 import json
 import random
+import re
 import secrets
 import urllib.parse
 from pathlib import Path
@@ -62,6 +63,11 @@ async def _read_bundled_preset(path: str) -> str:
     return await asyncio.to_thread(Path(path).read_text, encoding='utf-8')
 
 
+# The bare domain 308s to www, and the generate call is read without following
+# redirects, so it has to start on the host that answers it.
+_DASH_BASE_URL = 'https://www.dashrando.net'
+
+
 class SeedGenerationService(DK64RBackend):
     """Service for generating seeds for various randomizers."""
 
@@ -72,7 +78,6 @@ class SeedGenerationService(DK64RBackend):
         'z1r',
         'smmap',
         'ootr',
-        'mmr',
         'smdash',
         'dk64r',
         'wwr',
@@ -81,11 +86,11 @@ class SeedGenerationService(DK64RBackend):
 
     # Randomizers registered for selection but whose generator is not yet
     # wired to an upstream API — rolling one raises ``ValueError``.
-    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'mmr', 'smdash', 'wwr'}
+    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'wwr'}
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'smdash'}
 
     # Backends whose roll is a task queue rather than a request: submit now,
     # collect minutes later. These do not return a seed from one call, so every
@@ -119,6 +124,9 @@ class SeedGenerationService(DK64RBackend):
     }
     PROVIDER_ATTEMPTS: ClassVar[dict] = {
         'dk64r': 1,
+        # DASH saves the seed upstream before answering, so a retry after a
+        # timeout mints a second seed and orphans the first.
+        'smdash': 1,
     }
 
     @classmethod
@@ -179,7 +187,7 @@ class SeedGenerationService(DK64RBackend):
         Args:
             randomizer: Name of the randomizer (alttpr, ff1r, z1r, smmap, ootr, test)
             preset: Optional resolved ``Preset`` supplying the randomizer settings.
-                Preset-aware backends (``PRESET_AWARE_RANDOMIZERS``: ALTTPR, DK64R)
+                Preset-aware backends (``PRESET_AWARE_RANDOMIZERS``: ALTTPR, DK64R, DASH)
                 use ``preset.settings`` when given and fall back to a committed
                 default without one. Other backends are still hard-coded and
                 ignore the preset.
@@ -220,7 +228,6 @@ class SeedGenerationService(DK64RBackend):
             'z1r': self._generate_z1r,
             'smmap': self._generate_smmap,
             'ootr': self._generate_ootr,
-            'mmr': self._generate_mmr,
             'smdash': self._generate_smdash,
             'dk64r': self._generate_dk64r,
             'wwr': self._generate_wwr,
@@ -301,7 +308,7 @@ class SeedGenerationService(DK64RBackend):
         Purely local: the flag string is fixed and only the seed number varies,
         so there is no upstream to fail.
         """
-        url = 'https://4-8-6.finalfantasyrandomizer.com/?s=00000000&f=6XOcCG.geJ.YDwt9.jijRao2NoTvBlq0V2VvHuAxjtMhlVRYso0wmNtUopSO9Xzt2k8Gn7v9d6ysABeksoaTevatcw4ZKZoMV95h1NQISZlbvlK8FEwtAAT5KWQUztLnkzQuDcO36uLraMFFQpGq0YsZrZHr7YdUoUxsW5.IutAsHfjB'
+        url = 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3NWYWa-shYkqHmG37-rS90EfpcUfUjp78ZR6KibBTdXQJnVpIePSloACp-y7pmGE2-q9cgwtGhrPz.mWHn.CIpIv7SBX0Cq6Q-JkRCpdP4JdINmzfSpJnbrJIUV7i9Zc0bReCbdLdiHKyjE6C-v9OEgBo-lQpuYWgo7KPkEA5Q58DLpK5GPOujIdXYCxVNLqv'
         seed = ('%008x' % random.randrange(16 ** 8)).upper()
         up = urllib.parse.urlparse(url)
         qs = urllib.parse.parse_qs(up.query)
@@ -316,7 +323,7 @@ class SeedGenerationService(DK64RBackend):
 
         Returns a "seed - flags" string rather than a URL; purely local.
         """
-        flags = '5K!ELDXj35eUlQNR4XAhcL18nJBPgbC4Hpw'
+        flags = '12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA'
         seed = random.randint(0, 8999999999999999999)
         return RolledSeed(
             url=f"{seed} - {flags}", settings={'seed': str(seed), 'flags': flags},
@@ -329,7 +336,7 @@ class SeedGenerationService(DK64RBackend):
         # Never fall back to a committed default — a leaked spoiler token
         # unlocks spoiler logs for race seeds.
         spoiler_token = await self._credential('smmap', 'spoiler_token')
-        settings = await _read_bundled_preset("presets/smmap/community_race_s4.json")
+        settings = await _read_bundled_preset("presets/smmap/community_race_s5.json")
 
         async with aiohttp.ClientSession() as session:
             with aiohttp.MultipartWriter('form-data') as mpwriter:
@@ -358,7 +365,7 @@ class SeedGenerationService(DK64RBackend):
         """
         Generate an Ocarina of Time Randomizer seed.
         """
-        settings = json.loads(await _read_bundled_preset("presets/ootr/sgl25.json"))
+        settings = json.loads(await _read_bundled_preset("presets/ootr/sgl2026.json"))
 
         # The OOTR API authenticates via a ``key`` query parameter; guard
         # against silently sending key=None when it is not configured.
@@ -370,7 +377,7 @@ class SeedGenerationService(DK64RBackend):
             json=settings,
             params={
                 "key": api_key,
-                "version": "8.3.0",
+                "version": "dev_9.1.38-0",
                 "encrypt": "true"
             }
         ) as resp:
@@ -387,13 +394,49 @@ class SeedGenerationService(DK64RBackend):
             url=f"https://ootrandomizer.com/seed/get?id={seed_id}", settings=settings,
         )
     
-    async def _generate_mmr(self) -> str:
-        """Generate a Majora's Mask Randomizer seed. Not yet implemented."""
-        raise ValueError("Majora's Mask Randomizer seed generation is not yet implemented.")
+    async def _generate_smdash(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate a Super Metroid: DASH seed.
 
-    async def _generate_smdash(self) -> str:
-        """Generate a Super Metroid: DASH seed. Not yet implemented."""
-        raise ValueError("Super Metroid: DASH seed generation is not yet implemented.")
+        dashrando.net rolls one of its own named presets server-side: ``GET
+        /generate/<tag>?race=1`` saves the seed and answers with a redirect to
+        its ``/seed/<key>`` page, where players patch their own ROM. A preset's
+        settings are ``{"preset": "<tag>"}``, the tag being one upstream defines
+        in ``packages/core/lib/presets.ts``; without one, ``presets/smdash/sgl26.json``.
+        """
+        if preset is not None:
+            settings = copy.deepcopy(preset.settings)
+        else:
+            settings = json.loads(await _read_bundled_preset("presets/smdash/sgl26.json"))
+
+        tag = settings.get('preset') if isinstance(settings, dict) else None
+        if not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', tag):
+            raise ValueError(
+                'A DASH preset needs a "preset" key naming one of dashrando.net\'s presets, e.g. "sgl26".'
+            )
+
+        # race=1 makes the seed page hand out a protected ROM; leaving spoiler
+        # unset means upstream never generates a spoiler log for this seed.
+        async with aiohttp.request(
+            method='get',
+            url=f"{_DASH_BASE_URL}/generate/{tag}",
+            params={'race': '1'},
+            allow_redirects=False,
+        ) as resp:
+            await raise_for_status(resp, provider='smdash', operation='generate_seed')
+            location = resp.headers.get('Location') if resp.status in (301, 302, 303, 307, 308) else None
+
+        seed_url = urllib.parse.urljoin(_DASH_BASE_URL + '/', location) if location else ''
+        parsed = urllib.parse.urlparse(seed_url)
+        if (
+            parsed.scheme != 'https'
+            or parsed.hostname not in ('www.dashrando.net', 'dashrando.net')
+            or not re.fullmatch(r'/seed/[A-Za-z0-9_-]+', parsed.path)
+        ):
+            raise SeedProviderBadResponse(
+                'DASH did not redirect to a seed page.',
+                provider='smdash', operation='generate_seed',
+            )
+        return RolledSeed(url=seed_url, settings={'preset': tag, 'race': True})
 
     async def _generate_dk64r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """Generate a Donkey Kong 64 Randomizer seed via the api.dk64rando.com queue.

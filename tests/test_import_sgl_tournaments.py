@@ -8,6 +8,7 @@ from scripts.import_sgl_tournaments import (
     parse_minutes,
     parse_tournaments,
     read_sheet,
+    required_preset_for,
     seed_generator_for,
 )
 
@@ -111,8 +112,15 @@ def test_parse_minutes():
     assert parse_minutes('') is None
 
 
-def test_seed_generator_claims_hybrid_before_alttpr():
-    assert seed_generator_for('A Link to the Past Randomizer Hybrid Major Glitches') is None
+def test_alttpr_rows_require_their_sgl26_preset():
+    assert required_preset_for('A Link to the Past Randomizer Hybrid Major Glitches') == 'hmg'
+    assert required_preset_for('A Link to the Past Randomizer') == 'openboots'
+    assert required_preset_for('Ocarina of Time Randomizer') is None
+    assert required_preset_for('A Link to the Past Any% No Major Glitches') is None
+
+
+def test_seed_generator_maps_alttpr_variants():
+    assert seed_generator_for('A Link to the Past Randomizer Hybrid Major Glitches') == 'alttpr'
     assert seed_generator_for('A Link to the Past Any% No Major Glitches') is None
     assert seed_generator_for('A Link to the Past Randomizer') == 'alttpr'
     assert seed_generator_for('Super Metroid: DASH') == 'smdash'

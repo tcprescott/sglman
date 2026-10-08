@@ -13,7 +13,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`), `import_builtins` from the `presets/` files, and `import_remote_presets` from a randomizer's own API |
 | [`application/services/_seedgen_dk64r.py`](../../application/services/_seedgen_dk64r.py) | `DK64RBackend`: every DK64R call — settings conversion, submit/poll, and the published preset catalogue |
 | [`application/services/_seedgen_types.py`](../../application/services/_seedgen_types.py) | `RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll` |
-| [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `dk64r/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
+| [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `dk64r/`, `ootr/`, `smdash/`, `smmap/`) — starting rows imported into the `Preset` table |
 | [`models/tournament.py`](../../models/tournament.py), [`models/match.py`](../../models/match.py) | `Tournament.seed_generator`, `Tournament.preset`, `Tournament.hard_preset`, `Preset`, `GeneratedSeeds`, `ProviderTask`; `Match.generated_seed`, `Match.preset_override` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | The Seed Preset select on the tournament create/edit dialog |
 | [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
@@ -62,9 +62,9 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 `SeedGenerationService` ([`seedgen_service.py`](../../application/services/seedgen_service.py)) is stateless — instantiate it freely; `MatchScheduleService` creates one in its constructor. See [services.md](services.md) for the surrounding service layer.
 
 ```python
-AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'dk64r', 'wwr', 'test']
-STUB_RANDOMIZERS = {'mmr', 'smdash', 'wwr'}
-PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}          # use preset.settings when given
+AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test']
+STUB_RANDOMIZERS = {'wwr'}
+PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r', 'smdash'}  # use preset.settings when given
 ASYNC_RANDOMIZERS = {'dk64r'}                           # task-queue backends (submit now, collect later)
 TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}                  # can embed community triforce texts
 REMOTE_PRESET_BRANCHES = {'dk64r': ('stable', 'dev')}   # upstream preset catalogues
@@ -75,7 +75,7 @@ PROVIDER_TIMEOUTS = {'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'dk64r': 1}
 
 ### Stub randomizers
 
-`mmr` (Majora's Mask), `smdash` (Super Metroid: DASH), and `wwr` (Wind Waker) are **registered stubs** (`STUB_RANDOMIZERS`): they are selectable on tournaments and appear in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but their `_generate_*` methods are not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so they render normally in dev.
+`wwr` (Wind Waker) is a **registered stub** (`STUB_RANDOMIZERS`): it is selectable on tournaments and appears in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but its `_generate_wwr` method is not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so it renders normally in dev.
 
 ### Per-tenant credentials
 
@@ -106,7 +106,7 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | Method | Behavior | Returns |
 |---|---|---|
 | `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Convenience wrapper over `generate_seed_call` returning just the permalink. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential, or a `SeedProviderError` subclass naming what the upstream did. |
-| `generate_seed_call(randomizer, preset=None, *, surface=None, triforce_text=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). `triforce_text` is embedded by the `TRIFORCE_TEXT_RANDOMIZERS` (`alttpr`) and ignored by the rest. A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
+| `generate_seed_call(randomizer, preset=None, *, surface=None, triforce_text=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). `triforce_text` is embedded by the `TRIFORCE_TEXT_RANDOMIZERS` (`alttpr`) and ignored by the rest. A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `list_remote_presets(randomizer, *, branch=None) -> list[RemotePreset]` | The presets the randomizer's own API publishes, mapped into storable `settings`. Raises `ValueError` for a randomizer with no catalogue or an unknown branch, `MissingCredentialError` without the key. | `list[RemotePreset]`. |
 | `offers_remote_presets(randomizer) -> bool` / `remote_preset_branches(randomizer) -> list[str]` (classmethods) | Membership in and lookup into `REMOTE_PRESET_BRANCHES` — what the Presets tab's import dialog renders from. | `bool` / `list[str]`. |
@@ -119,11 +119,10 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `_generate_alttpr` | yes | pyz3r customizer roll from `preset.settings` when a preset is given, else the built-in `presets/alttpr/casualboots.yaml` settings |
 | `_generate_ff1r` | yes | Local URL construction: random seed substituted into a fixed flags URL |
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
-| `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
-| `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl25.json` |
+| `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s5.json` |
+| `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl2026.json` |
 | `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); needs the tenant's `dk64r.api_key` (Donkey Kong 64) |
-| `_generate_mmr` | yes | **Stub** — raises `ValueError` (Majora's Mask) |
-| `_generate_smdash` | yes | **Stub** — raises `ValueError` (Super Metroid: DASH) |
+| `_generate_smdash` | yes | `GET` dashrando.net `/generate/<tag>?race=1` for `preset.settings['preset']` (else `presets/smdash/sgl26.json`), reading the seed page from the redirect |
 | `_generate_wwr` | yes | **Stub** — raises `ValueError` (Wind Waker) |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
 
@@ -187,13 +186,12 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | Key | Game | Upstream | Preset file | Credential | Return shape | Notes |
 |---|---|---|---|---|---|---|
 | `alttpr` | A Link to the Past Randomizer | alttpr.com via [pyz3r](https://github.com/tcprescott/pyz3r) | [`presets/alttpr/casualboots.yaml`](../../presets/alttpr/casualboots.yaml) (fallback when no preset) | — | `https://alttpr.com/h/<hash>` | `ALTTPR.generate(settings, endpoint='/api/customizer')` — the customizer endpoint is required because these presets define a custom item pool and starting equipment |
-| `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-8-6.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` | Random 8-hex-digit seed substituted into a hard-coded flags URL on the version-pinned 4.8.6 site; the site builds the game client-side, so the URL *is* the seed |
+| `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-9-7.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` | Random 8-hex-digit seed substituted into a hard-coded flags URL on the version-pinned 4.8.6 site; the site builds the game client-side, so the URL *is* the seed |
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (**not** a URL, so tables render it as plain text) | Random seed number + hard-coded flags string; players enter both into the offline tool |
-| `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` | `multipart/form-data` with a `spoiler_token` part (never defaulted — a leaked token unlocks spoiler logs for race seeds) and a `settings` part carrying the raw preset JSON |
-| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=8.3.0`, `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
+| `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s5.json`](../../presets/smmap/community_race_s5.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` | `multipart/form-data` with a `spoiler_token` part (never defaulted — a leaked token unlocks spoiler logs for race seeds) and a `settings` part carrying the raw preset JSON |
+| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl2026.json`](../../presets/ootr/sgl2026.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=dev_9.1.38-0` (the generatorDev build SGL 2026 races on), `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
 | `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` | Asynchronous submit → poll → result; see below |
-| `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
-| `smdash` | Super Metroid: DASH | none yet (**stub**) | — | — | raises `ValueError` | |
+| `smdash` | Super Metroid: DASH | `https://www.dashrando.net/generate/<tag>?race=1` | [`presets/smdash/sgl26.json`](../../presets/smdash/sgl26.json) (fallback when no preset) | — | `https://www.dashrando.net/seed/<key>` | DASH rolls only its own named presets (`packages/core/lib/presets.ts` upstream), so a preset's settings are `{"preset": "<tag>"}`. The call doesn't follow redirects: the 307's `Location` is the seed, and it must be an `https` dashrando.net `/seed/<key>` URL. One attempt only (`PROVIDER_ATTEMPTS`), because upstream saves the seed before answering, so a retry would mint a second one. `race=1` makes the seed page serve a protected ROM, and leaving `spoiler` unset means no spoiler log exists. An unknown tag is a 422 (`SeedProviderInvalidRequest`), and a tag that isn't `[A-Za-z0-9_-]+` raises `ValueError` before any request is sent. Keyless |
 | `wwr` | Wind Waker Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
 | `test` | — (testing) | none | — | — | fixed example URL after a 5 s sleep | Selectable on tournaments on purpose: it exercises the full UI flow (button spinner, per-match lock, persistence, DMs) without an external call |
 
@@ -265,16 +263,20 @@ An import is a **copy**, not a subscription. Nothing re-syncs a preset after the
 presets/                       # built-in files imported into the Preset table
 ├── alttpr/
 │   ├── casualboots.yaml       # also the _generate_alttpr fallback when no preset
+│   ├── hmg.yaml               # SahasrahBot's hmg, raced at SGL 2026
+│   ├── openboots.yaml         # SahasrahBot's openboots, raced at SGL 2026
 │   └── sglive2025.yaml
 ├── dk64r/
 │   └── sgl.json               # _generate_dk64r fallback (settings-string shape; placeholder value)
 ├── ootr/
-│   └── sgl25.json             # used by _generate_ootr (hard-coded until coverage expansion)
+│   └── sgl2026.json           # used by _generate_ootr (hard-coded until coverage expansion)
+├── smdash/
+│   └── sgl26.json             # _generate_smdash fallback: {"preset": "sgl26"}
 └── smmap/
-    └── community_race_s4.json # used by _generate_smmap (hard-coded until coverage expansion)
+    └── community_race_s5.json # used by _generate_smmap (hard-coded until coverage expansion)
 ```
 
-For ALTTPR-style files the payload lives under a top-level `settings` key (with sibling `goal_name`/`description`/`customizer` metadata); `import_builtins` stores that `settings` subtree so it is handed to the randomizer unchanged. Other backends store the whole parsed file as `settings`. Only the `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`) read `preset.settings`; the other generators still open their hard-coded paths.
+For ALTTPR-style files the payload lives under a top-level `settings` key (with sibling `goal_name`/`description`/`customizer` metadata); `import_builtins` stores that `settings` subtree so it is handed to the randomizer unchanged. Other backends store the whole parsed file as `settings`. Only the `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`) read `preset.settings`; the other generators still open their hard-coded paths.
 
 ## Adding a randomizer or preset
 
