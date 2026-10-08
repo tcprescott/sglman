@@ -37,6 +37,8 @@ from typing import Iterator, Optional
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from application.tenant_context import client_stash
+
 # The zone used when nothing else resolves: no tenant, no user, no browser hint.
 # Matches the app's historical hardcoded zone so an unresolvable context renders
 # exactly as it did before timezones became dynamic.
@@ -136,14 +138,8 @@ def get_browser_timezone() -> Optional[str]:
     name = _browser_tz_var.get()
     if name is not None:
         return name
-    try:
-        from nicegui import app
-    except Exception:
-        return None
-    try:
-        return app.storage.client.get('browser_tz')
-    except Exception:
-        return None
+    stash = client_stash()
+    return stash.get('browser_tz') if stash is not None else None
 
 
 def stash_client_browser_timezone(name: Optional[str]) -> None:
@@ -166,15 +162,8 @@ def _client_stash_timezone() -> Optional[str]:
     workers, the bot loop), so resolution never raises just because the UI layer
     is absent.
     """
-    try:
-        from nicegui import app
-    except Exception:
-        return None
-    try:
-        return app.storage.client.get('tz')
-    except Exception:
-        # app.storage.client raises when accessed outside a client/slot context.
-        return None
+    stash = client_stash()
+    return stash.get('tz') if stash is not None else None
 
 
 def get_current_timezone_name() -> Optional[str]:

@@ -49,6 +49,23 @@ class TestEnrichment:
             log = wiring._before_send_log({'attributes': {}}, None)
         assert log['attributes']['tenant_id'] == 7
 
+    def test_log_before_startup_creates_no_client(self, monkeypatch):
+        # Before NiceGUI starts, reading context.client with no slot builds a
+        # request-less script client that crashed prune_user_storage in prod.
+        from nicegui import core
+        from nicegui.app.app import State
+        from nicegui.client import Client
+
+        monkeypatch.setattr(core.app, '_state', State.STOPPED)
+        monkeypatch.setattr(core, 'script_mode', False)
+        monkeypatch.setattr(core, 'script_client', None)
+        monkeypatch.setattr(Client, 'instances', {})
+        with tenant_scope(None):
+            log = wiring._before_send_log({'attributes': {}}, None)
+        assert 'tenant_id' not in log['attributes']
+        assert Client.instances == {}
+        assert core.script_mode is False
+
 
 class TestConfig:
     def test_release_prefers_explicit(self, monkeypatch):

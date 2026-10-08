@@ -66,16 +66,33 @@ def reset_host_mode(token: Token) -> None:
     _host_mode_var.reset(token)
 
 
-def _client_stash_host_mode() -> bool:
-    """Whether the current NiceGUI client was built in host mode (defensive)."""
+def client_stash() -> Optional[dict]:
+    """The current NiceGUI client's ``app.storage.client``, or None outside a page.
+
+    Gated on a live slot stack, not on catching an exception: before NiceGUI has
+    started, touching ``context.client`` with no slot doesn't raise, it silently
+    builds a request-less "script mode" client. That happens whenever a log line
+    is emitted at import or during startup (the Sentry log hook reads the tenant),
+    and the stray client then crashes NiceGUI's ``prune_user_storage`` timer with
+    ``RuntimeError: Request is not set`` until it is pruned a minute later.
+    """
     try:
         from nicegui import app
+        from nicegui.slot import Slot
     except Exception:
-        return False
+        return None
+    if not Slot.get_stack():
+        return None
     try:
-        return bool(app.storage.client.get('host_mode'))
+        return app.storage.client
     except Exception:
-        return False
+        return None
+
+
+def _client_stash_host_mode() -> bool:
+    """Whether the current NiceGUI client was built in host mode (defensive)."""
+    stash = client_stash()
+    return bool(stash.get('host_mode')) if stash is not None else False
 
 
 def is_host_mode() -> bool:
@@ -119,15 +136,8 @@ def _client_stash_tenant_id() -> Optional[int]:
     active client context (the common case in tests and background workers), so
     resolution never raises just because the UI layer is absent.
     """
-    try:
-        from nicegui import app
-    except Exception:
-        return None
-    try:
-        return app.storage.client.get('tenant_id')
-    except Exception:
-        # app.storage.client raises when accessed outside a client/slot context.
-        return None
+    stash = client_stash()
+    return stash.get('tenant_id') if stash is not None else None
 
 
 def get_current_tenant_id() -> Optional[int]:
