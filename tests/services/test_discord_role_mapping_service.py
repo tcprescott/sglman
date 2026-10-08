@@ -440,6 +440,83 @@ class TestMappingCrud:
             await svc.remove_mapping(999, actor=make_user())
         svc.mapping_repository.delete.assert_not_awaited()
 
+    async def test_add_mappings_creates_every_pair_and_skips_existing(self):
+        svc = make_service()
+        svc.tournament_repository.get_by_id = AsyncMock(return_value=SimpleNamespace(id=7))
+        svc.mapping_repository.get_tournament_match = AsyncMock(return_value=None)
+
+        async def get_match(_guild, role_id, app_role):
+            return SimpleNamespace(id=1) if (role_id, app_role) == (111, Role.PROCTOR) else None
+        svc.mapping_repository.get_match = AsyncMock(side_effect=get_match)
+
+        created, skipped = await svc.add_mappings(
+            guild_id=42,
+            discord_roles=[(111, 'Mods'), (222, 'Helpers')],
+            app_roles=[Role.PROCTOR, Role.VOLUNTEER],
+            tournament_grants=[TournamentGrant.TOURNAMENT_ADMIN],
+            tournament_id=7,
+            actor=make_user(),
+        )
+
+        assert (created, skipped) == (5, 1)
+        assert svc.mapping_repository.create.await_count == 5
+        assert svc.audit_service.write_log.await_count == 5
+        tournament_calls = [
+            c for c in svc.mapping_repository.create.await_args_list
+            if c.kwargs['tournament_grant'] is not None
+        ]
+        assert {c.kwargs['tournament_id'] for c in tournament_calls} == {7}
+        assert all(
+            c.kwargs['tournament_id'] is None
+            for c in svc.mapping_repository.create.await_args_list
+            if c.kwargs['app_role'] is not None
+        )
+
+    async def test_add_mappings_checks_everything_before_writing(self):
+        # SUPER_ADMIN last in the list: the first role must not land before the
+        # bad one is noticed.
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mappings(
+                guild_id=42, discord_roles=[(111, 'Mods')],
+                app_roles=[Role.PROCTOR, Role.SUPER_ADMIN], actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_add_mappings_tournament_grant_needs_a_real_tournament(self):
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mappings(
+                guild_id=42, discord_roles=[(111, 'Mods')],
+                app_roles=[Role.PROCTOR],
+                tournament_grants=[TournamentGrant.CREW_COORDINATOR], tournament_id=999,
+                actor=make_user(),
+            )
+        svc.mapping_repository.create.assert_not_awaited()
+
+    async def test_add_mappings_requires_both_sides(self):
+        svc = make_service()
+        with pytest.raises(ValueError):
+            await svc.add_mappings(guild_id=42, discord_roles=[], app_roles=[Role.PROCTOR], actor=make_user())
+        with pytest.raises(ValueError):
+            await svc.add_mappings(guild_id=42, discord_roles=[(111, 'Mods')], actor=make_user())
+
+    async def test_remove_mappings_skips_ids_already_gone(self):
+        svc = make_service()
+        rows = {
+            5: SimpleNamespace(id=5, guild_id=42, discord_role_id=111,
+                               discord_role_name='Mods', app_role=Role.PROCTOR),
+            6: SimpleNamespace(id=6, guild_id=42, discord_role_id=222,
+                               discord_role_name='Helpers', app_role=Role.VOLUNTEER),
+        }
+        svc.mapping_repository.get_by_id = AsyncMock(side_effect=rows.get)
+
+        removed = await svc.remove_mappings([5, 99, 6], actor=make_user())
+
+        assert removed == 2
+        assert svc.mapping_repository.delete.await_count == 2
+        assert svc.audit_service.write_log.await_count == 2
+
     async def test_non_staff_cannot_add_mapping(self, monkeypatch):
         async def deny(*_a, **_kw):
             return False

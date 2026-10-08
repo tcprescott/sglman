@@ -37,15 +37,22 @@ ROLE_COMMENTATOR = 2000000000000000011
 ROLE_TRACKER = 2000000000000000012
 ROLE_RESTREAMER = 2000000000000000013
 
+# Not mappable: Discord's @everyone and a bot's own managed role, so the
+# "Add mapping" picker has something to leave out.
+ROLE_EVERYONE = 2000000000000000000
+ROLE_BOT = 2000000000000000020
+
 _STANDARD_ROLES: List[Dict[str, object]] = [
-    {"id": ROLE_ADMIN, "name": "Admin"},
-    {"id": ROLE_STAFF, "name": "Wizzrobe Staff"},
-    {"id": ROLE_PROCTOR, "name": "Proctors"},
-    {"id": ROLE_STREAM_MANAGER, "name": "Stream Managers"},
-    {"id": ROLE_VOLUNTEER, "name": "Volunteers"},
-    {"id": ROLE_COMMENTATOR, "name": "Commentators"},
-    {"id": ROLE_TRACKER, "name": "Trackers"},
-    {"id": ROLE_RESTREAMER, "name": "Restreamers"},
+    {"id": ROLE_ADMIN, "name": "Admin", "color": 0xE74C3C, "mappable": True},
+    {"id": ROLE_STAFF, "name": "Wizzrobe Staff", "color": 0x9B59B6, "mappable": True},
+    {"id": ROLE_PROCTOR, "name": "Proctors", "color": 0x3498DB, "mappable": True},
+    {"id": ROLE_STREAM_MANAGER, "name": "Stream Managers", "color": 0xE67E22, "mappable": True},
+    {"id": ROLE_VOLUNTEER, "name": "Volunteers", "color": 0x2ECC71, "mappable": True},
+    {"id": ROLE_COMMENTATOR, "name": "Commentators", "color": 0, "mappable": True},
+    {"id": ROLE_TRACKER, "name": "Trackers", "color": 0x1ABC9C, "mappable": True},
+    {"id": ROLE_RESTREAMER, "name": "Restreamers", "color": 0xF1C40F, "mappable": True},
+    {"id": ROLE_BOT, "name": "Wizzrobe", "color": 0x5865F2, "mappable": False},
+    {"id": ROLE_EVERYONE, "name": "@everyone", "color": 0, "mappable": False},
 ]
 
 # owner_id 1 matches the dev seed's first user; member_can_manage_guild treats

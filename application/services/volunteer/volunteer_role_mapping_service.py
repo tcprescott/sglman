@@ -11,7 +11,7 @@ an assignment reconciles the people it touched straight after its own commit.
 """
 
 import logging
-from typing import Dict, Iterable, List, Optional, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from application.errors import require_found
 from application.feature_flags import requires_feature
@@ -27,7 +27,15 @@ from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.tenant_context import require_tenant_id
-from models import FeatureFlag, MembershipSource, Role, RoleSource, User, VolunteerRoleMapping
+from models import (
+    FeatureFlag,
+    MembershipSource,
+    Role,
+    RoleSource,
+    User,
+    VolunteerPosition,
+    VolunteerRoleMapping,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,37 +60,97 @@ class VolunteerRoleMappingService:
         self, actor: User, position_id: int, app_role: Role,
     ) -> VolunteerRoleMapping:
         """Map a position onto a role, then grant it to everyone already on one."""
-        await AuthService.ensure(
-            await AuthService.can_grant_roles(actor),
-            "Only Staff can manage volunteer role mappings.",
-        )
-        if app_role not in Role.volunteer_mappable():
-            raise ValueError(
-                "A volunteer position can't grant that role. Coordinators decide "
-                "who's on a shift, so only operational roles can be mapped."
-            )
+        await self._ensure_can_manage(actor)
+        self._check_role(app_role)
         position = require_found(
             await self.position_repository.get_by_id(position_id), "Position"
         )
         if await self.mapping_repository.exists(position.id, app_role):
             raise ValueError("That position already grants this role.")
+        mapping = await self._create(actor, position, app_role)
+        await self.reconcile_all(actor)
+        return mapping
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def add_mappings(
+        self, actor: User, position_ids: Sequence[int], app_roles: Sequence[Role],
+    ) -> Tuple[int, int]:
+        """Map every position onto every role; ``(created, already_mapped)``.
+
+        Existing pairs are skipped, every position and role is checked before
+        the first write, and the reconcile runs once for the whole batch.
+        """
+        await self._ensure_can_manage(actor)
+        if not position_ids or not app_roles:
+            raise ValueError("Pick at least one position and one role.")
+        for role in app_roles:
+            self._check_role(role)
+        positions = [
+            require_found(await self.position_repository.get_by_id(pid), "Position")
+            for pid in position_ids
+        ]
+        created = skipped = 0
+        for position in positions:
+            for role in app_roles:
+                if await self.mapping_repository.exists(position.id, role):
+                    skipped += 1
+                    continue
+                await self._create(actor, position, role)
+                created += 1
+        if created:
+            await self.reconcile_all(actor)
+        return created, skipped
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def remove_mapping(self, actor: User, mapping_id: int) -> None:
+        """Drop a mapping, then take the role back from whoever only had it from here."""
+        await self._ensure_can_manage(actor)
+        mapping = require_found(await self.mapping_repository.get_by_id(mapping_id), "Mapping")
+        await self._delete(actor, mapping)
+        await self.reconcile_all(actor)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def remove_mappings(self, actor: User, mapping_ids: Sequence[int]) -> int:
+        """Drop each mapping that still exists, then reconcile once; returns how many."""
+        await self._ensure_can_manage(actor)
+        removed = 0
+        for mapping_id in mapping_ids:
+            mapping = await self.mapping_repository.get_by_id(mapping_id)
+            if mapping is None:
+                continue
+            await self._delete(actor, mapping)
+            removed += 1
+        if removed:
+            await self.reconcile_all(actor)
+        return removed
+
+    @staticmethod
+    async def _ensure_can_manage(actor: User) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can manage volunteer role mappings.",
+        )
+
+    @staticmethod
+    def _check_role(app_role: Role) -> None:
+        if app_role not in Role.volunteer_mappable():
+            raise ValueError(
+                "A volunteer position can't grant that role. Coordinators decide "
+                "who's on a shift, so only operational roles can be mapped."
+            )
+
+    async def _create(
+        self, actor: User, position: VolunteerPosition, app_role: Role,
+    ) -> VolunteerRoleMapping:
         mapping = await self.mapping_repository.create(position_id=position.id, app_role=app_role)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_ROLE_MAPPING_ADDED,
             {'mapping_id': mapping.id, 'position_id': position.id,
              'position_name': position.name, 'app_role': app_role.value},
         )
-        await self.reconcile_all(actor)
         return mapping
 
-    @requires_feature(FeatureFlag.VOLUNTEERS)
-    async def remove_mapping(self, actor: User, mapping_id: int) -> None:
-        """Drop a mapping, then take the role back from whoever only had it from here."""
-        await AuthService.ensure(
-            await AuthService.can_grant_roles(actor),
-            "Only Staff can manage volunteer role mappings.",
-        )
-        mapping = require_found(await self.mapping_repository.get_by_id(mapping_id), "Mapping")
+    async def _delete(self, actor: User, mapping: VolunteerRoleMapping) -> None:
         details = {
             'mapping_id': mapping.id, 'position_id': mapping.position.id,
             'position_name': mapping.position.name, 'app_role': mapping.app_role.value,
@@ -91,7 +159,6 @@ class VolunteerRoleMappingService:
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_ROLE_MAPPING_REMOVED, details,
         )
-        await self.reconcile_all(actor)
 
     # feature-gate: exempt — soft integration point called by sibling services
     # after their own commit; skips (returns {}) when the flag is off.

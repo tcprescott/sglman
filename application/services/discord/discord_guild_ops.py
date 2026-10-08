@@ -74,7 +74,10 @@ class GuildOpsMixin:
 
         Returns:
             Tuple[success, data]
-            - On success: (True, [{"id": int, "name": str}, ...])
+            - On success: (True, [{"id": int, "name": str, "color": int,
+              "mappable": bool}, ...]) — ``color`` is Discord's RGB int (0 is
+              "no colour"); ``mappable`` is False for @everyone and roles a bot
+              or integration owns, which no person is ever handed.
             - On failure: (False, error_message)
         """
         try:
@@ -126,7 +129,15 @@ class GuildOpsMixin:
             except Exception:
                 roles_list = list(getattr(guild, "roles", []))
 
-            data = [{"id": r.id, "name": r.name} for r in roles_list]
+            data = [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "color": r.color.value,
+                    "mappable": not (r.is_default() or r.is_bot_managed() or r.is_integration()),
+                }
+                for r in roles_list
+            ]
             return True, data
         except discord.HTTPException as e:
             return False, f"Discord HTTP error while retrieving roles: {e!s}"

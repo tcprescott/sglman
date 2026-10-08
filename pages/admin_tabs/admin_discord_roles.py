@@ -20,10 +20,12 @@ from application.utils.mocks.mock_discord import is_mock_discord
 from models import Role, TournamentGrant
 from pages.admin_tabs.volunteer_role_mappings import TAB_LABEL, volunteer_role_mappings_section
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.pickers import FilterMultiSelect, bulk_add_summary
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
-from theme.tables.preferences import TableKeys
+from theme.tables.preferences import TableKeys, search_input
 
 # tenant_grantable, not every Role: a mapping is a standing grant, and
 # SUPER_ADMIN is a platform role no community may hand out.
@@ -37,6 +39,56 @@ _GRANT_OPTIONS = {g.value: g.value.replace('_', ' ').title() for g in Tournament
 # indistinguishable once the value came back off the select.
 _ROLE_PREFIX = 'role:'
 _GRANT_PREFIX = 'grant:'
+
+# What Discord itself paints a role that has no colour set.
+_DISCORD_DEFAULT_COLOR = '#99aab5'
+
+
+def _mapping_key(mapping) -> tuple[int, str, int | None]:
+    """The (discord role, picker value, tournament) triple the add dialog compares against."""
+    if mapping.app_role is not None:
+        return mapping.discord_role_id, f'{_ROLE_PREFIX}{mapping.app_role.value}', None
+    return (
+        mapping.discord_role_id,
+        f'{_GRANT_PREFIX}{mapping.tournament_grant.value}',
+        mapping.tournament_id,
+    )
+
+
+def _discord_role_extras(discord_roles: list[dict], mappings) -> dict[int, dict[str, str]]:
+    """Colour dot and "already grants …" caption for each role in the picker.
+
+    Two roles can share a name (Discord doesn't forbid it), so a duplicate also
+    shows its id: the colour alone may not tell them apart.
+    """
+    grants: dict[int, list[str]] = {}
+    for m in mappings:
+        grant, target = _mapping_labels(m)
+        grants.setdefault(m.discord_role_id, []).append(
+            grant if m.app_role is not None else f'{grant} on {target}'
+        )
+    name_counts: dict[str, int] = {}
+    for r in discord_roles:
+        name_counts[str(r['name'])] = name_counts.get(str(r['name']), 0) + 1
+
+    extras: dict[int, dict[str, str]] = {}
+    for r in discord_roles:
+        role_id = int(r['id'])
+        color = int(r.get('color') or 0)
+        caption = []
+        if role_id in grants:
+            caption.append('Grants ' + ', '.join(grants[role_id]))
+        if name_counts[str(r['name'])] > 1:
+            caption.append(f'ID {role_id}')
+        extras[role_id] = {
+            'color': f'#{color:06x}' if color else _DISCORD_DEFAULT_COLOR,
+            'caption': ' · '.join(caption),
+        }
+    return extras
+
+
+def _plural(count: int, noun: str) -> str:
+    return f'{count} {noun}' + ('' if count == 1 else 's')
 
 
 def _mapping_labels(mapping) -> tuple[str, str]:
@@ -176,9 +228,10 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
             ]
 
             table_container = ui.column().classes('w-full')
+            mappings: list = []
 
             async def refresh_table():
-                mappings = await service.list_mappings(guild_id)
+                mappings[:] = await service.list_mappings(guild_id)
                 rows = []
                 for m in mappings:
                     grant_label, target_label = _mapping_labels(m)
@@ -189,7 +242,9 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                         'target': target_label,
                     })
                 table.rows = rows
+                table.selected = []
                 table.update()
+                _sync_remove_button()
 
             async def delete_mapping(row, client):
                 with client:
@@ -202,85 +257,155 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                     ui.notify('Mapping removed', color='positive')
                     await refresh_table()
 
+            async def remove_selected():
+                ids = [row['id'] for row in table.selected]
+                try:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    removed = await service.remove_mappings(ids, current)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify(f'Removed {_plural(removed, "mapping")}', color='positive')
+                await refresh_table()
+
+            def confirm_remove_selected():
+                count = len(table.selected)
+                if not count:
+                    return
+                ConfirmationDialog(
+                    f'Remove {_plural(count, "mapping")}? Members lose what these '
+                    'granted at their next sign-in or the next Sync All Users.',
+                    on_confirm=remove_selected, confirm_text='Remove', title='Remove mappings',
+                ).open()
+
             async def open_add_dialog():
                 ok, roles_payload = await DiscordService().list_guild_roles(guild_id)
                 if not ok:
                     ui.notify(str(roles_payload), color='warning')
                     return
-                role_options = {int(r['id']): str(r['name']) for r in roles_payload}
+                discord_roles = sorted(
+                    (r for r in roles_payload if r.get('mappable', True)),
+                    key=lambda r: str(r['name']).casefold(),
+                )
+                role_names = {int(r['id']): str(r['name']) for r in discord_roles}
                 tournaments = await TournamentService().get_all_tournaments(active_only=True)
-                tournament_options = {t.id: t.name for t in tournaments}
+                tournament_options = {t.id: t.name for t in sorted(tournaments, key=lambda t: t.name.casefold())}
+
+                existing = {_mapping_key(m) for m in mappings}
+                discord_extras = _discord_role_extras(discord_roles, mappings)
 
                 grant_options = {
                     **{f'{_ROLE_PREFIX}{value}': label for value, label in _ROLE_OPTIONS.items()},
-                    **{
-                        f'{_GRANT_PREFIX}{value}': f'{label} (one tournament)'
-                        for value, label in _GRANT_OPTIONS.items()
-                    },
+                    **{f'{_GRANT_PREFIX}{value}': label for value, label in _GRANT_OPTIONS.items()},
+                }
+                grant_extras = {
+                    f'{_GRANT_PREFIX}{value}': {'caption': 'On one tournament'}
+                    for value in _GRANT_OPTIONS
                 }
 
-                with table_container:
-                    with ui.dialog() as dialog, ui.card().classes('w-96'):
-                        ui.label('Add Role Mapping').classes('text-h6')
-                        discord_select = ui.select(
-                            options=role_options, label='Discord Role', with_input=True,
+                def wants_tournament(selection) -> bool:
+                    return any(str(v).startswith(_GRANT_PREFIX) for v in selection or [])
+
+                def planned() -> tuple[list[tuple[int, str, object]], int]:
+                    """(pairs that would be created, pairs already mapped)."""
+                    new, skipped = [], 0
+                    for role_id in discord_select.value or []:
+                        for selection in app_select.value or []:
+                            tournament_id = (
+                                tournament_select.value if selection.startswith(_GRANT_PREFIX) else None
+                            )
+                            if (int(role_id), selection, tournament_id) in existing:
+                                skipped += 1
+                            else:
+                                new.append((int(role_id), selection, tournament_id))
+                    return new, skipped
+
+                def update_summary(_=None):
+                    new, skipped = planned()
+                    text = bulk_add_summary(
+                        len(new), skipped,
+                        empty_hint='Pick one or more Discord roles and what they grant.',
+                    )
+                    needs_tournament = (
+                        wants_tournament(app_select.value) and tournament_select.value is None
+                    )
+                    if new and needs_tournament:
+                        text += ' Pick the tournament for the tournament grants.'
+                    summary.set_text(text)
+                    add_button.set_enabled(bool(new) and not needs_tournament)
+
+                with table_container, form_dialog('Add Role Mappings') as dialog:
+                    with ui.column().classes('q-pa-md gap-2 full-width'):
+                        ui.label(
+                            'Every Discord role you pick gets every grant you pick.'
+                        ).classes('text-caption text-grey')
+                        discord_select = FilterMultiSelect(
+                            {rid: name for rid, name in role_names.items()},
+                            label='Discord roles', extras=discord_extras,
                         ).classes('w-full')
-                        app_select = ui.select(
-                            options=grant_options, label='Grants',
+                        app_select = FilterMultiSelect(
+                            grant_options, label='Grants', extras=grant_extras,
                         ).classes('w-full')
                         tournament_select = ui.select(
                             options=tournament_options, label='Tournament', with_input=True,
                         ).classes('w-full')
                         tournament_select.bind_visibility_from(
-                            app_select, 'value',
-                            backward=lambda v: str(v or '').startswith(_GRANT_PREFIX),
+                            app_select, 'value', backward=wants_tournament,
                         )
                         if not tournament_options:
                             ui.label(
                                 'No active tournaments to grant on — create one first.'
                             ).classes('text-caption text-warning').bind_visibility_from(
-                                app_select, 'value',
-                                backward=lambda v: str(v or '').startswith(_GRANT_PREFIX),
+                                app_select, 'value', backward=wants_tournament,
                             )
+                        summary = ui.label().classes('text-caption')
 
-                        async def submit():
-                            selection = str(app_select.value or '')
-                            if discord_select.value is None or not selection:
-                                ui.notify('Select both a Discord role and what it grants.', color='warning')
-                                return
-                            is_tournament_grant = selection.startswith(_GRANT_PREFIX)
-                            if is_tournament_grant and tournament_select.value is None:
-                                ui.notify('Pick the tournament this grant applies to.', color='warning')
-                                return
-                            try:
-                                current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                                await service.add_mapping(
-                                    guild_id=guild_id,
-                                    discord_role_id=int(discord_select.value),
-                                    discord_role_name=role_options[int(discord_select.value)],
-                                    app_role=(
-                                        None if is_tournament_grant
-                                        else Role(selection[len(_ROLE_PREFIX):])
-                                    ),
-                                    tournament_grant=(
-                                        TournamentGrant(selection[len(_GRANT_PREFIX):])
-                                        if is_tournament_grant else None
-                                    ),
-                                    tournament_id=(
-                                        int(tournament_select.value) if is_tournament_grant else None
-                                    ),
-                                    actor=current,
-                                )
-                            except (ValueError, PermissionError) as e:
-                                notify_error(e)
-                                return
-                            dialog.close()
-                            ui.notify('Mapping added', color='positive')
-                            await refresh_table()
+                    async def submit():
+                        new, _ = planned()
+                        if not new:
+                            ui.notify('Nothing new to add.', color='warning')
+                            return
+                        selections = list(app_select.value or [])
+                        if wants_tournament(selections) and tournament_select.value is None:
+                            ui.notify('Pick the tournament this grant applies to.', color='warning')
+                            return
+                        try:
+                            current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                            created, skipped = await service.add_mappings(
+                                guild_id=guild_id,
+                                discord_roles=[
+                                    (int(rid), role_names[int(rid)]) for rid in discord_select.value
+                                ],
+                                app_roles=[
+                                    Role(v[len(_ROLE_PREFIX):]) for v in selections
+                                    if v.startswith(_ROLE_PREFIX)
+                                ],
+                                tournament_grants=[
+                                    TournamentGrant(v[len(_GRANT_PREFIX):]) for v in selections
+                                    if v.startswith(_GRANT_PREFIX)
+                                ],
+                                tournament_id=(
+                                    int(tournament_select.value) if wants_tournament(selections) else None
+                                ),
+                                actor=current,
+                            )
+                        except (ValueError, PermissionError) as e:
+                            notify_error(e)
+                            return
+                        dialog.close()
+                        message = f'Added {_plural(created, "mapping")}'
+                        if skipped:
+                            message += f' ({skipped} already existed)'
+                        ui.notify(message, color='positive')
+                        await refresh_table()
 
-                        with ui.row().classes('justify-end w-full'):
-                            ui.button('Cancel', on_click=dialog.close).props('flat')
-                            ui.button('Add', icon='add', on_click=submit).props('color=primary')
+                    with dialog_actions().classes('justify-end'):
+                        ui.button('Cancel', on_click=dialog.close).props('flat')
+                        add_button = ui.button('Add', icon='add', on_click=submit).props('color=primary')
+
+                for select in (discord_select, app_select, tournament_select):
+                    select.on_value_change(update_summary)
+                update_summary()
                 dialog.open()
 
             async def sync_all_users(client):
@@ -306,27 +431,48 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                         return
                     _show_sync_result(result)
 
+            remove_button = None
+
+            def _sync_remove_button(_=None):
+                if remove_button is None:
+                    return
+                count = len(table.selected)
+                remove_button.set_visibility(bool(count))
+                remove_button.set_text(f'Remove {count} selected')
+
             with table_container:
-                with ui.row().classes('full-width'):
+                with ui.row().classes('full-width items-center'):
                     if can_manage:
-                        ui.button('Add Mapping', icon='add', on_click=open_add_dialog).props('color=primary')
+                        ui.button('Add Mappings', icon='add', on_click=open_add_dialog).props('color=primary')
                         ui.button(
                             'Sync All Users', icon='sync',
                             on_click=lambda: background_tasks.create(sync_all_users(context.client)),
                         ).props('outline color=primary').tooltip(
                             'Apply current mappings to this community now'
                         )
+                        remove_button = ui.button(
+                            icon='delete', on_click=confirm_remove_selected,
+                        ).props('outline color=negative')
                     ui.space()
                     refresh_button(refresh_table)
+                search_row = ui.row().classes('full-width')
 
-                table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
+                table = ui.table(
+                    columns=columns, rows=[], row_key='id',
+                    selection='multiple' if can_manage else None,
+                    on_select=_sync_remove_button,
+                ).classes('w-full wiz-table')
+                with search_row:
+                    search_input(table, placeholder='Search mappings…')
 
                 table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
 
                 table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, context.client)))
 
                 enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
-                                   table_key=TableKeys.ADMIN_DISCORD_ROLES)
+                                   table_key=TableKeys.ADMIN_DISCORD_ROLES,
+                                   selectable=can_manage)
+                _sync_remove_button()
 
             wire_tab_refresh(TAB_LABEL, refresh_table)
             background_tasks.create(refresh_table())
