@@ -42,6 +42,7 @@ class RosterCounts:
     unlinked: int = 0
     withdrawn: int = 0
     walk_ups: int = 0
+    comped: int = 0
 
 
 @dataclass
@@ -78,8 +79,8 @@ def norm_name(name: Optional[str]) -> str:
 
 #: The roster states ``entrant_filters`` sorts a row into; ``summarize`` counts
 #: from it. The desk offers only ``DESK_FILTERS`` as chips.
-ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'unlinked', 'walk_up', 'withdrawn')
-DESK_FILTERS = ('all', 'not_yet', 'checked_in')
+ROSTER_FILTERS = ('all', 'not_yet', 'checked_in', 'comped', 'unlinked', 'walk_up', 'withdrawn')
+DESK_FILTERS = ('all', 'not_yet', 'checked_in', 'comped', 'walk_up')
 
 #: The comp reason for a volunteer who reached the comp threshold; every other
 #: reason is a ``Role`` value.
@@ -151,6 +152,8 @@ def entrant_filters(entrant: CheckInEntrant) -> Set[str]:
         filters.add('unlinked')
     if entrant.source == CheckInEntrantSource.WALK_UP:
         filters.add('walk_up')
+    if entrant.comp_reasons:
+        filters.add('comped')
     return filters
 
 
@@ -164,6 +167,7 @@ def summarize(entrants: Iterable[CheckInEntrant]) -> RosterCounts:
         counts.unlinked += 'unlinked' in filters
         counts.withdrawn += 'withdrawn' in filters
         counts.walk_ups += 'walk_up' in filters
+        counts.comped += 'comped' in filters
     return counts
 
 
