@@ -14,8 +14,13 @@ from theme.notify import notify_error
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
+from theme.waiting import waiting_panel
 
 _ROW_ACTIONS = '''
+    <q-btn flat round dense icon="science" color="primary"
+           @click="$parent.$emit('test', props.row)">
+        <q-tooltip>Test roll</q-tooltip>
+    </q-btn>
     <q-btn flat round dense icon="edit" color="primary"
            @click="$parent.$emit('edit', props.row)">
         <q-tooltip>Edit</q-tooltip>
@@ -106,6 +111,56 @@ async def admin_presets_page() -> None:
                 else:
                     ui.notify('No new presets to import', color='info')
                 await refresh_table()
+
+        def open_test_roll_dialog(row) -> None:
+            with table_container:
+                with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+                    ui.label(f"Test roll: {row['name']}").classes('text-h6')
+                    ui.label(
+                        "Rolls one seed the way a match would, so you can check the "
+                        "randomizer works. It isn't attached to any match."
+                    ).classes('text-caption text-grey')
+                    body = ui.column().classes('w-full')
+                    with body:
+                        waiting_panel(
+                            'Rolling… DK64 can take a few minutes.'
+                            if row['randomizer'] in SeedGenerationService.ASYNC_RANDOMIZERS
+                            else 'Rolling…',
+                            size='md',
+                        )
+                    with ui.row().classes('w-full justify-end'):
+                        ui.button('Close', on_click=dialog.close).props('flat')
+            dialog.open()
+            background_tasks.create(run_test_roll(row, body, context.client))
+
+        async def run_test_roll(row, body, client):
+            # Same shape as the handlers above: the actor and the tenant both
+            # resolve from the client's context, so the whole roll runs inside it.
+            with client:
+                try:
+                    result = await service.test_roll(await _current(), row['id'])
+                except (ValueError, PermissionError) as e:
+                    body.clear()
+                    with body:
+                        with ui.row().classes('items-center no-wrap'):
+                            ui.icon('error', color='negative')
+                            ui.label('The roll failed.').classes('text-weight-medium')
+                        ui.label(str(e)).classes('text-body2')
+                    return
+                body.clear()
+                with body:
+                    with ui.row().classes('items-center no-wrap'):
+                        ui.icon('check_circle', color='positive')
+                        ui.label('The randomizer rolled a seed.').classes('text-weight-medium')
+                    if result.seed_url.startswith(('https://', 'http://')):
+                        ui.link(result.seed_url, result.seed_url, new_tab=True).classes('break-all')
+                    else:
+                        ui.label(result.seed_url).classes('font-mono break-all')
+                    if not result.used_preset_settings:
+                        ui.label(
+                            f"{result.randomizer} rolls its bundled settings and ignores "
+                            "this preset's, so this checks the randomizer, not this row."
+                        ).classes('text-caption text-grey')
 
         def open_remote_dialog() -> None:
             """Browse a randomizer's own published presets and keep the useful ones.
@@ -357,6 +412,7 @@ async def admin_presets_page() -> None:
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
                                table_key=TableKeys.ADMIN_PRESETS, wrap=True)
 
+            table.on('test', lambda e: open_test_roll_dialog(e.args))
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))
 

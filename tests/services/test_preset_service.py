@@ -6,6 +6,8 @@ tests free of per-tenant role setup — the gate itself is covered in
 ``test_auth_service.py``.
 """
 
+import json
+
 import pytest
 
 from application.services.preset_service import PresetService
@@ -192,3 +194,65 @@ class TestManagementGate:
         user = await User.create(discord_id=555, username='nobody')
         with pytest.raises(PermissionError, match='manage presets'):
             await service.create_preset(user, name='X', randomizer='alttpr', settings={})
+
+
+class TestTestRoll:
+    @pytest.fixture(autouse=True)
+    def _mock_env(self, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+
+    async def _audits(self):
+        from application.services.audit_service import AuditActions
+        from models import AuditLog
+
+        return [
+            json.loads(row.details)
+            for row in await AuditLog.filter(action=AuditActions.PRESET_TEST_ROLLED)
+        ]
+
+    async def test_rolls_a_seed_and_audits_it_without_storing_a_match_seed(self, service, actor):
+        from models import GeneratedSeeds
+
+        preset = await service.create_preset(actor, name='Open', randomizer='alttpr', settings={})
+        result = await service.test_roll(actor, preset.id)
+
+        assert result.seed_url.startswith('https://mock.seedgen.local/alttpr/')
+        assert result.used_preset_settings is True
+        [entry] = await self._audits()
+        assert entry['ok'] is True
+        assert entry['seed_url'] == result.seed_url
+        assert entry['preset_id'] == preset.id
+        assert await GeneratedSeeds.all().count() == 0
+
+    async def test_flags_a_randomizer_that_ignores_the_preset(self, service, actor):
+        preset = await service.create_preset(actor, name='SGL', randomizer='ootr', settings={})
+        result = await service.test_roll(actor, preset.id)
+        assert result.used_preset_settings is False
+
+    async def test_a_failed_roll_is_audited_and_raised(self, service, actor, monkeypatch):
+        from application.services.seedgen_service import SeedGenerationService
+
+        async def boom(self, *args, **kwargs):
+            raise ValueError('upstream is down')
+
+        monkeypatch.setattr(SeedGenerationService, 'generate_seed_call', boom)
+        preset = await service.create_preset(actor, name='Open', randomizer='alttpr', settings={})
+        with pytest.raises(ValueError, match='upstream is down'):
+            await service.test_roll(actor, preset.id)
+        [entry] = await self._audits()
+        assert entry['ok'] is False
+        assert entry['error'] == 'upstream is down'
+
+    async def test_non_manager_cannot_test_roll(self, service, actor, db):
+        from models import User
+
+        preset = await service.create_preset(actor, name='Open', randomizer='alttpr', settings={})
+        user = await User.create(discord_id=557, username='nobody-roll')
+        with pytest.raises(PermissionError, match='manage presets'):
+            await service.test_roll(user, preset.id)
+        assert await self._audits() == []
+
+    async def test_missing_preset_raises(self, service, actor):
+        with pytest.raises(ValueError):
+            await service.test_roll(actor, 999999)

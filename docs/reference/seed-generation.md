@@ -16,7 +16,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `dk64r/`, `ootr/`, `smdash/`, `smmap/`) — starting rows imported into the `Preset` table |
 | [`models/tournament.py`](../../models/tournament.py), [`models/match.py`](../../models/match.py) | `Tournament.seed_generator`, `Tournament.preset`, `Tournament.hard_preset`, `Preset`, `GeneratedSeeds`, `ProviderTask`; `Match.generated_seed`, `Match.preset_override` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | The Seed Preset select on the tournament create/edit dialog |
-| [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
+| [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD, import built-ins, and a per-row **Test roll** |
 | [`theme/tables/match_slots.py`](../../theme/tables/match_slots.py), [`theme/tables/match.py`](../../theme/tables/match.py), [`theme/tables/match_lifecycle.py`](../../theme/tables/match_lifecycle.py) | The per-row **Generate** button (`SEED_ROLLABLE` gate), its `roll` event, and the `on_generate_seed` handler shared by the admin Schedule tab and the proctor board |
 | [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) | `CredentialSpec` registry: which credential each keyed randomizer needs |
 | [`application/services/randomizer_credential_service.py`](../../application/services/randomizer_credential_service.py) | `RandomizerCredentialService`: per-tenant credential CRUD + roll-time resolution |
@@ -243,6 +243,10 @@ settings.setdefault('texts', {})['end_triforce'] = "{NOBORDER}\n" + triforce_tex
 Presets are tenant-authored `Preset` rows (`randomizer`, `name`, `settings` JSON, `description`), managed on the admin **Presets** tab via [`PresetService`](../../application/services/preset_service.py) (CRUD gated by `AuthService.can_manage_presets` — STAFF, `PRESET_MANAGER`, super-admin, or the system actor). A tournament links one through its `preset` FK; seed generation resolves the preset's `randomizer` + `settings`, and the tournament's `seed_generator` column is kept in step with `preset.randomizer` by `TournamentService`.
 
 The committed `presets/` files remain as **built-in starting rows**: `PresetService.import_builtins` (the "Import Built-ins" button) parses them and inserts any not already present (idempotent, matched by `(randomizer, name)`).
+
+### Test rolls
+
+Each row on the Presets tab has a **Test roll** action (`PresetService.test_roll`). It rolls one seed through `generate_seed_call(..., surface='preset_test')`, the same provider envelope, credential lookup and `MOCK_SEEDGEN` short-circuit a match roll goes through. The dialog shows the seed or the provider's error. Nothing is written to `GeneratedSeeds`, so test seeds never mix with match seeds. The audit row (`preset.test_rolled`, with `ok` plus `seed_url` or `error`) is the record. DK64R blocks on its full submit-and-poll roll, so its test can take minutes. A backend outside `PRESET_AWARE_RANDOMIZERS` rolls its bundled settings, and the dialog says so: that test proves the randomizer works, not that the row's settings do.
 
 ### Importing a randomizer's own presets
 
