@@ -52,7 +52,7 @@ class Role(str, Enum):
         """
         return [
             cls.PROCTOR, cls.STREAM_MANAGER, cls.TRIFORCE_SUBMITTER,
-            cls.EQUIPMENT_MANAGER, cls.VOLUNTEER,
+            cls.EQUIPMENT_MANAGER, cls.VOLUNTEER, cls.CHECK_IN_DESK,
         ]
 
 

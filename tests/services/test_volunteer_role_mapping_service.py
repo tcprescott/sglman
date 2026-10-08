@@ -65,6 +65,13 @@ class TestMappingManagement:
         with pytest.raises(ValueError):
             await VolunteerRoleMappingService().add_mapping(staff, position.id, role)
 
+    async def test_check_in_desk_is_mappable(self, setup):
+        staff, vol, position, shift = setup
+        await VolunteerScheduleService().assign(staff, shift, vol, notify=False)
+        await VolunteerRoleMappingService().add_mapping(staff, position.id, Role.CHECK_IN_DESK)
+        row = await _role_row(vol, Role.CHECK_IN_DESK)
+        assert row is not None and row.source == RoleSource.VOLUNTEER
+
     async def test_rejects_duplicate(self, setup):
         staff, _, position, _ = setup
         service = VolunteerRoleMappingService()
