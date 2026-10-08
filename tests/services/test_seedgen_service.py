@@ -51,12 +51,12 @@ class TestAvailableRandomizers:
     def test_exact_membership(self):
         assert set(SeedGenerationService.AVAILABLE_RANDOMIZERS) == {
             'alttpr', 'ff1r', 'z1r', 'smmap', 'ootr',
-            'mmr', 'smdash', 'dk64r', 'wwr', 'test',
+            'smdash', 'dk64r', 'wwr', 'test',
         }
 
     def test_stub_randomizers_are_registered(self):
         # Registered for selection but not yet wired to an upstream API.
-        for stub in ('mmr', 'wwr'):
+        for stub in ('wwr',):
             assert stub in SeedGenerationService.AVAILABLE_RANDOMIZERS
             assert stub in SeedGenerationService.STUB_RANDOMIZERS
 
@@ -77,11 +77,11 @@ class TestAvailableRandomizers:
 
 
 class TestStubGenerators:
-    @pytest.mark.parametrize('randomizer', ['mmr', 'wwr'])
+    @pytest.mark.parametrize('randomizer', ['wwr'])
     def test_generator_method_exists(self, service, randomizer):
         assert hasattr(service, f'_generate_{randomizer}')
 
-    @pytest.mark.parametrize('randomizer', ['mmr', 'wwr'])
+    @pytest.mark.parametrize('randomizer', ['wwr'])
     async def test_raises_not_implemented(self, service, randomizer):
         # Stub generators raise ValueError (the documented user-error contract),
         # so a user-reachable roll surfaces a 400 / UI warning rather than an
@@ -283,7 +283,7 @@ class TestRandomizerAvailability:
 
     def test_credential_free_randomizers_always_present(self):
         available = SeedGenerationService.available_randomizers(set())
-        for r in ('alttpr', 'ff1r', 'z1r', 'mmr', 'smdash', 'wwr', 'test'):
+        for r in ('alttpr', 'ff1r', 'z1r', 'smdash', 'wwr', 'test'):
             assert r in available
         # AVAILABLE_RANDOMIZERS stays whole — validity is not availability.
         for r in ('ootr', 'smmap', 'dk64r'):

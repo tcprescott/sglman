@@ -6,9 +6,8 @@ tournament, present in every UI/API surface, and raising `ValueError` when
 rolled. Nothing automated it at SGL25. This file records what the wwrando repo
 answers, so the decision can be made before the September 2026 freeze.
 
-Majora's Mask is a separate problem with a separate answer:
-[4-mmr-seedgen.md](4-mmr-seedgen.md). The two share only the stub mechanics at
-the bottom of each file.
+Majora's Mask, the other SGL25 stub, was dropped: SGL 2026 rolls it offline and
+Wizzrobe has no `mmr` randomizer.
 
 ## How it was rolled at SGL25
 
@@ -56,8 +55,7 @@ Checked against tag `s8-v2` of `tanjo3/wwrando` (2026-08-03).
 - **So rolling a seed needs no wwrando checkout, no ISO, and no sidecar.** Given
   the season's reference permalink, a new seed is: decompress, `split(b"\0", 2)`,
   swap the middle field, recompress, base64. Pure stdlib, a handful of lines —
-  the `wwr` generator returns a string and stores nothing. Compare
-  [`mmr`](4-mmr-seedgen.md), which needs a mounted ROM and a .NET sidecar.
+  the `wwr` generator returns a string and stores nothing.
 - **Permalinks are version-locked**, so the season's build tag is part of the
   preset. `decode_permalink` raises `PermalinkWrongVersionError` /
   `PermalinkWrongCommitError` when `VERSION` does not match, and the version is

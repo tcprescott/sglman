@@ -886,8 +886,8 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 
 | Member | Returns | Description |
 |---|---|---|
-| `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `mmr`, `smdash`, `dk64r`, `wwr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
-| `STUB_RANDOMIZERS` (class attr) | `set[str]` | Registered for selection but not wired to an upstream — rolling one raises `ValueError`: `mmr`, `wwr`. |
+| `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `smdash`, `dk64r`, `wwr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
+| `STUB_RANDOMIZERS` (class attr) | `set[str]` | Registered for selection but not wired to an upstream — rolling one raises `ValueError`: `wwr`. |
 | `PRESET_AWARE_RANDOMIZERS` (class attr) | `set[str]` | Generators that resolve the `Preset`'s settings (`alttpr`, `dk64r`, `smdash`); everything else ignores it. |
 | `TRIFORCE_TEXT_RANDOMIZERS` (class attr) / `supports_triforce_texts(generator)` | `set[str]` / `bool` | Generators that can embed community triforce texts (`alttpr`), and the predicate `AuthService.can_submit_triforce_text` gates on. |
 | `ASYNC_RANDOMIZERS` (class attr) | `set[str]` | Task-queue backends (`dk64r`): submit now, collect minutes later. `MatchScheduleService.generate_seed` routes these through `ProviderTaskService` + `SeedRollService` instead of rolling inline. |

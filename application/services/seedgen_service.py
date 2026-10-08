@@ -3,7 +3,7 @@ Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
 Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, and Test.
-Registers not-yet-implemented stubs: MMR, SMDASH, WWR.
+Registers a not-yet-implemented stub: WWR.
 """
 
 import asyncio
@@ -78,7 +78,6 @@ class SeedGenerationService(DK64RBackend):
         'z1r',
         'smmap',
         'ootr',
-        'mmr',
         'smdash',
         'dk64r',
         'wwr',
@@ -87,7 +86,7 @@ class SeedGenerationService(DK64RBackend):
 
     # Randomizers registered for selection but whose generator is not yet
     # wired to an upstream API — rolling one raises ``ValueError``.
-    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'mmr', 'wwr'}
+    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'wwr'}
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
@@ -226,7 +225,6 @@ class SeedGenerationService(DK64RBackend):
             'z1r': self._generate_z1r,
             'smmap': self._generate_smmap,
             'ootr': self._generate_ootr,
-            'mmr': self._generate_mmr,
             'smdash': self._generate_smdash,
             'dk64r': self._generate_dk64r,
             'wwr': self._generate_wwr,
@@ -393,10 +391,6 @@ class SeedGenerationService(DK64RBackend):
             url=f"https://ootrandomizer.com/seed/get?id={seed_id}", settings=settings,
         )
     
-    async def _generate_mmr(self) -> str:
-        """Generate a Majora's Mask Randomizer seed. Not yet implemented."""
-        raise ValueError("Majora's Mask Randomizer seed generation is not yet implemented.")
-
     async def _generate_smdash(self, preset: Optional[Preset] = None) -> RolledSeed:
         """Generate a Super Metroid: DASH seed.
 

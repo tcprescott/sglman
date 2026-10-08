@@ -51,12 +51,12 @@ _NS = {
 }
 _R_ID = '{%s}id' % _NS['r']
 
-# Rows with no match (NMG, SM Any%, the NES events) get no generator.
+# Rows with no match (NMG, SM Any%, MMR, which is rolled offline, the NES
+# events) get no generator.
 _SEED_GENERATORS: List[Tuple[str, Optional[str]]] = [
     (r'link to the past randomizer', 'alttpr'),
     (r'donkey kong 64', 'dk64r'),
     (r'final fantasy randomizer', 'ff1r'),
-    (r"majora'?s mask", 'mmr'),
     (r'ocarina of time', 'ootr'),
     (r'super metroid map', 'smmap'),
     (r'super metroid:? dash', 'smdash'),

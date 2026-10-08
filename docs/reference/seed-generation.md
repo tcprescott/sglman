@@ -62,8 +62,8 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 `SeedGenerationService` ([`seedgen_service.py`](../../application/services/seedgen_service.py)) is stateless — instantiate it freely; `MatchScheduleService` creates one in its constructor. See [services.md](services.md) for the surrounding service layer.
 
 ```python
-AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'dk64r', 'wwr', 'test']
-STUB_RANDOMIZERS = {'mmr', 'wwr'}
+AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test']
+STUB_RANDOMIZERS = {'wwr'}
 PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r', 'smdash'}  # use preset.settings when given
 ASYNC_RANDOMIZERS = {'dk64r'}                           # task-queue backends (submit now, collect later)
 TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}                  # can embed community triforce texts
@@ -75,7 +75,7 @@ PROVIDER_TIMEOUTS = {'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'dk64r': 1}
 
 ### Stub randomizers
 
-`mmr` (Majora's Mask) and `wwr` (Wind Waker) are **registered stubs** (`STUB_RANDOMIZERS`): they are selectable on tournaments and appear in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but their `_generate_*` methods are not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so they render normally in dev.
+`wwr` (Wind Waker) is a **registered stub** (`STUB_RANDOMIZERS`): it is selectable on tournaments and appears in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but its `_generate_wwr` method is not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so it renders normally in dev.
 
 ### Per-tenant credentials
 
@@ -122,7 +122,6 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s5.json` |
 | `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl2026.json` |
 | `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); needs the tenant's `dk64r.api_key` (Donkey Kong 64) |
-| `_generate_mmr` | yes | **Stub** — raises `ValueError` (Majora's Mask) |
 | `_generate_smdash` | yes | `GET` dashrando.net `/generate/<tag>?race=1` for `preset.settings['preset']` (else `presets/smdash/sgl26.json`), reading the seed page from the redirect |
 | `_generate_wwr` | yes | **Stub** — raises `ValueError` (Wind Waker) |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
@@ -192,7 +191,6 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s5.json`](../../presets/smmap/community_race_s5.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` | `multipart/form-data` with a `spoiler_token` part (never defaulted — a leaked token unlocks spoiler logs for race seeds) and a `settings` part carrying the raw preset JSON |
 | `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl2026.json`](../../presets/ootr/sgl2026.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=dev_9.1.38-0` (the generatorDev build SGL 2026 races on), `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
 | `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` | Asynchronous submit → poll → result; see below |
-| `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
 | `smdash` | Super Metroid: DASH | `https://www.dashrando.net/generate/<tag>?race=1` | [`presets/smdash/sgl26.json`](../../presets/smdash/sgl26.json) (fallback when no preset) | — | `https://www.dashrando.net/seed/<key>` | DASH rolls only its own named presets (`packages/core/lib/presets.ts` upstream), so a preset's settings are `{"preset": "<tag>"}`. The call doesn't follow redirects: the 307's `Location` is the seed. `race=1` makes the seed page serve a protected ROM, and leaving `spoiler` unset means no spoiler log exists. An unknown tag is a 422 (`SeedProviderInvalidRequest`), and a tag that isn't `[A-Za-z0-9_-]+` raises `ValueError` before any request is sent. Keyless |
 | `wwr` | Wind Waker Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
 | `test` | — (testing) | none | — | — | fixed example URL after a 5 s sleep | Selectable on tournaments on purpose: it exercises the full UI flow (button spinner, per-match lock, persistence, DMs) without an external call |

@@ -11,7 +11,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | ALttP Randomizer | alttpr.com / SahasrahBot | SahasrahBot preset `openboots` | `alttpr` | `openboots` built-in, needs importing | yes, once imported |
 | Donkey Kong 64 Randomizer | dk64randomizer.com | DK64R Season 5 race settings | `dk64r` | `Season 5 Race Settings` ✅ | yes (async roll) |
 | Final Fantasy Randomizer | finalfantasyrandomizer.com | Flags link on the FFR wiki (v4.9.7) | `ff1r` | n/a (flags, not presets) | yes |
-| Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc (there's no `SGL 2026` preset on the site) | `mmr` | n/a | **no** (stub). The keyed API makes it buildable, see [4-mmr-seedgen.md](4-mmr-seedgen.md) |
+| Majora's Mask Randomizer | mmrandomizer.com | `SGL_2026.json` from the rules doc | — | — | no, rolled offline (Wizzrobe has no `mmr`) |
 | Ocarina of Time Randomizer | ootrandomizer.com (generatorDev) | Generator preset `SGL 2026 Tournament` | `ootr` | `sgl2026` built-in (from the site's `SGL 2026 Tournament`, `dev_9.1.38-0`) | yes |
 | Super Metroid Any% | none (vanilla) | — | — | — | n/a |
 | Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | `community_race_s5` built-in (site preset, verbatim) | yes |
@@ -20,7 +20,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | Wind Waker Randomizer | tanjo3 wwrando build | Permalink + build `dev_tanjo3.1.10.7.3` | `wwr` | n/a | **no** (stub) |
 | Best of NES (Relay, High Score) | none | — | — | — | n/a |
 
-`seed_generator` is what the importer sets from the tournament name. "Stub" means `SeedGenerationService.STUB_RANDOMIZERS`: registered, but rolling raises. See [4-mmr-seedgen.md](4-mmr-seedgen.md) and [5-wwr-seedgen.md](5-wwr-seedgen.md).
+`seed_generator` is what the importer sets from the tournament name. "Stub" means `SeedGenerationService.STUB_RANDOMIZERS`: registered, but rolling raises. See [5-wwr-seedgen.md](5-wwr-seedgen.md).
 
 ## Open questions
 
@@ -62,6 +62,7 @@ Vanilla, not a randomizer: Any% NMG, no save & quit, standard speedrun.com rules
 - Double elim Bo1, finals Bo3 with no winners'-bracket advantage. FFR General Rules & Guidance apply.
 
 ### Majora's Mask Randomizer
+- Rolled offline by the admins. Wizzrobe has no MMR support.
 - mmrandomizer.com → Settings Presets → `SGL 2026` → Load. [Settings file](https://zsr.link/MMRSGL2026Settings).
 - Start with sword, shield, Giant's Mask, Garo Mask, Song of Time, Song of Soaring, Goron Lullaby intro, Epona's Song.
 - 3 remains for moon access. The Oath hint comes after the third dungeon if Oath to Order isn't found.
