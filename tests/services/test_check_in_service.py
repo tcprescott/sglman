@@ -554,7 +554,7 @@ class TestWorker:
 
         monkeypatch.setattr(
             'application.services.check_in_service.get_matcherino_client',
-            lambda: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
+            lambda refresh_token: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
         )
         await check_in_sync_worker._tick()
 
@@ -570,7 +570,7 @@ class TestWorker:
         reset_flag_cache()
         monkeypatch.setattr(
             'application.services.check_in_service.get_matcherino_client',
-            lambda: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
+            lambda refresh_token: MockMatcherinoClient([mock_purchase(100, 'Polled')]),
         )
         await check_in_sync_worker._tick()
 

@@ -39,6 +39,7 @@ from .match_hard_preset_repository import MatchHardPresetRepository
 from .match_repository import MatchRepository
 from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
+from .matcherino_login_repository import MatcherinoLoginRepository
 from .mcp_auth_repository import McpAuthRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
@@ -106,6 +107,7 @@ __all__ = [
     'MatchRepository',
     'MatchStreamVolunteerRepository',
     'MatchWatcherRepository',
+    'MatcherinoLoginRepository',
     'McpAuthRepository',
     'PlayerAvailabilityRepository',
     'PresetRepository',

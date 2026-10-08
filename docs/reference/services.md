@@ -51,6 +51,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CheckInService` | [check_in_service.py](../../application/services/check_in_service.py) | Matcherino-backed event check-in: roster sync, auto-linking, the desk's check-in/link actions, walk-ups | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
+| `MatcherinoLoginService` | [matcherino_login_service.py](../../application/services/matcherino_login_service.py) | The per-community Matcherino login check-in syncs with: status, verified save, remove, sync-time resolve | [event-check-in.md](../features/event-check-in.md#the-stored-login), `EVENT_CHECK_IN` |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [match-participation.md](../features/match-participation.md) |
 | `DiscordEventReconcilerService` | [discord_event_reconciler_service.py](../../application/services/discord/discord_event_reconciler_service.py) | Idempotent mirror of the schedule into a guild's Discord Scheduled Events | [discord.md](../features/discord.md) |
 | `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
@@ -513,7 +514,7 @@ Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipme
 
 ### check_in_service.py — CheckInService
 
-The check-in desk for in-person events whose registration runs on Matcherino. Mirrors a ticketed venue's badge sales into `CheckInTier` / `CheckInPass` rows and one `CheckInEntrant` per buyer, auto-links each buyer to a `User` on exact identifiers, and records arrivals. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`. Event setup and walk-ups need `AuthService.can_manage_check_in` (Staff); the desk actions need `can_run_check_in_desk` (Staff, `CHECK_IN_DESK`, or the system actor). Both raise `PermissionError`. Constructor takes an optional `client: MatcherinoClient` (defaults to `get_matcherino_client()`, so `MOCK_MATCHERINO` applies). Constants: `MIN_SYNC_INTERVAL_MINUTES = 1`, `MAX_SYNC_INTERVAL_MINUTES = 120`, `SUGGESTION_LIMIT = 3`. Feature doc: [event-check-in.md](../features/event-check-in.md).
+The check-in desk for in-person events whose registration runs on Matcherino. Mirrors a ticketed venue's badge sales into `CheckInTier` / `CheckInPass` rows and one `CheckInEntrant` per buyer, auto-links each buyer to a `User` on exact identifiers, and records arrivals. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`. Event setup and walk-ups need `AuthService.can_manage_check_in` (Staff); the desk actions need `can_run_check_in_desk` (Staff, `CHECK_IN_DESK`, or the system actor). Both raise `PermissionError`. Constructor takes an optional `client: MatcherinoClient`; without one, each Matcherino call builds `get_matcherino_client(<this community's saved login>)` (so `MOCK_MATCHERINO` applies), never caching it on the service, because the sync worker shares one service across tenants. Constants: `MIN_SYNC_INTERVAL_MINUTES = 1`, `MAX_SYNC_INTERVAL_MINUTES = 120`, `SUGGESTION_LIMIT = 3`. Feature doc: [event-check-in.md](../features/event-check-in.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -903,6 +904,19 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 The DK64R backend (task queue, settings-string expansion, preset catalogue) lives in the private `_seedgen_dk64r.py` as the `DK64RBackend` mixin; the value objects shared with everything that persists a roll (`RolledSeed`, `RemotePreset`, `AsyncRollSubmission`, `AsyncRollPoll`) live in `_seedgen_types.py`.
 
 Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs.
+
+### matcherino_login_service.py — MatcherinoLoginService
+
+The Matcherino account a community's check-in sync signs in as — the per-tenant successor to the `MATCHERINO_REFRESH_TOKEN` environment variable. Every public method carries `@requires_feature(FeatureFlag.EVENT_CHECK_IN)`; `status`/`set_login`/`clear_login` need `AuthService.can_manage_check_in` (Staff). Constructor takes an optional `client_factory` (defaults to `get_matcherino_client`) used to check a token before saving it.
+
+| Member | Returns | Description |
+|---|---|---|
+| `status(actor)` | `MatcherinoLoginStatus` | `configured`, `matcherino_user_id`, `updated_at`, `updated_by` (display name). **Never the token.** |
+| `set_login(actor, pasted)` | `MatcherinoLoginStatus` | Accepts the bare token or the whole `{"appName", "refreshToken"}` payload copied from DevTools (`normalize_refresh_token`). Rejects blank, whitespace or over-long input without calling Matcherino; otherwise signs in once (`MatcherinoClient.verify_login`) and saves only if Matcherino accepts it, recording the account id from the access token's `sub`. Audits `matcherino_login.set` with `replaced` and the account ids, never the token. |
+| `clear_login(actor)` | `None` | Idempotent. Audits `matcherino_login.cleared`. |
+| `resolve()` | `str \| None` | The saved token, unmasked. Not role-gated: its only caller is `CheckInService`, whose boundary already authorized the actor. Never call it from anything that renders. |
+
+No events, for the same reason as randomizer credentials. Collaborators: `MatcherinoLoginRepository`, `AuditService`, `AuthService`, `matcherino_client`.
 
 ### randomizer_credential_service.py — RandomizerCredentialService
 

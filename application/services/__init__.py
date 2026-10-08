@@ -73,6 +73,7 @@ from .match import (
     assert_sg_fields_unchanged,
 )
 from .match_reschedule_service import MatchRescheduleService
+from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
@@ -166,6 +167,8 @@ __all__ = [
     'MatchStreamVolunteerService',
     'MatchSuggestionService',
     'MatchWatcherService',
+    'MatcherinoLoginService',
+    'MatcherinoLoginStatus',
     'McpAuthService',
     'NotFoundError',
     'PayoutService',

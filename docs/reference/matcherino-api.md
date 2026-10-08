@@ -83,10 +83,11 @@ Content-Type: text/plain;charset=UTF-8
 request. It's a custom header, not `Authorization`. An unauthenticated call to a
 protected endpoint answers HTTP 401 with the error envelope above.
 
-**What Wizzrobe stores.** `MATCHERINO_REFRESH_TOKEN` is the refresh token of an
-account that is an admin of every venue we sync. The client mints an access
-token on first use and caches it for the whole process until five minutes before
-it expires. On a 401 or 403 it mints again once and retries. A second refusal
+**What Wizzrobe stores.** Each community saves the refresh token of an account
+that is an admin of its venues (`MatcherinoLogin`, pasted on Admin → Check-in).
+Saving signs in once to check it. The client mints an access token on first use
+and caches it per login for the whole process until five minutes before it
+expires. On a 401 or 403 it mints again once and retries. A second refusal
 means the account doesn't administer that venue.
 
 **Getting a refresh token.** Sign in to matcherino.com as that account, open
@@ -229,8 +230,9 @@ database and never writes to Matcherino.
 - A parse that raises `MatcherinoAPIError` with "the API shape may have
   changed" means a field we rely on moved. Capture a new HAR of the venue's
   Tickets page and compare it with the tables above.
-- "Matcherino refused the stored login (`MATCHERINO_REFRESH_TOKEN`)" means the
-  refresh token was revoked. Get a new one (see above) and redeploy.
+- "Matcherino refused the saved Matcherino login (Admin → Check-in)" means the
+  refresh token was revoked or expired. Get a new one (see above) and paste it
+  on Admin → Check-in; no redeploy needed.
 - "must be an admin of this venue" means the account behind the token lost
   admin on that venue. Add it back as an admin on Matcherino.
 - "counts N badges sold but listed M" means the purchase list came back

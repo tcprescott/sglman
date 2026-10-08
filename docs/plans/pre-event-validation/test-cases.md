@@ -396,7 +396,7 @@ protection is deliberately off because `Host` and TLS terminate at the proxy.
 them connects.
 
 ### MC1 · Real venue syncs — S2, cause A
-With `MATCHERINO_REFRESH_TOKEN` set for an account that administers the venue,
+With a Matcherino login saved on Admin → Check-in for an account that administers the venue,
 create a check-in event with the event's real Matcherino venue ID (the admin
 dialog's Look up should show its title and badge types), open it, and press Sync.
 **Pass:** the roster count matches the venue's badge holders on Matcherino's
@@ -409,7 +409,7 @@ Leave the event open through several worker cycles.
 and someone whose only badge is refunded shows as Refunded on the next poll.
 
 ### MC3 · Matcherino unreachable or changed — S2, cause A
-Block api.matcherino.com, or unset `MATCHERINO_REFRESH_TOKEN` and restart.
+Block api.matcherino.com, or remove the saved Matcherino login on Admin → Check-in.
 **Pass:** the desk header says the sync failed and when; the roster is untouched;
 check-in, linking and walk-ups keep working; the next good sync clears the error.
 

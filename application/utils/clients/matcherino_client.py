@@ -32,9 +32,10 @@ Each buyer carries the account they signed in to Matcherino with
 and for ``twitch`` it is the Twitch user id, which is what makes most matches
 exact.
 
-The stored login is ``MATCHERINO_REFRESH_TOKEN``: a refresh token for a
-Matcherino account that is an admin of the venues being synced.
-``MOCK_MATCHERINO`` swaps in :class:`MockMatcherinoClient`, which serves canned
+The login is per community: a refresh token for a Matcherino account that is
+an admin of the venues being synced, which staff paste on Admin → Check-in
+(``MatcherinoLogin``) and the check-in service passes in when it builds a
+client. ``MOCK_MATCHERINO`` swaps in :class:`MockMatcherinoClient`, which serves canned
 sales so local dev and the browser loop never call Matcherino. Like the other
 mock flags it refuses to run under ``ENVIRONMENT=production``.
 """
@@ -42,13 +43,15 @@ mock flags it refuses to run under ``ENVIRONMENT=production``.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import copy
+import hashlib
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -60,7 +63,8 @@ PURCHASES_URL = f'{MATCHERINO_API}/venues/admin/purchaseData'
 TIERS_URL = f'{MATCHERINO_API}/venues/pass/listPrivate'
 VENUE_URL = f'{MATCHERINO_API}/bounties/findById'
 
-LOGIN_ENV_VAR = 'MATCHERINO_REFRESH_TOKEN'
+LOGIN_SETTING = 'the saved Matcherino login (Admin → Check-in)'
+MAX_REFRESH_TOKEN_LENGTH = 512
 REQUEST_TIMEOUT_SECONDS = 20
 # Re-mint the access token this long before Matcherino says it expires, so a
 # sync never starts with a token that dies halfway through.
@@ -261,24 +265,53 @@ def _unwrap(payload: Any, what: str) -> Any:
     return payload['body']
 
 
-# The access token is one platform-wide credential, not per-user state, so it is
-# cached for the whole process. The lock stops two syncs minting at once.
-_token: Dict[str, Any] = {'value': None, 'expires_at': 0.0}
-_token_lock = asyncio.Lock()
+# Access tokens are cached per login for the whole process, keyed by a hash of
+# the refresh token so that replacing a community's login misses the cache and
+# two communities never share a token. The lock stops two syncs on the same
+# login minting at once.
+_tokens: Dict[str, Tuple[str, float]] = {}
+_token_locks: Dict[str, asyncio.Lock] = {}
 
 
 def reset_token_cache() -> None:
-    _token['value'] = None
-    _token['expires_at'] = 0.0
+    _tokens.clear()
 
 
-def _refresh_token() -> str:
-    value = (os.environ.get(LOGIN_ENV_VAR) or '').strip()
-    if not value:
-        raise MatcherinoAuthError(
-            f'Matcherino ticket sync isn\'t set up: {LOGIN_ENV_VAR} is not configured.'
-        )
-    return value
+def _cache_key(refresh_token: str) -> str:
+    return hashlib.sha256(refresh_token.encode()).hexdigest()
+
+
+def normalize_refresh_token(text: Optional[str]) -> str:
+    """The refresh token from what staff pasted, or ``''`` when there is none.
+
+    Takes the bare token, or the whole ``{"appName": "WEB", "refreshToken": …}``
+    request payload copied from DevTools, since that is what the steps show.
+    """
+    value = (text or '').strip()
+    if value.startswith('{'):
+        try:
+            payload = json.loads(value)
+        except ValueError:
+            return value
+        if isinstance(payload, dict):
+            return _opt_str(payload.get('refreshToken')) or ''
+    return value.strip('"\' ')
+
+
+def account_id_from_access_token(token: str) -> Optional[str]:
+    """The Matcherino user id in an access token's ``sub``, unverified.
+
+    Only for showing staff whose login is saved; nothing is authorized on it.
+    """
+    parts = token.split('.')
+    if len(parts) != 3:
+        return None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (-len(parts[1]) % 4)))
+    except (ValueError, binascii.Error):
+        return None
+    sub = payload.get('sub') if isinstance(payload, dict) else None
+    return _opt_str(sub)
 
 
 def _is_auth_failure(resp: httpx.Response, payload: Any) -> bool:
@@ -287,7 +320,23 @@ def _is_auth_failure(resp: httpx.Response, payload: Any) -> bool:
 
 
 class MatcherinoClient:
-    """Async client for the Matcherino endpoints check-in uses."""
+    """Async client for the Matcherino endpoints check-in uses.
+
+    ``refresh_token`` is the community's saved login. Without one, the public
+    venue lookup still works and anything that needs a venue admin raises
+    :class:`MatcherinoAuthError` before calling Matcherino.
+    """
+
+    def __init__(self, refresh_token: Optional[str] = None) -> None:
+        self._refresh = (refresh_token or '').strip() or None
+
+    def _refresh_token(self) -> str:
+        if self._refresh is None:
+            raise MatcherinoAuthError(
+                "Matcherino ticket sync isn't set up: no Matcherino login is saved. "
+                'Add one on Admin → Check-in.'
+            )
+        return self._refresh
 
     def _session(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
@@ -322,16 +371,20 @@ class MatcherinoClient:
         return resp, payload
 
     async def _access_token(self, client: httpx.AsyncClient, *, force: bool = False) -> str:
-        async with _token_lock:
-            if not force and _token['value'] and time.time() < _token['expires_at']:
-                return _token['value']
+        refresh = self._refresh_token()
+        key = _cache_key(refresh)
+        async with _token_locks.setdefault(key, asyncio.Lock()):
+            cached = _tokens.get(key)
+            if not force and cached is not None and time.time() < cached[1]:
+                return cached[0]
             resp, payload = await self._send(
-                client, 'POST', TOKEN_URL, body={'appName': 'WEB', 'refreshToken': _refresh_token()},
+                client, 'POST', TOKEN_URL, body={'appName': 'WEB', 'refreshToken': refresh},
             )
             if _is_auth_failure(resp, payload) or resp.status_code >= 400:
+                _tokens.pop(key, None)
                 raise MatcherinoAuthError(
-                    f'Matcherino refused the stored login ({LOGIN_ENV_VAR}). Sign in to '
-                    'Matcherino as a venue admin and update it.'
+                    f'Matcherino refused {LOGIN_SETTING}. Sign in to Matcherino as a '
+                    'venue admin and paste a fresh refresh token there.'
                 )
             body = _unwrap(payload, 'sign-in')
             token = _opt_str(body.get('accessToken')) if isinstance(body, dict) else None
@@ -339,9 +392,18 @@ class MatcherinoClient:
                 raise MatcherinoAPIError('Matcherino sign-in returned no access token.')
             expires_in = body.get('expiresIn')
             lifetime = expires_in if isinstance(expires_in, int) and expires_in > 0 else 3600
-            _token['value'] = token
-            _token['expires_at'] = time.time() + max(lifetime - TOKEN_EXPIRY_MARGIN_SECONDS, 60)
+            _tokens[key] = (token, time.time() + max(lifetime - TOKEN_EXPIRY_MARGIN_SECONDS, 60))
             return token
+
+    async def verify_login(self) -> Optional[str]:
+        """Sign in with the refresh token now; return the account id it belongs to.
+
+        Always mints rather than trusting the cache, so a token is checked
+        against Matcherino at the moment staff save it.
+        """
+        async with self._session() as client:
+            token = await self._access_token(client, force=True)
+        return account_id_from_access_token(token)
 
     async def _call(
         self, client: httpx.AsyncClient, method: str, url: str, what: str, *,
@@ -358,7 +420,7 @@ class MatcherinoClient:
             if _is_auth_failure(resp, payload):
                 raise MatcherinoAuthError(
                     f'Matcherino refused the {what} request. The account behind '
-                    f'{LOGIN_ENV_VAR} must be an admin of this venue.'
+                    f'{LOGIN_SETTING} must be an admin of this venue.'
                 )
         result = _unwrap(payload, what)
         if resp.status_code >= 400:
@@ -433,12 +495,16 @@ class MockMatcherinoClient(MatcherinoClient):
         tiers: Optional[List[Dict[str, Any]]] = None,
         title: str = 'Mock Matcherino Venue',
     ) -> None:
+        super().__init__()
         self._purchases = purchases if purchases is not None else MOCK_PURCHASES
         self._tiers = tiers if tiers is not None else MOCK_TIERS
         self._title = title
 
     async def fetch_venue(self, venue_id: int) -> MatcherinoVenue:
         return MatcherinoVenue(id=venue_id, title=self._title)
+
+    async def verify_login(self) -> Optional[str]:
+        return MOCK_LOGIN_ACCOUNT_ID
 
     async def fetch_tiers(self, venue_id: int) -> List[MatcherinoTier]:
         return [parse_tier(copy.deepcopy(raw)) for raw in self._tiers]
@@ -452,11 +518,11 @@ class MockMatcherinoClient(MatcherinoClient):
         )
 
 
-def get_matcherino_client() -> MatcherinoClient:
-    """Return the live or mock client per ``MOCK_MATCHERINO``."""
+def get_matcherino_client(refresh_token: Optional[str] = None) -> MatcherinoClient:
+    """Return the live client signed in with ``refresh_token``, or the mock per ``MOCK_MATCHERINO``."""
     if is_mock_matcherino():
         return MockMatcherinoClient()
-    return MatcherinoClient()
+    return MatcherinoClient(refresh_token)
 
 
 def mock_tier(pass_id: int, title: str, amount_cents: int, *, role: str = 'player',
@@ -523,6 +589,8 @@ def mock_purchase(
 MOCK_DISCORD_RACER_ID = '100000000073811948'
 MOCK_TWITCH_RACER_ID = '555000222'
 MOCK_REMEMBERED_ID = 900005
+# The account a saved login reports under MOCK_MATCHERINO, whatever was pasted.
+MOCK_LOGIN_ACCOUNT_ID = '900000'
 
 MOCK_TIERS: List[Dict[str, Any]] = [
     mock_tier(1988, 'Base Tier Badge', 8000, qty_sold=6),

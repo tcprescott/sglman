@@ -11,7 +11,7 @@ from application.repositories import CheckInPassRepository, CheckInTierRepositor
 from application.services.check_in_service import CheckInService
 from application.tenant_context import tenant_scope
 from application.utils.clients.matcherino_client import MockMatcherinoClient, mock_purchase, mock_tier
-from models import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, Role, UserRole
+from models import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, MatcherinoLogin, Role, UserRole
 from tests.factories import make_user
 
 VENUE = 182105
@@ -74,7 +74,14 @@ async def test_the_worker_scan_is_cross_tenant_but_each_sync_stays_home(two_tena
     staff = await make_user(discord_id=810, username='s')
     for tenant in (a, b):
         await UserRole.create(user=staff, role=Role.STAFF, tenant=tenant)
-    monkeypatch.setattr('application.services.check_in_service.get_matcherino_client', _client)
+        await MatcherinoLogin.create(tenant=tenant, refresh_token=f'login-{tenant.slug}')
+    signed_in_as = []
+
+    def _client_for(refresh_token):
+        signed_in_as.append(refresh_token)
+        return _client()
+
+    monkeypatch.setattr('application.services.check_in_service.get_matcherino_client', _client_for)
     service = CheckInService()
     for tenant in (a, b):
         with tenant_scope(tenant.id):
@@ -83,6 +90,8 @@ async def test_the_worker_scan_is_cross_tenant_but_each_sync_stays_home(two_tena
 
     await check_in_sync_worker._tick()
 
+    # One service serves both tenants; each sync must still sign in as its own community.
+    assert sorted(signed_in_as) == sorted(f'login-{t.slug}' for t in (a, b))
     for tenant in (a, b):
         rows = await CheckInEntrant.filter(tenant_id=tenant.id).prefetch_related('event')
         assert len(rows) == 1
@@ -90,3 +99,23 @@ async def test_the_worker_scan_is_cross_tenant_but_each_sync_stays_home(two_tena
         badges = await CheckInPass.filter(tenant_id=tenant.id).prefetch_related('tier', 'event')
         assert len(badges) == 1
         assert badges[0].tier.tenant_id == badges[0].event.tenant_id == tenant.id
+
+
+async def test_each_community_resolves_only_its_own_matcherino_login(two_tenants):
+    from application.services.matcherino_login_service import MatcherinoLoginService
+
+    a, b = two_tenants
+    await MatcherinoLogin.create(tenant=a, refresh_token='tenant-a-login', matcherino_user_id='1')
+    staff = await make_user(discord_id=820, username='s2')
+    for tenant in (a, b):
+        await UserRole.create(user=staff, role=Role.STAFF, tenant=tenant)
+    service = MatcherinoLoginService()
+
+    with tenant_scope(a.id):
+        assert await service.resolve() == 'tenant-a-login'
+        assert (await service.status(staff)).configured
+    with tenant_scope(b.id):
+        assert await service.resolve() is None
+        assert not (await service.status(staff)).configured
+        await service.clear_login(staff)
+    assert await MatcherinoLogin.filter(tenant_id=a.id).count() == 1

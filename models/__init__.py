@@ -32,7 +32,7 @@ from .challonge import (
     ChallongeMatch,
     ChallongeParticipant,
 )
-from .check_in import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier
+from .check_in import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, MatcherinoLogin
 from .column_guards import FieldValueError, install_column_guards
 from .discord_events import DiscordScheduledEvent
 from .enums import (
@@ -215,6 +215,7 @@ __all__ = [
     'MatchRescheduleRequest',
     'MatchStreamVolunteer',
     'MatchWatcher',
+    'MatcherinoLogin',
     # mcp oauth
     'McpAuthorizationCode',
     'McpOAuthClient',

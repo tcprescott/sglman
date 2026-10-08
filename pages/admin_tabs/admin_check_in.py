@@ -3,11 +3,15 @@
 Each event names a Matcherino venue whose badge sales become the desk's
 roster. Opening an event puts it on the desk and starts the background sync;
 the desk itself lives at ``/checkin``.
+
+The Matcherino login card above the events holds the refresh token the sync
+signs in with. It is **write-only**: the saved token is never rendered back,
+only whose account it is and when it was saved.
 """
 
 from nicegui import background_tasks, context, ui
 
-from application.services import CheckInService
+from application.services import CheckInService, MatcherinoLoginService
 from application.utils.timezone import format_local_display
 from models import CheckInEventStatus
 from theme.connection import REQUIRES_SOCKET_CLASS
@@ -64,6 +68,97 @@ def _synced_text(event) -> str:
     return f'{format_local_display(event.last_synced_at)} · {event.last_sync_count or 0} with badges'
 
 
+_LOGIN_STEPS = (
+    'Sign in to matcherino.com as an account that is an admin of your venue.',
+    'Open DevTools (F12), switch to the Network tab and reload the page.',
+    'Select the "token" request to api.matcherino.com, open its Payload, and copy '
+    'refreshToken. Pasting the whole payload works too.',
+)
+
+
+async def _matcherino_login_card() -> None:
+    service = MatcherinoLoginService()
+
+    async def save(token_input, client) -> None:
+        with client:
+            actor = await current_actor()
+            if actor is None:
+                return
+            try:
+                status = await service.set_login(actor, token_input.value)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            token_input.value = ''
+            account = f' as account #{status.matcherino_user_id}' if status.matcherino_user_id else ''
+            ui.notify(f'Matcherino accepted the token. Ticket sync now signs in{account}.',
+                      color='positive')
+            login_section.refresh()
+
+    async def remove(client) -> None:
+        with client:
+            actor = await current_actor()
+
+            async def do_remove() -> None:
+                try:
+                    await service.clear_login(actor)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify('Matcherino login removed.', color='positive')
+                login_section.refresh()
+
+            ConfirmationDialog(
+                message="Remove the saved Matcherino login? Ticket sync stops until someone adds a new one.",
+                on_confirm=do_remove, confirm_text='Remove',
+            ).open()
+
+    @ui.refreshable
+    async def login_section() -> None:
+        try:
+            status = await service.status(await current_actor())
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        with ui.card().classes('w-full'):
+            ui.label('Matcherino login').classes('text-subtitle2 text-bold')
+            if status.configured:
+                account = (f'Matcherino account #{status.matcherino_user_id}'
+                           if status.matcherino_user_id else 'A Matcherino account')
+                saved = format_local_display(status.updated_at) if status.updated_at else 'an unknown time'
+                by = f' by {status.updated_by}' if status.updated_by else ''
+                ui.label(f'{account} · saved {saved}{by}').classes('text-caption text-positive')
+            else:
+                ui.label(
+                    "Not set. Ticket sync can't read your venue's badge sales until you add one."
+                ).classes('text-caption text-warning')
+            with ui.row().classes('items-center w-full no-wrap'):
+                token_input = ui.input('Refresh token').props(
+                    'type=password autocomplete=off dense outlined'
+                ).classes('flex-grow')
+                if status.configured:
+                    token_input.props('hint="Saving a new token replaces the one stored"')
+                ui.button(
+                    'Save', icon='save',
+                    on_click=lambda: background_tasks.create(save(token_input, context.client)),
+                ).props('color=primary dense').classes(REQUIRES_SOCKET_CLASS)
+                if status.configured:
+                    ui.button(
+                        'Remove', icon='delete',
+                        on_click=lambda: background_tasks.create(remove(context.client)),
+                    ).props('flat color=negative dense').classes(REQUIRES_SOCKET_CLASS)
+            with ui.expansion('Where do I get one?').classes('w-full text-caption'):
+                for number, step in enumerate(_LOGIN_STEPS, start=1):
+                    ui.label(f'{number}. {step}').classes('text-caption')
+                ui.label(
+                    "Treat it like a password: whoever holds it is that Matcherino account. "
+                    "When Matcherino stops accepting it, the desk shows the sync failing; "
+                    "paste a fresh one here."
+                ).classes('text-caption text-grey-7')
+
+    await login_section()
+
+
 async def admin_check_in_page() -> None:
     service = CheckInService()
 
@@ -75,6 +170,8 @@ async def admin_check_in_page() -> None:
             'event to put it on the check-in desk; the desk syncs on its own while it is open.'
         ).classes('text-caption text-grey-7')
         ui.separator().classes('separator-spacing')
+
+        await _matcherino_login_card()
 
         with ui.row().classes('full-width items-center'):
             async def add_event() -> None:

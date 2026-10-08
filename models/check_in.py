@@ -194,3 +194,35 @@ class CheckInPass(Model):
         table = 'checkinpass'
         unique_together = (('event', 'matcherino_purchase_id'),)
         indexes = (('event', 'code'),)
+
+
+class MatcherinoLogin(Model):
+    """The Matcherino account a community's check-in sync signs in as.
+
+    One per tenant. ``refresh_token`` is the long-lived token Matcherino's web
+    app keeps; the client trades it for a day-long access token on each use.
+    It is stored in plaintext (like ``RandomizerCredential.value``) and is
+    **privileged**: ``MatcherinoLoginService`` hands it only to the check-in
+    sync, never to a page, and never writes it into an audit entry.
+    ``matcherino_user_id`` is the account the token signed in as when it was
+    saved, so staff can see whose login it is without seeing the secret.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='matcherino_logins', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
+    refresh_token = fields.TextField()
+    matcherino_user_id = fields.CharField(max_length=64, null=True)
+    # SET_NULL: the login outlives whoever pasted it; the audit row keeps who.
+    updated_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.User', related_name='matcherino_logins_updated', null=True, on_delete=fields.SET_NULL,
+    )
+    updated_by_id: Optional[int]
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'matcherinologin'
+        unique_together = (('tenant',),)

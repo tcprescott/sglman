@@ -1,5 +1,6 @@
 """The Matcherino client's reading of the live venue wire shape, served through MockTransport."""
 
+import base64
 import json
 
 import httpx
@@ -33,15 +34,14 @@ TIER = mock_tier(1988, 'Base Tier Badge', 8000, qty_sold=1)
 
 
 @pytest.fixture(autouse=True)
-def stored_login(monkeypatch):
-    monkeypatch.setenv(mc.LOGIN_ENV_VAR, REFRESH)
+def fresh_token_cache():
     mc.reset_token_cache()
     yield
     mc.reset_token_cache()
 
 
-def _client(monkeypatch, handler) -> MatcherinoClient:
-    client = MatcherinoClient()
+def _client(monkeypatch, handler, refresh_token=REFRESH) -> MatcherinoClient:
+    client = MatcherinoClient(refresh_token)
     monkeypatch.setattr(
         client, '_session',
         lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
@@ -178,22 +178,72 @@ async def test_a_refused_login_names_the_setting_but_not_the_secret(monkeypatch)
     def handler(request):
         return httpx.Response(401, json={'status': 401, 'error': {'message': 'bad refresh token'}})
 
-    with pytest.raises(MatcherinoAuthError, match=mc.LOGIN_ENV_VAR) as caught:
+    with pytest.raises(MatcherinoAuthError, match='Admin → Check-in') as caught:
         await _client(monkeypatch, handler).fetch_tiers(1)
     assert REFRESH not in str(caught.value)
 
 
 async def test_no_stored_login_fails_before_calling_matcherino(monkeypatch):
-    monkeypatch.delenv(mc.LOGIN_ENV_VAR)
     calls = []
 
     def handler(request):
         calls.append(request)
         return _ok({})
 
-    with pytest.raises(MatcherinoAuthError, match='not configured'):
-        await _client(monkeypatch, handler).fetch_sales(1)
+    with pytest.raises(MatcherinoAuthError, match='no Matcherino login is saved'):
+        await _client(monkeypatch, handler, refresh_token=None).fetch_sales(1)
     assert calls == []
+
+
+async def test_each_login_mints_and_caches_its_own_token(monkeypatch):
+    minted = []
+
+    def handler(request):
+        if request.url.path.endswith('/auth/token'):
+            refresh = json.loads(request.content)['refreshToken']
+            minted.append(refresh)
+            return _ok({'accessToken': f'access-for-{refresh}', 'expiresIn': 86400})
+        return _ok([])
+
+    for refresh in ('login-a', 'login-b', 'login-a'):
+        await _client(monkeypatch, handler, refresh_token=refresh).fetch_tiers(1)
+
+    assert minted == ['login-a', 'login-b']
+
+
+def _jwt(payload: dict) -> str:
+    body = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+    return f'eyJhbGciOiJIUzI1NiJ9.{body}.sig'
+
+
+async def test_verifying_a_login_always_signs_in_and_reports_the_account(monkeypatch):
+    minted = []
+
+    def handler(request):
+        minted.append(request)
+        return _ok({'accessToken': _jwt({'sub': 4321, 'exp': 1}), 'expiresIn': 86400})
+
+    client = _client(monkeypatch, handler)
+    assert await client.verify_login() == '4321'
+    assert await client.verify_login() == '4321'
+    assert len(minted) == 2
+
+
+@pytest.mark.parametrize('pasted, expected', [
+    ('  3f1c-uuid  ', '3f1c-uuid'),
+    ('"3f1c-uuid"', '3f1c-uuid'),
+    ('{"appName":"WEB","refreshToken":"3f1c-uuid"}', '3f1c-uuid'),
+    ('{"appName":"WEB"}', ''),
+    ('', ''),
+    (None, ''),
+])
+def test_a_pasted_token_or_request_payload_is_normalized(pasted, expected):
+    assert mc.normalize_refresh_token(pasted) == expected
+
+
+@pytest.mark.parametrize('token', ['not-a-jwt', 'a.!!!.c', _jwt({'exp': 1})])
+def test_an_access_token_without_a_readable_sub_has_no_account(token):
+    assert mc.account_id_from_access_token(token) is None
 
 
 async def test_a_short_read_is_an_error_not_fewer_buyers(monkeypatch):
