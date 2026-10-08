@@ -32,7 +32,7 @@ user.
 
 from typing import Callable, Dict, List, Literal, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from api._match_view import load_match_response
 from api.schemas.match_actions import SeedResultResponse
@@ -419,7 +419,7 @@ async def unwatch_match(
     )
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     def write_tool(fn: Callable, title: str, *, destructive: bool = False) -> None:
         """Every tool in this module, registered the same way.
 

@@ -81,7 +81,7 @@ consent screen from being decoration.
 - `/.well-known/oauth-authorization-server` — RFC 8414, from the MCP SDK.
 
 Both are served at the **origin root** and need no credential. The SDK's helper
-would register them inside the FastMCP sub-app, where no client looks, so
+would register them inside the MCPServer sub-app, where no client looks, so
 `mcpserver/wellknown.py` registers them on the outer app instead.
 
 ### Consent
@@ -459,7 +459,7 @@ Two more, elsewhere:
 - **`mcpserver.mount(app)` must run before `frontend.init(app)`** in `main.py`.
   NiceGUI mounts itself at `/` and would swallow `/mcp`.
 
-`FastMCP.__init__` calls `logging.basicConfig`, so the server is built inside
+`MCPServer.__init__` calls `logging.basicConfig`, so the server is built inside
 `mount()` rather than at import time — otherwise it wins the race against
 `main.py`'s own logging setup and strips the format process-wide.
 

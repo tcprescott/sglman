@@ -8,7 +8,7 @@ instead of discovering each refusal one round-trip at a time.
 
 from typing import List
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.services import AuthService, FeatureFlagService
 from application.services.tenant_service import TenantService
@@ -82,6 +82,6 @@ async def whoami() -> WhoAmI:
     )
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_tenants, gate=Gate.GLOBAL, title='List communities')
     register(mcp, whoami, gate=Gate.GLOBAL, title='Who am I')

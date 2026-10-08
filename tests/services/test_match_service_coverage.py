@@ -247,7 +247,7 @@ class TestAssignStations:
         player = await make_player()
         mp = await MatchPlayers.create(match=match, user=player)
 
-        with pytest.raises(ValueError, match="racetime.gg"):
+        with pytest.raises(ValueError, match=r"racetime\.gg"):
             await service.assign_stations(match_id=match.id, assignments={mp.id: "5"}, actor=actor)
 
         assert (await MatchPlayers.get(id=mp.id)).assigned_station is None

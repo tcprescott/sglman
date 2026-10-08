@@ -139,7 +139,7 @@ class RunReviewMixin:
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def claim_run(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
         """Take the review lock on a run, so two reviewers don't both work it."""
-        run, qualifier, reviewer = await self._require_reviewable(actor, run_id)
+        run, _qualifier, reviewer = await self._require_reviewable(actor, run_id)
         await self._ensure_claim_free(run, reviewer)
         run = await self.run_repository.update(
             run, review_claimed_by_id=reviewer.id, review_claimed_at=datetime.now(timezone.utc)
@@ -155,7 +155,7 @@ class RunReviewMixin:
         undo is a lock nobody can undo. The worker sweep is the backstop, not the
         only way out.
         """
-        run, qualifier, reviewer = await self._require_reviewable(actor, run_id)
+        run, _qualifier, _reviewer = await self._require_reviewable(actor, run_id)
         run = await self.run_repository.update(
             run, review_claimed_by_id=None, review_claimed_at=None
         )
@@ -187,7 +187,7 @@ class RunReviewMixin:
           written inside the same transaction, so a losing verdict leaves nothing
           behind — no note, no DM, no half-applied outcome.
         """
-        run, qualifier, reviewer = await self._require_reviewable(actor, run_id)
+        run, _qualifier, reviewer = await self._require_reviewable(actor, run_id)
         if run.user_id == reviewer.id:
             raise ValueError("You cannot review your own run")
         if run.status != AsyncQualifierRunStatus.FINISHED:

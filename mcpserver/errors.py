@@ -14,7 +14,7 @@ can recover. Only transport and authentication failures are HTTP-level.
 import logging
 from typing import Optional
 
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 
 from application.errors import NotFoundError
 

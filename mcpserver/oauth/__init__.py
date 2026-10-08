@@ -8,7 +8,7 @@ The routes come from the SDK's ``create_auth_routes`` — authorize, token,
 register (RFC 7591), revoke, and the RFC 8414 metadata — so PKCE and the grant
 mechanics are the SDK's well-tested implementation rather than ours. They are
 appended to the *outer* app so they land at the origin root; mounted under the
-FastMCP sub-app they would sit beneath ``/mcp`` where no client looks.
+MCPServer sub-app they would sit beneath ``/mcp`` where no client looks.
 """
 
 import logging

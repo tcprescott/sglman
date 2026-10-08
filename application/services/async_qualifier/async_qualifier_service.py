@@ -398,7 +398,7 @@ class AsyncQualifierService(
         runner's mistake. Deliberately does not check the window either — a
         reviewer may need to void a run after the qualifier closes.
         """
-        run, qualifier, reviewer = await self._require_reviewable(
+        run, _qualifier, _reviewer = await self._require_reviewable(
             actor, run_id, message="Cannot grant a reattempt in this qualifier",
         )
         reason = (reason or '').strip()

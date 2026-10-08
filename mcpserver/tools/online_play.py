@@ -13,7 +13,7 @@ its service read has no gate of its own, so the router's is the only one.
 
 from typing import List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from application.errors import require_found
 from application.services import (
@@ -232,7 +232,7 @@ async def list_triforce_texts(
     ]
 
 
-def register_tools(mcp: FastMCP) -> None:
+def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_presets, gate=Gate.ACTOR, title='List presets')
     register(mcp, get_preset, gate=Gate.ACTOR, title='Get preset')
     register(mcp, list_randomizers, gate=Gate.ACTOR, title='List randomizers')

@@ -2,7 +2,7 @@
 
 Registered on the *outer* FastAPI app rather than through the SDK's
 ``create_protected_resource_routes``: that helper mounts the route inside the
-FastMCP sub-app, which would serve the document at ``/mcp/.well-known/...``.
+MCPServer sub-app, which would serve the document at ``/mcp/.well-known/...``.
 RFC 9728 §3.1 requires it at the origin root, and a client that cannot find it
 there has no way to discover the authorization server.
 

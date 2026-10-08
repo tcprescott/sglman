@@ -103,9 +103,18 @@ class TestTransport:
             resp = await client.put('/mcp', headers=auth(raw), json={})
         assert resp.status_code in (404, 405)
 
-    async def test_missing_accept_header_is_406(self, db):
+    async def test_unacceptable_accept_header_is_406(self, db):
+        """A client that cannot take JSON is refused.
+
+        Not a *missing* header: httpx then sends ``Accept: */*``, which the
+        transport rightly treats as accepting JSON.
+        """
         _, raw = await create_oauth_token()
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {raw}'}
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/html',
+            'Authorization': f'Bearer {raw}',
+        }
         async with mcp_session() as client:
             resp = await client.post(
                 '/mcp', headers=headers,

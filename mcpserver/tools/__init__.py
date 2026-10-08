@@ -9,7 +9,7 @@ decides its annotation, its gate and whether a read-only connection is even
 shown it, so it is the property the layout should make obvious.
 """
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from mcpserver.tools import (
     analytics,
@@ -26,7 +26,7 @@ from mcpserver.tools import (
 )
 
 
-def register_all(mcp: FastMCP) -> None:
+def register_all(mcp: MCPServer) -> None:
     """Register every tool module onto the server."""
     orientation.register_tools(mcp)
     tournaments.register_tools(mcp)
