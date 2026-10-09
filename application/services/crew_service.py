@@ -349,6 +349,68 @@ class CrewService:
 
         return crew_member
 
+    async def announce_admin_assignment(
+        self,
+        crew_member: Union[Commentator, Tracker],
+        crew_type: str,
+        actor: User,
+    ) -> None:
+        """Treat a crew row an admin created already-approved as an approval.
+
+        Assigning crew from the match dialog writes the row with
+        ``approved=True`` and never passes through :meth:`update_crew_approval`,
+        so the ``crew.approval_changed`` event and the acknowledgment DM that
+        approving a signup sends were both skipped. The assignee was left with
+        no way to learn they were on the crew short of reading the schedule.
+        """
+        await crew_member.fetch_related('match', 'user', 'match__stage')
+        await self.audit_service.write_and_publish(
+            actor,
+            AuditActions.CREW_APPROVAL_CHANGED,
+            {
+                'crew_type': crew_type,
+                'crew_id': crew_member.id,
+                'match_id': crew_member.match.id,
+                'approved': True,
+                'assigned': True,
+            },
+            EventType.CREW_APPROVAL_CHANGED,
+            event_details={
+                'match_id': crew_member.match.id, 'crew_type': crew_type,
+                'user_id': crew_member.user.id, 'approved': True,
+            },
+        )
+        await self._request_crew_acknowledgment(crew_member, crew_type)
+
+    async def announce_admin_removal(
+        self,
+        crew_member: Union[Commentator, Tracker],
+        crew_type: str,
+        actor: User,
+    ) -> None:
+        """The removal counterpart of :meth:`announce_admin_assignment`.
+
+        ``crew_member`` is already deleted; its loaded fields are all that's
+        left. An approved crew member dropped from the match dialog hears the
+        same "you're off the crew" DM as one whose approval was withdrawn.
+        """
+        await crew_member.fetch_related('match', 'user', 'match__stage')
+        was_approved = bool(crew_member.approved)
+        await self.audit_service.write_and_publish(
+            actor,
+            AuditActions.CREW_SIGNUP_REMOVED,
+            {
+                'match_id': crew_member.match.id,
+                'role': crew_type,
+                'was_approved': was_approved,
+                'removed_by_admin': True,
+            },
+            EventType.CREW_SIGNUP_REMOVED,
+            event_extra={'user_id': crew_member.user.id},
+        )
+        if was_approved:
+            await self._notify_crew_approval_withdrawn(crew_member, crew_type)
+
     async def approve_crew_member(
         self,
         crew_member: Union[Commentator, Tracker],

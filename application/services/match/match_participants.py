@@ -8,7 +8,7 @@ per-player acknowledgment rows. It performs no audit writes and publishes no
 events — those stay with the service methods that call it.
 """
 
-from typing import List
+from typing import Any, List, Optional, Tuple
 
 from application.errors import require_found
 from application.repositories import (
@@ -93,8 +93,15 @@ class MatchParticipants:
                 if user:
                     await self.match_repository.remove_player(match, user)
 
-    async def sync_crew(self, match: Match, new_ids: List[int], repository) -> None:
-        """Sync a match's crew (commentators or trackers) to the given user-id list."""
+    async def sync_crew(
+        self, match: Match, new_ids: List[int], repository, actor: Optional[User] = None,
+    ) -> Tuple[List[Any], List[Any]]:
+        """Sync a match's crew (commentators or trackers) to the given user-id list.
+
+        Returns ``(created, removed)`` rows so the caller can announce both: an
+        admin assigning crew is an approval, and dropping someone is a removal,
+        and each owes the same event and DM as its self-service counterpart.
+        """
         existing = await repository.get_by_match(match)
         existing_map = {c.user_id: c for c in existing}
         existing_ids = set(existing_map.keys())
@@ -102,12 +109,19 @@ class MatchParticipants:
 
         # Add new (resolve the added set in one query)
         to_add = new_ids_set - existing_ids
+        created = []
         if to_add:
             for user in await self.resolve_users(list(to_add)):
-                await repository.create(match=match, user=user, approved=True)
+                created.append(
+                    await repository.create(match=match, user=user, approved=True, approved_by=actor)
+                )
 
+        removed = []
         for uid in existing_ids - new_ids_set:
             await repository.delete(existing_map[uid])
+            removed.append(existing_map[uid])
+
+        return created, removed
 
     async def reconcile_acknowledgments(
         self, match: Match, player_ids: List[int],

@@ -34,6 +34,13 @@ Acknowledge button, and withdrawing approval sends a withdrawal notice — a
 withdrawal also clears `acknowledged_at`, so without it someone who confirmed
 they would cover a match is dropped from it silently.
 
+Crew an admin picks in the match create/edit dialog are written already approved
+(`approved_by` = the admin), and `MatchService` hands each new row to
+`CrewService.announce_admin_assignment`: the same `crew.approval_changed` event and
+Acknowledge DM as approving a signup. Dropping an approved crew member from that
+dialog goes through `announce_admin_removal`, which publishes
+`crew.signup_removed` and sends the withdrawal notice.
+
 ```python
 from application.services import CrewService
 
