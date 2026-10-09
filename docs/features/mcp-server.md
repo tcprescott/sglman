@@ -147,7 +147,10 @@ agree.
 
 The feature flag is checked **before** the role, matching `@protected_page`: a
 subsystem the community has not enabled is hidden from everyone, staff included,
-and answers `not_found` — a `forbidden` would confirm the feature exists.
+and answers `not_found` — a `forbidden` would confirm the feature exists. It runs
+*after* the membership floor, though: someone with no role in a community gets the
+floor's "No community" answer whatever tool they call, so a feature-gated tool
+can't be used to learn which slugs exist.
 
 **The read-only refusal is per tool, never per connection.** Read-only is the
 consent screen's default and most connections carry it, so the REST API's shape

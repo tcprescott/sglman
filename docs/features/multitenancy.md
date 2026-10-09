@@ -153,7 +153,8 @@ written (`UserService.grant_role`, `UserService.create_user`,
 no community, so the grant is guarded on the role rather than on whether a
 tenant happens to be in scope. `TenantMembershipService.remove_member` defends
 the invariant from the other side — it refuses to eject someone who still holds
-roles rather than cascading a revoke. `scripts/backfill_memberships.py` catches
+roles rather than cascading a revoke, and it revokes the person's API tokens
+for that community, which hold no role to refuse on. `scripts/backfill_memberships.py` catches
 up rows granted before the invariant existed.
 
 Every **per-community person list** joins through it —

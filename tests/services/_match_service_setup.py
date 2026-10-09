@@ -5,7 +5,7 @@ delete, results, enrolment) and ``test_match_write_coverage`` (create_match and
 update_match) were one module until it approached the 800-line guideline. Both
 build the same three rows to get to the thing under test.
 
-``make_player`` is a thin front for ``tests.factories.make_user``: it hands out
+``make_player`` is a thin front for ``tests.factories.make_member``: it hands out
 a fresh discord id per call — the tests never care which — and grants roles,
 which is what the permission gates need. It is deliberately not called
 ``make_user``; the shared factory owns that name.
@@ -14,13 +14,13 @@ which is what the permission gates need. It is deliberately not called
 import itertools
 
 from models import Role, Tournament, User, UserRole
-from tests.factories import make_user
+from tests.factories import make_member
 
 _discord_ids = itertools.count(9000)
 
 
 async def make_player(username="player", display_name=None, roles=None) -> User:
-    user = await make_user(
+    user = await make_member(
         discord_id=next(_discord_ids),
         username=username,
         display_name=display_name if display_name is not None else username,

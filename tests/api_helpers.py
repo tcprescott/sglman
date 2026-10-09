@@ -45,8 +45,13 @@ async def create_user_token(
     roles: Optional[Iterable[Role]] = None,
     read_only: bool = False,
     is_active: bool = True,
+    member: bool = False,
 ) -> Tuple[User, str]:
     """Create a user (optionally with global roles) and a token for them.
+
+    ``member=True`` also joins them to the ambient community, which roster
+    writes (match players and crew, shifts, bracket entrants) require of the
+    people they name.
 
     Returns (user, raw_token).
     """
@@ -61,12 +66,14 @@ async def create_user_token(
             await UserRole.create(user=user, role=role, tenant=None)
         else:
             await UserRole.create(user=user, role=role)
+    if member:
+        await TenantMembershipRepository.add(user, current_tenant_id())
     _, raw_token = await ApiTokenService().create_token(user, name='test', read_only=read_only)
     return user, raw_token
 
 
 async def create_community_member(
-    *, username: str = 'member', discord_id: Optional[int] = None,
+    *, username: str = 'member', discord_id: Optional[int] = None, **fields,
 ) -> User:
     """A user who belongs to the ambient tenant, like a real one does.
 
@@ -78,7 +85,7 @@ async def create_community_member(
     """
     if discord_id is None:
         discord_id = random.randint(1, 10 ** 12)
-    user = await User.create(discord_id=discord_id, username=username)
+    user = await User.create(discord_id=discord_id, username=username, **fields)
     await TenantMembershipRepository.add(user, current_tenant_id())
     return user
 

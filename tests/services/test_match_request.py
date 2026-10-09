@@ -24,6 +24,7 @@ from models import (
     User,
     UserRole,
 )
+from tests.factories import join_community
 
 _discord_ids = itertools.count(31000)
 
@@ -34,6 +35,7 @@ async def make_user(username="player", display_name=None, roles=None):
         username=username,
         display_name=display_name if display_name is not None else username,
     )
+    await join_community(user)
     for role in roles or []:
         await UserRole.create(user=user, role=role)
     return user

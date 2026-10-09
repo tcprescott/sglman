@@ -11,6 +11,7 @@ from application.repositories import StageRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
+from application.utils.safe_url import normalize_http_url
 from models import Stage, User
 
 
@@ -38,7 +39,7 @@ class StageService:
 
         stage = await self.repository.create(
             name=name.strip(),
-            stream_url=stream_url.strip() if stream_url else None,
+            stream_url=normalize_http_url(stream_url, 'The stream link'),
             is_active=is_active,
         )
 
@@ -70,7 +71,7 @@ class StageService:
         if name is not None:
             update_data['name'] = name.strip()
         if stream_url is not None:
-            update_data['stream_url'] = stream_url.strip() if stream_url else None
+            update_data['stream_url'] = normalize_http_url(stream_url, 'The stream link')
         if is_active is not None:
             update_data['is_active'] = is_active
 

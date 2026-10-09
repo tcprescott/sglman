@@ -33,6 +33,7 @@ from application.services._bracket.series import SeriesMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.bracket_config import validate_bracket_config
+from application.services.tenant_membership_service import TenantMembershipService
 from application.tenant_context import require_tenant_id
 from models import (
     Bracket,
@@ -438,6 +439,7 @@ class BracketService(
             # a raw FK IntegrityError (a 500, and an id oracle) rather than the
             # 404 every other user-referencing service raises.
             require_found(await UserRepository.get_by_id(user_id), f"User {user_id}")
+            await TenantMembershipService.require_community_users([user_id], actor)
 
         entrant = await self.repository.create_entrant(
             tournament_id=tournament_id,
@@ -480,6 +482,7 @@ class BracketService(
         entrant = require_found(await self.repository.get_entrant(entrant_id), "Entrant")
         if user_id is not None:
             require_found(await UserRepository.get_by_id(user_id), f"User {user_id}")
+            await TenantMembershipService.require_community_users([user_id], actor)
         entrant = await self.repository.update_entrant(entrant, user_id=user_id)
         await self.audit_service.write_and_publish(
             actor,

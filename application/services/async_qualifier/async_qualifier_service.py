@@ -51,6 +51,7 @@ from application.services.async_qualifier.async_qualifier_pools import PoolManag
 from application.services.async_qualifier.async_qualifier_reads import PlayerReadsMixin
 from application.services.async_qualifier.async_qualifier_review import RunReviewMixin
 from application.services.audit_service import AuditActions, AuditService
+from application.utils.safe_url import normalize_http_url
 from models import (
     AsyncQualifier,
     AsyncQualifierReviewStatus,
@@ -299,6 +300,7 @@ class AsyncQualifierService(
         self, user: User, run_id: int, *, elapsed_seconds: int, runner_vod_url: Optional[str] = None
     ) -> AsyncQualifierRun:
         run = await self._require_own_active_run(user, run_id)
+        vod_url = normalize_http_url(runner_vod_url, 'The VoD link')
         if elapsed_seconds is None or elapsed_seconds <= 0:
             raise ValueError("Finish time must be a positive number of seconds")
         if elapsed_seconds > MAX_RUN_SECONDS:
@@ -314,7 +316,7 @@ class AsyncQualifierService(
             finished_at=datetime.now(timezone.utc),
             elapsed_seconds=elapsed_seconds,
             measured_seconds=measured,
-            runner_vod_url=(runner_vod_url or '').strip() or None,
+            runner_vod_url=vod_url,
             review_status=AsyncQualifierReviewStatus.PENDING,
         )
         await self.audit_service.write_and_publish(

@@ -708,6 +708,13 @@ async def seed() -> None:
     from dotenv import load_dotenv
     load_dotenv()
 
+    from application.utils.environment import is_production
+    if is_production():
+        # The seed plants fixed, published bearer and room tokens for every
+        # tenant it creates; against a production database that is a staff
+        # credential anyone can read off GitHub.
+        raise SystemExit('Refusing to seed: ENVIRONMENT is production.')
+
     from migrations.tortoise_config import TORTOISE_ORM
 
     await Tortoise.init(config=TORTOISE_ORM)

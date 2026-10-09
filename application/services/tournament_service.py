@@ -26,6 +26,7 @@ from application.services.system_config_service import SystemConfigService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tournament_config import validate_tournament_config
 from application.tenant_context import require_tenant_id
+from application.utils.safe_url import normalize_http_url
 from models import Tournament, TournamentGrant, User
 
 __all__ = [
@@ -276,8 +277,8 @@ class TournamentService(TournamentSignupMixin):
             name=name.strip(),
             description=description.strip() if description else None,
             seed_generator=seed_generator,
-            bracket_url=bracket_url.strip() if bracket_url else None,
-            rules_url=rules_url.strip() if rules_url else None,
+            bracket_url=normalize_http_url(bracket_url, 'The bracket link'),
+            rules_url=normalize_http_url(rules_url, 'The rules link'),
             tournament_format=tournament_format.strip() if tournament_format else None,
             triforce_access_message=triforce_access_message.strip() if triforce_access_message else None,
             randomizer_notes=randomizer_notes.strip() if randomizer_notes else None,
@@ -367,9 +368,9 @@ class TournamentService(TournamentSignupMixin):
         if seed_generator is not None:
             update_data['seed_generator'] = seed_generator
         if bracket_url is not None:
-            update_data['bracket_url'] = bracket_url.strip() if bracket_url else None
+            update_data['bracket_url'] = normalize_http_url(bracket_url, 'The bracket link')
         if rules_url is not None:
-            update_data['rules_url'] = rules_url.strip() if rules_url else None
+            update_data['rules_url'] = normalize_http_url(rules_url, 'The rules link')
         if tournament_format is not None:
             update_data['tournament_format'] = tournament_format.strip() if tournament_format else None
         if triforce_access_message is not None:

@@ -8,7 +8,7 @@ tournament's enrolled players as entrants in one call.
 
 from models import Role, Tournament, TournamentPlayers
 from tests.api_helpers import client_for, create_user_token
-from tests.factories import make_user
+from tests.factories import make_member, make_user
 
 
 async def _staff_token(username='staff'):
@@ -59,7 +59,7 @@ class TestEntrantDrop:
         """The link is settable after creation — a placeholder can be resolved."""
         _, staff = await _staff_token()
         t = await _tournament()
-        player = await make_user(discord_id=71, username='linkme')
+        player = await make_member(discord_id=71, username='linkme')
         async with client_for(app, staff) as c:
             entrant = await self._entrant(c, t, name='Placeholder')
             assert entrant['user_id'] is None

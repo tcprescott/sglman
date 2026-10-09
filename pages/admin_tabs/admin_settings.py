@@ -5,6 +5,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import AuthService, StageService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
+from application.utils.safe_url import http_url_or_empty
 from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stage_edit_dialog import StageEditDialog
@@ -108,7 +109,7 @@ async def admin_stages_page() -> None:
                 {
                     'id': stage.id,
                     'name': stage.name,
-                    'stream_url': stage.stream_url or '',
+                    'stream_url': http_url_or_empty(stage.stream_url),
                     'is_active': stage.is_active,
                 }
                 for stage in stages

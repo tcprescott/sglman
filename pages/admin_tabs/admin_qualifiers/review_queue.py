@@ -21,6 +21,7 @@ from application.services.async_qualifier.async_qualifier_rules import (
     classify_claim,
 )
 from application.utils.duration import format_hms
+from application.utils.safe_url import http_url_or_empty
 from pages.admin_tabs.admin_qualifiers.shared import (
     BOARD_TAB,
     QUEUE_PAGE_SIZE,
@@ -110,8 +111,8 @@ def build_queue_tab(
                 if run.permalink:
                     ui.link(f'Permalink played: {short_url(run.permalink.url)}',
                             run.permalink.url, new_tab=True).classes('text-caption')
-                if run.runner_vod_url:
-                    ui.link('VoD', run.runner_vod_url, new_tab=True).classes('text-caption')
+                if http_url_or_empty(run.runner_vod_url):
+                    ui.link('VoD', http_url_or_empty(run.runner_vod_url), new_tab=True).classes('text-caption')
                 others = other_runs_summary(state['queue_context'], run)
                 if others:
                     ui.label(others).classes('text-caption text-grey')

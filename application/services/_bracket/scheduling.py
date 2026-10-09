@@ -175,6 +175,7 @@ class SchedulingMixin(ComposedBracketService):
                 player_ids=player_ids,
                 actor=actor,
                 title=title,
+                from_bracket=True,
                 **match_kwargs,
             )
         else:

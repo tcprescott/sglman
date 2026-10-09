@@ -13,7 +13,7 @@ open matchups, and stage close-out. Standings and the advance dry run moved to
 from models import Role
 from tests.api._bracket_api import draft, enroll, staff_token, token_for, tournament
 from tests.api_helpers import client_for, create_user_token
-from tests.factories import make_user
+from tests.factories import make_member
 
 # --- editing the bracket definition ---------------------------------------
 
@@ -275,8 +275,8 @@ class TestMyOpenMatches:
     async def test_lists_only_the_callers_matchups(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9301, username='alice')
-        bob = await make_user(discord_id=9302, username='bob')
+        alice = await make_member(discord_id=9301, username='alice')
+        bob = await make_member(discord_id=9302, username='bob')
         async with client_for(app, staff) as c:
             await self._linked_bracket(c, t, (alice, bob))
 
@@ -293,8 +293,8 @@ class TestMyOpenMatches:
     async def test_tournament_filter(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9311, username='alice')
-        bob = await make_user(discord_id=9312, username='bob')
+        alice = await make_member(discord_id=9311, username='alice')
+        bob = await make_member(discord_id=9312, username='bob')
         async with client_for(app, staff) as c:
             await self._linked_bracket(c, t, (alice, bob))
 
@@ -308,7 +308,7 @@ class TestMyOpenMatches:
         """A matchup is only listed when *both* entrants resolve to a user."""
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9321, username='alice')
+        alice = await make_member(discord_id=9321, username='alice')
         async with client_for(app, staff) as c:
             bracket_id = await draft(c, t)
             entrant = (await c.post('/api/brackets/entrants', json={

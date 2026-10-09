@@ -31,7 +31,7 @@ from models import (
     User,
     UserRole,
 )
-from tests.factories import utc
+from tests.factories import join_community, utc
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -57,6 +57,7 @@ async def _series(service, actor, *, best_of: int):
     users = []
     for i in (1, 2):
         user = await User.create(discord_id=1000 + i, username=f'p{i}')
+        await join_community(user)
         users.append(user)
         entrant = await service.add_entrant(actor, tournament.id, f'P{i}', user_id=user.id)
         await service.enroll(actor, bracket.id, entrant.id, seed=i)
@@ -428,6 +429,7 @@ class TestRoomIsNotOpenedForAHeldGame:
             user = await User.create(
                 discord_id=2000 + i, username=f'q{i}', racetime_user_id=f'rt{i}',
             )
+            await join_community(user)
             entrant = await service.add_entrant(
                 actor, tournament.id, f'Q{i}', user_id=user.id
             )
