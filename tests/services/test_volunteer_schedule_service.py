@@ -163,6 +163,17 @@ class TestDeleteShift:
 
 
 class TestAssign:
+    @pytest.fixture(autouse=True)
+    def _members_only_passes(self):
+        # Membership is a DB check of its own (covered against the real tables
+        # in test_roster_membership.py); these tests are about what follows it.
+        with patch(
+            'application.services.volunteer.volunteer_schedule_service.'
+            'TenantMembershipService.require_community_users',
+            AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_raises_when_already_on_shift(self, service):
         user = SimpleNamespace(id=42, preferred_name='Alice')
         shift = make_shift()

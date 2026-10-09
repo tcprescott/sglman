@@ -9,7 +9,7 @@ guideline; the setup helpers they share live in ``tests/api/_bracket_api.py``.
 
 from tests.api._bracket_api import draft, enroll, staff_token, token_for, tournament
 from tests.api_helpers import client_for
-from tests.factories import make_user
+from tests.factories import make_member
 
 
 class TestGameLinking:
@@ -26,8 +26,8 @@ class TestGameLinking:
     async def test_links_an_existing_match(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9401, username='alice')
-        bob = await make_user(discord_id=9402, username='bob')
+        alice = await make_member(discord_id=9401, username='alice')
+        bob = await make_member(discord_id=9402, username='bob')
         async with client_for(app, staff) as c:
             bmatch_id = await self._started(c, t, (alice, bob))
             match_id = (await c.post('/api/matches', json={
@@ -48,9 +48,9 @@ class TestGameLinking:
     async def test_mismatched_players_rejected(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9411, username='alice')
-        bob = await make_user(discord_id=9412, username='bob')
-        stranger = await make_user(discord_id=9413, username='stranger')
+        alice = await make_member(discord_id=9411, username='alice')
+        bob = await make_member(discord_id=9412, username='bob')
+        stranger = await make_member(discord_id=9413, username='stranger')
         async with client_for(app, staff) as c:
             bmatch_id = await self._started(c, t, (alice, bob))
             match_id = (await c.post('/api/matches', json={
@@ -69,8 +69,8 @@ class TestGameLinking:
     async def test_unlink_frees_the_slot(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9421, username='alice')
-        bob = await make_user(discord_id=9422, username='bob')
+        alice = await make_member(discord_id=9421, username='alice')
+        bob = await make_member(discord_id=9422, username='bob')
         async with client_for(app, staff) as c:
             bmatch_id = await self._started(c, t, (alice, bob))
             match_id = (await c.post('/api/matches', json={
@@ -93,7 +93,7 @@ class TestGameLinking:
     async def test_unlinked_match_404s(self, db, app):
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9431, username='alice')
+        alice = await make_member(discord_id=9431, username='alice')
         async with client_for(app, staff) as c:
             match_id = (await c.post('/api/matches', json={
                 'tournament_id': t.id,
@@ -109,8 +109,8 @@ class TestGameLinking:
         """Players schedule from the bracket; linking is a staff correction."""
         _, staff = await staff_token()
         t = await tournament()
-        alice = await make_user(discord_id=9441, username='alice')
-        bob = await make_user(discord_id=9442, username='bob')
+        alice = await make_member(discord_id=9441, username='alice')
+        bob = await make_member(discord_id=9442, username='bob')
         async with client_for(app, staff) as c:
             bmatch_id = await self._started(c, t, (alice, bob))
             match_id = (await c.post('/api/matches', json={

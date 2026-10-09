@@ -19,7 +19,7 @@ from models import (
     Tournament,
 )
 from tests.api_helpers import client_for, create_user_token, enable_all_features
-from tests.factories import make_user
+from tests.factories import make_member
 
 
 async def _staff_token(username='staff'):
@@ -399,7 +399,7 @@ class TestSeriesEndpoints:
             'tournament_id': tournament.id, 'name': 'Main', 'format': 'single_elim',
         })).json()['id']
         for i, name in enumerate(('Alice', 'Bob'), start=1):
-            user = await make_user(discord_id=9100 + i, username=name.lower())
+            user = await make_member(discord_id=9100 + i, username=name.lower())
             e = (await c.post('/api/brackets/entrants', json={
                 'tournament_id': tournament.id, 'display_name': name,
                 'user_id': user.id,

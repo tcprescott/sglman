@@ -331,3 +331,121 @@ class SystemConfigService:
         """Persist per-day tournament hours. mapping is {date: (open_HH_MM, close_HH_MM)}."""
         data = SystemConfigService.validate_hours_mapping(mapping)
         await SystemConfigService.set_raw(KEY_TOURNAMENT_HOURS, json.dumps(data), actor)
+
+    @staticmethod
+    def normalize_value(key: str, raw: str) -> str:
+        """The value ``key`` may store, or a ``ValueError`` saying what is wrong.
+
+        The admin page validates each field before it calls :meth:`set_raw`; a
+        caller writing a key by name (``PUT /api/config/{key}``) gets the same
+        rules here. Unknown keys are refused rather than stored: nothing reads
+        them, and an open-ended key space is a place to park content that a
+        later feature might render without expecting it.
+        """
+        normalizer = _NORMALIZERS.get(key)
+        if normalizer is None:
+            raise ValueError(f"'{key}' isn't a configuration setting.")
+        return normalizer((raw or '').strip())
+
+    @staticmethod
+    async def set_validated(key: str, raw: str, actor: User) -> SystemConfiguration:
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can modify system configuration",
+        )
+        return await SystemConfigService.set_raw(
+            key, SystemConfigService.normalize_value(key, raw), actor,
+        )
+
+
+def _date_value(text: str) -> str:
+    if text:
+        try:
+            date.fromisoformat(text)
+        except ValueError:
+            raise ValueError('Dates must be in YYYY-MM-DD format.') from None
+    return text
+
+
+def _positive_int_value(text: str) -> str:
+    if not text:
+        return ''
+    try:
+        value = int(text)
+    except ValueError:
+        raise ValueError('This setting must be a whole number.') from None
+    if value < 1:
+        raise ValueError('This setting must be at least 1.')
+    return str(value)
+
+
+def _bool_value(text: str) -> str:
+    lowered = text.lower()
+    if lowered in ('true', '1', 'yes', 'on'):
+        return 'true'
+    if lowered in ('false', '0', 'no', 'off', ''):
+        return 'false'
+    raise ValueError('This setting must be true or false.')
+
+
+def _comp_tiers_value(text: str) -> str:
+    if not text:
+        return ''
+    values: set[float] = set()
+    for token in text.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            value = float(token)
+        except ValueError:
+            raise ValueError('Comp tiers must be numbers of hours, separated by commas.') from None
+        if value < 0:
+            raise ValueError('Comp tiers cannot be negative.')
+        values.add(value)
+    return ', '.join(f'{v:g}' for v in sorted(values))
+
+
+def _station_format_value(text: str) -> str:
+    try:
+        return StationFormat(text or StationFormat.FREE.value).value
+    except ValueError:
+        allowed = ', '.join(f.value for f in StationFormat)
+        raise ValueError(f'Station format must be one of: {allowed}.') from None
+
+
+def _tournament_hours_value(text: str) -> str:
+    if not text:
+        return json.dumps({})
+    try:
+        blob = json.loads(text)
+    except ValueError:
+        raise ValueError('Tournament hours must be a JSON object.') from None
+    if not isinstance(blob, dict):
+        raise ValueError('Tournament hours must be a JSON object.')
+    mapping: Dict[date, Tuple[str, str]] = {}
+    for day, window in blob.items():
+        try:
+            d = date.fromisoformat(day)
+            mapping[d] = (str(window['open']), str(window['close']))
+        except (ValueError, TypeError, KeyError):
+            raise ValueError(
+                'Tournament hours look like {"2025-10-23": {"open": "09:00", "close": "22:00"}}.'
+            ) from None
+    return json.dumps(SystemConfigService.validate_hours_mapping(mapping))
+
+
+_NORMALIZERS = {
+    KEY_EVENT_START_DATE: _date_value,
+    KEY_EVENT_END_DATE: _date_value,
+    KEY_MAX_CONCURRENT_PLAYERS: _positive_int_value,
+    KEY_MAX_CONCURRENT_STAGES: _positive_int_value,
+    KEY_VOLUNTEER_REMINDER_LEAD_MINUTES: _positive_int_value,
+    KEY_VOLUNTEER_COMP_TIERS: _comp_tiers_value,
+    KEY_TOURNAMENT_HOURS: _tournament_hours_value,
+    KEY_STATION_FORMAT: _station_format_value,
+    KEY_JOIN_PREVIEW: _bool_value,
+    KEY_DISCORD_AUTO_JOIN: _bool_value,
+    KEY_JOIN_REQUESTS: _bool_value,
+    KEY_DISCORD_INVITE_URL: SystemConfigService.normalize_discord_invite_url,
+}

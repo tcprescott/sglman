@@ -15,7 +15,7 @@ from models import (
     Tournament,
     User,
 )
-from tests.api_helpers import client_for, create_user_token
+from tests.api_helpers import client_for, create_community_member, create_user_token
 
 
 async def _seeded_match():
@@ -33,8 +33,8 @@ async def _seeded_match():
 
 async def _tournament_and_players():
     t = await Tournament.create(name='Cup', is_active=True)
-    p1 = await User.create(discord_id=101, username='p1')
-    p2 = await User.create(discord_id=102, username='p2')
+    p1 = await create_community_member(discord_id=101, username='p1')
+    p2 = await create_community_member(discord_id=102, username='p2')
     return t, p1, p2
 
 

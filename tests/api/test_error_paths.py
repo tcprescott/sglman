@@ -21,8 +21,8 @@ async def _tournament_and_players(**tournament_kwargs):
     kwargs = {'name': 'Cup', 'is_active': True}
     kwargs.update(tournament_kwargs)
     t = await Tournament.create(**kwargs)
-    p1 = await User.create(discord_id=1101, username='p1')
-    p2 = await User.create(discord_id=1102, username='p2')
+    p1 = await create_community_member(discord_id=1101, username='p1')
+    p2 = await create_community_member(discord_id=1102, username='p2')
     return t, p1, p2
 
 
@@ -279,9 +279,9 @@ class TestMatchLifecycleNotFound:
 
 class TestSubmitMatchRequest:
     async def test_player_submits_own_request(self, db, app):
-        actor, raw = await create_user_token(username='requester')
+        actor, raw = await create_user_token(username='requester', member=True)
         t = await Tournament.create(name='Cup', is_active=True)
-        opponent = await User.create(discord_id=8181, username='opp')
+        opponent = await create_community_member(discord_id=8181, username='opp')
         async with client_for(app, raw) as c:
             resp = await c.post(
                 '/api/matches/request',

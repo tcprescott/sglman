@@ -34,6 +34,7 @@ from models import (
     User,
     UserRole,
 )
+from tests.factories import join_community
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -59,6 +60,7 @@ async def _series(service, actor, *, best_of: int = 1, name: str = 'Cup'):
     users = []
     for i in (1, 2):
         user = await User.create(discord_id=1000 + i, username=f'p{i}')
+        await join_community(user)
         users.append(user)
         entrant = await service.add_entrant(
             actor, tournament.id, f'P{i}', user_id=user.id,
@@ -81,6 +83,7 @@ async def _groups(service, actor, *, name: str = 'Groups Cup'):
     )
     for i in range(1, 7):
         user = await User.create(discord_id=2000 + i, username=f'g{i}')
+        await join_community(user)
         entrant = await service.add_entrant(
             actor, tournament.id, f'G{i}', user_id=user.id,
         )
@@ -94,6 +97,7 @@ async def _casual_match(actor, *, name: str = 'Casual') -> Match:
     """A plain scheduled match no bracket ever touched — the common case."""
     tournament = await Tournament.create(name=name)
     player = await User.create(discord_id=9001, username='casual')
+    await join_community(player)
     return await MatchService().create_match(
         tournament_id=tournament.id, player_ids=[player.id], actor=actor,
         scheduled_date='2026-06-12', scheduled_time='14:30',
@@ -455,6 +459,7 @@ class TestMatchupReadyNotification:
         users = []
         for i in range(1, 5):
             user = await User.create(discord_id=2000 + i, username=f'q{i}')
+            await join_community(user)
             users.append(user)
             entrant = await service.add_entrant(
                 actor, tournament.id, f'Q{i}', user_id=user.id,

@@ -110,17 +110,14 @@ async def authorize(
     *,
     write: bool = False,
 ) -> None:
-    """Run the feature gate, the connection gate, then the role gate.
+    """Run the membership floor, the feature gate, the connection gate, then the role gate.
 
-    Order matters and matches ``@protected_page``: a subsystem the community has
-    not enabled is hidden from *everyone*, so the flag is checked before the
+    Order matters: a subsystem the community has not enabled is hidden from
+    everyone who can see the community at all, so the flag is checked before the
     role. Otherwise a 403 would tell an unauthorized caller that the feature
     exists here, and a staff member would get a different answer than a player
     for a feature that is simply off.
     """
-    if feature is not None and not await FeatureFlagService().is_enabled(feature):
-        raise NotFoundError('This feature is not enabled for this community.')
-
     # Membership floor, checked before any specific gate.
     #
     # A REST PAT is bound to one community, so `require_api_actor` — "any valid
@@ -141,6 +138,12 @@ async def authorize(
     if gate is not Gate.GLOBAL and not await AuthService.is_super_admin(actor.user):
         if not await AuthService.get_roles(actor.user):
             raise NotFoundError(f"No community '{slug}' is available.")
+
+    # After the floor, not before it: "not enabled here" confirms the community
+    # exists, which is exactly what the floor's wording is there to hide from
+    # someone with no role in it.
+    if feature is not None and not await FeatureFlagService().is_enabled(feature):
+        raise NotFoundError('This feature is not enabled for this community.')
 
     # What the *connection* may do, checked after the community is established
     # so a read-only token learns no more about a community than a writing one

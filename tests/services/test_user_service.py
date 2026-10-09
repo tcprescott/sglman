@@ -293,6 +293,7 @@ class TestCreateUser:
     async def test_audits_created_user(self, service):
         created = make_user(user_id=7, username='bob')
         service.repository.create = AsyncMock(return_value=created)
+        service.repository.get_by_discord_id = AsyncMock(return_value=None)
         await service.create_user(username='bob', actor=make_user(), discord_id='42')
         details = service.audit_service.write_log.await_args.args[2]
         assert details['target_user_id'] == 7

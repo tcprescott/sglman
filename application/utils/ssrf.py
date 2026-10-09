@@ -17,7 +17,7 @@ async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> None:
 
     Rejects private, loopback, link-local, reserved, multicast, and unspecified
     ranges — covering RFC1918, ``127.0.0.0/8``, ``169.254.0.0/16`` (incl. the
-    ``169.254.169.254`` metadata endpoint), ``::1``, ``fc00::/7``, and friends.
+    ``169.254.169.254`` metadata endpoint), ``::1``, ``fc00::/7``, ``100.64.0.0/10``, and anything else not globally routable.
 
     ``subject`` is woven into the error message (e.g. "Webhook URL", "Push
     subscription endpoint") so callers surface a domain-appropriate message.
@@ -35,5 +35,8 @@ async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> None:
             or ip.is_reserved
             or ip.is_multicast
             or ip.is_unspecified
+            # Catches what the flags above leave out, notably 100.64.0.0/10
+            # (carrier-grade NAT, also some providers' internal services).
+            or not ip.is_global
         ):
             raise ValueError(f"{subject} must point to a public address")

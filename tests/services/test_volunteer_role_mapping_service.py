@@ -22,13 +22,13 @@ from models import (
     VolunteerPosition,
     VolunteerShift,
 )
-from tests.factories import make_user, utc
+from tests.factories import make_member, utc
 
 _ids = itertools.count(710000)
 
 
 async def _holder(name, *roles: Role) -> User:
-    user = await make_user(next(_ids), name, display_name=name)
+    user = await make_member(next(_ids), name, display_name=name)
     for role in roles:
         await UserRole.create(user=user, role=role)
     return user

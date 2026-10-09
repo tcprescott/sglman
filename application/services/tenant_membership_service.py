@@ -14,10 +14,11 @@ explicitly rather than going through ``scoped(...)``.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from application.errors import NotFoundError
 from application.events import Event, EventType, event_bus
+from application.repositories.api_token_repository import ApiTokenRepository
 from application.repositories.tenant_join_request_repository import TenantJoinRequestRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
 from application.repositories.user_repository import UserRepository
@@ -157,9 +158,15 @@ class TenantMembershipService:
         removed = await TenantMembershipRepository.remove(user.id, tenant_id)
         if not removed:
             raise ValueError('That user is not a member of this community.')
+        # A personal API token is bound to one community and carries no role of
+        # its own, so without this it kept reading the schedule (every player's
+        # Discord id included) long after its owner was shown the door.
+        revoked_tokens = await ApiTokenRepository.revoke_for_user_in_tenant(
+            user.id, tenant_id, datetime.now(timezone.utc),
+        )
         await self.audit_service.write_and_publish(
             actor, AuditActions.TENANT_MEMBER_REMOVED,
-            {'target_user_id': user.id},
+            {'target_user_id': user.id, 'revoked_tokens': revoked_tokens},
             EventType.TENANT_MEMBER_REMOVED,
         )
         # Local import: AccommodationService imports this module.
@@ -504,6 +511,33 @@ class TenantMembershipService:
         if request.status is not JoinRequestStatus.PENDING:
             raise ValueError('That request has already been decided.')
         return request
+
+    @staticmethod
+    async def require_community_users(
+        user_ids: Iterable[int], actor: Optional[User],
+    ) -> None:
+        """Refuse any id in ``user_ids`` who isn't a member of this community.
+
+        ``User`` is global, so a write that takes someone's id from the caller
+        (a match roster, a shift assignment, a bracket entrant) would otherwise
+        reach every account on the platform: it enrols them, names them in the
+        response and has the bot DM them. The pickers already offer only
+        members; this holds every other caller (REST, MCP) to the same set.
+
+        The refusal reads exactly like an unknown id, so it can't be used to
+        learn who exists elsewhere. A super-admin belongs to no community and
+        may name anyone, as they can everywhere else. ``actor=None`` is a
+        system path (a worker or import) acting on rows it already holds.
+        """
+        wanted = [uid for uid in dict.fromkeys(user_ids) if uid is not None]
+        if not wanted or actor is None:
+            return
+        if await AuthService.is_super_admin(actor):
+            return
+        members = await TenantMembershipRepository.member_ids(wanted, require_tenant_id())
+        for uid in wanted:
+            if uid not in members:
+                raise NotFoundError(f"User {uid} not found")
 
     @staticmethod
     async def ensure_member(

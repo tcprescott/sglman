@@ -42,4 +42,4 @@ async def get_config(key: str, actor: User = Depends(require_staff)):
     summary="Set a configuration entry (Staff only)",
 )
 async def set_config(key: str, body: ConfigValueUpdate, actor: User = Depends(require_staff_write)):
-    return await SystemConfigService.set_raw(key, body.value, actor)
+    return await SystemConfigService.set_validated(key, body.value, actor)

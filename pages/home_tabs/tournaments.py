@@ -26,6 +26,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.services.tournament_service import TournamentSignupCard
+from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_date, format_local_display
 from application.utils.tournament_signup import SignupWindow
 from models import FeatureFlag
@@ -200,8 +201,8 @@ async def tournaments_tab() -> None:
                     with ui.element('div').classes('wiz-help-prose'):
                         render_blocks(parse_blocks(t.description))
 
-                if t.rules_url:
-                    ui.link('Rules', t.rules_url, new_tab=True).classes('text-caption')
+                if http_url_or_empty(t.rules_url):
+                    ui.link('Rules', http_url_or_empty(t.rules_url), new_tab=True).classes('text-caption')
 
                 if t.randomizer_notes:
                     with ui.expansion('Randomizer notes', icon='tune') \

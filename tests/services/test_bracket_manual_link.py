@@ -24,6 +24,7 @@ from models import (
     User,
     UserRole,
 )
+from tests.factories import join_community
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -35,7 +36,9 @@ async def _staff(discord_id: int = 4100, username: str = 'staff') -> User:
 
 
 async def _player(discord_id: int, username: str) -> User:
-    return await User.create(discord_id=discord_id, username=username)
+    user = await User.create(discord_id=discord_id, username=username)
+    await join_community(user)
+    return user
 
 
 @pytest.fixture

@@ -94,7 +94,6 @@ async def create_user(body: UserCreateRequest, actor: User = Depends(require_wri
         actor=actor,
         display_name=body.display_name,
         pronouns=body.pronouns,
-        is_active=body.is_active,
         discord_id=body.discord_id,
     )
     return await _to_detail(user)

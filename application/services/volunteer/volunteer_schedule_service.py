@@ -24,6 +24,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.services.timezone_service import TimezoneService
 from application.services.volunteer.volunteer_role_mapping_service import (
     VolunteerRoleMappingService,
@@ -274,6 +275,7 @@ class VolunteerScheduleService:
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can assign volunteers.",
         )
+        await TenantMembershipService.require_community_users([user.id], actor)
         if await self.assignment_repository.exists(shift.id, user.id):
             raise ValueError(f"{user.preferred_name} is already on this shift.")
 

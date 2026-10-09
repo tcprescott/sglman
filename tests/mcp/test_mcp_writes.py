@@ -16,6 +16,7 @@ Three layers, and each catches something the others cannot:
 from datetime import datetime, timedelta, timezone
 
 from models import Match, MatchPlayers, Role, Stage, Tournament, User
+from tests.api_helpers import create_community_member
 from tests.mcp.conftest import call_tool, create_oauth_token, mcp_session
 
 TENANT = 'default'
@@ -131,8 +132,8 @@ class TestTheWritesLand:
     async def test_create_match_returns_the_new_match(self, db):
         user, raw = await create_oauth_token(roles=[Role.STAFF], write=True)
         tournament = await Tournament.create(name='Spring Open', is_active=True)
-        player = await User.create(discord_id=771001, username='player-one')
-        other = await User.create(discord_id=771002, username='player-two')
+        player = await create_community_member(discord_id=771001, username='player-one')
+        other = await create_community_member(discord_id=771002, username='player-two')
         async with mcp_session() as client:
             is_error, payload = await call_tool(
                 client, raw, 'create_match', tenant=TENANT,

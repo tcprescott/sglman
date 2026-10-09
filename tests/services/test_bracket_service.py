@@ -20,6 +20,7 @@ from models import (
     User,
     UserRole,
 )
+from tests.factories import join_community
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -144,6 +145,7 @@ class TestRoster:
         actor = await _staff()
         t = await _tournament()
         linked = await _plain_user()
+        await join_community(linked)
         entrant = await service.add_entrant(actor, t.id, 'Nobody', user_id=linked.id)
         assert entrant.user_id == linked.id
 

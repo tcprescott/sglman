@@ -18,6 +18,7 @@ from application.repositories import (
 from application.services._tournament_signup import record_enrolment_change
 from application.services.audit_service import AuditActions, AuditService
 from application.services.match.match_request_guard import assert_player_requests_allowed
+from application.services.tenant_membership_service import TenantMembershipService
 from application.utils.timezone import parse_local_datetime
 from models import Match, User
 
@@ -83,6 +84,9 @@ class MatchRequestMixin:
             raise ValueError(f"{tournament.name} has finished — it isn't taking new matches.")
         if not from_bracket:
             assert_player_requests_allowed(tournament)
+            # The bracket path names its players from the matchup's entrants,
+            # which staff linked; only a caller-supplied roster needs checking.
+            await TenantMembershipService.require_community_users(player_ids, actor)
 
         try:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)

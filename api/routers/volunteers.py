@@ -5,6 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, Query, status
 
+from api._helpers import load_community_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.volunteers import (
     AssignRequest,
@@ -146,7 +147,7 @@ async def delete_shift(shift_id: int, actor: User = Depends(require_write_actor)
 async def assign(shift_id: int, payload: AssignRequest, actor: User = Depends(require_write_actor)):
     service = VolunteerScheduleService()
     shift = require_found(await service.get_shift(shift_id), "Shift")
-    target = require_found(await User.get_or_none(id=payload.user_id), "User")
+    target = await load_community_user_or_404(payload.user_id, actor)
     assignment, warnings = await service.assign(actor, shift, target)
     assignment.user = target  # for the response name
     return AssignResponse(assignment=_assignment_resp(assignment), warnings=warnings)

@@ -16,7 +16,7 @@ from models import (
     VolunteerProfile,
     VolunteerShift,
 )
-from tests.api_helpers import client_for, create_user_token
+from tests.api_helpers import client_for, create_community_member, create_user_token
 
 UTC = timezone.utc
 
@@ -242,7 +242,7 @@ class TestAssignments:
 
     async def test_assign_success_no_warnings(self, db, app):
         _, raw = await _coordinator_token()
-        target = await User.create(discord_id=555, username='vol', dm_notifications=False)
+        target = await create_community_member(discord_id=555, username='vol', dm_notifications=False)
         shift = await self._shift(slots_needed=2)
         async with client_for(app, raw) as c:
             resp = await c.post(
@@ -258,8 +258,8 @@ class TestAssignments:
         """A second assignment past slots_needed succeeds but reports a warning."""
         _, raw = await _coordinator_token()
         shift = await self._shift(slots_needed=1)
-        first = await User.create(discord_id=1001, username='first', dm_notifications=False)
-        second = await User.create(discord_id=1002, username='second', dm_notifications=False)
+        first = await create_community_member(discord_id=1001, username='first', dm_notifications=False)
+        second = await create_community_member(discord_id=1002, username='second', dm_notifications=False)
         await VolunteerAssignment.create(shift=shift, user=first)
         async with client_for(app, raw) as c:
             resp = await c.post(
@@ -271,7 +271,7 @@ class TestAssignments:
     async def test_assign_duplicate_bad_request(self, db, app):
         _, raw = await _coordinator_token()
         shift = await self._shift()
-        target = await User.create(discord_id=2001, username='vol', dm_notifications=False)
+        target = await create_community_member(discord_id=2001, username='vol', dm_notifications=False)
         await VolunteerAssignment.create(shift=shift, user=target)
         async with client_for(app, raw) as c:
             resp = await c.post(
@@ -281,7 +281,7 @@ class TestAssignments:
 
     async def test_assign_shift_not_found(self, db, app):
         _, raw = await _coordinator_token()
-        target = await User.create(discord_id=3001, username='vol')
+        target = await create_community_member(discord_id=3001, username='vol')
         async with client_for(app, raw) as c:
             resp = await c.post('/api/volunteers/shifts/9999/assignments', json={'user_id': target.id})
             assert resp.status_code == 404
@@ -296,7 +296,7 @@ class TestAssignments:
     async def test_assign_forbidden_for_plain_user(self, db, app):
         _, raw = await create_user_token(username='plain')
         shift = await self._shift()
-        target = await User.create(discord_id=4001, username='vol')
+        target = await create_community_member(discord_id=4001, username='vol')
         async with client_for(app, raw) as c:
             resp = await c.post(
                 f'/api/volunteers/shifts/{shift.id}/assignments', json={'user_id': target.id},
@@ -306,7 +306,7 @@ class TestAssignments:
     async def test_unassign_success(self, db, app):
         _, raw = await _coordinator_token()
         shift = await self._shift()
-        target = await User.create(discord_id=5001, username='vol')
+        target = await create_community_member(discord_id=5001, username='vol')
         assignment = await VolunteerAssignment.create(shift=shift, user=target)
         async with client_for(app, raw) as c:
             resp = await c.delete(f'/api/volunteers/assignments/{assignment.id}')

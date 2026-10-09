@@ -12,7 +12,6 @@ class UserCreateRequest(BaseModel):
     discord_id: int = Field(..., description="Discord user ID (required and unique)")
     display_name: Optional[str] = None
     pronouns: Optional[str] = None
-    is_active: bool = True
 
 
 class UserSelfUpdate(BaseModel):

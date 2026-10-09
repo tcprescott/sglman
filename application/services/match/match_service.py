@@ -40,6 +40,7 @@ from application.services.match.match_station_draw import StationDrawMixin
 from application.services.match.match_stations import StationAssignmentMixin
 from application.services.stage_service import StageService
 from application.services.system_config_service import SystemConfigService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
@@ -110,9 +111,14 @@ class MatchService(
         is_stream_candidate: bool = False,
         title: Optional[str] = None,
         actor: Optional[User] = None,
+        from_bracket: bool = False,
     ) -> Match:
         """
         Create a new match with validation and business rules.
+
+        ``from_bracket`` is set only by ``BracketService.schedule_bracket_match``,
+        whose players are the matchup's linked entrants rather than ids the
+        caller typed. Never accept it from a request body.
 
         Args:
             tournament_id: Tournament ID
@@ -156,6 +162,12 @@ class MatchService(
 
         if not player_ids:
             raise ValueError("Add at least one player before creating the match.")
+        # A bracket game's players come from the matchup's entrants, which staff
+        # linked (and that link is checked); only caller-supplied ids need it.
+        await TenantMembershipService.require_community_users(
+            [*([] if from_bracket else player_ids), *(commentator_ids or []), *(tracker_ids or [])],
+            actor,
+        )
 
         await StageService().require_in_tenant(stage_id)
 
@@ -329,8 +341,18 @@ class MatchService(
             players_changed=players_changed,
         )
 
-        effective_commentator_ids = set(commentator_ids) if commentator_ids is not None else {c.user_id for c in match.commentators}
-        effective_tracker_ids = set(tracker_ids) if tracker_ids is not None else {t.user_id for t in match.trackers}
+        current_commentator_ids = {c.user_id for c in match.commentators}
+        current_tracker_ids = {t.user_id for t in match.trackers}
+        effective_commentator_ids = set(commentator_ids) if commentator_ids is not None else current_commentator_ids
+        effective_tracker_ids = set(tracker_ids) if tracker_ids is not None else current_tracker_ids
+        # Only the people this edit adds: someone already on the match stays
+        # editable even if they have since left the community.
+        await TenantMembershipService.require_community_users(
+            (new_player_ids - old_player_ids)
+            | (effective_commentator_ids - current_commentator_ids)
+            | (effective_tracker_ids - current_tracker_ids),
+            actor,
+        )
         if new_player_ids & effective_commentator_ids:
             raise ValueError("A player in this match can't also crew it as a commentator.")
         if new_player_ids & effective_tracker_ids:
@@ -562,6 +584,7 @@ class MatchService(
         Raises:
             ValueError: If any user is not found
         """
+        await TenantMembershipService.require_community_users(player_ids, actor)
         users = await self.participants.resolve_users(player_ids)
         newly = await self.participants.ensure_enrolled(tournament_id, users)
         await self._record_auto_enrolments(newly, tournament_id, actor)

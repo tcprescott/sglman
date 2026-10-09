@@ -186,3 +186,10 @@ class ApiTokenRepository:
     async def revoke(token: ApiToken, when: datetime) -> None:
         token.revoked_at = when
         await token.save(update_fields=['revoked_at'])
+
+    @staticmethod
+    async def revoke_for_user_in_tenant(user_id: int, tenant_id: int, when: datetime) -> int:
+        """Revoke every live token ``user_id`` holds for ``tenant_id``; returns the count."""
+        return await ApiToken.filter(
+            user_id=user_id, tenant_id=tenant_id, revoked_at=None,
+        ).update(revoked_at=when)

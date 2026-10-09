@@ -5,7 +5,7 @@ belong to. Queried across tenants (membership is *how* the auth layer decides
 whether a user may see a tenant at all), so it is **not** tenant-scoped.
 """
 
-from typing import List, Optional
+from typing import Iterable, List, Optional, Set
 
 from models import MembershipSource, TenantMembership, User
 
@@ -16,6 +16,17 @@ class TenantMembershipRepository:
     @staticmethod
     async def is_member(user_id: int, tenant_id: int) -> bool:
         return await TenantMembership.exists(user_id=user_id, tenant_id=tenant_id)
+
+    @staticmethod
+    async def member_ids(user_ids: Iterable[int], tenant_id: int) -> Set[int]:
+        """The subset of ``user_ids`` who belong to ``tenant_id`` (one query)."""
+        wanted = set(user_ids)
+        if not wanted:
+            return set()
+        rows = await TenantMembership.filter(
+            user_id__in=list(wanted), tenant_id=tenant_id,
+        ).values_list('user_id', flat=True)
+        return set(rows)  # type: ignore[arg-type]  # flat=True yields ints; Tortoise types it as tuples
 
     @staticmethod
     async def add(

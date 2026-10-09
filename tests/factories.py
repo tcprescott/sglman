@@ -40,6 +40,27 @@ async def make_user(discord_id: int = 1, username: str | None = None, **kwargs) 
     return await User.create(discord_id=discord_id, username=username, **kwargs)
 
 
+async def join_community(*users: User) -> None:
+    """Make ``users`` members of the ambient tenant, as real participants are.
+
+    Roster writes (match players and crew, shift assignments, bracket entrant
+    links) refuse anyone outside the community, so a fixture that means
+    "a player here" needs the membership a bare ``User.create`` doesn't give.
+    """
+    from application.repositories._tenant import current_tenant_id
+    from application.repositories.tenant_membership_repository import TenantMembershipRepository
+
+    for user in users:
+        await TenantMembershipRepository.add(user, current_tenant_id())
+
+
+async def make_member(discord_id: int = 1, username: str | None = None, **kwargs) -> User:
+    """:func:`make_user`, joined to the ambient tenant."""
+    user = await make_user(discord_id, username, **kwargs)
+    await join_community(user)
+    return user
+
+
 def make_audit_double() -> MagicMock:
     """An ``AuditService`` stand-in that still publishes on the real event bus.
 

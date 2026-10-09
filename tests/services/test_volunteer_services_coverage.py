@@ -27,7 +27,7 @@ from models import (
     VolunteerQualification,
     VolunteerShift,
 )
-from tests.factories import utc
+from tests.factories import join_community, utc
 
 _next_discord_id = itertools.count(500000)
 
@@ -38,6 +38,7 @@ def to_display(hour, minute=0, day=4):
 
 async def _user(name, *, roles=()):
     user = await User.create(discord_id=next(_next_discord_id), username=name, display_name=name)
+    await join_community(user)
     for role in roles:
         await UserRole.create(user=user, role=role)
     return user

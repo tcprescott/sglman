@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from nicegui import app, ui
 
 from application.services import AuthService, MatchService, get_user_from_discord_id
+from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_time, today_local
 from models import Match, User
 from pages.admin_tabs.links import SCHEDULE, admin_url
@@ -92,8 +93,8 @@ async def stage_timeline_tab():
                     with ui.card().classes('card-full-width'):
                         with ui.row().classes('stage-header'):
                             ui.label(stage.name).classes('stage-name')
-                            if stage.stream_url:
-                                ui.link('Watch Stream', stage.stream_url, new_tab=True).classes('stage-link')
+                            if http_url_or_empty(stage.stream_url):
+                                ui.link('Watch Stream', http_url_or_empty(stage.stream_url), new_tab=True).classes('stage-link')
                             ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
 
                         with ui.column().classes('column-spacing'):

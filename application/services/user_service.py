@@ -358,6 +358,18 @@ class UserService:
         )
         if not username or not username.strip():
             raise ValueError("Enter a username.")
+        if discord_id:
+            # Discord ids are global and login claims the row that carries one,
+            # so creating an account here decides how that person's first sign-in
+            # goes on every community. A deactivated one would lock them out of
+            # the whole platform before they ever arrived.
+            if not is_active:
+                raise ValueError(
+                    "An account with a Discord ID has to start active. Create it, "
+                    "then deactivate it if you need to."
+                )
+            if await self.repository.get_by_discord_id(discord_id) is not None:
+                raise ValueError("That Discord account already has a Wizzrobe account.")
         new_user = await self.repository.create(
             username=username.strip(),
             display_name=display_name.strip() if display_name else None,
