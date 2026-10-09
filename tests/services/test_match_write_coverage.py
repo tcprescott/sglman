@@ -399,3 +399,95 @@ class TestUpdateMatch:
         match = await _seed_match(service, actor, t, [player.id])
         with pytest.raises(ValueError, match="User 424242 not found"):
             await service.update_match(match_id=match.id, commentator_ids=[424242], actor=actor)
+
+
+# ---------------------------------------------------------------------------
+# admin-assigned crew is an approval
+# ---------------------------------------------------------------------------
+
+
+def _crew_ack_dms(captured):
+    return [c for c in captured if c.cr_code.co_name == "send_dm_with_crew_acknowledgment_button"]
+
+
+def _approval_events(captured_events):
+    return [e for e in captured_events if e.event_type == EventType.CREW_APPROVAL_CHANGED]
+
+
+class TestAdminAssignedCrew:
+    async def test_create_announces_each_assignee(
+        self, service, db, captured_events, stub_discord_queue,
+    ):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        commentator = await make_player("comm", "Comm")
+        tracker = await make_player("trk", "Trk")
+
+        match = await _seed_match(
+            service, actor, t, [player.id],
+            commentator_ids=[commentator.id], tracker_ids=[tracker.id],
+        )
+
+        events = _approval_events(captured_events)
+        assert sorted((e.payload["crew_type"], e.payload["user_id"]) for e in events) == [
+            ("commentator", commentator.id), ("tracker", tracker.id),
+        ]
+        assert all(e.payload["approved"] is True and e.payload["match_id"] == match.id for e in events)
+        assert len(_crew_ack_dms(stub_discord_queue)) == 2
+        assert (await Commentator.get(match=match)).approved_by_id == actor.id
+        assert await AuditLog.filter(action=AuditActions.CREW_APPROVAL_CHANGED).count() == 2
+
+    async def test_update_announces_only_new_assignees(
+        self, service, db, captured_events, stub_discord_queue,
+    ):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        kept = await make_player("kept", "Kept")
+        added = await make_player("added", "Added")
+        match = await _seed_match(service, actor, t, [player.id], commentator_ids=[kept.id])
+        captured_events.clear()
+        for coro in stub_discord_queue:
+            coro.close()
+        stub_discord_queue.clear()
+
+        await service.update_match(
+            match_id=match.id, commentator_ids=[kept.id, added.id], actor=actor,
+        )
+
+        assert [e.payload["user_id"] for e in _approval_events(captured_events)] == [added.id]
+        assert len(_crew_ack_dms(stub_discord_queue)) == 1
+
+    async def test_no_crew_change_announces_nothing(
+        self, service, db, captured_events, stub_discord_queue,
+    ):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        match = await _seed_match(service, actor, t, [player.id])
+
+        await service.update_match(match_id=match.id, comment="x", actor=actor)
+
+        assert _approval_events(captured_events) == []
+        assert _crew_ack_dms(stub_discord_queue) == []
+
+    async def test_update_announces_removed_crew(
+        self, service, db, captured_events, stub_discord_queue,
+    ):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        dropped = await make_player("dropped", "Dropped")
+        match = await _seed_match(service, actor, t, [player.id], tracker_ids=[dropped.id])
+        captured_events.clear()
+        for coro in stub_discord_queue:
+            coro.close()
+        stub_discord_queue.clear()
+
+        await service.update_match(match_id=match.id, tracker_ids=[], actor=actor)
+
+        removed = [e for e in captured_events if e.event_type == EventType.CREW_SIGNUP_REMOVED]
+        assert [(e.payload["user_id"], e.payload["role"]) for e in removed] == [(dropped.id, "tracker")]
+        assert removed[0].actor_id == actor.id
+        assert [c.cr_code.co_name for c in stub_discord_queue] == ["send_dm"]

@@ -195,11 +195,17 @@ class MatchService(
         for user in players:
             await self.repository.add_player(match, user)
 
-        for user in commentators:
-            await self.commentator_repository.create(match=match, user=user, approved=True)
-
-        for user in trackers:
-            await self.tracker_repository.create(match=match, user=user, approved=True)
+        assigned_crew = [
+            (await self.commentator_repository.create(
+                match=match, user=user, approved=True, approved_by=actor,
+            ), 'commentator')
+            for user in commentators
+        ] + [
+            (await self.tracker_repository.create(
+                match=match, user=user, approved=True, approved_by=actor,
+            ), 'tracker')
+            for user in trackers
+        ]
 
         await self.audit_service.write_and_publish(
             actor,
@@ -227,6 +233,8 @@ class MatchService(
         await self.match_schedule_service.notify_match_scheduled(
             match, rescheduled=False, is_stream_candidate=is_stream_candidate,
         )
+
+        await self._announce_crew_changes(assigned_crew, actor)
 
         match_live.publish(match.id, match_live.CREATED)
 
@@ -383,11 +391,17 @@ class MatchService(
         # preset rather than to whichever one the match lands on next.
         await self.hard_preset_service.reconcile_edit(match, hard_preset_before, actor)
 
-        if commentator_ids is not None:
-            await self.participants.sync_crew(match, commentator_ids, self.commentator_repository)
-
-        if tracker_ids is not None:
-            await self.participants.sync_crew(match, tracker_ids, self.tracker_repository)
+        assigned_crew: list = []
+        removed_crew: list = []
+        for crew_type, ids, crew_repository in (
+            ('commentator', commentator_ids, self.commentator_repository),
+            ('tracker', tracker_ids, self.tracker_repository),
+        ):
+            if ids is None:
+                continue
+            created, removed = await self.participants.sync_crew(match, ids, crew_repository, actor)
+            assigned_crew += [(row, crew_type) for row in created]
+            removed_crew += [(row, crew_type) for row in removed]
 
         audit_details: Dict[str, Any] = {
             'match_id': match.id,
@@ -427,9 +441,24 @@ class MatchService(
                     match, rescheduled=False, community=community,
                 ))
 
+        await self._announce_crew_changes(assigned_crew, actor, removed_crew)
+
         match_live.publish(match.id)
 
         return match
+
+    async def _announce_crew_changes(
+        self, assigned_crew: list, actor: Optional[User], removed_crew: Optional[list] = None,
+    ) -> None:
+        # actor is None only for callers the auth gates above already rejected.
+        if not (assigned_crew or removed_crew) or actor is None:
+            return
+        from application.services.crew_service import CrewService
+        crew_service = CrewService()
+        for crew_member, crew_type in assigned_crew:
+            await crew_service.announce_admin_assignment(crew_member, crew_type, actor)
+        for crew_member, crew_type in removed_crew or []:
+            await crew_service.announce_admin_removal(crew_member, crew_type, actor)
 
     async def set_stream_candidate(
         self,

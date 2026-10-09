@@ -58,9 +58,14 @@ class CrewRepository(Generic[T]):
         ).order_by('match__scheduled_at')
 
     @classmethod
-    async def create(cls, match: Match, user: User, approved: bool = False) -> T:
+    async def create(
+        cls, match: Match, user: User, approved: bool = False, approved_by: Optional[User] = None,
+    ) -> T:
         """Create a new crew entry."""
-        return await cls.model.create(tenant_id=current_tenant_id(), match=match, user=user, approved=approved)
+        return await cls.model.create(
+            tenant_id=current_tenant_id(), match=match, user=user,
+            approved=approved, approved_by=approved_by,
+        )
 
     @classmethod
     async def update(cls, crew_member: T, **fields) -> T:
