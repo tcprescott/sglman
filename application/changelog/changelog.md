@@ -12,6 +12,7 @@
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
+- Help has a new article on borrowing equipment: scanning a loaner's QR code, giving it back, and running the equipment desk. The asset page, the equipment section on My Schedule and Admin → Equipment link to it.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.
 - Status badges, dialogs and page titles now share one look. A badge's colour is a soft tint instead of a solid pill, dialogs come in three sizes, and every page opens with the same title and short description. Grey captions, red and green text in dark mode, and the VIP lanyard on the check-in desk are all easier to read.
 - Screen readers and keyboards get further. Icon buttons say what they do instead of just "button", every page has a title heading and a Skip to content link, filter boxes and switches are named, and Help cards, bracket matches and date pickers open with Enter. The phone tab bar and the cat facts under empty lists are darker and easier to read.

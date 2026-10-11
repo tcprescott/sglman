@@ -27,7 +27,7 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — ten articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — eleven articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -43,6 +43,7 @@ is runtime content, not project documentation.
 | `on-air` | The stage timeline, finding a stream, watching a match | — |
 | `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
+| `equipment` | Borrowing by QR code, returning through the desk, Equipment you have out, and the equipment desk (Admin → Equipment, the borrower picker, adding gear, printing labels, retiring) | `FeatureFlag.EQUIPMENT` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
 
@@ -226,7 +227,7 @@ stages; availability — through the `help_topics=` of each
 [section panel](../reference/frontend.md#section-panels-themesectionpy)),
 Tournaments, Profile → Notifications; the player's match-request dialog and the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
-Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
+Volunteer → My Shifts and its release dialog; the equipment asset page (borrowing and returning, or the desk for managers), My Schedule's Equipment you have out, and Admin → Equipment; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result
 dialog's review flag; Home → On Air; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different

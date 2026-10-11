@@ -21,6 +21,7 @@ from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
 from theme.equipment_copy import equipment_guidance
+from theme.help import help_icon
 from theme.page_header import page_title
 from theme.realtime import refresh_on_reconnect
 
@@ -106,6 +107,11 @@ def create() -> None:
                         color=('positive' if asset.status.value == 'available'
                                else 'warning' if asset.status.value == 'checked_out' else 'grey'),
                     )
+                    if can_manage:
+                        await help_icon('equipment-desk', user=user)
+                    else:
+                        await help_icon('equipment-borrow', user=user)
+                        await help_icon('equipment-return', label='Giving it back', user=user)
                 ui.separator().classes('separator-spacing')
 
                 with ui.row().classes('w-full gap-6 items-start'):

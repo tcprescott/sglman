@@ -57,6 +57,7 @@ async def equipment_checkouts_section() -> None:
         'Equipment you have out',
         icon='inventory_2',
         subtitle='Gear checked out to you and not yet returned.',
+        help_topics=['equipment-yours', ('equipment-return', 'Giving it back')],
         user=user,
     )
     with panel.body:
