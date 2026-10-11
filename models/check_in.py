@@ -3,7 +3,7 @@ from typing import Optional
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import CheckInEntrantSource, CheckInEventStatus, CheckInLinkMethod, CheckInTierLanyard
+from .enums import CheckInDmStatus, CheckInEntrantSource, CheckInEventStatus, CheckInLinkMethod, CheckInTierLanyard
 
 
 class CheckInEvent(Model):
@@ -102,6 +102,9 @@ class CheckInEntrant(Model):
     checked_in_by: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
         'models.User', related_name='check_ins_performed', null=True, on_delete=fields.SET_NULL
     )
+    # The test DM sent at check-in (see CheckInDmStatus); null until one is tried.
+    dm_status = fields.CharEnumField(CheckInDmStatus, max_length=16, null=True)
+    dm_checked_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

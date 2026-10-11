@@ -154,7 +154,7 @@ comp rules in the event dialog:
   is allowed; `SUPER_ADMIN` isn't.
 - **Comp volunteers** (`comp_volunteers`): anyone whose published volunteer
   shifts inside the community's event window add up to the **lowest volunteer
-  comp tier** (Admin → Settings; 8 hours for SGL). These are *scheduled* hours,
+  comp tier** (Admin → Settings → Volunteers; 8 hours for SGL). These are *scheduled* hours,
   the same total the volunteer roster shows, because most shifts haven't
   happened yet when the desk opens. Unpublished auto-scheduler drafts don't
   count, and nobody is comped this way while volunteering is turned off.
@@ -398,6 +398,19 @@ events staff have opened. Run one tick by hand with
   anyway** behind a confirmation. The service refuses it too, and the claim is
   conditional on the row still being active, so a sync that withdraws someone
   mid-tap can't slip a check-in through.
+- **Can we DM them?** Checking in someone linked to an account sends them a
+  short "you're checked in" Discord DM (`check_in_dm.start_dm_check`, through
+  `discord_queue`), and the card shows how it went a moment later:
+  "Discord DMs reach them", "Discord won't let us DM them" (DMs closed or no
+  shared server: ask them to join and allow DMs from server members), "turned
+  Discord DMs off in Wizzrobe" (not sent; ask them to turn it on), or "Discord
+  didn't answer" (our side, says nothing about them). Every match call, crew
+  ask and shift reminder goes out the same way, so this is the moment to fix
+  it, while they're at the desk. **Send the test DM again** in the ⋮ menu
+  (`CheckInDeskService.send_test_dm`) retries after they've changed their
+  settings. The result is stored on the row (`dm_status`, `dm_checked_at`),
+  exported in the CSV and returned by the REST/MCP roster. Named walk-ups and
+  unlinked buyers have no one to DM, so nothing is sent.
 - After a check-in an Undo bar shows for eight seconds with "Hand over: VIP
   lanyard" (plus any extra badges).
 - Staff get a floating **Add walk-up** button.

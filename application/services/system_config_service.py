@@ -36,6 +36,10 @@ KEY_DISCORD_AUTO_JOIN = 'discord_auto_join'
 # ``default=True``): turning it off closes that way in without touching Discord
 # auto-join, so a community can admit its server and nobody else.
 KEY_JOIN_REQUESTS = 'join_requests_enabled'
+# Whether anyone who signs in becomes a member without asking — no server, no
+# staff decision. Default off; set through ``TenantMembershipService.set_join_mode``
+# so it and the two keys above always describe one coherent rule.
+KEY_OPEN_MEMBERSHIP = 'open_membership'
 # An invite to the linked server, offered on the join door. Typed in by staff:
 # the bot never mints one.
 KEY_DISCORD_INVITE_URL = 'discord_invite_url'
@@ -447,5 +451,6 @@ _NORMALIZERS = {
     KEY_JOIN_PREVIEW: _bool_value,
     KEY_DISCORD_AUTO_JOIN: _bool_value,
     KEY_JOIN_REQUESTS: _bool_value,
+    KEY_OPEN_MEMBERSHIP: _bool_value,
     KEY_DISCORD_INVITE_URL: SystemConfigService.normalize_discord_invite_url,
 }

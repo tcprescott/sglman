@@ -719,6 +719,10 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   each click**, because a dead button looks exactly like a working one. Eleven of
   fifteen admin Refresh buttons were dead and a screenshot sweep passed all
   eleven.
+- **`skills/changelog/`** — keeps the in-app "What's new" page current: when a
+  PR needs a line in `application/changelog/changelog.md`, the weekly entry
+  format `tests/test_changelog.py` enforces, the wording rules, and the git
+  commands for rebuilding missed weeks from merged PRs.
 - **`agents/architecture-reviewer.md`** — a read-only review subagent for the
   **judgment** calls the mechanical hooks can't make: business logic at the
   wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in

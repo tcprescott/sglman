@@ -207,7 +207,7 @@ stations. Which specific seat a player gets is deliberately arbitrary;
 
 The button appears only for a two-player match on a community that has defined
 a pool. `Station.side` and `Station.position` are set under Admin → Settings →
-Station Pool and are both optional — a community that leaves them null gets a
+Venue → Stations and are both optional — a community that leaves them null gets a
 plain random draw with a note explaining why the players were not split.
 
 ## Disputed results

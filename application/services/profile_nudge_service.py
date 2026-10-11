@@ -188,7 +188,7 @@ class ProfileNudgeService:
             reasons[ProfileCheck.RACETIME] = "racetime.gg linking isn't set up on this server."
         if (await TimezoneService.get_settings())['mode'] != MODE_USER:
             reasons[ProfileCheck.TIMEZONE] = (
-                'This community shows everyone one timezone (Admin → Timezone), '
+                'This community shows everyone one timezone (Admin → Settings → General), '
                 "so members don't pick their own."
             )
         if FeatureFlag.PAYOUTS not in live:

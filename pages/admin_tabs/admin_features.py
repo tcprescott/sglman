@@ -1,4 +1,4 @@
-"""Admin → Features tab: per-tenant feature toggles (tenant STAFF tier).
+"""Admin → Settings → Features: per-tenant feature toggles (tenant STAFF tier).
 
 The community-facing half of the two-tier feature-flag system. A super-admin
 decides which features are *available* to this community (on ``/platform``);

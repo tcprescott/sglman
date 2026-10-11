@@ -2396,6 +2396,24 @@ body.wiz-offline .wiz-requires-socket {
     scroll-margin-top: 5rem;
 }
 
+/* /changelog: one help-prose block per entry. The title sits directly above its
+   date, so it drops the article heading's bottom margin, and it sets its own
+   line-height because Quasar's h2 default (3.75rem) spaces a wrapped title a
+   full line apart on a phone. */
+.wiz-changelog-entry {
+    max-width: 64ch;
+    font-size: 0.95rem;
+}
+
+.wiz-changelog-entry .wiz-help-h2 {
+    line-height: 1.3;
+    margin-bottom: 0.2rem;
+}
+
+.wiz-changelog-period {
+    margin-bottom: 0.6rem;
+}
+
 .wiz-help-h3 {
     font-size: 1.05rem;
     font-weight: 700;

@@ -79,13 +79,21 @@ def member_added_dm(community_name: str, *, by_staff: bool) -> str:
     )
 
 
-def member_removed_dm(community_name: str, auto_join: bool = False) -> str:
+def member_removed_dm(
+    community_name: str, auto_join: bool = False, open_membership: bool = False,
+) -> str:
     """DM to someone staff removed from a community.
 
     With Discord auto-join on, membership follows the server: they're let back
     in the next time they open the community while they're still in it, so the
-    DM says that rather than promising a lockout that won't hold.
+    DM says that rather than promising a lockout that won't hold. Open
+    membership is the same, minus the server.
     """
+    if open_membership:
+        return (
+            f'Staff removed you from **{community_name}**. It lets anyone in who '
+            "signs in, so you'll be back in the next time you open it."
+        )
     if auto_join:
         return (
             f'Staff removed you from **{community_name}**. It lets members of its '

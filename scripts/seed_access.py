@@ -60,6 +60,12 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
         await TenantMembership.filter(tenant=tenant, user=users['local_only']).update(
             source=MembershipSource.DISCORD_AUTO_JOIN, created_at=now - timedelta(hours=2),
         )
+    # One racer walked in through an open door, so the Users tab shows that
+    # source too. The community itself stays on the default join mode.
+    if 'racer_05' in users:
+        await TenantMembership.filter(tenant=tenant, user=users['racer_05']).update(
+            source=MembershipSource.OPEN, created_at=now - timedelta(hours=1),
+        )
 
     # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
     # qualified + available pool seeded further down so the Vol. Roster tab and

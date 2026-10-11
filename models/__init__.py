@@ -51,6 +51,7 @@ from .enums import (
     BracketMatchState,
     BracketState,
     ChallongeMatchState,
+    CheckInDmStatus,
     CheckInEntrantSource,
     CheckInEventStatus,
     CheckInLinkMethod,
@@ -176,6 +177,7 @@ __all__ = [
     'ChallongeMatchState',
     'ChallongeParticipant',
     # check-in
+    'CheckInDmStatus',
     'CheckInEntrant',
     'CheckInEntrantSource',
     'CheckInEvent',

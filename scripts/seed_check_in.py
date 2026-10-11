@@ -20,6 +20,9 @@ the states a volunteer meets:
 * someone whose badge disappeared from the venue (withdrawn);
 * player_one already checked in by the check-in desk volunteer;
 * two walk-ups checked in by staff, one a member (racer_09) and one name-only;
+* racer_05, racer_07 and player_three checked in too, so the check-in test DM
+  shows every state: player_one's landed, racer_09's was refused by Discord,
+  racer_07's hit a Discord outage, player_three has DMs off, racer_05's is queued;
 * a draft event with no venue and last year's closed event, for the admin list;
 * a saved Matcherino login whose refused-login alerts go to staff_user, so
   Admin → Check-in shows the configured card. Under MOCK_MATCHERINO it is never
@@ -41,6 +44,7 @@ from application.utils.clients.matcherino_client import (
     MockMatcherinoClient,
 )
 from models import (
+    CheckInDmStatus,
     CheckInEntrant,
     CheckInEntrantSource,
     CheckInEvent,
@@ -109,6 +113,19 @@ async def seed_check_in_for_tenant(tenant: Tenant, users: dict[str, User]) -> No
         await service.add_walk_up(staff, event.id, user_id=users['racer_09'].id)
     if not any(row.display_name == 'Walk-in Wendy' for row in roster):
         await service.add_walk_up(staff, event.id, name='Walk-in Wendy')
+    # Three more arrivals, so the desk shows every test-DM state. The seed runs
+    # without the bot, so each check-in's DM stays queued (pending); the others
+    # are settled into what a volunteer would meet.
+    for name in ('racer_05', 'racer_07', 'player_three'):
+        row = await CheckInEntrant.get_or_none(event=event, user=users[name])
+        if row is not None and row.checked_in_at is None:
+            await service.check_in(desk, row.id)
+    now = datetime.now(timezone.utc)
+    for name, status in (
+        ('player_one', CheckInDmStatus.SENT), ('racer_09', CheckInDmStatus.BLOCKED),
+        ('racer_07', CheckInDmStatus.FAILED), ('player_three', CheckInDmStatus.OPTED_OUT),
+    ):
+        await CheckInEntrant.filter(event=event, user=users[name]).update(dm_status=status, dm_checked_at=now)
 
     if not await CheckInEvent.exists(tenant=tenant, name=DRAFT_EVENT):
         await service.create_event(staff, DRAFT_EVENT)

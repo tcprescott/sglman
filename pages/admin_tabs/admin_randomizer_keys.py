@@ -1,4 +1,4 @@
-"""Admin → Randomizer Keys tab: this community's own randomizer API credentials.
+"""Admin → Settings → Integrations, Randomizer Keys: this community's own randomizer API credentials.
 
 The keyed randomizer backends (OoT Randomizer, Map Rando, DK64 Randomizer) roll
 against upstreams that require a credential. Those are per community, not per
