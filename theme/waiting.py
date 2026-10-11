@@ -30,7 +30,7 @@ MIN_WAIT_SECONDS = 3.0
 
 _PRELOAD_FONTS = (
     'atkinson-hyperlegible-latin-400-normal',
-    'fraunces-latin-600-normal',
+    'atkinson-hyperlegible-latin-700-normal',
 )
 
 

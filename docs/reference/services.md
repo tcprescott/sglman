@@ -1090,7 +1090,7 @@ Rendered by `theme/setup_checklist.py` (the `Setup` admin tab) and `pages/platfo
 
 ### tenant_theme_service.py — TenantThemeService
 
-The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and the header bar — stored under `Tenant.config['theme']`, no dedicated columns. Semantic status colours (positive/negative/warning/info) are deliberately not editable. Reads merge overrides onto the defaults so callers always get a full palette; writes are STAFF-gated, validated to 6-digit hex, and audited `theme.updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this service goes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
+The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and `header` (the brand mark beside the wordmark) — stored under `Tenant.config['theme']`, no dedicated columns. Semantic status colours (positive/negative/warning/info) are deliberately not editable. Reads merge overrides onto the defaults so callers always get a full palette; writes are STAFF-gated, validated to 6-digit hex, and audited `theme.updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this service goes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
 
 | Method | Returns | Description |
 |---|---|---|
