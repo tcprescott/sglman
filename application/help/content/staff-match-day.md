@@ -34,6 +34,8 @@ the rest. Press one to open it.
 can work through them. Clear the State filter to get the full board back.
 :::
 
+![The top of Admin Schedule with three reschedule requests waiting and counts of flagged, resultless and unconfirmed results](/static/help/staff-match-day/queues-desktop.webp)
+
 You'll also get a Discord DM for each new reschedule request. Its button opens
 the request on this page directly. If someone else has already answered it, the
 page says so instead.
@@ -63,6 +65,8 @@ You don't need the opponent's agreement to decide. It just saves you asking.
 
 A note on an approval is optional, and they see that too.
 :::
+
+![A reschedule request: the current and proposed times, the player's reason, the opponent's agreement, and the approve and decline buttons](/static/help/staff-match-day/reschedule-request.webp)
 
 Players can only ask before the match is checked in. Once they're in the room,
 it's a conversation with the proctor rather than a request.

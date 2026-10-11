@@ -10,6 +10,78 @@
       "name": "tournaments-phone",
       "user": "player_four",
       "path": "/home/tournaments"
+    },
+    {
+      "slug": "staff-schedule",
+      "name": "board-desktop",
+      "user": "staff_user",
+      "path": "/admin/schedule",
+      "viewport": "desktop",
+      "setup": [
+        {
+          "fill": "input[placeholder^=\"Search matches\"]",
+          "value": "Wizzrobe Dev"
+        },
+        {
+          "wait": 1500
+        }
+      ],
+      "selector": ".match-table"
+    },
+    {
+      "slug": "staff-schedule",
+      "name": "match-dialog",
+      "user": "staff_user",
+      "path": "/admin/schedule",
+      "viewport": "desktop",
+      "setup": [
+        {
+          "fill": "input[placeholder^=\"Search matches\"]",
+          "value": "Wizzrobe Dev"
+        },
+        {
+          "wait": 1500
+        },
+        {
+          "click": "[aria-label=\"Edit this match\"]"
+        },
+        {
+          "waitFor": ".dialog-card"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "selector": ".dialog-card"
+    },
+    {
+      "slug": "staff-match-day",
+      "name": "queues-desktop",
+      "user": "staff_user",
+      "path": "/admin/schedule",
+      "viewport": {
+        "width": 1280,
+        "height": 370
+      }
+    },
+    {
+      "slug": "staff-match-day",
+      "name": "reschedule-request",
+      "user": "staff_user",
+      "path": "/admin/schedule",
+      "viewport": "desktop",
+      "setup": [
+        {
+          "click": ".q-btn:has(i:text-is(\"open_in_new\"))"
+        },
+        {
+          "waitFor": ".q-dialog .q-card"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "selector": ".q-dialog .q-card"
     }
   ]
 }

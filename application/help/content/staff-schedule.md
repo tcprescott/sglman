@@ -35,6 +35,8 @@ A clock icon beside the time means the match is past its scheduled time and
 nobody has checked it in yet.
 :::
 
+![The Admin Schedule board with a flagged finished match awaiting confirmation, and rows ready to start](/static/help/staff-schedule/board-desktop.webp "Pencils open the match; Confirm, Finish and Start sit in the State column.")
+
 ### Who sees what
 
 You aren't the only one on this board. Each role gets the controls it can use and
@@ -74,6 +76,8 @@ Saving DMs the players and asks each of them to acknowledge the match.
 
 Open the pencil. The top of the dialog says where the match is now (its state,
 the winner, and whether it's flagged), then everything below edits it.
+
+![The Edit Match dialog for a finished match, showing its winner and a Needs review flag above the fields](/static/help/staff-schedule/match-dialog.webp)
 
 Moving the date or time tells everyone on the match and asks the players to
 acknowledge again. If a player or crew member changes, the people added and the
