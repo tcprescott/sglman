@@ -82,6 +82,7 @@ whenever the output is **not** for the current request's viewer.
 | `format_local_datetime(dt, fmt, tz=None)` | UTC → local, custom format |
 | `format_local_date(dt, tz=None)` | UTC → `YYYY-MM-DD` |
 | `format_local_time(dt, tz=None)` | UTC → `HH:MM` |
+| `format_local_time_range(start, end, tz=None)` | UTC pair → `HH:MM–HH:MM EDT` (label taken at `start`) |
 | `format_local_display(dt, tz=None)` | UTC → `YYYY-MM-DD HH:MM EST` |
 | `timezone_label(tz=None, at=None)` | the zone's short label, for captions |
 | `now_local(tz=None)` / `today_local(tz=None)` | current time / current date, local |
