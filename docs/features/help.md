@@ -29,7 +29,7 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — eleven articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — twenty-one articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -54,6 +54,8 @@ is runtime content, not project documentation.
 | `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `audience: staff`, `roles: STAFF, PRESET_MANAGER` |
 | `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `audience: staff` |
 | `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
+| `staff-schedule` | Staff: Admin → Schedule, creating/editing/cancelling matches, rewinding, stages and candidates, crew approval and the coverage report | `audience: staff` |
+| `staff-match-day` | Staff: the board's queues, reschedule requests, confirming results, disputes, seeds, room screens, race rooms | `audience: staff` |
 
 ### Article format
 
