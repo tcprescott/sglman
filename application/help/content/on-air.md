@@ -36,6 +36,8 @@ still to come rather than the whole day. A match with no stage isn't on it at
 all; find those on the Schedule view. A stage with nothing left that day has no
 card. The view updates by itself as matches change.
 
+![One match on the On Air view: its start time, an In Progress chip, the tournament, the players, and the approved commentators and tracker](/static/help/on-air/timeline-phone.webp "A match on a stage card in On Air.")
+
 ## Finding the stream
 
 Where a stage is streamed, **Watch Stream** on its On Air card and the stage's
@@ -61,6 +63,8 @@ community uses them, and a **Get involved** section: **Commentate or track a
 match** (which asks you to sign in and lands on the schedule board), Event
 Information where the community publishes it, and this help.
 :::
+
+![The Watch page on a phone: three stage cards, each with a Watch stream button, a LIVE match under On now, and the next match under Up next, then a list of brackets](/static/help/on-air/watch-page-phone.webp "The Watch page, signed out.")
 
 A few things are deliberately different from the app:
 

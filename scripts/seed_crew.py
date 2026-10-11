@@ -61,6 +61,12 @@ async def seed_crew_for_tenant(
     await Tracker.get_or_create(
         match=stage3, user=sm, tenant=tenant, defaults=approved,
     )
+    # So the proctor's My Crew carries all three live chips at once, which is
+    # what the crew help article's screenshot shows.
+    await Commentator.get_or_create(
+        match=stage3, user=proctor, tenant=tenant,
+        defaults={"approved": True, "approved_by": staff},
+    )
 
     # Approved but **not yet acknowledged** — see the module docstring. Note the
     # absent ``acknowledged_at``, not a None one: that is the whole fixture.

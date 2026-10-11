@@ -76,6 +76,8 @@ On a phone the filters fold away behind a **Filters** button. A number beside it
 counts how many are set to something other than the default, so a "2" there
 means two filters are narrowing what you see.
 
+![The board's filters opened on a phone: Day set to All dates, Tournament and Stage empty, and State set to Scheduled, Checked In and Started](/static/help/schedule-board/filters-phone.webp "The filters on a phone, at their defaults.")
+
 **Needs crew**, the switch above the board, is separate from the filters. It
 shows only matches still short of an approved commentator or tracker that
 haven't started yet. It's the list to open if you came to crew;
@@ -112,6 +114,8 @@ its buttons off the screen. The same information is in both; the cards reflow
 it. The time and state sit at the top, then the players, then crew, stage and
 seed, and the bell at the bottom. A match staff are considering for stream but
 haven't given a stage yet shows a **candidate** chip on its Stage line.
+
+![A match card on a phone: the start time and a Started chip, two players with orange outline icons and station numbers, the tournament, the stage, and the bell](/static/help/schedule-board/card-phone.webp "One match, as a card on a phone.")
 
 You can also choose which columns you see and in what order, per device. That
 choice is yours alone, and it doesn't change what anyone else sees.

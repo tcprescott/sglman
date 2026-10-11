@@ -37,6 +37,8 @@ don't use. Where that's the case there's no **Sign up** in the Trackers cell,
 and that's deliberate rather than a fault.
 :::
 
+![A match card on a phone. SM User is an approved commentator, Proctor User is still waiting for approval, Player One is an approved tracker who has not confirmed yet, and both crew rows offer Sign Up](/static/help/crew/signup-phone.webp "A match on the board, on a phone, with the crew lines filled in.")
+
 A few things stop the **Sign up** button appearing:
 
 - **You're playing in the match.** You can't crew your own game.
@@ -117,6 +119,8 @@ has one, and a status chip:
 
 Turn on **Include past** to see the ones you've already worked.
 :::
+
+![Crew you signed up for on a phone, with two slots awaiting approval and one approved slot showing a Confirm I can cover this button](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
 
 ## Reading the crew cell
 
