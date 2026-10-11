@@ -3,6 +3,7 @@
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.
 - Checking in at the desk now sends you a Discord DM, so the desk can see straight away if your DMs are closed.
 - A community can let anyone who signs in join on the spot. Staff now pick who can join with one setting instead of two switches.
+- Staff can ask every member to finish parts of their profile, like linking Challonge or adding pronouns, from Settings under Members. Anyone who hasn't sees a red banner on every page with a button that opens the right spot on their profile, and staff decide whether each reminder can be dismissed.
 - Removing someone from a community now keeps them out, even where anyone can join or Discord server members get in automatically. They can still ask to join, and staff can add them back.
 - Race rooms open on racetime.gg, and players get a link straight into theirs.
 - Challonge entrants map to members, bracket stages advance from Wizzrobe, and final-stage players are read correctly. Tournaments hosted on an organization subdomain or a custom domain link properly now, and players are asked to sign in to Challonge before linking.
