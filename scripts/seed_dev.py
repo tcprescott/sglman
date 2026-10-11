@@ -43,6 +43,7 @@ from models import (
     LogLevelOverride,
     McpOAuthClient,
     PlayerAvailability,
+    ProfileNudgeDismissal,
     RacetimeBot,
     Role,
     Stage,
@@ -632,6 +633,32 @@ async def seed_mcp_oauth(users: dict[str, User]) -> None:
 # and consumed seconds later; a seeded one would always be stale/expired.
 
 
+async def seed_profile_reminders(tenant: Tenant, users: dict[str, User]) -> None:
+    """Profile reminder rules on the second community, and one dismissal in each.
+
+    Rules only go on ``second``, so the banner shows up somewhere without filling
+    every /ui-validation screenshot of the default community. There, pronouns is
+    dismissible and staff_user has dismissed it, and the timezone rule is
+    mandatory (it applies because that community follows each member's own
+    clock). In ``default`` the dismissal outlives a rule that is switched off,
+    which is the state a community that tried the feature and turned it off is in.
+    """
+    if tenant.slug == 'second':
+        rules = {'rules': [
+            {'check': 'pronouns', 'dismissible': True, 'note': None},
+            {'check': 'timezone', 'dismissible': False,
+             'note': 'Match times are booked in your timezone, so we need it set.'},
+        ]}
+        if (tenant.config or {}).get('profile_nudges') != rules:
+            config = dict(tenant.config or {})
+            config['profile_nudges'] = rules
+            tenant.config = config
+            await tenant.save()
+    await ProfileNudgeDismissal.get_or_create(
+        tenant=tenant, user=users['staff_user'], check='pronouns',
+    )
+
+
 async def seed_all() -> None:
     """Seed everything into the already-initialized ORM connection.
 
@@ -692,6 +719,7 @@ async def seed_all() -> None:
         # lacks the feature), so availability has to be settled before seeding.
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
+        await seed_profile_reminders(tenant, users)
     await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link

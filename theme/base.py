@@ -236,6 +236,9 @@ class BaseLayout:
         self._table_prefs = await TablePreferenceService().prime(self.user)
         with table_prefs_scope(self._table_prefs):
             self.render_chrome()
+            if self._is_member and not self._chromeless:
+                from theme.profile_nudge_banner import render_profile_nudge_banner
+                await render_profile_nudge_banner(self.user)
             if self.tabs:
                 await self._render_tab_panels()
 
