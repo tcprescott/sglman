@@ -418,7 +418,7 @@ One hosted community — the discriminator row every scoped model points at.
 | `discord_guild_id` | `BigIntField` | null, `index=True` | Bot routing key. **Non-unique** — several communities may share one Discord server and the bot fans out over every linked tenant |
 | `is_active` | `BooleanField` | default `True` | |
 | `feature_group` | FK → `FeatureFlagGroup` | null, `SET_NULL` | Assigned live tier; NULL falls back to the default group. `related_name='tenants'` |
-| `config` | `JSONField` | default `{}` | Per-tenant knobs without dedicated columns; a `theme` key holds the STAFF-set brand palette (see [`TenantThemeService`](services.md)) and a `timezone` key the community's pinned-or-follow-viewer clock (`TimezoneService`, see [timezone-handling.md](../timezone-handling.md)) |
+| `config` | `JSONField` | default `{}` | Per-tenant knobs without dedicated columns; a `theme` key holds the STAFF-set brand palette (see [`TenantThemeService`](services.md)) and a `timezone` key the community's pinned-or-follow-viewer clock (`TimezoneService`, see [timezone-handling.md](../timezone-handling.md)), and a `profile_nudges` key the community's recommended profile items (`ProfileNudgeService`, see [profile-reminders.md](../features/profile-reminders.md)) |
 
 #### `TenantMembership`
 
@@ -434,6 +434,22 @@ tenants, so it is never auto-scoped.
 | `created_at` | `DatetimeField` | auto | When they joined: the Users tab's **Joined** column and its "Joined in the last 7 days" filter |
 
 Constraints: `unique_together (('user', 'tenant'),)`; index on `tenant` (the composite is user-first, leaving per-tenant member enumeration uncovered).
+
+#### `ProfileNudgeDismissal`
+
+A member acknowledging one of their community's recommended profile items, which
+hides its banner. Tenant-scoped (`ProfileNudgeRepository`). Kept when the rule is
+switched off; ignored while the rule is mandatory. See
+[profile-reminders.md](../features/profile-reminders.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='profile_nudge_dismissals'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='profile_nudge_dismissals'` |
+| `check` | `CharField(32)` | not null | A `ProfileCheck` value, stored as a plain string |
+| `created_at` | `DatetimeField` | auto | |
+
+Constraints: `unique_together (('tenant', 'user', 'check'),)`.
 
 #### `TenantJoinRequest`
 

@@ -1,7 +1,7 @@
 """Admin → Settings: every community setting in one place, behind its own menu.
 
-Settings used to be eight drawer tabs (Settings, Features, Appearance, Timezone,
-Role Mappings, Discord Events, Webhooks, Randomizer Keys) interleaved with the
+Settings used to be nine drawer tabs (Settings, Features, Appearance, Timezone,
+Role Mappings, Discord Events, Webhooks, Randomizer Keys, Profile Reminders) interleaved with the
 day-to-day tools, and the one called Settings was a 2,000px column with two
 Save buttons that each wrote a different half of it. Now the drawer has one
 Settings entry and this page has a short menu of panes, each a stack of cards
@@ -26,6 +26,7 @@ from models import FeatureFlag
 from pages.admin_tabs.admin_discord_events import admin_discord_events_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_features import admin_features_page
+from pages.admin_tabs.admin_profile_reminders import admin_profile_reminders_page
 from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_theme import admin_theme_page
 from pages.admin_tabs.admin_timezone import admin_timezone_page
@@ -48,6 +49,7 @@ LEGACY_TAB_PANES: dict[str, str] = {
     'discord-events': 'discord',
     'webhooks': 'integrations',
     'randomizer-keys': 'integrations',
+    'profile-reminders': 'members',
 }
 
 
@@ -104,8 +106,9 @@ def build_settings_panes(access, live: set) -> list[SettingsPane]:
         ))
         panes.append(SettingsPane(
             'members', 'Members', 'group_add',
-            'Who can join, and what everyone else sees.',
+            'Who can join, what everyone else sees, and what members are asked to finish.',
             native=members_settings_pane,
+            embedded=(EmbeddedPage(admin_profile_reminders_page),),
         ))
         if FeatureFlag.VOLUNTEERS in live:
             panes.append(SettingsPane(

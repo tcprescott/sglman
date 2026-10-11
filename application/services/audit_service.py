@@ -142,6 +142,8 @@ class AuditActions:
     THEME_UPDATED = 'theme.updated'
     TIMEZONE_UPDATED = 'timezone.updated'
     USER_TIMEZONE_UPDATED = 'user.timezone_updated'
+    PROFILE_NUDGES_UPDATED = 'profile_nudges.updated'
+    PROFILE_NUDGE_DISMISSED = 'profile_nudge.dismissed'
 
     # Triforce texts
     TRIFORCE_TEXT_SUBMITTED = 'triforce_text.submitted'

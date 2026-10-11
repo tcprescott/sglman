@@ -88,6 +88,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
 | `StageService` | [stage_service.py](../../application/services/stage_service.py) | Stage (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
+| `ProfileNudgeService` | [profile_nudge_service.py](../../application/services/profile_nudge_service.py) | A community's recommended profile items and which ones a member still owes | [profile-reminders.md](../features/profile-reminders.md) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
 | `PayoutService` | [payout_service.py](../../application/services/payout_service.py) | Prize pool, placement splits, and the Matcherino export | [payouts.md](../features/payouts.md), `PAYOUTS` |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
@@ -1122,6 +1123,20 @@ Two tiers. `Tenant.config['timezone']` holds `{'mode': 'pinned'|'user', 'name': 
 Every read path is **total**: an unknown mode, a missing key, or a zone this system's tzdata cannot load degrades to the defaults rather than raising, because the settings are read on every page build and a hand-edited blob must not be able to take the app down. Module constants: `MODE_PINNED`/`MODE_USER`, `DEFAULT_MODE` (`user` — new communities follow the viewer; existing ones were migrated to an explicit Eastern pin), `COMMON_TIMEZONES` (the picker shortlist; both pickers still accept any IANA name), `CONFIG_KEY`.
 
 Collaborators: `TenantRepository`, `UserRepository`, `AuthService`, `AuditService`, `timezone_context`. Bound at the edges by `middleware/auth.py` (`bind_display_timezone`, page build), `middleware/tenant.py` (the cookie), `api/dependencies.py`, `mcpserver/registry.py`, and `application/utils/background_loop.py` (worker ticks).
+
+### profile_nudge_service.py — ProfileNudgeService
+
+STAFF-picked profile items each member should have done, and the banner rows a member still owes. Rules live in `Tenant.config['profile_nudges']`; dismissals in `ProfileNudgeDismissal`. Full detail: [profile-reminders.md](../features/profile-reminders.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_rules(tenant_id=None)` | `list[dict]` | `[{check, dismissible, note}]` in catalogue order; total over a bad blob. |
+| `unavailable_reasons()` | `dict[ProfileCheck, str]` | Why each check a member couldn't complete here right now is out (flag off, integration not configured, timezone pinned); shown on the admin tab. |
+| `set_rules(actor, rules)` | `list[dict]` | STAFF-gated; replaces the rules; audits `profile_nudges.updated`. Dismissals are kept. |
+| `pending_for(user)` | `list[ProfileNudge]` | Unmet, applicable rules not dismissed (a mandatory rule ignores dismissals). |
+| `dismiss(actor, check)` | `None` | Records an acknowledgement; refuses a rule that is off or mandatory; audits `profile_nudge.dismissed` once. |
+
+Collaborators: `ProfileNudgeRepository`, `TenantRepository`, `AuthService`, `AuditService`, `FeatureFlagService`, `TimezoneService`, and the Challonge/Twitch/racetime services' `is_configured`.
 
 ### tournament_notification_service.py — TournamentNotificationService
 
