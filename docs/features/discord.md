@@ -69,6 +69,7 @@ tenant costs the button, not the DM.
 | Added by staff / request closed by a role grant (to the person) | Find a tournament | `/home/tournaments` |
 | ADA request opened / changed after arranging (to staff) | Open the request | `/admin/users?ada_request=<id>` — that request's dialog, open |
 | Matcherino refused the check-in login (to the one person picked on the card) | Update the Matcherino login | `/admin/check-in` — the Matcherino login card is its first control |
+| Checked in at the desk (to the person checked in) | See the schedule | `/home/schedule` — the DM asks nothing; its job is proving the bot can reach them before their first match call |
 | Stage assigned / cleared / reminder | View your match · View your crew slot · View the schedule | per audience: players `/home/player?match=<id>`, crew `/home/my-crew?match=<id>`, watchers `/home/schedule` |
 | Harder preset offered | Play the harder preset (or Back out) · Choose your settings | the action button *is* the control; the link is `/home/player?hard=<match id>`, the opt-in open |
 | Harder preset agreed / broken | View your match | `/home/player?match=<id>` |
