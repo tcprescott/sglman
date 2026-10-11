@@ -35,9 +35,13 @@ class MatchReviewMixin:
 
         if not match.finished_at:
             raise ValueError("Only a finished match can be flagged for review.")
+        if match.confirmed_at:
+            raise ValueError(
+                "This result is already confirmed. Ask staff or the tournament admin to correct it."
+            )
 
         match.needs_review = True
-        await match.save()
+        await match.save(update_fields=['needs_review'])
 
         await self.audit_service.write_and_publish(
             actor,
@@ -65,7 +69,7 @@ class MatchReviewMixin:
         )
 
         match.needs_review = False
-        await match.save()
+        await match.save(update_fields=['needs_review'])
 
         await self.audit_service.write_and_publish(
             actor,

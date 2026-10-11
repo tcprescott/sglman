@@ -88,6 +88,22 @@ def crew_approval_withdrawn_dm(
     )
 
 
+def crew_signup_pending_dm(
+    crew_type: str,
+    volunteer_name: str,
+    match_title: Optional[str],
+    scheduled_at_display: str,
+    stage_name: Optional[str],
+    player_names: Optional[list[str]],
+) -> str:
+    """DM to whoever approves crew for a match when someone signs up for it."""
+    return _crew_dm(
+        f"**{volunteer_name}** signed up as {crew_type} and is waiting for approval.",
+        _crew_match_lines(match_title, scheduled_at_display, stage_name, player_names),
+        "Approve them from the match on the schedule.",
+    )
+
+
 def crew_withdrawn_dm(
     crew_type: str,
     volunteer_name: str,

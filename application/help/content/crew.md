@@ -18,8 +18,9 @@ Both sign up the same way and follow the same path.
 ## Signing up
 
 :::snippet crew-signup
-Find the match on the **Schedule & Crew Signup** tab and use **Sign up** in the
-Commentators or Trackers cell.
+Open **Event**, turn on **Needs crew** to hide the matches that are already
+covered, and tap **Sign up** in the Commentators or Trackers cell. There is no
+confirmation step; if you tapped the wrong one, **Withdraw** is in the same cell.
 
 Signing up is a request, not a booking. It records that you are available for
 that slot; a staff member decides who actually gets it.
@@ -43,10 +44,11 @@ a clash is usually why a signup is passed over.
 They can also **withdraw an approval they already gave**, up to and including the
 day of the match, if the shape of the stream changes or someone better suited
 becomes free. You get a DM when that happens, your confirmation is cleared, and
-the slot goes back to {chip:pending:Awaiting approval} in My Crew. It is not a
+the slot goes back to {chip:pending:Awaiting approval} on My Schedule. It is not a
 judgement on you.
 
-When they approve yours, Wizzrobe sends you a Discord DM.
+Staff get a Discord DM the moment you sign up, and when they approve yours,
+Wizzrobe sends you one too.
 :::
 
 ## Confirming
@@ -57,15 +59,16 @@ Until you do, staff cannot tell whether you have seen the approval.
 
 You can confirm from three places, and they all do the same thing:
 
-- **My Crew**, using **Confirm I can cover this**
+- **My Schedule**, using **Confirm I can cover this**
 - the crew cell on the schedule board
 - the **Acknowledge** button on the DM you were sent
 :::
 
-## My Crew
+## My Schedule
 
-The **My Crew** tab on Home is your own list of every slot you have signed up
-for, soonest first. Each one carries a status chip:
+**Crew you signed up for**, on Home's **My Schedule** tab, is your own list of
+every slot you have signed up for, soonest first. A match stays on it while it
+is running, even once its start time has passed. Each one carries a status chip:
 
 :::snippet crew-status
 | Chip | What it means |
@@ -75,13 +78,13 @@ for, soonest first. Each one carries a status chip:
 | {chip:ok:Confirmed} | You have the slot and you have confirmed. Nothing left to do. |
 | {chip:neutral:Played} | The match is over. |
 
-Turn on **Include past matches** to see the ones you have already worked.
+Turn on **Include past** to see the ones you have already worked.
 :::
 
 ## Withdrawing
 
 :::snippet crew-withdraw
-**Withdraw** takes you off a slot. You can do it from My Crew or from the
+**Withdraw** takes you off a slot. You can do it from My Schedule or from the
 schedule board, before or after approval.
 
 The two are not the same act. Withdrawing from a slot nobody has approved yet

@@ -114,6 +114,23 @@ class TestListMyCommitments:
 
         assert await CrewService().list_my_commitments(person) == []
 
+    async def test_a_match_running_late_stays_on_the_list(self, person, tournament, db):
+        # Its start time has passed but it hasn't finished: it is on air or
+        # about to be, which is when the crew member needs the card most.
+        running = await Match.create(tournament=tournament, scheduled_at=_at(-1))
+        await Commentator.create(match=running, user=person, approved=True)
+
+        rows = await CrewService().list_my_commitments(person)
+        assert [r['match_id'] for r in rows] == [running.id]
+
+    async def test_a_match_that_finished_drops_off(self, person, tournament, db):
+        done = await Match.create(
+            tournament=tournament, scheduled_at=_at(-2), finished_at=_at(-1),
+        )
+        await Commentator.create(match=done, user=person, approved=True)
+
+        assert await CrewService().list_my_commitments(person) == []
+
     async def test_past_matches_are_available_on_request(self, person, tournament, db):
         past = await Match.create(tournament=tournament, scheduled_at=_at(-30))
         await Commentator.create(match=past, user=person, approved=True)

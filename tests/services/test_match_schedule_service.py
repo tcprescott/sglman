@@ -83,6 +83,7 @@ class MockMatch:
         self.needs_review = needs_review
         self.save = AsyncMock()
         self.fetch_related = AsyncMock()
+        self.refresh_from_db = AsyncMock()
 
 
 def mock_players(*names, ranks=None):
@@ -107,6 +108,7 @@ pytestmark = pytest.mark.usefixtures("bypass_auth")
 def service():
     svc = object.__new__(MatchScheduleService)
     svc.match_repository = MagicMock()
+    svc.match_repository.stamp_if_unset = AsyncMock(return_value=True)
     svc.discord_service = MagicMock()
     svc.seedgen_service = MagicMock()
     svc._seed_locks = {}
@@ -124,7 +126,7 @@ class TestSeatMatch:
     async def test_persists_the_change(self, service):
         match = MockMatch(players=mock_players())
         await service.seat_match(match)
-        match.save.assert_awaited_once()
+        service.match_repository.stamp_if_unset.assert_awaited_once()
 
     async def test_seated_at_is_recent(self, service):
         match = MockMatch(players=mock_players())
@@ -139,7 +141,7 @@ class TestSeatMatch:
         with pytest.raises(ValueError, match="no players"):
             await service.seat_match(match)
         assert match.seated_at is None
-        match.save.assert_not_awaited()
+        service.match_repository.stamp_if_unset.assert_not_awaited()
 
     async def test_raises_if_already_seated(self, service):
         match = MockMatch(seated_at=datetime.now())
@@ -150,7 +152,7 @@ class TestSeatMatch:
         match = MockMatch(seated_at=datetime.now())
         with pytest.raises(ValueError):
             await service.seat_match(match)
-        match.save.assert_not_awaited()
+        service.match_repository.stamp_if_unset.assert_not_awaited()
 
     async def test_racetime_tournament_rejects_check_in(self, service):
         match = MockMatch(is_racetime_enabled=True)
@@ -162,7 +164,7 @@ class TestSeatMatch:
         with pytest.raises(ValueError):
             await service.seat_match(match)
         assert match.seated_at is None
-        match.save.assert_not_awaited()
+        service.match_repository.stamp_if_unset.assert_not_awaited()
 
 
 class TestStartMatch:
@@ -174,7 +176,7 @@ class TestStartMatch:
     async def test_persists_the_change(self, service):
         match = MockMatch(seated_at=datetime.now())
         await service.start_match(match)
-        match.save.assert_awaited_once()
+        service.match_repository.stamp_if_unset.assert_awaited_once()
 
     async def test_raises_if_not_seated(self, service):
         match = MockMatch()
@@ -205,7 +207,7 @@ class TestFinishMatch:
         now = datetime.now()
         match = MockMatch(seated_at=now, started_at=now)
         await service.finish_match(match)
-        match.save.assert_awaited_once()
+        service.match_repository.stamp_if_unset.assert_awaited_once()
 
     async def test_raises_if_not_started(self, service):
         match = MockMatch()
@@ -244,7 +246,7 @@ class TestConfirmMatch:
     async def test_persists_the_change(self, service):
         match = self._played_out()
         await service.confirm_match(match)
-        match.save.assert_awaited_once()
+        service.match_repository.stamp_if_unset.assert_awaited_once()
 
     async def test_raises_if_not_finished(self, service):
         match = MockMatch()
@@ -265,7 +267,7 @@ class TestConfirmMatch:
         with pytest.raises(ValueError, match="No result has been recorded"):
             await service.confirm_match(match)
         assert match.confirmed_at is None
-        match.save.assert_not_awaited()
+        service.match_repository.stamp_if_unset.assert_not_awaited()
 
     async def test_raises_if_the_match_has_no_players(self, service):
         now = datetime.now()
@@ -297,7 +299,7 @@ class TestFullLifecycle:
         match.players[1].finish_rank = 2
         await service.confirm_match(match)
         assert match.confirmed_at is not None
-        assert match.save.await_count == 4
+        assert service.match_repository.stamp_if_unset.await_count == 4
 
     async def test_cannot_skip_seat_to_start(self, service):
         match = MockMatch()

@@ -206,26 +206,21 @@ class MatchTableHandlersMixin:
             dialog.open()
 
         elif action == 'signup':
-            async def update_role_signup():
-                try:
-                    await crew_service.signup_crew(match_id, user, role)
-                    ui.notify(
-                        f'Signed up as a {role} for '
-                        f'{match_row_label(row, with_context=False)}. Awaiting approval.',
-                        color='positive',
-                    )
-                    await self.update_row_by_id(match_id)
-                except ValueError as e:
-                    ui.notify(str(e), color='warning')
-
-            dialog = ConfirmationDialog(
-                f'Sign up as a {role} for {match_row_label(row)}?',
-                title=f'Sign up as {role}',
-                confirm_text='Sign up',
-                cancel_text='Cancel',
-                on_confirm=update_role_signup,
-            )
-            dialog.open()
+            # No confirmation step: a signup commits nobody to anything until
+            # staff approve it, and Withdraw sits in the same cell the moment
+            # it lands. The dialog was a second tap on the one action a
+            # volunteer opens this board to take.
+            try:
+                await crew_service.signup_crew(match_id, user, role)
+                ui.notify(
+                    f'Signed up as a {role} for '
+                    f"{match_row_label(row, with_context=False)}. You'll get a Discord "
+                    'message once staff approve it.',
+                    color='positive',
+                )
+                await self.update_row_by_id(match_id)
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
 
     async def _handle_acknowledge_crew(self, role, event, client):
         from application.services import CrewService

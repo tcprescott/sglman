@@ -20,6 +20,7 @@ DMs fire on match lifecycle transitions:
 | Stage assigned / cleared | players, approved crew, watchers |
 | Stage reminder | the same audience, `stage_reminder_minutes` before the match |
 | Stream candidate | tournament subscribers, with crew-signup buttons |
+| Crew signup | the tournament's admins and crew coordinators (`get_crew_owners`), so a pending signup doesn't wait for someone to open the board |
 | Matchup ready to schedule | both entrants of a bracket matchup (also re-sent as a *rebook* if its game is later called off) |
 
 That last one is the only bracket-specific message — there are deliberately no
@@ -55,9 +56,11 @@ tenant costs the button, not the DM.
 | Match scheduled / rescheduled (watchers) | — | Unwatch only; there is nothing to do |
 | Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
 | Seed ready | Open your seed | the randomizer — the one deliberately off-site link |
-| Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
+| Crew assignment | View your crew slot | `/home/my-crew?match=<id>`, beside Acknowledge — the card that also carries Confirm and Withdraw |
+| Crew signup (to admins) | Review the signup | `/admin/schedule?match_id=<id>` — the approval toggle is on that row |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
 | Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
+| Volunteer shift reminder | Acknowledge (only if not yet acknowledged) · Can't make it | `/volunteer/my-shifts?release=<assignment id>` — the give-back dialog for that shift, open; a gone, finished or checked-in shift says so instead |
 | Reschedule request (to staff) | Review the request | `/admin/schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
 | Reschedule request (to the opponent) | Agree · Open the request | Discord's Agree button is the control; the link is `/home/player?agree=<request id>`, the same request open in a dialog with its own **Agree** — the web-push copy of this DM has no Discord button, so the tap target has to carry one |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |

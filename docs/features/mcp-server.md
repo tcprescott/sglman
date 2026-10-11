@@ -194,6 +194,7 @@ hold a writing grant in one client and a reading one in another.
 | `list_matches`, `get_match`, `get_schedule` | ACTOR | — |
 | `suggest_match_time` | ACTOR | — |
 | `match_operations_report` | ADMIN | — |
+| `my_reschedule_requests` | ACTOR | — |
 
 `get_tournament_payouts` returns one tournament's prize split with each place's
 amount computed from the pool as it stands. `PayoutService` re-gates it on staff
@@ -221,10 +222,14 @@ discover the clash after creating the match.
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
 | `list_volunteer_positions`, `list_volunteer_shifts` | ADMIN | `VOLUNTEERS` |
 | `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
+| `my_volunteer_shifts` | ACTOR | `VOLUNTEERS` |
+| `list_join_requests` | STAFF | — |
 
 The volunteer tools sit one gate **above** their REST counterparts
 (`require_api_actor`), deliberately: REST reads back a self-service view of your
 own shift, whereas one call here returns a whole window's roster with names.
+`my_volunteer_shifts` is that self-service view, at ACTOR: your own published
+shifts and nobody else's, the same as `GET /volunteers/me/assignments`.
 `volunteer_hour_trends` is served by `AnalyticsService`, which carries no flag of
 its own, so `VOLUNTEERS` is declared at the tool — without it a community with
 volunteers off could still read its volunteer hours here.
@@ -253,6 +258,7 @@ every booking.
 | Tool | Gate | Flag |
 |---|---|---|
 | `list_equipment`, `get_equipment` | ACTOR | `EQUIPMENT` |
+| `my_equipment_checkouts` | ACTOR | `EQUIPMENT` |
 
 Mirrors `api/routers/equipment.py`. The inventory carries no role check at all:
 every member of a community with the feature on may read it and see its current
@@ -262,6 +268,17 @@ there was no REST counterpart, on the belief that the *admin* equipment tab was
 the gate of record; it is not, and the stricter gate only meant a member saw
 less through a connected client than in their own browser. `private_notes` is
 the one genuinely staff-only field and is absent from both shapes.
+
+### Check-in desk
+| Tool | Gate | Flag |
+|---|---|---|
+| `list_check_in_events`, `get_check_in_roster` | ACTOR | `EVENT_CHECK_IN` |
+
+Mirrors `GET /check-in/events` and `/events/{id}/roster`. `CheckInDeskService`
+answers who may read: staff and Check-in Desk volunteers, and a desk volunteer
+sees only open events. The roster takes `search` and `not_checked_in_only` and
+returns at most 200 rows, because a whole venue's roster is not something a
+model needs in one call to find one person.
 
 ### Observability
 | Tool | Gate |
@@ -326,15 +343,20 @@ field, whatever its size.
 
 ## Writes
 
-Twenty-one tools, served only to a connection approved for writing: nineteen in
-[`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py), plus
+Thirty-two tools, served only to a connection approved for writing: twenty-one in
+[`mcpserver/tools/match_writes.py`](../../mcpserver/tools/match_writes.py), nine in
+[`mcpserver/tools/event_writes.py`](../../mcpserver/tools/event_writes.py), plus
 `sign_up_for_tournament` and `withdraw_from_tournament`, which live beside the
 other tournament tools in
 [`mcpserver/tools/tournaments.py`](../../mcpserver/tools/tournaments.py).
 
-**Scope, and the rule that fixes it.** The write surface is exactly what
-`api/routers/match_actions.py` exposes, tool for tool, plus the self-signup pair
-from `api/routers/tournament_actions.py` (`POST`/`DELETE /tournaments/{id}/signup`). That is worth stating
+**Scope, and the rule that fixes it.** The write surface is exactly what these
+REST routes expose, tool for tool: `api/routers/match_actions.py`, the
+self-signup pair from `api/routers/tournament_actions.py`
+(`POST`/`DELETE /tournaments/{id}/signup`), `api/routers/check_in.py`,
+`api/routers/memberships.py`, and `POST /volunteers/assignments/{id}/check-in`.
+The event-day set was added for SG Live 2026, where the desk, coordinators and
+staff run the floor from their phones. That is worth stating
 because the alternative — adding whichever writes seem useful — leaves two
 surfaces that drift and no answer for the next proposal. A write that belongs
 here belongs in the REST router too, and the reverse.
@@ -344,7 +366,10 @@ here belongs in the REST router too, and the reverse.
 | Scheduling | `create_match`, `submit_match_request`, `update_match`, `delete_match` |
 | Stream and stations | `set_match_stream_candidate`, `assign_match_stage`, `assign_match_stations` |
 | Lifecycle | `seat_match`, `start_match`, `finish_match`, `confirm_match`, `record_match_result`, `set_match_review`, `generate_match_seed` |
-| Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match`, `sign_up_for_tournament`, `withdraw_from_tournament` |
+| Your own participation | `signup_as_crew`, `withdraw_crew_signup`, `acknowledge_match`, `watch_match`, `unwatch_match`, `offer_match_for_stream`, `withdraw_stream_offer`, `sign_up_for_tournament`, `withdraw_from_tournament` |
+| Check-in desk (`EVENT_CHECK_IN`) | `check_in_attendee`, `undo_attendee_check_in`, `link_attendee`, `unlink_attendee`, `add_walk_up`, `sync_check_in_event` |
+| Volunteers (`VOLUNTEERS`) | `check_in_volunteer` |
+| Membership | `approve_join_request`, `deny_join_request` |
 
 Every one is registered at **ACTOR**, mirroring `require_write_actor`: holding a
 live token approved for writing is the bar at this layer, and the real check is
@@ -365,7 +390,8 @@ through a PAT. Widening the floor to `TenantMembershipService.is_member` would
 fix that, and would also widen what the *read* tools disclose to any member — a
 decision about the read surface's posture, not one to make from the write side.
 
-`delete_match`, `withdraw_crew_signup` and `withdraw_from_tournament` are
+`delete_match`, `withdraw_crew_signup`, `withdraw_from_tournament`,
+`withdraw_stream_offer`, `undo_attendee_check_in` and `unlink_attendee` are
 additionally annotated `destructiveHint`, which is how a client decides how hard to ask before
 proceeding.
 

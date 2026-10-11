@@ -81,6 +81,7 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - `POST /matches/{id}/review` — `{needs_review}`. Raises or drops the dispute flag on a recorded result, returning the updated match. The two directions gate differently: flagging is `can_run_match` (the proctor's own call, and `400` unless the match is finished), clearing is `can_confirm_match` (`403` for a proctor). `/confirm` clears the flag on its own — see [match-participation.md](../features/match-participation.md#disputed-results).
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
+- Stream offer: `POST /matches/{id}/stream-offer` · `DELETE /matches/{id}/stream-offer` — a player offers their own match for stream coverage, or takes it back. `400` for someone not in the match, or for an offer once it has started (withdrawing is allowed after). Stream managers see the offer; it does not set `is_stream_candidate`.
 
 - `GET /matches/{id}/crew` — the coordinator's crew list, **including unapproved signups** (admin). `GET /matches/{id}` hides those from everyone, so this sits behind a higher gate than the match itself; the peer of the MCP `list_match_crew` tool.
 
@@ -135,7 +136,7 @@ Behind `FeatureFlag.PAYOUTS` (the whole router 404s when the community lacks it)
 Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes are self-service. All routes require an authenticated actor; writes use a non-read-only token.
 - **Positions:** `GET /volunteers/positions?active_only=` (list; `active_only` limits to active positions, default `false`) · `POST /volunteers/positions` (create) · `PATCH /volunteers/positions/{id}` · `DELETE /volunteers/positions/{id}`.
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
-- **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
+- **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment) · `POST /volunteers/assignments/{id}/check-in` (record that the volunteer arrived; coordinators and staff, `403` otherwise; a second call keeps the first time).
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
 - **Hours:** `GET /volunteers/hours?start=&end=` — every opted-in volunteer's served hours against the comp tiers, coordinator-only (staff or volunteer coordinator; 403 otherwise) · `GET /volunteers/hours/me` — your own. `start`/`end` are optional **local dates** that narrow the count; both default to the tenant's event window. Published assignments only, overlapping shifts counted once.
 - **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`, and unpublished drafts are never listed) · `DELETE /volunteers/me/assignments/{id}` (give a shift back, optional `{"reason": …}` body → 204; the coordinators are DMed).
@@ -185,6 +186,19 @@ Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 ### API tokens (`/api/tokens`) · `tokens.py`
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
 
+### Join requests (`/api/join-requests`) · `memberships.py`
+The staff queue from Admin → Users. Every route is Staff (`can_grant_roles`, checked in `TenantMembershipService`).
+- `GET /join-requests` — pending requests to join the token's community, oldest first.
+- `POST /join-requests/{id}/approve` · `POST /join-requests/{id}/deny` — decide one. The requester is DMed either way. `400` once it has been decided, `404` for another community's request.
+
+### Check-in desk (`/api/check-in`) · `check_in.py`
+The `/checkin` desk's actions, behind `EVENT_CHECK_IN`. The rules are the desk page's, enforced in `CheckInService` / `CheckInDeskService`: staff and Check-in Desk volunteers work the desk; a desk volunteer reads only open events; walk-ups and checking in someone withdrawn are staff-only. Event setup stays in Admin → Check-in. See [event-check-in.md](../features/event-check-in.md).
+- `GET /check-in/events` — the events you can work. `GET /check-in/events/{id}/roster` — every row with `badges`, `lanyard`, account link, `withdrawn_at` and check-in state.
+- `POST /check-in/events/{id}/sync` — pull Matcherino sales and comps now; returns the `SyncResult` counts.
+- `POST /check-in/entrants/{id}/check-in` (`{despite_withdrawn?}`) → `{entrant, already}`. A repeat changes nothing and says `already: true`. A withdrawn row is `400` for the desk; staff may send `despite_withdrawn: true` (audited). `DELETE` on the same path undoes it.
+- `PUT /check-in/entrants/{id}/user` (`{user_id}`) · `DELETE /check-in/entrants/{id}/user` — link or unlink the row's account.
+- `POST /check-in/events/{id}/walk-ups` (`{user_id}` or `{name}`, `check_in?`) — staff only; `201`.
+
 ### Discord role mappings (`/api/discord-role-mappings`) · `discord_role_mappings.py`
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → grant mappings (Staff). A `POST` body sets **either** `app_role` (community-wide) **or** `tournament_grant` + `tournament_id` (Tournament Admin / Crew Coordinator on one event); both or neither is a 400.
 
@@ -203,6 +217,7 @@ When the caller's tenant has not enabled a router's flag, the **whole router 404
 | Brackets | `BRACKETS` |
 | Equipment | `EQUIPMENT` |
 | Feedback | `FEEDBACK` |
+| Check-in desk | `EVENT_CHECK_IN` |
 | `GET /reports/volunteer-hour-trends` (that route only) | `VOLUNTEERS` |
 
 Every other group stays open, including presets, seeds, racetime bots, discord events, reports, telemetry and service health. `GET /seeds/randomizers` filters on a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).

@@ -25,6 +25,7 @@ READ_TOOLS = {
     'get_async_qualifier_leaderboard',
     'get_bracket',
     'get_bracket_standings',
+    'get_check_in_roster',
     'get_equipment',
     'get_match',
     'get_player_availability',
@@ -42,14 +43,16 @@ READ_TOOLS = {
     'list_bracket_entrants',
     'list_bracket_matches',
     'list_brackets',
+    'list_check_in_events',
     'list_equipment',
     'list_feedback',
+    'list_join_requests',
     'list_match_crew',
     'list_matches',
     'list_presets',
-    'list_randomizers',
     'list_race_room_profiles',
     'list_race_rooms',
+    'list_randomizers',
     'list_service_health',
     'list_speedgaming_episodes',
     'list_speedgaming_links',
@@ -65,6 +68,9 @@ READ_TOOLS = {
     'list_webhooks',
     'match_operations_report',
     'matches_active_at',
+    'my_equipment_checkouts',
+    'my_reschedule_requests',
+    'my_volunteer_shifts',
     'stage_utilization',
     'suggest_match_time',
     'telemetry_summary',
@@ -81,33 +87,51 @@ READ_TOOLS = {
 # client is suddenly offered.
 WRITE_TOOLS = {
     'acknowledge_match',
-    'assign_match_stations',
+    'add_walk_up',
+    'approve_join_request',
     'assign_match_stage',
+    'assign_match_stations',
+    'check_in_attendee',
+    'check_in_volunteer',
     'confirm_match',
     'create_match',
     'delete_match',
+    'deny_join_request',
     'finish_match',
     'generate_match_seed',
+    'link_attendee',
+    'offer_match_for_stream',
     'record_match_result',
     'seat_match',
     'set_match_review',
     'set_match_stream_candidate',
+    'sign_up_for_tournament',
     'signup_as_crew',
     'start_match',
-    'sign_up_for_tournament',
     'submit_match_request',
+    'sync_check_in_event',
+    'undo_attendee_check_in',
+    'unlink_attendee',
     'unwatch_match',
     'update_match',
     'watch_match',
     'withdraw_crew_signup',
     'withdraw_from_tournament',
+    'withdraw_stream_offer',
 }
 
 EXPECTED_TOOLS = READ_TOOLS | WRITE_TOOLS
 
 # Writes that remove something rather than adding or amending it. Clients use
 # the distinction to decide how hard to ask before proceeding.
-DESTRUCTIVE_TOOLS = {'delete_match', 'withdraw_crew_signup', 'withdraw_from_tournament'}
+DESTRUCTIVE_TOOLS = {
+    'delete_match',
+    'undo_attendee_check_in',
+    'unlink_attendee',
+    'withdraw_crew_signup',
+    'withdraw_from_tournament',
+    'withdraw_stream_offer',
+}
 
 
 class TestCatalogue:

@@ -229,6 +229,19 @@ class ShiftSummary(BaseModel):
     assignees: List[str] = Field(default_factory=list)
 
 
+class MyShift(BaseModel):
+    """One of the caller's own volunteer shifts."""
+
+    assignment_id: int = Field(description='Pass to check_in_volunteer (coordinators) or to the web give-back.')
+    shift_id: int
+    position: Optional[str] = None
+    label: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+    checked_in_at: Optional[datetime] = None
+
+
 class AuditEntry(BaseModel):
     id: int
     user_id: Optional[int] = None

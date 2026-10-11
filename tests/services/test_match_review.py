@@ -143,3 +143,62 @@ class TestConfirmingResolvesTheReviewFlag:
         await service.confirm_match(m, staff)
 
         assert await AuditLog.filter(action='match.review_cleared').count() == 0
+
+
+class TestAConfirmedResultIsTheAdminsToChange:
+    """Confirming is the admin's verification step and has already pushed the
+    result on, so a proctor (who may record a winner but not confirm one) must
+    not be able to rewrite a confirmed winner, nor reopen it with a flag."""
+
+    async def _confirmed_match(self, service):
+        staff = await make_staff()
+        t = await Tournament.create(name="T")
+        m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
+        winner = await MatchPlayers.create(match=m, user=await make_user(1, name="p1"))
+        loser = await MatchPlayers.create(match=m, user=await make_user(2, name="p2"))
+        await service.seat_match(m, staff)
+        await service.start_match(m, staff)
+        await service.finish_match(m, staff)
+        await MatchService().record_match_result(m.id, winner.id, staff)
+        await service.confirm_match(m, staff)
+        return m, winner, loser, staff
+
+    async def test_proctor_cannot_rewrite_a_confirmed_winner(self, service, db):
+        m, winner, loser, _staff = await self._confirmed_match(service)
+        proctor = await make_proctor()
+
+        with pytest.raises(PermissionError, match="confirmed"):
+            await MatchService().record_match_result(m.id, loser.id, proctor)
+
+        await winner.refresh_from_db()
+        assert winner.finish_rank == 1
+
+    async def test_staff_can_correct_a_confirmed_winner(self, service, db):
+        m, _winner, loser, staff = await self._confirmed_match(service)
+
+        await MatchService().record_match_result(m.id, loser.id, staff)
+
+        await loser.refresh_from_db()
+        assert loser.finish_rank == 1
+
+    async def test_proctor_can_still_record_before_confirmation(self, service, db):
+        proctor = await make_proctor()
+        t = await Tournament.create(name="T")
+        m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
+        p1 = await MatchPlayers.create(match=m, user=await make_user(1, name="p1"))
+        await MatchPlayers.create(match=m, user=await make_user(2, name="p2"))
+
+        await MatchService().record_match_result(m.id, p1.id, proctor)
+
+        await p1.refresh_from_db()
+        assert p1.finish_rank == 1
+
+    async def test_a_confirmed_match_cannot_be_flagged(self, service, db):
+        m, *_ = await self._confirmed_match(service)
+        proctor = await make_proctor()
+
+        with pytest.raises(ValueError, match="already confirmed"):
+            await MatchService().flag_for_review(m.id, proctor)
+
+        await m.refresh_from_db()
+        assert m.needs_review is False

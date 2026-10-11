@@ -5,15 +5,21 @@ Commentator and Tracker have identical persistence shapes, so the actual CRUD
 lives here and the concrete repositories only bind the model class.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Generic, List, Optional, Type, TypeVar
 
+from tortoise.expressions import Q
 from tortoise.models import Model
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, User
 
 T = TypeVar("T", bound=Model)
+
+#: How long past its start an unfinished match still counts as upcoming crew
+#: work. Longer than any match runs late; shorter than a day, so a row nobody
+#: closed out yesterday does not sit at the top of today's list.
+STALE_UNFINISHED = timedelta(hours=12)
 
 
 class CrewRepository(Generic[T]):
@@ -46,12 +52,20 @@ class CrewRepository(Generic[T]):
         The query behind My Crew. Nothing anywhere listed a volunteer's own
         signups: after signing up, their only handle on the commitment was a
         Withdraw button in one row of a shared, chronologically-sorted board.
-        ``since`` drops matches that finished before it, so the page can default
-        to what is still ahead.
+        ``since`` drops what is behind it, so the page can default to what is
+        still ahead. A match whose start time has passed but which has not
+        finished stays: it is running late or on air right now, which is when
+        its crew most needs the card. Filtering on the scheduled time alone hid
+        it at the minute it started. Unfinished matches more than
+        :data:`STALE_UNFINISHED` old are abandoned rows, not work, and drop.
         """
         query = scoped(cls.model.filter(user=user))
         if since is not None:
-            query = query.filter(match__scheduled_at__gte=since)
+            query = query.filter(
+                Q(match__scheduled_at__gte=since)
+                | Q(match__finished_at__isnull=True,
+                    match__scheduled_at__gte=since - STALE_UNFINISHED)
+            )
         return await query.prefetch_related(
             'match', 'match__tournament', 'match__stage',
             'match__players', 'match__players__user',

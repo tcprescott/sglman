@@ -63,7 +63,7 @@ async def _tick() -> None:
 
         # Stamp first so a delivery failure (or a restart) can't re-fire it.
         match.stage_reminder_sent_at = now
-        await match.save()
+        await match.save(update_fields=['stage_reminder_sent_at'])
 
         # ``for_each_tenant_scoped`` has this match's tenant bound and
         # ``discord_queue.enqueue`` captures it for the queue worker, so the

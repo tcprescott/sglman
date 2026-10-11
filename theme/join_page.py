@@ -203,8 +203,10 @@ def _render_preview(preview: JoinPreview) -> None:
         for tournament_id, name in preview.tournaments:
             ui.button(
                 name, icon='account_tree',
+                # The static twin, not the interactive page: the door is where a
+                # crowd lands, and every interactive tab costs a websocket.
                 on_click=lambda tid=tournament_id: ui.navigate.to(
-                    f'/tournament/{tid}/brackets'
+                    f'/live/tournament/{tid}/brackets'
                 ),
             ).props('flat dense no-caps no-wrap align=left') \
                 .classes('w-full join-preview-button').tooltip(name)
@@ -225,6 +227,9 @@ def _render_preview(preview: JoinPreview) -> None:
                 ui.label(match.tournament).classes('text-caption text-grey ellipsis')
     if preview.more_matches:
         ui.label(f'…and {preview.more_matches} more today.').classes('text-caption text-grey')
+
+
+WATCH_LINE = 'Here to watch? Streams and what’s on now, no sign-in needed.'
 
 
 #: First, because a member who is merely signed out — the usual reader of a
@@ -301,13 +306,23 @@ def render_join_page(
             ui.icon('meeting_room').props('size=xl color=primary')
             ui.label(tenant_name).classes('error-headline')
 
+            # First, for everyone: most people who reach this door from a tweet,
+            # the stream or a QR code came to watch, and watching needs no
+            # account. The Watch page is static, so the crowd costs no socket.
+            ui.label(WATCH_LINE).classes('error-message')
+            ui.button(
+                'Watch live', icon='live_tv',
+                on_click=lambda: ui.navigate.to('/live'),
+            ).props('color=primary unelevated size=lg no-caps').classes('join-watch-button')
+            ui.separator().classes('separator-spacing')
+
             if user is None:
                 ui.label(_signed_out_message(preview)).classes('error-message')
                 # Absolute and carrying the page: a relative 'login' resolved
                 # against /home/<section> to /home/login, which is this door again.
                 sign_in = login_path(current_local_url())
                 ui.button('Sign in', icon='login',
-                          on_click=lambda: ui.navigate.to(sign_in)).props('color=primary')
+                          on_click=lambda: ui.navigate.to(sign_in)).props('color=primary outline')
                 _render_discord(preview, signed_in=False)
                 _render_preview(preview)
                 return

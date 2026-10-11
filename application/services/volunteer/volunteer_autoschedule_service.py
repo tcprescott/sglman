@@ -17,6 +17,7 @@ from tortoise.transactions import in_transaction
 
 from application.repositories import (
     VolunteerAssignmentRepository,
+    VolunteerQualificationRepository,
     VolunteerShiftRepository,
 )
 from application.services.audit_service import AuditActions, AuditService
@@ -27,7 +28,6 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 from models import (
     User,
     VolunteerAvailabilityStatus,
-    VolunteerQualification,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,7 @@ class VolunteerAutoscheduleService:
     def __init__(self) -> None:
         self.shift_repository = VolunteerShiftRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
+        self.qualification_repository = VolunteerQualificationRepository()
         self.profile_service = VolunteerProfileService()
         self.availability_service = VolunteerAvailabilityService()
         self.schedule_service = VolunteerScheduleService()
@@ -88,7 +89,11 @@ class VolunteerAutoscheduleService:
         policy = policy or DraftPolicy()
 
         if clear_existing_drafts:
-            await self.assignment_repository.delete_auto_for_window(start, end)
+            # Only the positions being re-drafted: a run for Stage Crew must not
+            # wipe the Registration draft the coordinator already reviewed.
+            await self.assignment_repository.delete_auto_for_window(
+                start, end, position_ids=position_ids or None,
+            )
 
         shifts = await self.shift_repository.list_for_window(start, end)
         if position_ids:
@@ -109,17 +114,22 @@ class VolunteerAutoscheduleService:
             }
         pool_ids = [u.id for u in pool]
 
-        quals = await self._qualifications(pool_ids)
+        quals = await self.qualification_repository.position_ids_by_user(pool_ids)
         avail_map = await self.availability_service.availability_map(pool_ids, start, end)
 
-        # Seed per-user state from assignments already in the window (manual + draft).
+        # Seed per-user state from existing assignments (manual + draft) across
+        # the shifts' full span, not just the window: an overnight shift that
+        # overlaps the window can still clash with a shift entirely outside it.
         intervals: Dict[int, List[Tuple[datetime, datetime]]] = {uid: [] for uid in pool_ids}
         hours: Dict[int, float] = {uid: 0.0 for uid in pool_ids}
         on_shift: Dict[int, Set[int]] = {uid: set() for uid in pool_ids}
-        for a in await self.assignment_repository.list_for_window(start, end):
+        span_start = min([start, *(s.starts_at for s in shifts)])
+        span_end = max([end, *(s.ends_at for s in shifts)])
+        for a in await self.assignment_repository.list_for_window(span_start, span_end):
             if a.user_id in intervals:
                 intervals[a.user_id].append((a.shift.starts_at, a.shift.ends_at))
-                hours[a.user_id] += self._hours(a.shift.starts_at, a.shift.ends_at)
+                if a.shift.starts_at < end and a.shift.ends_at > start:
+                    hours[a.user_id] += self._hours(a.shift.starts_at, a.shift.ends_at)
                 on_shift[a.user_id].add(a.shift_id)
 
         created = 0
@@ -195,15 +205,24 @@ class VolunteerAutoscheduleService:
         drafts = await self.assignment_repository.list_auto_for_window(start, end)
         # Not in a transaction: each confirmation enqueues a DM and a rollback
         # cannot un-send one. A partial publish is recoverable — confirm_assignment
-        # is idempotent, so the next click finishes the job.
+        # is idempotent, so the next click finishes the job. A draft that now
+        # clashes with a published shift stays a draft and is reported back.
+        published = []
+        clashes: List[str] = []
         for assignment in drafts:
-            await self.schedule_service.confirm_assignment(actor, assignment)
+            try:
+                await self.schedule_service.confirm_assignment(actor, assignment)
+            except ValueError as e:
+                clashes.append(str(e))
+                continue
+            published.append(assignment)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
-            {'published': len(drafts), 'start': start, 'end': end},
+            {'published': len(published), 'skipped': len(clashes), 'start': start, 'end': end},
         )
-        return {'published': len(drafts),
-                'volunteers': len({a.user_id for a in drafts})}
+        return {'published': len(published),
+                'volunteers': len({a.user_id for a in published}),
+                'clashes': clashes}
 
     async def clear_draft(self, actor: User, start: datetime, end: datetime) -> int:
         await AuthService.ensure(
@@ -268,16 +287,6 @@ class VolunteerAutoscheduleService:
     @staticmethod
     def _hours(start: datetime, end: datetime) -> float:
         return max(0.0, (end - start).total_seconds() / 3600.0)
-
-    @staticmethod
-    async def _qualifications(user_ids: List[int]) -> Dict[int, Set[int]]:
-        rows = await VolunteerQualification.filter(user_id__in=user_ids).values_list(
-            'user_id', 'position_id',
-        )
-        out: Dict[int, Set[int]] = {}
-        for uid, pid in rows:
-            out.setdefault(uid, set()).add(pid)
-        return out
 
     @staticmethod
     def _reason_sentence(reasons: Optional[Counter], max_hours: Optional[float]) -> str:

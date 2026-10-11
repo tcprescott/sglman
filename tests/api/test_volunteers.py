@@ -162,6 +162,32 @@ class TestShifts:
             assert resp.status_code == 200
             assert resp.json()['label'] == 'Morning'
 
+    async def test_drafts_are_hidden_from_a_volunteer_but_not_a_coordinator(self, db, app):
+        _, vol_raw = await create_user_token(username='vol', roles=[Role.VOLUNTEER])
+        _, coord_raw = await _coordinator_token()
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16),
+        )
+        published = await create_community_member(username='published')
+        drafted = await create_community_member(username='drafted')
+        await VolunteerAssignment.create(shift=shift, user=published, auto_generated=False)
+        await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+        window = {'start': iso(2025, 10, 1), 'end': iso(2025, 10, 31)}
+
+        async with client_for(app, vol_raw) as c:
+            listed = (await c.get('/api/volunteers/shifts', params=window)).json()[0]
+            one = (await c.get(f'/api/volunteers/shifts/{shift.id}')).json()
+        for body in (listed, one):
+            assert [a['user_id'] for a in body['assignments']] == [published.id]
+            assert body['filled'] == 1
+
+        async with client_for(app, coord_raw) as c:
+            listed = (await c.get('/api/volunteers/shifts', params=window)).json()[0]
+            one = (await c.get(f'/api/volunteers/shifts/{shift.id}')).json()
+        for body in (listed, one):
+            assert {a['user_id'] for a in body['assignments']} == {published.id, drafted.id}
+
     async def test_get_shift_not_found(self, db, app):
         _, raw = await create_user_token(username='reader')
         async with client_for(app, raw) as c:

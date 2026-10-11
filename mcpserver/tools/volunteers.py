@@ -1,14 +1,19 @@
 """Volunteer shifts and coverage.
 
-Both tools are gated at **admin**, one step above their REST counterparts
+The roster tools are gated at **admin**, one step above their REST counterparts
 (``api/routers/volunteers.py`` reads at ``require_api_actor``). That is a
 deliberate divergence, not an oversight: the REST reads back a self-service UI
 where a volunteer looks at their own schedule, whereas a single call here hands
 back a whole window's roster with names attached. Bulk disclosure of who is
 where and when is a different thing from a person checking their own shift, so
 it sits behind the coordinator's gate.
+
+``my_volunteer_shifts`` is the self-service exception, at **actor**: it reads
+back only the caller's own published shifts, the same as
+``GET /volunteers/me/assignments``.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from mcp.server.mcpserver import MCPServer
@@ -20,9 +25,9 @@ from application.services.volunteer.volunteer_position_service import (
 from application.services.volunteer.volunteer_schedule_service import (
     VolunteerScheduleService,
 )
-from mcpserver.auth import Gate
+from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
-from mcpserver.schemas import ShiftSummary, TenantArg, VolunteerPositionInfo
+from mcpserver.schemas import MyShift, ShiftSummary, TenantArg, VolunteerPositionInfo
 from mcpserver.tools._args import window as _window
 from models import FeatureFlag
 
@@ -105,7 +110,39 @@ async def list_volunteer_positions(
     ]
 
 
+async def my_volunteer_shifts(
+    tenant: TenantArg = None,
+    upcoming_only: bool = True,
+) -> List[MyShift]:
+    """Your own volunteer shifts, soonest first.
+
+    Only published shifts: an auto-scheduler draft you haven't been told about
+    stays hidden. Set `upcoming_only` to false to include finished shifts.
+    """
+    after = datetime.now(timezone.utc) if upcoming_only else None
+    assignments = await VolunteerScheduleService().assignments_for_user(
+        current_actor().user, upcoming_after=after,
+    )
+    return [
+        MyShift(
+            assignment_id=a.id,
+            shift_id=a.shift_id,  # type: ignore[attr-defined]
+            position=a.shift.position.name if a.shift.position else None,
+            label=a.shift.label,
+            starts_at=a.shift.starts_at,
+            ends_at=a.shift.ends_at,
+            acknowledged_at=a.acknowledged_at,
+            checked_in_at=a.checked_in_at,
+        )
+        for a in assignments
+    ]
+
+
 def register_tools(mcp: MCPServer) -> None:
+    register(
+        mcp, my_volunteer_shifts, gate=Gate.ACTOR,
+        feature=FeatureFlag.VOLUNTEERS, title='My volunteer shifts',
+    )
     register(
         mcp, list_volunteer_positions, gate=Gate.ADMIN,
         feature=FeatureFlag.VOLUNTEERS, title='List volunteer positions',

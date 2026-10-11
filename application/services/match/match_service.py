@@ -628,6 +628,14 @@ class MatchService(
             await AuthService.can_run_match(actor, match),
             f"User cannot record results for match {match_id}",
         )
+        # Confirming is the admin's verification step and has already pushed the
+        # result on, so rewriting a confirmed winner is a correction, not a
+        # recording: it takes the same gate confirming did.
+        if match.confirmed_at:
+            await AuthService.ensure(
+                await AuthService.can_confirm_match(actor, match),
+                "This result is confirmed. Only staff or the tournament admin can change it.",
+            )
 
         if not match.players:
             raise ValueError("Match has no players")

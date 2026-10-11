@@ -336,6 +336,18 @@ class TenantMembershipService:
         """Pending requests for the tenant in scope — the staff queue."""
         return await TenantJoinRequestRepository.list_pending(require_tenant_id())
 
+    async def list_pending_for(self, actor: User) -> List[TenantJoinRequest]:
+        """The staff queue, for a caller that has not already passed a staff gate.
+
+        The admin tab reads :meth:`list_pending` behind its own page gate; the
+        REST and MCP surfaces come through here so the check lives with the read.
+        """
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            'Only Staff can see join requests',
+        )
+        return await self.list_pending()
+
     async def approve_request(self, actor: User, request_id: int) -> TenantJoinRequest:
         request = await self._decidable(actor, request_id)
         await TenantMembershipRepository.add(
