@@ -12,6 +12,7 @@ from application.utils.timezone import format_local_display
 from models import Tournament
 from theme.dialog.challonge_participants_dialog import ChallongeParticipantsDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -22,7 +23,8 @@ async def admin_challonge_page() -> None:
     service = ChallongeService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Challonge Integration')
+        with page_header('Challonge Integration'):
+            await help_icon('admin-challonge-sync', user=actor)
 
         @ui.refreshable
         async def connection_card() -> None:

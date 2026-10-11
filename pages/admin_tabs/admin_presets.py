@@ -10,9 +10,10 @@ from application.services import (
     SeedGenerationService,
     get_user_from_discord_id,
 )
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
-from theme.tables.admin_crud import refresh_button, wire_tab_refresh
+from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 from theme.waiting import waiting_panel
@@ -42,13 +43,14 @@ async def admin_presets_page() -> None:
     available_randomizers = SeedGenerationService.available_randomizers(configured)
 
     with ui.column().classes('page-container-narrow'):
-        page_header(
+        with page_header(
             'Seed Presets',
             'Named randomizer settings that seed generation resolves for a tournament. '
             "A tournament's Seed Preset (set on the tournament) overrides its Seed Generator. "
             'Import the built-in presets to get started, or pull a randomizer\'s '
             'own published presets over its API.',
-        )
+        ):
+            await help_icon('admin-preset-test-roll', label='Test roll', user=await current_actor())
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},

@@ -1,3 +1,7 @@
+## 2026-10-12/2026-10-18 Help for volunteers and proctors
+
+- The volunteering and proctor help pages are up to date for SGL 2026. They now cover the shift DMs, your hours on My Shifts, seating players with Randomize, seeds that are slow or can't be DMed, the room's seeds screen, and pointing players at a loaner's QR code. The station picker has a help icon of its own.
+
 ## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
 
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.
@@ -22,6 +26,7 @@
 - The player help is rewritten for SGL 2026. It now covers joining a community, the profile reminder banner, booking a bracket match, seeds, harder settings, race rooms and change requests, and a new Help article explains ADA accommodation requests. The glossary picked up the words those screens use.
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
 - Help articles can show screenshots, starting with the Tournaments tab in Getting started. Tap one to see it full size.
+- Help now covers tournament setup for staff: creating a tournament and its signup window, Challonge brackets, seed presets and test rolls, prize payouts, and the ADA queue. The Tournaments, Challonge, Presets, Payouts and ADA requests pages each have a help icon that opens the right part.
 - Security fixes: a login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
 - Behind the scenes: error reporting through Sentry, adjustable log levels on the platform page, and dependency updates including the MCP server's move to mcp 2.x.
 
