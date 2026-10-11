@@ -340,7 +340,7 @@ is never moved to it, since cancelling the room afterwards does not un-score its
 
 How someone became a member (`TenantMembership.source`, `max_length=32`, nullable):
 `STAFF` = `'staff'` (Add Member, Add User, the `/platform` first-admin grant),
-`JOIN_REQUEST` = `'join_request'`, `DISCORD_AUTO_JOIN` = `'discord_auto_join'`,
+`JOIN_REQUEST` = `'join_request'`, `DISCORD_AUTO_JOIN` = `'discord_auto_join'`, `OPEN` = `'open'`,
 `ROLE_GRANT` = `'role_grant'` (a role staff granted), `DISCORD_ROLE` =
 `'discord_role'` (the Discord role sync), `IMPORT` = `'import'` (SpeedGaming).
 

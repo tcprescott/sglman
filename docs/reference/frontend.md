@@ -581,6 +581,9 @@ Settings:
   new tab, shown to signed-in and signed-out visitors alike. The setter
   (`SystemConfigService.set_discord_invite_url`) refuses anything that is not a
   Discord invite and stores it as `https://discord.gg/<code>`.
+- **Open copy** — with `open_membership` on (`JoinPreview.open_membership`), a
+  signed-out visitor is told signing in is enough; a signed-in visitor only
+  reaches the door if `join_openly` failed, and is told to reload.
 - **Auto-join copy** — when `discord_auto_join` is on *and* a guild is linked
   (`JoinPreview.discord_auto_join`), the copy says server members get in
   automatically and a signed-in visitor gets an **I've joined, check again**
@@ -725,7 +728,7 @@ Both routes are `@protected_page(roles=[STAFF, CHECK_IN_DESK], feature=FeatureFl
 
 `admin_system_config_page()` — the "Settings" tab (`AuthService.is_staff` gates the Save button).
 
-- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), the join-request switch (`join_requests_enabled`), Discord auto-join (`discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
+- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), who can join as one `JoinMode` radio (written through `TenantMembershipService.set_join_mode` to `open_membership`, `join_requests_enabled` and `discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
 - Hosts two sections beyond the key/value form: the **Station Pool**, and **Tournament Room Screens** (`pages/admin_tabs/room_tokens_section.py`) — issue a token per shared machine, see when each last used it, revoke one. The URL is shown once, in a dialog, since only the hash is stored.
 - Date fields use a calendar-popup helper; per-day tournament hours render an Open/Close time pair per event day; the Discord-server select is populated from `DiscordService.list_guilds`. **Save** validates and persists each key through `SystemConfigService.set_raw` / `set_tournament_hours`.
 

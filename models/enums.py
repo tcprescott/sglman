@@ -470,6 +470,7 @@ class MembershipSource(str, Enum):
     STAFF = 'staff'                          # Add Member, Add User, /platform bootstrap
     JOIN_REQUEST = 'join_request'            # an approved join request
     DISCORD_AUTO_JOIN = 'discord_auto_join'  # in the linked Discord server
+    OPEN = 'open'                            # signed in while membership was open
     ROLE_GRANT = 'role_grant'                # a role granted by staff
     DISCORD_ROLE = 'discord_role'            # a role from the Discord role sync
     IMPORT = 'import'                        # the SpeedGaming import
