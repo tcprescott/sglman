@@ -148,7 +148,7 @@ def build_queue_tab(
         """
         verb = 'Approve' if approved else 'Reject'
         runner = run.user.display_name or run.user.username
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label(f'{verb} {runner}\u2019s run').classes('text-h6')
             note_in = ui.textarea(
                 'Note (optional)' if approved else 'Reason (shown to the runner)'

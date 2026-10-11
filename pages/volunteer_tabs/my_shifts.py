@@ -11,6 +11,7 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 from application.utils.timezone import format_local_display
 from theme.help import help_icon
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 
 def release_warning(starts_at: datetime, lead_minutes: int) -> Optional[str]:
@@ -87,12 +88,10 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
     lead_minutes = await SystemConfigService.get_volunteer_reminder_lead_minutes()
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row items-center full-width'):
-            ui.label('My Shifts').classes('page-title')
+        with page_header('My Shifts'):
             await help_icon('my-shifts')
             ui.space()
 
-        ui.separator().classes('separator-spacing')
 
         @ui.refreshable
         async def hours_panel() -> None:

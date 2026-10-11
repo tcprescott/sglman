@@ -61,6 +61,7 @@ from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.realtime import refresh_on_reconnect, register_view
 from theme.tables.admin_crud import capture_render_context
 from theme.tables.export import csv_export_button
@@ -95,7 +96,7 @@ FILTERS = {key: _FILTER_LABELS[key] for key in DESK_FILTERS}
 
 # One colour per lanyard, matching nothing else on the desk so it reads at a glance.
 _LANYARD_COLORS = {
-    'staff': 'red-8', 'volunteer': 'purple-7', 'vip': 'amber-8', 'base': 'blue-7', 'day_pass': 'teal-7',
+    'staff': 'red-8', 'volunteer': 'purple-7', 'vip': 'amber-8', 'base': 'blue-8', 'day_pass': 'teal-8',
 }
 
 
@@ -222,7 +223,7 @@ _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
 # row. A buyer holding more than one badge (often one for a friend) gets a note,
 # since the extra badge needs its own lanyard.
 _LANYARD_CHIP = '''
-    <q-chip v-if="props.row.lanyard" square :color="props.row.lanyard_color" text-color="white"
+    <q-chip v-if="props.row.lanyard" square :color="props.row.lanyard_color" :text-color="props.row.lanyard_text"
             icon="badge" class="q-ml-none text-weight-bold checkin-lanyard">{{ props.row.lanyard_label }}</q-chip>
     <span v-if="props.row.extra_badges" class="text-caption text-weight-medium text-warning">
         + {{ props.row.extra_badges }}</span>
@@ -326,6 +327,8 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'lanyard': lanyard or '',
         'lanyard_label': lanyard_label,
         'lanyard_color': _LANYARD_COLORS.get(lanyard or '', 'grey-7'),
+        # Amber is too light for white text (2:1); the VIP lanyard reads in ink.
+        'lanyard_text': 'black' if lanyard == 'vip' else 'white',
         'lanyard_rank': LANYARDS.index(lanyard) if lanyard else len(LANYARDS),
         'extra_badges': extra_badges,
         'badges_text': ', '.join(
@@ -413,7 +416,7 @@ def create() -> None:
 
         user = await _desk_page_frame('Check-in')
         with ui.column().classes('page-container-narrow w-full q-pa-md gap-3'):
-            ui.label('Check-in').classes('page-title')
+            page_header('Check-in')
             if not open_events:
                 ui.label('No event is open for check-in right now.').classes('text-body1')
                 if await AuthService.can_manage_check_in(user):

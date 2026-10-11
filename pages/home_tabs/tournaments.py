@@ -34,6 +34,7 @@ from pages.home_tabs.triforce_texts import open_triforce_dialog, supporting_tour
 from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 # Section title, and the predicate that puts a card in it. Order is the reading
 # order: what you can do something about, then what you are already in, then the
@@ -122,8 +123,7 @@ async def tournaments_tab() -> None:
         triforce_ids = await supporting_tournament_ids()
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row items-center full-width'):
-            ui.label('Tournaments').classes('page-title')
+        with page_header('Tournaments'):
             await help_icon('tournament-signup')
             ui.space()
         ui.label(

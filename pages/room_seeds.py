@@ -27,6 +27,7 @@ from application.services import RoomTokenService, get_user_from_discord_id
 from application.services.match.match_display_service import is_seeded_and_unplayed
 from middleware.auth import public_page
 from theme.base import BaseLayout
+from theme.page_header import page_header
 from theme.tables.match import MatchTableView
 from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 
@@ -63,8 +64,7 @@ def create() -> None:
         await BaseLayout(user=None, chromeless=True).render()
 
         with ui.column().classes('page-container'):
-            with ui.row().classes('header-row items-center'):
-                ui.label('Seeds ready to play').classes('page-title')
+            page_header('Seeds ready to play')
             ui.label(
                 'Matches with a rolled seed that nobody has started yet. '
                 'Updates on its own — leave it open.'

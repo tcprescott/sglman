@@ -65,7 +65,7 @@ def build_reviewers_tab(
                               ).props('flat color=negative')
 
     def _open_add_dialog() -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('Add a reviewer').classes('text-h6')
             picker = ui.select(
                 state['reviewer_options'], label='Person', with_input=True,

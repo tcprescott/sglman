@@ -141,13 +141,12 @@ async def admin_webhooks_page() -> None:
     service = WebhookService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Webhooks')
-
-        ui.label(
+        page_header(
+            'Webhooks',
             'Send a signed JSON POST to an external URL when the selected events occur. '
             'Each request carries an X-Wizzrobe-Signature (HMAC-SHA256 of the body using the '
-            "webhook's secret). The secret is shown only once, when created or rotated."
-        ).classes('text-caption text-grey')
+            "webhook's secret). The secret is shown only once, when created or rotated.",
+        )
 
         _render_format_reference()
 
@@ -220,7 +219,7 @@ async def admin_webhooks_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
                     ui.label(f"Recent deliveries — {row['name']}").classes('text-h6')
                     if not deliveries:
                         ui.label('No deliveries yet.').classes('text-grey')

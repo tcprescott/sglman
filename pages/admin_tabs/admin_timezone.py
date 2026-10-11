@@ -30,16 +30,15 @@ async def admin_timezone_page() -> None:
     settings = await TimezoneService.get_settings()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Timezone')
-
-        ui.label(
+        page_header(
+            'Timezone',
             'Times are always stored precisely; this only controls the clock they '
             'are shown on. Pick one fixed timezone when everyone is in the same '
             'place — an on-site event, where “14:30” means 14:30 at the venue. '
             'Follow each member’s timezone when they are not — an online '
             'tournament, where a player in Berlin and a player in Los Angeles '
-            'should each see their own local time for the same match.'
-        ).classes('text-caption text-grey')
+            'should each see their own local time for the same match.',
+        )
 
         mode_toggle = ui.radio(
             _MODE_LABELS, value=settings['mode'],

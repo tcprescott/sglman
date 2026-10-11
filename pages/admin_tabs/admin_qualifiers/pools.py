@@ -110,7 +110,7 @@ def build_pools_tab(
                       ).props('flat round dense color=negative').tooltip('Remove this permalink')
 
     def _open_permalink_dialog(pl) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('Edit Permalink').classes('text-h6')
             url_in = ui.input('URL', value=pl.url).classes('w-full font-mono')
             notes_in = ui.input('Notes (optional)', value=pl.notes or '').classes('w-full')
@@ -149,7 +149,7 @@ def build_pools_tab(
         await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
 
     def _open_pool_dialog(qid: int, preset_options: dict) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('Add Pool').classes('text-h6')
             name_in = ui.input('Pool name').classes('w-full')
             options = {None: '(no preset)', **preset_options}
@@ -179,7 +179,7 @@ def build_pools_tab(
         # to stay open holding the lines that were refused.
         added = {'any': False}
 
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('Add Permalinks').classes('text-h6')
             ui.label('One http(s) URL per line.').classes('text-caption text-grey')
             urls_in = ui.textarea('Permalink URLs').classes('w-full font-mono').props('rows=8')
@@ -218,7 +218,7 @@ def build_pools_tab(
         dialog.open()
 
     def _open_roll_dialog(pool_id: int) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[26rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('Roll Permalinks').classes('text-h6')
             count_in = ui.number(f'How many (1–{MAX_ROLL_COUNT})', value=5,
                                  min=1, max=MAX_ROLL_COUNT, precision=0).classes('w-full')

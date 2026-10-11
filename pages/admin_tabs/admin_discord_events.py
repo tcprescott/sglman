@@ -36,14 +36,13 @@ async def admin_discord_events_page() -> None:
     service = DiscordEventSyncService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Discord Events')
-
-        ui.label(
+        page_header(
+            'Discord Events',
             'Mirror scheduled matches into your Discord server\'s Scheduled Events. '
             'Enable per tournament below; the reconciler creates, updates, and '
             'cancels events to match your schedule. It only ever touches events it '
-            'created, so sharing a Discord server with another community is safe.'
-        ).classes('text-caption text-grey')
+            'created, so sharing a Discord server with another community is safe.',
+        )
 
         link_banner = ui.row().classes('w-full items-center')
 
@@ -137,7 +136,7 @@ async def admin_discord_events_page() -> None:
 
         async def open_settings_dialog(row, client) -> None:
             with tournaments_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                     ui.label(f"Discord events — {row['name']}").classes('text-h6')
                     enabled_switch = ui.switch('Sync this tournament\'s matches', value=row['enabled_bool'])
                     duration_input = ui.number(

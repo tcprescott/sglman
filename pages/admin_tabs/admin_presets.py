@@ -42,14 +42,13 @@ async def admin_presets_page() -> None:
     available_randomizers = SeedGenerationService.available_randomizers(configured)
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Seed Presets')
-
-        ui.label(
+        page_header(
+            'Seed Presets',
             'Named randomizer settings that seed generation resolves for a tournament. '
             "A tournament's Seed Preset (set on the tournament) overrides its Seed Generator. "
             'Import the built-in presets to get started, or pull a randomizer\'s '
-            'own published presets over its API.'
-        ).classes('text-caption text-grey')
+            'own published presets over its API.',
+        )
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
@@ -112,7 +111,7 @@ async def admin_presets_page() -> None:
 
         def open_test_roll_dialog(row) -> None:
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                     ui.label(f"Test roll: {row['name']}").classes('text-h6')
                     ui.label(
                         "Rolls one seed the way a match would, so you can check the "
@@ -183,7 +182,7 @@ async def admin_presets_page() -> None:
             catalogue_state: dict = {}
 
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
                     ui.label('Import from Randomizer').classes('text-h6')
                     ui.label(
                         "Fetches the randomizer's published presets. Importing one "
@@ -326,7 +325,7 @@ async def admin_presets_page() -> None:
         def open_preset_dialog(existing=None) -> None:
             is_edit = existing is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
                     ui.label('Edit Preset' if is_edit else 'Add Preset').classes('text-h6')
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',

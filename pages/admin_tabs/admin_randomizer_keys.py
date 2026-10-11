@@ -87,14 +87,13 @@ async def admin_randomizer_keys_page() -> None:
                         ).props('flat color=negative dense')
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Randomizer Keys')
-
-        ui.label(
+        page_header(
+            'Randomizer Keys',
             "Credentials for the randomizers whose upstream requires one. These are "
             "your community's own keys, issued to you and used only for your seeds — "
             "a randomizer stays out of the Presets and Tournament seed-generator "
-            "selectors until its key is set. Stored values are never shown again."
-        ).classes('text-caption text-grey')
+            "selectors until its key is set. Stored values are never shown again.",
+        )
 
         await credentials_section()
 

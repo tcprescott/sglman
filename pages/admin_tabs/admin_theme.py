@@ -30,13 +30,12 @@ async def admin_theme_page() -> None:
     colors = await TenantThemeService.get_current_theme()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Appearance')
-
-        ui.label(
+        page_header(
+            'Appearance',
             'Customise your community\'s brand colours. Changes apply across the '
             'app on the next page load. Leave a field blank to use the default. '
-            'Status colours (success, warning, error) are fixed for consistency.'
-        ).classes('text-caption text-grey')
+            'Status colours (success, warning, error) are fixed for consistency.',
+        )
 
         inputs: dict[str, ui.color_input] = {}
         warn_labels: dict[str, ui.label] = {}

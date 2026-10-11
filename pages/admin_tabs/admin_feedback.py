@@ -6,6 +6,7 @@ from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -51,19 +52,16 @@ async def admin_feedback_page() -> None:
     service = FeedbackService()
 
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row items-center full-width no-wrap'):
-            ui.label('Feedback').classes('page-title')
+        with page_header(
+            'Feedback',
+            'User-submitted feedback from across the app. Review each item and mark '
+            'it reviewed once handled.',
+        ):
             ui.space()
             # Lambda, not a direct reference: the toolbar is built before
             # _render_table exists.
             refresh_button(lambda: _render_table.refresh(), tooltip='Refresh')
 
-        ui.separator().classes('separator-spacing')
-
-        ui.label(
-            'User-submitted feedback from across the app. Review each item and mark '
-            'it reviewed once handled.'
-        ).classes('text-caption text-grey')
 
         @ui.refreshable
         async def _render_table() -> None:

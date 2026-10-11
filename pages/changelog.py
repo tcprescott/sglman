@@ -14,6 +14,7 @@ from application.services import AuthService, TenantService, get_user_from_disco
 from middleware.auth import public_page
 from theme.base import BaseLayout
 from theme.help.render import render_blocks
+from theme.page_header import page_header
 
 __all__ = ['create']
 
@@ -40,8 +41,7 @@ def create() -> None:
 
         with ui.column().classes('page-container-narrow w-full'):
             ui.link('← All help', '/help').classes('text-caption')
-            with ui.row().classes('header-row items-center'):
-                ui.label("What's new").classes('page-title')
+            page_header("What's new")
             ui.label(
                 'The bigger changes to Wizzrobe, about a week at a time, newest first.'
             ).classes('text-muted')

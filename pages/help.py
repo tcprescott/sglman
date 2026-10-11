@@ -22,6 +22,7 @@ from middleware.auth import public_page
 from theme.base import BaseLayout
 from theme.error_page import render_not_found
 from theme.help.article import render_article
+from theme.page_header import page_header
 
 __all__ = ['create']
 
@@ -75,8 +76,7 @@ def create() -> None:
         state = {'query': ''}
 
         with ui.column().classes('page-container-narrow w-full'):
-            with ui.row().classes('header-row items-center'):
-                ui.label('Help').classes('page-title')
+            page_header('Help')
             ui.label(
                 'How the app works for players, crew and volunteers. '
                 'Search, or pick a topic.'

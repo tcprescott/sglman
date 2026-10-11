@@ -20,14 +20,13 @@ from theme.page_header import page_header
 
 async def admin_service_health_page() -> None:
     with ui.column().classes('page-container-narrow'):
-        page_header('Service Health')
-
-        ui.label(
+        page_header(
+            'Service Health',
             'Health of the external services your tenant depends on — your '
             'authorized racetime bots and your Challonge connection. A credential '
             "warning (e.g. an expiring Challonge token) means reconnect before it "
-            'becomes an outage.'
-        ).classes('text-caption text-grey')
+            'becomes an outage.',
+        )
 
         tenant_id = get_current_tenant_id()
         health = ServiceHealthService()

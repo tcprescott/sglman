@@ -51,14 +51,13 @@ async def admin_racetime_page() -> None:
     service = RaceRoomProfileService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Race Room Profiles')
-
-        ui.label(
+        page_header(
+            'Race Room Profiles',
             'Reusable racetime.gg room settings a tournament can point at — goal, '
             'chat and streaming rules, and timers. A tournament selects one under '
             'its Racetime section; the room-creation flow applies these when it '
-            'opens a race room.'
-        ).classes('text-caption text-grey')
+            'opens a race room.',
+        )
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
@@ -109,7 +108,7 @@ async def admin_racetime_page() -> None:
         def open_profile_dialog(p=None) -> None:
             is_edit = p is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                     ui.label('Edit Race Room Profile' if is_edit else 'Add Race Room Profile').classes('text-h6')
                     name_input = ui.input('Name', value=p.name if p else '').classes('w-full')
                     goal_input = ui.input('Goal', value=(p.goal or '') if p else '').classes('w-full')

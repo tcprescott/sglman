@@ -13,6 +13,7 @@ from nicegui import ui
 from application.tenant_context import require_tenant_id
 from models import Match, User
 from theme.help import help_icon
+from theme.page_header import page_header
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
@@ -54,8 +55,11 @@ def proctor_row_order(rows: list[dict]) -> list[dict]:
 
 async def proctor_station_tab(user: Optional[User] = None) -> None:
     with ui.column().classes('page-container-wide') as page_container:
-        with ui.row().classes('header-row items-center'):
-            ui.label('Proctor Station').classes('page-title')
+        with page_header(
+            'Proctor Station',
+            'Every match in this room. Check players in, seat them, roll the seed, '
+            'start them, then record the winner.',
+        ):
             await help_icon('proctor-station', user=user)
             await help_icon('proctor-run-match', label='Running a match', user=user)
             # Third icon earns its place: what to do when a player is missing or
@@ -66,11 +70,6 @@ async def proctor_station_tab(user: Optional[User] = None) -> None:
             await help_icon('proctor-escalation', label='When things go wrong', user=user)
             await help_icon('proctor-handover', label='Shift change', user=user)
             ui.space()
-        ui.label(
-            'Every match in this room. Check players in, seat them, roll the seed, '
-            'start them, then record the winner.'
-        ).classes('text-caption text-grey')
-        ui.separator().classes('separator-spacing')
 
         def get_query():
             return Match.filter(tenant_id=require_tenant_id())

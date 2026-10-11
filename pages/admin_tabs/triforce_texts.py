@@ -38,8 +38,7 @@ async def admin_triforce_texts_page() -> None:
 
     if not tournaments:
         with ui.column().classes('page-container-narrow'):
-            ui.label('Triforce Texts').classes('page-title')
-            ui.separator()
+            page_header('Triforce Texts')
             ui.label('You are not an admin of any active tournament.').classes('text-grey-7')
         return
 

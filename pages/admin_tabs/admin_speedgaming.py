@@ -51,15 +51,14 @@ async def admin_speedgaming_page() -> None:
     tournament_service = TournamentService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('SpeedGaming Sync')
-
-        ui.label(
+        page_header(
+            'SpeedGaming Sync',
             'One-way sync of SpeedGaming schedule episodes into match rows. Each '
             'link maps an SG event slug to a tournament; the sync materializes '
             'episodes into matches (players resolved, placeholders where '
             'unmatched). Synced fields — schedule, players, tournament — are '
-            'read-only on the match; everything you add on top stays editable.'
-        ).classes('text-caption text-grey')
+            'read-only on the match; everything you add on top stays editable.',
+        )
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
@@ -146,7 +145,7 @@ async def admin_speedgaming_page() -> None:
 
         async def _build_link_dialog(existing, is_edit: bool, options) -> None:
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                     ui.label('Edit Event Link' if is_edit else 'Add Event Link').classes('text-h6')
                     tournament_select = ui.select(
                         options, label='Tournament',

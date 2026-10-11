@@ -164,7 +164,12 @@ async def admin_brackets_page() -> None:
     ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
 
     with ui.column().classes('page-container'):
-        page_header('Brackets')
+        page_header(
+            'Brackets',
+            'Native tournament brackets: author a stage, build its field, '
+            'preview the draw, then start it. Each row shows the one step it '
+            'is up to.',
+        )
 
         # Challonge-linked tournaments are excluded, not just sorted down: a
         # tournament uses a native bracket or a Challonge link and never both, so
@@ -398,11 +403,6 @@ async def admin_brackets_page() -> None:
 
         # --- layout ------------------------------------------------------
         with page_container:
-            ui.label(
-                'Native tournament brackets: author a stage, build its field, '
-                'preview the draw, then start it. Each row shows the one step it '
-                'is up to.'
-            ).classes('text-caption text-grey')
 
             # Resolved before the widget exists: assigning `.value` afterwards
             # loads the table but leaves a `with_input` select displaying nothing,

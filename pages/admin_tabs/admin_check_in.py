@@ -18,6 +18,7 @@ from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_event_dialog
 from theme.matcherino_login_card import matcherino_login_card
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -72,12 +73,11 @@ async def admin_check_in_page() -> None:
     service = CheckInService()
 
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row'):
-            ui.label('Check-in').classes('page-title')
-        ui.label(
+        page_header(
+            'Check-in',
             "Each event pulls its roster from a Matcherino venue's badge sales. Open an "
-            'event to put it on the check-in desk; the desk syncs on its own while it is open.'
-        ).classes('text-caption text-grey-7')
+            'event to put it on the check-in desk; the desk syncs on its own while it is open.',
+        )
         ui.separator().classes('separator-spacing')
 
         await matcherino_login_card()
