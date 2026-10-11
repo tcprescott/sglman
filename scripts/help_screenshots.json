@@ -1,0 +1,15 @@
+{
+  "defaults": {
+    "tenant": "default",
+    "viewport": "phone",
+    "padding": 8
+  },
+  "shots": [
+    {
+      "slug": "getting-started",
+      "name": "tournaments-phone",
+      "user": "player_four",
+      "path": "/home/tournaments"
+    }
+  ]
+}

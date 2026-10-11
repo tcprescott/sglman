@@ -21,6 +21,7 @@
 - Screen readers and keyboards get further. Icon buttons say what they do instead of just "button", every page has a title heading and a Skip to content link, filter boxes and switches are named, and Help cards, bracket matches and date pickers open with Enter. The phone tab bar and the cat facts under empty lists are darker and easier to read.
 - Admin settings live in one place. Settings in the admin menu opens its own list of sections (General, Event, Venue, Members, Volunteers, Discord, Integrations, Features), and each card saves on its own, with a Save button that only appears once you've changed something. Old links to Appearance, Timezone, Role Mappings and the rest still land on the right section.
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
+- Help articles can show screenshots, starting with the Tournaments tab in Getting started. Tap one to see it full size.
 - Security fixes: a login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
 - Behind the scenes: error reporting through Sentry, adjustable log levels on the platform page, and dependency updates including the MCP server's move to mcp 2.x.
 

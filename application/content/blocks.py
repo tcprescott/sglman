@@ -13,7 +13,7 @@ path from article text to markup, so an article can never emit an element the
 renderer does not itself create.
 
 The subset is deliberately small — headings, paragraphs, lists, tables, notes,
-and seven inline forms. Anything unrecognised degrades to plain text rather than
+screenshots, and seven inline forms. Anything unrecognised degrades to plain text rather than
 raising, because a malformed article should read badly, not 500 the page.
 """
 
@@ -24,6 +24,7 @@ from dataclasses import dataclass, field, replace
 from typing import Callable
 
 __all__ = [
+    'IMAGE_SRC_RE',
     'Block',
     'Span',
     'article_sections',
@@ -55,6 +56,14 @@ _INLINE_RE = re.compile(
 # Link targets we will render as links. Everything else renders as plain text —
 # `javascript:` and `data:` URIs above all, but also anything unparseable.
 _SAFE_HREF_RE = re.compile(r'^(?:/[^\s]*|#[^\s]*|https://[^\s]+|mailto:[^\s]+)$')
+
+# A screenshot on a line of its own: ``![alt](src)`` or ``![alt](src "caption")``.
+_IMAGE_RE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"(?P<caption>[^"]*)")?\)$')
+
+# Images come only from the committed screenshot tree, one directory per article
+# and nothing that can climb out of it. Off-site images would let an article
+# phone home on every page view, and a ``data:`` URI is the XSS shape again.
+IMAGE_SRC_RE = re.compile(r'^/static/help/[a-z0-9-]+/[a-z0-9-]+\.(?:webp|png)$')
 
 # The six chip tones static/css/styles.css defines. An article naming any other
 # falls back to neutral rather than emitting a class with no rule behind it.
@@ -93,7 +102,8 @@ class Block:
     """One block-level element.
 
     ``kind`` is one of ``heading``, ``para``, ``bullets``, ``numbers``,
-    ``table``, ``note``.
+    ``table``, ``note``, ``image``. An image carries ``src`` (already known to be
+    a committed screenshot) and ``alt``; its optional caption is ``spans``.
     """
 
     kind: str
@@ -103,6 +113,8 @@ class Block:
     headers: tuple[tuple[Span, ...], ...] = ()
     level: int = 2
     anchor: str = ''
+    src: str = ''
+    alt: str = ''
 
 
 @dataclass
@@ -254,6 +266,25 @@ def _take_note(cursor: _Cursor, line: str) -> bool:
     return True
 
 
+def _take_image(cursor: _Cursor, line: str) -> bool:
+    match = _IMAGE_RE.match(line)
+    if not match:
+        return False
+    alt = match.group('alt').strip()
+    src = match.group('src')
+    cursor.index += 1
+    if not alt or not IMAGE_SRC_RE.match(src):
+        # No alt text or a source outside the screenshot tree: show the author
+        # what they typed rather than an image a screen reader cannot describe
+        # or one fetched from somewhere we do not control.
+        cursor.blocks.append(Block('para', spans=(Span('text', line),)))
+        return True
+    cursor.blocks.append(Block(
+        'image', src=src, alt=alt, spans=parse_inline(match.group('caption') or ''),
+    ))
+    return True
+
+
 def _take_paragraph(cursor: _Cursor) -> None:
     parts: list[str] = []
     while (current := cursor.peek()) is not None:
@@ -261,6 +292,8 @@ def _take_paragraph(cursor: _Cursor) -> None:
         if not stripped or stripped.startswith(('#', '>', ':::', '|')):
             break
         if re.match(r'^[-*]\s+', stripped) or re.match(r'^\d+\.\s+', stripped):
+            break
+        if _IMAGE_RE.match(stripped):
             break
         parts.append(stripped)
         cursor.index += 1
@@ -283,6 +316,8 @@ def parse_blocks(text: str) -> list[Block]:
         if _take_list(cursor, stripped):
             continue
         if _take_note(cursor, stripped):
+            continue
+        if _take_image(cursor, stripped):
             continue
         before = cursor.index
         _take_paragraph(cursor)
