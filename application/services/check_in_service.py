@@ -45,6 +45,7 @@ from application.services.check_in_accounts import (
     remember_matcherino_account,
 )
 from application.services.check_in_comps import absorb_comp_row, apply_comps, comped_users, has_comp_rules
+from application.services.check_in_dm import start_dm_check
 from application.services.check_in_rules import (
     CheckInOutcome,
     SyncResult,
@@ -634,6 +635,7 @@ class CheckInService:
             actor, AuditActions.CHECK_IN_ENTRANT_CHECKED_IN, details,
             EventType.CHECK_IN_ENTRANT_CHECKED_IN,
         )
+        await start_dm_check(entrant, entrant.event.name)
         check_in_live.publish(entrant.event_id, entrant.id, check_in_live.CHANGED)
         return CheckInOutcome(entrant)
 
@@ -762,6 +764,8 @@ class CheckInService:
             {**entrant_details(entrant), 'checked_in': check_in},
             EventType.CHECK_IN_ENTRANT_WALK_UP_ADDED,
         )
+        if check_in:
+            await start_dm_check(entrant, event.name)
         check_in_live.publish(event.id, entrant.id, check_in_live.CREATED)
         return entrant
 

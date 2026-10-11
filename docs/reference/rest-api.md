@@ -193,7 +193,7 @@ The staff queue from Admin → Users. Every route is Staff (`can_grant_roles`, c
 
 ### Check-in desk (`/api/check-in`) · `check_in.py`
 The `/checkin` desk's actions, behind `EVENT_CHECK_IN`. The rules are the desk page's, enforced in `CheckInService` / `CheckInDeskService`: staff and Check-in Desk volunteers work the desk; a desk volunteer reads only open events; walk-ups and checking in someone withdrawn are staff-only. Event setup stays in Admin → Check-in. See [event-check-in.md](../features/event-check-in.md).
-- `GET /check-in/events` — the events you can work. `GET /check-in/events/{id}/roster` — every row with `badges`, `lanyard`, account link, `withdrawn_at` and check-in state.
+- `GET /check-in/events` — the events you can work. `GET /check-in/events/{id}/roster` — every row with `badges`, `lanyard`, account link, `withdrawn_at`, check-in state and `dm_status` (the check-in test DM).
 - `POST /check-in/events/{id}/sync` — pull Matcherino sales and comps now; returns the `SyncResult` counts.
 - `POST /check-in/entrants/{id}/check-in` (`{despite_withdrawn?}`) → `{entrant, already}`. A repeat changes nothing and says `already: true`. A withdrawn row is `400` for the desk; staff may send `despite_withdrawn: true` (audited). `DELETE` on the same path undoes it.
 - `PUT /check-in/entrants/{id}/user` (`{user_id}`) · `DELETE /check-in/entrants/{id}/user` — link or unlink the row's account.

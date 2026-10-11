@@ -11,6 +11,7 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
+from application.services.tenant_membership_service import JoinMode
 from application.services.tenant_service import TenantService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_datetime, format_local_display
@@ -33,6 +34,7 @@ JOIN_SOURCE_LABELS: dict = {
     MembershipSource.STAFF: 'Added by staff',
     MembershipSource.JOIN_REQUEST: 'Join request',
     MembershipSource.DISCORD_AUTO_JOIN: 'Joined via Discord',
+    MembershipSource.OPEN: 'Joined openly',
     MembershipSource.ROLE_GRANT: 'Role grant',
     MembershipSource.DISCORD_ROLE: 'Discord role sync',
     MembershipSource.IMPORT: 'SpeedGaming import',
@@ -341,7 +343,15 @@ async def _members_panel(
                 # With auto-join on, being in the Discord server is the rule:
                 # removal only lasts until they next open the community.
                 auto_join = await TenantMembershipService.auto_join_active(require_tenant_id())
+                open_door = (
+                    await TenantMembershipService.get_join_mode() is JoinMode.OPEN
+                )
                 consequence = (
+                    'They get a Discord message saying so. This community lets '
+                    'anyone in who signs in, so they\'ll be back the next time '
+                    'they open it. Change who can join under Settings if you '
+                    'need to keep them out.'
+                    if open_door else
                     'They get a Discord message saying so. This community lets '
                     'members of its Discord server in automatically, so while '
                     'they\'re in the server they\'ll be let back in the next time '

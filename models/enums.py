@@ -283,6 +283,22 @@ class CheckInLinkMethod(str, Enum):
     COMP = 'comp'
 
 
+class CheckInDmStatus(str, Enum):
+    """Whether the bot could DM someone, from the test DM sent at check-in.
+
+    The desk asks while the person is still standing there, because every match
+    call, crew ask and shift reminder at the event goes out the same way.
+    ``BLOCKED`` is Discord refusing (DMs closed, no shared server); ``FAILED``
+    is our side (bot down, an HTTP error) and says nothing about them.
+    """
+
+    PENDING = 'pending'
+    SENT = 'sent'
+    BLOCKED = 'blocked'
+    OPTED_OUT = 'opted_out'
+    FAILED = 'failed'
+
+
 class StationSide(str, Enum):
     """Which half of the tournament room a station sits in.
 
@@ -470,6 +486,7 @@ class MembershipSource(str, Enum):
     STAFF = 'staff'                          # Add Member, Add User, /platform bootstrap
     JOIN_REQUEST = 'join_request'            # an approved join request
     DISCORD_AUTO_JOIN = 'discord_auto_join'  # in the linked Discord server
+    OPEN = 'open'                            # signed in while membership was open
     ROLE_GRANT = 'role_grant'                # a role granted by staff
     DISCORD_ROLE = 'discord_role'            # a role from the Discord role sync
     IMPORT = 'import'                        # the SpeedGaming import
