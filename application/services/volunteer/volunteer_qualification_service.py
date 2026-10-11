@@ -6,6 +6,7 @@ Manages which positions each volunteer is qualified to fill.
 
 from typing import List, Set
 
+from application.repositories.volunteer_position_repository import VolunteerPositionRepository
 from application.repositories.volunteer_qualification_repository import VolunteerQualificationRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -38,6 +39,9 @@ class VolunteerQualificationService:
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can manage qualifications.",
         )
+        known = {position.id for position in await VolunteerPositionRepository.list_all()}
+        if set(position_ids) - known:
+            raise ValueError("That position doesn't exist in this community.")
         await self.repository.set_for_user(user, position_ids)
         await self.audit_service.write_log(
             actor,

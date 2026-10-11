@@ -58,6 +58,7 @@ tenant costs the button, not the DM.
 | Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
 | Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
+| Volunteer shift reminder | Acknowledge (only if not yet acknowledged) · Can't make it | `/volunteer/my-shifts?release=<assignment id>` — the give-back dialog for that shift, open; a gone, finished or checked-in shift says so instead |
 | Reschedule request (to staff) | Review the request | `/admin/schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
 | Reschedule request (to the opponent) | Agree · Open the request | Discord's Agree button is the control; the link is `/home/player?agree=<request id>`, the same request open in a dialog with its own **Agree** — the web-push copy of this DM has no Discord button, so the tap target has to carry one |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |

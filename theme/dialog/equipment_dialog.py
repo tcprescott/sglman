@@ -79,11 +79,12 @@ class EquipmentDialog:
                 # Checked out is owned by check out / check in, so the select only
                 # appears when the asset is on the shelf.
                 status_select = None
-                if is_edit and self.equipment.status != EquipmentStatus.CHECKED_OUT:
+                current = self.equipment
+                if current is not None and current.status != EquipmentStatus.CHECKED_OUT:
                     status_select = ui.select(
                         label='Status',
                         options=_STATUS_OPTIONS,
-                        value=self.equipment.status.value,
+                        value=current.status.value,
                     ).classes('full-width')
                 elif is_edit:
                     ui.label(

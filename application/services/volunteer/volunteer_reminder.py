@@ -36,13 +36,17 @@ async def _scoped_dm(tenant_id: int, coro) -> None:
 
 async def _tick() -> None:
     from application.repositories import VolunteerAssignmentRepository
+    from application.services import notification_links
     from application.services.discord import discord_queue
     from application.services.discord.discord_service import DiscordService
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import SystemConfigService
     from application.services.tenant_service import TenantService
     from application.utils.discord_embeds import time_field, volunteer_embed
-    from application.utils.discord_messages_volunteer import volunteer_reminder_dm
+    from application.utils.discord_messages_volunteer import (
+        volunteer_reminder_description,
+        volunteer_reminder_dm,
+    )
     from models import FeatureFlag
 
     now = datetime.now(timezone.utc)
@@ -74,20 +78,24 @@ async def _tick() -> None:
             return
         user = assignment.user
         # Stamp first so a delivery failure (or a restart) doesn't re-fire.
+        # Only this column: the row was loaded at the top of the tick, and a full
+        # save would put back a null over an acknowledgment or check-in made since.
         assignment.reminder_sent_at = now
-        await assignment.save()
+        await VolunteerAssignmentRepository.save(assignment, update_fields=['reminder_sent_at'])
 
         discord_id = getattr(user, 'discord_id', None)
         if not discord_id or not getattr(user, 'dm_notifications', True):
             return
+        acknowledged = assignment.acknowledged_at is not None
         position_name = shift.position.name if shift.position else ''
         message = volunteer_reminder_dm(
             position_name=position_name,
             label=shift.label,
             starts_display=time_field(shift.starts_at),
             ends_display=time_field(shift.ends_at),
+            acknowledged=acknowledged,
         )
-        description = 'Your shift is coming up. Tap **Acknowledge** to confirm you are covering it.'
+        description = volunteer_reminder_description(acknowledged)
         if shift.label:
             description = f'**{shift.label}**\n{description}'
         embed = volunteer_embed(
@@ -98,16 +106,18 @@ async def _tick() -> None:
             ends=shift.ends_at,
             description=description,
         )
+        # The reminder is when someone finds out they can't make it, so it
+        # carries the way out: My Shifts, with this shift's give-back dialog open.
+        link = await notification_links.volunteer_release(assignment.id)
+        if acknowledged:
+            send = discord_service.send_dm(int(discord_id), message, embed=embed, link=link)
+        else:
+            send = discord_service.send_dm_with_volunteer_acknowledgment_button(
+                int(discord_id), message, assignment.id, embed=embed, link=link,
+            )
         # Close the DM over the tenant scope so its deep links / web-push
         # mirror resolve under the right tenant when the worker runs it.
-        discord_queue.enqueue(
-            _scoped_dm(
-                tenant_id,
-                discord_service.send_dm_with_volunteer_acknowledgment_button(
-                    int(discord_id), message, assignment.id, embed=embed,
-                ),
-            )
-        )
+        discord_queue.enqueue(_scoped_dm(tenant_id, send))
 
     await for_each_tenant_scoped(
         due,

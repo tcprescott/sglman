@@ -31,6 +31,8 @@ from application.services.volunteer.volunteer_role_mapping_service import (
 )
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
+    format_local_display,
+    format_local_time,
     parse_local_datetime,
 )
 from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, VolunteerShift
@@ -75,6 +77,7 @@ class VolunteerScheduleService:
             raise ValueError("A shift must end after it starts.")
         if slots_needed < 1:
             raise ValueError("A shift needs at least one slot.")
+        await self._require_position(position_id)
         shift = await self.shift_repository.create(
             position_id=position_id, starts_at=starts_at, ends_at=ends_at,
             label=label, slots_needed=slots_needed, notes=notes,
@@ -109,10 +112,10 @@ class VolunteerScheduleService:
             "Only volunteer coordinators can manage shifts.",
         )
         created: List[VolunteerShift] = []
+        positions = [await self._require_position(pid) for pid in position_ids]
         async with in_transaction():
-            for position_id in position_ids:
-                position = await self.position_repository.get_by_id(position_id)
-                if position is not None and position.is_staggered:
+            for position_id, position in zip(position_ids, positions, strict=True):
+                if position.is_staggered:
                     created.extend(
                         await self._generate_staggered(position, date_str, blocks)
                     )
@@ -191,6 +194,8 @@ class VolunteerScheduleService:
             raise ValueError("A shift must end after it starts.")
         if fields.get('slots_needed', shift.slots_needed) < 1:
             raise ValueError("A shift needs at least one slot.")
+        if 'position_id' in fields:
+            await self._require_position(fields['position_id'])
         old_starts, old_ends = shift.starts_at, shift.ends_at
         moved = starts != old_starts or ends != old_ends
         old_position_id = shift.position_id  # type: ignore[attr-defined]
@@ -220,9 +225,15 @@ class VolunteerScheduleService:
         for assignment in await self.assignment_repository.list_for_shift(shift.id):
             if assignment.auto_generated:
                 continue
-            if assignment.acknowledged_at is not None:
-                assignment.acknowledged_at = None
-                await self.assignment_repository.save(assignment)
+            was_acknowledged = assignment.acknowledged_at is not None
+            # The reminder was for the old time; the new one needs its own.
+            if was_acknowledged or assignment.reminder_sent_at is not None:
+                assignment.acknowledged_at = None  # type: ignore[assignment]
+                assignment.reminder_sent_at = None  # type: ignore[assignment]
+                await self.assignment_repository.save(
+                    assignment, update_fields=['acknowledged_at', 'reminder_sent_at'],
+                )
+            if was_acknowledged:
                 cleared += 1
             await self._notify_shift_moved(
                 assignment, shift, assignment.user, old_starts, old_ends,
@@ -236,22 +247,31 @@ class VolunteerScheduleService:
         )
         shift_id = shift.id
         assigned = await self.assignment_repository.published_user_ids(shift_id)
+        to_tell = await self.assignment_repository.published_unfinished(
+            datetime.now(timezone.utc), shift_id=shift_id,
+        )
         await self.shift_repository.delete(shift)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_SHIFT_DELETED, {'shift_id': shift_id},
         )
         await self.role_mapping_service.reconcile_users(actor, assigned)
+        for assignment in to_tell:
+            await self._notify_removed(assignment.user, assignment.shift)
 
     async def reset_all_shifts(self, actor: User) -> int:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can manage shifts.",
         )
+        # Only shifts still to come: a DM about last year's finished shift is noise.
+        to_tell = await self.assignment_repository.published_unfinished(datetime.now(timezone.utc))
         deleted = await self.shift_repository.delete_all()
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_SHIFTS_RESET, {'deleted_count': deleted},
         )
         await self.role_mapping_service.reconcile_all(actor)
+        for assignment in to_tell:
+            await self._notify_removed(assignment.user, assignment.shift)
         return deleted
 
     # --- Assignments ------------------------------------------------------
@@ -328,6 +348,7 @@ class VolunteerScheduleService:
         )
         if not assignment.auto_generated:
             return assignment
+        await self._refuse_published_clash(assignment)
         await self.assignment_repository.mark_published(assignment)
         await self.audit_service.write_and_publish(
             actor, AuditActions.VOLUNTEER_ASSIGNED,
@@ -355,6 +376,16 @@ class VolunteerScheduleService:
     ) -> Optional[VolunteerAssignment]:
         """This volunteer's assignment on this shift, if they hold one."""
         return await self.assignment_repository.get_for_shift_and_user(shift_id, user_id)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def find_own_assignment(
+        self, assignment_id: int, user: User,
+    ) -> Optional[VolunteerAssignment]:
+        """``user``'s published assignment with this id, or None (gone, a draft, or not theirs)."""
+        assignment = await self.assignment_repository.get_by_id(assignment_id)
+        if assignment is None or assignment.user_id != user.id or assignment.auto_generated:  # type: ignore[attr-defined]
+            return None
+        return assignment
 
     async def unassign(self, actor: User, assignment: VolunteerAssignment) -> None:
         await AuthService.ensure(
@@ -518,6 +549,38 @@ class VolunteerScheduleService:
         }
 
     # --- Helpers ----------------------------------------------------------
+
+    async def _require_position(self, position_id: int) -> VolunteerPosition:
+        """This community's position, or a ValueError. Never another tenant's."""
+        position = await self.position_repository.get_by_id(position_id)
+        if position is None:
+            raise ValueError("That position doesn't exist in this community.")
+        return position
+
+    async def _refuse_published_clash(self, assignment: VolunteerAssignment) -> None:
+        """Raise if publishing this draft would double-book its volunteer."""
+        if getattr(assignment.shift, "starts_at", None) is None:
+            # A freshly created row carries unfetched relations.
+            assignment = require_found(
+                await self.assignment_repository.get_by_id(assignment.id), "Volunteer assignment",
+            )
+        shift = assignment.shift
+        clashes = await self.assignment_repository.overlapping_for_user(
+            assignment.user_id, shift.starts_at, shift.ends_at,  # type: ignore[attr-defined]
+            exclude_shift_id=shift.id, published_only=True,
+        )
+        if not clashes:
+            return
+        other = clashes[0].shift
+        other_name = other.position.name if other.position else 'another shift'
+        if other.label:
+            other_name = f'{other_name} — {other.label}'
+        name = assignment.user.preferred_name if assignment.user else 'This volunteer'
+        raise ValueError(
+            f"{name} is already on {other_name} "
+            f"({format_local_display(other.starts_at)}–{format_local_time(other.ends_at)}), "
+            f"which overlaps this shift."
+        )
 
     async def _availability_warning(self, user: User, shift: VolunteerShift) -> Optional[str]:
         from application.services.volunteer.volunteer_availability_service import (

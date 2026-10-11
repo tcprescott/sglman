@@ -608,6 +608,13 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     f"{result['volunteers']} volunteer(s). Each got a Discord DM.",
                     color='positive',
                 )
+                clashes = result.get('clashes') or []
+                if clashes:
+                    ui.notify(
+                        f"{len(clashes)} draft(s) left unpublished because they clash: "
+                        + ' '.join(clashes),
+                        color='warning', multi_line=True, timeout=0, close_button=True,
+                    )
                 refresh_all()
 
             confirm = ConfirmationDialog(

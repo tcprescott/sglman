@@ -53,7 +53,29 @@ def hours_message(summary) -> str:
     return line
 
 
-async def my_shifts_tab() -> None:
+def release_link_target(raw: Optional[str]) -> tuple[Optional[int], bool]:
+    """Parse ``?release=``: (assignment id, whether the param was malformed)."""
+    if raw is None or raw == '':
+        return None, False
+    if raw.isdecimal():
+        return int(raw), False
+    return None, True
+
+
+def shift_actions(assignment, now: datetime) -> tuple[bool, bool]:
+    """(show Acknowledge, show "Can't make this") for one assignment card.
+
+    Module-level and pure so the rule is testable. Both mirror what the service
+    will accept: nothing on a finished shift, and no giving back a shift you
+    are already checked in for.
+    """
+    finished = assignment.shift.ends_at <= now
+    can_ack = assignment.acknowledged_at is None and not finished
+    can_release = assignment.checked_in_at is None and not finished
+    return can_ack, can_release
+
+
+async def my_shifts_tab(release: Optional[str] = None) -> None:
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
@@ -160,6 +182,7 @@ async def my_shifts_tab() -> None:
                 position = shift.position.name if shift.position else 'Volunteer'
                 acked = assignment.acknowledged_at is not None
                 checked_in = assignment.checked_in_at is not None
+                can_ack, can_release = shift_actions(assignment, datetime.now(timezone.utc))
                 with ui.card().classes('full-width q-pa-md q-mb-sm'):
                     with ui.column().classes('gap-0 full-width'):
                         title = position + (f' — {shift.label}' if shift.label else '')
@@ -189,7 +212,7 @@ async def my_shifts_tab() -> None:
                         if acked:
                             ui.badge('Acknowledged', color='positive')
                         ui.space()
-                        if not acked:
+                        if can_ack:
                             async def ack(a_id=assignment.id) -> None:
                                 try:
                                     await service.acknowledge(a_id, user)
@@ -200,9 +223,10 @@ async def my_shifts_tab() -> None:
                             ui.button('Acknowledge', icon='check', on_click=ack).props('color=primary')
                         # Offered whether or not it is acknowledged — agreeing to a
                         # shift is not a commitment you cannot revise.
-                        ui.button("Can't make this", icon='event_busy',
-                                  on_click=lambda a=assignment: confirm_release(a)) \
-                            .props('flat color=negative')
+                        if can_release:
+                            ui.button("Can't make this", icon='event_busy',
+                                      on_click=lambda a=assignment: confirm_release(a)) \
+                                .props('flat color=negative')
 
         def on_toggle(e) -> None:
             state['upcoming_only'] = not e.value
@@ -210,3 +234,18 @@ async def my_shifts_tab() -> None:
 
         ui.switch('Show all shifts', on_change=on_toggle)
         await shift_list()
+
+        release_id, malformed = release_link_target(release)
+        if malformed:
+            ui.notify("That link is broken. Your shifts are below.", color='warning')
+        elif release_id is not None:
+            target = await service.find_own_assignment(release_id, user)
+            if target is None:
+                ui.notify("That shift isn't on your list any more.", color='warning')
+            elif not shift_actions(target, datetime.now(timezone.utc))[1]:
+                ui.notify(
+                    "That shift can't be given back here: it's finished or you're "
+                    "checked in. Talk to your coordinator.", color='warning',
+                )
+            else:
+                await confirm_release(target)
