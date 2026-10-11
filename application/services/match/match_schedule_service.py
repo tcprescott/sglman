@@ -503,7 +503,9 @@ class MatchScheduleService(MatchNotificationMixin):
             rolled_by_id=actor.id if actor is not None else None,
             provider_meta=provider_meta,
         )
-        await match.save()
+        # The roll waited on the provider; the proctor may have checked the
+        # players in meanwhile, so write the seed and nothing else.
+        await match.save(update_fields=['generated_seed_id'])
 
         # Send DMs to players in the background (respects dm_notifications opt-out)
         descriptor = _match_descriptor(match, await bracket_line_for(match.id))

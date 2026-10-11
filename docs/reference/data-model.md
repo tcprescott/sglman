@@ -1864,6 +1864,15 @@ stale precondition and wrote the whole row back, clearing a `started_at` set in
 between (and any stage assigned meanwhile), and a double tap stamped, audited and
 notified twice. The loser of the race gets a `ValueError` asking them to refresh.
 
+The rest of the match writes save only the columns they name, so none of them can
+move a match backwards by accident: `MatchRepository.update` saves `fields` and
+nothing else (an FK named by relation is mapped to its `_id` column), the seed
+roll saves `generated_seed_id` after waiting on the provider, and the stage
+reminder saves `stage_reminder_sent_at`. The only way to clear a lifecycle
+timestamp is `MatchService.update_match`'s explicit `clear_seated` /
+`clear_started` / `clear_finished` / `clear_confirmed`, which the edit dialog's
+rewind buttons send.
+
 ## Repository layer
 
 Repositories live in [`application/repositories/`](../../application/repositories/) and are exported from its [`__init__.py`](../../application/repositories/__init__.py); the layering rules and worked examples are in [refactoring-guide.md](../refactoring-guide.md). Both calling conventions are in use and interchangeable — a class of lookups (`TournamentRepository.update(...)`) and an instance (`PresetRepository().update(...)`).

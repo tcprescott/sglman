@@ -99,3 +99,67 @@ class TestDoubleTap:
         assert len(errors) == 1
         assert isinstance(errors[0], ValueError)
         assert await AuditLog.filter(action="match.started").count() == 1
+
+
+class TestOtherWritesLeaveTheLifecycleAlone:
+    """Only ``update_match``'s explicit ``clear_*`` flags may move a match back.
+
+    Every other write lands on a row that may have moved since it was read: a
+    seed roll waits seconds on the provider while the proctor checks players
+    in, and a stage pick or reschedule happens while the match is in play.
+    """
+
+    async def test_a_seed_roll_does_not_undo_a_check_in_made_while_it_rolled(self, service, db):
+        from unittest.mock import AsyncMock
+
+        from application.services.seedgen_service import RolledSeed
+        from application.utils.seed_provider import ProviderCall
+
+        staff = await make_staff()
+        t = await Tournament.create(name="T", seed_generator="alttpr")
+        m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="alice"))
+
+        async def roll_while_the_proctor_checks_in(*_a, **_k):
+            await Match.filter(id=m.id).update(seated_at=datetime.now(UTC))
+            return ProviderCall(
+                value=RolledSeed(url="https://alttpr.com/h/x", settings={}),
+                provider='alttpr', operation='generate_seed', attempts=1, latency_ms=5,
+            )
+
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            side_effect=roll_while_the_proctor_checks_in,
+        )
+
+        ok, _msg, _url = await service.generate_seed(m.id, staff)
+
+        assert ok is True
+        row = await Match.get(id=m.id)
+        assert row.seated_at is not None
+        assert row.generated_seed_id is not None
+
+    async def test_a_stage_pick_does_not_undo_a_start(self, db):
+        from application.repositories import MatchRepository
+
+        m = await _match(seated_at=datetime.now(UTC))
+        stale = await Match.get(id=m.id)
+        await Match.filter(id=m.id).update(started_at=datetime.now(UTC))
+        stage = await Stage.create(name="Main")
+
+        await MatchRepository.update(stale, stage_id=stage.id, stage_reminder_sent_at=None)
+
+        row = await Match.get(id=m.id)
+        assert row.stage_id == stage.id
+        assert row.started_at is not None
+
+    async def test_an_explicit_clear_still_rewinds(self, db):
+        from application.repositories import MatchRepository
+
+        now = datetime.now(UTC)
+        m = await _match(seated_at=now, started_at=now)
+
+        await MatchRepository.update(m, started_at=None)
+
+        row = await Match.get(id=m.id)
+        assert row.started_at is None
+        assert row.seated_at is not None
