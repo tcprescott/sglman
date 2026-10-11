@@ -56,6 +56,8 @@ is runtime content, not project documentation.
 | `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
 | `staff-schedule` | Staff: Admin → Schedule, creating/editing/cancelling matches, rewinding, stages and candidates, crew approval and the coverage report | `audience: staff` |
 | `staff-match-day` | Staff: the board's queues, reschedule requests, confirming results, disputes, seeds, room screens, race rooms | `audience: staff` |
+| `coordinating-volunteers` | Vol. Schedule: positions and the roles they grant, shifts and what an edit tells people, assigning by hand, the auto-scheduler, drafts and publishing, reminders, dropped shifts, reset | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
+| `volunteer-hours-and-export` | Vol. Roster: the pool, qualifications, hours against reward tiers and check-in comps, staff-only settings, the CSV export, the coverage report | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
 
 ### Article format
 
@@ -329,7 +331,7 @@ Tournaments, Profile → Notifications and Profile → ADA accommodation; the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
-dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers and the ADA requests queue; and the shared availability editor, which
+dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers, the ADA requests queue, and the Vol. Schedule (the page, Auto-fill and Drafts) and Vol. Roster (the page and Hours) headers; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel
 that already carries `player-availability`).
