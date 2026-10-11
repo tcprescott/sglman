@@ -30,7 +30,7 @@ The tournament create/edit dialog ([`tournament_edit_dialog.py`](../../theme/dia
 
 A tournament configured before the preset became the only control keeps rolling on its stored `seed_generator`; the dialog says so under the select, and saving it with no preset is what turns seed rolling off. Migration `61_20260803060000_preset_owns_randomizer` backfilled `seed_generator` for the tournaments that had a preset but no generator.
 
-The admin Settings tab lists each tournament's `seed_generator` read-only.
+The admin Tournaments tab lists each tournament's `seed_generator` read-only.
 
 ### Generation flow
 

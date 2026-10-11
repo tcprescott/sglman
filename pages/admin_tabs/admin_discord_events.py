@@ -60,8 +60,8 @@ async def admin_discord_events_page() -> None:
                 else:
                     ui.icon('warning', color='warning')
                     ui.label(
-                        'No Discord server connected. Connect one from the Role Mappings '
-                        'tab before events can sync.'
+                        'No Discord server connected. Connect one above before events '
+                        'can sync.'
                     ).classes('text-caption')
 
         # --- Per-tournament opt-in ------------------------------------------

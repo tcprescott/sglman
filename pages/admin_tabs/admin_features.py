@@ -12,6 +12,7 @@ from nicegui import app, ui
 from application.services import FeatureFlagService, get_user_from_discord_id
 from models import FeatureFlag
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 
 async def admin_features_page() -> None:
@@ -34,8 +35,7 @@ async def admin_features_page() -> None:
     tier = await service.current_tenant_group_name()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Features').classes('page-title')
+        page_header('Features')
         ui.label(
             'Turn community features on or off. Which features are available to '
             'your community is set by a platform administrator (your tier); you '
@@ -43,7 +43,6 @@ async def admin_features_page() -> None:
         ).classes('text-caption text-grey')
         if tier:
             ui.label(f'Your tier: {tier}').classes('text-caption text-primary')
-        ui.separator().classes('separator-spacing')
 
         # Group by category, preserving the registry declaration order.
         categories: list[str] = []

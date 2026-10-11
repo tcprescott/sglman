@@ -245,7 +245,7 @@ async def open_event_dialog(
             threshold = f'{tiers[0]:g}' if tiers else None
             comp_volunteers = ui.switch(
                 f'Comp volunteers scheduled for {threshold}+ hours' if threshold
-                else 'Comp volunteers (no comp tier set in Admin → Settings)',
+                else 'Comp volunteers (no comp tier set in Admin → Settings → Volunteers)',
                 value=event.comp_volunteers if event else False,
             )
             ui.label(

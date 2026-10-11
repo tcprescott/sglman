@@ -176,7 +176,7 @@ class SeedGenerationService(DK64RBackend):
         if not value:
             raise MissingCredentialError(
                 f'{spec_for(randomizer, key).label} is not configured for this '
-                f'community. Add it under Admin → Randomizer Keys.'
+                f'community. Add it under Admin → Settings → Integrations.'
             )
         return value
 

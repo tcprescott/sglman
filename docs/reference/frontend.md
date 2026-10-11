@@ -60,7 +60,7 @@ Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=
 
 ### Per-tenant theme colours
 
-The shipped "Phoenix" palette (gold/ember) is overridable per tenant on **Admin → Appearance**. Storage, validation, presets and the contrast checks belong to [`TenantThemeService`](services.md#tenant_theme_servicepy--tenantthemeservice); this section covers only how the palette is *applied*.
+The shipped "Phoenix" palette (gold/ember) is overridable per tenant on **Admin → Settings → General**. Storage, validation, presets and the contrast checks belong to [`TenantThemeService`](services.md#tenant_theme_servicepy--tenantthemeservice); this section covers only how the palette is *applied*.
 
 `render_chrome()` applies it in two places, because `ui.colors()` alone recolours Quasar's palette and never reaches links, the active nav item, or the header's brand mark: `ui.colors(primary/secondary/accent=…)`, plus an injected `<style>` re-pointing `--wiz-gold-deep` / `--wiz-gold` / `--wiz-ember*` / `--wiz-header-bg` and the light-mode PWA `theme-color` meta. It is injected after `styles.css`, so it wins. `--accent` in `styles.css` is an alias of `--wiz-gold-deep` (light) / `--wiz-gold` (dark), so it follows the override too. The `header` colour no longer paints the bar: since the Studio restyle the header is a neutral surface and `--wiz-header-bg` fills only the small square before the wordmark (Appearance calls it **Brand mark**). Reads are fresh per page load, so a save shows on the next navigation (the Appearance form reloads the page).
 
@@ -125,7 +125,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Bare `ui.page`; super-admin only (themed 403 otherwise), **no tenant context** (a themed 404 when reached under `/t/<slug>`); tenant CRUD, with each other section in its own module — `platform_bots.py` (racetime bots), `platform_feature_groups.py` (tiers + a tenant's overrides), `platform_tenant_admins.py` (first staff member), `platform_logging.py` (runtime log levels, see [observability.md](../features/observability.md)), shared bits in `platform_shared.py`; the service-health board is `pages/service_health_view.py`, shared with Admin → Service Health (see [multitenancy.md](../features/multitenancy.md)) |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md). Replaced by the mock user picker under `MOCK_DISCORD` |
 | `/oauth/start`, `/session/claim` | [`pages/auth.py`](../../pages/auth.py) | Custom-domain login handoff: `/oauth/start` begins Discord OAuth on the platform host for an allow-listed tenant domain, `/session/claim` sets the session back on the custom domain. `/oauth/start` falls back to `/login` unless the host OAuth handoff is enabled |
-| `/oauth/discord/connect/callback` | [`pages/auth.py`](../../pages/auth.py) | Bot-authorization callback for Admin → Role Mappings' "Connect Discord server" flow; runs on the platform host with the target tenant carried in the session |
+| `/oauth/discord/connect/callback` | [`pages/auth.py`](../../pages/auth.py) | Bot-authorization callback for Admin → Settings → Discord's "Connect Discord server" flow; runs on the platform host with the target tenant carried in the session |
 | `/challonge/connect`, `/challonge/link`, `/challonge/oauth/callback`; `/twitch/link`, `/twitch/oauth/callback`; `/racetime/link`, `/racetime/oauth/callback` | [`challonge_oauth.py`](../../pages/challonge_oauth.py), [`twitch_oauth.py`](../../pages/twitch_oauth.py), [`racetime_oauth.py`](../../pages/racetime_oauth.py) | Bare `ui.page` routes (they serve cross-host OAuth legs); one-time verified-identity linking on the global `User`. `/challonge/connect` is the staff service-account connection from Admin → Challonge. The Challonge callback lands on the bare platform host with no tenant, so initiation pins the community id beside the CSRF state and the callback completes inside `tenant_scope` (the service is feature-gated and its rows are tenant-scoped). The profile's Challonge **Link** button opens a sign-in-first dialog (`LinkSectionConfig.sign_in_first_url`) because a signed-out visitor to Challonge's authorize URL gets a bare 401 JSON `authentication required` page instead of a login form |
 | `/oauth/link/start`, `/oauth/link/claim` | [`pages/_oauth_link.py`](../../pages/_oauth_link.py) | `register_link_handoff_pages()` — the provider-agnostic cross-host handoff for identity linking from a custom domain (start on the platform host, claim on the custom domain) |
 | `/oauth/mcp/consent` | [`pages/mcp_consent.py`](../../pages/mcp_consent.py) | Bare `ui.page` that adds itself to `protected_routes`; the MCP OAuth approval screen (see below) |
@@ -342,7 +342,6 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Payouts | Operations | Staff, Tournament Admin (any) | `PAYOUTS` |
 | Check-in | Operations | Staff | `EVENT_CHECK_IN` |
 | Presets | Online play | Staff, Preset Manager | — |
-| Randomizer Keys | Online play | Staff, Preset Manager | — |
 | Qualifiers | Online play | Staff, Qualifier Admin, qualifier admin (any) | `ASYNC_QUALIFIERS` |
 | Racetime | Online play | Staff, Sync Admin | `RACETIME_ROOMS` |
 | SpeedGaming | Online play | Staff, Sync Admin | `SPEEDGAMING_ETL` |
@@ -353,17 +352,11 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Vol. Schedule | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
 | Equipment | Community | Staff, Equipment Manager | `EQUIPMENT` |
 | Feedback | Community | Staff | `FEEDBACK` |
-| Discord Events | Integrations | Staff, Sync Admin | — |
-| Role Mappings | Integrations | Staff | — (the volunteer-position section needs `VOLUNTEERS`) |
-| Webhooks | Integrations | Staff | — |
 | Reports | System | Staff, Tournament Admin (any), Crew Coordinator (any) | — |
 | Service Health | System | Staff | — |
-| Features | System | Staff | — |
-| Settings | System | Staff (System Configuration) | — |
-| Appearance | System | Staff | — |
-| Timezone | System | Staff | — |
+| Settings | System | Anyone with at least one [settings pane](#admin-settings-pagesadmin_tabssettings): Staff, Sync Admin (Discord Events only), Preset Manager (Randomizer Keys only) | — |
 
-Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → Integrations → System), which the drawer renders as labeled sections.
+Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → System), which the drawer renders as labeled sections.
 
 A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER reaches the tab for exactly one control (`assign_stream`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
 
@@ -396,23 +389,23 @@ Triforce texts has no standalone route: player submission is a dialog off the to
 | [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Vol. Schedule | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
 | [`reports/`](../../pages/admin_tabs/reports/__init__.py) | Reports | Read-only analytics — see [Reports subsystem](#reports-subsystem-pagesadmin_tabsreports) |
 | [`admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Presets | Seed-rolling preset CRUD (`PRESET_MANAGER`/STAFF), import of built-in `presets/` files, and a per-row **Test roll** dialog (`PresetService.test_roll`) — see [seed-generation.md](seed-generation.md#presets-db-backed) |
-| [`admin_randomizer_keys.py`](../../pages/admin_tabs/admin_randomizer_keys.py) | Randomizer Keys | This community's own randomizer API credentials (`PRESET_MANAGER`/STAFF). One card per declared credential with a **write-only** password input — the stored value is never rendered back, and a blank submit is rejected (clearing is an explicit button). Cards, not a `ui.table`, so the per-credential help text fits — see [seed-generation.md](seed-generation.md#per-tenant-credentials) |
+| [`admin_randomizer_keys.py`](../../pages/admin_tabs/admin_randomizer_keys.py) | Settings → Integrations | This community's own randomizer API credentials (`PRESET_MANAGER`/STAFF). One card per declared credential with a **write-only** password input — the stored value is never rendered back, and a blank submit is rejected (clearing is an explicit button). Cards, not a `ui.table`, so the per-credential help text fits — see [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | [`admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py) | Racetime | Reusable race-room profile CRUD (`SYNC_ADMIN`/STAFF) via `RaceRoomProfileService`; the bots themselves are platform-managed on `/platform` |
 | [`admin_speedgaming.py`](../../pages/admin_tabs/admin_speedgaming.py) | SpeedGaming | SG→app schedule ETL: event-link CRUD + "Sync now" (`SYNC_ADMIN`) — see [online-tournaments.md](../features/online-tournaments.md) |
-| [`admin_discord_events.py`](../../pages/admin_tabs/admin_discord_events.py) | Discord Events | Per-tournament Discord Scheduled Events opt-in + "Sync now" (`SYNC_ADMIN`) |
+| [`admin_discord_events.py`](../../pages/admin_tabs/admin_discord_events.py) | Settings → Discord | Per-tournament Discord Scheduled Events opt-in + "Sync now" (`SYNC_ADMIN`) |
 | [`admin_qualifiers/`](../../pages/admin_tabs/admin_qualifiers/) | Qualifiers | Async-qualifier authoring (pools/permalinks), the reviewer queue, and a Live Races sub-tab (`QUALIFIER_ADMIN`) — see [online-tournaments.md](../features/online-tournaments.md#async-qualifiers). A package: `page` owns the state and the **per-tab loaders**, `shared` the columns and paging bounds, and one module per tab whose content is substantial: `pools` (seed authoring — URL validation, the per-line paste report, per-permalink edit/remove, and the Roll refusal shown before the button), `review_queue` (the reviewer's cards and the claim lock), `reviewers` (the roster), `live_races` (the one tab backed by its own service and an external system) |
 | [`admin_service_health.py`](../../pages/admin_tabs/admin_service_health.py) | Service Health | Read-only subset of the platform health board for the tenant's own services (STAFF) |
-| [`admin_features.py`](../../pages/admin_tabs/admin_features.py) | Features | Per-tenant feature-flag enable/disable (STAFF) — see [feature-flags.md](../features/feature-flags.md) |
-| [`admin_theme.py`](../../pages/admin_tabs/admin_theme.py) | Appearance | Per-tenant brand colours (STAFF); see [per-tenant theme](#per-tenant-theme-colours) |
-| [`admin_timezone.py`](../../pages/admin_tabs/admin_timezone.py) | Timezone | Pin one zone for the community or follow each viewer's own (STAFF) via `TimezoneService`; saving reloads the page — see [../timezone-handling.md](../timezone-handling.md) |
+| [`admin_features.py`](../../pages/admin_tabs/admin_features.py) | Settings → Features | Per-tenant feature-flag enable/disable (STAFF) — see [feature-flags.md](../features/feature-flags.md) |
+| [`admin_theme.py`](../../pages/admin_tabs/admin_theme.py) | Settings → General | Per-tenant brand colours (STAFF); see [per-tenant theme](#per-tenant-theme-colours) |
+| [`admin_timezone.py`](../../pages/admin_tabs/admin_timezone.py) | Settings → General | Pin one zone for the community or follow each viewer's own (STAFF) via `TimezoneService`; saving reloads the page — see [../timezone-handling.md](../timezone-handling.md) |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
 | [`admin_brackets/`](../../pages/admin_tabs/admin_brackets/) | Brackets | Native bracket authoring, roster/seeding, start, results/overrides, complete & advance (STAFF, `BRACKETS` flag) — see [Admin brackets](#admin-brackets-pagesadmin_tabsadmin_brackets) |
-| [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Role Mappings | Map Discord roles (sign-in sync) and volunteer positions (assignment sync) to application roles |
-| [`volunteer_role_mappings.py`](../../pages/admin_tabs/volunteer_role_mappings.py) | Role Mappings | The volunteer-position section, rendered when `VOLUNTEERS` is live |
-| [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
+| [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Settings → Discord | Map Discord roles (sign-in sync) and volunteer positions (assignment sync) to application roles |
+| [`volunteer_role_mappings.py`](../../pages/admin_tabs/volunteer_role_mappings.py) | Settings → Discord | The volunteer-position section, rendered when `VOLUNTEERS` is live |
+| [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Settings → Integrations | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
 | [`admin_equipment.py`](../../pages/admin_tabs/admin_equipment.py) | Equipment | Asset CRUD, checkout/checkin, and QR-page links |
 | [`admin_feedback.py`](../../pages/admin_tabs/admin_feedback.py) | Feedback | Review queue for user-submitted feedback; **reversible** (Reopen puts a row back in the queue). Behind `FeatureFlag.FEEDBACK`, as are the drawer's Feedback item and the profile's "Your feedback" card |
-| [`admin_system_config.py`](../../pages/admin_tabs/admin_system_config.py) | Settings | System configuration: event window, concurrency limits, volunteer settings, tournament hours, Discord sync guild; hosts the Station Pool and [`room_tokens_section.py`](../../pages/admin_tabs/room_tokens_section.py) |
+| [`settings/`](../../pages/admin_tabs/settings/__init__.py) | Settings | The settings area: a pane menu over the native panes (`event`, `venue`, `members`, `volunteers`) and the former tabs it embeds — see [Admin settings](#admin-settings-pagesadmin_tabssettings) |
 | [`links.py`](../../pages/admin_tabs/links.py) | — | `admin_url(section, **params)`, the one builder for admin deep links |
 
 ### Admin schedule (`pages/admin_tabs/admin_schedule.py`)
@@ -721,13 +714,25 @@ Both routes are `@protected_page(roles=[STAFF, CHECK_IN_DESK], feature=FeatureFl
 
 `admin_feedback_page()` — a `@ui.refreshable` `ui.table` of recent submissions (`FeedbackService.list_recent`): submitted time, user, category, message, page URL, status badge. A **Mark reviewed** button per pending row, and **Reopen** per reviewed one, both calling `FeedbackService.set_reviewed(actor, id, reviewed=…)`.
 
-### Admin system configuration (`pages/admin_tabs/admin_system_config.py`)
+### Admin settings (`pages/admin_tabs/settings/`)
 
-`admin_system_config_page()` — the "Settings" tab (`AuthService.is_staff` gates the Save button).
+One **Settings** entry in the admin drawer opens a settings area: a menu of panes on the left (a scrolling row of tabs below `md`) and the open pane on the right. Each pane is a `page_header` plus a stack of `section_panel` cards.
 
-- Reads/writes `SystemConfigService` keyed constants: event start/end dates, max concurrent players, max concurrent stages, volunteer reminder lead minutes, volunteer comp tiers (comma-separated hours), per-day tournament hours, the join page's today's-matches toggle (`join_page_match_preview`), the join-request switch (`join_requests_enabled`), Discord auto-join (`discord_auto_join`) and the Discord invite link (`discord_invite_url`), and the Discord sync guild id.
-- Hosts two sections beyond the key/value form: the **Station Pool**, and **Tournament Room Screens** (`pages/admin_tabs/room_tokens_section.py`) — issue a token per shared machine, see when each last used it, revoke one. The URL is shown once, in a dialog, since only the hash is stored.
-- Date fields use a calendar-popup helper; per-day tournament hours render an Open/Close time pair per event day; the Discord-server select is populated from `DiscordService.list_guilds`. **Save** validates and persists each key through `SystemConfigService.set_raw` / `set_tournament_hours`.
+| Pane | Slug | Holds | Visible to |
+|---|---|---|---|
+| General | `general` | Appearance (`admin_theme_page`), Timezone (`admin_timezone_page`) | Staff |
+| Event | `event` | Event dates, daily hours (one row per event day, on the community's clock), capacity | Staff |
+| Venue | `venue` | Stations (edited in place), station names format, room screens (`room_tokens_section.py`) | Staff |
+| Members | `members` | Joining this community: join page preview, join requests, Discord auto-join, invite link | Staff |
+| Volunteers | `volunteers` | Reminder lead, reward tiers | Staff, `VOLUNTEERS` live |
+| Discord | `discord` | Role Mappings (Staff), Discord Events (Staff, Sync Admin) | either |
+| Integrations | `integrations` | Webhooks (Staff), Randomizer Keys (Staff, Preset Manager) | either |
+| Features | `features` | `admin_features_page` | Staff |
+
+- **Routing.** A pane is a path segment: `/admin/settings/<pane>`, registered in `pages/admin.py` as its own `protected_page` that renders the admin page with `section='settings'`. The retired tab slugs (`LEGACY_TAB_PANES`: `appearance`, `timezone`, `features`, `role-mappings`, `discord-events`, `webhooks`, `randomizer-keys`) are `aliases` on the Settings tab and resolve to the pane that holds them; an unknown pane falls back to the first. Switching panes rewrites the URL with `history.replace`.
+- **Who sees what.** `build_settings_panes(access, live)` is pure, like `build_admin_tabs`, and keeps each former tab's role gate per card; the Settings tab is offered only when it returns at least one pane.
+- **Embedded pages.** A former tab renders inside `.wiz-settings-embed` under `nested_page_headers()`, which turns its `page_header` into the card's header band. Panes are built on first open, with the tenant, display zone and table layouts rebound (the build runs in a click handler). Reopening a pane, or returning to the Settings tab, re-emits `selected_tab` with each embedded page's old tab label, so its `wire_tab_refresh` still fires.
+- **Saving.** Native cards own their values: each has a `SaveFooter` (`theme/save_footer.py`) that stays hidden until a watched field changes, then shows **Unsaved changes** and Save. A refused save keeps the bar up. Saving new event dates refreshes the daily-hours rows. Station rows and room tokens save as you edit them, as before.
 
 ## Reports subsystem (`pages/admin_tabs/reports/`)
 

@@ -259,7 +259,7 @@ validated to a `discord.gg` link) is offered on the door whether or not
 auto-join is on.
 
 **Join requests can be switched off** (`join_requests_enabled`, default on,
-Admin → Settings → Joining this community → Take join requests; that section
+Admin → Settings → Members → Joining this community → Take join requests; that section
 has its own **Save join settings**, so it saves apart from the page-wide
 Save) independently of auto-join, so a
 community can admit its Discord server and nobody else. With it off the door
@@ -389,7 +389,7 @@ gated twice, by [`DiscordLinkService`](../reference/services.md):
 - **App gate** — only tenant `STAFF` (or a global super-admin) may connect or
   disconnect (`can_manage_link`).
 - **Discord gate** — the acting user must administer the target guild. The
-  "Connect Discord server" button (Admin → Role Mappings) runs Discord's
+  "Connect Discord server" button (Admin → Settings → Discord) runs Discord's
   **bot-authorization** OAuth flow (`scope=bot`), which Discord only lets a user
   with *Manage Server* complete and which adds the bot if it is absent. The
   callback (`/oauth/discord/connect/callback`, on the platform host) exchanges the

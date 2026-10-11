@@ -48,7 +48,7 @@ truth the in-app reference also renders):
 | `X-Wizzrobe-Timestamp` | Unix seconds; part of the signed string (replay defense) |
 | `X-Wizzrobe-Signature` | `sha256=<hex>` — HMAC-SHA256 of `"{timestamp}.{body}"` using the webhook secret |
 
-> Staff can view this format live in the app: **Admin → Webhooks → "Webhook payload
+> Staff can view this format live in the app: **Admin → Settings → Integrations → Webhooks → "Webhook payload
 > & event reference"**, generated from the delivery code so it never drifts.
 
 ### Verifying the signature (receiver side)
