@@ -11,7 +11,7 @@
 - The SGL 2026 tournaments were imported from the planning sheet with their randomizer presets and notes, and the Presets tab gained a Test roll button.
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
-- Help for crew and spectators is up to date: signing up from a Discord DM, what the names in a crew cell mean, the board's filters (finished matches are hidden by default), what On Air shows, and the public Watch page, which On Air now links from its help.
+- Help for crew and spectators is up to date: signing up from a Discord DM, what the names in a crew cell mean, the board's filters (finished matches are hidden by default), what On Air shows, and the public Watch page, which On Air now links from its help. On Air's Watch Stream link is readable again in the light theme.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.
 - Status badges, dialogs and page titles now share one look. A badge's colour is a soft tint instead of a solid pill, dialogs come in three sizes, and every page opens with the same title and short description. Grey captions, red and green text in dark mode, and the VIP lanyard on the check-in desk are all easier to read.
