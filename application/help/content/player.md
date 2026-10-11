@@ -27,6 +27,8 @@ Anything waiting on you sits above the list: an open race room, an opponent's
 request to move your match, or a bracket matchup that still needs a time.
 :::
 
+![My Schedule on a phone: the Your matches panel with an open race room and an opponent's reschedule request above the list](/static/help/player/my-schedule-phone.webp "Anything waiting on you comes first.")
+
 The **Your matches** panel puts things in the order you need to deal with them:
 
 1. **Your race room is open**, when you have an online match about to start.
@@ -103,6 +105,8 @@ In a Challonge bracket, **Schedule** is greyed out until your opponent has linke
 their Challonge account to Wizzrobe. Hover or long-press it to see why; staff can
 also link them by hand.
 :::
+
+![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time.")
 
 ### Suggest a time
 
@@ -215,6 +219,8 @@ match is already checked in (find your proctor instead), or when its schedule
 comes from SpeedGaming, which has to change at the source. Once you've asked,
 the cell shows *Change requested* until staff answer.
 :::
+
+![The Ask staff to change this match form: what you're asking for, a preferred date and time, and a required reason](/static/help/player/ask-to-change-phone.webp "The request form behind Ask to change.")
 
 **Your change requests**, below your matches, is where your requests and their
 answers live: what you asked for, whether your opponent agreed, and what staff

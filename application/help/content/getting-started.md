@@ -36,6 +36,8 @@ If a request is declined, the door tells you the date you can ask again. If
 staff removed you, it says so, and asking again goes back to them.
 :::
 
+![The community front door on a phone, signed out: Watch live, Sign in, Join the Discord server and the published brackets](/static/help/getting-started/join-door-phone.webp "What you see before you're a member.")
+
 ## Finish your profile
 
 **Profile** is the last tab. Its changes save as you type, so there's no Save
@@ -60,6 +62,8 @@ Its button opens your Profile scrolled to the exact field, and the banner goes
 away once the field is filled in. Some reminders also have **Dismiss**, which
 hides that one for good in this community; you can still fill the field in later.
 :::
+
+![A red profile reminder asking for pronouns, with Add pronouns and Dismiss buttons](/static/help/getting-started/profile-reminder-phone.webp "A dismissible reminder.")
 
 ## Sign up for a tournament
 

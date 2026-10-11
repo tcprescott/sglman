@@ -28,6 +28,8 @@ We can't promise notes stay private, so leave out anything sensitive and tell
 staff directly instead.
 :::
 
+![The ADA accommodation card on Profile, ticked, with details filled in and an Arranged status](/static/help/accessibility/ada-card-phone.webp "An arranged request.")
+
 A request belongs to the community you made it in. If you play in more than one,
 ask in each.
 
