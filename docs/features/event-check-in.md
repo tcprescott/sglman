@@ -265,6 +265,7 @@ is sent, so this is deliberately narrow (`check_in_accounts.remember_matcherino_
 | Create, edit, open/close, delete events; look up a venue | `STAFF` (`AuthService.can_manage_check_in`) |
 | Check in, undo, link, unlink, sync | `STAFF` or `CHECK_IN_DESK` (`can_run_check_in_desk`); the system user for the worker |
 | Add a walk-up, remove a walk-up | `STAFF` only |
+| Check in someone withdrawn (refunded, no badge left, comp lapsed) | `STAFF` only, via **Check in anyway** (`check_in(..., despite_withdrawn=True)`), audited with `despite_withdrawn` |
 
 `Role.CHECK_IN_DESK` is a per-tenant role for check-in volunteers. It appears in
 the Users dialog and the Discord role-mapping picker on its own (both read
@@ -379,6 +380,11 @@ events staff have opened. Run one tick by hand with
   in) or **Skip, just check in**. Cancel records nothing. Named walk-ups and
   rows staff unlinked on purpose (`link_method = MANUAL`) skip the prompt, and
   so does a row another desk linked or checked in since the card was drawn.
+- A withdrawn row (Refunded, No badge, No longer comped) has no Check in button.
+  Desk volunteers see "Send them to staff"; staff get an outlined **Check in
+  anyway** behind a confirmation. The service refuses it too, and the claim is
+  conditional on the row still being active, so a sync that withdraws someone
+  mid-tap can't slip a check-in through.
 - After a check-in an Undo bar shows for eight seconds with "Hand over: VIP
   lanyard" (plus any extra badges).
 - Staff get a floating **Add walk-up** button.
