@@ -1,9 +1,10 @@
-"""The red "finish your profile" banner at the top of every framed page.
+"""The "finish your profile" banners at the top of every framed page.
 
 Drawn by :meth:`theme.base.BaseLayout.render` for a signed-in member of the
-community in scope. Each row is one unmet rule from Admin → Profile nudges, with
-a button that opens the Profile tab scrolled to the field that fixes it and, if
-the rule allows, a Dismiss that hides that row for good in this community.
+community in scope. Each is a ``danger`` :func:`theme.banner.banner` for one
+unmet rule from Admin → Profile Reminders, with a button that opens the Profile
+tab scrolled to the field that fixes it and, if the rule allows, a Dismiss that
+hides it for good in this community.
 """
 
 import logging
@@ -14,6 +15,7 @@ from application.services import ProfileNudgeService
 from application.services.profile_nudge_service import ProfileNudge, ProfileSection
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import User
+from theme.banner import banner
 from theme.timer_teardown import PageTimer
 
 logger = logging.getLogger(__name__)
@@ -65,10 +67,10 @@ async def render_profile_nudge_banner(user: User | None) -> None:
         return
 
     tenant_id = get_current_tenant_id()
-    banner = ui.column().classes('wiz-nudge-banner w-full gap-2') \
+    stack = ui.column().classes('w-full gap-2 q-mb-md') \
         .props('role=region aria-label="Recommended profile items"')
 
-    async def dismiss(nudge: ProfileNudge, row: ui.row) -> None:
+    async def dismiss(nudge: ProfileNudge, row: ui.element) -> None:
         try:
             with tenant_scope(tenant_id):
                 await service.dismiss(user, nudge.check.value)
@@ -76,24 +78,21 @@ async def render_profile_nudge_banner(user: User | None) -> None:
             ui.notify(str(e), color='warning')
             return
         row.delete()
-        if not banner.default_slot.children:
-            banner.delete()
+        if not stack.default_slot.children:
+            stack.delete()
 
-    with banner:
+    with stack:
         for nudge in nudges:
-            with ui.row().classes('items-center w-full gap-2') as row:
-                ui.icon('error_outline', size='sm').classes('wiz-nudge-banner__icon')
-                with ui.column().classes('col gap-0').style('min-width: 12rem'):
-                    ui.label(nudge.prompt).classes('text-weight-medium')
-                    if nudge.note:
-                        ui.label(nudge.note).classes('text-caption wiz-nudge-banner__note')
-                with ui.row().classes('items-center no-wrap gap-1'):
-                    path = profile_fix_path(nudge)
-                    ui.button(nudge.action_label, on_click=lambda p=path: ui.navigate.to(p)) \
-                        .props('unelevated dense no-caps color=white text-color=negative')
-                    if nudge.dismissible:
-                        ui.button(
-                            'Dismiss',
-                            on_click=lambda n=nudge, r=row: dismiss(n, r),
-                        ).props('flat dense no-caps color=white') \
-                            .tooltip("Hide this reminder. You can still do it from your profile.")
+            # The note is the community's own words, so it gets the title slot
+            # when there is one: it's the reason this member is being asked.
+            with banner(nudge.prompt, title=nudge.note, tone='danger') as actions:
+                path = profile_fix_path(nudge)
+                ui.button(nudge.action_label, on_click=lambda p=path: ui.navigate.to(p)) \
+                    .props('unelevated dense no-caps color=negative')
+                if nudge.dismissible:
+                    root = actions.parent_slot.parent if actions.parent_slot else actions
+                    ui.button(
+                        'Dismiss',
+                        on_click=lambda n=nudge, r=root: dismiss(n, r),
+                    ).props('flat dense no-caps') \
+                        .tooltip('Hide this reminder. You can still do it from your profile.')

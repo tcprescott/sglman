@@ -2804,20 +2804,3 @@ ol.wiz-help-list { list-style-type: decimal; }
 .checkin-footer {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
-
-/* ---------------------------------------------------------------------------
-   Profile nudge banner (theme/profile_nudge_banner.py)
-   Top of the page content, one row per recommended profile item the member
-   hasn't done or dismissed. Red on purpose: it's the community asking.
---------------------------------------------------------------------------- */
-.wiz-nudge-banner {
-    background: var(--q-negative);
-    color: #fff;
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius-md);
-    margin-bottom: 0.75rem;
-}
-
-.wiz-nudge-banner__note {
-    opacity: 0.9;
-}
