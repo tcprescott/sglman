@@ -1,6 +1,8 @@
 ## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
 
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.
+- Checking in at the desk now sends you a Discord DM, so the desk can see straight away if your DMs are closed.
+- A community can let anyone who signs in join on the spot. Staff now pick who can join with one setting instead of two switches.
 - Race rooms open on racetime.gg, and players get a link straight into theirs.
 - Challonge entrants map to members, bracket stages advance from Wizzrobe, and final-stage players are read correctly. Tournaments hosted on an organization subdomain or a custom domain link properly now, and players are asked to sign in to Challonge before linking.
 - Volunteer positions can grant app roles, Check-in Desk included, to whoever is assigned. Discord role mappings stay workable with many roles and grants.
