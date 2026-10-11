@@ -28,13 +28,28 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # The static spectator routes, with or without a ``/t/<slug>`` tenant prefix.
 _PUBLIC_CACHEABLE = re.compile(
-    r'^(?:/t/[a-z0-9][a-z0-9-]*)?/live/'
-    r'(?:brackets/\d+|tournament/\d+/brackets)/?$'
+    r'^(?:/t/[a-z0-9][a-z0-9-]*)?/live'
+    r'(?:/brackets/\d+|/tournament/\d+/brackets)?/?$'
 )
 
 
 def is_public_cacheable_path(path: str) -> bool:
     return bool(_PUBLIC_CACHEABLE.match(path))
+
+
+def _drop_cookie_vary(value: bytes) -> bytes:
+    """``Vary`` without ``Cookie``, and each remaining field once.
+
+    The session middleware adds ``Vary: Cookie``. These bodies do not depend on
+    the cookie, and a CDN honouring it would key every visitor separately, which
+    turns the shared cache this surface exists for into one entry per reader.
+    """
+    fields: list[str] = []
+    for part in value.decode('latin-1').split(','):
+        name = part.strip()
+        if name and name.lower() != 'cookie' and name.lower() not in (f.lower() for f in fields):
+            fields.append(name)
+    return ', '.join(fields).encode('latin-1')
 
 
 class PublicCacheMiddleware:
@@ -50,11 +65,16 @@ class PublicCacheMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if message['type'] == 'http.response.start':
-                message['headers'] = [
-                    (name, value)
-                    for name, value in message.get('headers', [])
-                    if name.lower() != b'set-cookie'
-                ]
+                headers = []
+                for name, value in message.get('headers', []):
+                    if name.lower() == b'set-cookie':
+                        continue
+                    if name.lower() == b'vary':
+                        value = _drop_cookie_vary(value)
+                        if not value:
+                            continue
+                    headers.append((name, value))
+                message['headers'] = headers
             await send(message)
 
         await self.app(scope, receive, send_wrapper)
