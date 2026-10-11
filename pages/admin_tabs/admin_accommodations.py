@@ -26,6 +26,7 @@ from models import AccommodationRequest, AccommodationStatus
 from theme.accommodation_copy import STATUS_CHIP, STATUS_LABELS, privacy_disclaimer
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.empty_state import no_data_slot
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.export import csv_export_button
@@ -97,6 +98,7 @@ async def render_accommodation_panel(
         'request to set its status and add notes only staff can read.'
     ).classes('text-caption text-grey')
     with ui.row().classes('items-center full-width'):
+        await help_icon('admin-ada-queue', user=await current_actor())
         ui.space()
         ui.checkbox(
             'Show withdrawn',
