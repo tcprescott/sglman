@@ -79,11 +79,11 @@ class TenantMemberBlock(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='member_blocks', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='member_blocks', on_delete=fields.CASCADE)  # type: ignore[var-annotated]
     tenant_id: int
-    user = fields.ForeignKeyField('models.User', related_name='tenant_blocks', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='tenant_blocks', on_delete=fields.CASCADE)  # type: ignore[var-annotated]
     user_id: int
-    blocked_by = fields.ForeignKeyField(
+    blocked_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.User', related_name='tenant_blocks_made', null=True, on_delete=fields.SET_NULL
     )
     created_at = fields.DatetimeField(auto_now_add=True)
