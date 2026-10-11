@@ -54,6 +54,8 @@ undo, the DM retry, removing a walk-up) is in the card's ⋮ menu, so it's never
 stray tap away from the button you use all day.
 :::
 
+![The check-in desk on a phone: the search box, the progress bar, the filter switch and the sync line, above cards for a Base buyer, a volunteer and someone with no badge](/static/help/check-in/desk-phone.webp "The desk on a phone.")
+
 ## Finding someone
 
 Search matches the name they bought under, the name of the account they're
@@ -120,6 +122,8 @@ they have no account here. Someone unlinked on purpose isn't asked again at
 check-in.
 :::
 
+![The Check in dialog for a buyer with no linked account, with Suggestions, Search members and the Skip, just check in button](/static/help/check-in/link-dialog-phone.webp "Checking in someone whose badge isn't linked yet.")
+
 ## The Discord DM check
 
 :::snippet check-in-dm
@@ -136,6 +140,8 @@ DM. A moment later the card shows whether it arrived:
 Fix it while they're standing at the desk. It's the only time anyone will
 notice before they miss a match call.
 :::
+
+![A checked-in card saying Discord won't let us DM them, with the fix to ask for](/static/help/check-in/dm-blocked-phone.webp "A DM that didn't get through.")
 
 ## Walk-ups
 
@@ -185,6 +191,8 @@ and does just that.
 
 Staff see an outlined **Check in anyway** button instead, behind a confirmation.
 :::
+
+![A card marked Refunded with no Check in button, saying No badge to check in with. Send them to staff.](/static/help/check-in/refunded-phone.webp "What a desk volunteer sees for a refunded badge.")
 
 ## When the roster may be out of date
 
