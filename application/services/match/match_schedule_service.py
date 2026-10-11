@@ -54,6 +54,7 @@ from models import GeneratedSeeds, Match, User
 
 logger = logging.getLogger(__name__)
 
+_LIFECYCLE_FIELDS = ('seated_at', 'started_at', 'finished_at', 'confirmed_at', 'needs_review')
 
 
 def _match_descriptor(match: Match, bracket_line: str = '') -> dict:
@@ -159,10 +160,17 @@ class MatchScheduleService(MatchNotificationMixin):
             await gate(actor, match),
             f"User cannot {action_verb} match {match.id}",
         )
+        # The caller's row was loaded when its dialog opened; decide from the row
+        # as it stands now, and stamp only if nobody else got there first.
+        await match.refresh_from_db(fields=_LIFECYCLE_FIELDS)
         check()
 
-        setattr(match, timestamp_field, datetime.now(timezone.utc))
-        await match.save()
+        now = datetime.now(timezone.utc)
+        if not await self.match_repository.stamp_if_unset(match, timestamp_field, now):
+            raise ValueError(
+                "Someone else just updated this match. Refresh to see where it stands."
+            )
+        setattr(match, timestamp_field, now)
         await match.fetch_related('tournament', 'players__user', 'stage')
         await self.audit_service.write_and_publish(
             actor, audit_action, {'match_id': match.id}, event_type,
@@ -270,7 +278,7 @@ class MatchScheduleService(MatchNotificationMixin):
         # trail read record → flag → clear → confirm.
         if match.needs_review:
             match.needs_review = False
-            await match.save()
+            await match.save(update_fields=['needs_review'])
             await self.audit_service.write_and_publish(
                 actor,
                 AuditActions.MATCH_REVIEW_CLEARED,

@@ -191,6 +191,24 @@ class TestUpdateCrewApproval:
         assert kwargs_or_args[2] == 'commentator'
         assert kwargs_or_args[3] == crew.id
 
+    async def test_approval_dm_links_the_crew_slot(self, service, monkeypatch):
+        """The link is also the web-push tap target, which has no Discord
+        Acknowledge button: it must open the slot's card on My Crew, which does,
+        not the community schedule."""
+        from application.services import notification_links
+
+        sentinel = object()
+        crew_match = AsyncMock(return_value=sentinel)
+        monkeypatch.setattr(notification_links, 'crew_match', crew_match)
+        match = make_match()
+        crew = make_crew(user=make_user(), match=match, approved=False)
+
+        await service.update_crew_approval(crew, 'commentator', approved=True, actor=make_user())
+
+        crew_match.assert_awaited_once_with(match.id)
+        sent = service.discord_service.send_dm_with_crew_acknowledgment_button.call_args
+        assert sent.kwargs['link'] is sentinel
+
     async def test_unapprove_clears_acknowledgment_and_audits_previously_acknowledged(self, service):
         user = make_user()
         crew = make_crew(
