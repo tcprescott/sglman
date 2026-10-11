@@ -63,6 +63,7 @@ How each shipped subsystem behaves.
 | [features/payouts.md](features/payouts.md) | Prize pool, placement splits with ties, computed amounts, Matcherino handles and the payout block. Behind `FeatureFlag.PAYOUTS` |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player submission and admin moderation |
 | [features/help.md](features/help.md) | Public `/help` articles + tappable help icons; the safe (non-`ui.markdown`) document model |
+| [features/changelog.md](features/changelog.md) | Public `/changelog` ("What's new"): weekly user-facing entries in `application/changelog/changelog.md`, and the rule that keeps it current |
 | [features/event-information.md](features/event-information.md) | Public `/event-info` — a per-community event handbook; role-gated articles, shared prose loader |
 
 Some subsystems have no dedicated feature doc and are covered at the reference level

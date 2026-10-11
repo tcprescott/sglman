@@ -189,7 +189,7 @@ article's copy is additionally capped at `56ch` (~80 characters) so a paragraph
 does not track the full width of a desktop monitor.
 
 **Entry point: the drawer.** The Help item sits below Event Information (when
-that flag is live) and above Feedback, and is *not* gated on `self.user`, so a signed-out visitor on any framed public surface can
+that flag is live) and above What's new and Feedback, and is *not* gated on `self.user`, so a signed-out visitor on any framed public surface can
 reach it — the join door and the error pages included, since they now carry the
 community's drawer. The real `/login` is a bare redirect to Discord with no page
 to hang a link on — the drawer is the way in. Off any community (the bare host)

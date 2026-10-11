@@ -31,6 +31,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
 | Sentry wiring, error-level policy, runtime log levels | [docs/features/observability.md](docs/features/observability.md) |
 | In-app help (`/help` articles, help icons, the safe markdown model) | [docs/features/help.md](docs/features/help.md) |
+| In-app changelog (`/changelog`, the weekly "What's new" entries) | [docs/features/changelog.md](docs/features/changelog.md) |
 | Discord bot, notifications, role sync, mock mode | [docs/features/discord.md](docs/features/discord.md) |
 | Crew signup, match acknowledgment, watching | [docs/features/match-participation.md](docs/features/match-participation.md) |
 | Online tournaments (presets, race rooms, qualifiers, SG sync) | [docs/features/online-tournaments.md](docs/features/online-tournaments.md) |
@@ -61,6 +62,20 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 4. Export from each package's `__init__.py`
 5. Build/update the UI in `pages/` or `theme/`
 6. **Extend `scripts/seed_dev.py`** so the new model/feature has at least one representative row (and, where useful, each meaningful state) in the dev database. The seed script is the fixture set the [`/ui-validation`](docs/development.md) browser loop and every dev environment run against — a feature the seed never creates is a feature no one can see in the running app. Keep it idempotent (`get_or_create`) and tenant-scoped like the existing rows.
+7. **Add a changelog line** (see [Changelog](#changelog)).
+
+## Changelog
+
+**Every PR that changes what a player, crew member, volunteer or staff member
+sees or can do adds a bullet to `application/changelog/changelog.md` in the same
+PR.** That file is the in-app "What's new" page (`/changelog`). New features,
+changed workflows or permissions, user-visible bug fixes and security fixes all
+count; refactors, tests, hooks, CI and docs-only changes don't. Entries cover
+whole Monday-to-Sunday weeks, newest first, so add to the current week's entry
+or open a new one above it; never one per day. Write for the reader, not the
+codebase. The [`changelog` skill](.claude/skills/changelog/SKILL.md) has the
+format and the git commands for catching up; `tests/test_changelog.py` checks
+the structure.
 
 ## Coding conventions
 
@@ -245,7 +260,7 @@ await AuthService.get_roles(user)                   # set[Role]
 await AuthService.can_view_admin(user)              # any admin role / membership
 ```
 
-Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views, `/help`, `/event-info`, `/room/{token}/seeds` and `/cat-facts`). A `@public_page` skips the membership gate. Detail: [docs/reference/authentication.md](docs/reference/authentication.md).
+Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views, `/help`, `/changelog`, `/event-info`, `/room/{token}/seeds` and `/cat-facts`). A `@public_page` skips the membership gate. Detail: [docs/reference/authentication.md](docs/reference/authentication.md).
 
 ## NiceGUI patterns
 

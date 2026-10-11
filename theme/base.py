@@ -499,7 +499,7 @@ class BaseLayout:
             ui.label(self._copyright).classes('text-caption q-px-md q-pb-md wiz-drawer-copyright')
 
     def _render_drawer_help(self) -> None:
-        """The drawer's public foot: Event Information, Help, Feedback.
+        """The drawer's public foot: Event Information, Help, What's new, Feedback.
 
         Only inside a community — off one there is no /help or /event-info to
         reach, and an item pointing at the page it sits on is a circle.
@@ -532,6 +532,14 @@ class BaseLayout:
                     ui.icon('help_outline').props('size=sm')
                 with ui.item_section():
                     ui.item_label('Help')
+
+            with ui.item(
+                on_click=lambda: ui.navigate.to('/changelog')
+            ).props('clickable v-ripple'):
+                with ui.item_section().props('avatar'):
+                    ui.icon('new_releases').props('size=sm')
+                with ui.item_section():
+                    ui.item_label("What's new")
 
             # Members only, and flag-gated: the service refuses a submit
             # from anyone else, so the item would open a dialog that fails.
