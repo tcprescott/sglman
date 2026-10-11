@@ -4,7 +4,7 @@ slug: staff-payouts
 icon: payments
 order: 246
 feature: PAYOUTS
-roles: STAFF
+audience: staff
 summary: Setting a tournament's prize pool, splitting it by placement, naming the winners, and copying the payout block.
 ---
 

@@ -3,7 +3,7 @@ title: Setting up a tournament
 slug: staff-tournaments
 icon: emoji_events
 order: 240
-roles: STAFF
+audience: staff
 summary: Creating a tournament, its signup window and match hours, entrants, and who can run it.
 ---
 

@@ -45,11 +45,11 @@ is runtime content, not project documentation.
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
-| `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `roles: STAFF` |
-| `staff-challonge` | Connecting the Challonge account, linking, sync triggers, matching entrants, stage buttons, result push, unlinking | `CHALLONGE`, `roles: STAFF` |
-| `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `roles: STAFF, PRESET_MANAGER` |
-| `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `roles: STAFF` |
-| `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `roles: STAFF` |
+| `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `audience: staff` |
+| `staff-challonge` | Connecting the Challonge account, linking, sync triggers, matching entrants, stage buttons, result push, unlinking | `CHALLONGE`, `audience: staff`, `roles: STAFF` |
+| `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `audience: staff`, `roles: STAFF, PRESET_MANAGER` |
+| `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `audience: staff` |
+| `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
 
 ### Article format
 

@@ -4,6 +4,7 @@ slug: staff-ada
 icon: accessible
 order: 248
 feature: ADA_ACCOMMODATIONS
+audience: staff
 roles: STAFF
 summary: Working the ADA request queue, what proctors see once a request is arranged, and keeping the notes private.
 ---

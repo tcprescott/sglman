@@ -3,6 +3,7 @@ title: Seed presets and test rolls
 slug: staff-presets
 icon: tune
 order: 244
+audience: staff
 roles: STAFF, PRESET_MANAGER
 summary: Adding and importing seed presets, checking them with a test roll, and attaching them to a tournament.
 ---
