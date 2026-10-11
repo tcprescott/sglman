@@ -97,7 +97,6 @@ class StationAssignmentDialog:
                 else:
                     with ui.row().classes('items-center full-width'):
                         ui.label(copy['lead']).classes('text-subtitle2')
-                        await help_icon('proctor-stations')
                         ui.space()
                         # Only offered for a head-to-head: the draw's whole job
                         # is putting two players on opposite sides, and it
@@ -111,6 +110,7 @@ class StationAssignmentDialog:
                                 'Draw a free station for each player, on opposite '
                                 'sides of the room'
                             )
+                        await help_icon('proctor-stations')
 
 
                     for player in self.match.players:

@@ -49,6 +49,8 @@ player's name.
 
 ### Reading the players column
 
+![A match card on the Proctor Station board on a phone: two players, one with an accessibility icon, then Check In, Assign Stations and a Generate seed button](/static/help/proctor/board-phone.webp "A match waiting to be checked in.")
+
 Beside each name:
 
 | You see | Means |
@@ -93,6 +95,8 @@ makes the result official; your job ends at recording it. Until they do, the row
 shows {chip:pending:Awaiting confirmation}.
 :::
 
+![The Check in dialog: a station picker for each player, the Randomize button, and Check in & seat](/static/help/proctor/check-in-phone.webp "Step 1: checking a match in.")
+
 ### When the seed is not straightforward
 
 Some randomizers take a few minutes to produce a seed. The cell shows a spinner
@@ -120,7 +124,7 @@ draw again. If the room is too full to honour all of that, it says which part it
 could not manage and seats them anyway.
 
 Seated someone in the wrong place? The **Stations** button in the players column
-changes the seats of a match that is already checked in.
+(**Assign Stations** on a phone) changes the seats of a match that is already checked in.
 
 You do **not** need to release a station afterwards. A station frees itself the
 moment its match is recorded as finished.
@@ -138,6 +142,8 @@ conversation is what settles it.
 Flagging does not hold the match up or change its state. It marks it
 {chip:pending:Needs review} so it does not get confirmed on autopilot.
 :::
+
+![The Enter match results dialog: one button per player with their station, and the Flag for admin review checkbox](/static/help/proctor/result-phone.webp "Step 4: who won?")
 
 ### If you recorded the wrong winner
 

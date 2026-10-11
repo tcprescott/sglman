@@ -96,6 +96,8 @@ Shifts that have finished drop off the list. Turn on **Show all shifts** to see
 them again.
 :::
 
+![My Shifts on a phone: the hours line, then a Broadcast Tech shift card with its notes, Acknowledge and Can't make this](/static/help/volunteering/my-shifts-phone.webp "My Shifts, with one upcoming shift.")
+
 ## Giving a shift back
 
 :::snippet shift-release
@@ -112,3 +114,5 @@ replace you. Release as early as you can.
 The button goes away once you are checked in for the shift, or once it has
 ended. At that point talk to your coordinator instead.
 :::
+
+![The Give this shift back dialog, with its late-notice warning, an optional reason box, and Keep it and Give it back buttons](/static/help/volunteering/release-phone.webp "Giving a shift back.")
