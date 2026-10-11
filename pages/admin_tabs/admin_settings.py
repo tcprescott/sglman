@@ -10,6 +10,7 @@ from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stage_edit_dialog import StageEditDialog
 from theme.empty_state import no_data_slot
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 from theme.tables.tournament import TournamentTableView
@@ -20,10 +21,7 @@ async def admin_tournaments_page() -> None:
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row'):
-            ui.label('Tournament Management').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Tournament Management')
 
         ui.label(
             'The tournaments this community runs — players per match, durations, '
@@ -82,10 +80,7 @@ async def admin_stages_page() -> None:
     can_manage = await AuthService.can_manage_stages(actor)
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Stage Management').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Stage Management')
 
         ui.label(
             'The stages matches can be assigned to. Each maps to a stream URL used '

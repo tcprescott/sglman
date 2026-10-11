@@ -6,6 +6,7 @@ from application.services import EquipmentService, TenantService, get_user_from_
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.preferences import (
     TableKeys,
@@ -113,10 +114,7 @@ async def admin_equipment_page() -> None:
     service = EquipmentService()
 
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row'):
-            ui.label('Equipment').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Equipment')
 
         with ui.row().classes('full-width items-center'):
             async def add_asset():

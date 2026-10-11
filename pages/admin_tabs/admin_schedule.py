@@ -12,6 +12,7 @@ from models import Match, RescheduleRequestKind, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.page_header import page_header
 from theme.realtime import register_view
 from theme.tables.admin_crud import current_actor
 from theme.tables.match import MatchTableView
@@ -78,10 +79,7 @@ def admin_schedule_page(
     """
     access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
-        with ui.row().classes('header-row'):
-            ui.label('Schedule Management').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Schedule Management')
 
         # Same reasoning as the match_id chip below: a board showing a subset
         # with no explanation reads as a board that lost rows.

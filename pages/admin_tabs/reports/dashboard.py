@@ -16,6 +16,7 @@ from application.services import (
 )
 from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
+from theme.page_header import page_header
 
 from .shared import (
     date_range_filter,
@@ -97,9 +98,7 @@ async def dashboard_page(
     live = live if live is not None else set()
 
     with ui.column().classes('page-container-wide'):
-        with ui.row().classes('header-row items-center'):
-            ui.label('Reports').classes('page-title')
-        ui.separator().classes('separator-spacing')
+        page_header('Reports')
 
         ui.label('Event overview').classes('text-h6 q-mt-sm')
 

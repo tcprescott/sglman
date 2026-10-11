@@ -14,6 +14,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import RandomizerCredentialService, get_user_from_discord_id
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import wire_tab_refresh
 
 
@@ -86,10 +87,7 @@ async def admin_randomizer_keys_page() -> None:
                         ).props('flat color=negative dense')
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Randomizer Keys').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Randomizer Keys')
 
         ui.label(
             "Credentials for the randomizers whose upstream requires one. These are "

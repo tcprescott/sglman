@@ -6,6 +6,7 @@ from application.services import AuthService, TriforceTextService, get_user_from
 from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.page_header import page_header
 
 _STATUS_OPTIONS = {
     'pending': 'Pending',
@@ -49,10 +50,7 @@ async def admin_triforce_texts_page() -> None:
     service = TriforceTextService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Triforce Texts').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Triforce Texts')
 
         with ui.card().classes('match-filters-card'):
             with ui.row().classes('match-filter-row'):

@@ -10,6 +10,7 @@ from typing import Callable, List, Optional
 from nicegui import ui
 
 from application.services import SetupStep
+from theme.page_header import page_header
 
 
 def render_setup_checklist(
@@ -21,10 +22,7 @@ def render_setup_checklist(
     advisory = [s for s in steps if not s.required]
 
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row'):
-            ui.label('Set up your community').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Set up your community')
 
         ui.label(
             'Matches hang off tournaments, and tournaments need players enrolled '

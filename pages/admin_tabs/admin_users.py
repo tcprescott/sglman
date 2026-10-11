@@ -20,6 +20,7 @@ from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.export import csv_export_button
 from theme.tables.preferences import TableKeys, preferences_button, search_input
@@ -68,10 +69,7 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
     request's dialog.
     """
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row'):
-            ui.label('User Management').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('User Management')
 
         if not accommodations:
             if ada_request is not None:

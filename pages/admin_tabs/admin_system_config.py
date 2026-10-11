@@ -31,6 +31,7 @@ from models import StationFormat, StationSide
 from pages.admin_tabs.room_tokens_section import render_room_tokens_section
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 
 def _format_hours(value: float) -> str:
@@ -242,10 +243,7 @@ async def admin_system_config_page() -> None:
     tenant_tz_label = timezone_label(tenant_tz)
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('System Configuration').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('System Configuration')
 
         with ui.column().classes('wiz-form-column gap-4'):
             start_input = _date_field('Event Start Date', start_date.isoformat() if start_date else '')

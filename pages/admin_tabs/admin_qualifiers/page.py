@@ -48,6 +48,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.qualifier_copy import BOARD_EXPLAINER
 from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -591,9 +592,7 @@ async def admin_qualifiers_page(
     # ------------------------------------------------------------------ shell
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row'):
-            ui.label('Async Qualifiers').classes('page-title')
-        ui.separator().classes('separator-spacing')
+        page_header('Async Qualifiers')
         ui.label(
             'Self-paced permalink-pool qualifiers — a peer of Tournaments. Create a '
             'qualifier, author permalink pools, then review submitted runs. The '

@@ -613,6 +613,28 @@ body {
     margin-bottom: 1.5em;
 }
 
+/* Page header (theme/page_header.py): the title row, then a muted lede. One
+   gap below it separates the header from the page; no divider rule. */
+.wiz-page-header {
+    width: 100%;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+}
+
+.wiz-page-header__row {
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+}
+
+.wiz-page-header__sub {
+    max-width: 75ch;
+    color: var(--fg-muted);
+    font-size: var(--text-md);
+    line-height: 1.5;
+}
+
 /* Cards: hairline border, near-flat. */
 .q-card {
     border-radius: var(--radius-lg);
