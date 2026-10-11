@@ -9,6 +9,7 @@ from application.services.system_config_service import SystemConfigService
 from application.utils.match_labels import match_model_label
 from models import STATION_REGEXES, Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.help import help_icon
 from theme.notify import notify_error
 
 # Copy for the dialog's two jobs. 'checkin' is the proctor's combined
@@ -109,6 +110,7 @@ class StationAssignmentDialog:
                                 'Draw a free station for each player, on opposite '
                                 'sides of the room'
                             )
+                        await help_icon('proctor-stations')
 
 
                     for player in self.match.players:

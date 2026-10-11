@@ -1,3 +1,7 @@
+## 2026-10-12/2026-10-18 Help for volunteers and proctors
+
+- The volunteering and proctor help pages are up to date for SGL 2026. They now cover the shift DMs, your hours on My Shifts, seating players with Randomize, seeds that are slow or can't be DMed, the room's seeds screen, and pointing players at a loaner's QR code. The station picker has a help icon of its own.
+
 ## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
 
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.
@@ -9,6 +13,7 @@
 - Race rooms open on racetime.gg, and players get a link straight into theirs.
 - Challonge entrants map to members, bracket stages advance from Wizzrobe, and final-stage players are read correctly. Tournaments hosted on an organization subdomain or a custom domain link properly now, and players are asked to sign in to Challonge before linking.
 - Volunteer positions can grant app roles, Check-in Desk included, to whoever is assigned. Discord role mappings stay workable with many roles and grants.
+- Help has two articles for volunteer coordinators: building the shift schedule with the auto-scheduler, and the roster, hours, reward tiers and export. Vol. Schedule and Vol. Roster have help icons that open them.
 - The SGL 2026 tournaments were imported from the planning sheet with their randomizer presets and notes, and the Presets tab gained a Test roll button.
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
