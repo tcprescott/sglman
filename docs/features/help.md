@@ -27,7 +27,7 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — ten articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — twelve articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -45,6 +45,8 @@ is runtime content, not project documentation.
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
+| `staff-schedule` | Staff: Admin → Schedule, creating/editing/cancelling matches, rewinding, stages and candidates, crew approval and the coverage report | `roles: STAFF` |
+| `staff-match-day` | Staff: the board's queues, reschedule requests, confirming results, disputes, seeds, room screens, race rooms | `roles: STAFF` |
 
 ### Article format
 

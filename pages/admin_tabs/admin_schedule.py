@@ -12,6 +12,7 @@ from models import Match, RescheduleRequestKind, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
+from theme.help import help_icon
 from theme.page_header import page_header
 from theme.realtime import register_view
 from theme.tables.admin_crud import current_actor
@@ -58,7 +59,7 @@ async def _render_reschedule_queue(
         await open_decision(int(request_id), client)
 
 
-def admin_schedule_page(
+async def admin_schedule_page(
     access: MatchBoardAccess | None = None,
     match_id: int | None = None,
     tournament_ids: list[int] | None = None,
@@ -79,7 +80,9 @@ def admin_schedule_page(
     """
     access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
-        page_header('Schedule Management')
+        with page_header('Schedule Management'):
+            await help_icon('staff-schedule-board')
+            await help_icon('staff-queues', label='Queues')
 
         # Same reasoning as the match_id chip below: a board showing a subset
         # with no explanation reads as a board that lost rows.
