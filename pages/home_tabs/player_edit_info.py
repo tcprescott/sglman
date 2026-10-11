@@ -12,6 +12,7 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
+from application.services.profile_nudge_service import ProfileSection
 from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED
 from models import FeatureFlag
 from pages.home_tabs._link_section import render_connected_accounts_section
@@ -23,10 +24,15 @@ from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_web_push_section
 from theme.help import help_icon
+from theme.profile_nudge_banner import focus_profile_section, section_anchor
 
 
-async def render_edit_info_tab():
-    """Render the profile tab for players to update their information."""
+async def render_edit_info_tab(focus: str | None = None):
+    """Render the profile tab for players to update their information.
+
+    ``focus`` names a :class:`ProfileSection` to scroll to and highlight on
+    arrival, for the profile-nudge banner's buttons.
+    """
     user_service = UserService()
 
     tz_settings = await TimezoneService.get_settings()
@@ -106,7 +112,7 @@ async def render_edit_info_tab():
         # here is which tournaments the player is in, so the match-alert rows
         # below can mark them.
         user_tournaments = await user_service.get_user_tournament_registrations(user)
-        selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
+        selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]  # type: ignore[attr-defined]
 
         # This tab is not itself flag-gated, so the Challonge row in Connected
         # accounts has to be skipped when the community lacks the feature.
@@ -120,7 +126,7 @@ async def render_edit_info_tab():
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
         existing_prefs = await notification_service.get_user_preferences(user)
-        prefs_by_tournament = {p.tournament_id: p for p in existing_prefs}
+        prefs_by_tournament = {p.tournament_id: p for p in existing_prefs}  # type: ignore[attr-defined]
 
         level_options = {
             'none': 'None',
@@ -128,7 +134,7 @@ async def render_edit_info_tab():
             'streamed_and_candidates': 'Streamed & Candidates',
             'all': 'All matches',
         }
-        pref_widgets = {}
+        pref_widgets: dict[int, ui.select] = {}
 
         # Personal-info autosave. The free-text fields debounce to coalesce
         # keystrokes; ``personal_dirty`` tracks whether that debounced write is
@@ -250,7 +256,7 @@ async def render_edit_info_tab():
             status_icon = ui.icon('check_circle', size='xs').classes('text-muted')
             status_label = ui.label('Changes save automatically').classes('text-muted text-caption')
 
-        with ui.card().classes('card-full-width'):
+        with ui.card().classes('card-full-width').props(f'id={section_anchor(ProfileSection.PERSONAL)}'):
             ui.label('Personal information').classes('section-title')
 
             # Two-up on desktop; the .form-grid media query collapses it to a
@@ -386,7 +392,8 @@ async def render_edit_info_tab():
         # those three are verified by the provider, this one is typed in, and
         # sitting it beside them would let it read as verified too.
         if payouts_live:
-            with ui.card().classes('card-full-width'):
+            with ui.card().classes('card-full-width') \
+                    .props(f'id={section_anchor(ProfileSection.MATCHERINO)}'):
                 ui.label('Matcherino handle').classes('section-title')
                 ui.label(
                     'Where prize money is sent, and how your event ticket gets '
@@ -412,3 +419,5 @@ async def render_edit_info_tab():
 
         # API token management (self-contained; collapsed developer surface).
         await render_api_tokens_section(user)
+
+    focus_profile_section(focus)

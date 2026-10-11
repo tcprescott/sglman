@@ -29,6 +29,12 @@ from application.utils.discord_messages import DMLink
 
 logger = logging.getLogger(__name__)
 
+# send_dm's two "Discord said no" outcomes, as opposed to a failure on our side.
+# Callers that report reachability (the check-in test DM) compare against these.
+DM_USER_NOT_FOUND = "User not found"
+DM_REFUSED = "Cannot send DM to this user (DMs may be disabled)"
+DM_UNREACHABLE = frozenset({DM_USER_NOT_FOUND, DM_REFUSED})
+
 
 def _mirror_dm_to_web_push(
     user_id: int, message: str, navigate: Optional[str] = None,
@@ -254,9 +260,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
                 await user.send(message, **kwargs)
             return True, "Message sent successfully."
         except discord.NotFound:
-            return False, "User not found"
+            return False, DM_USER_NOT_FOUND
         except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
+            return False, DM_REFUSED
         except discord.HTTPException as e:
             logger.warning('Discord DM to %s failed with HTTP %s: %s', user_id, e.status, e)
             return False, f"Failed to send message: {e!s}"

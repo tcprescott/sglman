@@ -58,6 +58,14 @@ class CheckInEntrantResponse(BaseModel):
     )
     checked_in_at: Optional[datetime] = None
     checked_in_by_name: Optional[str] = None
+    dm_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "The check-in test DM: `pending`, `sent`, `blocked` (Discord refused: DMs closed or no "
+            "shared server), `opted_out` (DMs off in Wizzrobe) or `failed` (Discord didn't answer). "
+            "Null until they're checked in with a linked account."
+        ),
+    )
 
     @classmethod
     def from_row(
@@ -81,6 +89,7 @@ class CheckInEntrantResponse(BaseModel):
             withdrawn_at=entrant.withdrawn_at,
             checked_in_at=entrant.checked_in_at,
             checked_in_by_name=checker.preferred_name if checker else None,
+            dm_status=_value(entrant.dm_status),
         )
 
 

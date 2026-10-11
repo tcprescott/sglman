@@ -26,7 +26,13 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from application.events import check_in_live
-from application.services import AuthService, CheckInService, TenantService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    CheckInDeskService,
+    CheckInService,
+    TenantService,
+    get_user_from_discord_id,
+)
 from application.services.check_in_rules import (
     DESK_FILTERS,
     LANYARD_LABELS,
@@ -73,6 +79,11 @@ _LINK_LABELS = {
     'comp': 'comped',
 }
 
+_DM_TEXT = {
+    'pending': 'Sending', 'sent': 'Reaches them', 'blocked': "Can't DM them",
+    'opted_out': 'DMs off in Wizzrobe', 'failed': 'Not tested (Discord down)',
+}
+
 _FILTER_LABELS = {
     'all': 'All',
     'not_yet': 'Not yet',
@@ -113,6 +124,7 @@ _EXPORT_COLUMNS: list[dict] = [
     {'name': 'status', 'label': 'Status', 'field': 'status_label'},
     {'name': 'checked_in', 'label': 'Checked in at', 'field': 'checked_in_when'},
     {'name': 'checked_in_by', 'label': 'Checked in by', 'field': 'checked_in_by'},
+    {'name': 'discord_dm', 'label': 'Discord DM', 'field': 'dm_text'},
 ]
 
 _FILTER_METHOD = (
@@ -141,6 +153,10 @@ _MENU = f'''
                         @click="$parent.$emit('unlink', props.row)">
                     <q-item-section avatar><q-icon name="link_off"/></q-item-section>
                     <q-item-section>Unlink account</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.can_test_dm" clickable @click="$parent.$emit('test_dm', props.row)">
+                    <q-item-section avatar><q-icon name="send"/></q-item-section>
+                    <q-item-section>Send the test DM again</q-item-section>
                 </q-item>
                 <q-item v-if="props.row.checked_in" clickable @click="$parent.$emit('undo', props.row)">
                     <q-item-section avatar><q-icon name="undo"/></q-item-section>
@@ -172,9 +188,27 @@ _WITHDRAWN_NOTE = '''
         No badge to check in with. Send them to staff.</div>
 '''
 
+# The check-in test DM's result. Only a problem is loud: it's the volunteer's cue
+# to fix their Discord settings while they're still at the desk.
+_DM_NOTE = '''
+    <div v-if="props.row.dm_status === 'pending'" class="text-caption text-grey-7 q-mt-xs">
+        <q-spinner size="12px" class="q-mr-xs"/>Sending them a test DM…</div>
+    <div v-else-if="props.row.dm_status === 'sent'" class="text-caption text-positive q-mt-xs">
+        <q-icon name="mark_chat_read" size="14px" class="q-mr-xs"/>Discord DMs reach them</div>
+    <div v-else-if="props.row.dm_status === 'blocked'" class="text-caption text-negative q-mt-xs">
+        <q-icon name="speaker_notes_off" size="14px" class="q-mr-xs"/>Discord won't let us DM them.
+        Ask them to join the server and allow DMs from server members, then send it again from ⋮.</div>
+    <div v-else-if="props.row.dm_status === 'opted_out'" class="text-caption text-warning q-mt-xs">
+        <q-icon name="notifications_off" size="14px" class="q-mr-xs"/>They've turned Discord DMs off
+        in Wizzrobe, so they won't get match calls. Ask them to turn DMs on in their profile.</div>
+    <div v-else-if="props.row.dm_status === 'failed'" class="text-caption text-grey-7 q-mt-xs">
+        Couldn't test their DMs: Discord didn't answer. Send it again from ⋮.</div>
+'''
+
 _STATUS_CELL = f'''<q-td :props="props">
     <span v-if="!props.row.checked_in && !props.row.withdrawn" class="text-grey-7">Not yet</span>
     {_STATUS_BADGES}
+    {_DM_NOTE}
 </q-td>'''
 
 _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
@@ -223,6 +257,7 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
             <div v-else class="text-caption text-warning">Not linked to an account</div>
             <div v-if="props.row.lanyard" class="q-mt-xs">{_LANYARD_CHIP}</div>
             <div class="q-mt-xs">{_STATUS_BADGES}</div>
+            {_DM_NOTE}
         </div>
         {_MENU}
     </div>
@@ -316,6 +351,9 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
             and entrant.link_method != CheckInLinkMethod.MANUAL
         ),
         'can_remove': walk_up and can_manage,
+        'dm_status': entrant.dm_status.value if entrant.dm_status else '',
+        'dm_text': _DM_TEXT.get(entrant.dm_status.value, '') if entrant.dm_status else '',
+        'can_test_dm': checked_in and user is not None and bool(user.discord_id),
         'can_check_in_anyway': withdrawn and not checked_in and can_manage,
         'search': search,
         # Everyone is under All, withdrawn rows too, so a search still finds
@@ -592,6 +630,9 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     async def handle_unlink(row) -> None:
         await run(service.unlink(user, row['id']), f"Unlinked {row['name']}.")
 
+    async def handle_test_dm(row) -> None:
+        await run(CheckInDeskService().send_test_dm(user, row['id']), f"Sending {row['name']} a test DM.")
+
     async def handle_undo(row) -> None:
         await run(service.undo_check_in(user, row['id']), f"Undid check-in for {row['name']}.")
 
@@ -642,6 +683,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     bind('checkin_anyway', handle_checkin_anyway)
     bind('link', handle_link)
     bind('unlink', handle_unlink)
+    bind('test_dm', handle_test_dm)
     bind('undo', handle_undo)
     bind('remove', handle_remove)
     sync_btn.on_click(sync_now)

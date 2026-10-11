@@ -13,6 +13,7 @@ from typing import Callable, Optional, Sequence
 
 from nicegui import ui
 
+from application.services.profile_nudge_service import ProfileSection
 from application.tenant_context import is_host_mode
 from application.utils.environment import host_oauth_handoff_enabled
 from application.utils.timezone import format_local_date
@@ -20,6 +21,7 @@ from models import User
 from pages._oauth_link import platform_link_redirect
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.profile_nudge_banner import section_anchor
 
 __all__ = ['LinkSectionConfig', 'render_connected_accounts_section']
 
@@ -183,7 +185,7 @@ async def render_connected_accounts_section(
     # in path mode, where the rows work in place and this is never read.
     main_site_url = await platform_link_redirect('/home/profile')
 
-    with ui.card().classes('card-full-width'):
+    with ui.card().classes('card-full-width').props(f'id={section_anchor(ProfileSection.CONNECTED_ACCOUNTS)}'):
         ui.label('Connected accounts').classes('section-title')
         ui.label(
             'Link external accounts to verify your identity and let us find your '

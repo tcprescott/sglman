@@ -43,6 +43,7 @@ from .matcherino_login_repository import MatcherinoLoginRepository
 from .mcp_auth_repository import McpAuthRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
+from .profile_nudge_repository import ProfileNudgeRepository
 from .provider_task_repository import ProviderTaskRepository
 from .race_room_profile_repository import RaceRoomProfileRepository
 from .racetime_bot_repository import RacetimeBotRepository
@@ -111,6 +112,7 @@ __all__ = [
     'McpAuthRepository',
     'PlayerAvailabilityRepository',
     'PresetRepository',
+    'ProfileNudgeRepository',
     'ProviderTaskRepository',
     'RaceRoomProfileRepository',
     'RacetimeBotRepository',

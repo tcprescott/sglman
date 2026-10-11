@@ -123,3 +123,31 @@ class TenantJoinRequest(Model):
         # appended to.
         unique_together = (('user', 'tenant'),)
         indexes = (('tenant', 'status'),)  # the staff queue's query
+
+
+class ProfileNudgeDismissal(Model):
+    """A member acknowledging one of their community's recommended profile items.
+
+    The rules themselves live in ``Tenant.config['profile_nudges']``; this row
+    records that ``user`` has seen the banner for ``check`` in this community and
+    chosen not to act on it. Per tenant, because each community asks for its own
+    things: dismissing the Challonge nudge in one does not answer another's.
+    A row outlives its rule on purpose, so switching a rule off and on again
+    does not re-nag everyone who already said no.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='profile_nudge_dismissals', on_delete=fields.CASCADE)
+    tenant_id: int
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='profile_nudge_dismissals', on_delete=fields.CASCADE)
+    user_id: int
+    # A ``ProfileCheck`` value (application/services/profile_nudge_service.py).
+    # A plain string so retiring a check never strands rows behind an enum.
+    check = fields.CharField(max_length=32)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'profilenudgedismissal'
+        unique_together = (('tenant', 'user', 'check'),)

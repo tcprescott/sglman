@@ -37,6 +37,18 @@ def _article_card(article: HelpArticle) -> None:
                     ui.label(article.summary).classes('text-caption text-grey-7')
 
 
+def _whats_new_card() -> None:
+    """The way into ``/changelog``, which has no menu item of its own."""
+    with ui.card().classes('wiz-help-card cursor-pointer q-mt-md') \
+            .on('click', lambda: ui.navigate.to('/changelog')):
+        with ui.row().classes('items-center no-wrap gap-3'):
+            ui.icon('new_releases').props('size=sm').classes('text-primary')
+            with ui.column().classes('gap-0 col min-w-0'):
+                ui.label("What's new").classes('text-weight-bold')
+                ui.label('The bigger changes to the app, a week at a time.') \
+                    .classes('text-caption text-grey-7')
+
+
 async def _viewer():
     return await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
@@ -69,6 +81,8 @@ def create() -> None:
                 'How the app works for players, crew and volunteers. '
                 'Search, or pick a topic.'
             ).classes('text-muted')
+
+            _whats_new_card()
 
             search = ui.input(placeholder='Search help') \
                 .props('outlined dense clearable autofocus') \
