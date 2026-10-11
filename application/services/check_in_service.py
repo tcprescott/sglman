@@ -41,14 +41,17 @@ from application.services.auth_service import AuthService
 from application.services.check_in_accounts import (
     build_lookups,
     forget_matcherino_account,
+    linkable_user,
     remember_matcherino_account,
 )
 from application.services.check_in_comps import absorb_comp_row, apply_comps, comped_users, has_comp_rules
 from application.services.check_in_rules import (
     CheckInOutcome,
     SyncResult,
+    entrant_details,
     is_active_badge,
     norm_name,
+    refuse_comp_row,
     resolve_link,
     summarize,
 )
@@ -599,14 +602,6 @@ class CheckInService:
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
         return require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry')
 
-    @staticmethod
-    def _entrant_details(entrant: CheckInEntrant) -> Dict[str, object]:
-        return {
-            'event_id': entrant.event_id, 'entrant_id': entrant.id,
-            'user_id': entrant.user_id, 'display_name': entrant.display_name,
-            'matcherino_user_id': entrant.matcherino_user_id,
-        }
-
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def check_in(self, actor: User, entrant_id: int, *, despite_withdrawn: bool = False) -> CheckInOutcome:
         """Check someone in. Doing it twice is not an error: it reports who did it first.
@@ -632,7 +627,7 @@ class CheckInService:
             return CheckInOutcome(current, already=True)
         entrant.checked_in_at = now
         entrant.checked_in_by = actor
-        details = self._entrant_details(entrant)
+        details = entrant_details(entrant)
         if entrant.withdrawn_at is not None:
             details['despite_withdrawn'] = True
         await self.audit_service.write_and_publish(
@@ -652,31 +647,17 @@ class CheckInService:
         entrant.checked_in_at = None  # type: ignore[assignment]
         entrant.checked_in_by = None
         await self.audit_service.write_and_publish(
-            actor, AuditActions.CHECK_IN_ENTRANT_CHECK_IN_UNDONE, self._entrant_details(entrant),
+            actor, AuditActions.CHECK_IN_ENTRANT_CHECK_IN_UNDONE, entrant_details(entrant),
             EventType.CHECK_IN_ENTRANT_CHECK_IN_UNDONE,
         )
         check_in_live.publish(entrant.event_id, entrant.id, check_in_live.CHANGED)
         return entrant
 
-    @staticmethod
-    def _refuse_comp_row(entrant: CheckInEntrant) -> None:
-        if entrant.source == CheckInEntrantSource.COMP:
-            raise ValueError(
-                "A comp is tied to the account it was given to. Change the event's comp rules instead."
-            )
-
-    @staticmethod
-    async def _linkable_user(user_id: int) -> User:
-        user = require_found(await UserRepository.get_by_id(user_id), 'User')
-        if user.is_system or not user.is_active:
-            raise ValueError("That account can't be linked.")
-        return user
-
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def link(self, actor: User, entrant_id: int, user_id: int) -> CheckInEntrant:
         entrant = await self._entrant_for_desk(actor, entrant_id)
-        self._refuse_comp_row(entrant)
-        user = await self._linkable_user(user_id)
+        refuse_comp_row(entrant)
+        user = await linkable_user(user_id)
         if entrant.user_id == user.id:
             return entrant
         other = await self.entrants.get_for_user(entrant.event, user)
@@ -704,7 +685,7 @@ class CheckInService:
             raise ValueError(f'{user.preferred_name} was just added to this roster by someone else.') from e
         await remember_matcherino_account(self.audit_service, actor, user, entrant, CheckInLinkMethod.MANUAL)
         await self.audit_service.write_and_publish(
-            actor, AuditActions.CHECK_IN_ENTRANT_LINKED, self._entrant_details(entrant),
+            actor, AuditActions.CHECK_IN_ENTRANT_LINKED, entrant_details(entrant),
             EventType.CHECK_IN_ENTRANT_LINKED,
         )
         check_in_live.publish(entrant.event_id, entrant.id, check_in_live.CHANGED)
@@ -720,7 +701,7 @@ class CheckInService:
         cleared (:func:`forget_matcherino_account`).
         """
         entrant = await self._entrant_for_desk(actor, entrant_id)
-        self._refuse_comp_row(entrant)
+        refuse_comp_row(entrant)
         if entrant.user_id is None:
             return entrant
         previous_user = entrant.user
@@ -733,7 +714,7 @@ class CheckInService:
             await forget_matcherino_account(self.audit_service, actor, previous_user, entrant)
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_UNLINKED,
-            {**self._entrant_details(entrant), 'user_id': previous_user_id},
+            {**entrant_details(entrant), 'user_id': previous_user_id},
             EventType.CHECK_IN_ENTRANT_UNLINKED,
         )
         check_in_live.publish(entrant.event_id, entrant.id, check_in_live.CHANGED)
@@ -752,7 +733,7 @@ class CheckInService:
         """Add someone who didn't buy a badge on Matcherino. Staff only."""
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
         event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
-        user = await self._linkable_user(user_id) if user_id else None
+        user = await linkable_user(user_id) if user_id else None
         if user is not None:
             other = await self.entrants.get_for_user(event, user)
             if other is not None:
@@ -778,7 +759,7 @@ class CheckInService:
             raise ValueError('That member was just added to this roster by someone else.') from e
         await self.audit_service.write_and_publish(
             actor, AuditActions.CHECK_IN_ENTRANT_WALK_UP_ADDED,
-            {**self._entrant_details(entrant), 'checked_in': check_in},
+            {**entrant_details(entrant), 'checked_in': check_in},
             EventType.CHECK_IN_ENTRANT_WALK_UP_ADDED,
         )
         check_in_live.publish(event.id, entrant.id, check_in_live.CREATED)
@@ -804,7 +785,7 @@ class CheckInService:
                 "Matcherino badge holders come back on the next sync, so they can't be "
                 'removed here. Refund their badge on Matcherino instead.'
             )
-        details = self._entrant_details(entrant)
+        details = entrant_details(entrant)
         event_id = entrant.event_id
         await self.entrants.delete(entrant)
         await self.audit_service.write_and_publish(

@@ -184,3 +184,20 @@ def resolve_link(row: CheckInEntrant, lookups: IdentityLookups) -> Optional[Tupl
         if user is not None:
             return user, method
     return None
+
+
+def entrant_details(entrant: CheckInEntrant) -> Dict[str, object]:
+    """The audit and event payload for a roster row."""
+    return {
+        'event_id': entrant.event_id, 'entrant_id': entrant.id,
+        'user_id': entrant.user_id, 'display_name': entrant.display_name,
+        'matcherino_user_id': entrant.matcherino_user_id,
+    }
+
+
+def refuse_comp_row(entrant: CheckInEntrant) -> None:
+    """A comp row belongs to the account it was given to; the desk can't relink it."""
+    if entrant.source == CheckInEntrantSource.COMP:
+        raise ValueError(
+            "A comp is tied to the account it was given to. Change the event's comp rules instead."
+        )
