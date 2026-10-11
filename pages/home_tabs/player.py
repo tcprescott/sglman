@@ -27,6 +27,7 @@ from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.tables.match import MatchTableView
@@ -305,7 +306,9 @@ async def render_player_dashboard(
             # The refreshable renders into its own container, so create elements
             # directly (there is no separate challonge_container to enter).
             with ui.card().classes('wiz-subcard'):
-                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                with ui.row().classes('items-center gap-1 no-wrap'):
+                    ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                    await help_icon('bracket-schedule', user=viewer)
                 ui.label(_booking_caption(
                     'From your Challonge bracket.', [cm.tournament for cm in matches],
                 )).classes('text-caption text-grey-7')
@@ -363,7 +366,9 @@ async def render_player_dashboard(
                 return
             openers: dict = {}
             with ui.card().classes('wiz-subcard'):
-                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                with ui.row().classes('items-center gap-1 no-wrap'):
+                    ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
+                    await help_icon('bracket-schedule', user=viewer)
                 ui.label(_booking_caption(
                     'From your bracket.', [bm.bracket.tournament for bm in matchups],
                 )).classes('text-caption text-grey-7')
