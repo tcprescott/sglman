@@ -1,3 +1,7 @@
+## 2026-10-12/2026-10-18 Help for volunteers and proctors
+
+- The volunteering and proctor help pages are up to date for SGL 2026. They now cover the shift DMs, your hours on My Shifts, seating players with Randomize, seeds that are slow or can't be DMed, the room's seeds screen, and pointing players at a loaner's QR code. The station picker has a help icon of its own.
+
 ## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
 
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.

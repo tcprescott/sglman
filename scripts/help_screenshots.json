@@ -238,6 +238,74 @@
         }
       ],
       "selector": ".q-tab-panels"
+    },
+    {
+      "slug": "volunteering",
+      "name": "my-shifts-phone",
+      "user": "sm_user",
+      "path": "/volunteer/my-shifts",
+      "selector": ".page-container:has-text('Show all shifts')"
+    },
+    {
+      "slug": "volunteering",
+      "name": "release-phone",
+      "user": "sm_user",
+      "path": "/volunteer/my-shifts",
+      "setup": [
+        {
+          "click": "text=Can't make this"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "proctor",
+      "name": "board-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "selector": ".match-grid-card:has-text('Check In'):has-text('Wizzrobe Cup')"
+    },
+    {
+      "slug": "proctor",
+      "name": "check-in-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "setup": [
+        {
+          "click": "button:has-text('Check In')"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "proctor",
+      "name": "result-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "setup": [
+        {
+          "click": "button:has-text('Finish')"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
     }
   ]
 }
