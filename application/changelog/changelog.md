@@ -2,6 +2,7 @@
 
 - The new check-in desk works from Matcherino venue badge sales. Staff sync the buyers, match each one to a member (or link them on the spot), and hand out one lanyard per person. Tiers, comped volunteers, walk-ups and refunds are all handled, and each community keeps its own Matcherino login in the app.
 - Checking in at the desk now sends you a Discord DM, so the desk can see straight away if your DMs are closed.
+- Help has a Checking in at the event page. It says what to give the desk when you arrive, and walks check-in desk volunteers through finding people, linking accounts, lanyards, the DM check, refunds and a stale roster. The desk links to it from a help icon beside the event name.
 - A community can let anyone who signs in join on the spot. Staff now pick who can join with one setting instead of two switches.
 - Staff can ask every member to finish parts of their profile, like linking Challonge or adding pronouns, from Settings under Members. Anyone who hasn't sees a red banner on every page with a button that opens the right spot on their profile, and staff decide whether each reminder can be dismissed.
 - Removing someone from a community now keeps them out, even where anyone can join or Discord server members get in automatically. They can still ask to join, and staff can add them back.
@@ -12,11 +13,13 @@
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
 - Help for crew and spectators is up to date: signing up from a Discord DM, what the names in a crew cell mean, the board's filters (finished matches are hidden by default), what On Air shows, and the public Watch page, which On Air now links from its help. On Air's Watch Stream link is readable again in the light theme.
+- Volunteer shift and availability times now show the timezone they're actually in (EDT, AEST and so on) instead of always saying ET, and the capacity chart's time axis is on your clock rather than UTC.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.
 - Status badges, dialogs and page titles now share one look. A badge's colour is a soft tint instead of a solid pill, dialogs come in three sizes, and every page opens with the same title and short description. Grey captions, red and green text in dark mode, and the VIP lanyard on the check-in desk are all easier to read.
 - Screen readers and keyboards get further. Icon buttons say what they do instead of just "button", every page has a title heading and a Skip to content link, filter boxes and switches are named, and Help cards, bracket matches and date pickers open with Enter. The phone tab bar and the cat facts under empty lists are darker and easier to read.
 - Admin settings live in one place. Settings in the admin menu opens its own list of sections (General, Event, Venue, Members, Volunteers, Discord, Integrations, Features), and each card saves on its own, with a Save button that only appears once you've changed something. Old links to Appearance, Timezone, Role Mappings and the rest still land on the right section.
+- The player help is rewritten for SGL 2026. It now covers joining a community, the profile reminder banner, booking a bracket match, seeds, harder settings, race rooms and change requests, and a new Help article explains ADA accommodation requests. The glossary picked up the words those screens use.
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
 - Help articles can show screenshots, starting with the Tournaments tab in Getting started. Tap one to see it full size.
 - Security fixes: a login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
