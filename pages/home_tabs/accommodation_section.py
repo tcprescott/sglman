@@ -19,6 +19,7 @@ from application.services import AccommodationService, TenantService
 from application.services.accommodation_service import DETAILS_MAX_LENGTH
 from models import AccommodationRequest, AccommodationStatus, User
 from theme.accommodation_copy import STATUS_CHIP, STATUS_LABELS, privacy_disclaimer
+from theme.help import help_icon
 
 
 def _is_open(request: AccommodationRequest | None) -> bool:
@@ -67,7 +68,9 @@ async def render_accommodation_section(user: User) -> None:
             await save()
 
     with ui.card().classes('card-full-width'):
-        ui.label('ADA accommodation').classes('section-title')
+        with ui.row().classes('items-center gap-1 no-wrap'):
+            ui.label('ADA accommodation').classes('section-title')
+            await help_icon('ada-request', user=user)
         ui.label(
             "Let staff know you'd like an accommodation at this community's events."
         ).classes('text-muted text-caption')

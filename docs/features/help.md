@@ -17,8 +17,8 @@ and went stale on the event's clock, so it now lives in
 [Event Information](event-information.md), a per-community handbook behind its
 own flag.
 
-What that leaves here: `player.md` covers Your Schedule, acknowledging,
-requesting a match, availability and results; `proctor.md` covers the Proctor
+What that leaves here: `player.md` covers My Schedule, acknowledging,
+booking a match, seeds, race rooms, change requests, availability and results; `proctor.md` covers the Proctor
 Station board, the four steps of running a match, and recording a result;
 `on-air.md` covers the stage timeline and watching a match, and defers what a
 room allows in person to the event. All three carry a pointer to Event
@@ -37,13 +37,15 @@ is runtime content, not project documentation.
 
 | Slug | Covers | Gate |
 |---|---|---|
-| `getting-started` | Signing in, preferred name, opting into a tournament, where to go next | — |
+| `getting-started` | Signing in, joining the community (the join door), Profile basics, the profile-reminder banner, signing up, where to go next | — |
 | `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
 | `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
 | `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
-| `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
+| `player` | My Schedule's Your matches panel, acknowledging, Request Match, bracket scheduling, Suggest a time, availability, seeds and harder settings, race rooms, change requests, results | — |
+| `accessibility` | Requesting an ADA accommodation from Profile, who can read it, its four statuses | `FeatureFlag.ADA_ACCOMMODATIONS` |
 | `on-air` | The stage timeline, finding a stream, watching a match | — |
 | `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
+| `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `equipment` | Borrowing by QR code, returning through the desk, Equipment you have out, and the equipment desk (Admin → Equipment, the borrower picker, adding gear, printing labels, retiring) | `FeatureFlag.EQUIPMENT` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
@@ -316,7 +318,8 @@ Wired at: Home → Event → Schedule (columns + states), My Schedule (crew
 statuses + approval + withdrawing; matches overview + check-in + the room +
 stages; availability — through the `help_topics=` of each
 [section panel](../reference/frontend.md#section-panels-themesectionpy)),
-Tournaments, Profile → Notifications; the player's match-request dialog and the
+Tournaments, Profile → Notifications and Profile → ADA accommodation; the
+"Waiting on you to pick a time" bracket and Challonge cards on My Schedule; the player's match-request dialog and the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; the equipment asset page (borrowing and returning, or the desk for managers), My Schedule's Equipment you have out, and Admin → Equipment; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result

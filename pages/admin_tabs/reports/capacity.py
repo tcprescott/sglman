@@ -14,7 +14,7 @@ from application.services import (
     SystemConfigService,
     get_user_from_discord_id,
 )
-from application.utils.timezone import format_local_display
+from application.utils.timezone import format_local_datetime, format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -116,7 +116,7 @@ async def capacity_page(
                 f'Concurrent players ({forecast["interval_minutes"]}-minute intervals, capacity: {capacity})'
             ).classes('text-h6')
 
-            time_labels = [t.strftime('%m-%d %H:%M ET') for t in intervals]
+            time_labels = [format_local_datetime(t, '%m-%d %H:%M %Z') for t in intervals]
             capacity_series = [capacity] * len(intervals)
 
             # The slider ships in stock ECharts blue; restyle it to the gold
