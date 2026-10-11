@@ -4,6 +4,7 @@ slug: volunteer-hours-and-export
 icon: groups
 order: 220
 feature: VOLUNTEERS
+audience: staff
 roles: STAFF, VOLUNTEER_COORDINATOR
 summary: Who is in the volunteer pool, qualifications, hours against reward tiers, the settings behind them, and the CSV export.
 ---

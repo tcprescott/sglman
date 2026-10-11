@@ -4,6 +4,7 @@ slug: coordinating-volunteers
 icon: event_available
 order: 210
 feature: VOLUNTEERS
+audience: staff
 roles: STAFF, VOLUNTEER_COORDINATOR
 summary: Positions, shifts, the auto-scheduler, drafts and publishing, and covering a dropped shift.
 ---
