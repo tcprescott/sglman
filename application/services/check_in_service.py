@@ -84,6 +84,7 @@ SUGGESTION_THRESHOLD = 0.6
 
 _DESK_DENIED = 'Only staff and check-in desk volunteers can do that.'
 _STAFF_DENIED = 'Only staff can do that.'
+_WITHDRAWN_DENIED = 'Only staff can check them in anyway.'
 
 
 @dataclass(frozen=True)
@@ -607,20 +608,35 @@ class CheckInService:
         }
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
-    async def check_in(self, actor: User, entrant_id: int) -> CheckInOutcome:
+    async def check_in(self, actor: User, entrant_id: int, *, despite_withdrawn: bool = False) -> CheckInOutcome:
         """Check someone in. Doing it twice is not an error: it reports who did it first.
 
         The write is conditional, so two phones tapping the same person at once
-        record one check-in, one audit row and one event.
+        record one check-in, one audit row and one event. Someone withdrawn
+        (refunded, no badge left, no longer comped) has nothing to check in
+        with: only staff can let them in anyway, with ``despite_withdrawn``.
         """
         entrant = await self._entrant_for_desk(actor, entrant_id)
+        if despite_withdrawn:
+            await AuthService.ensure(await AuthService.can_manage_check_in(actor), _WITHDRAWN_DENIED)
+        if entrant.checked_in_at is None and entrant.withdrawn_at is not None and not despite_withdrawn:
+            raise ValueError(f"{entrant.display_name} doesn't hold a badge any more. {_WITHDRAWN_DENIED}")
         now = datetime.now(timezone.utc)
-        if entrant.checked_in_at is not None or not await self.entrants.claim_check_in(entrant, now, actor):
-            return CheckInOutcome(await self.entrants.get_by_id(entrant_id) or entrant, already=True)
+        if entrant.checked_in_at is not None or not await self.entrants.claim_check_in(
+            entrant, now, actor, active_only=not despite_withdrawn,
+        ):
+            current = await self.entrants.get_by_id(entrant_id) or entrant
+            if current.checked_in_at is None and current.withdrawn_at is not None:
+                # Withdrawn by a sync between the read above and the claim.
+                raise ValueError(f"{current.display_name} doesn't hold a badge any more. {_WITHDRAWN_DENIED}")
+            return CheckInOutcome(current, already=True)
         entrant.checked_in_at = now
         entrant.checked_in_by = actor
+        details = self._entrant_details(entrant)
+        if entrant.withdrawn_at is not None:
+            details['despite_withdrawn'] = True
         await self.audit_service.write_and_publish(
-            actor, AuditActions.CHECK_IN_ENTRANT_CHECKED_IN, self._entrant_details(entrant),
+            actor, AuditActions.CHECK_IN_ENTRANT_CHECKED_IN, details,
             EventType.CHECK_IN_ENTRANT_CHECKED_IN,
         )
         check_in_live.publish(entrant.event_id, entrant.id, check_in_live.CHANGED)

@@ -113,9 +113,15 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
         return await scoped(CheckInEntrant.filter(event=event, matcherino_user_id__isnull=False)).exists()
 
     @staticmethod
-    async def claim_check_in(entrant: CheckInEntrant, at, by: User) -> bool:
-        """Set the check-in only if nobody has yet; False when someone beat us to it."""
-        updated = await scoped(CheckInEntrant.filter(id=entrant.id, checked_in_at__isnull=True)).update(
+    async def claim_check_in(entrant: CheckInEntrant, at, by: User, *, active_only: bool = True) -> bool:
+        """Set the check-in only if nobody has yet; False when someone beat us to it.
+
+        ``active_only`` also refuses a row withdrawn since it was read.
+        """
+        query = CheckInEntrant.filter(id=entrant.id, checked_in_at__isnull=True)
+        if active_only:
+            query = query.filter(withdrawn_at__isnull=True)
+        updated = await scoped(query).update(
             checked_in_at=at, checked_in_by_id=by.id, updated_at=at,
         )
         return bool(updated)
