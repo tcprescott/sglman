@@ -116,6 +116,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # excludes the account internals above.
     AuditActions.TIMEZONE_UPDATED,
     AuditActions.USER_TIMEZONE_UPDATED,
+    # Profile reminders — the rules are tenant-internal settings, and a member
+    # dismissing one only hides a banner on their own screen.
+    AuditActions.PROFILE_NUDGES_UPDATED,
+    AuditActions.PROFILE_NUDGE_DISMISSED,
     AuditActions.TRIFORCE_TEXT_DELETED,
     # Seed-preset catalog CRUD — tenant-internal settings authoring, no external
     # subscriber interest (the seed roll itself already emits MATCH_SEED_ROLLED).

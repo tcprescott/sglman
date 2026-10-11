@@ -110,6 +110,7 @@ class User(Model):
     challonge_participations = fields.ReverseRelation["ChallongeParticipant"]
     web_push_subscriptions = fields.ReverseRelation["WebPushSubscription"]
     tenant_memberships = fields.ReverseRelation["TenantMembership"]
+    profile_nudge_dismissals = fields.ReverseRelation["ProfileNudgeDismissal"]  # type: ignore[name-defined]
 
     @property
     def preferred_name(self) -> str:
