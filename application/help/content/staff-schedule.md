@@ -3,7 +3,7 @@ title: Running the schedule
 slug: staff-schedule
 icon: edit_calendar
 order: 200
-roles: STAFF
+audience: staff
 summary: For staff. Admin → Schedule, creating and editing matches, cancelling one, rewinding a match, stages and stream candidates, and approving crew.
 ---
 

@@ -6,7 +6,7 @@ creates — the article text reaches the page as element *content*, never as
 markup. That is what makes shipping editable prose through the UI safe, and it is
 the same reason ``check_markdown_xss`` exists.
 
-The vocabulary is closed: six block kinds, seven span kinds. Anything the parser
+The vocabulary is closed: seven block kinds, seven span kinds. Anything the parser
 could not classify arrived here as plain text and renders as plain text.
 """
 
@@ -78,6 +78,37 @@ def _render_list(block: Block) -> None:
                 render_spans(item)
 
 
+def _img(block: Block, *, lazy: bool):
+    image = ui.element('img').classes('wiz-help-img')
+    # Set as values, never through the props *string*: alt text is article prose
+    # and may hold quotes or spaces the string parser would split on.
+    image.props['src'] = block.src
+    image.props['alt'] = block.alt
+    if lazy:
+        image.props['loading'] = 'lazy'
+    image.props['decoding'] = 'async'
+    return image
+
+
+def _render_image(block: Block) -> None:
+    # A phone screenshot is taller than the article column is wide, so the inline
+    # copy is height-capped; tapping it opens the full-size copy. The dialog's
+    # content is not built in the browser until it opens, so a page of
+    # screenshots costs one image fetch each.
+    zoom = ui.dialog().props('transition-show=fade transition-hide=fade')
+    with zoom, ui.element('div').classes('wiz-help-zoom').on('click', zoom.close):
+        _img(block, lazy=False)
+    with ui.element('figure').classes('wiz-help-figure'):
+        opener = ui.element('button').classes('wiz-help-figure-open').on('click', zoom.open)
+        opener.props['type'] = 'button'
+        opener.props['aria-label'] = f'Enlarge: {block.alt}'
+        with opener:
+            _img(block, lazy=True)
+        if block.spans:
+            with ui.element('figcaption').classes('wiz-help-caption'):
+                render_spans(block.spans)
+
+
 def render_blocks(blocks, *, heading_offset: int = 0) -> None:
     """Render a block list into the current slot.
 
@@ -102,6 +133,8 @@ def render_blocks(blocks, *, heading_offset: int = 0) -> None:
             _render_list(block)
         elif block.kind == 'table':
             _render_table(block)
+        elif block.kind == 'image':
+            _render_image(block)
         elif block.kind == 'note':
             with ui.element('aside').classes('wiz-help-note'):
                 ui.icon('info').props('size=xs').classes('wiz-help-note-icon')

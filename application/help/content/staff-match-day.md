@@ -3,7 +3,7 @@ title: Match day queues
 slug: staff-match-day
 icon: pending_actions
 order: 205
-roles: STAFF
+audience: staff
 summary: For staff. What's waiting on you on Admin → Schedule: reschedule and cancellation requests, results to confirm, disputes, seeds, race rooms and the room screens.
 ---
 
