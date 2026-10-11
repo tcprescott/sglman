@@ -28,6 +28,7 @@
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
 - Help articles can show screenshots, starting with the Tournaments tab in Getting started. Tap one to see it full size.
 - Help now covers tournament setup for staff: creating a tournament and its signup window, Challonge brackets, seed presets and test rolls, prize payouts, and the ADA queue. The Tournaments, Challonge, Presets, Payouts and ADA requests pages each have a help icon that opens the right part.
+- Help's For staff section has two articles on running match day from the Schedule tab: booking and editing matches, stages and crew approval, then reschedule requests, confirming results, disputes, seeds and race rooms. The Schedule tab's title links to them.
 - Security fixes: a login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
 - Behind the scenes: error reporting through Sentry, adjustable log levels on the platform page, and dependency updates including the MCP server's move to mcp 2.x.
 
