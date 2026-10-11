@@ -526,10 +526,9 @@ class CrewService:
         discord_queue.enqueue(
             self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id, embed=embed,
-                # The Discord button acknowledges; the link is the web-push tap
-                # target too, so it opens the slot's own card on My Crew, which
-                # carries the same Acknowledge button.
-                link=await notification_links.crew_match(crew_member.match.id),
+                # Acknowledging is one button; the other is for the crew member
+                # who wants to see what they just agreed to cover.
+                link=await notification_links.community_schedule(),
             )
         )
 
