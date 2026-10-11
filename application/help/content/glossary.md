@@ -22,7 +22,7 @@ call off one of your matches. It's a request, not a booking. Your requests and
 staff's answers are listed under *Your change requests* on My Schedule.
 
 **Asset**: one piece of loaner gear in the equipment register, with its own
-number and QR code. Only where your community lends equipment.
+number and QR code. Only where your community lends equipment. See [Borrowing equipment](/help/equipment).
 
 **Bracket**: the structure that decides who plays whom. In a bracket-run
 tournament, matchups come from the bracket rather than from match requests.
@@ -34,7 +34,7 @@ rather than a tournament room's.
 **Check out / check in (equipment)**: borrowing a piece of loaner gear and
 recording its return. Anyone signed in can check gear out to themselves; only
 equipment managers and staff check it back in. Nothing to do with checking in
-for a match, or with collecting your badge at the check-in desk.
+for a match, or with collecting your badge at the check-in desk. See [Borrowing something](/help/equipment#borrowing-something).
 
 **Check-in (a match)**: the moment a match is recorded as ready to begin, with
 both players seated. It is per match, not per player, and a proctor or an admin
@@ -44,7 +44,7 @@ equipment in.
 **Commentator**: crew who talk over a match on stream.
 
 **Comp / comped**: let into the event without buying a badge, because of a role
-(usually staff) or enough scheduled volunteer hours.
+(usually staff) or enough scheduled volunteer hours. See [Comped staff and volunteers](/help/check-in#comped-staff-and-volunteers).
 
 **Confirm (a result)**: the staff act of making a recorded result official. It
 moves a match from {state:Finished} to {state:Confirmed}. Distinct from a crew
@@ -64,10 +64,10 @@ in crew lists. Set it on your Profile; left blank, your Discord username is used
 **Enrolled / opted in**: see *Signed up*.
 
 **Equipment manager**: the person who runs the equipment desk, lending gear out
-and checking it back in. Staff can do the same.
+and checking it back in. Staff can do the same. See [Running the equipment desk](/help/equipment#running-the-equipment-desk).
 
 **Event check-in**: arriving at the event and picking up your lanyard at the
-check-in desk. Separate from a match's check-in.
+check-in desk. Separate from a match's check-in. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
 **Generated Seed**: the column on the schedule that holds the link to a match's
 seed once it has been rolled.
@@ -80,7 +80,7 @@ let people straight in. Staff approve or decline it, and you get a message
 either way.
 
 **Lanyard**: what the check-in desk hands you, one per person: Staff, Volunteer,
-VIP, Base or Day Pass, whichever is the highest you qualify for.
+VIP, Base or Day Pass, whichever is the highest you qualify for. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
 **Member**: someone who belongs to a community. You need to be one to see its
 schedule, sign up for its tournaments, or be scheduled. Signing in alone isn't
@@ -100,7 +100,7 @@ happy for a match to be streamed. A hint, not a booking.
 [On Air](/help/on-air).
 
 **Overdue**: a match past its scheduled time with nobody checked in. The Proctor
-Station board puts these first.
+Station board puts these first. See [The board](/help/proctor#the-board).
 
 **Proctor**: a volunteer running matches in a tournament room. They seat
 players at stations, start matches and record results. They do not
@@ -121,11 +121,11 @@ you get a DM and a **Join the room** button at the top of My Schedule.
 tournament that allows it.
 
 **Retired (equipment)**: an item taken out of use. It stays in the register but
-can't be borrowed.
+can't be borrowed. See [Running the equipment desk](/help/equipment#running-the-equipment-desk).
 
 **Room seeds screen**: a shared screen in a tournament room showing the seed of
 every match about to be played. It opens from a private link staff issue per
-machine, is read-only, and drops a match once it starts.
+machine, is read-only, and drops a match once it starts. See [The room's seeds screen](/help/proctor#the-room-s-seeds-screen).
 
 **Seed**: the randomised game the match is played on. When it's rolled you get a
 *Seed ready* DM, and the link appears in the *Generated Seed* column on My
@@ -164,13 +164,13 @@ the game.
 [Volunteering](/help/volunteering).
 
 **Walk-up**: someone checked in at the desk without a Matcherino badge. Only
-staff add them.
+staff add them. See [Walk-ups](/help/check-in#walk-ups).
 
 **Watch**: to subscribe to a match you are not in, and get DMed on every state
 change. Not the same as the *Watch page*.
 
 **Watch page**: the community's public page at `/live`. It needs no sign-in and
-shows each stage's stream, what's on now and what's up next.
+shows each stage's stream, what's on now and what's up next. See [The Watch page](/help/on-air#the-watch-page).
 
 **Withdraw**: to take yourself off something you signed up for: a crew slot, a
 tournament while its signups are open, or a change request staff haven't
