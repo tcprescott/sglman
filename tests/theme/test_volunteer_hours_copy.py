@@ -7,7 +7,7 @@ can be checked without a slot context or a database.
 import pytest
 
 from application.services.volunteer.volunteer_hours import HoursSummary
-from pages.admin_tabs.admin_system_config import _validate_comp_tiers
+from pages.admin_tabs.settings.volunteers import _validate_comp_tiers
 from pages.volunteer_tabs.my_shifts import hours_message
 
 

@@ -26,7 +26,7 @@ the venue*. `user` is right when they are not.
 Stored in `Tenant.config['timezone']` as `{'mode': …, 'name': '<IANA>'}` (the
 documented home for per-tenant knobs, same as the theme palette). `name` matters
 in **both** modes: pinned uses it as *the* clock, and `user` mode uses it as the
-floor everything falls back to. Edited at **Admin → Timezone**.
+floor everything falls back to. Edited at **Admin → Settings → General**.
 
 The personal preference is `User.timezone` (nullable IANA name; `NULL` means
 "detect from my device"), edited on the profile tab. It is **global**, like the
@@ -137,7 +137,7 @@ unambiguous only while the whole app ran on one clock.
 `tz=None` labels it with the viewer's own zone, matching the `parse_local_datetime`
 that will read it. Pass an explicit `tz` where the field is **not** read on the
 viewer's clock — tournament operating hours are the community's rule, so
-`admin_system_config` captions that grid with the tenant's zone instead.
+Settings → Event (`pages/admin_tabs/settings/event.py`) captions that grid with the tenant's zone instead.
 `show_timezone=False` opts out where nearby copy already says it.
 
 Four fields used to hand-roll the `props('type=time …')` string. Not by intent:

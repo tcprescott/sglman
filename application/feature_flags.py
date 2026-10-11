@@ -5,7 +5,7 @@ is **not** a per-feature switch for everything the app does. Flags default OFF
 and are governed two-tier:
 
 * a **super-admin** makes a flag *available* to a tenant on ``/platform``; then
-* that tenant's **STAFF** *enable* it for their community (Admin → Features).
+* that tenant's **STAFF** *enable* it for their community (Admin → Settings → Features).
 
 Effective state = ``available AND enabled`` (see ``FeatureFlagService``).
 

@@ -14,40 +14,37 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.tenant_context import get_current_tenant_id
-from middleware.auth import protected_tab_page
+from middleware.auth import protected_page, protected_tab_page
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_brackets import admin_brackets_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_check_in import admin_check_in_page
-from pages.admin_tabs.admin_discord_events import admin_discord_events_page
-from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
-from pages.admin_tabs.admin_features import admin_features_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from pages.admin_tabs.admin_payouts import admin_payouts_page
 from pages.admin_tabs.admin_presets import admin_presets_page
-from pages.admin_tabs.admin_profile_reminders import admin_profile_reminders_page
 from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
-from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_service_health import admin_service_health_page
 from pages.admin_tabs.admin_settings import admin_stages_page, admin_tournaments_page
 from pages.admin_tabs.admin_setup import admin_setup_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
-from pages.admin_tabs.admin_system_config import admin_system_config_page
-from pages.admin_tabs.admin_theme import admin_theme_page
-from pages.admin_tabs.admin_timezone import admin_timezone_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
 from pages.admin_tabs.admin_volunteers import admin_volunteers_page
-from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.reports import reports_page
+from pages.admin_tabs.settings import (
+    LEGACY_TAB_PANES,
+    SETTINGS_TAB_LABEL,
+    admin_settings_page,
+    build_settings_panes,
+)
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from theme.base import BaseLayout
 from theme.tables.match_access import MatchBoardAccess
 
-_ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
+_ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'System']
 
 
 @dataclass(frozen=True)
@@ -87,6 +84,7 @@ def build_admin_tabs(
     qualifier: int | None = None,
     qualifier_tab: str | None = None,
     ada_request: int | None = None,
+    settings_pane: str | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -162,7 +160,6 @@ def build_admin_tabs(
         tabs.append({'label': 'Check-in', 'icon': 'how_to_reg', 'group': 'Operations', 'content': admin_check_in_page})
     if is_staff or access.is_preset_manager:
         tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
-        tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
     if (is_staff or access.is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
         # The "runs are waiting" DM lands here with a qualifier and a tab, so a
         # reviewer arrives at the queue rather than at a list to go and search.
@@ -186,30 +183,20 @@ def build_admin_tabs(
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
     if is_staff and FeatureFlag.FEEDBACK in live:
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
-    if is_staff:
-        tabs.append({'label': 'Profile Reminders', 'icon': 'assignment_ind', 'group': 'Community',
-                     'content': admin_profile_reminders_page})
-    if is_staff or access.is_sync_admin:
-        tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
-    if is_staff:
-        tabs.append({
-            'label': 'Role Mappings', 'icon': 'hub', 'group': 'Integrations',
-            'content': (admin_discord_roles_page, (),
-                        {'volunteer_mappings': FeatureFlag.VOLUNTEERS in live}),
-        })
-    if is_staff:
-        tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'group': 'Integrations', 'content': admin_webhooks_page})
     if is_staff or is_ta_any or is_cc_any:
         tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System', 'content': (reports_page, (), reports_kwargs)})
     if is_staff:
         tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'group': 'System', 'content': admin_service_health_page})
-    if is_staff:
-        tabs.append({'label': 'Features', 'icon': 'toggle_on', 'group': 'System', 'content': admin_features_page})
-    if is_staff:
-        tabs.append({'label': 'Settings', 'icon': 'settings', 'group': 'System', 'content': admin_system_config_page})
-    if is_staff:
-        tabs.append({'label': 'Appearance', 'icon': 'palette', 'group': 'System', 'content': admin_theme_page})
-        tabs.append({'label': 'Timezone', 'icon': 'schedule', 'group': 'System', 'content': admin_timezone_page})
+    # Every setting lives under one entry with its own menu; the panes keep
+    # their old tabs' role gates, so a sync admin or preset manager still finds
+    # the one pane they had, and the retired slugs resolve to it.
+    settings_panes = build_settings_panes(access, live)
+    if settings_panes:
+        tabs.append({'label': SETTINGS_TAB_LABEL, 'icon': 'settings', 'group': 'System',
+                     'aliases': tuple(LEGACY_TAB_PANES),
+                     'content': (admin_settings_page, (),
+                                 {'panes': settings_panes, 'pane': settings_pane,
+                                  'base_path': base_path})})
 
     tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
     return tabs
@@ -239,6 +226,7 @@ def create() -> None:
         qualifier: int | None = None,
         tab: str | None = None,
         ada_request: int | None = None,
+        pane: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -316,6 +304,8 @@ def create() -> None:
             access, live, reports_kwargs, setup_steps, base_path,
             match_id=match_id, day=day, reschedule_request=reschedule_request,
             qualifier=qualifier, qualifier_tab=tab, ada_request=ada_request,
+            # A retired tab slug (/admin/appearance) names the pane that took it in.
+            settings_pane=pane or LEGACY_TAB_PANES.get(section or ''),
         )
 
         base_layout = BaseLayout(
@@ -323,3 +313,9 @@ def create() -> None:
             show_admin=True,
         )
         await base_layout.render()
+
+    # Settings panes are a path segment below the Settings tab, like the tab is
+    # below /admin, so a pane's URL reads like a route and can be bookmarked.
+    @protected_page('/admin/settings/{pane}', telemetry_path='/admin')
+    async def admin_settings_pane_page(pane: str, request: Request = None) -> None:
+        await admin_dashboard_page(section='settings', pane=pane, request=request)

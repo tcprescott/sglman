@@ -1084,7 +1084,7 @@ Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
 An unlisted key that opens one read-only page — the tournament room's seeds
 board — on a shared venue machine nobody signs in on. Only the SHA-256 hash is
 stored; the URL is shown once, at issue. Managed by
-[`RoomTokenService`](services.md); issued and revoked on Admin → Settings.
+[`RoomTokenService`](services.md); issued and revoked on Admin → Settings → Venue.
 
 Deliberately **not** an `ApiToken`, which acts with its owning user's full
 permissions. This one carries no identity beyond who issued it and authorizes a

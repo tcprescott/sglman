@@ -9,6 +9,7 @@ from application.services import PayoutService, TournamentService, get_user_from
 from application.services.payout_service import format_percentage
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -71,10 +72,7 @@ async def admin_payouts_page() -> None:
     tournament_service = TournamentService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Payouts').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Payouts')
 
         ui.label(
             'Record what each placement wins as a share of the pool. Amounts are '

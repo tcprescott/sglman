@@ -11,6 +11,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -41,10 +42,7 @@ async def admin_presets_page() -> None:
     available_randomizers = SeedGenerationService.available_randomizers(configured)
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Seed Presets').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Seed Presets')
 
         ui.label(
             'Named randomizer settings that seed generation resolves for a tournament. '

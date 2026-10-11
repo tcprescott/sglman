@@ -14,6 +14,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -50,10 +51,7 @@ async def admin_speedgaming_page() -> None:
     tournament_service = TournamentService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('SpeedGaming Sync').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('SpeedGaming Sync')
 
         ui.label(
             'One-way sync of SpeedGaming schedule episodes into match rows. Each '

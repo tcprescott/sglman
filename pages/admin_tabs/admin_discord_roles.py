@@ -22,6 +22,7 @@ from pages.admin_tabs.volunteer_role_mappings import TAB_LABEL, volunteer_role_m
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.pickers import FilterMultiSelect, bulk_add_summary
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -167,10 +168,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
             ui.navigate.to(admin_path)
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Role Mappings').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Role Mappings')
 
         # --- Server connection ---
         ui.label('Discord roles').classes('subsection-title')

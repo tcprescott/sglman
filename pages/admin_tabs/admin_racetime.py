@@ -9,6 +9,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -50,10 +51,7 @@ async def admin_racetime_page() -> None:
     service = RaceRoomProfileService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Race Room Profiles').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Race Room Profiles')
 
         ui.label(
             'Reusable racetime.gg room settings a tournament can point at — goal, '

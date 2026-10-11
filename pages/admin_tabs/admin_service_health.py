@@ -15,14 +15,12 @@ from application.services import ServiceHealthService, ServiceStatus
 from application.tenant_context import get_current_tenant_id
 from pages.admin_tabs.links import CHALLONGE, admin_url
 from pages.service_health_view import build_refreshable_board
+from theme.page_header import page_header
 
 
 async def admin_service_health_page() -> None:
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Service Health').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Service Health')
 
         ui.label(
             'Health of the external services your tenant depends on — your '

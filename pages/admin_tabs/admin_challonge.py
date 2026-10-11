@@ -13,6 +13,7 @@ from models import Tournament
 from theme.dialog.challonge_participants_dialog import ChallongeParticipantsDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 
 async def admin_challonge_page() -> None:
@@ -21,9 +22,7 @@ async def admin_challonge_page() -> None:
     service = ChallongeService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Challonge Integration').classes('page-title')
-        ui.separator().classes('separator-spacing')
+        page_header('Challonge Integration')
 
         @ui.refreshable
         async def connection_card() -> None:

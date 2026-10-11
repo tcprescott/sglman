@@ -8,6 +8,7 @@ from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -140,10 +141,7 @@ async def admin_webhooks_page() -> None:
     service = WebhookService()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Webhooks').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Webhooks')
 
         ui.label(
             'Send a signed JSON POST to an external URL when the selected events occur. '

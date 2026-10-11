@@ -154,7 +154,7 @@ comp rules in the event dialog:
   is allowed; `SUPER_ADMIN` isn't.
 - **Comp volunteers** (`comp_volunteers`): anyone whose published volunteer
   shifts inside the community's event window add up to the **lowest volunteer
-  comp tier** (Admin → Settings; 8 hours for SGL). These are *scheduled* hours,
+  comp tier** (Admin → Settings → Volunteers; 8 hours for SGL). These are *scheduled* hours,
   the same total the volunteer roster shows, because most shifts haven't
   happened yet when the desk opens. Unpublished auto-scheduler drafts don't
   count, and nobody is comped this way while volunteering is turned off.

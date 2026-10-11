@@ -12,7 +12,7 @@ dismiss it. Not behind a feature flag: a community with no rules shows no banner
 | Rule catalogue | `CHECKS` in [`profile_nudge_service.py`](../../application/services/profile_nudge_service.py) | One `ProfileCheckSpec` per `ProfileCheck`: staff label, banner prompt, button label, the Profile card that fixes it (`ProfileSection`), and an `is_met(user)` predicate |
 | Rules | `Tenant.config['profile_nudges']` | `{'rules': [{'check', 'dismissible', 'note'}]}`. Read totally (`_clean_rules` drops unknown/duplicate checks), written by `ProfileNudgeService.set_rules` (STAFF, audited `profile_nudges.updated`) |
 | Dismissals | `ProfileNudgeDismissal` | One row per tenant × user × check; audited `profile_nudge.dismissed`. Kept when a rule is switched off, so re-enabling does not re-nag; ignored while a rule is mandatory |
-| Admin tab | Admin → Community → **Profile Reminders** ([`admin_profile_reminders.py`](../../pages/admin_tabs/admin_profile_reminders.py)) | Tick a check, choose whether members may dismiss it, add an optional note shown on the banner |
+| Admin tab | Admin → Settings → **Members** ([`admin_profile_reminders.py`](../../pages/admin_tabs/admin_profile_reminders.py)) | Tick a check, choose whether members may dismiss it, add an optional note shown on the banner |
 | Banner | [`theme/profile_nudge_banner.py`](../../theme/profile_nudge_banner.py), drawn by `BaseLayout.render` | Only for members, never on chromeless pages. A lookup failure logs and draws nothing |
 | Deep link | `/home/profile?focus=<section>` | The Profile tab scrolls to and outlines the card with id `profile-<section>` (`personal`, `connected-accounts`, `matcherino`) |
 

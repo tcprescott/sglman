@@ -24,6 +24,7 @@ from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 
 # Standard four 4-hour shift blocks, in the community's own timezone (the
 # generator resolves them against it), matching the 2025 schedule.
@@ -89,9 +90,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         return start, start + timedelta(hours=30)
 
     with ui.column().classes('page-container-wide'):
-        with ui.row().classes('header-row items-center'):
-            ui.label('Volunteer Scheduling').classes('page-title')
-        ui.separator().classes('separator-spacing')
+        page_header('Volunteer Scheduling')
 
         ui.label(
             'Build the volunteer shift grid: create positions and shifts, auto-fill '

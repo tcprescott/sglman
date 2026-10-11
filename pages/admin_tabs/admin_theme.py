@@ -12,6 +12,7 @@ from nicegui import app, ui
 
 from application.services import AuthService, TenantThemeService, get_user_from_discord_id
 from application.services.tenant_theme_service import DEFAULT_THEME, THEME_PRESETS
+from theme.page_header import page_header
 
 # label, config key, helper caption for each editable brand colour.
 _FIELDS = [
@@ -29,10 +30,7 @@ async def admin_theme_page() -> None:
     colors = await TenantThemeService.get_current_theme()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Appearance').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Appearance')
 
         ui.label(
             'Customise your community\'s brand colours. Changes apply across the '

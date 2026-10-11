@@ -613,6 +613,28 @@ body {
     margin-bottom: 1.5em;
 }
 
+/* Page header (theme/page_header.py): the title row, then a muted lede. One
+   gap below it separates the header from the page; no divider rule. */
+.wiz-page-header {
+    width: 100%;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+}
+
+.wiz-page-header__row {
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+}
+
+.wiz-page-header__sub {
+    max-width: 75ch;
+    color: var(--fg-muted);
+    font-size: var(--text-md);
+    line-height: 1.5;
+}
+
 /* Cards: hairline border, near-flat. */
 .q-card {
     border-radius: var(--radius-lg);
@@ -2821,4 +2843,153 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 .checkin-footer {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+/* ---------------------------------------------------------------------------
+   Admin → Settings: a menu of panes beside the open pane, the way most SaaS
+   settings read. Below md the menu becomes a scrolling row of tabs above the
+   pane, so a phone keeps the full width for the form.
+   ------------------------------------------------------------------------- */
+.wiz-settings {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: var(--space-5);
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    align-items: start;
+}
+
+.wiz-settings__nav {
+    position: sticky;
+    top: var(--space-4);
+}
+
+.wiz-settings__menu { padding: 0; }
+
+.wiz-settings__item {
+    border-radius: var(--radius-sm);
+    min-height: 36px;
+    padding: 0 var(--space-2);
+    color: var(--fg-secondary);
+    font-size: var(--text-md);
+}
+
+.wiz-settings__item .q-item__section--avatar {
+    min-width: 32px;
+    color: var(--fg-muted);
+}
+
+.wiz-settings__item.q-item--active {
+    background: var(--surface-sunken);
+    color: var(--fg);
+    font-weight: 700;
+}
+
+.wiz-settings__item.q-item--active .q-item__section--avatar { color: var(--fg); }
+
+.wiz-settings__content { min-width: 0; }
+
+.wiz-settings__pane {
+    width: 100%;
+    max-width: 820px;
+    flex-wrap: nowrap;
+}
+
+.wiz-settings__pane > .wiz-page-header { margin-bottom: 0; }
+
+/* A former tab shown as one card of a pane: its own containers stop centring
+   and capping themselves, since the pane already does. */
+.wiz-settings-embed { padding: var(--space-4); }
+.wiz-settings-embed .page-container,
+.wiz-settings-embed .page-container-narrow,
+.wiz-settings-embed .page-container-wide { max-width: none; margin: 0; }
+
+.wiz-page-header--nested { margin-bottom: var(--space-2); }
+.wiz-page-header--nested .section-title { margin-bottom: 0; }
+
+.wiz-panel__foot {
+    width: 100%;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface-alt);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.wiz-panel__foot-hint {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+}
+
+.wiz-field-hint {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    max-width: 65ch;
+}
+
+.wiz-settings-day {
+    width: 6.5rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-secondary);
+}
+
+@media (max-width: 1023px) {
+    .wiz-settings {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+    }
+    .wiz-settings__nav {
+        position: static;
+        overflow-x: auto;
+        margin: 0 calc(-1 * var(--space-2));
+        scrollbar-width: none;
+    }
+    .wiz-settings__menu {
+        display: flex;
+        gap: var(--space-1);
+        padding: 0 var(--space-2);
+        width: max-content;
+    }
+    .wiz-settings__item { white-space: nowrap; }
+    .wiz-settings-embed { padding: var(--space-3); }
+}
+
+/* The embedded page's own title becomes the card's header band, so a former
+   tab and a native settings card share one silhouette. */
+.wiz-settings-embed .wiz-page-header--nested {
+    width: calc(100% + 2 * var(--space-4));
+    margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border-subtle);
+}
+@media (max-width: 1023px) {
+    .wiz-settings-embed .wiz-page-header--nested {
+        width: calc(100% + 2 * var(--space-3));
+        margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) var(--space-2);
+        padding: var(--space-3);
+    }
+}
+
+.wiz-settings-time { width: 8rem; }
+
+@media (max-width: 599px) {
+    .wiz-settings-day { width: 4.5rem; flex-shrink: 0; }
+    .wiz-settings-time { width: auto; flex: 1 1 0; min-width: 0; }
+    /* A station's name, section and switches on one line, its side and seat
+       on the next,
+       instead of wrapping wherever the row happens to run out. */
+    .wiz-station-row {
+        flex-wrap: wrap !important;
+        row-gap: var(--space-2);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .wiz-station-row > :nth-child(1) { order: 1; width: auto !important; }
+    .wiz-station-row > :nth-child(2) { order: 2; flex: 1 1 0; min-width: 0; }
+    .wiz-station-row > :nth-child(5) { order: 3; }
+    .wiz-station-row > :nth-child(6) { order: 4; }
+    .wiz-station-row > :nth-child(3),
+    .wiz-station-row > :nth-child(4) { order: 5; flex: 1 1 40%; width: auto !important; min-width: 0; }
 }

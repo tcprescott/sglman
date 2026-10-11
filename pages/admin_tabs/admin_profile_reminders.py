@@ -1,4 +1,4 @@
-"""Admin Profile Reminders tab.
+"""Admin → Settings → Members: profile reminders.
 
 STAFF pick which profile items every member of this community should have done
 (Challonge linked, pronouns set, ...). A member missing one sees a red banner on
@@ -10,6 +10,7 @@ from nicegui import app, ui
 
 from application.services import AuthService, ProfileNudgeService, get_user_from_discord_id
 from application.services.profile_nudge_service import CHECKS, MAX_NOTE_LENGTH
+from theme.page_header import page_header
 
 
 async def admin_profile_reminders_page() -> None:
@@ -21,10 +22,7 @@ async def admin_profile_reminders_page() -> None:
     unavailable = await service.unavailable_reasons()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Profile reminders').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Profile reminders')
 
         ui.label(
             'Pick what every member of this community should have on their profile. '

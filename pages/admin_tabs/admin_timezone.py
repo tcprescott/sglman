@@ -15,6 +15,7 @@ from nicegui import app, ui
 from application.services import AuthService, TimezoneService, get_user_from_discord_id
 from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED, MODE_USER
 from application.utils.timezone import format_local_display, now_local
+from theme.page_header import page_header
 
 _MODE_LABELS = {
     MODE_USER: 'Follow each member’s own timezone',
@@ -29,10 +30,7 @@ async def admin_timezone_page() -> None:
     settings = await TimezoneService.get_settings()
 
     with ui.column().classes('page-container-narrow'):
-        with ui.row().classes('header-row'):
-            ui.label('Timezone').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
+        page_header('Timezone')
 
         ui.label(
             'Times are always stored precisely; this only controls the clock they '

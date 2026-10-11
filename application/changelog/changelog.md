@@ -12,6 +12,7 @@
 - Spectators get a cached Watch page, and the join page points at it.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.
+- Admin settings live in one place. Settings in the admin menu opens its own list of sections (General, Event, Venue, Members, Volunteers, Discord, Integrations, Features), and each card saves on its own, with a Save button that only appears once you've changed something. Old links to Appearance, Timezone, Role Mappings and the rest still land on the right section.
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
 - Security fixes: a login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
 - Behind the scenes: error reporting through Sentry, adjustable log levels on the platform page, and dependency updates including the MCP server's move to mcp 2.x.

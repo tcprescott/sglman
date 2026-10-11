@@ -2,7 +2,7 @@
 
 Drawn by :meth:`theme.base.BaseLayout.render` for a signed-in member of the
 community in scope. Each is a ``danger`` :func:`theme.banner.banner` for one
-unmet rule from Admin → Profile Reminders, with a button that opens the Profile
+unmet rule from Admin → Settings → Members, with a button that opens the Profile
 tab scrolled to the field that fixes it and, if the rule allows, a Dismiss that
 hides it for good in this community.
 """

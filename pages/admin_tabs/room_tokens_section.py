@@ -1,4 +1,4 @@
-"""Room token management, for the Settings tab.
+"""Room token management, for Settings → Venue.
 
 Staff issue one token per shared machine, tape the URL to it (or bookmark it),
 and read back which machines are still using theirs. The URL is shown once, at
@@ -15,8 +15,10 @@ from application.services import RoomTokenService, TenantService, get_user_from_
 from application.services.room_token_service import room_seeds_path
 from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import tenant_url
+from application.utils.timezone import format_local_display
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.section import section_panel
 
 
 def _copy(value: str, label: str) -> None:
@@ -58,7 +60,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
                         if revoked:
                             ui.badge('revoked').props('color=grey')
                     used = (
-                        f'Last used {token.last_used_at:%Y-%m-%d %H:%M}'
+                        f'Last used {format_local_display(token.last_used_at)}'
                         if token.last_used_at else 'Never used'
                     )
                     issuer = token.created_by.preferred_name if token.created_by else 'someone since removed'
@@ -112,23 +114,23 @@ async def render_room_tokens_section(can_edit: bool) -> None:
         token_list.refresh()
         await show_url_dialog(raw_token)
 
-    ui.separator().classes('separator-spacing')
-    ui.label('Tournament Room Screens').classes('section-title q-mt-md')
-    ui.label(
-        'A read-only board of matches whose seed is rolled but which nobody has '
-        'started, for a machine in the room that nobody signs in on. Each token '
-        'is an unlisted URL that opens that one page — it cannot roll a seed, '
-        'run a match, or read anything else. It is not linked from anywhere, so '
-        'bookmark it on the machine it belongs to.'
-    ).classes('text-caption text-grey')
+    card = await section_panel(
+        'Room screens', icon='desktop_windows',
+        subtitle=(
+            'A read-only board of matches whose seed is rolled but not started, '
+            'for a machine in the room that nobody signs in on. Each token is an '
+            'unlisted URL that opens that one page and nothing else, so bookmark '
+            'it on the machine it belongs to.'
+        ),
+    )
+    with card.body:
+        with ui.column().classes('gap-1 full-width'):
+            await token_list()
 
-    with ui.column().classes('gap-1 full-width q-mt-sm'):
-        await token_list()
+        if not can_edit:
+            return
 
-    if not can_edit:
-        return
-
-    with ui.row().classes('items-center gap-3 q-mt-sm'):
-        label_input = ui.input('Label', placeholder='e.g. Room A desk PC') \
-            .props('outlined dense maxlength=100').classes('w-64')
-        ui.button('Issue token', icon='add', on_click=issue).props('color=primary')
+        with ui.row().classes('items-center gap-3'):
+            label_input = ui.input('Label', placeholder='e.g. Room A desk PC') \
+                .props('outlined dense maxlength=100').classes('w-64')
+            ui.button('Issue token', icon='add', on_click=issue).props('color=primary unelevated no-caps')

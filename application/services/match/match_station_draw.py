@@ -103,7 +103,7 @@ class StationDrawMixin:
         if not pool:
             raise ValueError(
                 "This community has not defined any stations yet, so there is "
-                "nothing to draw from. Add them under Admin → Settings."
+                "nothing to draw from. Add them under Admin → Settings → Venue."
             )
 
         occupied = await self.repository.occupied_stations(exclude_match_id=match.id)
@@ -152,7 +152,7 @@ class StationDrawMixin:
                 relaxations.append(
                     "These stations have no side recorded, so the players could "
                     "not be split across the room. Set each station's side under "
-                    "Admin → Settings."
+                    "Admin → Settings → Venue."
                 )
             first = self._pick_spread(list(free), taken, relaxations)
             rest = [s for s in free if s.name != first.name]

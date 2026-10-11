@@ -39,6 +39,7 @@ from theme.brackets import (
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -163,9 +164,7 @@ async def admin_brackets_page() -> None:
     ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
 
     with ui.column().classes('page-container'):
-        with ui.row().classes('header-row'):
-            ui.label('Brackets').classes('page-title')
-        ui.separator().classes('separator-spacing')
+        page_header('Brackets')
 
         # Challonge-linked tournaments are excluded, not just sorted down: a
         # tournament uses a native bracket or a Challonge link and never both, so
