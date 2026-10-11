@@ -23,6 +23,7 @@ from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CREW, notifi
 from application.utils.discord_messages_crew import (
     crew_approval_withdrawn_dm,
     crew_assignment_dm,
+    crew_signup_pending_dm,
     crew_withdrawn_dm,
 )
 from application.utils.match_labels import players_label
@@ -122,6 +123,7 @@ class CrewService:
             event_extra={'user_id': user.id},
         )
         match_live.publish(match_id)
+        await self._notify_crew_owners_of_signup(match, user, role)
 
     async def undo_crew_signup(
         self,
@@ -526,9 +528,10 @@ class CrewService:
         discord_queue.enqueue(
             self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id, embed=embed,
-                # Acknowledging is one button; the other is for the crew member
-                # who wants to see what they just agreed to cover.
-                link=await notification_links.community_schedule(),
+                # Acknowledging is one button; the other opens the crew member's
+                # own card for this match, where Confirm and Withdraw both live.
+                # The whole community board left them hunting for their row.
+                link=await notification_links.crew_match(crew_member.match.id),
             )
         )
 
@@ -561,6 +564,60 @@ class CrewService:
         discord_queue.enqueue(
             self.discord_service.send_dm(int(discord_id), message, embed=embed)
         )
+
+    async def _notify_crew_owners_of_signup(self, match, volunteer: User, crew_type: str) -> None:
+        """Tell whoever approves this match's crew that someone is waiting on them.
+
+        Approval is the one wait in the volunteer's journey that nothing used
+        to announce: a signup sat unseen until somebody happened to open the
+        board, while the volunteer's own reply said an admin would confirm it
+        shortly. The button opens the board filtered to this match, where the
+        approval toggle is.
+
+        Same recipients as :meth:`_notify_crew_withdrawal` (the tournament's
+        admins and crew coordinators), minus the volunteer. Best-effort: a
+        failed DM never blocks the signup.
+        """
+        from application.repositories import TournamentRepository
+
+        tournament_id = getattr(match, 'tournament_id', None)
+        if not tournament_id:
+            return
+        try:
+            owners = [
+                owner for owner in await TournamentRepository.get_crew_owners(tournament_id)
+                if owner.id != volunteer.id
+                and getattr(owner, 'discord_id', None)
+                and getattr(owner, 'dm_notifications', True)
+            ]
+            if not owners:
+                return
+
+            message_kwargs, fields = await self._crew_dm_parts(match)
+            message = crew_signup_pending_dm(
+                crew_type=crew_type,
+                volunteer_name=volunteer.preferred_name,
+                **message_kwargs,
+            )
+            embed = notification_embed(
+                title=f'🎙️ New {crew_type} signup',
+                color=COLOR_CREW,
+                community_name=await TenantService.current_community_name(),
+                description=f'**{volunteer.preferred_name}** wants to cover this as '
+                            f'{crew_type}. It needs your approval.',
+                fields=fields,
+            )
+            link = await notification_links.admin_match(match.id, label='Review the signup')
+        except Exception:
+            logger.exception('Crew signup notice failed for match %s', match.id)
+            return
+
+        for owner in owners:
+            discord_queue.enqueue(
+                self.discord_service.send_dm(
+                    int(owner.discord_id), message, embed=embed, link=link,
+                )
+            )
 
     async def _notify_crew_withdrawal(
         self,

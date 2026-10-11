@@ -11,7 +11,7 @@ Commentators and Trackers (collectively "crew") sign up per match, and a staff
 member approves them. Signup works from the web or from Discord DM buttons — both
 land in the same service, so the rules and audit trail are identical.
 
-1. Signup inserts a `Commentator` or `Tracker` row with `approved=False`, either from the web UI or from the buttons on a stream-candidate DM (`discordbot/crew_signup.py`).
+1. Signup inserts a `Commentator` or `Tracker` row with `approved=False`, either from the web UI (one tap on the board's **Sign up**, no confirmation step) or from the buttons on a stream-candidate DM (`discordbot/crew_signup.py`). The tournament's admins and crew coordinators get a DM linking the match on the admin board, so approval doesn't wait on someone happening to look. Home's schedule has a **Needs crew** switch that narrows the board to matches still short of approved crew for a role the tournament uses.
 2. Whoever `can_approve_crew` admits — staff, the tournament's admin, **or its crew coordinator** — approves from the toggle beside the crew member's name in the match table (both directions confirm first).
 3. The approved crew member acknowledges — from **My Schedule**, the schedule board, or the DM button.
 
@@ -20,7 +20,7 @@ Each side has a surface of its own for the work it owns:
 | Who | Where | What it carries |
 |---|---|---|
 | Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
-| The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
+| The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw. It leads the tab for anyone entered in no tournament, and a match that has started but not finished stays on it (for up to 12 hours past its start) |
 
 The crew list is on Home rather than the Volunteer hub deliberately: crew signup
 is behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up

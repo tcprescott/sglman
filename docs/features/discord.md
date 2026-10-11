@@ -20,6 +20,7 @@ DMs fire on match lifecycle transitions:
 | Stage assigned / cleared | players, approved crew, watchers |
 | Stage reminder | the same audience, `stage_reminder_minutes` before the match |
 | Stream candidate | tournament subscribers, with crew-signup buttons |
+| Crew signup | the tournament's admins and crew coordinators (`get_crew_owners`), so a pending signup doesn't wait for someone to open the board |
 | Matchup ready to schedule | both entrants of a bracket matchup (also re-sent as a *rebook* if its game is later called off) |
 
 That last one is the only bracket-specific message — there are deliberately no
@@ -55,7 +56,8 @@ tenant costs the button, not the DM.
 | Match scheduled / rescheduled (watchers) | — | Unwatch only; there is nothing to do |
 | Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
 | Seed ready | Open your seed | the randomizer — the one deliberately off-site link |
-| Crew assignment | View the schedule | `/home/schedule`, beside Acknowledge |
+| Crew assignment | View your crew slot | `/home/my-crew?match=<id>`, beside Acknowledge — the card that also carries Confirm and Withdraw |
+| Crew signup (to admins) | Review the signup | `/admin/schedule?match_id=<id>` — the approval toggle is on that row |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
 | Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
 | Volunteer shift reminder | Acknowledge (only if not yet acknowledged) · Can't make it | `/volunteer/my-shifts?release=<assignment id>` — the give-back dialog for that shift, open; a gone, finished or checked-in shift says so instead |
