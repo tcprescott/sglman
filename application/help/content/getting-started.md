@@ -37,6 +37,8 @@ More on windows, withdrawing and Challonge rosters:
 [Signing up for a tournament](/help/tournament-signup).
 :::
 
+![The Tournaments tab on a phone, with a tournament open for signup and its Sign up button](/static/help/getting-started/tournaments-phone.webp "The Tournaments tab on a phone.")
+
 ## Then, depending on why you are here
 
 | You are | Start here |
