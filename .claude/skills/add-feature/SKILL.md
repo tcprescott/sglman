@@ -195,6 +195,7 @@ hooks report gaps; keep them quiet.
 
 ## 10. Changelog
 
-A feature people will notice gets a bullet in this week's entry of
-`application/changelog/changelog.md`, the in-app "What's new" page. Use the
+A feature people will notice gets a bullet in a new
+`application/changelog/changes/YYYY-MM-DD-<topic>.md` file, which the in-app
+"What's new" page folds into that week. Use the
 [`changelog`](../changelog/SKILL.md) skill for the format and the wording rules.

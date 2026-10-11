@@ -5,14 +5,16 @@ description: >-
   people will notice. Use before opening a PR that adds a feature, changes a
   workflow or what a role can do, fixes a bug users hit, or closes a security
   hole; also when asked to update the changelog or catch it up from git history.
-  Entries are weekly, user-facing, and live in application/changelog/changelog.md.
+  Entries are weekly and user-facing; a PR adds its own file under
+  application/changelog/changes/ rather than editing changelog.md.
 ---
 
 # Keeping the changelog current
 
-`application/changelog/changelog.md` is the "What's new" page. It is read by
-players, crew, volunteers and community staff, not by developers. Every PR that
-changes what one of them sees or can do adds a line to it in the same PR.
+`application/changelog/` is the "What's new" page. It is read by players, crew,
+volunteers and community staff, not by developers. Every PR that changes what
+one of them sees or can do adds a line to it in the same PR, as a file of its
+own.
 
 ## Does this PR need an entry?
 
@@ -25,25 +27,40 @@ so in the PR's Checklist instead of adding a line.
 
 ## Where the line goes
 
-Entries cover whole weeks, Monday to Sunday, newest first:
+Add a new file; don't edit `changelog.md`. Every PR merged in a week used to
+append to that week's entry, so any two PRs in flight conflicted there.
 
-```markdown
-## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
-
-- One bullet per change a reader would notice.
-- Behind the scenes: optional last bullet for invisible-but-notable work.
+```
+application/changelog/changes/2026-10-13-equipment-help.md
 ```
 
-1. Find the week the PR will merge in (Monday to Sunday, by date).
-2. If the top entry already covers that week, add a bullet to it. Merge into an
-   existing bullet when it's the same feature. Retitle the entry if its headline
-   no longer fits the week's biggest change.
-3. If not, add a new entry **above** the current top one. Quiet weeks may be
-   merged into one entry spanning several weeks; never split a week into days.
+```markdown
+- Help has a new article on borrowing equipment: scanning a loaner's QR code,
+  giving it back, and running the equipment desk.
+```
 
-`tests/test_changelog.py` fails the build on a malformed heading, an entry that
-doesn't start on a Monday and end on a Sunday, overlapping entries, or entries
-out of order.
+1. Name it `YYYY-MM-DD-<topic>.md`: lowercase, hyphens, a topic no other PR
+   will pick (the feature, not "help" or "fix"). The date only has to land in
+   the right Monday-to-Sunday week; use today, or the day you expect it to merge
+   if that's next week.
+2. Bullets only. No heading, no intro paragraph. One bullet per change a reader
+   would notice; a big PR may have several.
+3. Revising the line later means editing *your* file, never someone else's.
+
+The page folds each file into the `changelog.md` entry covering its date. A week
+with no entry there gets one titled **Updates**. If the week deserves a
+headline, add a bare heading for it to `changelog.md` with no body
+(`## 2026-10-12/2026-10-18 Help for staff`); the files fill it. That one line is
+the only edit to `changelog.md` a normal PR ever makes.
+
+Folding a finished week's files into a hand-written entry in `changelog.md` (and
+deleting the files) is optional tidying for a dedicated PR. Entries there cover
+whole weeks, Monday to Sunday, newest first; quiet weeks may share one entry
+spanning several, but never split a week into days.
+
+`tests/test_changelog.py` fails the build on a misnamed change file, one holding
+anything but bullets, a malformed heading, an entry that doesn't start on a
+Monday and end on a Sunday, overlapping entries, or entries out of order.
 
 ## How to write a bullet
 
@@ -56,9 +73,9 @@ Follow "Writing user-facing text" in CLAUDE.md. In particular:
 - Name a feature that only some communities have switched on as what it is;
   don't promise it's available everywhere.
 
-The file is parsed by `application/content` (the help renderer): bullets,
-paragraphs, `**bold**`, `*italic*`, `` `code` `` and links to `/…` or
-`https://…`. Nothing goes before the first `## ` heading.
+Both are parsed by `application/content` (the help renderer): bullets,
+`**bold**`, `*italic*`, `` `code` `` and links to `/…` or `https://…`. In
+`changelog.md` nothing goes before the first `## ` heading.
 
 ## Catching up from git history
 
@@ -74,4 +91,6 @@ git log --no-merges --format='  - %s' <merge>^1..<merge>^2
 ```
 
 Group by ISO week (`--date=format:%G-W%V`), write one entry per week, and fold
-weeks with only a commit or two into their neighbour.
+weeks with only a commit or two into their neighbour. A catch-up is the one time
+you write entries in `changelog.md` directly: the weeks are over, so no other
+PR is adding to them.

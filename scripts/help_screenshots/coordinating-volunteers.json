@@ -1,0 +1,47 @@
+[
+  {
+    "name": "schedule-desktop",
+    "user": "vc_user",
+    "viewport": "desktop",
+    "path": "/admin/vol-schedule"
+  },
+  {
+    "name": "assign-picker-desktop",
+    "user": "vc_user",
+    "viewport": "desktop",
+    "path": "/admin/vol-schedule",
+    "setup": [
+      {
+        "click": "button:has-text('Assign') >> nth=4"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      },
+      {
+        "click": "text=Show unqualified volunteers"
+      },
+      {
+        "wait": 500
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  },
+  {
+    "name": "autofill-dialog-desktop",
+    "user": "vc_user",
+    "viewport": "desktop",
+    "path": "/admin/vol-schedule",
+    "setup": [
+      {
+        "click": "button:has-text('Auto-fill from availability')"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      },
+      {
+        "wait": 500
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

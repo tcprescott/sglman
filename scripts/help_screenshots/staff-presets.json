@@ -1,0 +1,17 @@
+[
+  {
+    "name": "test-roll",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/presets",
+    "setup": [
+      {
+        "click": "[aria-label=\"Test roll\"] >> nth=0"
+      },
+      {
+        "waitFor": "text=The randomizer rolled a seed."
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

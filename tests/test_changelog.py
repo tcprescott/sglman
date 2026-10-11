@@ -1,9 +1,11 @@
-"""The in-app changelog: the shipped file, its parser, and the page's wiring.
+"""The in-app changelog: the shipped files, their parser, and the page's wiring.
 
-The file is the part worth guarding. Entries are written by hand in PRs, so the
+The files are the part worth guarding. Entries are written by hand in PRs, so the
 tests below are what keep it readable: every heading parses, entries run newest
 first without overlapping, and each one covers whole Monday-to-Sunday weeks —
-the changelog summarizes a week or more at a time, never a single day.
+the changelog summarizes a week or more at a time, never a single day. The
+per-PR ``changes/`` files get the same scrutiny, since a misnamed one is
+silently dropped from the page.
 """
 
 import inspect
@@ -11,11 +13,22 @@ import re
 from datetime import date
 from itertools import pairwise
 
+import pytest
+
 import pages.changelog as changelog_page
 import pages.help as help_page
 import theme.base as base
 from application.changelog import parse_changelog, reload_entries
-from application.changelog.catalog import CHANGELOG_PATH, ENTRY_HEADING_RE, all_entries
+from application.changelog.catalog import (
+    CHANGELOG_PATH,
+    CHANGES_DIR,
+    ENTRY_HEADING_RE,
+    UNTITLED_WEEK,
+    all_entries,
+    apply_changes,
+    change_file_date,
+)
+from application.content import parse_blocks
 from middleware.auth import protected_routes
 
 
@@ -31,7 +44,8 @@ class TestShippedChangelog:
     def test_every_heading_is_an_entry(self):
         bad = [h for h in _headings() if not ENTRY_HEADING_RE.match(h)]
         assert not bad, f'Entry headings must read "## YYYY-MM-DD/YYYY-MM-DD Title": {bad}'
-        assert len(all_entries()) == len(_headings())
+        text = CHANGELOG_PATH.read_text(encoding='utf-8')
+        assert len(parse_changelog(text)) == len(_headings())
 
     def test_nothing_before_the_first_entry(self):
         text = CHANGELOG_PATH.read_text(encoding='utf-8')
@@ -54,6 +68,73 @@ class TestShippedChangelog:
     def test_every_entry_has_a_body(self):
         for entry in all_entries():
             assert entry.blocks, f'{entry.title} has no content'
+
+
+def _change_files():
+    return [p for p in CHANGES_DIR.iterdir() if not p.name.startswith('.')]
+
+
+class TestShippedChangeFiles:
+    def test_every_change_file_is_named_by_date(self):
+        for path in _change_files():
+            assert change_file_date(path.name), (
+                f'changes/{path.name}: name it YYYY-MM-DD-short-topic.md (lowercase, hyphens)'
+            )
+
+    def test_every_change_file_is_only_bullets(self):
+        """A heading would start a second entry inside another week's; prose breaks the list."""
+        for path in _change_files():
+            blocks = parse_blocks(path.read_text(encoding='utf-8'))
+            assert blocks, f'changes/{path.name} is empty'
+            assert {b.kind for b in blocks} == {'bullets'}, f'changes/{path.name}: bullets only'
+
+
+class TestChangeFiles:
+    def _entries(self, text: str):
+        return parse_changelog(text)
+
+    def test_a_change_joins_the_entry_covering_its_date(self):
+        entries = self._entries('## 2026-10-05/2026-10-11 Check-in\n\n- One\n')
+        [entry] = apply_changes(entries, [(date(2026, 10, 9), '- Two\n')])
+        assert entry.title == 'Check-in'
+        [bullets] = entry.blocks
+        assert [item[0].text for item in bullets.items] == ['One', 'Two']
+
+    def test_a_heading_only_entry_takes_its_weeks_changes(self):
+        entries = self._entries('## 2026-10-12/2026-10-18 Help for staff\n')
+        [entry] = apply_changes(entries, [(date(2026, 10, 13), '- A\n'), (date(2026, 10, 18), '- B\n')])
+        assert entry.title == 'Help for staff'
+        assert len(entry.blocks[0].items) == 2
+
+    def test_a_change_with_no_entry_opens_its_week(self):
+        entries = self._entries('## 2026-10-05/2026-10-11 Older\n\n- X\n')
+        newer, older = apply_changes(entries, [(date(2026, 10, 15), '- Y\n'), (date(2026, 10, 12), '- Z\n')])
+        assert (newer.start, newer.end, newer.title) == (date(2026, 10, 12), date(2026, 10, 18), UNTITLED_WEEK)
+        assert [item[0].text for item in newer.blocks[0].items] == ['Y', 'Z']
+        assert older.title == 'Older'
+
+    def test_a_multi_week_entry_absorbs_any_day_it_covers(self):
+        entries = self._entries('## 2026-08-31/2026-09-27 Quiet month\n\n- X\n')
+        [entry] = apply_changes(entries, [(date(2026, 9, 16), '- Y\n')])
+        assert len(entry.blocks[0].items) == 2
+
+    @pytest.mark.parametrize('name', [
+        '2026-10-12-help-skills.md',
+        '2026-10-12-a.md',
+    ])
+    def test_reads_a_well_formed_name(self, name):
+        assert change_file_date(name) == date(2026, 10, 12)
+
+    @pytest.mark.parametrize('name', [
+        'help-skills.md',
+        '2026-10-12.md',
+        '2026-10-12-Help.md',
+        '2026-10-12-help_skills.md',
+        '2026-02-30-impossible.md',
+        '2026-10-12-help.txt',
+    ])
+    def test_rejects_a_malformed_name(self, name):
+        assert change_file_date(name) is None
 
 
 class TestParser:

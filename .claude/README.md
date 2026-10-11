@@ -720,9 +720,20 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   fifteen admin Refresh buttons were dead and a screenshot sweep passed all
   eleven.
 - **`skills/changelog/`** — keeps the in-app "What's new" page current: when a
-  PR needs a line in `application/changelog/changelog.md`, the weekly entry
-  format `tests/test_changelog.py` enforces, the wording rules, and the git
-  commands for rebuilding missed weeks from merged PRs.
+  PR needs a line, the per-PR `application/changelog/changes/` file that
+  carries it (so parallel PRs don't conflict), the weekly format
+  `tests/test_changelog.py` enforces, the wording rules, and the git commands
+  for rebuilding missed weeks from merged PRs.
+- **`skills/help-article/`** — writing or refreshing a `/help` article: check
+  every label and gate against the code first (the first round of help PRs found
+  the old text wrong in five places), front-matter gating (`feature:`,
+  `audience: staff`, `roles:`), snippets and help icons, links to unmerged
+  articles, the unowned alphabetical glossary, and which files a help PR may
+  touch so parallel help PRs don't conflict.
+- **`skills/help-screenshots/`** — reproducible help screenshots: one manifest
+  file per article under `scripts/help_screenshots/`, seeding the state a shot
+  needs, capturing with `scripts/help_screenshots.js`, and retaking shots when
+  a screen changes.
 - **`agents/architecture-reviewer.md`** — a read-only review subagent for the
   **judgment** calls the mechanical hooks can't make: business logic at the
   wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in

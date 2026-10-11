@@ -325,3 +325,36 @@ class TestPagesAndArticlesAgree:
             for slug, anchor in re.findall(r'\]\(/help/([a-z0-9-]+)#([a-z0-9-]+)\)', text):
                 assert anchor in by_slug.get(slug, set()), \
                     f'{path.name} links to /help/{slug}#{anchor}, which has no such heading'
+
+
+class TestGlossaryOrder:
+    """Each term sits in its alphabetical slot, under the heading for its letter.
+
+    That's what lets several help PRs add terms at once: each lands where the
+    alphabet puts it, so two PRs only touch the same lines when they add
+    neighbouring words, and the merge is "keep both".
+    """
+
+    GLOSSARY = REPO_ROOT / 'application' / 'help' / 'content' / 'glossary.md'
+    LETTER_RANGE = re.compile(r'^## ([A-Z])–([A-Z])$')
+    TERM = re.compile(r'^\*\*(.+?)\*\*:')
+
+    def _sections(self) -> dict[tuple[str, str], list[str]]:
+        sections: dict[tuple[str, str], list[str]] = {}
+        current = None
+        for line in self.GLOSSARY.read_text(encoding='utf-8').splitlines():
+            if line.startswith('## '):
+                match = self.LETTER_RANGE.match(line)
+                current = sections.setdefault((match[1], match[2]), []) if match else None
+            elif current is not None and (term := self.TERM.match(line)):
+                current.append(term[1])
+        return sections
+
+    def test_terms_are_alphabetical_within_each_section(self):
+        for (first, last), terms in self._sections().items():
+            assert terms == sorted(terms, key=str.casefold), f'{first}–{last} is out of order: {terms}'
+
+    def test_each_term_is_under_its_own_letter(self):
+        for (first, last), terms in self._sections().items():
+            for term in terms:
+                assert first <= term[0].upper() <= last, f'{term!r} belongs outside {first}–{last}'

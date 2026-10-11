@@ -1,0 +1,8 @@
+[
+  {
+    "name": "ada-card-phone",
+    "user": "player_two",
+    "path": "/home/profile",
+    "selector": ".q-card:has-text(\"ADA accommodation\")"
+  }
+]

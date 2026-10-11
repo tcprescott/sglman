@@ -1,0 +1,27 @@
+[
+  {
+    "name": "linked",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/challonge",
+    "selector": ".page-container-narrow"
+  },
+  {
+    "name": "entrants",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/challonge",
+    "setup": [
+      {
+        "click": "button:has-text(\"Entrants\")"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 600
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

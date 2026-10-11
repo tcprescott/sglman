@@ -26,7 +26,7 @@ from models import Role, Tournament, UserRole
 from tests.factories import make_user
 
 ROOT = Path(__file__).resolve().parent.parent
-MANIFEST = ROOT / 'scripts' / 'help_screenshots.json'
+MANIFEST_DIR = ROOT / 'scripts' / 'help_screenshots'
 SHOT_ROOT = ROOT / 'static' / 'help'
 
 
@@ -74,7 +74,11 @@ class TestImageBlock:
 
 
 def _manifest() -> list[dict]:
-    return json.loads(MANIFEST.read_text())['shots']
+    """Every entry across the per-article files, with ``slug`` taken from the file name."""
+    shots = []
+    for path in sorted(MANIFEST_DIR.glob('*.json')):
+        shots.extend({**entry, 'slug': path.stem} for entry in json.loads(path.read_text()))
+    return shots
 
 
 def _shipped_articles():
@@ -94,6 +98,15 @@ def _referenced_images() -> dict[str, str]:
 
 
 class TestScreenshotsAndManifestAgree:
+    def test_the_manifest_is_one_list_per_article(self):
+        """A file per article is what keeps parallel help PRs from colliding in one list."""
+        for path in MANIFEST_DIR.iterdir():
+            assert path.suffix == '.json', f'{path.name}: only <slug>.json files belong here'
+            entries = json.loads(path.read_text())
+            assert isinstance(entries, list) and entries, f'{path.name} must be a non-empty JSON array'
+            for entry in entries:
+                assert 'slug' not in entry, f'{path.name}: the file name is the slug; drop "slug" from {entry}'
+
     def test_every_manifest_entry_is_well_formed_and_unique(self):
         seen = set()
         for shot in _manifest():
@@ -127,7 +140,7 @@ class TestScreenshotsAndManifestAgree:
         for path in SHOT_ROOT.rglob('*'):
             if path.is_file():
                 rel = path.relative_to(SHOT_ROOT).as_posix()
-                assert rel in captured, f'static/help/{rel} is not in scripts/help_screenshots.json'
+                assert rel in captured, f'static/help/{rel} is not in scripts/help_screenshots/'
 
     def test_the_pipeline_has_proved_itself_end_to_end(self):
         assert _manifest(), 'the manifest is empty'

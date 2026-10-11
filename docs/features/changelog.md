@@ -8,7 +8,8 @@ module moved.
 
 ## Where the content lives
 
-`application/changelog/changelog.md`, beside its loader
+`application/changelog/changelog.md` and the per-PR files in
+`application/changelog/changes/`, beside their loader
 (`application/changelog/catalog.py`). Like the help articles it lives inside the
 package because `.dockerignore` drops `docs/` and root-level `*.md` from the
 image.
@@ -26,6 +27,28 @@ The interval is plain calendar dates, so no timezone is applied. The page shows
 it as `Oct 5 – 11, 2026` (`ChangelogEntry.period`) and anchors the entry at its
 start date (`/changelog#2026-10-05`).
 
+### Per-PR change files
+
+A PR doesn't edit `changelog.md`. It adds
+`application/changelog/changes/YYYY-MM-DD-<topic>.md` holding only bullets:
+
+```markdown
+- Help has a new article on borrowing equipment.
+```
+
+Every PR merged in a week used to append to the same few lines of that week's
+entry, so any two of them conflicted. A file of its own can't. At load,
+`apply_changes` folds each file into the `changelog.md` entry whose interval
+covers its date; when none does, the files of that Monday-to-Sunday week make an
+entry of their own titled **Updates**. Files join in date-then-name order and
+their bullets read as one list. To give such a week a headline, add a bare
+heading for it to `changelog.md` (`## 2026-10-12/2026-10-18 Help for staff`, no
+body); the files fill it. Folding a finished week's files into `changelog.md`
+by hand is optional tidying, never required.
+
+The date only has to land in the right week: use the day you write it, or the
+day you expect it to merge if that's a different week.
+
 The body is parsed by `application.content.parse_blocks` and drawn by
 `theme.help.render.render_blocks`, the same closed-vocabulary renderer as
 [`/help`](help.md). It never goes near `ui.markdown`.
@@ -36,17 +59,19 @@ The body is parsed by `application.content.parse_blocks` and drawn by
 rather than vanishing from the page:
 
 - every `## ` line is a well-formed entry heading, and nothing precedes the first;
+- every `changes/` file is named `YYYY-MM-DD-<lowercase-topic>.md` and holds
+  only bullets;
 - entries are newest first and do not overlap;
 - every entry starts on a Monday and ends on a Sunday, which is what keeps the
   page at a week or coarser. Quiet weeks fold into one entry spanning several.
 
-At runtime the parser is forgiving instead: a heading it can't read is logged
-and that section skipped, so a typo can't take the page down.
+At runtime the parser is forgiving instead: a heading or change-file name it
+can't read is logged and skipped, so a typo can't take the page down.
 
 ## Keeping it current
 
 The rule is in CLAUDE.md under **Changelog**: any PR that changes what a reader
-sees or can do adds a bullet to the current week's entry in the same PR. The
+sees or can do adds a change file in the same PR. The
 [`changelog` skill](../../.claude/skills/changelog/SKILL.md) carries the format,
 the wording rules and the git commands for rebuilding missed weeks from merged
 PRs, and the PR template has a checklist line for it.

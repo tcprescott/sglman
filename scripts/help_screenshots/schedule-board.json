@@ -1,0 +1,28 @@
+[
+  {
+    "name": "filters-phone",
+    "user": "player_four",
+    "path": "/home/schedule",
+    "setup": [
+      {
+        "click": "button:has-text(\"Filters\")"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "selector": ".match-filters-card",
+    "hide": [
+      ".q-footer"
+    ]
+  },
+  {
+    "name": "card-phone",
+    "user": "player_three",
+    "path": "/home/schedule",
+    "selector": ".match-grid-card:has-text(\"Started\")",
+    "hide": [
+      ".q-footer"
+    ]
+  }
+]
