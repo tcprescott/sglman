@@ -49,6 +49,11 @@ is runtime content, not project documentation.
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
+| `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `audience: staff` |
+| `staff-challonge` | Connecting the Challonge account, linking, sync triggers, matching entrants, stage buttons, result push, unlinking | `CHALLONGE`, `audience: staff`, `roles: STAFF` |
+| `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `audience: staff`, `roles: STAFF, PRESET_MANAGER` |
+| `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `audience: staff` |
+| `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
 
 ### Article format
 
@@ -322,7 +327,7 @@ Tournaments, Profile → Notifications and Profile → ADA accommodation; the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result
-dialog's review flag; Home → On Air; and the shared availability editor, which
+dialog's review flag; Home → On Air; the staff Admin → Tournaments, Challonge, Presets and Payouts headers and the ADA requests queue; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel
 that already carries `player-availability`).

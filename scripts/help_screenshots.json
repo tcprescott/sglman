@@ -126,6 +126,118 @@
           "wait": 600
         }
       ]
+    },
+    {
+      "slug": "staff-tournaments",
+      "name": "signup-window",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/tournaments",
+      "setup": [
+        {
+          "click": "text=Add Tournament"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "click": ".q-dialog >> text=Scheduling"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".q-dialog >> text=Player signups"
+        },
+        {
+          "wait": 400
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-challonge",
+      "name": "linked",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/challonge",
+      "selector": ".page-container-narrow"
+    },
+    {
+      "slug": "staff-challonge",
+      "name": "entrants",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/challonge",
+      "setup": [
+        {
+          "click": "button:has-text(\"Entrants\")"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-presets",
+      "name": "test-roll",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/presets",
+      "setup": [
+        {
+          "click": "[aria-label=\"Test roll\"] >> nth=0"
+        },
+        {
+          "waitFor": "text=The randomizer rolled a seed."
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-payouts",
+      "name": "split",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/payouts",
+      "setup": [
+        {
+          "click": "tr:has-text(\"Last Season\") [aria-label=\"Edit split\"]"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-ada",
+      "name": "queue",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/users",
+      "setup": [
+        {
+          "click": "text=ADA requests"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Members who asked for ADA accommodation"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-tab-panels"
     }
   ]
 }
