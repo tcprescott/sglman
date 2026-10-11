@@ -38,12 +38,12 @@ is runtime content, not project documentation.
 | Slug | Covers | Gate |
 |---|---|---|
 | `getting-started` | Signing in, joining the community (the join door), Profile basics, the profile-reminder banner, signing up, where to go next | — |
-| `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
-| `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
+| `schedule-board` | The Schedule view's columns, the five match states, the filters and Needs crew, watching, mobile cards | — |
+| `crew` | Commentator vs tracker, signing up (board and Discord), approval, confirming, My Crew's four chips, reading the crew cell, withdrawing | — |
 | `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
 | `player` | My Schedule's Your matches panel, acknowledging, Request Match, bracket scheduling, Suggest a time, availability, seeds and harder settings, race rooms, change requests, results | — |
 | `accessibility` | Requesting an ADA accommodation from Profile, who can read it, its four statuses | `FeatureFlag.ADA_ACCOMMODATIONS` |
-| `on-air` | The stage timeline, finding a stream, watching a match | — |
+| `on-air` | The stage timeline, finding a stream, the public Watch page (`/live`), watching a match | — |
 | `proctor` | The Proctor Station board and its players column, the four steps of running a match, seeds, stations and Randomize, unclear finishes, the room seeds screen, loaner devices | `FeatureFlag.VOLUNTEERS` |
 | `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
 | `volunteering` | Volunteer availability, how shifts reach you (drafts, the four shift DMs), My Shifts and hours, giving a shift back | `FeatureFlag.VOLUNTEERS` |
@@ -327,7 +327,7 @@ Tournaments, Profile → Notifications and Profile → ADA accommodation; the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
-dialog's review flag; Home → On Air; the staff Admin → Tournaments, Challonge, Presets and Payouts headers and the ADA requests queue; and the shared availability editor, which
+dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers and the ADA requests queue; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel
 that already carries `player-availability`).

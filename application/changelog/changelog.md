@@ -17,6 +17,7 @@
 - The SGL 2026 tournaments were imported from the planning sheet with their randomizer presets and notes, and the Presets tab gained a Test roll button.
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
+- Help for crew and spectators is up to date: signing up from a Discord DM, what the names in a crew cell mean, the board's filters (finished matches are hidden by default), what On Air shows, and the public Watch page, which On Air now links from its help. On Air's Watch Stream link is readable again in the light theme.
 - Volunteer shift and availability times now show the timezone they're actually in (EDT, AEST and so on) instead of always saying ET, and the capacity chart's time axis is on your clock rather than UTC.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.

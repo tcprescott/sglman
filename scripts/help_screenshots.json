@@ -361,6 +361,70 @@
       "user": "vc_user",
       "viewport": "desktop",
       "path": "/admin/vol-roster"
+    },
+    {
+      "slug": "crew",
+      "name": "signup-phone",
+      "user": "player_three",
+      "path": "/home/schedule",
+      "selector": ".match-grid-card:has-text(\"Player Four\"):has-text(\"Player Two\"):has-text(\"Scheduled\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "crew",
+      "name": "my-crew-phone",
+      "user": "proctor_user",
+      "path": "/home/my-schedule",
+      "selector": ".wiz-panel:has-text(\"Crew you signed up for\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "schedule-board",
+      "name": "filters-phone",
+      "user": "player_four",
+      "path": "/home/schedule",
+      "setup": [
+        {
+          "click": "button:has-text(\"Filters\")"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "selector": ".match-filters-card",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "schedule-board",
+      "name": "card-phone",
+      "user": "player_three",
+      "path": "/home/schedule",
+      "selector": ".match-grid-card:has-text(\"Started\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "on-air",
+      "name": "timeline-phone",
+      "user": "player_two",
+      "path": "/home/on-air",
+      "selector": ".card-full-width .match-card",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "on-air",
+      "name": "watch-page-phone",
+      "user": null,
+      "path": "/live"
     }
   ]
 }
