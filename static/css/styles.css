@@ -100,7 +100,10 @@
     --fg-secondary: var(--n-700);
     --fg-muted: var(--n-500);
 
-    --wiz-link: var(--accent);
+    /* Text in the brand colour, a shade under it: the default gold is 4.3:1 on
+       white, and a community's own colour can be lighter still. Fills keep the
+       exact brand colour. */
+    --wiz-link: color-mix(in srgb, var(--accent) 85%, #000);
     --wiz-section-title: var(--fg);
     --wiz-stage-header-bg: var(--n-100);
     --wiz-stage-header-text: var(--fg);
@@ -2680,7 +2683,7 @@ ol.wiz-help-list { list-style-type: decimal; }
     font-weight: 700;
     font-size: var(--text-md);
     padding: 4px 16px;
-    color: var(--fg-muted);
+    color: var(--fg-secondary);
     transition: background var(--dur-fast) var(--ease-out),
                 color var(--dur-fast) var(--ease-out);
 }
@@ -3079,4 +3082,5 @@ ol.wiz-help-list { list-style-type: decimal; }
     .body--dark .text-warning   { color: var(--status-pending) !important; }
     .body--dark .text-info      { color: var(--status-info) !important; }
     .body--dark .text-primary   { color: var(--accent) !important; }
+    body:not(.body--dark) .text-primary { color: color-mix(in srgb, var(--q-primary) 85%, #000) !important; }
 }
