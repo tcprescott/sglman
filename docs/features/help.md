@@ -47,6 +47,7 @@ is runtime content, not project documentation.
 | `proctor` | The Proctor Station board and its players column, the four steps of running a match, seeds, stations and Randomize, unclear finishes, the room seeds screen, loaner devices | `FeatureFlag.VOLUNTEERS` |
 | `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
 | `volunteering` | Volunteer availability, how shifts reach you (drafts, the four shift DMs), My Shifts and hours, giving a shift back | `FeatureFlag.VOLUNTEERS` |
+| `equipment` | Borrowing by QR code, returning through the desk, Equipment you have out, and the equipment desk (Admin → Equipment, the borrower picker, adding gear, printing labels, retiring) | `FeatureFlag.EQUIPMENT` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
 | `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `audience: staff` |
@@ -329,7 +330,7 @@ stages; availability — through the `help_topics=` of each
 Tournaments, Profile → Notifications and Profile → ADA accommodation; the
 "Waiting on you to pick a time" bracket and Challonge cards on My Schedule; the player's match-request dialog and the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
-Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
+Volunteer → My Shifts and its release dialog; the equipment asset page (borrowing and returning, or the desk for managers), My Schedule's Equipment you have out, and Admin → Equipment; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
 dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers, the ADA requests queue, and the Vol. Schedule (the page, Auto-fill and Drafts) and Vol. Roster (the page and Hours) headers; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different

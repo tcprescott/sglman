@@ -5,6 +5,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import EquipmentService, TenantService, get_user_from_discord_id
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
@@ -114,7 +115,8 @@ async def admin_equipment_page() -> None:
     service = EquipmentService()
 
     with ui.column().classes('page-container-narrow w-full'):
-        page_header('Equipment')
+        with page_header('Equipment'):
+            await help_icon('equipment-desk')
 
         with ui.row().classes('full-width items-center'):
             async def add_asset():

@@ -178,3 +178,6 @@ put the loan in your name.
 Returns go back to whoever runs the equipment desk. Only they can check a device
 back in, so if a player is packing up with a borrowed unit, send them and it to
 the desk.
+
+The whole loan, from the player's side and the desk's, is in
+[Borrowing equipment](/help/equipment).
