@@ -10,7 +10,7 @@ from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
-from application.utils.timezone import format_local_date, format_local_time
+from application.utils.timezone import format_local_date, format_local_time_range
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
@@ -219,7 +219,7 @@ async def admin_volunteer_roster_page() -> None:
                 avail_lines = [
                     f'{_STATUS_ABBR.get(w.status, w.status)}: '
                     f'{format_local_date(w.starts_at)} '
-                    f'{format_local_time(w.starts_at)}–{format_local_time(w.ends_at)} ET'
+                    f'{format_local_time_range(w.starts_at, w.ends_at)}'
                     for w in windows
                 ]
                 summary = hours_by_user.get(volunteer.id)

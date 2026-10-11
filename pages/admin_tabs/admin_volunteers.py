@@ -15,7 +15,9 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import (
     format_local_time,
+    format_local_time_range,
     parse_local_datetime,
+    timezone_label,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -241,7 +243,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         def _slot_title(row) -> str:
             label = f" — {row['label']}" if row.get('label') else ''
             return (f"{row['position']}{label}   "
-                    f"{format_local_time(row['starts_at'])} ET")
+                    f"{format_local_time(row['starts_at'])} {timezone_label(at=row['starts_at'])}")
 
         async def assign_from_panel(shift_id: int) -> None:
             shift = await schedule_service.get_shift(shift_id)
@@ -373,7 +375,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         # reads it on their card, the coordinator could not.
                         ui.icon('sticky_note_2', size='xs').tooltip(shift.notes)
                 ui.label(
-                    f'{format_local_time(shift.starts_at)}–{format_local_time(shift.ends_at)} ET'
+                    format_local_time_range(shift.starts_at, shift.ends_at)
                 ).classes('text-caption')
                 for assignment in shift.assignments:
                     _render_assignment_chip(shift, assignment)
@@ -441,7 +443,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
                 title = shift.position.name if shift.position else 'Shift'
                 ui.label(f'Assign to {title} '
-                         f'({format_local_time(shift.starts_at)}–{format_local_time(shift.ends_at)} ET)') \
+                         f'({format_local_time_range(shift.starts_at, shift.ends_at)})') \
                     .classes('text-subtitle1 q-pa-sm')
                 ui.separator()
                 if not pool:
