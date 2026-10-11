@@ -142,6 +142,37 @@ class TestCheckInDesk:
             unlinked = (await c.delete(f'/api/check-in/entrants/{row.id}/user')).json()
             assert unlinked['user_id'] is None
 
+    async def test_linking_someone_outside_the_community_reads_as_unknown(self, db, app):
+        # User is global: linking writes Matcherino payout fields onto the account
+        # and names it in the response, so a desk must not reach non-members.
+        _, raw = await create_user_token(username='desk', roles=[Role.CHECK_IN_DESK])
+        outsider = await User.create(username='outsider', discord_id=987654)
+        event = await _event()
+        row = await _entrant(event, 'Mallory', source=CheckInEntrantSource.MATCHERINO, matcherino_user_id='m9')
+        async with client_for(app, raw) as c:
+            resp = await c.put(f'/api/check-in/entrants/{row.id}/user', json={'user_id': outsider.id})
+        assert resp.status_code == 404, resp.text
+        await outsider.refresh_from_db()
+        assert outsider.matcherino_user_id is None
+        assert outsider.matcherino_username is None
+
+    async def test_a_desk_volunteer_cannot_touch_a_draft_or_closed_roster(self, db, app):
+        _, raw = await create_user_token(username='desk', roles=[Role.CHECK_IN_DESK])
+        for status in (CheckInEventStatus.DRAFT, CheckInEventStatus.CLOSED):
+            row = await _entrant(await _event(status, name=status.value), 'Erin')
+            async with client_for(app, raw) as c:
+                assert (await c.post(f'/api/check-in/entrants/{row.id}/check-in')).status_code == 404
+                assert (await c.delete(f'/api/check-in/entrants/{row.id}/check-in')).status_code == 404
+                assert (await c.delete(f'/api/check-in/entrants/{row.id}/user')).status_code == 404
+            await row.refresh_from_db()
+            assert row.checked_in_at is None
+
+    async def test_staff_still_work_a_draft_roster(self, db, app):
+        _, raw = await create_user_token(username='staff', roles=[Role.STAFF])
+        row = await _entrant(await _event(CheckInEventStatus.DRAFT), 'Finn')
+        async with client_for(app, raw) as c:
+            assert (await c.post(f'/api/check-in/entrants/{row.id}/check-in')).status_code == 200
+
     async def test_read_only_token_cannot_check_in(self, db, app):
         _, raw = await create_user_token(username='desk', roles=[Role.CHECK_IN_DESK], read_only=True)
         row = await _entrant(await _event(), 'Dana')

@@ -74,6 +74,12 @@ behind `TRUST_FORWARDED_HOST` (last value).
   (built by `platform_link_redirect`) rather than naming a place and staying put.
   Drivable end to end under a provider mock — see
   [development.md](../development.md#driving-the-cross-host-link-handoff).
+- **A session belongs to one host.** Every host shares the signing secret, so
+  `AuthMiddleware` binds a signed-in session to the host it's first used on
+  (`session_host` in `app.storage.user`) and signs it out if the cookie shows up
+  on another. Whoever runs a custom domain's DNS or TLS can read its cookies;
+  without the binding they could replay one on the platform host as that person
+  everywhere, a super-admin included.
 - **Privileged flows stay main-site-only** — Challonge STAFF service-connect and
   Discord-connect hold real per-tenant OAuth tokens, so their buttons are hidden
   on a custom domain and their initiation routes bounce to the path-mode surface.

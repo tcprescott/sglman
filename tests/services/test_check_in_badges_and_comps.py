@@ -293,7 +293,9 @@ class TestComps:
 
     async def test_a_comp_who_buys_later_merges_into_the_purchase(self, service, client, staff, desk):
         buyer = await _with_role(430, 'later', Role.STAFF)
-        event = await service.create_event(staff, 'Later', venue_id=VENUE, comp_roles=[Role.STAFF])
+        event = await service.create_event(
+            staff, 'Later', venue_id=VENUE, comp_roles=[Role.STAFF], status=CheckInEventStatus.OPEN,
+        )
         await service.sync_event(staff, event.id)
         comp_row = (await self._by_user(event))[buyer.id]
         await service.check_in(desk, comp_row.id)
@@ -310,7 +312,10 @@ class TestComps:
 
     async def test_a_manual_link_merges_a_comp_row(self, service, client, staff, desk):
         comped = await _with_role(440, 'manual', Role.STAFF)
-        event = await service.create_event(staff, 'Manual', venue_id=VENUE, comp_roles=[Role.STAFF])
+        await TenantMembership.create(user=comped, tenant_id=DEFAULT_TEST_TENANT_ID)
+        event = await service.create_event(
+            staff, 'Manual', venue_id=VENUE, comp_roles=[Role.STAFF], status=CheckInEventStatus.OPEN,
+        )
         client.set([mock_purchase(100, 'Gplus Name')])
         await service.sync_event(staff, event.id)
         purchase_row = (await _rows(event))['100']
@@ -354,10 +359,11 @@ class TestComps:
         assert buyer.id in {r.user_id for r in roster}
 
     async def test_a_comp_row_cannot_be_relinked_unlinked_or_removed(self, service, staff, desk):
-        event = await self._comp_event(service, staff)
+        event = await self._comp_event(service, staff, status=CheckInEventStatus.OPEN)
         await service.sync_event(staff, event.id)
         row = (await self._by_user(event))[staff.id]
         other = await make_user(discord_id=450, username='other')
+        await TenantMembership.create(user=other, tenant_id=DEFAULT_TEST_TENANT_ID)
 
         with pytest.raises(ValueError, match='comp rules'):
             await service.link(desk, row.id, other.id)

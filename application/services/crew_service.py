@@ -32,6 +32,27 @@ from models import Commentator, Tracker, User
 
 logger = logging.getLogger(__name__)
 
+# Signing up and undoing it are a tap each, and every signup DMs each of the
+# match's crew owners, so a loop would flood them (and the DM queue every
+# community shares). One notice per person, match and slot per window is plenty.
+_SIGNUP_NOTICE_WINDOW = timedelta(minutes=10)
+_SIGNUP_NOTICE_MAX = 2048
+_signup_notices: dict[tuple[int, int, str], datetime] = {}
+
+
+def _signup_notice_due(match_id: int, user_id: int, crew_type: str) -> bool:
+    """Whether this signup should DM the owners, recording it if so."""
+    now = datetime.now(timezone.utc)
+    key = (match_id, user_id, crew_type)
+    last = _signup_notices.get(key)
+    if last is not None and now - last < _SIGNUP_NOTICE_WINDOW:
+        return False
+    if len(_signup_notices) >= _SIGNUP_NOTICE_MAX:
+        _signup_notices.pop(next(iter(_signup_notices)), None)
+    _signup_notices.pop(key, None)
+    _signup_notices[key] = now
+    return True
+
 
 class CrewService:
     """Service for crew-related business operations."""
@@ -585,7 +606,7 @@ class CrewService:
         from application.repositories import TournamentRepository
 
         tournament_id = getattr(match, 'tournament_id', None)
-        if not tournament_id:
+        if not tournament_id or not _signup_notice_due(match.id, volunteer.id, crew_type):
             return
         try:
             owners = [

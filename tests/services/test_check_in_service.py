@@ -143,6 +143,7 @@ class TestRememberedAccounts:
 
     async def test_unlink_forgets_what_the_link_recorded(self, service, client, staff, desk, event):
         wrong = await make_user(discord_id=17, username='wrong')
+        await TenantMembership.create(user=wrong, tenant_id=DEFAULT_TEST_TENANT_ID)
         client.set([mock_purchase(100, 'Real Owner', auth_provider='gplus')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
@@ -217,6 +218,7 @@ class TestRaces:
     async def test_a_link_made_during_a_sync_is_kept(self, service, client, staff, desk, event):
         await make_user(discord_id=19, username='auto-target')
         chosen = await make_user(discord_id=20, username='chosen')
+        await TenantMembership.create(user=chosen, tenant_id=DEFAULT_TEST_TENANT_ID)
         client.set([mock_purchase(100, 'A', auth_provider='gplus')])
         await service.sync_event(staff, event.id)
         entrant = (await _rows(event))['100']
@@ -395,6 +397,7 @@ class TestDesk:
     async def test_manual_link_is_remembered_for_the_next_event(self, service, client, staff, desk, event):
         entrant = await self._entrant(service, client, staff, event, name='Gplus Person')
         person = await make_user(discord_id=70, username='person')
+        await TenantMembership.create(user=person, tenant_id=DEFAULT_TEST_TENANT_ID)
 
         await service.link(desk, entrant.id, person.id)
 
@@ -411,7 +414,8 @@ class TestDesk:
     async def test_link_refuses_someone_already_on_the_roster(self, service, client, staff, desk, event):
         client.set([mock_purchase(100, 'A', auth_provider='discord', auth_id='80'),
                     mock_purchase(200, 'B')])
-        await make_user(discord_id=80, username='already')
+        already = await make_user(discord_id=80, username='already')
+        await TenantMembership.create(user=already, tenant_id=DEFAULT_TEST_TENANT_ID)
         await service.sync_event(staff, event.id)
         rows = await _rows(event)
 
@@ -424,6 +428,7 @@ class TestDesk:
         entrant = await self._entrant(service, client, staff, event)
         await make_user(discord_id=81, username='holder', matcherino_user_id='100')
         other = await make_user(discord_id=82, username='other')
+        await TenantMembership.create(user=other, tenant_id=DEFAULT_TEST_TENANT_ID)
 
         with pytest.raises(ValueError, match='already linked to holder'):
             await service.link(desk, entrant.id, other.id)
@@ -476,6 +481,7 @@ class TestWalkUps:
 
     async def test_a_member_walk_up_is_linked(self, service, staff, event):
         member = await make_user(discord_id=95, username='member', display_name='Member Name')
+        await TenantMembership.create(user=member, tenant_id=DEFAULT_TEST_TENANT_ID)
 
         entrant = await service.add_walk_up(staff, event.id, user_id=member.id, check_in=False)
 
