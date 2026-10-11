@@ -52,6 +52,7 @@ async def stage_timeline_tab():
             ).props('outline')
 
             await help_icon('on-air')
+            await help_icon('watch-page', label='Watch page', user=user)
 
             ui.space()
 

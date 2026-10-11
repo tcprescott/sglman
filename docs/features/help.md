@@ -36,11 +36,11 @@ is runtime content, not project documentation.
 | Slug | Covers | Gate |
 |---|---|---|
 | `getting-started` | Signing in, preferred name, opting into a tournament, where to go next | — |
-| `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
-| `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
+| `schedule-board` | The Schedule view's columns, the five match states, the filters and Needs crew, watching, mobile cards | — |
+| `crew` | Commentator vs tracker, signing up (board and Discord), approval, confirming, My Crew's four chips, reading the crew cell, withdrawing | — |
 | `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
 | `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
-| `on-air` | The stage timeline, finding a stream, watching a match | — |
+| `on-air` | The stage timeline, finding a stream, the public Watch page (`/live`), watching a match | — |
 | `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
@@ -228,7 +228,7 @@ Tournaments, Profile → Notifications; the player's match-request dialog and th
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
 board, running a match, when things go wrong, and shift change) and the result
-dialog's review flag; Home → On Air; and the shared availability editor, which
+dialog's review flag; Home → On Air (the view, plus the Watch page); and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel
 that already carries `player-availability`).

@@ -3,52 +3,91 @@ title: On Air and watching
 slug: on-air
 icon: live_tv
 order: 50
-summary: The daily stage timeline, and how to follow a match you are not in.
+summary: The daily stage timeline, the public Watch page for spectators, and how to follow a match you aren't in.
 ---
 
-## The On Air tab
+## The On Air view
 
-**On Air** is the day laid out by stage: one column per stage, matches placed on
-it by time. It answers "what is on stage 2 at four o'clock" in a way the list
-view does not.
+**On Air** is the second view on the **Event** tab. It lays one day out by
+stage: a card per stage, with that stage's matches in time order. It answers
+"what's on stage 2 at four o'clock" in a way the Schedule list doesn't.
 
 :::snippet on-air
-**On Air** shows one day at a time, split by stage, so you can see what is
-running where. Use the arrows or the date picker to move between days; **Today**
-jumps back.
+**On Air** shows one day at a time, split by stage, so you can see what's
+running where. Use the arrows to move a day at a time, the calendar in **Select
+Date** to jump, and **Today** to come back.
 
 It opens on your today, not the server's, so late in the evening it still shows
-the day you are actually in.
+the day you're actually in.
 :::
+
+Each stage card has the stage's name, a **Watch Stream** link where the stage is
+streamed, and how many matches it has left that day. Each match on it shows:
+
+- its start time, in your local time
+- {chip:neutral:Scheduled} until the players are checked in, then
+  {chip:live:In Progress}
+- the tournament and the players
+- the approved crew: commentators beside a microphone, trackers beside a
+  target. People who've only signed up don't appear here.
+
+A match leaves On Air once its result is recorded, so the view shows what's
+still to come rather than the whole day. A match with no stage isn't on it at
+all; find those on the Schedule view. A stage with nothing left that day has no
+card. The view updates by itself as matches change.
 
 ## Finding the stream
 
-Where a stage is being streamed, its name on the schedule board links straight to
-the stream. Stages with no link are not being streamed.
+Where a stage is streamed, **Watch Stream** on its On Air card and the stage's
+name on the schedule board both link straight to the stream. A stage with no
+link isn't being streamed.
+
+## The Watch page
+
+:::snippet watch-page
+The [Watch page](/live) is the community's public page for spectators. It needs
+no account and no sign-in, so it's the link to share with friends, put in a
+tweet, or hang on a QR code at the venue. Someone who reaches the community's
+join page without being a member gets a **Watch live** button pointing at it.
+
+For each stage that's streamed or has a match on it today, the page shows:
+
+- a **Watch stream** button, where the stage is streamed
+- **On now**, the match on that stage right now, marked LIVE
+- **Up next**, the next three matches with their start times
+
+Below the stages are links to each tournament's published brackets, where the
+community uses them, and a **Get involved** section: **Commentate or track a
+match** (which asks you to sign in and lands on the schedule board), Event
+Information where the community publishes it, and this help.
+:::
+
+A few things are deliberately different from the app:
+
+- **Times are in the community's time zone**, not yours, because the page is the
+  same for every reader. The zone is named at the top.
+- **Player names only appear if staff have chosen to publish them.** Otherwise
+  each match shows its tournament instead.
+- **It isn't live in the way the app is.** It reloads itself every minute, so a
+  match can take up to a minute to move from Up next to On now.
 
 ## Watching a match
 
-Watching gets you a Discord DM whenever a match changes state, without you having
-to keep the board open. It is for matches you are *not* in; if you are a player
-or approved crew, you are told anyway.
+Watching a match is a different thing from the Watch page. It gets you a Discord
+DM whenever one particular match changes state, without you having to keep
+anything open. It's for matches you're *not* in; if you're a player or approved
+crew, you're told anyway.
 
 See [Reading the schedule board](/help/schedule-board#watching-a-match) for how
 to turn it on and off.
 
 ## Watching in person
 
-Whether you can watch a match from the room it is being played in, and what is
-expected of you if you can, is the event's call rather than the app's. Some
-events keep the tournament room to players and crew and point everyone else at
-the stream. Where your community publishes its rules, they are under **Event
-Information** in the sidebar.
+Whether you can watch a match from the room it's played in, and what's expected
+of you if you can, is the event's call rather than the app's. Some events keep
+the tournament room to players and crew and point everyone else at the stream.
+Where your community publishes its rules, they're under **Event Information** in
+the sidebar.
 
-A stage is separate again: it belongs to the broadcast techs, not
-to a proctor, and they set who can be where. Follow what the techs there tell
-you.
-
-## Spectating without an account
-
-The schedule board and the stage timeline need you to be signed in and to be a
-member of the community. If a community publishes bracket links, those work for
-anyone. They are the pages to share with people following along from outside.
+A stage is separate again: it belongs to the broadcast techs, not to a proctor,
+and they set who can be where. Follow what the techs there tell you.
