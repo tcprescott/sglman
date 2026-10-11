@@ -10,6 +10,7 @@ from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stage_edit_dialog import StageEditDialog
 from theme.empty_state import no_data_slot
+from theme.help import help_icon
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
@@ -21,12 +22,13 @@ async def admin_tournaments_page() -> None:
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
-        page_header(
+        with page_header(
             'Tournament Management',
             'The tournaments this community runs — players per match, durations, '
             'and seed generator. Click a name to edit, or a player count to manage '
             'entrants.',
-        )
+        ):
+            await help_icon('admin-tournaments', user=actor)
 
         columns: list[dict] = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
