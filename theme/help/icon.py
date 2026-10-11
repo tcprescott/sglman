@@ -21,7 +21,7 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.content import article_sections
-from application.help import get_snippet
+from application.help import all_articles, get_article, get_snippet
 from application.services import (
     EventInfoService,
     FeatureFlagService,
@@ -51,10 +51,26 @@ async def _event_info_snippet(snippet_name: str, user: Optional[User], user_give
     return await EventInfoService.get_snippet(snippet_name, user)
 
 
-def _links_into_the_handbook(snippet_name: str) -> bool:
-    """Whether a help snippet links into ``/event-info`` (content only, no query)."""
+def _gated(article) -> bool:
+    return article is not None and HelpService.for_staff(article)
+
+
+def _depends_on_the_reader(snippet_name: str) -> bool:
+    """Whether a help snippet reads differently for different viewers.
+
+    True when its own article is staff- or role-gated, when it links into
+    ``/event-info`` (handbook pages can be role-gated), or when it links into
+    ``/help`` while some help article is gated. Content only, no query.
+    """
     raw = get_snippet(snippet_name)
-    return raw is not None and '/event-info' in article_sections(raw.blocks)
+    if raw is None:
+        return False
+    if _gated(get_article(raw.article_slug)):
+        return True
+    sections = article_sections(raw.blocks)
+    if '/event-info' in sections:
+        return True
+    return '/help' in sections and any(_gated(article) for article in all_articles())
 
 
 async def help_icon(
@@ -81,10 +97,10 @@ async def help_icon(
     that should not break a page.
     """
     viewer = user
-    if viewer is None and _links_into_the_handbook(snippet_name):
-        # A help snippet's handbook links are pruned against what the reader
-        # may open, and handbook pages can be role-gated — judged as signed out
-        # they would vanish for staff. Only looked up when it matters.
+    if viewer is None and _depends_on_the_reader(snippet_name):
+        # Judged as signed out, a staff snippet would vanish for staff and links
+        # to gated articles would lose their anchors. Only looked up when it
+        # matters.
         viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     snippet = await HelpService.get_snippet(snippet_name, viewer)
     if snippet is None:

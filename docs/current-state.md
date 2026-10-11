@@ -26,7 +26,7 @@ Everything listed is **stable in production** unless marked otherwise.
 | **Platform** | multitenancy (`/t/<slug>` + custom domains), the membership gate + self-serve join requests, per-tenant feature flags, `/platform` super-admin surface (incl. the first-admin grant and a setup-readiness column), the derived new-community setup checklist, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
 | **Identity & access** | Discord OAuth, twelve roles, guild-role sync, Challonge/Twitch/racetime identity linking | [roles](reference/authentication.md#roles), [authentication](reference/authentication.md) |
 | **Integrations** | REST API + personal access tokens, MCP server at `/mcp` (reads for every connection, match writes for one whose consent screen approved them), event bus, signed outbound webhooks, web push, Challonge | [rest-api](reference/rest-api.md), [mcp-server](features/mcp-server.md), [webhooks](features/webhooks.md) |
-| **Help** | public `/help` section (ten articles, search, anchored nav) for players, crew, volunteers and proctors, plus tappable help icons on the surfaces they explain; **app mechanics only** since the room procedure moved to Event Information; content is in-repo Markdown parsed to a closed block model, never `ui.markdown` | [help](features/help.md) |
+| **Help** | public `/help` section (articles, search, anchored nav, screenshots) for players, crew, volunteers and proctors, a staff-only "For staff" group, plus tappable help icons on the surfaces they explain; **app mechanics only** since the room procedure moved to Event Information; content is in-repo Markdown parsed to a closed block model, never `ui.markdown` | [help](features/help.md) |
 | **Event Information** | public `/event-info` — one community's own event handbook (what's on, attending the day, who to ask, plus role-gated floor procedure for the people running a room). Behind `FeatureFlag.EVENT_INFO`, **ships dark**; content is per-tenant in-repo Markdown through the same closed block model, and is intended to become database-backed and staff-editable | [event-information](features/event-information.md) |
 | **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback (reversible review + the submitter's own status list; behind `FeatureFlag.FEEDBACK`), Sentry (events, logs, traces, tenant/worker tags), runtime log levels on `/platform` | [observability](features/observability.md), [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
 
@@ -48,15 +48,14 @@ Everything listed is **stable in production** unless marked otherwise.
 
 Recorded so they read as decisions rather than gaps:
 
-- **In-app help covers the non-staff surfaces only.** The ten `/help` articles
-  are written for players, crew, volunteers and proctors; staff actions appear
-  only from the outside ("staff approve your signup"). Admin → Schedule and every
-  admin tab have no article and no help icons — a deliberate scope call, not an
-  oversight. One visible edge: the result dialog's *Flag for admin review* help
-  icon hangs off the `VOLUNTEERS`-gated proctor article, so a staff member
-  recording a result in a community with volunteers off sees the checkbox with no
-  help beside it. Adding a staff track fixes that and means new articles plus a
-  second set of icons; the parser, the page and the gating all already carry it.
+- **In-app help is still mostly non-staff.** The `/help` articles are written
+  for players, crew, volunteers and proctors. The staff track has its plumbing
+  (an `audience: staff` or `roles:` article lands in a "For staff" group that
+  only qualifying readers can see) but its articles land topic by topic. Until
+  they do, staff actions appear only from the outside ("staff approve your
+  signup"), and the result dialog's *Flag for admin review* help icon hangs off
+  the `VOLUNTEERS`-gated proctor article, so a staff member recording a result in
+  a community with volunteers off sees the checkbox with no help beside it.
 - **The event handbook encodes room procedure, and nothing checks it.** Who runs
   the countdown, escalating a no-show, not touching a mid-match hardware failure
   before an admin rules on it — none of that is in the code, so no test can catch

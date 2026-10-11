@@ -9,6 +9,8 @@ compact strip above the body, and the stacked sidebar keeps only the article
 list as a "more" footer. ``static/css/styles.css`` owns which copy shows where.
 """
 
+from typing import Callable, Optional
+
 from nicegui import ui
 
 from application.content import ContentArticle
@@ -29,12 +31,22 @@ def render_article(
     *,
     base: str,
     back_label: str,
+    for_staff: Optional[Callable[[ContentArticle], bool]] = None,
 ) -> None:
-    """Render ``article`` with its sidebar; ``articles`` is the reader's list."""
+    """Render ``article`` with its sidebar; ``articles`` is the reader's list.
+
+    ``for_staff`` marks the articles that go under a "For staff" label. Help
+    passes it, and ``HelpService.list_articles`` orders that group last; the
+    event handbook passes nothing, because its role-gated pages are not staff's.
+    """
     with ui.row().classes('wiz-help-layout no-wrap w-full items-start'):
         with ui.column().classes('wiz-help-nav gap-1'):
             ui.link(f'← {back_label}', base).classes('text-caption wiz-help-wide-only')
+            staff_label_shown = False
             for other in articles:
+                if for_staff is not None and for_staff(other) and not staff_label_shown:
+                    staff_label_shown = True
+                    ui.label('For staff').classes('text-caption text-grey-7 q-mt-sm')
                 link = ui.link(other.title, f'{base}/{other.slug}') \
                     .classes('wiz-help-nav-item')
                 if other.slug == article.slug:

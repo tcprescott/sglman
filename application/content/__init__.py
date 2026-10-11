@@ -12,6 +12,7 @@ everywhere) and ``application/event_info`` (one community's own event handbook).
 
 from application.content.blocks import (
     CHIP_TONES,
+    IMAGE_SRC_RE,
     STATE_STYLES,
     Block,
     Span,
@@ -25,6 +26,8 @@ from application.content.blocks import (
     slugify,
 )
 from application.content.catalog import (
+    AUDIENCE_EVERYONE,
+    AUDIENCE_STAFF,
     ContentArticle,
     ContentCatalog,
     ContentSnippet,
@@ -33,7 +36,10 @@ from application.content.catalog import (
 )
 
 __all__ = [
+    'AUDIENCE_EVERYONE',
+    'AUDIENCE_STAFF',
     'CHIP_TONES',
+    'IMAGE_SRC_RE',
     'STATE_STYLES',
     'Block',
     'ContentArticle',
