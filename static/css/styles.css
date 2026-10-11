@@ -200,6 +200,9 @@ body.wiz-has-bottom-nav {
     --fg: #ECEBE8;
     --fg-secondary: #CFCCC6;
     --fg-muted: var(--wiz-dark-muted);
+    /* Restated, not inherited: :root resolved var(--fg) to the light-mode ink,
+       which left section icons and card titles near-black on dark. */
+    --wiz-section-title: var(--fg);
     --wiz-stage-header-bg: var(--surface-sunken);
 
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -298,7 +301,9 @@ body {
     font-weight: 700;
     line-height: 1.5;
     background: color-mix(in srgb, var(--chip-c) 12%, transparent);
-    color: var(--chip-c);
+    /* Pulled a fifth of the way to the ink: the bare status colour on its own
+       12% tint is 3.9-4.3:1, just under AA for 12px text. */
+    color: color-mix(in srgb, var(--chip-c) 80%, var(--fg));
     border: 1px solid color-mix(in srgb, var(--chip-c) 22%, transparent);
 }
 
@@ -359,7 +364,7 @@ body {
        fill nor a background-image over it survives. An inset shadow paints
        above the background, and a surface-coloured one leaves a 12% tint. */
     box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--surface) 88%, transparent);
-    color: var(--chip-c) !important;
+    color: color-mix(in srgb, var(--chip-c) 80%, var(--fg)) !important;
     border: 1px solid color-mix(in srgb, var(--chip-c) 24%, transparent);
 }
 .q-badge:not(.q-badge--floating).q-badge--outline {
@@ -3052,4 +3057,26 @@ ol.wiz-help-list { list-style-type: decimal; }
     .wiz-station-row > :nth-child(6) { order: 4; }
     .wiz-station-row > :nth-child(3),
     .wiz-station-row > :nth-child(4) { order: 5; flex: 1 1 40%; width: auto !important; min-width: 0; }
+}
+
+/* Quasar's palette classes, re-pointed at the theme. Quasar declares them
+   !important in its last cascade layer; for !important declarations the
+   earliest layer wins, so these sit in NiceGUI's first layer, "theme".
+
+   text-grey (#9E9E9E) is 2.5:1 on white and text-grey-7 is 3.6:1 on the dark
+   surface, and between them they carry most captions in the app. The semantic
+   colours keep Quasar's light-mode shades, which are 2.8-3.6:1 on the dark
+   surface, so in dark mode they take the lifted status tokens instead. */
+@layer theme {
+    .text-grey, .text-grey-4, .text-grey-5, .text-grey-6, .text-grey-7 {
+        color: var(--fg-muted) !important;
+    }
+    .text-grey-8, .text-grey-9, .text-grey-10 {
+        color: var(--fg-secondary) !important;
+    }
+    .body--dark .text-negative  { color: var(--status-cancelled) !important; }
+    .body--dark .text-positive  { color: var(--status-ok) !important; }
+    .body--dark .text-warning   { color: var(--status-pending) !important; }
+    .body--dark .text-info      { color: var(--status-info) !important; }
+    .body--dark .text-primary   { color: var(--accent) !important; }
 }
