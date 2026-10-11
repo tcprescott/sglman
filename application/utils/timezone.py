@@ -223,6 +223,19 @@ def format_local_time(dt: Optional[datetime], tz: TzArg = None) -> str:
     return format_local_datetime(dt, "%H:%M", tz)
 
 
+def format_local_time_range(
+    start: Optional[datetime], end: Optional[datetime], tz: TzArg = None
+) -> str:
+    """``HH:MM–HH:MM`` on the display clock, captioned with the zone: ``09:00–13:00 EDT``.
+
+    The label is taken at ``start``, so a range on a DST-change day carries the
+    abbreviation in force when it begins.
+    """
+    if start is None or end is None:
+        return ''
+    return f"{format_local_time(start, tz)}–{format_local_time(end, tz)} {timezone_label(tz, start)}"
+
+
 def format_local_display(dt: Optional[datetime], tz: TzArg = None) -> str:
     """Format for display with a zone label: ``2025-01-15 14:30 EST``.
 

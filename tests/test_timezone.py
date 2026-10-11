@@ -16,6 +16,7 @@ from application.utils.timezone import (
     format_local_datetime,
     format_local_display,
     format_local_time,
+    format_local_time_range,
     local_day_bounds,
     now_local,
     parse_local_datetime,
@@ -422,6 +423,24 @@ class TestTimezoneLabel:
         at = datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
         with tz_scope(KOLKATA):
             assert timezone_label(at=at) == 'IST'
+
+
+class TestFormatLocalTimeRange:
+    def test_labels_the_zone_it_rendered_in(self):
+        start = datetime(2025, 1, 15, 14, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 1, 15, 18, 0, tzinfo=timezone.utc)
+        assert format_local_time_range(start, end, 'America/New_York') == '09:00–13:00 EST'
+        assert format_local_time_range(start, end, KOLKATA) == '19:30–23:30 IST'
+
+    def test_follows_ambient_zone(self):
+        start = datetime(2025, 7, 15, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 7, 15, 4, 0, tzinfo=timezone.utc)
+        with tz_scope(SYDNEY):
+            assert format_local_time_range(start, end) == '10:00–14:00 AEST'
+
+    def test_missing_end_is_blank(self):
+        start = datetime(2025, 1, 15, 14, 0, tzinfo=timezone.utc)
+        assert format_local_time_range(start, None) == ''
 
 
 class TestNextWholeHourLocal:
