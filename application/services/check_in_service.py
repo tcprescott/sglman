@@ -40,6 +40,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.check_in_accounts import (
     build_lookups,
+    desk_entrant,
     ensure_desk_sees,
     forget_matcherino_account,
     linkable_user,
@@ -305,8 +306,7 @@ class CheckInService:
         """
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
         async with _sync_lock(event_id):
-            event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
-            await ensure_desk_sees(actor, event)
+            event = await ensure_desk_sees(actor, require_found(await self.events.get_by_id(event_id), 'Check-in event'))
             if event.matcherino_venue_id is None and not has_comp_rules(event):
                 raise ValueError(
                     "This event has no Matcherino venue and comps nobody, so there's nothing to sync."
@@ -603,9 +603,7 @@ class CheckInService:
 
     async def _entrant_for_desk(self, actor: User, entrant_id: int) -> CheckInEntrant:
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
-        entrant = require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry')
-        await ensure_desk_sees(actor, entrant.event)
-        return entrant
+        return await desk_entrant(actor, require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry'))
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def check_in(self, actor: User, entrant_id: int, *, despite_withdrawn: bool = False) -> CheckInOutcome:

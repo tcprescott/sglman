@@ -120,7 +120,14 @@ async def linkable_user(user_id: int, actor: User) -> User:
     return user
 
 
-async def ensure_desk_sees(actor: User, event: CheckInEvent) -> None:
+async def ensure_desk_sees(actor: User, event: CheckInEvent) -> CheckInEvent:
     """A desk volunteer works open events only, as ``CheckInDeskService.roster_for`` shows them."""
     if event.status != CheckInEventStatus.OPEN and not await AuthService.can_manage_check_in(actor):
         raise NotFoundError('Check-in event not found')
+    return event
+
+
+async def desk_entrant(actor: User, entrant: CheckInEntrant) -> CheckInEntrant:
+    """``entrant``, if its event is one ``actor`` may work at the desk."""
+    await ensure_desk_sees(actor, entrant.event)
+    return entrant
