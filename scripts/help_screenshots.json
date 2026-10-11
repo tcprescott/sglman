@@ -128,6 +128,305 @@
       ]
     },
     {
+      "slug": "staff-tournaments",
+      "name": "signup-window",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/tournaments",
+      "setup": [
+        {
+          "click": "text=Add Tournament"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "click": ".q-dialog >> text=Scheduling"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".q-dialog >> text=Player signups"
+        },
+        {
+          "wait": 400
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-challonge",
+      "name": "linked",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/challonge",
+      "selector": ".page-container-narrow"
+    },
+    {
+      "slug": "staff-challonge",
+      "name": "entrants",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/challonge",
+      "setup": [
+        {
+          "click": "button:has-text(\"Entrants\")"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-presets",
+      "name": "test-roll",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/presets",
+      "setup": [
+        {
+          "click": "[aria-label=\"Test roll\"] >> nth=0"
+        },
+        {
+          "waitFor": "text=The randomizer rolled a seed."
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-payouts",
+      "name": "split",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/payouts",
+      "setup": [
+        {
+          "click": "tr:has-text(\"Last Season\") [aria-label=\"Edit split\"]"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "staff-ada",
+      "name": "queue",
+      "user": "staff_user",
+      "viewport": "desktop",
+      "path": "/admin/users",
+      "setup": [
+        {
+          "click": "text=ADA requests"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "click": "text=Members who asked for ADA accommodation"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "selector": ".q-tab-panels"
+    },
+    {
+      "slug": "volunteering",
+      "name": "my-shifts-phone",
+      "user": "sm_user",
+      "path": "/volunteer/my-shifts",
+      "selector": ".page-container:has-text('Show all shifts')"
+    },
+    {
+      "slug": "volunteering",
+      "name": "release-phone",
+      "user": "sm_user",
+      "path": "/volunteer/my-shifts",
+      "setup": [
+        {
+          "click": "text=Can't make this"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "proctor",
+      "name": "board-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "selector": ".match-grid-card:has-text('Check In'):has-text('Wizzrobe Cup')"
+    },
+    {
+      "slug": "proctor",
+      "name": "check-in-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "setup": [
+        {
+          "click": "button:has-text('Check In')"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "proctor",
+      "name": "result-phone",
+      "user": "proctor_user",
+      "path": "/volunteer/proctor-station",
+      "setup": [
+        {
+          "click": "button:has-text('Finish')"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "coordinating-volunteers",
+      "name": "schedule-desktop",
+      "user": "vc_user",
+      "viewport": "desktop",
+      "path": "/admin/vol-schedule"
+    },
+    {
+      "slug": "coordinating-volunteers",
+      "name": "assign-picker-desktop",
+      "user": "vc_user",
+      "viewport": "desktop",
+      "path": "/admin/vol-schedule",
+      "setup": [
+        {
+          "click": "button:has-text('Assign') >> nth=4"
+        },
+        {
+          "waitFor": ".q-dialog .q-card"
+        },
+        {
+          "click": "text=Show unqualified volunteers"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "coordinating-volunteers",
+      "name": "autofill-dialog-desktop",
+      "user": "vc_user",
+      "viewport": "desktop",
+      "path": "/admin/vol-schedule",
+      "setup": [
+        {
+          "click": "button:has-text('Auto-fill from availability')"
+        },
+        {
+          "waitFor": ".q-dialog .q-card"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "volunteer-hours-and-export",
+      "name": "roster-desktop",
+      "user": "vc_user",
+      "viewport": "desktop",
+      "path": "/admin/vol-roster"
+    },
+    {
+      "slug": "crew",
+      "name": "signup-phone",
+      "user": "player_three",
+      "path": "/home/schedule",
+      "selector": ".match-grid-card:has-text(\"Player Four\"):has-text(\"Player Two\"):has-text(\"Scheduled\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "crew",
+      "name": "my-crew-phone",
+      "user": "proctor_user",
+      "path": "/home/my-schedule",
+      "selector": ".wiz-panel:has-text(\"Crew you signed up for\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "schedule-board",
+      "name": "filters-phone",
+      "user": "player_four",
+      "path": "/home/schedule",
+      "setup": [
+        {
+          "click": "button:has-text(\"Filters\")"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "selector": ".match-filters-card",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "schedule-board",
+      "name": "card-phone",
+      "user": "player_three",
+      "path": "/home/schedule",
+      "selector": ".match-grid-card:has-text(\"Started\")",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "on-air",
+      "name": "timeline-phone",
+      "user": "player_two",
+      "path": "/home/on-air",
+      "selector": ".card-full-width .match-card",
+      "hide": [
+        ".q-footer"
+      ]
+    },
+    {
+      "slug": "on-air",
+      "name": "watch-page-phone",
+      "user": null,
+      "path": "/live"
+    },
+    {
       "slug": "staff-schedule",
       "name": "board-desktop",
       "user": "staff_user",

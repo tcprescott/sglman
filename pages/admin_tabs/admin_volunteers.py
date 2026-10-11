@@ -25,6 +25,7 @@ from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -92,11 +93,14 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         return start, start + timedelta(hours=30)
 
     with ui.column().classes('page-container-wide'):
-        page_header(
+        with page_header(
             'Volunteer Scheduling',
             'Build the volunteer shift grid: create positions and shifts, auto-fill '
             'from availability, and assign volunteers per shift.',
-        )
+        ):
+            await help_icon('vol-schedule', user=actor)
+            await help_icon('vol-autofill', label='Auto-fill', user=actor)
+            await help_icon('vol-drafts', label='Drafts', user=actor)
 
         # --- Coverage strip ----------------------------------------------
         # The one number a coordinator wants on-site — how much of today is

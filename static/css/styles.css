@@ -1463,7 +1463,7 @@ main.q-page:focus {
 
 .stage-link {
     margin-left: auto;
-    color: white;
+    color: var(--wiz-link);
     text-decoration: underline;
 }
 
