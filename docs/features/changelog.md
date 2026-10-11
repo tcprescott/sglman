@@ -57,5 +57,6 @@ merged PRs and commit history.
 ## The surface
 
 `/changelog` is a `@public_page` in `pages/changelog.py`: it describes the app,
-not a community's data, so a signed-out visitor can read it. The drawer's public
-foot links it as **What's new**, under Help, inside any community.
+not a community's data, so a signed-out visitor can read it. It has no drawer
+item: a **What's new** card at the top of the `/help` index opens it, and the
+page links back with "← All help".

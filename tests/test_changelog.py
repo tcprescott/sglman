@@ -12,6 +12,7 @@ from datetime import date
 from itertools import pairwise
 
 import pages.changelog as changelog_page
+import pages.help as help_page
 import theme.base as base
 from application.changelog import parse_changelog, reload_entries
 from application.changelog.catalog import CHANGELOG_PATH, ENTRY_HEADING_RE, all_entries
@@ -104,5 +105,11 @@ class TestChangelogPage:
         with open('frontend.py', encoding='utf-8') as fh:
             assert 'changelog.create()' in fh.read()
 
-    def test_drawer_links_the_page(self):
-        assert "ui.navigate.to('/changelog')" in inspect.getsource(base.BaseLayout._render_drawer_help)
+    def test_help_index_links_the_page(self):
+        assert "ui.navigate.to('/changelog')" in inspect.getsource(help_page)
+
+    def test_page_links_back_to_help(self):
+        assert "'/help'" in inspect.getsource(changelog_page.create)
+
+    def test_stays_out_of_the_drawer(self):
+        assert '/changelog' not in inspect.getsource(base)

@@ -3,7 +3,8 @@
 **Anonymous-readable**, like ``/help``: it describes the app, not a community's
 data, so there is nothing on it a signed-out visitor should not see. Entries come
 from ``application/changelog/changelog.md`` and render through the same safe
-block renderer as help, never NiceGUI's markdown element.
+block renderer as help, never NiceGUI's markdown element. It has no menu
+item of its own: the Help index links it, and it links back.
 """
 
 from nicegui import app, ui
@@ -38,6 +39,7 @@ def create() -> None:
         ).render()
 
         with ui.column().classes('page-container-narrow w-full'):
+            ui.link('← All help', '/help').classes('text-caption')
             with ui.row().classes('header-row items-center'):
                 ui.label("What's new").classes('page-title')
             ui.label(

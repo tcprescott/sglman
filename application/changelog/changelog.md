@@ -9,7 +9,7 @@
 - Spectators get a cached Watch page, and the join page points at it.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
 - The app's shell moved onto one neutral colour system, the first step of a wider style pass.
-- This page: What's new, linked under Help in the menu, lists the bigger changes a week at a time.
+- This page: What's new, at the top of Help, lists the bigger changes a week at a time.
 - Behind the scenes: error reporting through Sentry, adjustable log levels on the platform page, a security pass, and dependency updates including the MCP server's move to mcp 2.x.
 
 ## 2026-09-28/2026-10-04 Joining a community, ADA requests and boards that fit a phone
