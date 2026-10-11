@@ -26,6 +26,7 @@ from pages.admin_tabs.admin_features import admin_features_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from pages.admin_tabs.admin_payouts import admin_payouts_page
 from pages.admin_tabs.admin_presets import admin_presets_page
+from pages.admin_tabs.admin_profile_reminders import admin_profile_reminders_page
 from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
@@ -185,6 +186,9 @@ def build_admin_tabs(
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
     if is_staff and FeatureFlag.FEEDBACK in live:
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
+    if is_staff:
+        tabs.append({'label': 'Profile Reminders', 'icon': 'assignment_ind', 'group': 'Community',
+                     'content': admin_profile_reminders_page})
     if is_staff or access.is_sync_admin:
         tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
     if is_staff:

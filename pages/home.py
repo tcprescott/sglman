@@ -126,6 +126,7 @@ def create() -> None:
         match: str | None = None,
         hard: str | None = None,
         agree: str | None = None,
+        focus: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
@@ -210,7 +211,10 @@ def create() -> None:
             # hangs off the card for the tournament it belongs to.
             {'label': 'Tournaments', 'icon': 'emoji_events', 'aliases': ('triforce-texts',),
              'content': tournaments_tab},
-            {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
+            # `focus` is a Profile section id from the profile-nudge banner: the tab
+            # scrolls to and highlights the card that fixes the item.
+            {'label': 'Profile', 'icon': 'account_circle',
+             'content': (render_edit_info_tab, (), {'focus': focus})},
         ]
         if malformed_link:
             ui.notify(

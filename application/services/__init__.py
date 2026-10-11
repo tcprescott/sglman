@@ -80,6 +80,7 @@ from .mcp_auth_service import McpAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
+from .profile_nudge_service import ProfileNudgeService
 from .provider_task_service import ProviderTaskService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
@@ -178,6 +179,7 @@ __all__ = [
     'PlayerAvailabilityService',
     'PresetService',
     'ProbeResult',
+    'ProfileNudgeService',
     'ProviderTaskService',
     'RaceRoomProfileService',
     'RaceRoomService',
