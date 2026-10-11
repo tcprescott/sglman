@@ -10,11 +10,13 @@ from mcp.server.mcpserver import MCPServer
 
 from api._helpers import load_community_user_or_404
 from api._match_view import MATCH_PREFETCH
+from api.schemas.memberships import JoinRequestResponse
 from application.errors import require_found
 from application.services import (
     AuthService,
     PlayerAvailabilityService,
     ReportsService,
+    TenantMembershipService,
     UserService,
 )
 from application.tenant_context import require_tenant_id
@@ -163,6 +165,9 @@ async def get_player_availability(
         )
     if wanted != [actor.user.id] and not await AuthService.is_staff(actor.user):
         raise PermissionError("Staff access required to view other players' availability")
+    await TenantMembershipService.require_community_users(
+        [uid for uid in wanted if uid != actor.user.id], actor.user,
+    )
 
     service = UserService()
     windows_by_user = await PlayerAvailabilityService().availability_map(
@@ -187,7 +192,19 @@ async def get_player_availability(
     return out
 
 
+async def list_join_requests(tenant: TenantArg = None) -> List[JoinRequestResponse]:
+    """Requests to join this community that are waiting on a decision, oldest first.
+
+    Staff only. Decide each with `approve_join_request` or `deny_join_request`.
+    """
+    return [
+        JoinRequestResponse.from_row(r)
+        for r in await TenantMembershipService().list_pending_for(current_actor().user)
+    ]
+
+
 def register_tools(mcp: MCPServer) -> None:
+    register(mcp, list_join_requests, gate=Gate.STAFF, title='List join requests')
     register(mcp, list_users, gate=Gate.STAFF, title='List users')
     register(mcp, get_user, gate=Gate.ACTOR, title='Get user')
     register(

@@ -25,12 +25,12 @@ Generate a token on the home **Profile** tab (the *API tokens & AI clients* card
 Authorization: Bearer wizzrobe_pat_xxxxxxxx...
 ```
 
-- A token is **bound to exactly one tenant**, chosen at creation. `resolve_token` reads `token.tenant_id`, returns `403` if that tenant is missing or inactive, and sets the request tenant context — the API is excluded from `TenantMiddleware`, so the **token, not the URL, is what scopes the request**. A router-level `tenant_context_scope` dependency baselines the contextvar to `None` and resets it after the response, so a tenant never leaks to the next request on a reused task.
+- A token is **bound to exactly one tenant**, chosen at creation. `resolve_token` reads `token.tenant_id`, returns `403` if that tenant is missing or inactive or the token's owner is no longer a member of it (a super-admin excepted), and sets the request tenant context — the API is excluded from `TenantMiddleware`, so the **token, not the URL, is what scopes the request**. A router-level `tenant_context_scope` dependency baselines the contextvar to `None` and resets it after the response, so a tenant never leaks to the next request on a reused task.
 - A token **acts as its owning user** and inherits that user's exact permissions and scope *within that tenant* — the same `AuthService` role checks that gate the web UI apply. A non-staff token gets `403` from staff-only routes; a Tournament Admin token can edit only its own tournaments; a self-action (acknowledge, sign up, edit own profile) only ever affects the token's user.
 - A token may be flagged **read-only**, in which case it can call read (`GET`) endpoints only; any write returns `403`.
 - Tokens are stored as a SHA-256 hash (the plaintext is shown once at creation), support an optional expiry, and can be revoked at any time. Removing someone from a community revokes every token they hold for it (`TenantMembershipService.remove_member`), since a token is bound to one community and carries no role of its own. Implementation: [`ApiToken`](../../models/user.py) model, [`ApiTokenService`](../../application/services/api_token_service.py), auth dependency in [`api/dependencies.py`](../../api/dependencies.py).
 
-Tokens can also be managed programmatically via the `/api/tokens` endpoints (creating/revoking a token requires a non-read-only token, so a read-only token can never mint a more privileged one).
+Tokens can also be managed programmatically via the `/api/tokens` endpoints (creating/revoking a token requires a non-read-only token, so a read-only token can never mint a more privileged one, and a token minted over the API never expires later than the token that minted it).
 
 **MCP tokens are not REST credentials.** `ApiToken` also stores the platform-wide OAuth tokens issued to MCP clients (`origin='oauth'`, `tenant=NULL`); those are refused here with `401`, and a personal access token is refused at `/mcp` with `401` plus the OAuth challenge. A credential minted for one surface can never be replayed against the other. The MCP server is a sibling entry surface, not part of this API — see [features/mcp-server.md](../features/mcp-server.md).
 
@@ -81,13 +81,14 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - `POST /matches/{id}/review` — `{needs_review}`. Raises or drops the dispute flag on a recorded result, returning the updated match. The two directions gate differently: flagging is `can_run_match` (the proctor's own call, and `400` unless the match is finished), clearing is `can_confirm_match` (`403` for a proctor). `/confirm` clears the flag on its own — see [match-participation.md](../features/match-participation.md#disputed-results).
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
+- Stream offer: `POST /matches/{id}/stream-offer` · `DELETE /matches/{id}/stream-offer` — a player offers their own match for stream coverage, or takes it back. `400` for someone not in the match, or for an offer once it has started (withdrawing is allowed after). Stream managers see the offer; it does not set `is_stream_candidate`.
 
 - `GET /matches/{id}/crew` — the coordinator's crew list, **including unapproved signups** (admin). `GET /matches/{id}` hides those from everyone, so this sits behind a higher gate than the match itself; the peer of the MCP `list_match_crew` tool.
 
 ### Reschedule requests · `reschedule_requests.py`
 Players asking staff to move or call off a match. Approving **performs** the change, so a `POST /approve` is a reschedule or a cancellation, not a status update.
 - `POST /matches/{id}/reschedule-requests` — raise one (`{kind, reason, proposed_at?}`). `403` for a non-player or a tournament with requests turned off; `400` for a match under way, a SpeedGaming-sourced match, a past proposal, or a second open request by the same player.
-- `GET /reschedule-requests` — the queue. Gated in the service on `can_view_admin`: a request carries the player's own words about why they need the change, which is not schedule data and is nobody else's to read.
+- `GET /reschedule-requests` — the queue. Staff see all of it; a tournament admin sees their own tournaments' requests; everyone else gets `403`. A request carries the player's own words about why they need the change, which is not schedule data and is nobody else's to read.
 - `GET /matches/{id}/reschedule-requests` — whoever could decide these, or a player in that match reading their own; `403` otherwise.
 - `GET /reschedule-requests/mine` — your own, any token.
 - `POST /reschedule-requests/{id}/agree` — the opponent's advisory agreement. `403` for the requester themselves or an outsider.
@@ -120,12 +121,13 @@ Behind `FeatureFlag.PAYOUTS` (the whole router 404s when the community lacks it)
 
 ### Users & roles (`/api/users`) · `users.py`
 - `GET /users?role=` (Staff) returns the **members of the token's community**, not every account on the platform — identity is global but this list is not. `role` filters to users holding that role in the token's tenant. **Behaviour change:** it previously returned every `User` row on the deployment; there is deliberately no `?scope=all`, which would re-open the leak behind a parameter. A user appears once they are a member — granted a role, added from the Users tab, or created there. · `GET /users/me` · `GET /users/{id}` (self or Staff, **and only within the token's community** — see below).
-- `POST /users` (Staff; always creates an active account, and a `discord_id` that already has one is `400`) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
+- `POST /users` (Staff; always creates an active account, and a `discord_id` that already has one is `400`) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments` (Staff for anyone; a player editing their own list goes through the same signup rules as `POST /tournaments/{id}/signup`).
 - `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff) — grant/revoke a role. Roles are per-tenant except `SUPER_ADMIN`; see [authentication.md § Roles](authentication.md#roles).
 
 ### Player availability (`/api/users/me/availability`) · `player_availability.py`
 - `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions. **Opt-out:** a player with no windows is available for the whole event, so a window is a time they cannot play (`unavailable`) or would rather (`preferred`) — an `available` window is accepted but states the default. Volunteer availability, on the same wire shape, is the opposite (opt-in).
 - **Which by-id routes are community-scoped.** `User` is global, so a bare id lookup reaches every account on the platform — the same leak `GET /users` was narrowed for, behind a loop instead of a parameter. The routes that *read or edit the person* (`GET /users/{id}`, `PATCH /users/{id}`, `PATCH /users/{id}/admin`, `PUT /users/{id}/tournaments`, `GET /users/{id}/availability`) resolve only members of the token's community, via `load_community_user_or_404`. `PATCH /users/{id}/admin` matters most: `is_active` is a *global* account disable, so cross-community reach there locks someone out of communities the actor has nothing to do with. A non-member is `404`, never `403` — "no such id" and "not in your community" must read the same, or the status code is a membership oracle. You always resolve yourself, and a super-admin resolves anyone.
+- **Global account fields need more than membership.** Display name, pronouns and `is_active` belong to the account, not the community, and staff can make anyone a member by granting a role. So `PATCH /users/{id}` and `PATCH /users/{id}/admin` refuse (`403`) when the person also belongs to another community or is a super-admin; only a super-admin changes those. Staff remove such a person from their own community instead.
 - **Ids in a request body are community-scoped too.** Match rosters (`player_ids`, `commentator_ids`, `tracker_ids` on create, update and player match requests), volunteer shift assignments and bracket entrant links refuse anyone who isn't a member of the token's community, with the same `404` an unknown id gets. On an update only the people being added are checked. A super-admin may name anyone. Equipment loans are the one deliberate exception: lending to someone who just walked in is what that flow is for.
 - **Which stay global, deliberately.** The routes that *confer* something — `POST/DELETE /users/{id}/roles`, and the tournament-admin, crew-coordinator and qualifier-admin membership routes — keep the unscoped `load_user_or_404`, because granting is how a person joins a community in the first place (`grant_role` calls `ensure_member` as it goes). Nothing there discloses the person: the caller already had to know the id, and the response says only what was granted.
 - `GET /users/{id}/availability?start=&end=` — another player's windows (self, or Staff for anyone else), optionally bounded to a UTC window. The scheduler's read, matching `GET /users/{id}` and the MCP `get_player_availability` tool. It rides a second router so the literal `/users/me/…` paths keep matching before the `{user_id}` param.
@@ -134,7 +136,7 @@ Behind `FeatureFlag.PAYOUTS` (the whole router 404s when the community lacks it)
 Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes are self-service. All routes require an authenticated actor; writes use a non-read-only token.
 - **Positions:** `GET /volunteers/positions?active_only=` (list; `active_only` limits to active positions, default `false`) · `POST /volunteers/positions` (create) · `PATCH /volunteers/positions/{id}` · `DELETE /volunteers/positions/{id}`.
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
-- **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
+- **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment) · `POST /volunteers/assignments/{id}/check-in` (record that the volunteer arrived; coordinators and staff, `403` otherwise; a second call keeps the first time).
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
 - **Hours:** `GET /volunteers/hours?start=&end=` — every opted-in volunteer's served hours against the comp tiers, coordinator-only (staff or volunteer coordinator; 403 otherwise) · `GET /volunteers/hours/me` — your own. `start`/`end` are optional **local dates** that narrow the count; both default to the tenant's event window. Published assignments only, overlapping shifts counted once.
 - **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`, and unpublished drafts are never listed) · `DELETE /volunteers/me/assignments/{id}` (give a shift back, optional `{"reason": …}` body → 204; the coordinators are DMed).
@@ -173,7 +175,7 @@ Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 - `GET /preferences` · `PUT /preferences`.
 
 ### Audit (`/api/audit-logs`) · `audit.py`
-- `GET /audit-logs` — paginated, admin only. Filters: `start`/`end` (UTC time bounds), `user_id`, `action_contains` (substring match on the action string); paginate with `limit` (1–500, default 100) and `offset` (default 0). Response includes the matching-entry `total`.
+- `GET /audit-logs` — paginated, **Staff only** (the log carries webhook receiver URLs, role grants and accommodation requests). Filters: `start`/`end` (UTC time bounds), `user_id`, `action_contains` (substring match on the action string); paginate with `limit` (1–500, default 100) and `offset` (default 0). Response includes the matching-entry `total`.
 
 ### System config (`/api/config`) · `system_config.py`
 - `GET /config` · `GET /config/{key}` · `PUT /config/{key}` (Staff). A write is validated by key with the same rules as the admin page (dates, positive integers, booleans, comp tiers, station format, tournament hours as a JSON object, Discord invite links only); an unknown key or a bad value is `400`.
@@ -183,6 +185,19 @@ Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 
 ### API tokens (`/api/tokens`) · `tokens.py`
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
+
+### Join requests (`/api/join-requests`) · `memberships.py`
+The staff queue from Admin → Users. Every route is Staff (`can_grant_roles`, checked in `TenantMembershipService`).
+- `GET /join-requests` — pending requests to join the token's community, oldest first.
+- `POST /join-requests/{id}/approve` · `POST /join-requests/{id}/deny` — decide one. The requester is DMed either way. `400` once it has been decided, `404` for another community's request.
+
+### Check-in desk (`/api/check-in`) · `check_in.py`
+The `/checkin` desk's actions, behind `EVENT_CHECK_IN`. The rules are the desk page's, enforced in `CheckInService` / `CheckInDeskService`: staff and Check-in Desk volunteers work the desk; a desk volunteer reads only open events; walk-ups and checking in someone withdrawn are staff-only. Event setup stays in Admin → Check-in. See [event-check-in.md](../features/event-check-in.md).
+- `GET /check-in/events` — the events you can work. `GET /check-in/events/{id}/roster` — every row with `badges`, `lanyard`, account link, `withdrawn_at` and check-in state.
+- `POST /check-in/events/{id}/sync` — pull Matcherino sales and comps now; returns the `SyncResult` counts.
+- `POST /check-in/entrants/{id}/check-in` (`{despite_withdrawn?}`) → `{entrant, already}`. A repeat changes nothing and says `already: true`. A withdrawn row is `400` for the desk; staff may send `despite_withdrawn: true` (audited). `DELETE` on the same path undoes it.
+- `PUT /check-in/entrants/{id}/user` (`{user_id}`) · `DELETE /check-in/entrants/{id}/user` — link or unlink the row's account.
+- `POST /check-in/events/{id}/walk-ups` (`{user_id}` or `{name}`, `check_in?`) — staff only; `201`.
 
 ### Discord role mappings (`/api/discord-role-mappings`) · `discord_role_mappings.py`
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → grant mappings (Staff). A `POST` body sets **either** `app_role` (community-wide) **or** `tournament_grant` + `tournament_id` (Tournament Admin / Crew Coordinator on one event); both or neither is a 400.
@@ -202,6 +217,7 @@ When the caller's tenant has not enabled a router's flag, the **whole router 404
 | Brackets | `BRACKETS` |
 | Equipment | `EQUIPMENT` |
 | Feedback | `FEEDBACK` |
+| Check-in desk | `EVENT_CHECK_IN` |
 | `GET /reports/volunteer-hour-trends` (that route only) | `VOLUNTEERS` |
 
 Every other group stays open, including presets, seeds, racetime bots, discord events, reports, telemetry and service health. `GET /seeds/randomizers` filters on a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).

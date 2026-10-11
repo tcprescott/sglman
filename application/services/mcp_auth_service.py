@@ -23,6 +23,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 from application.errors import NotFoundError
 from application.repositories.api_token_repository import ApiTokenRepository
@@ -35,6 +36,29 @@ from application.services.audit_service import AuditActions, AuditService
 from models import ApiToken, ApiTokenOrigin, McpAuthorizationCode, McpOAuthClient, User
 
 logger = logging.getLogger(__name__)
+
+# The consent page sends the browser to the redirect URI from the app's own
+# origin, so a script-bearing scheme there runs as the signed-in person.
+_REFUSED_REDIRECT_SCHEMES = frozenset({
+    'javascript', 'data', 'vbscript', 'file', 'blob', 'about', 'filesystem',
+})
+_LOOPBACK_HOSTS = frozenset({'localhost', '127.0.0.1', '::1'})
+
+
+def is_allowed_redirect_uri(uri: str) -> bool:
+    """https anywhere, http only to loopback, or a native app's own scheme (RFC 8252)."""
+    try:
+        parts = urlsplit((uri or '').strip())
+    except ValueError:
+        return False
+    scheme = parts.scheme.lower()
+    if not scheme or scheme in _REFUSED_REDIRECT_SCHEMES or parts.fragment:
+        return False
+    if scheme == 'https':
+        return bool(parts.hostname)
+    if scheme == 'http':
+        return (parts.hostname or '').lower() in _LOOPBACK_HOSTS
+    return True
 
 # Short enough that a code left in a browser history or a proxy log is dead by
 # the time anyone finds it; long enough for a human to finish a consent screen.
@@ -126,6 +150,11 @@ class McpAuthService:
         """
         if not redirect_uris:
             raise ValueError('At least one redirect URI is required')
+        for uri in redirect_uris:
+            if not is_allowed_redirect_uri(uri):
+                raise ValueError(
+                    'Redirect URIs must be https, http to localhost, or an app scheme.'
+                )
         return await self.repository.create_client(
             client_id=client_id or secrets.token_urlsafe(24),
             client_name=client_name or 'MCP client',
@@ -188,6 +217,8 @@ class McpAuthService:
         """
         pending = self.get_pending(txn_id)
         self.discard_pending(txn_id)
+        if not is_allowed_redirect_uri(pending.redirect_uri):
+            raise ValueError('This app registered a redirect address Wizzrobe will not open.')
 
         client = await self.repository.get_client(pending.client_id)
         if client is None:
@@ -235,9 +266,8 @@ class McpAuthService:
         Returns ``(access_token, refresh_token, expires_in_seconds)``.
         """
         now = datetime.now(timezone.utc)
-        if code.consumed_at is not None:
+        if code.consumed_at is not None or not await self.repository.consume_code(code, now):
             raise ValueError('This authorization code has already been used')
-        await self.repository.consume_code(code, now)
 
         access_raw = MCP_TOKEN_PREFIX + secrets.token_urlsafe(32)
         refresh_raw = MCP_REFRESH_PREFIX + secrets.token_urlsafe(32)
@@ -294,7 +324,7 @@ class McpAuthService:
         now = datetime.now(timezone.utc)
         access_raw = MCP_TOKEN_PREFIX + secrets.token_urlsafe(32)
         refresh_raw = MCP_REFRESH_PREFIX + secrets.token_urlsafe(32)
-        await self.token_repository.rotate_refresh(
+        rotated = await self.token_repository.rotate_refresh(
             token,
             token_hash=_hash(access_raw),
             token_prefix=access_raw[:17],
@@ -302,6 +332,8 @@ class McpAuthService:
             refresh_token_hash=_hash(refresh_raw),
             refresh_expires_at=now + REFRESH_TOKEN_TTL,
         )
+        if not rotated:
+            raise ValueError('This refresh token has already been used')
         return access_raw, refresh_raw, int(ACCESS_TOKEN_TTL.total_seconds())
 
     async def load_access_token(self, raw_token: str) -> Optional[ApiToken]:

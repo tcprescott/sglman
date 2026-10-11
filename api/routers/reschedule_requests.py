@@ -22,32 +22,14 @@ from api.schemas.reschedule_requests import (
     RescheduleRequestResponse,
 )
 from application.services import MatchRescheduleService
-from models import MatchRescheduleRequest, User
+from models import User
 
 router = APIRouter(tags=["Reschedule requests"], route_class=ServiceErrorRoute)
 
 MAX_ROWS = 500
 
 
-def _serialize(row: MatchRescheduleRequest) -> RescheduleRequestResponse:
-    decider = row.decided_by
-    return RescheduleRequestResponse(
-        id=row.id,
-        match_id=row.match_id,  # type: ignore[attr-defined]
-        kind=getattr(row.kind, 'value', row.kind),
-        status=getattr(row.status, 'value', row.status),
-        reason=row.reason,
-        proposed_at=row.proposed_at,
-        original_scheduled_at=row.original_scheduled_at,
-        opponent_agreed_at=row.opponent_agreed_at,
-        requested_by_id=row.requested_by_id,  # type: ignore[attr-defined]
-        requested_by_name=row.requested_by.preferred_name if row.requested_by else None,
-        decided_by_id=row.decided_by_id,  # type: ignore[attr-defined]
-        decided_by_name=decider.preferred_name if decider else None,
-        decided_at=row.decided_at,
-        decision_note=row.decision_note,
-        created_at=row.created_at,
-    )
+_serialize = RescheduleRequestResponse.from_row
 
 
 async def _reload(service: MatchRescheduleService, request_id: int, fallback):
@@ -79,9 +61,10 @@ async def list_mine(
     summary="List reschedule requests waiting on a decision (admin)",
 )
 async def list_pending(actor: User = Depends(require_api_actor)):
-    """The staff queue. Gated in the service on `can_view_admin` — a request
-    carries the player's own words about why they need the change, which is not
-    schedule data and is nobody else's to read."""
+    """The staff queue. Gated in the service to Staff, or a tournament admin
+    for their own tournaments — a request carries the player's own words about
+    why they need the change, which is not schedule data and is nobody else's
+    to read."""
     rows = await MatchRescheduleService().list_pending(actor)
     return [_serialize(row) for row in rows]
 

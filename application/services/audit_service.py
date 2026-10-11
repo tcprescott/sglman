@@ -14,6 +14,7 @@ from typing import Any, Mapping, Optional
 
 from application.events import Event, event_bus
 from application.repositories.audit_repository import AuditRepository
+from application.services.auth_service import AuthService
 from application.tenant_context import get_current_tenant_id
 from models import AuditLog, User
 
@@ -439,9 +440,18 @@ class AuditService:
     def __init__(self) -> None:
         self.repository = AuditRepository()
 
+    @staticmethod
+    async def _ensure_can_read(actor: Optional[User]) -> None:
+        """Staff only: the log is the whole community's history, including role
+        grants, webhook receiver URLs and who asked for an accommodation.
+        ``actor=None`` is an internal caller skipping the check deliberately."""
+        if actor is not None and not await AuthService.is_staff(actor):
+            raise PermissionError('Only Staff can read the audit log.')
+
     async def list_logs(
         self,
         *,
+        actor: Optional[User] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         user_id: Optional[int] = None,
@@ -449,6 +459,7 @@ class AuditService:
         limit: int = 100,
         offset: int = 0,
     ) -> list[AuditLog]:
+        await self._ensure_can_read(actor)
         return await self.repository.list(
             start=start,
             end=end,
@@ -461,11 +472,13 @@ class AuditService:
     async def count_logs(
         self,
         *,
+        actor: Optional[User] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         user_id: Optional[int] = None,
         action_contains: Optional[str] = None,
     ) -> int:
+        await self._ensure_can_read(actor)
         return await self.repository.count(
             start=start,
             end=end,

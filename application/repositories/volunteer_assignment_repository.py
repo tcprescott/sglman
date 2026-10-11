@@ -5,7 +5,7 @@ Volunteers placed into shifts.
 """
 
 from datetime import datetime
-from typing import List, Optional, Set, cast
+from typing import List, Optional, Sequence, Set, cast
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerAssignment, VolunteerShift
@@ -58,18 +58,26 @@ class VolunteerAssignmentRepository:
         await assignment.delete()
 
     @staticmethod
-    async def save(assignment: VolunteerAssignment) -> VolunteerAssignment:
-        await assignment.save()
+    async def save(
+        assignment: VolunteerAssignment, update_fields: Optional[Sequence[str]] = None,
+    ) -> VolunteerAssignment:
+        if update_fields is None:
+            await assignment.save()
+        else:
+            await assignment.save(update_fields=[*update_fields, 'updated_at'])
         return assignment
 
     @staticmethod
     async def overlapping_for_user(
         user_id: int, start: datetime, end: datetime, exclude_shift_id: Optional[int] = None,
+        *, published_only: bool = False,
     ) -> List[VolunteerAssignment]:
         """Assignments whose shift overlaps [start, end] for this user."""
         query = scoped(VolunteerAssignment.filter(
             user_id=user_id, shift__starts_at__lt=end, shift__ends_at__gt=start,
         ))
+        if published_only:
+            query = query.filter(auto_generated=False)
         if exclude_shift_id is not None:
             query = query.exclude(shift_id=exclude_shift_id)
         return await query.prefetch_related(*_PREFETCH)
@@ -137,15 +145,20 @@ class VolunteerAssignmentRepository:
         return await query.order_by('shift__starts_at').prefetch_related('shift', 'user')
 
     @staticmethod
-    async def delete_auto_for_window(start: datetime, end: datetime) -> int:
+    async def delete_auto_for_window(
+        start: datetime, end: datetime, position_ids: Optional[Sequence[int]] = None,
+    ) -> int:
         """Delete draft (auto-generated) assignments whose shift overlaps the window.
+
+        ``position_ids`` narrows it to those positions' shifts; ``None`` means all.
 
         Done in two steps (resolve shift ids, then delete by id) so it works on
         databases that don't support join-based DELETE (e.g. SQLite in tests).
         """
-        shift_ids = await scoped(VolunteerShift.filter(
-            starts_at__lt=end, ends_at__gt=start,
-        )).values_list('id', flat=True)
+        shifts = scoped(VolunteerShift.filter(starts_at__lt=end, ends_at__gt=start))
+        if position_ids is not None:
+            shifts = shifts.filter(position_id__in=list(position_ids))
+        shift_ids = await shifts.values_list('id', flat=True)
         if not shift_ids:
             return 0
         return await scoped(VolunteerAssignment.filter(
@@ -185,6 +198,16 @@ class VolunteerAssignmentRepository:
         assignment.auto_generated = False
         await assignment.save(update_fields=['auto_generated', 'updated_at'])
         return assignment
+
+    @staticmethod
+    async def published_unfinished(
+        now: datetime, shift_id: Optional[int] = None,
+    ) -> List[VolunteerAssignment]:
+        """Published assignments on shifts that have not ended, optionally one shift."""
+        query = scoped(VolunteerAssignment.filter(auto_generated=False, shift__ends_at__gt=now))
+        if shift_id is not None:
+            query = query.filter(shift_id=shift_id)
+        return await query.prefetch_related(*_PREFETCH)
 
     @staticmethod
     async def list_for_shift(shift_id: int) -> List[VolunteerAssignment]:

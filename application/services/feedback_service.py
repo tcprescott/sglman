@@ -108,15 +108,16 @@ class FeedbackService:
     async def set_reviewed(
         self, actor: User, feedback_id: int, reviewed: bool = True,
     ) -> Feedback:
-        """Mark a submission reviewed, or put it back in the queue. Admin-only.
+        """Mark a submission reviewed, or put it back in the queue. Staff-only,
+        like the queue itself: the response carries the whole submission.
 
         Reversible on purpose. Marking reviewed used to be terminal, so a
         mis-click quietly dropped a submission out of the only queue anyone
         looks at, with no way to retrieve it short of the database.
         """
         await AuthService.ensure(
-            await AuthService.can_view_admin(actor),
-            "Only admins can review feedback.",
+            await AuthService.is_staff(actor),
+            "Only Staff can review feedback.",
         )
         feedback = require_found(await self.repository.get_by_id(feedback_id), "Feedback")
 

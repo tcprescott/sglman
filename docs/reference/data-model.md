@@ -1866,6 +1866,29 @@ confirming yet". Both write audit rows and publish
 `match.flagged_for_review` / `match.review_cleared`. The flag carries no text:
 the audit trail is the record that the dispute happened.
 
+A confirmed match is closed to the proctor. `record_match_result` on a match
+with `confirmed_at` set takes `can_confirm_match` as well as `can_run_match`
+(changing a confirmed winner is a correction, the admin's call), and
+`flag_for_review` refuses a confirmed match outright.
+
+Every transition (`MatchScheduleService._transition`) re-reads the lifecycle
+fields before its precondition and stamps through
+`MatchRepository.stamp_if_unset`, a compare-and-set that writes that one column
+only while it is still NULL. The board hands the service a row loaded when the
+dialog opened, so without this a second proctor's late Check in passed its
+stale precondition and wrote the whole row back, clearing a `started_at` set in
+between (and any stage assigned meanwhile), and a double tap stamped, audited and
+notified twice. The loser of the race gets a `ValueError` asking them to refresh.
+
+The rest of the match writes save only the columns they name, so none of them can
+move a match backwards by accident: `MatchRepository.update` saves `fields` and
+nothing else (an FK named by relation is mapped to its `_id` column), the seed
+roll saves `generated_seed_id` after waiting on the provider, and the stage
+reminder saves `stage_reminder_sent_at`. The only way to clear a lifecycle
+timestamp is `MatchService.update_match`'s explicit `clear_seated` /
+`clear_started` / `clear_finished` / `clear_confirmed`, which the edit dialog's
+rewind buttons send.
+
 ## Repository layer
 
 Repositories live in [`application/repositories/`](../../application/repositories/) and are exported from its [`__init__.py`](../../application/repositories/__init__.py); the layering rules and worked examples are in [refactoring-guide.md](../refactoring-guide.md). Both calling conventions are in use and interchangeable — a class of lookups (`TournamentRepository.update(...)`) and an instance (`PresetRepository().update(...)`).

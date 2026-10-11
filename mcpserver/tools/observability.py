@@ -1,6 +1,6 @@
 """Audit history, engagement telemetry, integrations, and system configuration.
 
-Gates mirror ``api/routers/audit.py`` (admin), ``api/routers/system_config.py``
+Gates mirror ``api/routers/audit.py`` (staff), ``api/routers/system_config.py``
 (staff), ``api/routers/webhooks.py`` (staff), ``api/routers/service_health.py``
 (staff for the tenant subset), and the telemetry service's own staff check.
 
@@ -51,7 +51,7 @@ async def list_audit_log(
 ) -> AuditPage:
     """Search the community's audit history — who changed what, and when.
 
-    Requires admin access. Actions are namespaced `verb.object` strings such as
+    Requires Staff. Actions are namespaced `verb.object` strings such as
     `match.created`; `action_contains` does a substring match. Times are UTC.
     """
     limit = clamp(limit, low=1, high=MAX_ROWS)
@@ -59,11 +59,12 @@ async def list_audit_log(
     start_dt, end_dt = parse_ts('start', start), parse_ts('end', end)
 
     service = AuditService()
+    actor = current_actor().user
     total = await service.count_logs(
-        start=start_dt, end=end_dt, user_id=user_id, action_contains=action_contains,
+        actor=actor, start=start_dt, end=end_dt, user_id=user_id, action_contains=action_contains,
     )
     logs = await service.list_logs(
-        start=start_dt, end=end_dt, user_id=user_id, action_contains=action_contains,
+        actor=actor, start=start_dt, end=end_dt, user_id=user_id, action_contains=action_contains,
         limit=limit, offset=offset,
     )
     return AuditPage(
@@ -228,7 +229,7 @@ async def list_feedback(
 
 
 def register_tools(mcp: MCPServer) -> None:
-    register(mcp, list_audit_log, gate=Gate.ADMIN, title='Search audit log')
+    register(mcp, list_audit_log, gate=Gate.STAFF, title='Search audit log')
     register(mcp, telemetry_summary, gate=Gate.STAFF, title='Telemetry summary')
     register(mcp, telemetry_top, gate=Gate.STAFF, title='Telemetry leaderboards')
     register(mcp, get_system_config, gate=Gate.STAFF, title='Get system config')

@@ -53,12 +53,19 @@ class TestReads:
         assert resp.json()['username'] == 'ours'
 
     async def test_you_can_always_read_yourself(self, db, app):
-        """A token whose owner fell out of membership still reads its own row."""
-        user, raw = await create_user_token(username='loner')
-        assert not await TenantMembership.filter(user=user).exists()
+        user, raw = await create_user_token(username='member')
         async with client_for(app, raw) as c:
             resp = await c.get(f'/api/users/{user.id}')
         assert resp.status_code == 200
+
+    async def test_a_token_outliving_its_membership_is_refused(self, db, app):
+        """Removal revokes tokens, but one minted before that existed, or by a
+        super-admin who has since lost the role, must not keep working."""
+        user, raw = await create_user_token(username='loner', member=False)
+        assert not await TenantMembership.filter(user=user).exists()
+        async with client_for(app, raw) as c:
+            resp = await c.get(f'/api/users/{user.id}')
+        assert resp.status_code == 403
 
     async def test_super_admin_reads_anyone(self, db, app, outsider):
         _, raw = await create_user_token(username='root', roles=[Role.SUPER_ADMIN])
@@ -108,3 +115,48 @@ class TestWrites:
             )
         assert resp.status_code == 200, resp.text
         assert await TenantMembership.filter(user=outsider, tenant_id=1).exists()
+
+    async def test_adding_a_stranger_does_not_unlock_their_account(self, db, app, outsider):
+        """Membership is no limit on global fields, since staff can add anyone:
+        grant a role, and the 404 above used to become a platform-wide lockout."""
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            await c.post(f'/api/users/{outsider.id}/roles', json={'role': 'volunteer'})
+            deactivate = await c.patch(
+                f'/api/users/{outsider.id}/admin', json={'is_active': False},
+            )
+            rename = await c.patch(
+                f'/api/users/{outsider.id}', json={'display_name': 'Impostor'},
+            )
+        assert deactivate.status_code == 403
+        assert 'another community' in deactivate.json()['detail']
+        assert rename.status_code == 403
+        await outsider.refresh_from_db()
+        assert outsider.is_active is True
+        assert outsider.display_name != 'Impostor'
+
+    async def test_community_staff_cannot_deactivate_a_super_admin(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        admin, _ = await create_user_token(username='platform', roles=[Role.SUPER_ADMIN])
+        async with client_for(app, raw) as c:
+            resp = await c.patch(f'/api/users/{admin.id}/admin', json={'is_active': False})
+        assert resp.status_code == 403
+        assert 'platform admin' in resp.json()['detail']
+        await admin.refresh_from_db()
+        assert admin.is_active is True
+
+    async def test_staff_still_manage_someone_who_is_only_theirs(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        member = await create_community_member(username='ours-only')
+        async with client_for(app, raw) as c:
+            resp = await c.patch(f'/api/users/{member.id}/admin', json={'is_active': False})
+        assert resp.status_code == 200, resp.text
+        await member.refresh_from_db()
+        assert member.is_active is False
+
+    async def test_a_super_admin_may_deactivate_anyone(self, db, app, outsider):
+        _, raw = await create_user_token(username='platform', roles=[Role.SUPER_ADMIN])
+        await TenantMembership.create(user=outsider, tenant_id=1)
+        async with client_for(app, raw) as c:
+            resp = await c.patch(f'/api/users/{outsider.id}/admin', json={'is_active': False})
+        assert resp.status_code == 200, resp.text

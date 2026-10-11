@@ -184,6 +184,41 @@ async def test_a_denied_request_can_be_reopened_not_duplicated(staff, db):
     assert await TenantJoinRequest.filter(user=outsider, tenant_id=1).count() == 1
 
 
+async def test_asking_again_while_pending_does_not_re_notify_staff(staff, db, monkeypatch):
+    """Every click DM'd every staff member, and a client can keep clicking."""
+    from unittest.mock import AsyncMock
+
+    notify = AsyncMock()
+    monkeypatch.setattr(TenantMembershipService, '_notify_staff_of_request', notify)
+    outsider = await User.create(discord_id=4110, username='outsider')
+    service = TenantMembershipService()
+
+    await service.request_to_join(outsider, 1, 'let me in')
+    again = await service.request_to_join(outsider, 1, 'please')
+
+    assert notify.await_count == 1
+    assert again.message == 'please'
+
+
+async def test_remove_member_refuses_a_tournament_admin(staff, db):
+    """A per-tournament grant left behind comes back with any re-admission."""
+    from models import Tournament
+
+    target = await User.create(discord_id=4111, username='ta')
+    service = TenantMembershipService()
+    await service.add_member(staff, target)
+    tournament = await Tournament.create(name='Cup')
+    await tournament.admins.add(target)
+
+    with pytest.raises(ValueError, match='tournament admin'):
+        await service.remove_member(staff, target)
+    assert await service.is_member(target) is True
+
+    await tournament.admins.remove(target)
+    await service.remove_member(staff, target)
+    assert await service.is_member(target) is False
+
+
 async def test_approving_creates_the_membership(staff, db):
     outsider = await User.create(discord_id=4102, username='outsider')
     service = TenantMembershipService()

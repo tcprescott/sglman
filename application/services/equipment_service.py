@@ -6,13 +6,17 @@ numbers) and the checkout/check-in workflow with full loan history.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional, TypeVar
 
-from application.errors import require_found
+from tortoise.exceptions import IntegrityError
+from tortoise.transactions import in_transaction
+
+from application.errors import NotFoundError, require_found
 from application.feature_flags import requires_feature
 from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.tenant_membership_service import TenantMembershipService
 from models import (
     SYSTEM_USER_DISCORD_ID,
     Equipment,
@@ -24,6 +28,10 @@ from models import (
 
 MAX_BULK_COUNT = 200
 
+_NUMBER_TAKEN = "Someone else added an asset at the same moment. Save again and it'll get the next number."
+
+T = TypeVar('T')
+
 
 class EquipmentService:
     """Service for equipment lending operations."""
@@ -33,14 +41,35 @@ class EquipmentService:
         self.audit_service = AuditService()
 
     @staticmethod
-    async def _resolve_owner(owner_user_id: Optional[int]) -> Optional[User]:
+    async def _resolve_owner(owner_user_id: Optional[int], actor: User) -> Optional[User]:
         """Resolve an owner id to a User; ``None`` means the community owns it."""
         if not owner_user_id:
             return None
-        owner = await User.get_or_none(id=owner_user_id)
+        try:
+            await TenantMembershipService.require_community_users([owner_user_id], actor)
+        except NotFoundError:
+            owner = None
+        else:
+            owner = await User.get_or_none(id=owner_user_id)
         if owner is None:
             raise ValueError("That owner doesn't exist. Pick someone from the list.")
         return owner
+
+    async def _with_next_number(self, create: Callable[[int], Awaitable[T]]) -> tuple[int, T]:
+        """Run ``create`` with the next free asset number, retrying once on a clash.
+
+        The number is read as max+1, so two managers saving at once can both
+        read the same one; the (tenant, asset_number) unique constraint refuses
+        the second insert. One retry re-reads past the winner.
+        """
+        for attempt in range(2):
+            start = await self.repository.next_asset_number()
+            try:
+                return start, await create(start)
+            except IntegrityError:
+                if attempt:
+                    raise ValueError(_NUMBER_TAKEN) from None
+        raise AssertionError('unreachable')
 
     # --- Asset management (Equipment Manager / Staff) ---
 
@@ -61,14 +90,17 @@ class EquipmentService:
         if not name:
             raise ValueError("Asset name is required.")
 
-        owner = await self._resolve_owner(owner_user_id)
-        asset_number = await self.repository.next_asset_number()
-        equipment = await self.repository.create(
-            asset_number=asset_number,
-            name=name,
-            description=(description or '').strip() or None,
-            private_notes=(private_notes or '').strip() or None,
-            owner_user=owner,
+        owner = await self._resolve_owner(owner_user_id, actor)
+        description = (description or '').strip() or None
+        private_notes = (private_notes or '').strip() or None
+        asset_number, equipment = await self._with_next_number(
+            lambda number: self.repository.create(
+                asset_number=number,
+                name=name,
+                description=description,
+                private_notes=private_notes,
+                owner_user=owner,
+            )
         )
 
         await self.audit_service.write_log(
@@ -98,22 +130,27 @@ class EquipmentService:
         if not 1 <= count <= MAX_BULK_COUNT:
             raise ValueError(f"Count must be between 1 and {MAX_BULK_COUNT}.")
 
-        owner = await self._resolve_owner(owner_user_id)
-        start = await self.repository.next_asset_number()
+        owner = await self._resolve_owner(owner_user_id, actor)
         description = (description or '').strip() or None
         private_notes = (private_notes or '').strip() or None
 
-        assets = [
-            Equipment(
-                asset_number=start + offset,
-                name=name,
-                description=description,
-                private_notes=private_notes,
-                owner_user=owner,
-            )
-            for offset in range(count)
-        ]
-        await self.repository.bulk_create(assets)
+        async def create_block(first: int) -> List[Equipment]:
+            block = [
+                Equipment(
+                    asset_number=first + offset,
+                    name=name,
+                    description=description,
+                    private_notes=private_notes,
+                    owner_user=owner,
+                )
+                for offset in range(count)
+            ]
+            # One transaction so a clash part-way through leaves no partial block.
+            async with in_transaction():
+                await self.repository.bulk_create(block)
+            return block
+
+        start, assets = await self._with_next_number(create_block)
 
         await self.audit_service.write_log(
             actor,
@@ -145,16 +182,19 @@ class EquipmentService:
         equipment.name = name
         equipment.description = (description or '').strip() or None
         equipment.private_notes = (private_notes or '').strip() or None
-        equipment.owner_user = await self._resolve_owner(owner_user_id)
+        equipment.owner_user = await self._resolve_owner(owner_user_id, actor)
         fields = ['name', 'description', 'private_notes', 'owner_user_id', 'updated_at']
 
-        if status is not None and status != equipment.status:
-            if equipment.status == EquipmentStatus.CHECKED_OUT or status == EquipmentStatus.CHECKED_OUT:
-                raise ValueError("Use check out / check in to change a checked-out status.")
-            equipment.status = status
-            fields.append('status')
-
-        await self.repository.update(equipment, fields)
+        async with in_transaction():
+            if status is not None and status != equipment.status:
+                if equipment.status == EquipmentStatus.CHECKED_OUT or status == EquipmentStatus.CHECKED_OUT:
+                    raise ValueError("Use check out / check in to change a checked-out status.")
+                # Conditional, like checkout's claim: retiring an asset someone
+                # checked out a moment ago must not overwrite CHECKED_OUT.
+                if not await self.repository.transition_status(equipment.id, equipment.status, status):
+                    raise ValueError("This asset was just checked out. Check it in before changing its status.")
+                equipment.status = status
+            await self.repository.update(equipment, fields)
         await self.audit_service.write_log(
             actor,
             AuditActions.EQUIPMENT_UPDATED,
@@ -224,9 +264,16 @@ class EquipmentService:
         if await self.repository.get_open_loan(equipment) is not None:
             raise ValueError("This asset is already checked out.")
 
-        loan = await self.repository.create_loan(equipment, borrower, actor)
+        # The conditional status flip is the lock: a double-tap or two phones
+        # scanning the same label both pass the reads above, and only one of
+        # them gets to move the row off AVAILABLE.
+        async with in_transaction():
+            if not await self.repository.transition_status(
+                equipment.id, EquipmentStatus.AVAILABLE, EquipmentStatus.CHECKED_OUT,
+            ):
+                raise ValueError("This asset is already checked out.")
+            loan = await self.repository.create_loan(equipment, borrower, actor)
         equipment.status = EquipmentStatus.CHECKED_OUT
-        await self.repository.update(equipment, ['status', 'updated_at'])
 
         await self.audit_service.write_log(
             actor,
@@ -246,9 +293,16 @@ class EquipmentService:
         if loan is None:
             raise ValueError("This asset is not currently checked out.")
 
-        await self.repository.close_loan(loan, actor, datetime.now(timezone.utc))
-        equipment.status = EquipmentStatus.AVAILABLE
-        await self.repository.update(equipment, ['status', 'updated_at'])
+        # Closing the loan is conditional on it still being open, so a
+        # double-tapped Check in records one return and one audit row.
+        async with in_transaction():
+            if not await self.repository.close_loan(loan, actor, datetime.now(timezone.utc)):
+                raise ValueError("This asset is not currently checked out.")
+            if not await self.repository.has_open_loan(equipment.id):
+                await self.repository.transition_status(
+                    equipment.id, EquipmentStatus.CHECKED_OUT, EquipmentStatus.AVAILABLE,
+                )
+                equipment.status = EquipmentStatus.AVAILABLE
 
         await self.audit_service.write_log(
             actor,

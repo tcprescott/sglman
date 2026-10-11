@@ -469,6 +469,13 @@ alive.
 | `/live/tournament/{tournament_id}/brackets` | `/tournament/{tournament_id}/brackets` |
 | `/live/brackets/{bracket_id}` | `/brackets/{bracket_id}` |
 
+A third static page, the community-wide **Watch page** at `/live`
+([`pages/static_watch.py`](../../pages/static_watch.py)), shares this cache and
+its invalidation and links each tournament's static index; see
+[frontend.md](../reference/frontend.md). `middleware/public_cache.py` strips
+`Set-Cookie` and drops `Cookie` from `Vary` on all three, so a CDN can serve one
+entry to every reader.
+
 They are plain FastAPI routes in
 [`pages/static_brackets.py`](../../pages/static_brackets.py) — a `@public_page`
 would mint the very client this exists to avoid — and each interactive page links

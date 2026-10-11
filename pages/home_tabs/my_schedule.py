@@ -19,9 +19,9 @@ block and its controls in its own header.
 
 from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import FeatureFlagService
+from application.services import FeatureFlagService, TournamentService, get_user_from_discord_id
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_checkouts_section
@@ -44,13 +44,23 @@ async def my_schedule_tab(
     the alias declared in :mod:`pages.home`.
     """
     live = await FeatureFlagService().enabled_flags()
+    # Someone entered in no tournament is here for their crew slots, and the
+    # matches panel above them was an empty board with six help chips: on a
+    # phone it pushed the crew list, and its Confirm button, below the fold.
+    # Their crew comes first; the empty panel still renders after it, because
+    # it is where a forwarded player link explains itself.
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
 
     with ui.column().classes('page-container wiz-section-stack'):
+        if not plays:
+            await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
             agree=agree,
         )
-        await my_crew_tab(focus_match=match)
+        if plays:
+            await my_crew_tab(focus_match=match)
         await availability_tab()
         if FeatureFlag.EQUIPMENT in live:
             await equipment_checkouts_section()

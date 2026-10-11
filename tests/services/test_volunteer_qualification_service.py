@@ -1,19 +1,20 @@
 """Tests for volunteer qualification logic.
 
 There is no standalone VolunteerQualificationService; qualifications are
-managed directly via the VolunteerQualification model and queried inside
-VolunteerAutoscheduleService. These tests cover that query path using the
+managed directly via the VolunteerQualification model and read through
+VolunteerQualificationRepository by VolunteerAutoscheduleService. These tests cover that query path using the
 in-memory DB fixture, and the qualification-based filtering inside _pick.
 """
 
 
+from application.repositories import VolunteerQualificationRepository
 from application.services.volunteer.volunteer_autoschedule_service import (
     DraftPolicy,
     VolunteerAutoscheduleService,
 )
 
 # ---------------------------------------------------------------------------
-# _qualifications (static async) — exercised via the autoschedule service
+# position_ids_by_user — the query the autoschedule service reads qualifications through
 # ---------------------------------------------------------------------------
 
 
@@ -21,7 +22,7 @@ class TestQualificationsQuery:
     """Integration tests that hit the in-memory SQLite DB."""
 
     async def test_returns_empty_when_no_qualifications(self, db):
-        result = await VolunteerAutoscheduleService._qualifications([1, 2])
+        result = await VolunteerQualificationRepository.position_ids_by_user([1, 2])
         assert result == {}
 
     async def test_returns_position_ids_grouped_by_user(self, db):
@@ -38,7 +39,7 @@ class TestQualificationsQuery:
         await VolunteerQualification.create(user=user, position=pos1)
         await VolunteerQualification.create(user=user, position=pos2)
 
-        result = await VolunteerAutoscheduleService._qualifications([user.id])
+        result = await VolunteerQualificationRepository.position_ids_by_user([user.id])
         assert user.id in result
         assert pos1.id in result[user.id]
         assert pos2.id in result[user.id]
@@ -54,7 +55,7 @@ class TestQualificationsQuery:
         pos = await VolunteerPosition.create(name='FilterPos')
         await VolunteerQualification.create(user=u2, position=pos)
 
-        result = await VolunteerAutoscheduleService._qualifications([u1.id])
+        result = await VolunteerQualificationRepository.position_ids_by_user([u1.id])
         assert u2.id not in result
 
 

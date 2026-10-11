@@ -226,6 +226,38 @@ class TestReads:
 
         assert len(resp.json()) == 1
 
+    async def test_the_queue_refuses_other_admin_roles(self, db, app):
+        """Deciding a request is Staff or the tournament's admin; a Stream
+        Manager reaches the admin area but has no business in the queue."""
+        player, player_token = await create_user_token(username='p1')
+        _, sm_token = await create_user_token(username='sm', roles=[Role.STREAM_MANAGER])
+        match = await _match_with(player)
+
+        api_app = build_api_app()
+        async with client_for(api_app, player_token) as client:
+            await _ask(client, match.id)
+        async with client_for(api_app, sm_token) as client:
+            resp = await client.get('/api/reschedule-requests')
+
+        assert resp.status_code == 403
+
+    async def test_a_tournament_admin_sees_only_their_own(self, db, app):
+        player, player_token = await create_user_token(username='p1')
+        ta, ta_token = await create_user_token(username='ta')
+        mine = await _match_with(player)
+        theirs = await _match_with(player)
+        await (await mine.tournament).admins.add(ta)
+
+        api_app = build_api_app()
+        async with client_for(api_app, player_token) as client:
+            await _ask(client, mine.id)
+            await _ask(client, theirs.id)
+        async with client_for(api_app, ta_token) as client:
+            resp = await client.get('/api/reschedule-requests')
+
+        assert resp.status_code == 200
+        assert [r['match_id'] for r in resp.json()] == [mine.id]
+
 
 async def test_a_request_is_invisible_across_tenants(two_tenant_api):
     """The sharpest leak point: a forwarded request id from another community."""

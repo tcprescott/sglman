@@ -117,6 +117,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/qualifiers`, `/qualifiers/{qualifier_id}` | [`pages/qualifiers.py`](../../pages/qualifiers.py) | Login required (`ASYNC_QUALIFIERS` flag); player async-qualifier pages (draw, timer, submit, leaderboard) |
 | `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` | [`pages/brackets.py`](../../pages/brackets.py) | **No login** — `@public_page(feature=FeatureFlag.BRACKETS)`; read-only bracket index + per-stage detail |
 | `/live/tournament/{tournament_id}/brackets`, `/live/brackets/{bracket_id}` | [`pages/static_brackets.py`](../../pages/static_brackets.py) | **No login, and not a NiceGUI page** — plain FastAPI routes returning server-rendered, heavily-cached HTML (no websocket) for spectators. Same tenant + `BRACKETS` gate and the same DRAFT/CANCELLED rule as the interactive twins above; see [brackets.md](../features/brackets.md#static-spectator-views--the-link-you-send-a-stream) |
+| `/live` | [`pages/static_watch.py`](../../pages/static_watch.py) | **No login, and not a NiceGUI page** — the spectator **Watch page**: each active stage's stream link with what is on it now and the next three matches, the published brackets (linking their static twins), and a *Get involved* card (crew signup lands on `/home/schedule`, Event information, Help). Rendered by [`theme/watch_view.py`](../../theme/watch_view.py) on the community's clock, served through the static bracket views' cache, `MATCH_*`/`BRACKET_*` invalidation and `Cache-Control: public` + `ETag`. Player names follow `join_page_match_preview`; stage names and stream links always show. No feature flag (decided for SG Live 2026). This is the link to put in a tweet, on stream or on a QR code |
 | `/help`, `/help/{slug}` | [`pages/help.py`](../../pages/help.py) | **No login** — `@public_page`; the in-app help index (search over article cards) and article pages (sidebar nav + anchored headings). Articles are Markdown in `application/help/content/`, parsed to a closed block model and rendered with native elements — never `ui.markdown`. Reached from the **Help** drawer item, which is not gated on a signed-in user. See [help.md](../features/help.md) |
 | `/event-info`, `/event-info/{slug}` | [`pages/event_info.py`](../../pages/event_info.py) | **No login** — `@public_page(feature=FeatureFlag.EVENT_INFO)`; one community's own event handbook (what's on, attending, who to ask, and role-gated floor procedure). Articles are Markdown in `application/event_info/content/<tenant-slug>/`, through the same closed block model as help. Article visibility additionally filters on `roles:`, so the page stays public while the room-staff procedure is not. Reached from the **Event Information** drawer item, above Help. See [event-information.md](../features/event-information.md) |
 | `/room/{token}/seeds` | [`pages/room_seeds.py`](../../pages/room_seeds.py) | **No login** — `@public_page(telemetry_path='/room/seeds')`; authorizes on an unlisted `RoomToken` instead of a session, for a tournament-room machine nobody signs in on. Read-only board of matches whose seed is rolled and which nobody has started. An unknown, revoked, malformed or wrong-community token renders a plain 404. See [the tournament-room seeds board](#the-tournament-room-seeds-board-pagesroom_seedspy) |
@@ -554,8 +555,12 @@ navigate to the relative `'login'`, which from `/home/<section>` resolved to
 Beyond the Request access form it carries two previews with deliberately
 different rules:
 
-- **Brackets** — one button per tournament with published stages, into
-  `/tournament/{id}/brackets`. No opt-in: those pages are already
+- **Watch live** — first on the card, for everyone: a primary button to the
+  static `/live` Watch page, because most people reaching the door from a tweet,
+  the stream or a QR code came to watch and need no account.
+- **Brackets** — one button per tournament with published stages, into the
+  static twin `/live/tournament/{id}/brackets` (the door is where a crowd lands,
+  and every interactive tab costs a websocket). No opt-in: those pages are already
   `@public_page`, they were merely unreachable without knowing the URL. Gated
   only on `FeatureFlag.BRACKETS`, and read through
   `BracketService.list_all_visible_brackets(None)`, so DRAFT and CANCELLED

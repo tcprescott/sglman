@@ -171,6 +171,15 @@ class AdminUserDialog(BaseUserDialog):
                             'Challonge username (optional)'
                         ).classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
+                if self.user and not await self.user_service.may_edit_account(self.user, actor):
+                    display_name_input.props('readonly')
+                    pronouns_input.props('readonly')
+                    is_active_checkbox.disable()
+                    ui.label(
+                        f'{self.user.preferred_name} also belongs to another community or '
+                        'runs the platform, so only a platform admin can change their name, '
+                        'pronouns or active status.'
+                    ).classes('text-caption text-grey-7')
                 if is_create:
                     discord_id_input = ui.input(
                         'Discord ID', value=''

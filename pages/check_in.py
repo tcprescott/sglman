@@ -156,9 +156,20 @@ _MENU = f'''
 '''
 
 _CHECK_IN_BUTTON = f'''
-    <q-btn v-if="!props.row.checked_in" unelevated no-caps color="primary" icon="how_to_reg"
-           label="Check in" class="{REQUIRES_SOCKET_CLASS} checkin-btn"
+    <q-btn v-if="!props.row.checked_in && !props.row.withdrawn" unelevated no-caps color="primary"
+           icon="how_to_reg" label="Check in" class="{REQUIRES_SOCKET_CLASS} checkin-btn"
            @click="$parent.$emit('checkin', props.row)" />
+    <q-btn v-if="props.row.can_check_in_anyway" outline no-caps color="negative" icon="how_to_reg"
+           label="Check in anyway" class="{REQUIRES_SOCKET_CLASS}"
+           @click="$parent.$emit('checkin_anyway', props.row)" />
+'''
+
+# A refunded buyer, or a comp that lapsed, has nothing to check in with. Desk
+# volunteers send them to staff; staff can still let them in, deliberately.
+_WITHDRAWN_NOTE = '''
+    <div v-if="props.row.withdrawn && !props.row.checked_in && !props.row.can_check_in_anyway"
+         class="text-caption text-negative q-mt-sm">
+        No badge to check in with. Send them to staff.</div>
 '''
 
 _STATUS_CELL = f'''<q-td :props="props">
@@ -167,6 +178,8 @@ _STATUS_CELL = f'''<q-td :props="props">
 </q-td>'''
 
 _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
+    <span v-if="props.row.withdrawn && !props.row.checked_in && !props.row.can_check_in_anyway"
+          class="text-caption text-negative">Send to staff</span>
     {_CHECK_IN_BUTTON}
     {_MENU}
 </q-td>'''
@@ -213,9 +226,14 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
         </div>
         {_MENU}
     </div>
-    <q-btn v-if="!props.row.checked_in" unelevated no-caps color="primary" icon="how_to_reg"
-           label="Check in" size="lg" class="full-width q-mt-sm {REQUIRES_SOCKET_CLASS} checkin-btn"
+    <q-btn v-if="!props.row.checked_in && !props.row.withdrawn" unelevated no-caps color="primary"
+           icon="how_to_reg" label="Check in" size="lg"
+           class="full-width q-mt-sm {REQUIRES_SOCKET_CLASS} checkin-btn"
            @click="$parent.$emit('checkin', props.row)" />
+    <q-btn v-if="props.row.can_check_in_anyway" outline no-caps color="negative" icon="how_to_reg"
+           label="Check in anyway" class="full-width q-mt-sm {REQUIRES_SOCKET_CLASS}"
+           @click="$parent.$emit('checkin_anyway', props.row)" />
+    {_WITHDRAWN_NOTE}
 </div>
 </div>'''
 
@@ -298,6 +316,7 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
             and entrant.link_method != CheckInLinkMethod.MANUAL
         ),
         'can_remove': walk_up and can_manage,
+        'can_check_in_anyway': withdrawn and not checked_in and can_manage,
         'search': search,
         # Everyone is under All, withdrawn rows too, so a search still finds
         # someone whose badge was refunded (and says so).
@@ -513,9 +532,9 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         await reload()
         return True
 
-    async def check_in_entrant(entrant_id: int) -> None:
+    async def check_in_entrant(entrant_id: int, despite_withdrawn: bool = False) -> None:
         try:
-            outcome = await service.check_in(user, entrant_id)
+            outcome = await service.check_in(user, entrant_id, despite_withdrawn=despite_withdrawn)
         except (ValueError, PermissionError) as e:
             notify_error(e)
             return
@@ -548,6 +567,19 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 )
                 return
         await check_in_entrant(row['id'])
+
+    async def handle_checkin_anyway(row) -> None:
+        async def confirm() -> None:
+            await check_in_entrant(row['id'], despite_withdrawn=True)
+
+        why = {
+            'Refunded': f"{row['name']}'s badge was refunded.",
+            'No longer comped': f"{row['name']} isn't comped any more.",
+        }.get(row['withdrawn_label'], f"{row['name']} doesn't hold a badge any more.")
+        ConfirmationDialog(
+            message=f'{why} Check them in anyway?',
+            on_confirm=confirm, confirm_text='Check in anyway',
+        ).open()
 
     async def handle_link(row) -> None:
         entrant = await service.get_entrant(row['id'])
@@ -607,6 +639,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         table.on(event_name, lambda e: background_tasks.create(run_in_context(e.args)))
 
     bind('checkin', handle_checkin)
+    bind('checkin_anyway', handle_checkin_anyway)
     bind('link', handle_link)
     bind('unlink', handle_unlink)
     bind('undo', handle_undo)

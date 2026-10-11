@@ -6,14 +6,13 @@ is staff. Marking reviewed is re-gated by ``FeedbackService`` at
 quietly converge.
 """
 
-from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.tenant_context import tenant_scope
 from models import (
     FeatureFlag,
     Feedback,
     FeedbackStatus,
     Role,
     TenantFeatureFlag,
-    TenantMembership,
     Tournament,
 )
 from tests.api_helpers import client_for, create_user_token
@@ -22,9 +21,7 @@ from tests.api_helpers import client_for, create_user_token
 async def _member_token(**kwargs):
     """A token for someone who belongs to the ambient community — the feedback
     queue takes submissions from members only."""
-    user, raw = await create_user_token(**kwargs)
-    await TenantMembership.create(user=user, tenant_id=get_current_tenant_id())
-    return user, raw
+    return await create_user_token(**kwargs)
 
 
 class TestSubmit:
@@ -48,11 +45,11 @@ class TestSubmit:
             assert [row['id'] for row in mine] == [body['id']]
 
     async def test_a_non_member_is_refused(self, db, app):
-        _, raw = await create_user_token(username='stranger')
+        _, raw = await create_user_token(username='stranger', member=False)
         async with client_for(app, raw) as c:
             resp = await c.post('/api/feedback', json={'message': 'let me in'})
             assert resp.status_code == 403
-            assert 'members' in resp.json()['detail']
+            assert 'member' in resp.json()['detail']
 
     async def test_an_empty_message_is_400(self, db, app):
         _, raw = await _member_token(username='plain')
@@ -120,8 +117,9 @@ class TestReview:
             reopened = await c.post(f'/api/feedback/{row_id}/reviewed', json={'reviewed': False})
             assert reopened.json()['status'] == FeedbackStatus.NEW.value
 
-    async def test_a_tournament_admin_may_review_though_not_staff(self, db, app):
-        """The service gate is ``can_view_admin``, wider than the queue's STAFF."""
+    async def test_a_tournament_admin_cannot_review(self, db, app):
+        """Staff only, like the queue: the response carries the whole
+        submission, so a wider gate here read the queue one id at a time."""
         _, sub_token = await _member_token(username='plain')
         ta, ta_token = await _member_token(username='ta')
         tournament = await Tournament.create(name='Cup')
@@ -130,8 +128,7 @@ class TestReview:
             row_id = (await c.post('/api/feedback', json={'message': 'hi'})).json()['id']
         async with client_for(app, ta_token) as c:
             resp = await c.post(f'/api/feedback/{row_id}/reviewed', json={'reviewed': True})
-            assert resp.status_code == 200
-            # ...but the queue itself stays out of reach.
+            assert resp.status_code == 403
             assert (await c.get('/api/feedback')).status_code == 403
 
     async def test_a_plain_member_cannot_review(self, db, app):

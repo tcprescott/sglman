@@ -19,7 +19,7 @@ import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -31,7 +31,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import tenant_scope
 from application.utils.environment import is_production
-from application.utils.ssrf import ensure_public_host
+from application.utils.ssrf import ensure_public_host, pin_public_url
 from models import User, Webhook, WebhookDelivery
 
 logger = logging.getLogger(__name__)
@@ -289,35 +289,42 @@ class WebhookService:
         success = False
         attempts = 0
 
-        # Re-validate the destination at delivery time. The create/update SSRF
-        # check resolved DNS once, but delivery re-resolves the hostname, so a
-        # target repointed to an internal address afterwards (or slow DNS
-        # rebinding) must not be dereferenced. Gated on production to mirror
+        # Re-validate the destination at delivery time, and connect to the
+        # address that passed rather than letting httpx resolve the name again:
+        # a rebinding DNS answer could otherwise pass the check and then point
+        # the POST at an internal address. Gated on production to mirror
         # _validate_url, which allows localhost receivers in development.
-        if is_production():
-            try:
-                await self._ensure_public_host(urlparse(webhook.url).hostname or '')
-            except ValueError as exc:
-                logger.warning('Webhook %s delivery blocked by SSRF check: %s', webhook.id, exc)
-                await self.delivery_repository.create(
-                    webhook=webhook,
-                    event_type=event.event_type,
-                    payload=body,
-                    response_status=None,
-                    attempt_count=0,
-                    success=False,
-                    error=f"Blocked by SSRF check: {exc}",
-                    delivered_at=None,
-                )
-                return
-
-        # follow_redirects stays False (the httpx default, asserted here) so a
-        # 3xx to an internal Location cannot be chased past the host check above.
         async with httpx.AsyncClient(timeout=self.DELIVERY_TIMEOUT, follow_redirects=False) as client:
             for attempt in range(self.MAX_ATTEMPTS):
+                target: str = webhook.url
+                extra_headers: Dict[str, str] = {}
+                extensions: Dict[str, str] = {}
+                if is_production():
+                    try:
+                        target, extra_headers, extensions = await pin_public_url(
+                            webhook.url, subject='Webhook URL',
+                        )
+                    except ValueError as exc:
+                        logger.warning('Webhook %s delivery blocked by SSRF check: %s', webhook.id, exc)
+                        await self.delivery_repository.create(
+                            webhook=webhook,
+                            event_type=event.event_type,
+                            payload=body,
+                            response_status=None,
+                            attempt_count=attempts,
+                            success=False,
+                            error=f"Blocked by SSRF check: {exc}",
+                            delivered_at=None,
+                        )
+                        return
                 attempts = attempt + 1
+                # follow_redirects stays False so a 3xx to an internal Location
+                # cannot be chased past the host check above.
                 try:
-                    response = await client.post(webhook.url, content=body, headers=headers)
+                    response = await client.post(
+                        target, content=body, headers={**headers, **extra_headers},
+                        extensions=extensions,
+                    )
                     status = response.status_code
                     if 200 <= status < 300:
                         success = True

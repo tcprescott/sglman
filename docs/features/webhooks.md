@@ -84,9 +84,12 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 - **SSRF**: on create/update the URL must be `https://`; in production the host is
   resolved (`application/utils/ssrf.py`) and rejected if any address is private,
   loopback, link-local (incl. `169.254.169.254` cloud metadata), reserved,
-  multicast or unspecified. In production the check runs **again at delivery
-  time**, because the host is re-resolved then; a blocked delivery is logged as a
-  failed `WebhookDelivery` with zero attempts. Redirects are never followed.
+  multicast or unspecified. In production the check runs **again before every
+  delivery attempt**, and the POST connects to the address that passed
+  (`pin_public_url`: the IP in the URL, the hostname as `Host` and as the TLS
+  server name), so a rebinding DNS answer can't pass the check and then point
+  the request inward. A blocked delivery is logged as a failed
+  `WebhookDelivery`. Redirects are never followed.
   Outside production, `http://` and localhost are allowed so a developer can
   point at a local receiver.
 

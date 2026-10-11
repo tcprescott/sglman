@@ -4,13 +4,13 @@ Equipment Repository - Data Access Layer
 Handles database operations for lending assets and their loan history.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from tortoise.functions import Max
 
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Equipment, EquipmentLoan, User
+from models import Equipment, EquipmentLoan, EquipmentStatus, User
 
 
 class EquipmentRepository:
@@ -76,6 +76,20 @@ class EquipmentRepository:
         await equipment.save(update_fields=fields)
 
     @staticmethod
+    async def transition_status(
+        equipment_id: int, from_status: EquipmentStatus, to_status: EquipmentStatus,
+    ) -> bool:
+        """Move an asset from ``from_status`` to ``to_status`` in one conditional UPDATE.
+
+        Returns ``False`` when the row was not in ``from_status`` — the caller
+        lost a race (or the asset moved on), so nothing was written.
+        """
+        updated = await scoped(
+            Equipment.filter(id=equipment_id, status=from_status)
+        ).update(status=to_status, updated_at=datetime.now(timezone.utc))
+        return updated > 0
+
+    @staticmethod
     async def delete(equipment: Equipment) -> None:
         await equipment.delete()
 
@@ -101,10 +115,22 @@ class EquipmentRepository:
         )).prefetch_related('borrower').first()
 
     @staticmethod
-    async def close_loan(loan: EquipmentLoan, checked_in_by: User, checked_in_at: datetime) -> None:
+    async def close_loan(loan: EquipmentLoan, checked_in_by: User, checked_in_at: datetime) -> bool:
+        """Close ``loan`` if it is still open. ``False`` means someone else already did."""
+        updated = await scoped(
+            EquipmentLoan.filter(id=loan.id, checked_in_at__isnull=True)
+        ).update(checked_in_at=checked_in_at, checked_in_by_id=checked_in_by.id)
+        if not updated:
+            return False
         loan.checked_in_at = checked_in_at
         loan.checked_in_by = checked_in_by
-        await loan.save(update_fields=['checked_in_at', 'checked_in_by_id'])
+        return True
+
+    @staticmethod
+    async def has_open_loan(equipment_id: int) -> bool:
+        return await scoped(EquipmentLoan.filter(
+            equipment_id=equipment_id, checked_in_at__isnull=True
+        )).exists()
 
     @staticmethod
     async def list_open_loans_for_user(user: User) -> List[EquipmentLoan]:

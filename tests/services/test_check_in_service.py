@@ -348,6 +348,42 @@ class TestDesk:
 
         assert undone.checked_in_at is None and undone.checked_in_by_id is None
 
+    async def _refunded(self, service, client, staff, event):
+        client.set([mock_purchase(100, 'Stays'), mock_purchase(200, 'Refunded')])
+        await service.sync_event(staff, event.id)
+        client.set([mock_purchase(100, 'Stays')])
+        await service.sync_event(staff, event.id)
+        return (await _rows(event))['200']
+
+    async def test_a_withdrawn_buyer_cannot_be_checked_in_at_the_desk(self, service, client, staff, desk, event):
+        refunded = await self._refunded(service, client, staff, event)
+
+        with pytest.raises(ValueError, match='Only staff'):
+            await service.check_in(desk, refunded.id)
+        with pytest.raises(ValueError, match='Only staff'):
+            await service.check_in(staff, refunded.id)
+        with pytest.raises(PermissionError):
+            await service.check_in(desk, refunded.id, despite_withdrawn=True)
+
+        assert (await _rows(event))['200'].checked_in_at is None
+
+    async def test_staff_can_check_in_a_withdrawn_buyer_anyway(self, service, client, staff, event):
+        refunded = await self._refunded(service, client, staff, event)
+
+        outcome = await service.check_in(staff, refunded.id, despite_withdrawn=True)
+
+        assert not outcome.already
+        assert (await _rows(event))['200'].checked_in_by_id == staff.id
+        log = await AuditLog.get(action='check_in_entrant.checked_in')
+        assert json.loads(log.details)['despite_withdrawn'] is True
+
+    async def test_a_withdrawal_racing_the_tap_is_refused(self, service, client, staff, desk, event):
+        entrant = await self._entrant(service, client, staff, event)
+        await CheckInEntrant.filter(id=entrant.id).update(withdrawn_at=entrant.created_at)
+        entrant.withdrawn_at = None
+
+        assert not await service.entrants.claim_check_in(entrant, entrant.created_at, desk)
+
     async def test_a_member_without_the_role_cannot_work_the_desk(self, service, client, staff, event):
         entrant = await self._entrant(service, client, staff, event)
         member = await make_user(discord_id=60, username='member')

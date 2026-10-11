@@ -129,7 +129,7 @@ class FakeClientFactory:
     async def __aexit__(self, *exc):
         return False
 
-    async def post(self, url, content=None, headers=None):
+    async def post(self, url, content=None, headers=None, extensions=None):
         self.calls.append({'url': url, 'content': content, 'headers': headers})
         return FakeResponse(self._status_codes[len(self.calls) - 1])
 
