@@ -20,15 +20,15 @@ _STATUS_CHIP = '''
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="payments" color="primary"
-           @click="$parent.$emit('pool', props.row)">
+           @click="$parent.$emit('pool', props.row)" aria-label="Prize pool">
         <q-tooltip>Prize pool</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="leaderboard" color="primary"
-           @click="$parent.$emit('split', props.row)">
+           @click="$parent.$emit('split', props.row)" aria-label="Edit split">
         <q-tooltip>Edit split</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="content_copy" color="primary"
-           @click="$parent.$emit('copy', props.row)">
+           @click="$parent.$emit('copy', props.row)" aria-label="Copy for Matcherino">
         <q-tooltip>Copy for Matcherino</q-tooltip>
     </q-btn>
 '''

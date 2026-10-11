@@ -29,6 +29,7 @@ from application.services import (
 from application.utils.tenant_urls import login_path
 from middleware.auth import public_page
 from models import FeatureFlag
+from theme.a11y import make_activatable
 from theme.base import BaseLayout, current_local_url
 from theme.error_page import render_not_found
 from theme.help.article import render_article
@@ -38,8 +39,8 @@ __all__ = ['create']
 
 
 def _article_card(article: ContentArticle) -> None:
-    with ui.card().classes('wiz-help-card cursor-pointer') \
-            .on('click', lambda slug=article.slug: ui.navigate.to(f'/event-info/{slug}')):
+    with make_activatable(ui.card().classes('wiz-help-card cursor-pointer')
+                          .on('click', lambda slug=article.slug: ui.navigate.to(f'/event-info/{slug}')), role='link'):
         with ui.row().classes('items-center no-wrap gap-3'):
             ui.icon(article.icon).props('size=sm').classes('text-primary')
             with ui.column().classes('gap-0 col min-w-0'):

@@ -24,6 +24,7 @@ from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_web_push_section
 from theme.help import help_icon
+from theme.page_header import page_title
 from theme.profile_nudge_banner import focus_profile_section, section_anchor
 
 
@@ -238,7 +239,7 @@ async def render_edit_info_tab(focus: str | None = None):
             else:
                 ui.icon('account_circle', size='64px').classes('text-primary shrink-0')
             with ui.column().classes('gap-0 col min-w-0'):
-                ui.label(user.preferred_name).classes('page-title')
+                page_title(user.preferred_name)
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'@{user.username}').classes('text-muted text-caption')
                     if user.pronouns:

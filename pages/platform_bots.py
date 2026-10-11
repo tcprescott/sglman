@@ -61,7 +61,7 @@ async def render_bots_section(user) -> None:
                    @click="$parent.$emit('edit_bot', props.row)" />
             <q-btn dense flat color="secondary" label="Tenants"
                    @click="$parent.$emit('grant_bot', props.row)" />
-            <q-btn dense flat color="orange" label="Restart"
+            <q-btn dense flat color="warning" label="Restart"
                    @click="$parent.$emit('restart_bot', props.row)" />
         </q-td>
     ''')
@@ -89,7 +89,7 @@ async def render_bots_section(user) -> None:
                            @click="$parent.$emit('edit_bot', props.row)" />
                     <q-btn dense flat color="secondary" label="Tenants"
                            @click="$parent.$emit('grant_bot', props.row)" />
-                    <q-btn dense flat color="orange" label="Restart"
+                    <q-btn dense flat color="warning" label="Restart"
                            @click="$parent.$emit('restart_bot', props.row)" />
                 </div>
             </q-card>

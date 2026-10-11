@@ -451,7 +451,8 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     with ui.column().classes('page-container-narrow w-full gap-2 q-px-sm'):
         with ui.column().classes('checkin-toolbar w-full gap-1 q-py-sm'):
             with ui.row().classes('w-full items-center no-wrap gap-2'):
-                title = ui.label(event.name).classes('text-h6 ellipsis col')
+                title = ui.label(event.name).classes('text-h6 ellipsis col q-ma-none')
+                title.tag = 'h1'
                 sync_btn = ui.button(icon='sync').props('flat round color=primary') \
                     .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')
                 if not _can_sync(event):
@@ -461,7 +462,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             box_slot = ui.row().classes('w-full')
             with ui.row().classes('w-full items-center no-wrap gap-2'):
                 progress = ui.linear_progress(value=0, show_value=False, size='8px').classes('col') \
-                    .props('rounded color=positive')
+                    .props('rounded color=positive aria-label="Checked in"')
                 counts_label = ui.label().classes('text-caption text-weight-medium')
             # The app's segmented control (.wiz-segmented, as on the Event page).
             chips = ui.toggle(FILTERS, value='all').props('no-caps dense unelevated') \

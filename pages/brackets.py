@@ -74,6 +74,7 @@ from theme.brackets import (
 from theme.brackets.render import booked_times, viewer_entries
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
 from theme.error_page import render_not_found
+from theme.page_header import page_title
 
 
 def _slot_label(
@@ -371,7 +372,7 @@ def create() -> None:
         await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
-            ui.label(f'{tournament.name} — Brackets').classes('page-title')
+            page_title(f'{tournament.name} — Brackets')
             _static_view_link(
                 f'/live/tournament/{tid}/brackets', public=bool(public_stages),
             )
@@ -527,7 +528,7 @@ def create() -> None:
             with ui.card().classes('page-container w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('items-center justify-between w-full'):
                     with ui.column().classes('gap-0'):
-                        ui.label(bracket.name).classes('page-title')
+                        page_title(bracket.name)
                         ui.label(
                             f'{stage_label(bracket.stage_order)} · '
                             f'{format_label(bracket.format)}'

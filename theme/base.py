@@ -12,6 +12,7 @@ from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
+from theme.page_header import heading_fallback
 from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
@@ -330,6 +331,16 @@ class BaseLayout:
             ');'
             '</script>'
         )
+        # First tab stop on every page: without it a keyboard user tabs through
+        # the header and the whole drawer before reaching the content (WCAG 2.4.1).
+        main = context.client.content.parent_slot.parent  # Quasar's <main class="q-page">
+        main.props('tabindex=-1')
+        ui.add_body_html(
+            f'<a class="wiz-skip-link" href="#{main.html_id}" onclick="'
+            f"var m=document.getElementById('{main.html_id}');"
+            "if(m){event.preventDefault();m.focus();}"
+            '">Skip to content</a>'
+        )
         # Konami code (↑↑↓↓←→←→BA) opens a hidden cat-fact dialog. The guard keeps
         # the window listener from being installed more than once across renders.
         ui.add_body_html(
@@ -356,6 +367,7 @@ class BaseLayout:
         # head, not the body, for the same reason as install_connection_watch:
         # markup added from a lazy tab build never executes its <script>.
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
+        ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme).
         apply_brand_palette(colors)
@@ -381,7 +393,7 @@ class BaseLayout:
                 icon='menu',
                 on_click=lambda: self._drawer.toggle(),
                 color=None,
-            ).props('flat').classes('wiz-burger')
+            ).props('flat aria-label="Menu"').classes('wiz-burger')
 
             wordmark_taps = {'n': 0}
 
@@ -697,7 +709,8 @@ class BaseLayout:
                 panel = waiting_panel('Loading…')
         try:
             with container:
-                with tenant_scope(self._tenant_id), table_prefs_scope(self._table_prefs):
+                with tenant_scope(self._tenant_id), table_prefs_scope(self._table_prefs), \
+                        heading_fallback(label):
                     await self._render_tab_content(tab)
         except Exception:
             logger.exception('Failed to build tab %r', label)

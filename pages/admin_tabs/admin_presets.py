@@ -19,15 +19,15 @@ from theme.waiting import waiting_panel
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="science" color="primary"
-           @click="$parent.$emit('test', props.row)">
+           @click="$parent.$emit('test', props.row)" aria-label="Test roll">
         <q-tooltip>Test roll</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)">
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
         <q-tooltip>Edit</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)">
+           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
         <q-tooltip>Delete</q-tooltip>
     </q-btn>
 '''

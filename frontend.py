@@ -50,6 +50,7 @@ from pages import (
 # and the bare name would shadow the `help` builtin in this module.
 from pages import help as help_pages
 from pages._oauth_link import register_link_handoff_pages
+from theme.a11y import install_tooltip_labels
 from theme.assets import cache_control
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
@@ -173,6 +174,7 @@ def init(fastapi_app: FastAPI) -> None:
     validate_security_config()
     validate_session_storage()
     install_log_filter()
+    install_tooltip_labels()
 
     # Which store holds `app.storage.user` decides whether a deploy logs
     # everyone out: the file backend lives in the container's filesystem and
@@ -244,6 +246,8 @@ def init(fastapi_app: FastAPI) -> None:
         # insets so the app reads edge-to-edge when installed to the home screen.
         viewport='width=device-width, initial-scale=1, viewport-fit=cover',
         favicon='static/icons/icon-192.png',
+        # Also sets <html lang>, which screen readers need to pick a voice.
+        language='en-US',
         storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
         # Mark the session cookie Secure in production so the signed cookie
         # carrying the auth state is never sent over plaintext HTTP. Left off in

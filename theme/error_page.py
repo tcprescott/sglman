@@ -94,7 +94,7 @@ def render_error_page(
     with ui.column().classes('error-page-container'):
         with ui.card().classes('error-card'):
             ui.label(str(status_code)).classes('error-status')
-            ui.label(headline).classes('error-headline')
+            ui.label(headline).classes('error-headline').tag = 'h1'
             ui.label(message).classes('error-message')
 
             if status_code == 404:

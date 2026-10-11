@@ -16,11 +16,11 @@ from theme.tables.preferences import TableKeys
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)">
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
         <q-tooltip>Edit</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)">
+           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
         <q-tooltip>Delete</q-tooltip>
     </q-btn>
 '''

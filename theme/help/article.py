@@ -13,6 +13,7 @@ from nicegui import ui
 
 from application.content import ContentArticle
 from theme.help.render import render_blocks
+from theme.page_header import page_title
 
 __all__ = ['render_article']
 
@@ -54,7 +55,7 @@ def render_article(
                             _contents(article, base)
             with ui.row().classes('items-center gap-2 no-wrap'):
                 ui.icon(article.icon).props('size=sm').classes('text-primary')
-                ui.label(article.title).classes('page-title')
+                page_title(article.title)
             if article.summary:
                 ui.label(article.summary).classes('text-muted')
             ui.separator().classes('separator-spacing')

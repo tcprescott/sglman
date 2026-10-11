@@ -26,7 +26,7 @@ from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
-from theme.page_header import page_header
+from theme.page_header import page_header, page_title
 from theme.qualifier_copy import (
     BAND_EXPLAINER,
     BAND_LABELS,
@@ -177,7 +177,7 @@ def create() -> None:
                 with ui.row().classes('items-center full-width'):
                     ui.button(icon='arrow_back', on_click=lambda: ui.navigate.to('/qualifiers')
                               ).props('flat round')
-                    ui.label(qualifier.name).classes('page-title')
+                    page_title(qualifier.name)
                 is_public = service.is_results_public(qualifier)
                 open_now = _window_open(qualifier)
                 ui.label(f'Window: {_fmt(qualifier.opens_at)} → {_fmt(qualifier.closes_at)}  ·  '

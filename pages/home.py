@@ -15,6 +15,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
 from theme.base import BaseLayout
+from theme.page_header import page_title
 from theme.timer_teardown import PageTimer
 
 
@@ -66,7 +67,7 @@ async def _render_platform_landing() -> None:
             login_btn.tooltip('Login with Discord')
 
     with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4 items-stretch'):
-        ui.label('Choose a community').classes('page-title')
+        page_title('Choose a community')
         ui.label('Pick the community you want to manage or take part in.') \
             .classes('text-muted')
         if not tenants:

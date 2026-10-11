@@ -21,6 +21,7 @@ from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
 from theme.equipment_copy import equipment_guidance
+from theme.page_header import page_title
 from theme.realtime import refresh_on_reconnect
 
 _STATUS_LABELS = {
@@ -99,7 +100,7 @@ def create() -> None:
 
             with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('header-row items-center'):
-                    ui.label(f'#{asset.asset_number} · {asset.name}').classes('page-title')
+                    page_title(f'#{asset.asset_number} · {asset.name}')
                     ui.badge(
                         _STATUS_LABELS.get(asset.status.value, asset.status.value),
                         color=('positive' if asset.status.value == 'available'

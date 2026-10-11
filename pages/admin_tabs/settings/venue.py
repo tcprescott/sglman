@@ -138,7 +138,7 @@ async def _stations_card(can_edit: bool) -> None:
                 ).props('dense').set_enabled(can_edit)
                 ui.button(icon='delete', on_click=remove).props(
                     'flat dense color=negative'
-                ).set_enabled(can_edit)
+                ).tooltip(f'Delete {station.name}').set_enabled(can_edit)
 
     card = await section_panel(
         'Stations', icon='chair',

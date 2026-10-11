@@ -210,7 +210,7 @@ async def admin_stages_page() -> None:
                                     </q-badge>
                                 </div>
                                 <q-btn flat round dense icon="edit" color="primary"
-                                       @click="$parent.$emit('edit', props.row)">
+                                       @click="$parent.$emit('edit', props.row)" aria-label="Edit">
                                     <q-tooltip>Edit</q-tooltip>
                                 </q-btn>
                             </div>
