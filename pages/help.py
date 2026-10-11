@@ -1,9 +1,10 @@
 """The in-app help section.
 
 **Anonymous-readable.** Both routes are :func:`public_page`: help has to work for
-someone who cannot get in, which is exactly when they most need it. There is no
-user-specific content on either page, and the article set is filtered only by the
-community's live feature flags.
+someone who cannot get in, which is exactly when they most need it. The article
+set is filtered by the community's live feature flags and by who is reading:
+staff articles (``audience: staff`` or ``roles:``) are listed in their own "For staff" group
+for someone who can open Admin, and are simply absent for everyone else.
 
 Presentation only — it reads through :class:`HelpService` and renders parsed
 blocks with :func:`theme.help.render_blocks`. Nothing here touches the ORM.
@@ -71,9 +72,10 @@ def create() -> None:
     @public_page('/help')
     async def help_index() -> None:
         ui.page_title(await _title('Help'))
-        await _render_chrome(await _viewer())
+        user = await _viewer()
+        await _render_chrome(user)
 
-        articles = await HelpService.list_articles()
+        articles = await HelpService.list_articles(user)
         state = {'query': ''}
 
         with ui.column().classes('page-container-narrow w-full'):
@@ -93,13 +95,17 @@ def create() -> None:
 
             @ui.refreshable
             async def results() -> None:
-                matches = await HelpService.search(state['query'])
+                matches = await HelpService.search(state['query'], user)
                 if not matches:
                     ui.label(
                         f'Nothing matches "{state["query"]}". Try fewer words.'
                     ).classes('text-muted q-mt-md')
                     return
+                staff_heading_shown = False
                 for article in matches:
+                    if HelpService.for_staff(article) and not staff_heading_shown:
+                        staff_heading_shown = True
+                        ui.label('For staff').classes('wiz-help-group-label')
                     _article_card(article)
 
             async def on_search(event) -> None:
@@ -128,5 +134,6 @@ def create() -> None:
         ui.page_title(await _title(article.title, 'Help'))
         await _render_chrome(user)
         render_article(
-            article, await HelpService.list_articles(), base='/help', back_label='All help',
+            article, await HelpService.list_articles(user), base='/help', back_label='All help',
+            for_staff=HelpService.for_staff,
         )

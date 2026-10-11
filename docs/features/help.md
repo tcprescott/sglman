@@ -1,11 +1,13 @@
 # In-App Help
 
 A public `/help` section plus tappable help icons scattered through the
-player-, crew-, volunteer- and proctor-facing surfaces. Written for the people
-who turn up to an on-site tournament — **not** for staff. Staff actions are
-explained from the outside ("staff approve your signup", "a proctor fetches an
-admin") so a reader understands why they are waiting on something, without
-documenting an admin surface they cannot reach.
+player-, crew-, volunteer- and proctor-facing surfaces. The everyone articles are
+written for the people who turn up to an on-site tournament. Staff actions are
+explained there from the outside ("staff approve your signup", "a proctor
+fetches an admin") so a reader understands why they are waiting on something,
+without documenting an admin surface they cannot reach. The admin surfaces get
+their own articles in a **"For staff"** group (see [Staff articles](#staff-articles)),
+which nobody else can see.
 
 Help is **app mechanics only**. It used to carry a second thing: the proctor and
 player articles also held **room procedure the code does not encode** — who runs
@@ -55,6 +57,8 @@ slug: crew
 icon: record_voice_over
 order: 30
 feature: VOLUNTEERS        # optional — omit for an ungated article
+audience: staff            # optional — see "Staff articles"
+roles: STAFF, VOLUNTEER_COORDINATOR   # optional — only holders may read it
 summary: One line for the index card and the search index.
 ---
 
@@ -62,6 +66,8 @@ summary: One line for the index card and the search index.
 
 Text with **bold**, *italic*, `code`, [a link](/help/player), a
 {chip:pending:Awaiting approval} status chip and a {state:Confirmed} match state.
+
+![Alt text a screen reader reads](/static/help/crew/my-crew-phone.webp "Optional caption")
 
 :::snippet crew-status
 Content a help icon elsewhere in the app also shows.
@@ -79,7 +85,7 @@ typo in an article header must not take the help page down.
 ## The safe document model
 
 Articles are **never** rendered through `ui.markdown`. They are parsed into a
-closed vocabulary — six block kinds, seven span kinds
+closed vocabulary — seven block kinds, seven span kinds
 (`application/content/blocks.py`) — and each one is drawn with a native NiceGUI
 element (`theme/help/render.py`). There is no path from article text to markup,
 so an article can only produce elements the renderer itself creates.
@@ -99,6 +105,14 @@ same hazard `check_markdown_xss` exists to stop. Two consequences worth knowing:
 - **Prose tables are hand-built**, not `ui.table`: their cells carry chips,
   icons and links, and they are five-row explanations rather than sortable data
   grids. They scroll inside their own `overflow-x` container.
+
+- **Image sources are allow-listed tighter still.** An image is a line of its
+  own, `![alt](/static/help/<slug>/<name>.webp "caption")`, and only that tree
+  (one directory per article, `.webp` or `.png`, no `..`) is accepted, with alt
+  text required. Anything else renders as the line the author typed. The image
+  is lazy-loaded, height-capped in the column (a phone shot is taller than the
+  column is wide), tap-to-zoom in a dialog, framed and slightly dimmed in dark
+  mode. See [Screenshots](#screenshots).
 
 Chips use `{chip:tone:Text}` with a **colon**, not a pipe, so they can live
 inside the tables that explain what each status means.
@@ -154,11 +168,88 @@ consistent with the scope call above — the help is written for non-staff — a
 degrades to *no icon* rather than to a broken one. Writing a staff track is what
 fixes it.
 
+## Staff articles
+
+Two front-matter keys gate an article by **reader**, on top of `feature:`:
+
+| Key | Who may read it |
+|---|---|
+| `audience: staff` | Anyone who can open Admin here (`AuthService.can_view_admin`): any admin role, a tournament admin, a crew coordinator, a super-admin |
+| `roles: A, B` | Only holders of one of those roles in this community; a super-admin always qualifies |
+
+Use `audience: staff` for anything a tournament admin or crew coordinator also
+works from (Admin → Schedule above all), since those are per-tournament
+assignments, not roles. Use `roles:` to narrow further (volunteer coordination
+to `STAFF, VOLUNTEER_COORDINATOR`). Both together means both must pass.
+
+Either key puts the article in the **"For staff"** group, which
+`HelpService.list_articles(user)` orders last and the index and sidebar label.
+For anyone who fails the gate the article is absent everywhere: the listing,
+search, a snippet's help icon, and by URL (the not-found page, the same answer
+as a missing or feature-gated article). Links to it from an everyone article are
+pruned for them like any other unreadable link. Both keys fail **closed**: an
+unknown role name is dropped and an unknown `audience:` value means staff.
+
+`HelpService` only queries the reader's roles when some shipped article is
+gated, and `help_icon` resolves the viewer itself for a snippet whose article is
+gated, so pass `user=` where the surface has one.
+
+## Screenshots
+
+Committed under `static/help/<slug>/<name>.webp` (`static/` ships in the image;
+`docs/` doesn't) and regenerated by **`scripts/help_screenshots.js`** from the
+manifest **`scripts/help_screenshots.json`**. The script is the
+[`/ui-validation`](../../.claude/skills/ui-validation/SKILL.md) loop pointed at a
+manifest: against the seeded dev app it signs in as each entry's mock user, opens
+the page, runs its setup steps, crops to its selector, and writes WebP (encoded
+by Chromium, so it needs nothing beyond the global Playwright).
+
+```bash
+setsid ./start.sh validate > /tmp/app.log 2>&1 < /dev/null &   # then wait for startup
+poetry run python scripts/seed_dev.py
+NODE_PATH=$(npm root -g) node scripts/help_screenshots.js                  # every shot
+NODE_PATH=$(npm root -g) node scripts/help_screenshots.js player            # one article's
+NODE_PATH=$(npm root -g) node scripts/help_screenshots.js player/board-phone
+```
+
+A manifest entry:
+
+```json
+{
+  "slug": "player", "name": "board-phone",
+  "user": "player_one",
+  "path": "/home/schedule",
+  "viewport": "phone",
+  "selector": ".wiz-panel",
+  "setup": [{ "click": "text=Request a match" }, { "waitFor": ".q-dialog" }]
+}
+```
+
+`user` is a seeded mock-login username (`null` for signed out); `path` is
+tenant-relative (`tenant` defaults to `default`); `viewport` is `phone`
+(390×844 at 2×, the default) or `desktop` (1280×800) or `{width, height}`;
+`selector` crops to the first match with `padding` px around it (default 8;
+omit it for the viewport, or set `fullPage`); `hide` lists extra selectors to
+hide; `setup` steps are `click`, `fill` + `value`, `press`, `waitFor` and `wait`.
+Shots are light theme, reduced motion, `America/New_York`.
+
+House rules: **phone** for player, crew, volunteer, proctor and check-in desk
+shots (that's where those readers are), **desktop** for staff; crop to the part
+the paragraph is about rather than a whole page; the article's own directory
+only. When a shot needs a state the seed doesn't create, extend
+`scripts/seed_dev.py` (or its `seed_*.py` helpers) rather than clicking it into
+being, so the next regeneration finds it too.
+
+`tests/test_help_images_and_staff.py` holds the tree, the manifest and the
+articles together: every image an article shows exists, every manifest entry is
+shown by some article, every file under `static/help/` is in the manifest, and a
+help article shows only its own directory.
+
 ## The surfaces
 
 `/help` and `/help/{slug}` are `@public_page` (`pages/help.py`). Help has to
 work for someone who cannot get in, which is exactly when they most need it.
-There is no user-specific content on either page.
+The only reader-specific content is which staff articles are listed.
 
 - **Index** — a search box (AND over whitespace-separated terms, matched against
   title + summary + flattened body) over article cards.
@@ -235,7 +326,8 @@ that already carries `player-availability`).
 
 ## Tests
 
-`tests/test_help_content.py` and `tests/test_help_service.py`.
+`tests/test_help_content.py`, `tests/test_help_service.py` and
+`tests/test_help_images_and_staff.py`.
 
 The one worth knowing about: **`TestPagesAndArticlesAgree`** greps `pages/` and
 `theme/` for every `help_icon('x')` and `help_snippet='x'` and asserts the

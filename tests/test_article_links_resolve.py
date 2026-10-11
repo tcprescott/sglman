@@ -37,7 +37,7 @@ def _anchors(blocks) -> set[str]:
 
 async def _assert_every_link_resolves(user=None) -> int:
     """Follow every internal link in every article this reader can open here."""
-    help_articles = {a.slug: a for a in await HelpService.list_articles()}
+    help_articles = {a.slug: a for a in await HelpService.list_articles(user)}
     event_on = await _flag_on(FeatureFlag.EVENT_INFO)
     event_articles = (
         {a.slug: a for a in await EventInfoService.list_articles(user)} if event_on else {}
