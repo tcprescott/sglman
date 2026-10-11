@@ -12,6 +12,7 @@ from tortoise.expressions import Q
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
+    CheckInDmStatus,
     CheckInEntrant,
     CheckInEntrantSource,
     CheckInEvent,
@@ -132,6 +133,11 @@ class CheckInEntrantRepository(TenantScopedRepository[CheckInEntrant]):
             checked_in_at=None, checked_in_by_id=None, updated_at=at,
         )
         return bool(updated)
+
+    @staticmethod
+    async def record_dm_status(entrant_id: int, status: CheckInDmStatus, at) -> None:
+        """Write only the test-DM columns, so a send finishing late can't revert a desk action."""
+        await scoped(CheckInEntrant.filter(id=entrant_id)).update(dm_status=status, dm_checked_at=at)
 
     @staticmethod
     async def claim_auto_link(entrant: CheckInEntrant, user: User, method, at) -> bool:
