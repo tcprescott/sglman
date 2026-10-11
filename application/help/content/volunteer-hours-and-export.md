@@ -32,6 +32,8 @@ checkbox per active position. Tick the positions they're qualified for and
 save.
 :::
 
+![Vol. Roster: each volunteer's opt-in, hours with the reward tier reached, qualifications and availability windows](/static/help/volunteer-hours-and-export/roster-desktop.webp)
+
 Qualifications change who the auto-scheduler will place. Someone with at least
 one qualification is only placed in those positions, and goes ahead of
 unqualified people there. Someone with none can be placed anywhere, behind the

@@ -28,6 +28,8 @@ Below that, every active position gets a card with its shifts for the day. A
 shift's badge reads filled/needed and turns amber while it's short.
 :::
 
+![Vol. Schedule for one event day: the coverage chips, the day picker and buttons, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp)
+
 ## Positions
 
 A position is a job, like Registration or Stage Crew. **Manage positions** lists
@@ -95,6 +97,8 @@ about that time:
 | {chip:cancelled:Unavailable} | They ruled this time out. |
 | {chip:neutral:Not stated} | None of their availability windows cover this shift. |
 
+![The Assign picker for a Race Proctor shift with Show unqualified volunteers ticked, each name carrying its availability badge and one marked Qualified](/static/help/coordinating-volunteers/assign-picker-desktop.webp)
+
 If anyone is qualified for the position, the picker shows only them until you
 tick **Show unqualified volunteers**. Qualifications are set per person on the
 roster.
@@ -147,6 +151,8 @@ with none recorded can go anywhere, behind the qualified people.
 Nothing it does is announced. Every assignment it makes is a draft until you
 publish.
 :::
+
+![The Auto-fill dialog: maximum hours set to 8, the option to use volunteers who have not marked this time, and all four positions selected](/static/help/coordinating-volunteers/autofill-dialog-desktop.webp)
 
 After a run, a summary sits above the grid until you dismiss it or leave the
 page:
