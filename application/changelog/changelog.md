@@ -13,6 +13,7 @@
 - Race rooms open on racetime.gg, and players get a link straight into theirs.
 - Challonge entrants map to members, bracket stages advance from Wizzrobe, and final-stage players are read correctly. Tournaments hosted on an organization subdomain or a custom domain link properly now, and players are asked to sign in to Challonge before linking.
 - Volunteer positions can grant app roles, Check-in Desk included, to whoever is assigned. Discord role mappings stay workable with many roles and grants.
+- Help has two articles for volunteer coordinators: building the shift schedule with the auto-scheduler, and the roster, hours, reward tiers and export. Vol. Schedule and Vol. Roster have help icons that open them.
 - The SGL 2026 tournaments were imported from the planning sheet with their randomizer presets and notes, and the Presets tab gained a Test roll button.
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Spectators get a cached Watch page, and the join page points at it.
