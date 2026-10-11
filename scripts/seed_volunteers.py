@@ -249,6 +249,24 @@ async def seed_volunteers_for_tenant(
             defaults={"assigned_by": staff, "auto_generated": True},
         )
 
+    # An upcoming shift on a page a volunteer can open: everything above lands
+    # on the seed's first day and has usually finished by the time anyone looks,
+    # so My Shifts (and its help screenshots) would show only "no upcoming
+    # shifts". Tomorrow's noon Broadcast Tech block, inside sm_user's stated
+    # window, with its own note so the card's "For this shift" box renders.
+    upcoming_tech = await VolunteerShift.get_or_none(
+        position=broadcast_tech, tenant=tenant,
+        starts_at=parse_local_datetime(second_day, "12:00"),
+    )
+    if upcoming_tech:
+        if not upcoming_tech.notes:
+            upcoming_tech.notes = "Stage B camera desk. Grab a headset from the stream booth on the way in."
+            await upcoming_tech.save()
+        await VolunteerAssignment.get_or_create(
+            shift=upcoming_tech, user=users["sm_user"], tenant=tenant,
+            defaults={"assigned_by": staff},
+        )
+
     # Position → role mappings. Race Proctor → PROCTOR lands on proctor_user, who
     # already holds it by hand, so it shows a manual grant left alone; Broadcast
     # Tech → STREAM_MANAGER hands FULL_RACERS[1] a volunteer-sourced role. The

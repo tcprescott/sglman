@@ -29,7 +29,7 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — eleven articles, in the repo, reviewed in PRs.
+`application/help/content/*.md` — twenty-one articles, in the repo, reviewed in PRs.
 
 They live inside the package rather than at the repo root because
 `.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
@@ -38,18 +38,27 @@ is runtime content, not project documentation.
 | Slug | Covers | Gate |
 |---|---|---|
 | `getting-started` | Signing in, joining the community (the join door), Profile basics, the profile-reminder banner, signing up, where to go next | — |
-| `schedule-board` | The Schedule tab's columns, the five match states, watching, filters, mobile cards | — |
-| `crew` | Commentator vs tracker, signing up, approval, confirming, My Crew's four chips, withdrawing | — |
+| `schedule-board` | The Schedule view's columns, the five match states, the filters and Needs crew, watching, mobile cards | — |
+| `crew` | Commentator vs tracker, signing up (board and Discord), approval, confirming, My Crew's four chips, reading the crew cell, withdrawing | — |
 | `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
 | `player` | My Schedule's Your matches panel, acknowledging, Request Match, bracket scheduling, Suggest a time, availability, seeds and harder settings, race rooms, change requests, results | — |
 | `accessibility` | Requesting an ADA accommodation from Profile, who can read it, its four statuses | `FeatureFlag.ADA_ACCOMMODATIONS` |
-| `on-air` | The stage timeline, finding a stream, watching a match | — |
-| `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
+| `on-air` | The stage timeline, finding a stream, the public Watch page (`/live`), watching a match | — |
+| `proctor` | The Proctor Station board and its players column, the four steps of running a match, seeds, stations and Randomize, unclear finishes, the room seeds screen, loaner devices | `FeatureFlag.VOLUNTEERS` |
 | `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
-| `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
+| `volunteering` | Volunteer availability, how shifts reach you (drafts, the four shift DMs), My Shifts and hours, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `equipment` | Borrowing by QR code, returning through the desk, Equipment you have out, and the equipment desk (Admin → Equipment, the borrower picker, adding gear, printing labels, retiring) | `FeatureFlag.EQUIPMENT` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
+| `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `audience: staff` |
+| `staff-challonge` | Connecting the Challonge account, linking, sync triggers, matching entrants, stage buttons, result push, unlinking | `CHALLONGE`, `audience: staff`, `roles: STAFF` |
+| `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `audience: staff`, `roles: STAFF, PRESET_MANAGER` |
+| `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `audience: staff` |
+| `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
+| `staff-schedule` | Staff: Admin → Schedule, creating/editing/cancelling matches, rewinding, stages and candidates, crew approval and the coverage report | `audience: staff` |
+| `staff-match-day` | Staff: the board's queues, reschedule requests, confirming results, disputes, seeds, room screens, race rooms | `audience: staff` |
+| `coordinating-volunteers` | Vol. Schedule: positions and the roles they grant, shifts and what an edit tells people, assigning by hand, the auto-scheduler, drafts and publishing, reminders, dropped shifts, reset | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
+| `volunteer-hours-and-export` | Vol. Roster: the pool, qualifications, hours against reward tiers and check-in comps, staff-only settings, the CSV export, the coverage report | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
 
 ### Article format
 
@@ -322,8 +331,8 @@ Tournaments, Profile → Notifications and Profile → ADA accommodation; the
 "Waiting on you to pick a time" bracket and Challonge cards on My Schedule; the player's match-request dialog and the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; the equipment asset page (borrowing and returning, or the desk for managers), My Schedule's Equipment you have out, and Admin → Equipment; Volunteer → Proctor Station (the
-board, running a match, when things go wrong, and shift change) and the result
-dialog's review flag; Home → On Air; and the shared availability editor, which
+board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
+dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers, the ADA requests queue, and the Vol. Schedule (the page, Auto-fill and Drafts) and Vol. Roster (the page and Hours) headers; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel
 that already carries `player-availability`).
