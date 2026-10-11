@@ -45,6 +45,7 @@ is runtime content, not project documentation.
 | `accessibility` | Requesting an ADA accommodation from Profile, who can read it, its four statuses | `FeatureFlag.ADA_ACCOMMODATIONS` |
 | `on-air` | The stage timeline, finding a stream, watching a match | — |
 | `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
+| `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
 | `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
