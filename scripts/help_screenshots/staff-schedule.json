@@ -1,0 +1,43 @@
+[
+  {
+    "name": "board-desktop",
+    "user": "staff_user",
+    "path": "/admin/schedule",
+    "viewport": "desktop",
+    "setup": [
+      {
+        "fill": "input[placeholder^=\"Search matches\"]",
+        "value": "Wizzrobe Dev"
+      },
+      {
+        "wait": 1500
+      }
+    ],
+    "selector": ".match-table"
+  },
+  {
+    "name": "match-dialog",
+    "user": "staff_user",
+    "path": "/admin/schedule",
+    "viewport": "desktop",
+    "setup": [
+      {
+        "fill": "input[placeholder^=\"Search matches\"]",
+        "value": "Wizzrobe Dev"
+      },
+      {
+        "wait": 1500
+      },
+      {
+        "click": "[aria-label=\"Edit this match\"]"
+      },
+      {
+        "waitFor": ".dialog-card"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "selector": ".dialog-card"
+  }
+]

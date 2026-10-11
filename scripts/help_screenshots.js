@@ -1,8 +1,9 @@
 /*
  * Regenerate the screenshots the /help articles show.
  *
- * Reads scripts/help_screenshots.json, signs in to the running dev app as each
- * entry's seeded user, opens the page, runs any setup steps, crops to the
+ * Reads scripts/help_screenshots/<slug>.json (one file per article, so help PRs
+ * for different articles never edit the same manifest), signs in to the running
+ * dev app as each entry's seeded user, opens the page, runs any setup steps, crops to the
  * element the shot is about, and writes static/help/<slug>/<name>.webp. Re-run
  * it after a UI change and every screenshot that shows the change is current
  * again; `git diff --stat static/help` shows which ones moved.
@@ -16,9 +17,10 @@
  *   NODE_PATH=$(npm root -g) node scripts/help_screenshots.js player/schedule-phone
  *   ... --base-url http://127.0.0.1:8000
  *
- * Manifest entry (only slug, name and path are required):
+ * Each file is a JSON array of entries; the file name is the article slug and
+ * the output directory, static/help/<slug>/. An entry (only name and path are
+ * required):
  *   {
- *     "slug": "player",              // the article; output dir static/help/<slug>/
  *     "name": "schedule-phone",      // output file <name>.webp
  *     "user": "player_one",          // seeded mock-login username; null = signed out
  *     "tenant": "default",           // /t/<slug> prefix; "" for the bare platform host
@@ -36,7 +38,7 @@
  *       { "wait": 500 }
  *     ]
  *   }
- * The manifest's "defaults" object supplies any field an entry leaves out.
+ * DEFAULTS below supplies any field an entry leaves out.
  *
  * Shots are taken in the light theme with reduced motion. WebP is encoded by
  * Chromium itself (canvas.toDataURL), so this needs nothing beyond the global
@@ -48,8 +50,10 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const MANIFEST = path.join(__dirname, 'help_screenshots.json');
+const MANIFEST_DIR = path.join(__dirname, 'help_screenshots');
 const OUT_ROOT = path.join(ROOT, 'static', 'help');
+
+const DEFAULTS = { tenant: 'default', viewport: 'phone', padding: 8 };
 
 const VIEWPORTS = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
@@ -67,6 +71,17 @@ function findChrome() {
     if (hit) return hit;
   } catch (_) {}
   return undefined;
+}
+
+function loadManifest() {
+  return fs.readdirSync(MANIFEST_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .sort()
+    .flatMap((f) => {
+      const slug = path.basename(f, '.json');
+      const entries = JSON.parse(fs.readFileSync(path.join(MANIFEST_DIR, f), 'utf8'));
+      return entries.map((s) => ({ ...DEFAULTS, ...s, slug }));
+    });
 }
 
 function parseArgs(argv) {
@@ -166,10 +181,7 @@ async function toWebp(encoder, png) {
 
 (async () => {
   const args = parseArgs(process.argv.slice(2));
-  const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
-  const defaults = manifest.defaults || {};
-  const shots = (manifest.shots || [])
-    .map((s) => ({ ...defaults, ...s }))
+  const shots = loadManifest()
     .filter((s) => !args.only || args.only === s.slug || args.only === `${s.slug}/${s.name}`);
   if (!shots.length) {
     console.error(`no manifest entries match "${args.only}"`);

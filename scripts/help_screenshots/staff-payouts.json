@@ -1,0 +1,20 @@
+[
+  {
+    "name": "split",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/payouts",
+    "setup": [
+      {
+        "click": "tr:has-text(\"Last Season\") [aria-label=\"Edit split\"]"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 600
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

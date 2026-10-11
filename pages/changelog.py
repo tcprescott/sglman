@@ -2,8 +2,9 @@
 
 **Anonymous-readable**, like ``/help``: it describes the app, not a community's
 data, so there is nothing on it a signed-out visitor should not see. Entries come
-from ``application/changelog/changelog.md`` and render through the same safe
-block renderer as help, never NiceGUI's markdown element. It has no menu
+from ``application/changelog/`` (``changelog.md`` plus the per-PR ``changes/``
+files) and render through the same safe block renderer as help, never NiceGUI's
+markdown element. It has no menu
 item of its own: the Help index links it, and it links back.
 """
 

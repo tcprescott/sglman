@@ -1,0 +1,29 @@
+[
+  {
+    "name": "queues-desktop",
+    "user": "staff_user",
+    "path": "/admin/schedule",
+    "viewport": {
+      "width": 1280,
+      "height": 370
+    }
+  },
+  {
+    "name": "reschedule-request",
+    "user": "staff_user",
+    "path": "/admin/schedule",
+    "viewport": "desktop",
+    "setup": [
+      {
+        "click": ".q-btn:has(i:text-is(\"open_in_new\"))"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "my-schedule-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule"
+  },
+  {
+    "name": "bracket-schedule-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule",
+    "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\")"
+  },
+  {
+    "name": "ask-to-change-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule",
+    "setup": [
+      {
+        "click": "text=Ask to change"
+      },
+      {
+        "waitFor": ".q-dialog"
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

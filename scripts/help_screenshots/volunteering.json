@@ -1,0 +1,25 @@
+[
+  {
+    "name": "my-shifts-phone",
+    "user": "sm_user",
+    "path": "/volunteer/my-shifts",
+    "selector": ".page-container:has-text('Show all shifts')"
+  },
+  {
+    "name": "release-phone",
+    "user": "sm_user",
+    "path": "/volunteer/my-shifts",
+    "setup": [
+      {
+        "click": "text=Can't make this"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 500
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

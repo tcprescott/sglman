@@ -1,0 +1,23 @@
+[
+  {
+    "name": "queue",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/users",
+    "setup": [
+      {
+        "click": "text=ADA requests"
+      },
+      {
+        "wait": 800
+      },
+      {
+        "click": "text=Members who asked for ADA accommodation"
+      },
+      {
+        "wait": 600
+      }
+    ],
+    "selector": ".q-tab-panels"
+  }
+]

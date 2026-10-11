@@ -1,0 +1,64 @@
+[
+  {
+    "name": "desk-phone",
+    "user": "checkin_desk",
+    "path": "/checkin/1"
+  },
+  {
+    "name": "link-dialog-phone",
+    "user": "checkin_desk",
+    "path": "/checkin/1",
+    "setup": [
+      {
+        "fill": "input[placeholder=\"Search by name or badge code\"]",
+        "value": "Base Buyer"
+      },
+      {
+        "wait": 600
+      },
+      {
+        "click": ".checkin-grid-card .checkin-btn"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "viewport": {
+      "width": 390,
+      "height": 490
+    }
+  },
+  {
+    "name": "dm-blocked-phone",
+    "user": "checkin_desk",
+    "path": "/checkin/1",
+    "selector": ".checkin-grid-card",
+    "setup": [
+      {
+        "fill": "input[placeholder=\"Search by name or badge code\"]",
+        "value": "Racer Nine"
+      },
+      {
+        "wait": 600
+      }
+    ]
+  },
+  {
+    "name": "refunded-phone",
+    "user": "checkin_desk",
+    "path": "/checkin/1",
+    "selector": ".checkin-grid-card",
+    "setup": [
+      {
+        "fill": "input[placeholder=\"Search by name or badge code\"]",
+        "value": "Refund Requester"
+      },
+      {
+        "wait": 600
+      }
+    ]
+  }
+]

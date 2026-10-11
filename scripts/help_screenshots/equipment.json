@@ -1,0 +1,44 @@
+[
+  {
+    "name": "yours-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule",
+    "selector": ".wiz-panel:has-text(\"Equipment you have out\")"
+  },
+  {
+    "name": "held-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule",
+    "setup": [
+      {
+        "click": ".wiz-panel:has-text(\"Equipment you have out\") >> text=View"
+      },
+      {
+        "waitFor": "text=Loan history"
+      }
+    ],
+    "selector": ".q-card.page-container-narrow"
+  },
+  {
+    "name": "desk-desktop",
+    "user": "equip_manager",
+    "path": "/admin/equipment",
+    "viewport": "desktop",
+    "selector": ".equipment-table"
+  },
+  {
+    "name": "checkout-desktop",
+    "user": "equip_manager",
+    "path": "/admin/equipment",
+    "viewport": "desktop",
+    "setup": [
+      {
+        "click": "[aria-label=\"Check out\"]"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

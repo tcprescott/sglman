@@ -67,13 +67,13 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 ## Changelog
 
 **Every PR that changes what a player, crew member, volunteer or staff member
-sees or can do adds a bullet to `application/changelog/changelog.md` in the same
-PR.** That file is the in-app "What's new" page (`/changelog`). New features,
-changed workflows or permissions, user-visible bug fixes and security fixes all
-count; refactors, tests, hooks, CI and docs-only changes don't. Entries cover
-whole Monday-to-Sunday weeks, newest first, so add to the current week's entry
-or open a new one above it; never one per day. Write for the reader, not the
-codebase. The [`changelog` skill](.claude/skills/changelog/SKILL.md) has the
+sees or can do adds its own file, `application/changelog/changes/YYYY-MM-DD-<topic>.md`
+holding only bullets, in the same PR.** Don't edit the current week's entry in
+`changelog.md`: parallel PRs all appended to it and conflicted. The in-app "What's
+new" page (`/changelog`) folds each file into the Monday-to-Sunday week its date
+falls in. New features, changed workflows or permissions, user-visible bug fixes
+and security fixes all count; refactors, tests, hooks, CI and docs-only changes
+don't. Write for the reader, not the codebase. The [`changelog` skill](.claude/skills/changelog/SKILL.md) has the
 format and the git commands for catching up; `tests/test_changelog.py` checks
 the structure.
 

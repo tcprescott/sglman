@@ -1,0 +1,20 @@
+[
+  {
+    "name": "tournaments-phone",
+    "user": "player_four",
+    "path": "/home/tournaments"
+  },
+  {
+    "name": "join-door-phone",
+    "user": null,
+    "path": "/",
+    "selector": ".join-card"
+  },
+  {
+    "name": "profile-reminder-phone",
+    "user": "player_one",
+    "tenant": "second",
+    "path": "/home/schedule",
+    "selector": "[aria-label=\"Recommended profile items\"]"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "signup-phone",
+    "user": "player_three",
+    "path": "/home/schedule",
+    "selector": ".match-grid-card:has-text(\"Player Four\"):has-text(\"Player Two\"):has-text(\"Scheduled\")",
+    "hide": [
+      ".q-footer"
+    ]
+  },
+  {
+    "name": "my-crew-phone",
+    "user": "proctor_user",
+    "path": "/home/my-schedule",
+    "selector": ".wiz-panel:has-text(\"Crew you signed up for\")",
+    "hide": [
+      ".q-footer"
+    ]
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "board-phone",
+    "user": "proctor_user",
+    "path": "/volunteer/proctor-station",
+    "selector": ".match-grid-card:has-text('Check In'):has-text('Wizzrobe Cup')"
+  },
+  {
+    "name": "check-in-phone",
+    "user": "proctor_user",
+    "path": "/volunteer/proctor-station",
+    "setup": [
+      {
+        "click": "button:has-text('Check In')"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 500
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  },
+  {
+    "name": "result-phone",
+    "user": "proctor_user",
+    "path": "/volunteer/proctor-station",
+    "setup": [
+      {
+        "click": "button:has-text('Finish')"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "wait": 500
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]

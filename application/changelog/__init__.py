@@ -2,8 +2,9 @@
 
 A peer of ``application/help``: shipped prose with no database, no tenant and no
 rules, parsed into the same safe block model (``application/content``) and never
-handed to ``ui.markdown``. The entries live in ``changelog.md`` beside this
-module so they ride into the image; ``.dockerignore`` drops root-level ``*.md``.
+handed to ``ui.markdown``. The entries live in ``changelog.md`` and ``changes/``
+beside this module so they ride into the image; ``.dockerignore`` drops
+root-level ``*.md``.
 """
 
 from application.changelog.catalog import (

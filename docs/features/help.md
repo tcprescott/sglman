@@ -29,36 +29,26 @@ The rule for a new paragraph: if it is true for every community, it goes here.
 
 ## Where the content lives
 
-`application/help/content/*.md` — twenty-one articles, in the repo, reviewed in PRs.
+`application/help/content/*.md`, one file per article, in the repo, reviewed in PRs.
 
-They live inside the package rather than at the repo root because
-`.dockerignore` drops `docs` and root-level `*.md` from the build context. Help
-is runtime content, not project documentation.
+There is deliberately **no article table or count here**. Every help PR used to
+append a row to one and bump the other, so parallel help PRs conflicted on this
+file every time one merged. Each article's front matter (`title`, `summary`,
+`feature`, `audience`, `roles`) is the catalogue; list it with:
 
-| Slug | Covers | Gate |
-|---|---|---|
-| `getting-started` | Signing in, joining the community (the join door), Profile basics, the profile-reminder banner, signing up, where to go next | — |
-| `schedule-board` | The Schedule view's columns, the five match states, the filters and Needs crew, watching, mobile cards | — |
-| `crew` | Commentator vs tracker, signing up (board and Discord), approval, confirming, My Crew's four chips, reading the crew cell, withdrawing | — |
-| `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
-| `player` | My Schedule's Your matches panel, acknowledging, Request Match, bracket scheduling, Suggest a time, availability, seeds and harder settings, race rooms, change requests, results | — |
-| `accessibility` | Requesting an ADA accommodation from Profile, who can read it, its four statuses | `FeatureFlag.ADA_ACCOMMODATIONS` |
-| `on-air` | The stage timeline, finding a stream, the public Watch page (`/live`), watching a match | — |
-| `proctor` | The Proctor Station board and its players column, the four steps of running a match, seeds, stations and Randomize, unclear finishes, the room seeds screen, loaner devices | `FeatureFlag.VOLUNTEERS` |
-| `check-in` | Checking in on arrival (everyone), then the check-in desk: search, lanyards, linking, the DM check, walk-ups, comps, refunds, a stale sync | `FeatureFlag.EVENT_CHECK_IN` |
-| `volunteering` | Volunteer availability, how shifts reach you (drafts, the four shift DMs), My Shifts and hours, giving a shift back | `FeatureFlag.VOLUNTEERS` |
-| `equipment` | Borrowing by QR code, returning through the desk, Equipment you have out, and the equipment desk (Admin → Equipment, the borrower picker, adding gear, printing labels, retiring) | `FeatureFlag.EQUIPMENT` |
-| `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
-| `glossary` | Every term the app uses, plus the match-state table | — |
-| `staff-tournaments` | Creating a tournament, the editor's sections, signup window, match hours, entrants, tournament admins and crew coordinators, deleting | `audience: staff` |
-| `staff-challonge` | Connecting the Challonge account, linking, sync triggers, matching entrants, stage buttons, result push, unlinking | `CHALLONGE`, `audience: staff`, `roles: STAFF` |
-| `staff-presets` | Adding and importing presets, Randomizer Keys, Test roll, attaching a preset and a harder preset, rolling a match seed | `audience: staff`, `roles: STAFF, PRESET_MANAGER` |
-| `staff-payouts` | Pool and bonus, the split, joint placings, the Matcherino block | `PAYOUTS`, `audience: staff` |
-| `staff-ada` | The ADA queue, statuses, what proctors see, changed-since-arranged, privacy | `ADA_ACCOMMODATIONS`, `audience: staff`, `roles: STAFF` |
-| `staff-schedule` | Staff: Admin → Schedule, creating/editing/cancelling matches, rewinding, stages and candidates, crew approval and the coverage report | `audience: staff` |
-| `staff-match-day` | Staff: the board's queues, reschedule requests, confirming results, disputes, seeds, room screens, race rooms | `audience: staff` |
-| `coordinating-volunteers` | Vol. Schedule: positions and the roles they grant, shifts and what an edit tells people, assigning by hand, the auto-scheduler, drafts and publishing, reminders, dropped shifts, reset | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
-| `volunteer-hours-and-export` | Vol. Roster: the pool, qualifications, hours against reward tiers and check-in comps, staff-only settings, the CSV export, the coverage report | `VOLUNTEERS`, `audience: staff`, `roles: STAFF, VOLUNTEER_COORDINATOR` |
+```bash
+grep -H -E '^(title|feature|audience|roles):' application/help/content/*.md
+```
+
+The same rule holds for the other lists help used to keep by hand: the
+screenshot manifest is one file per article (see [Screenshots](#screenshots)),
+the help icons are found by grepping (see [Help icons](#help-icons)), and a
+changelog line is a file of its own (see [changelog.md](changelog.md)). A help
+PR should only need to touch files that belong to its own articles.
+
+The workflow for writing one, and the lessons from the first round of help PRs,
+are in the [`help-article`](../../.claude/skills/help-article/SKILL.md) and
+[`help-screenshots`](../../.claude/skills/help-screenshots/SKILL.md) skills.
 
 ### Article format
 
@@ -210,7 +200,9 @@ gated, so pass `user=` where the surface has one.
 
 Committed under `static/help/<slug>/<name>.webp` (`static/` ships in the image;
 `docs/` doesn't) and regenerated by **`scripts/help_screenshots.js`** from the
-manifest **`scripts/help_screenshots.json`**. The script is the
+manifest, **`scripts/help_screenshots/<slug>.json`**: one JSON array per
+article, so two PRs adding shots to different articles never touch the same
+file. The script is the
 [`/ui-validation`](../../.claude/skills/ui-validation/SKILL.md) loop pointed at a
 manifest: against the seeded dev app it signs in as each entry's mock user, opens
 the page, runs its setup steps, crops to its selector, and writes WebP (encoded
@@ -224,11 +216,12 @@ NODE_PATH=$(npm root -g) node scripts/help_screenshots.js player            # on
 NODE_PATH=$(npm root -g) node scripts/help_screenshots.js player/board-phone
 ```
 
-A manifest entry:
+An entry in `scripts/help_screenshots/player.json` (the file name is the slug
+and the output directory, so entries carry no `slug`):
 
 ```json
 {
-  "slug": "player", "name": "board-phone",
+  "name": "board-phone",
   "user": "player_one",
   "path": "/home/schedule",
   "viewport": "phone",
@@ -253,9 +246,10 @@ only. When a shot needs a state the seed doesn't create, extend
 being, so the next regeneration finds it too.
 
 `tests/test_help_images_and_staff.py` holds the tree, the manifest and the
-articles together: every image an article shows exists, every manifest entry is
-shown by some article, every file under `static/help/` is in the manifest, and a
-help article shows only its own directory.
+articles together: the manifest is one non-empty array per article, every image
+an article shows exists, every manifest entry is shown by some article, every
+file under `static/help/` is in the manifest, and a help article shows only its
+own directory.
 
 ## The surfaces
 
@@ -323,19 +317,18 @@ icons for specific topics — two bare `help_outline`s side by side are
 indistinguishable, and the reader has to open both to find which one answers
 their question.
 
-Wired at: Home → Event → Schedule (columns + states), My Schedule (crew
-statuses + approval + withdrawing; matches overview + check-in + the room +
-stages; availability — through the `help_topics=` of each
-[section panel](../reference/frontend.md#section-panels-themesectionpy)),
-Tournaments, Profile → Notifications and Profile → ADA accommodation; the
-"Waiting on you to pick a time" bracket and Challonge cards on My Schedule; the player's match-request dialog and the
-Suggest a time button in it and in the bracket and Challonge schedule dialogs;
-Volunteer → My Shifts and its release dialog; the equipment asset page (borrowing and returning, or the desk for managers), My Schedule's Equipment you have out, and Admin → Equipment; Volunteer → Proctor Station (the
-board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
-dialog's review flag; Home → On Air (the view, plus the Watch page); the staff Admin → Tournaments, Challonge, Presets and Payouts headers, the ADA requests queue, and the Vol. Schedule (the page, Auto-fill and Drafts) and Vol. Roster (the page and Hours) headers; and the shared availability editor, which
-takes `help_snippet=` because the two callers render identical UI over different
-data (only the Volunteer tab passes one — Home's copy sits inside a section panel
-that already carries `player-availability`).
+The shared availability editor takes `help_snippet=` because its two callers
+render identical UI over different data (only the Volunteer tab passes one;
+Home's copy sits inside a section panel that already carries
+`player-availability`). Section panels take theirs through `help_topics=`
+([section panels](../reference/frontend.md#section-panels-themesectionpy)).
+
+There is no list here of where icons are wired; it went stale with every help
+PR and conflicted between them. Ask the code instead:
+
+```bash
+grep -rnE "help_icon\(|help_snippet=|help_topics=" pages theme
+```
 
 ## Tests
 

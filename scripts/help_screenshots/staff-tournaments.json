@@ -1,0 +1,29 @@
+[
+  {
+    "name": "signup-window",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/tournaments",
+    "setup": [
+      {
+        "click": "text=Add Tournament"
+      },
+      {
+        "waitFor": ".q-dialog"
+      },
+      {
+        "click": ".q-dialog >> text=Scheduling"
+      },
+      {
+        "wait": 600
+      },
+      {
+        "click": ".q-dialog >> text=Player signups"
+      },
+      {
+        "wait": 400
+      }
+    ],
+    "selector": ".q-dialog .q-card"
+  }
+]
