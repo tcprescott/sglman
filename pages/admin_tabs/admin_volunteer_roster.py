@@ -92,8 +92,7 @@ async def admin_volunteer_roster_page() -> None:
         table.add_slot('body-cell-hours', '''
             <q-td :props="props">
                 <span class="text-weight-medium">{{ props.value }}</span>
-                <q-chip v-if="props.row.tier" dense color="positive" text-color="white"
-                        class="q-ml-xs">{{ props.row.tier }}</q-chip>
+                <span v-if="props.row.tier" class="wiz-chip wiz-chip--ok q-ml-xs">{{ props.row.tier }}</span>
             </q-td>
         ''')
 
@@ -145,8 +144,7 @@ async def admin_volunteer_roster_page() -> None:
                         <div class="col-5 text-grey-7 text-caption">Hours</div>
                         <div class="col-7">
                             <span class="text-weight-medium">{{ props.row.hours }}</span>
-                            <q-chip v-if="props.row.tier" dense color="positive" text-color="white"
-                                    class="q-ml-xs">{{ props.row.tier }}</q-chip>
+                            <span v-if="props.row.tier" class="wiz-chip wiz-chip--ok q-ml-xs">{{ props.row.tier }}</span>
                         </div>
                     </div>
                     <div class="row items-start q-mb-xs">

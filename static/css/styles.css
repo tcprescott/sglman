@@ -327,6 +327,19 @@ body {
     --chip-c: var(--wiz-gold);
 }
 
+/* A removable q-chip (a volunteer on a shift) in the same tint. Quasar's
+   default chip is bg-primary with near-black text, unreadable on the gold. */
+.q-chip.wiz-chip {
+    height: auto;
+    min-height: 22px;
+    margin: 0;
+    padding: 1px 6px 1px 8px;
+}
+.q-chip.wiz-chip .q-chip__icon--remove {
+    color: currentColor;
+    opacity: 0.7;
+}
+
 /* Every ui.badge in the app wears the chip above. Fifty-odd call sites pass a
    Quasar colour (positive, warning, grey-7, blue...), and each used to paint a
    solid, saturated pill, so one screen could carry five unrelated reds and

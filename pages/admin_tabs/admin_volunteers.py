@@ -387,12 +387,14 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         def _render_assignment_chip(shift, assignment: VolunteerAssignment) -> None:
             name = assignment.user.preferred_name if assignment.user else 'Unknown'
             with ui.row().classes('items-center gap-1 no-wrap'):
-                chip = ui.chip(name, removable=True).props('dense')
+                chip = ui.chip(name, removable=True, color=None).props('dense')
                 if assignment.auto_generated:
-                    chip.props('outline color=secondary') \
+                    chip.classes('wiz-chip wiz-chip--live') \
                         .tooltip('Draft — this volunteer has not been told')
                 elif assignment.acknowledged_at:
-                    chip.props('color=positive')
+                    chip.classes('wiz-chip wiz-chip--ok').tooltip('Acknowledged')
+                else:
+                    chip.classes('wiz-chip wiz-chip--neutral').tooltip('Not acknowledged yet')
 
                 async def remove(a=assignment) -> None:
                     try:
