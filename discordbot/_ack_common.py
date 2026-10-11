@@ -120,12 +120,14 @@ async def _run_parsed(
 
         with tenant_scope(tenant_id):
             user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-            if not user:
+            # A deactivated account is refused at web and REST login; a DM's
+            # buttons never time out, so without this they kept working.
+            if not user or not user.is_active:
                 await send(MSG_NO_ACCOUNT)
                 return
 
             await handle(interaction, parsed, user, send)
-    except ValueError as e:
+    except (ValueError, PermissionError) as e:
         await send(str(e))
     except Exception:
         logger.exception(

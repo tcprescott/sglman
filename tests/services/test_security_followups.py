@@ -6,6 +6,7 @@ DM throttle, and binding a web session to the host it was first used on.
 """
 
 import pytest
+import sentry_sdk
 
 from application.services.challonge_service import ChallongeService
 from application.services.crew_service import _signup_notice_due
@@ -106,3 +107,58 @@ class TestSessionHostBinding:
         storage: dict = {}
         assert session_host_matches(storage, None) is True
         assert SESSION_HOST_KEY not in storage
+
+
+class TestDiscordButtonsRefuseDeactivatedAccounts:
+    """DM buttons never time out, so a deactivated account kept using them."""
+
+    async def _press(self, user: User, handle) -> list[str]:
+        from types import SimpleNamespace
+
+        from discordbot._ack_common import _run_parsed
+
+        sent: list[str] = []
+
+        async def send(message: str) -> None:
+            sent.append(message)
+
+        async def resolve_tenant(_parsed):
+            return 1
+
+        # _run_parsed tags the Sentry scope; keep that off the worker's scope.
+        with sentry_sdk.isolation_scope():
+            await _run_parsed(
+                SimpleNamespace(user=SimpleNamespace(id=int(user.discord_id))), 'x:1',
+                send=send, log_label='test', parse=lambda cid: cid,
+                resolve_tenant=resolve_tenant, not_found_message='gone',
+                handle=handle, unexpected_error_message='boom',
+            )
+        return sent
+
+    async def test_a_deactivated_account_gets_the_no_account_reply(self, db):
+        from discordbot._ack_common import MSG_NO_ACCOUNT
+
+        user = await create_community_member(username='gone', is_active=False)
+        ran = []
+
+        async def handle(*_args):
+            ran.append(True)
+
+        assert await self._press(user, handle) == [MSG_NO_ACCOUNT]
+        assert ran == []
+
+    async def test_a_refusal_reads_as_its_message_not_a_crash(self, db):
+        user = await create_community_member(username='here')
+
+        async def handle(*_args):
+            raise PermissionError('Only the other player can agree to this.')
+
+        assert await self._press(user, handle) == ['Only the other player can agree to this.']
+
+    async def test_an_inactive_account_is_not_admitted_by_a_button(self, db):
+        from application.services.tenant_membership_service import TenantMembershipService
+        from models import SystemConfiguration
+
+        await SystemConfiguration.create(name='open_membership', value='true', tenant_id=1)
+        user = await User.create(discord_id=91234, username='inactive', is_active=False)
+        assert await TenantMembershipService().admit(user, 1) is False

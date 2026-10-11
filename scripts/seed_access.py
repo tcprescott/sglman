@@ -15,7 +15,16 @@ quietly stop them proving anything.
 
 from datetime import datetime, timedelta, timezone
 
-from models import MembershipSource, Role, RoleSource, Tenant, TenantMembership, User, UserRole
+from models import (
+    MembershipSource,
+    Role,
+    RoleSource,
+    Tenant,
+    TenantMemberBlock,
+    TenantMembership,
+    User,
+    UserRole,
+)
 
 
 async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
@@ -26,6 +35,12 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
         # and not another" case, outsider the "member of nothing at all" one,
         # which is what the membership gate's join page needs to be reachable
         # in dev.
+        if uname == 'removed_member':
+            await TenantMembership.filter(user=u, tenant=tenant).delete()
+            await TenantMemberBlock.get_or_create(
+                user=u, tenant=tenant, defaults={'blocked_by': users.get('staff_user')},
+            )
+            continue
         if uname == 'outsider' or (uname == 'local_only' and tenant.slug != 'default'):
             # Deleted, not merely skipped: these two fixtures are defined by
             # an *absence*, and a create-only seed can never converge one —

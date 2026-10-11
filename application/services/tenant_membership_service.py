@@ -167,6 +167,7 @@ class TenantMembershipService:
         if await TenantMembershipRepository.is_member(user.id, tenant_id):
             return
         await TenantMembershipRepository.add(user, tenant_id, MembershipSource.STAFF)
+        await TenantMembershipRepository.unblock(user.id, tenant_id)
         closed = await _close_pending_request(user, tenant_id, actor)
         details: dict = {'target_user_id': user.id}
         if closed is not None:
@@ -207,6 +208,9 @@ class TenantMembershipService:
         removed = await TenantMembershipRepository.remove(user.id, tenant_id)
         if not removed:
             raise ValueError('That user is not a member of this community.')
+        # Without this, open membership and Discord auto-join undid the removal
+        # on the person's next page view.
+        await TenantMembershipRepository.block(user.id, tenant_id, actor)
         # A personal API token is bound to one community and carries no role of
         # its own, so without this it kept reading the schedule (every player's
         # Discord id included) long after its owner was shown the door.
@@ -222,8 +226,10 @@ class TenantMembershipService:
         from application.services.accommodation_service import AccommodationService
         await AccommodationService().close_for_removed_member(actor, user)
         await self._notify_member(
-            user, member_removed_dm, auto_join=await self.auto_join_active(tenant_id),
-            open_membership=await self.get_join_mode(tenant_id) is JoinMode.OPEN,
+            user, member_removed_dm,
+            can_ask=await self.get_join_mode(tenant_id) in (
+                JoinMode.DISCORD_OR_REQUEST, JoinMode.REQUEST,
+            ),
         )
 
     # ---- the door: requests to join --------------------------------------
@@ -347,6 +353,8 @@ class TenantMembershipService:
         try:
             if await TenantMembershipRepository.is_member(user.id, tenant_id):
                 return True
+            if await TenantMembershipRepository.is_blocked(user.id, tenant_id):
+                return False
             with tenant_scope(tenant_id):
                 if not await SystemConfigService.get_bool(KEY_OPEN_MEMBERSHIP):
                     return False
@@ -375,6 +383,8 @@ class TenantMembershipService:
         tid = tenant_id if tenant_id is not None else require_tenant_id()
         if await TenantMembershipRepository.is_member(user.id, tid):
             return True
+        if not user.is_active:
+            return False
         return await self.join_openly(user, tid) or await self.join_via_discord(user, tid)
 
     async def join_via_discord(self, user: User, tenant_id: int) -> bool:
@@ -403,6 +413,8 @@ class TenantMembershipService:
         try:
             if await TenantMembershipRepository.is_member(user.id, tenant_id):
                 return True
+            if await TenantMembershipRepository.is_blocked(user.id, tenant_id):
+                return False
             with tenant_scope(tenant_id):
                 if not await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN):
                     return False
@@ -443,6 +455,11 @@ class TenantMembershipService:
                 'Discord auto-join failed for user %s in tenant %s', user.id, tenant_id,
             )
             return False
+
+    @staticmethod
+    async def was_removed(user: User, tenant_id: int) -> bool:
+        """Whether staff removed ``user`` here and nobody on staff has let them back in."""
+        return await TenantMembershipRepository.is_blocked(user.id, tenant_id)
 
     async def get_request(self, user: User, tenant_id: int) -> Optional[TenantJoinRequest]:
         """This user's request in a named tenant, if any.
@@ -488,6 +505,7 @@ class TenantMembershipService:
         await TenantMembershipRepository.add(
             request.user, request.tenant_id, MembershipSource.JOIN_REQUEST,
         )
+        await TenantMembershipRepository.unblock(request.user_id, request.tenant_id)
         await TenantJoinRequestRepository.decide(
             request, JoinRequestStatus.APPROVED, actor, datetime.now(timezone.utc),
         )
@@ -722,6 +740,8 @@ class TenantMembershipService:
         SpeedGaming import call this for people who never asked.
         """
         tenant_id = require_tenant_id()
+        if actor is not None:
+            await TenantMembershipRepository.unblock(user.id, tenant_id)
         if not await TenantMembershipRepository.add_returning_created(user, tenant_id, source):
             return None
         closed = await _close_pending_request(user, tenant_id, actor)

@@ -7,7 +7,7 @@ whether a user may see a tenant at all), so it is **not** tenant-scoped.
 
 from typing import Iterable, List, Optional, Set
 
-from models import MembershipSource, TenantMembership, User, UserRole
+from models import MembershipSource, TenantMemberBlock, TenantMembership, User, UserRole
 
 
 class TenantMembershipRepository:
@@ -46,6 +46,20 @@ class TenantMembershipRepository:
             user=user, tenant_id=tenant_id, defaults={'source': source},
         )
         return membership
+
+    @staticmethod
+    async def is_blocked(user_id: int, tenant_id: int) -> bool:
+        return await TenantMemberBlock.exists(user_id=user_id, tenant_id=tenant_id)
+
+    @staticmethod
+    async def block(user_id: int, tenant_id: int, blocked_by: Optional[User]) -> None:
+        await TenantMemberBlock.get_or_create(
+            user_id=user_id, tenant_id=tenant_id, defaults={'blocked_by': blocked_by},
+        )
+
+    @staticmethod
+    async def unblock(user_id: int, tenant_id: int) -> int:
+        return await TenantMemberBlock.filter(user_id=user_id, tenant_id=tenant_id).delete()
 
     @staticmethod
     async def add_returning_created(

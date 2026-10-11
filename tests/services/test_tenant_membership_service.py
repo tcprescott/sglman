@@ -549,23 +549,17 @@ async def _auto_join_on() -> None:
     await Tenant.filter(id=1).update(discord_guild_id=555_000_000_000_000_001)
 
 
-async def test_the_removal_dm_promises_a_lockout_only_without_auto_join(staff, dm_log, db):
+async def test_the_removal_dm_holds_even_with_auto_join(staff, dm_log, db):
+    # Removal now blocks auto-join from readmitting them, so the DM says it holds.
     service = TenantMembershipService()
-    one = await User.create(discord_id=4500, username='one')
-    await service.add_member(staff, one)
-    (await dm_log()).clear()
-    await service.remove_member(staff, one)
-    [dm] = await dm_log()
-    assert 'no longer open its pages' in dm['text']
-
     await _auto_join_on()
     two = await User.create(discord_id=4501, username='two')
     await service.add_member(staff, two)
     (await dm_log()).clear()
     await service.remove_member(staff, two)
     [dm] = await dm_log()
-    assert 'no longer open' not in dm['text']
-    assert 'back in the next time you open it' in dm['text']
+    assert 'no longer open its pages' in dm['text']
+    assert 'back in the next time you open it' not in dm['text']
 
 
 async def test_the_decline_dm_leads_with_the_server_when_auto_join_is_on(staff, dm_log, db):

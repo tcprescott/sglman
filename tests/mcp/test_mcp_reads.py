@@ -35,6 +35,7 @@ from models import (
     SpeedGamingEpisode,
     SpeedGamingEventLink,
     Stage,
+    TenantMembership,
     Tournament,
     TriforceText,
     User,
@@ -624,6 +625,7 @@ class TestTournamentsAndScheduling:
             event_start_date=today, event_end_date=today + timedelta(days=2),
         )
         player = await User.create(discord_id=8801, username='p1')
+        await TenantMembership.create(user=player, tenant_id=1)
         async with mcp_session() as client:
             is_error, payload = await call_tool(
                 client, raw, 'suggest_match_time',

@@ -67,6 +67,31 @@ class TenantMembership(Model):
         indexes = (('tenant',),)  # composite is user-first; per-tenant member enumeration uncovered
 
 
+
+class TenantMemberBlock(Model):
+    """Someone staff removed, kept out of the ways in that need no staff decision.
+
+    Open membership and Discord auto-join let people in on their own, so a
+    removal without this lasted until the person's next page view. A block
+    stops those two paths only: a join request still reaches staff, and any
+    staff add (by hand, an approved request, a role grant) lifts it. Cross-tenant
+    like :class:`TenantMembership`, and for the same reason.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='member_blocks', on_delete=fields.CASCADE)
+    tenant_id: int
+    user = fields.ForeignKeyField('models.User', related_name='tenant_blocks', on_delete=fields.CASCADE)
+    user_id: int
+    blocked_by = fields.ForeignKeyField(
+        'models.User', related_name='tenant_blocks_made', null=True, on_delete=fields.SET_NULL
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'tenantmemberblock'
+        unique_together = (('user', 'tenant'),)
+
 class TenantJoinRequest(Model):
     """Someone asking to join a community they can see the door of.
 

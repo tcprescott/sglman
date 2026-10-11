@@ -160,6 +160,7 @@ class TestSubmitMatchRequest:
         t = await make_tournament()
         actor = await make_user("p1", "P1")
         opponent = await make_user("p2", "P2")
+        await TournamentPlayers.create(tournament=t, user=opponent, tenant_id=1)
         match = await service.submit_match_request(
             tournament_id=t.id,
             scheduled_date="2099-01-15",
@@ -170,11 +171,36 @@ class TestSubmitMatchRequest:
         )
         assert match.comment == "req"
         assert {p.user_id for p in await MatchPlayers.filter(match=match)} == {actor.id, opponent.id}
-        assert await TournamentPlayers.filter(tournament=t, user=opponent).exists()
+        assert await TournamentPlayers.filter(tournament=t, user=actor).exists()
         # actor auto-acked, opponent pending
         assert (await MatchAcknowledgment.get(match=match, user=actor)).acknowledged_at is not None
         assert (await MatchAcknowledgment.get(match=match, user=opponent)).acknowledged_at is None
         assert EventType.MATCH_CREATED in [e.event_type for e in captured_events]
+
+    async def test_a_request_cannot_sign_other_people_up(self, service, db):
+        """Request Match enrolled every named player, so a member could put anyone
+        in the community into a closed tournament, past its signup window."""
+        t = await make_tournament()
+        actor = await make_user("p1", "P1")
+        stranger = await make_user("p2", "P2")
+        with pytest.raises(ValueError, match="signed up for"):
+            await service.submit_match_request(
+                tournament_id=t.id, scheduled_date="2099-01-15", scheduled_time="14:30",
+                player_ids=[actor.id, stranger.id], actor=actor,
+            )
+        assert not await TournamentPlayers.filter(tournament=t, user=stranger).exists()
+
+    async def test_a_request_cannot_seat_more_players_than_a_match_has(self, service, db):
+        t = await make_tournament()
+        actor = await make_user("p1", "P1")
+        others = [await make_user(f"p{i}", f"P{i}") for i in (2, 3, 4)]
+        for other in others:
+            await TournamentPlayers.create(tournament=t, user=other, tenant_id=1)
+        with pytest.raises(ValueError, match="2 players"):
+            await service.submit_match_request(
+                tournament_id=t.id, scheduled_date="2099-01-15", scheduled_time="14:30",
+                player_ids=[actor.id, *[o.id for o in others]], actor=actor,
+            )
 
     async def test_a_time_in_the_past_is_refused(self, service, db):
         """The booking dialog used to default to now, so pressing Schedule
@@ -182,6 +208,7 @@ class TestSubmitMatchRequest:
         t = await make_tournament()
         actor = await make_user("p1", "P1")
         opponent = await make_user("p2", "P2")
+        await TournamentPlayers.create(tournament=t, user=opponent, tenant_id=1)
         for from_bracket in (False, True):
             with pytest.raises(ValueError, match="already passed"):
                 await service.submit_match_request(

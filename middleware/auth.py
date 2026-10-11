@@ -189,6 +189,7 @@ async def enforce_membership(
         resolve_ask_again_at,
         resolve_join_preview,
         resolve_join_state,
+        resolve_removed,
     )
 
     if is_super_admin is None:
@@ -234,6 +235,7 @@ async def enforce_membership(
         # public half of its drawer (Event Information, Help), not Wizzrobe's.
         layout=await prepared_layout(user),
         ask_again_at=await resolve_ask_again_at(user, tenant_id),
+        removed=await resolve_removed(user, tenant_id),
     )
     return True
 

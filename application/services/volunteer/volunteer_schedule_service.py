@@ -409,6 +409,7 @@ class VolunteerScheduleService:
             await self.role_mapping_service.reconcile_users(actor, [details['user_id']])
             await self._notify_removed(user, shift)
 
+    @requires_feature(FeatureFlag.VOLUNTEERS)
     async def acknowledge(self, assignment_id: int, user: User) -> VolunteerAssignment:
         """Self-acknowledge an assignment. Idempotent."""
         assignment = require_found(

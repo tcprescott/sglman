@@ -79,26 +79,17 @@ def member_added_dm(community_name: str, *, by_staff: bool) -> str:
     )
 
 
-def member_removed_dm(
-    community_name: str, auto_join: bool = False, open_membership: bool = False,
-) -> str:
+def member_removed_dm(community_name: str, can_ask: bool = False) -> str:
     """DM to someone staff removed from a community.
 
-    With Discord auto-join on, membership follows the server: they're let back
-    in the next time they open the community while they're still in it, so the
-    DM says that rather than promising a lockout that won't hold. Open
-    membership is the same, minus the server.
+    Removal holds whatever the community's join rule: open membership and
+    Discord auto-join no longer let them straight back in. They can still ask,
+    where the community takes requests.
     """
-    if open_membership:
+    if can_ask:
         return (
-            f'Staff removed you from **{community_name}**. It lets anyone in who '
-            "signs in, so you'll be back in the next time you open it."
-        )
-    if auto_join:
-        return (
-            f'Staff removed you from **{community_name}**. It lets members of its '
-            "Discord server in automatically, so if you're still in the server "
-            "you'll be back in the next time you open it."
+            f'Staff removed you from **{community_name}**. You can no longer open its '
+            "pages, but you can ask to join again from its front page."
         )
     return (
         f'Staff removed you from **{community_name}**. You can no longer open its '

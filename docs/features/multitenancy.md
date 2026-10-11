@@ -266,14 +266,16 @@ they're in (`stash_notice(..., sticky=True, tenant_id=…)`: held for that
 community's pages, shown on up to two loads so it survives the first-visit
 timezone reload, cleared on **Got it**).
 
-**With auto-join on, the server is the membership rule.** A removal or a
-decline doesn't stick against it (`auto_join_active(tenant_id)`), and the copy
-says so: the Remove confirmation tells staff the person is let back in while
-they're in the server (remove them there too), the removal DM says they'll be
-back in on their next visit, and a declined requester's door and DM lead with
-"members of its Discord server get in automatically" before the date a new web
-request opens. Without auto-join, removal locks them out and the cooldown is
-the only route back.
+**A removal sticks.** Removing a member records a `TenantMemberBlock`, and
+open membership and Discord auto-join both refuse a blocked person, so the
+removal holds whatever the join mode. A join request still reaches staff, and
+any staff add lifts the block: Add member, an approved request, a manual role
+grant, the platform first-admin grant. The Discord role sync is a staff
+designation too and still admits. The door tells a blocked person staff removed
+them. **A decline doesn't stick against auto-join** (`auto_join_active(tenant_id)`):
+a declined requester's door and DM lead with "members of its Discord server get
+in automatically" before the date a new web request opens. Without auto-join
+the cooldown is the only route back.
 It never raises, and a bot that cannot answer counts as "not known to be a
 member", so a Discord outage leaves people at the door with its Request access
 button rather than on an error page. Leaving the server does **not** remove the
