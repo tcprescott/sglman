@@ -205,6 +205,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             "roster pulled from the event's Matcherino registrations.",
             'Operations',
             service_modules=('application/services/check_in_service.py',
+                             'application/services/check_in_desk_service.py',
                              'application/services/check_in_sync_worker.py',
                              'application/services/matcherino_login_service.py'),
         ),

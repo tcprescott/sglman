@@ -19,9 +19,10 @@ from typing import List, Optional
 
 from mcp.server.mcpserver import MCPServer
 
+from api.schemas.equipment import MyCheckoutResponse
 from application.errors import require_found
 from application.services import EquipmentService
-from mcpserver.auth import Gate
+from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import EquipmentDetail, EquipmentSummary, LoanRecord, TenantArg
 from models import EquipmentStatus, FeatureFlag
@@ -99,7 +100,25 @@ async def get_equipment(
     )
 
 
+async def my_equipment_checkouts(tenant: TenantArg = None) -> List[MyCheckoutResponse]:
+    """The equipment you currently have checked out. Mirrors `GET /api/equipment/me/checkouts`."""
+    return [
+        MyCheckoutResponse(
+            loan_id=loan.id,
+            equipment_id=loan.equipment_id,
+            asset_number=loan.equipment.asset_number,
+            name=loan.equipment.name,
+            checked_out_at=loan.checked_out_at,
+        )
+        for loan in await EquipmentService().my_checkouts(current_actor().user)
+    ]
+
+
 def register_tools(mcp: MCPServer) -> None:
+    register(
+        mcp, my_equipment_checkouts, gate=Gate.ACTOR,
+        feature=FeatureFlag.EQUIPMENT, title='My equipment checkouts',
+    )
     register(
         mcp, list_equipment, gate=Gate.ACTOR,
         feature=FeatureFlag.EQUIPMENT, title='List equipment',

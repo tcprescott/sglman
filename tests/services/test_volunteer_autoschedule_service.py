@@ -307,7 +307,7 @@ class TestPublishDraft:
 
         result = await service.publish_draft(MagicMock(), _dt(0), _dt(23))
 
-        assert result == {'published': 3, 'volunteers': 2}
+        assert result == {'published': 3, 'volunteers': 2, 'clashes': []}
         assert service.schedule_service.confirm_assignment.await_count == 3
         service.audit_service.write_log.assert_awaited_once()
 
@@ -317,7 +317,7 @@ class TestPublishDraft:
 
         result = await service.publish_draft(MagicMock(), _dt(0), _dt(23))
 
-        assert result == {'published': 0, 'volunteers': 0}
+        assert result == {'published': 0, 'volunteers': 0, 'clashes': []}
         service.schedule_service.confirm_assignment.assert_not_awaited()
         _, args, _kwargs = service.audit_service.write_log.mock_calls[0]
         assert args[2]['published'] == 0

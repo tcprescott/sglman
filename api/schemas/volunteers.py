@@ -61,6 +61,23 @@ class VolunteerAssignmentResponse(BaseModel):
     checked_in_by_id: Optional[int] = None
     created_at: datetime
 
+    @classmethod
+    def from_row(cls, a) -> 'VolunteerAssignmentResponse':
+        """Shared by the REST router and the MCP ``check_in_volunteer`` tool."""
+        user = a.user if a.user_id and hasattr(a, 'user') else None
+        return cls(
+            id=a.id,
+            shift_id=a.shift_id,
+            user_id=a.user_id,
+            user_name=(user.preferred_name if user else None),
+            auto_generated=a.auto_generated,
+            acknowledged_at=a.acknowledged_at,
+            reminder_sent_at=a.reminder_sent_at,
+            checked_in_at=a.checked_in_at,
+            checked_in_by_id=a.checked_in_by_id,
+            created_at=a.created_at,
+        )
+
 
 class AssignRequest(BaseModel):
     user_id: int

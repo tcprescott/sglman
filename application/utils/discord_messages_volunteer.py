@@ -60,14 +60,30 @@ def volunteer_reminder_dm(
     label: Optional[str],
     starts_display: str,
     ends_display: str,
+    acknowledged: bool = False,
 ) -> str:
-    """Reminder DM sent ahead of a volunteer shift."""
+    """Reminder DM sent ahead of a volunteer shift.
+
+    Someone who already acknowledged isn't asked again; either way the DM points
+    at the way out, because the reminder is when people find out they can't go.
+    """
     details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
     blocks = ["⏰ Reminder: you have an upcoming volunteer shift."]
     if details:
         blocks.append("\n".join(details))
-    blocks.append("Please click below to acknowledge your shift.")
+    if acknowledged:
+        blocks.append("You've already confirmed it. If you can't make it after all, "
+                      "tap **Can't make it** so your coordinator can find cover.")
+    else:
+        blocks.append("Tap **Acknowledge** to confirm, or **Can't make it** if you can't.")
     return "\n\n".join(blocks)
+
+
+def volunteer_reminder_description(acknowledged: bool) -> str:
+    """The reminder embed's one-line call to action."""
+    if acknowledged:
+        return "You've confirmed this one. Tap **Can't make it** if that's changed."
+    return 'Your shift is coming up. Tap **Acknowledge** to confirm you are covering it.'
 
 
 def volunteer_unassigned_dm(

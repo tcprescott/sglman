@@ -45,6 +45,7 @@ from application.utils.app_links import (
     player_match_url,
     player_reschedule_url,
     player_schedule_url,
+    volunteer_release_url,
 )
 from application.utils.discord_messages import DMLink
 from application.utils.tenant_urls import tenant_url
@@ -221,6 +222,13 @@ async def admin_reschedule_request(
     reason are the whole point and live in the dialog.
     """
     return await link_for(label, admin_reschedule_request_url(request_id))
+
+
+async def volunteer_release(
+    assignment_id: int, *, label: str = "Can't make it",
+) -> Optional[DMLink]:
+    """My Shifts with this shift's give-back dialog open, for the volunteer on it."""
+    return await link_for(label, volunteer_release_url(assignment_id))
 
 
 async def admin_volunteer_schedule(

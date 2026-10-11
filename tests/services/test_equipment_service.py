@@ -1,8 +1,11 @@
+import asyncio
+
 import pytest
 
+from application.services.audit_service import AuditActions
 from application.services.equipment_service import EquipmentService
 from application.tenant_context import tenant_scope
-from models import Equipment, EquipmentLoan, EquipmentStatus, Role, User, UserRole
+from models import AuditLog, Equipment, EquipmentLoan, EquipmentStatus, Role, User, UserRole
 
 
 async def _user(discord_id: int, username: str, *roles: Role) -> User:
@@ -316,3 +319,150 @@ class TestBorrowerRules:
         assert loan.borrower_id == walk_in.id
         refreshed = await service.get_asset(asset.id)
         assert refreshed.status == EquipmentStatus.CHECKED_OUT
+
+
+class TestConcurrentLending:
+    """A double-tap or two phones on one label both pass the service's reads;
+    the conditional writes are what keep it to one loan and one return."""
+
+    async def test_simultaneous_checkouts_make_one_loan(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        volunteer = await _user(2, 'vol', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Console')
+
+        results = await asyncio.gather(
+            service.checkout(volunteer, asset.id),
+            service.checkout(volunteer, asset.id),
+            return_exceptions=True,
+        )
+
+        assert sum(isinstance(r, ValueError) for r in results) == 1
+        assert await EquipmentLoan.filter(equipment_id=asset.id).count() == 1
+
+    async def test_a_checkout_that_loses_the_claim_is_refused(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        first = await _user(2, 'first', Role.VOLUNTEER)
+        second = await _user(3, 'second', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Console')
+        await service.checkout(first, asset.id)
+
+        # The losing request read "no open loan" before the winner committed.
+        async def stale_read(_equipment):
+            return None
+
+        monkeypatch.setattr(service.repository, 'get_open_loan', stale_read)
+        monkeypatch.setattr(
+            service.repository, 'get_by_id',
+            _stale_asset_reader(service.repository.get_by_id, EquipmentStatus.AVAILABLE),
+        )
+
+        with pytest.raises(ValueError, match='already checked out'):
+            await service.checkout(second, asset.id)
+
+        loans = await EquipmentLoan.filter(equipment_id=asset.id)
+        assert [loan.borrower_id for loan in loans] == [first.id]
+
+    async def test_a_double_checkin_records_one_return(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        volunteer = await _user(2, 'vol', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Console')
+        await service.checkout(volunteer, asset.id)
+        open_loan = await service.repository.get_open_loan(await service.get_asset(asset.id))
+
+        await service.checkin(manager, asset.id)
+
+        async def stale_read(_equipment):
+            return open_loan
+
+        monkeypatch.setattr(service.repository, 'get_open_loan', stale_read)
+        with pytest.raises(ValueError, match='not currently checked out'):
+            await service.checkin(manager, asset.id)
+
+        assert await AuditLog.filter(action=AuditActions.EQUIPMENT_CHECKED_IN).count() == 1
+        assert (await service.get_asset(asset.id)).status == EquipmentStatus.AVAILABLE
+
+    async def test_retiring_an_asset_checked_out_meanwhile_is_refused(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        volunteer = await _user(2, 'vol', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Console')
+        await service.checkout(volunteer, asset.id)
+        monkeypatch.setattr(
+            service.repository, 'get_by_id',
+            _stale_asset_reader(service.repository.get_by_id, EquipmentStatus.AVAILABLE),
+        )
+
+        with pytest.raises(ValueError, match='just checked out'):
+            await service.update_asset(
+                manager, asset.id, name='Console', description=None, private_notes=None,
+                owner_user_id=None, status=EquipmentStatus.RETIRED,
+            )
+
+        assert (await Equipment.get(id=asset.id)).status == EquipmentStatus.CHECKED_OUT
+
+    async def test_retire_and_unretire(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        asset = await service.create_asset(manager, name='Console')
+
+        await service.update_asset(
+            manager, asset.id, name='Console', description=None, private_notes=None,
+            owner_user_id=None, status=EquipmentStatus.RETIRED,
+        )
+        assert (await Equipment.get(id=asset.id)).status == EquipmentStatus.RETIRED
+        await service.update_asset(
+            manager, asset.id, name='Console', description=None, private_notes=None,
+            owner_user_id=None, status=EquipmentStatus.AVAILABLE,
+        )
+        assert (await Equipment.get(id=asset.id)).status == EquipmentStatus.AVAILABLE
+
+
+def _stale_asset_reader(real_get_by_id, status):
+    """``get_by_id`` as a request that read the row before another one changed it."""
+    async def read(equipment_id):
+        asset = await real_get_by_id(equipment_id)
+        asset.status = status
+        return asset
+    return read
+
+
+class TestAssetNumberClash:
+    """Two managers saving at once both read the same max+1."""
+
+    async def test_create_retries_past_a_taken_number(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        await service.create_asset(manager, name='Console')  # takes #1
+        real = service.repository.next_asset_number
+        reads = iter([1])
+
+        async def racing_read():
+            return next(reads, None) or await real()
+
+        monkeypatch.setattr(service.repository, 'next_asset_number', racing_read)
+        asset = await service.create_asset(manager, name='Capture card')
+
+        assert asset.asset_number == 2
+
+    async def test_create_gives_up_with_a_retry_message(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        await service.create_asset(manager, name='Console')
+
+        async def always_taken():
+            return 1
+
+        monkeypatch.setattr(service.repository, 'next_asset_number', always_taken)
+        with pytest.raises(ValueError, match='Save again'):
+            await service.create_asset(manager, name='Capture card')
+
+    async def test_bulk_create_retries_without_leaving_a_partial_block(self, db, service, monkeypatch):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        await service.create_asset(manager, name='Console')  # takes #1
+        real = service.repository.next_asset_number
+        reads = iter([1])
+
+        async def racing_read():
+            return next(reads, None) or await real()
+
+        monkeypatch.setattr(service.repository, 'next_asset_number', racing_read)
+        created = await service.bulk_create_assets(manager, name='HDMI', count=3)
+
+        assert sorted(a.asset_number for a in created) == [2, 3, 4]
+        assert await Equipment.all().count() == 4

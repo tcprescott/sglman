@@ -42,6 +42,7 @@ from application.services import (
     CrewService,
     MatchScheduleService,
     MatchService,
+    MatchStreamVolunteerService,
     MatchWatcherService,
 )
 from application.tenant_context import require_tenant_id
@@ -419,6 +420,34 @@ async def unwatch_match(
     )
 
 
+async def offer_match_for_stream(
+    match_id: int,
+    tenant: TenantArg = None,
+) -> OperationResult:
+    """Offer your own match for stream coverage, before it starts.
+
+    Only a player in the match can offer it. Stream managers see the offer when
+    they choose stream candidates; it does not put the match on stream.
+    """
+    await MatchStreamVolunteerService().volunteer(match_id, current_actor().user)
+    return OperationResult(detail=f'Offered match {match_id} for stream.')
+
+
+async def withdraw_stream_offer(
+    match_id: int,
+    tenant: TenantArg = None,
+) -> OperationResult:
+    """Take back your offer to have your match streamed."""
+    removed = await MatchStreamVolunteerService().withdraw(match_id, current_actor().user)
+    return OperationResult(
+        ok=removed,
+        detail=(
+            f'Took back the stream offer on match {match_id}.' if removed
+            else f'You had not offered match {match_id} for stream.'
+        ),
+    )
+
+
 def register_tools(mcp: MCPServer) -> None:
     def write_tool(fn: Callable, title: str, *, destructive: bool = False) -> None:
         """Every tool in this module, registered the same way.
@@ -451,3 +480,5 @@ def register_tools(mcp: MCPServer) -> None:
     write_tool(acknowledge_match, 'Acknowledge match')
     write_tool(watch_match, 'Watch match')
     write_tool(unwatch_match, 'Stop watching match')
+    write_tool(offer_match_for_stream, 'Offer match for stream')
+    write_tool(withdraw_stream_offer, 'Withdraw stream offer', destructive=True)
