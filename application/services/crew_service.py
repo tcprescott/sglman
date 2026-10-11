@@ -66,8 +66,12 @@ class CrewService:
         # community's schedule — it was that they were offered Sign Up on it. The
         # page gate stops them reaching the surface, but UI-only gating is not
         # gating: this is reached from the REST API and a Discord button too.
+        # ``admit`` rather than a bare membership check: the Discord signup
+        # button is often someone's first contact with the community, and a
+        # community whose rule would let them in should do so here too, not
+        # only once they've opened a web page.
         from application.services.tenant_membership_service import TenantMembershipService
-        if not await TenantMembershipService().is_member(user):
+        if not await TenantMembershipService().admit(user):
             raise ValueError(
                 'You are not a member of this community. Ask to join it first.'
             )

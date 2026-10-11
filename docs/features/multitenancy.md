@@ -200,9 +200,27 @@ bare `ui.page` — the same function also renders the platform community picker,
 which has no tenant and must stay anonymous — so it calls `enforce_membership`
 itself rather than getting it from the decorator.
 
-**Membership is acquired four ways:** a staff grant (Users tab → Add Member),
-any role grant (the invariant above), an approved **join request**, or
-**Discord auto-join**.
+**Membership is acquired five ways:** a staff grant (Users tab → Add Member),
+any role grant (the invariant above), an approved **join request**,
+**Discord auto-join**, or **open membership**.
+
+**Who can join is one choice**, Admin → Settings → Joining this community, as a
+`JoinMode` (`application/services/tenant_membership_service.py`): *anyone who
+signs in* (`OPEN`), *Discord server members, and others can ask*
+(`DISCORD_OR_REQUEST`), *Discord server members only* (`DISCORD`), *everyone
+asks* (`REQUEST`, the default) or *only people staff add* (`STAFF_ONLY`). It is
+stored as the three switches described below (`open_membership`,
+`discord_auto_join`, `join_requests_enabled`), which the door and services read,
+but staff only ever set them together through `set_join_mode`, so no two can
+contradict each other. The Discord modes are refused while no guild is linked,
+and the radio hides them then.
+
+**Open membership** (`OPEN`) adds any signed-in non-member on the spot:
+`enforce_membership` calls `join_openly` before `join_via_discord`, with the same
+contract (never raises, closes a pending request, audits `tenant.member_added`
+with `source: open`, records `MembershipSource.OPEN`, sticky welcome toast). A
+removal or decline doesn't stick against it, and the Remove confirmation and
+removal DM say so: to keep someone out, change the mode.
 `TenantJoinRequest` is the self-serve enrollment path whose absence used to be
 the documented reason no gate existed: one row per `(user, tenant)` — a denied
 request is re-opened, never appended to — with the community's staff notified
@@ -275,7 +293,10 @@ or MCP (a token belongs to a tenant, and wave 2 scoped what those return), to th
 Discord bot (an interaction handler acts for someone already assigned), or to
 workers (they run in `tenant_scope`, not as a user). The one service that
 enforces it directly is **crew signup**, because the measured symptom was a
-non-member being offered *Sign Up* — and UI-only gating is not gating.
+non-member being offered *Sign Up* — and UI-only gating is not gating. It
+checks through `TenantMembershipService.admit`, which lets the person in first
+when open membership or auto-join would have, so a Discord signup button
+pressed before the site was ever opened isn't refused.
 
 See [authentication.md](../reference/authentication.md) and
 [role-based-auth.md](../reference/authentication.md#roles).

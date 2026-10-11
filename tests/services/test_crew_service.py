@@ -28,6 +28,10 @@ def service(monkeypatch):
         'application.services.tenant_membership_service.TenantMembershipService.is_member',
         AsyncMock(return_value=True),
     )
+    monkeypatch.setattr(
+        'application.services.tenant_membership_service.TenantMembershipService.admit',
+        AsyncMock(return_value=True),
+    )
     svc = object.__new__(CrewService)
     svc.commentator_repository = MagicMock()
     svc.commentator_repository.acknowledge = AsyncMock(side_effect=lambda c: c)

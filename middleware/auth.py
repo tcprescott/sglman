@@ -195,22 +195,29 @@ async def enforce_membership(
         return False
     if user is not None and await TenantService.is_member(user.id, tenant_id):
         return False
-    # The other way through: a community that opened its door to its Discord
-    # server lets a server member in here, on the page they were opening.
-    if user is not None and await TenantMembershipService().join_via_discord(user, tenant_id):
-        # Only reached for someone who wasn't a member a moment ago, so this is
-        # their first landing. Without it they'd arrive on a schedule with no
-        # idea they'd just joined anything.
-        from theme.notice import stash_notice
+    # The other ways through: a community open to anyone who signs in, or one
+    # that opened its door to its Discord server, lets them in here, on the
+    # page they were opening.
+    if user is not None:
+        memberships = TenantMembershipService()
+        why = None
+        if await memberships.join_openly(user, tenant_id):
+            why = 'it’s open to anyone who signs in'
+        elif await memberships.join_via_discord(user, tenant_id):
+            why = 'you’re in its Discord server'
+        if why is not None:
+            # Only reached for someone who wasn't a member a moment ago, so this
+            # is their first landing. Without it they'd arrive on a schedule
+            # with no idea they'd just joined anything.
+            from theme.notice import stash_notice
 
-        tenant = await TenantService.get_by_id(tenant_id)
-        name = tenant.name if tenant else 'this community'
-        stash_notice(
-            f'Welcome to {name}. You’re a member now because you’re in its '
-            'Discord server.',
-            color='positive', sticky=True, tenant_id=tenant_id,
-        )
-        return False
+            tenant = await TenantService.get_by_id(tenant_id)
+            name = tenant.name if tenant else 'this community'
+            stash_notice(
+                f'Welcome to {name}. You’re a member now because {why}.',
+                color='positive', sticky=True, tenant_id=tenant_id,
+            )
+            return False
 
     from theme.error_page import prepared_layout
 

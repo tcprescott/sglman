@@ -71,6 +71,9 @@ class JoinPreview:
     #: Whether the door takes join requests. Off leaves auto-join (if on) as
     #: the only way in short of staff adding someone by hand.
     join_requests: bool = True
+    #: Whether anyone who signs in is let straight in. A signed-in visitor
+    #: only sees the door then if letting them in failed.
+    open_membership: bool = False
 
 
 def roster_label(match) -> str:
@@ -99,6 +102,7 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
         KEY_DISCORD_AUTO_JOIN,
         KEY_JOIN_PREVIEW,
         KEY_JOIN_REQUESTS,
+        KEY_OPEN_MEMBERSHIP,
         SystemConfigService,
     )
     from application.services.tenant_service import TenantService
@@ -113,6 +117,7 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
         preview.join_requests = await SystemConfigService.get_bool(
             KEY_JOIN_REQUESTS, default=True,
         )
+        preview.open_membership = await SystemConfigService.get_bool(KEY_OPEN_MEMBERSHIP)
     except Exception:
         logger.exception('Join page: join-request setting failed for tenant %s', tenant_id)
 
@@ -234,6 +239,8 @@ _MEMBER_LINE = 'Already a member? Sign in and you’ll land right back on this p
 
 
 def _signed_out_message(preview: JoinPreview) -> str:
+    if preview.open_membership:
+        return 'Anyone can join. Sign in with Discord and you’re in, right on this page.'
     if preview.discord_auto_join and preview.join_requests:
         return (
             f'{_MEMBER_LINE} New here? Members of this community’s Discord '
@@ -250,6 +257,12 @@ def _signed_out_message(preview: JoinPreview) -> str:
 
 
 def _non_member_message(preview: JoinPreview) -> str:
+    if preview.open_membership:
+        # Only reachable when letting them in just failed.
+        return (
+            'This community is open to anyone, but we couldn’t add you just now. '
+            'Reload the page to try again.'
+        )
     if preview.discord_auto_join and preview.join_requests:
         return (
             'You aren’t a member of this community. Members of its Discord '

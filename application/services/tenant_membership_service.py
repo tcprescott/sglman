@@ -14,6 +14,7 @@ explicitly rather than going through ``scoped(...)``.
 
 import logging
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import Dict, Iterable, List, Optional
 
 from application.errors import NotFoundError
@@ -52,6 +53,45 @@ logger = logging.getLogger(__name__)
 #: Without it, request → decline → request again took ten seconds and DM'd
 #: every staff member each time.
 JOIN_REQUEST_COOLDOWN = timedelta(days=7)
+
+
+class JoinMode(str, Enum):
+    """Who can become a member of a community, as one choice.
+
+    Stored as three booleans (``KEY_OPEN_MEMBERSHIP``, ``KEY_DISCORD_AUTO_JOIN``,
+    ``KEY_JOIN_REQUESTS``) that the door and the services already read; this is
+    the only shape staff are offered, so the three can't be set into a
+    combination nobody meant (open *and* closed to requests, say).
+    """
+
+    OPEN = 'open'                            # anyone who signs in
+    DISCORD_OR_REQUEST = 'discord_or_request'  # server members in; others ask
+    DISCORD = 'discord'                      # server members only
+    REQUEST = 'request'                      # everyone asks staff
+    STAFF_ONLY = 'staff_only'                # staff add people by hand
+
+    @property
+    def flags(self) -> tuple[bool, bool, bool]:
+        """``(open, discord_auto_join, join_requests)`` for this mode."""
+        return {
+            JoinMode.OPEN: (True, False, False),
+            JoinMode.DISCORD_OR_REQUEST: (False, True, True),
+            JoinMode.DISCORD: (False, True, False),
+            JoinMode.REQUEST: (False, False, True),
+            JoinMode.STAFF_ONLY: (False, False, False),
+        }[self]
+
+    @classmethod
+    def from_flags(cls, open_: bool, auto_join: bool, requests: bool) -> 'JoinMode':
+        if open_:
+            return cls.OPEN
+        if auto_join:
+            return cls.DISCORD_OR_REQUEST if requests else cls.DISCORD
+        return cls.REQUEST if requests else cls.STAFF_ONLY
+
+    @property
+    def uses_discord(self) -> bool:
+        return self in (JoinMode.DISCORD_OR_REQUEST, JoinMode.DISCORD)
 
 
 async def _close_pending_request(
@@ -174,6 +214,7 @@ class TenantMembershipService:
         await AccommodationService().close_for_removed_member(actor, user)
         await self._notify_member(
             user, member_removed_dm, auto_join=await self.auto_join_active(tenant_id),
+            open_membership=await self.get_join_mode(tenant_id) is JoinMode.OPEN,
         )
 
     # ---- the door: requests to join --------------------------------------
@@ -225,6 +266,100 @@ class TenantMembershipService:
             )
             await self._notify_staff_of_request(user, tenant_id, text)
         return request
+
+    # ---- how people get in ----------------------------------------------
+
+    @staticmethod
+    async def get_join_mode(tenant_id: Optional[int] = None) -> JoinMode:
+        """The community's rule for who can join. Defaults to :attr:`JoinMode.REQUEST`."""
+        from application.services.system_config_service import (
+            KEY_DISCORD_AUTO_JOIN,
+            KEY_JOIN_REQUESTS,
+            KEY_OPEN_MEMBERSHIP,
+            SystemConfigService,
+        )
+
+        with tenant_scope(tenant_id if tenant_id is not None else require_tenant_id()):
+            return JoinMode.from_flags(
+                await SystemConfigService.get_bool(KEY_OPEN_MEMBERSHIP),
+                await SystemConfigService.get_bool(KEY_DISCORD_AUTO_JOIN),
+                await SystemConfigService.get_bool(KEY_JOIN_REQUESTS, default=True),
+            )
+
+    @staticmethod
+    async def set_join_mode(actor: User, mode: JoinMode) -> None:
+        """Write all three switches behind ``mode`` for the tenant in scope.
+
+        Staff only (``set_raw`` enforces it). A Discord mode is refused while no
+        server is linked: it would close the door to everyone and admit nobody.
+        """
+        from application.services.system_config_service import (
+            KEY_DISCORD_AUTO_JOIN,
+            KEY_JOIN_REQUESTS,
+            KEY_OPEN_MEMBERSHIP,
+            SystemConfigService,
+        )
+        from application.services.tenant_service import TenantService
+
+        if mode.uses_discord:
+            tenant = await TenantService.get_by_id(require_tenant_id())
+            if tenant is None or tenant.discord_guild_id is None:
+                raise ValueError(
+                    'Link a Discord server on the Role Mappings tab before letting '
+                    'its members in.'
+                )
+        open_, auto_join, requests = mode.flags
+        for key, value in (
+            (KEY_OPEN_MEMBERSHIP, open_),
+            (KEY_DISCORD_AUTO_JOIN, auto_join),
+            (KEY_JOIN_REQUESTS, requests),
+        ):
+            await SystemConfigService.set_raw(key, 'true' if value else 'false', actor)
+
+    async def join_openly(self, user: User, tenant_id: int) -> bool:
+        """Let anyone who signs in straight in, when the community is open.
+
+        The no-strings sibling of :meth:`join_via_discord`, with the same
+        contract: True when ``user`` is a member afterwards, never raises, runs
+        inside the membership gate on every page a non-member opens.
+        """
+        from application.services.system_config_service import (
+            KEY_OPEN_MEMBERSHIP,
+            SystemConfigService,
+        )
+
+        try:
+            if await TenantMembershipRepository.is_member(user.id, tenant_id):
+                return True
+            with tenant_scope(tenant_id):
+                if not await SystemConfigService.get_bool(KEY_OPEN_MEMBERSHIP):
+                    return False
+                await TenantMembershipRepository.add(user, tenant_id, MembershipSource.OPEN)
+                closed = await _close_pending_request(user, tenant_id, None)
+                details: dict = {'target_user_id': user.id, 'source': 'open'}
+                if closed is not None:
+                    details['closed_request_id'] = closed.id
+                await self.audit_service.write_and_publish(
+                    user, AuditActions.TENANT_MEMBER_ADDED, details,
+                    EventType.TENANT_MEMBER_ADDED,
+                )
+            return True
+        except Exception:
+            logger.exception('Open join failed for user %s in tenant %s', user.id, tenant_id)
+            return False
+
+    async def admit(self, user: User, tenant_id: Optional[int] = None) -> bool:
+        """Whether ``user`` is a member, letting them in first if the rule allows.
+
+        For entry points that aren't a page, so never pass the gate: a Discord
+        button pressed by someone who has never opened the site. Without it,
+        open membership and auto-join both refused exactly the person they
+        were meant to let in.
+        """
+        tid = tenant_id if tenant_id is not None else require_tenant_id()
+        if await TenantMembershipRepository.is_member(user.id, tid):
+            return True
+        return await self.join_openly(user, tid) or await self.join_via_discord(user, tid)
 
     async def join_via_discord(self, user: User, tenant_id: int) -> bool:
         """Let a member of the community's linked Discord server straight in.
