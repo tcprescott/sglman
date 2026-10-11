@@ -464,6 +464,7 @@ class VolunteerScheduleService:
         await self.role_mapping_service.reconcile_users(user, [user.id])
         await self._notify_coordinators_of_release(user, shift, details)
 
+    @requires_feature(FeatureFlag.VOLUNTEERS)
     async def check_in(self, assignment_id: int, actor: User) -> VolunteerAssignment:
         """Record that a volunteer appeared for their shift."""
         if not await AuthService.can_manage_volunteers(actor):

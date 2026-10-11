@@ -315,6 +315,19 @@ Several phones work one event, and the worker polls it too:
 | `link` / `unlink` | Manual matching |
 | `add_walk_up(event_id, user_id= or name=, check_in=True)` / `remove_entrant` | Walk-ups (staff) |
 
+`application/services/check_in_desk_service.py` (`CheckInDeskService`) holds the
+desk's two gated reads for the REST and MCP surfaces, which have no page gate in
+front of them: `events_for(actor)` (every event for staff, open ones for the
+desk) and `roster_for(actor, event_id)` (a draft event is `404` for a desk
+volunteer). `CheckInService` is at its file-length limit, so they live beside it.
+
+`api/routers/check_in.py` (`/api/check-in`, behind the flag) and the MCP tools
+`list_check_in_events`, `get_check_in_roster`, `check_in_attendee`,
+`undo_attendee_check_in`, `link_attendee`, `unlink_attendee`, `add_walk_up` and
+`sync_check_in_event` expose the desk's actions. They call the same service
+methods the desk does, so the withdrawn-row rule and its staff override apply
+unchanged. See [rest-api.md](../reference/rest-api.md).
+
 `application/services/check_in_comps.py` works out and applies comps (see
 [Comps](#comps)); `check_in_accounts.py` holds the identity lookups and what a
 link writes back to the account.

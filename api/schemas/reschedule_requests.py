@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from models import RescheduleRequestKind
+from models import MatchRescheduleRequest, RescheduleRequestKind
 
 
 class RescheduleRequestResponse(BaseModel):
@@ -26,6 +26,28 @@ class RescheduleRequestResponse(BaseModel):
     decided_at: Optional[datetime] = None
     decision_note: Optional[str] = None
     created_at: datetime
+
+    @classmethod
+    def from_row(cls, row: MatchRescheduleRequest) -> 'RescheduleRequestResponse':
+        """``requested_by`` and ``decided_by`` must be loaded. Shared with MCP."""
+        decider = row.decided_by
+        return cls(
+            id=row.id,
+            match_id=row.match_id,  # type: ignore[attr-defined]
+            kind=getattr(row.kind, 'value', row.kind),
+            status=getattr(row.status, 'value', row.status),
+            reason=row.reason,
+            proposed_at=row.proposed_at,
+            original_scheduled_at=row.original_scheduled_at,
+            opponent_agreed_at=row.opponent_agreed_at,
+            requested_by_id=row.requested_by_id,  # type: ignore[attr-defined]
+            requested_by_name=row.requested_by.preferred_name if row.requested_by else None,
+            decided_by_id=row.decided_by_id,  # type: ignore[attr-defined]
+            decided_by_name=decider.preferred_name if decider else None,
+            decided_at=row.decided_at,
+            decision_note=row.decision_note,
+            created_at=row.created_at,
+        )
 
 
 class RescheduleRequestCreate(BaseModel):
