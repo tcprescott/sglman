@@ -61,9 +61,10 @@ async def list_mine(
     summary="List reschedule requests waiting on a decision (admin)",
 )
 async def list_pending(actor: User = Depends(require_api_actor)):
-    """The staff queue. Gated in the service on `can_view_admin` — a request
-    carries the player's own words about why they need the change, which is not
-    schedule data and is nobody else's to read."""
+    """The staff queue. Gated in the service to Staff, or a tournament admin
+    for their own tournaments — a request carries the player's own words about
+    why they need the change, which is not schedule data and is nobody else's
+    to read."""
     rows = await MatchRescheduleService().list_pending(actor)
     return [_serialize(row) for row in rows]
 

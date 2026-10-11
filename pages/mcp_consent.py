@@ -27,6 +27,7 @@ from starlette.responses import RedirectResponse
 from application.errors import NotFoundError
 from application.services import McpAuthService
 from application.services.auth_service import get_user_from_discord_id
+from application.services.mcp_auth_service import is_allowed_redirect_uri
 from middleware.auth import protected_routes
 from theme.chrome import render_platform_chrome
 
@@ -91,19 +92,6 @@ def _render_notice(headline: str, message: str) -> None:
             ).classes('consent-note')
 
 
-def _deny_redirect(redirect_uri: str, state: str | None) -> RedirectResponse:
-    """Send the standard OAuth denial back to the client.
-
-    A denial has to reach the client as ``access_denied`` rather than as a dead
-    end, or the client sits waiting on a callback that never arrives.
-    """
-    params = {'error': 'access_denied', 'error_description': 'The user denied the request.'}
-    if state:
-        params['state'] = state
-    sep = '&' if '?' in redirect_uri else '?'
-    return RedirectResponse(f'{redirect_uri}{sep}{urlencode(params)}', status_code=302)
-
-
 def create() -> None:
     """Register the consent page."""
 
@@ -150,6 +138,9 @@ def create() -> None:
 
         def deny() -> None:
             service.discard_pending(txn)
+            if not is_allowed_redirect_uri(pending.redirect_uri):
+                ui.navigate.to('/')
+                return
             sep = '&' if '?' in pending.redirect_uri else '?'
             params = {
                 'error': 'access_denied',

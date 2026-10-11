@@ -69,6 +69,7 @@ REPORT_CARDS = [
         'title': 'Audit Log',
         'icon': 'fact_check',
         'description': 'Filterable history of admin actions across the app.',
+        'staff_only': True,
     },
     {
         'key': 'telemetry',

@@ -45,13 +45,13 @@ async def create_user_token(
     roles: Optional[Iterable[Role]] = None,
     read_only: bool = False,
     is_active: bool = True,
-    member: bool = False,
+    member: bool = True,
 ) -> Tuple[User, str]:
     """Create a user (optionally with global roles) and a token for them.
 
-    ``member=True`` also joins them to the ambient community, which roster
-    writes (match players and crew, shifts, bracket entrants) require of the
-    people they name.
+    ``member=True`` (the default) joins them to the ambient community, as every
+    real token holder is: the REST API refuses a token whose owner isn't a
+    member. ``member=False`` is for testing that refusal.
 
     Returns (user, raw_token).
     """

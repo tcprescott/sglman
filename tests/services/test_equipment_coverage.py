@@ -9,10 +9,11 @@ import pytest
 
 from application.services.equipment_service import EquipmentService
 from models import AuditLog, EquipmentLoan, EquipmentStatus, Role, User, UserRole
+from tests.api_helpers import create_community_member
 
 
 async def _user(discord_id: int, username: str, *roles: Role) -> User:
-    user = await User.create(discord_id=discord_id, username=username)
+    user = await create_community_member(discord_id=discord_id, username=username)
     for role in roles:
         await UserRole.create(user=user, role=role)
     return user

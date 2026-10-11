@@ -6,10 +6,11 @@ from application.services.audit_service import AuditActions
 from application.services.equipment_service import EquipmentService
 from application.tenant_context import tenant_scope
 from models import AuditLog, Equipment, EquipmentLoan, EquipmentStatus, Role, User, UserRole
+from tests.api_helpers import create_community_member
 
 
 async def _user(discord_id: int, username: str, *roles: Role) -> User:
-    user = await User.create(discord_id=discord_id, username=username)
+    user = await create_community_member(discord_id=discord_id, username=username)
     for role in roles:
         await UserRole.create(user=user, role=role)
     return user
@@ -211,6 +212,16 @@ class TestOwnerLabel:
         owned = await service.create_asset(manager, name='Owned asset', owner_user_id=owner.id)
         fetched = await service.get_asset(owned.id)
         assert fetched.owner_label('Acme Community') == owner.preferred_name
+
+
+class TestOwnerMustBelong:
+    async def test_an_owner_from_outside_the_community_is_refused(self, db, service):
+        """``User`` is global; an unchecked owner id put any account's name on
+        an asset every member can list."""
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        stranger = await User.create(discord_id=77, username='elsewhere')
+        with pytest.raises(ValueError, match="doesn't exist"):
+            await service.create_asset(manager, name='Borrowed', owner_user_id=stranger.id)
 
 
 class TestLoanHistoryBound:

@@ -80,11 +80,17 @@ class McpAuthRepository:
         ).prefetch_related('client', 'user')
 
     @staticmethod
-    async def consume_code(code: McpAuthorizationCode, when: datetime) -> None:
-        """Mark a code used. Paired with the service's re-read so a replayed
-        code is refused even inside its expiry window."""
-        code.consumed_at = when
-        await code.save(update_fields=['consumed_at'])
+    async def consume_code(code: McpAuthorizationCode, when: datetime) -> bool:
+        """Mark a code used; False when it already was.
+
+        One conditional UPDATE, so of two concurrent exchanges exactly one
+        claims the code."""
+        claimed = await McpAuthorizationCode.filter(
+            id=code.id, consumed_at__isnull=True,
+        ).update(consumed_at=when)
+        if claimed:
+            code.consumed_at = when
+        return claimed == 1
 
     @staticmethod
     async def purge_expired_codes(now: datetime) -> int:

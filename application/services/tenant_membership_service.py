@@ -154,6 +154,15 @@ class TenantMembershipService:
                 f"{user.display_name or user.username} holds roles in this "
                 'community — revoke them before removing the membership.'
             )
+        # Tournament admin and crew coordinator are roles too, just per
+        # tournament. Left in place they come back with any later re-admission.
+        admin_ids, coordinated_ids = await AuthService.tournament_scope(user)
+        if admin_ids or coordinated_ids:
+            raise ValueError(
+                f"{user.display_name or user.username} is a tournament admin or crew "
+                'coordinator here — take them off those tournaments before removing '
+                'the membership.'
+            )
         tenant_id = require_tenant_id()
         removed = await TenantMembershipRepository.remove(user.id, tenant_id)
         if not removed:
@@ -213,7 +222,14 @@ class TenantMembershipService:
                 f'until {format_local_display(allowed_at)}.'
             )
 
+        existing = await TenantJoinRequestRepository.get(user.id, tenant_id)
+        already_pending = existing is not None and existing.status is JoinRequestStatus.PENDING
         request = await TenantJoinRequestRepository.upsert_pending(user, tenant_id, text)
+        if already_pending:
+            # Staff were told when it was opened. Re-asking only updates the
+            # note, or a client repeating the click could DM every staff
+            # member as often as it liked.
+            return request
         # The requester acts on their own behalf, and the row belongs to the
         # *target* tenant — which they are not scoped to, hence the explicit
         # scope, exactly as bootstrap_staff does.

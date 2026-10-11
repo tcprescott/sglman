@@ -100,6 +100,8 @@ its card, grant list and expired-transaction notice use the `.consent-*` classes
 in `styles.css`. The palette is the shipped default, not a tenant override,
 because the credential is not scoped to a community.
 
+**Which redirect URIs register.** `https://` anywhere, `http://` only to `localhost`, `127.0.0.1` or `[::1]`, or a native app's own scheme (RFC 8252). `javascript:`, `data:`, `vbscript:`, `file:`, `blob:` and URIs with a fragment are refused with `invalid_redirect_uri`, because the consent page sends the signed-in browser to that URI from the app's own origin. `approve` and the deny button re-check, for clients stored before the rule. Code exchange and refresh rotation are single conditional UPDATEs, so two concurrent requests can't both spend one code or one refresh token.
+
 **The redirect target.** Under the lede, the card names the host approving will
 send the code to. Registration is open, so `client_name` is a string the
 requester chose — anyone can register a client called "Claude". The redirect URI
@@ -281,7 +283,7 @@ model needs in one call to find one person.
 ### Observability
 | Tool | Gate |
 |---|---|
-| `list_audit_log` | ADMIN |
+| `list_audit_log` | STAFF |
 | `telemetry_summary`, `telemetry_top`, `get_system_config` | STAFF |
 | `list_service_health`, `list_webhooks`, `list_webhook_deliveries` | STAFF |
 | `list_feedback` | STAFF | `FEEDBACK` |

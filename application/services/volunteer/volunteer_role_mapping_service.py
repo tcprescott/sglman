@@ -11,7 +11,7 @@ an assignment reconciles the people it touched straight after its own commit.
 """
 
 import logging
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Dict, Iterable, List, Sequence, Set, Tuple
 
 from application.errors import require_found
 from application.feature_flags import requires_feature
@@ -29,7 +29,6 @@ from application.services.tenant_membership_service import TenantMembershipServi
 from application.tenant_context import require_tenant_id
 from models import (
     FeatureFlag,
-    MembershipSource,
     Role,
     RoleSource,
     User,
@@ -230,26 +229,19 @@ class VolunteerRoleMappingService:
         tenant_id = require_tenant_id()
 
         granting = sorted(desired - current_all, key=lambda r: r.value)
-        closed: Optional[object] = None
-        if granting:
-            # A role in a tenant implies membership in it; membership first so a
-            # failure leaves no role stranded without one.
-            closed = await TenantMembershipService.ensure_member(
-                user, actor=actor, source=MembershipSource.ROLE_GRANT,
-            )
+        # Assigning a shift requires membership, so a non-member here was
+        # removed after being scheduled. Their old shifts must not re-admit
+        # them; only staff bring someone back.
+        if granting and not await TenantMembershipService().is_member(user):
+            granting = []
         for role in granting:
             await self.role_repository.add(
                 user, role, granted_by=actor, source=RoleSource.VOLUNTEER,
             )
-            details: dict = {
-                'role': role.value, 'source': RoleSource.VOLUNTEER.value,
-                'target_user_id': user.id, 'tenant_id': tenant_id,
-            }
-            if closed is not None:
-                details['closed_request_id'] = closed.id  # type: ignore[attr-defined]
-                closed = None
             await self.audit_service.write_log(
-                actor, AuditActions.ROLE_VOLUNTEER_SYNC_GRANTED, details,
+                actor, AuditActions.ROLE_VOLUNTEER_SYNC_GRANTED,
+                {'role': role.value, 'source': RoleSource.VOLUNTEER.value,
+                 'target_user_id': user.id, 'tenant_id': tenant_id},
             )
             result['granted'].append(role.value)
 

@@ -23,6 +23,8 @@ from mcp.server.auth.provider import (
     AuthorizationParams,
     OAuthAuthorizationServerProvider,
     RefreshToken,
+    RegistrationError,
+    TokenError,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
@@ -78,6 +80,14 @@ class WizzrobeOAuthProvider(
         )
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
+        try:
+            await self._register_client(client_info)
+        except ValueError as exc:
+            raise RegistrationError(
+                error='invalid_redirect_uri', error_description=str(exc),
+            ) from exc
+
+    async def _register_client(self, client_info: OAuthClientInformationFull) -> None:
         await self.service.register_client(
             client_id=client_info.client_id,
             client_name=client_info.client_name or 'MCP client',
@@ -143,8 +153,13 @@ class WizzrobeOAuthProvider(
         # exchange, and the service's consumed check is what makes it single-use.
         code = await self.service.load_code(client.client_id, authorization_code.code)
         if code is None:
-            raise ValueError('Invalid or already-used authorization code')
-        access, refresh, expires_in = await self.service.exchange_code(code)
+            raise TokenError(
+                error='invalid_grant', error_description='Invalid or already-used authorization code',
+            )
+        try:
+            access, refresh, expires_in = await self.service.exchange_code(code)
+        except ValueError as exc:
+            raise TokenError(error='invalid_grant', error_description=str(exc)) from exc
         return OAuthToken(
             access_token=access,
             token_type='Bearer',
@@ -177,8 +192,13 @@ class WizzrobeOAuthProvider(
     ) -> OAuthToken:
         token = await self.service.load_refresh_token(client.client_id, refresh_token.token)
         if token is None:
-            raise ValueError('Invalid or expired refresh token')
-        access, refresh, expires_in = await self.service.exchange_refresh(token)
+            raise TokenError(
+                error='invalid_grant', error_description='Invalid or expired refresh token',
+            )
+        try:
+            access, refresh, expires_in = await self.service.exchange_refresh(token)
+        except ValueError as exc:
+            raise TokenError(error='invalid_grant', error_description=str(exc)) from exc
         return OAuthToken(
             access_token=access,
             token_type='Bearer',

@@ -82,8 +82,10 @@ class WebhookFakeClient:
     async def __aexit__(self, *exc):
         return False
 
-    async def post(self, url, content=None, headers=None):
-        self.calls.append({'url': url, 'content': content, 'headers': headers})
+    async def post(self, url, content=None, headers=None, extensions=None):
+        self.calls.append({
+            'url': url, 'content': content, 'headers': headers, 'extensions': extensions,
+        })
         action = self._actions[len(self.calls) - 1]
         if isinstance(action, Exception):
             raise action
@@ -255,6 +257,50 @@ class TestDeliverySsrfRevalidation:
         assert delivery.attempt_count == 0
         assert 'SSRF' in (delivery.error or '')
         assert delivery.delivered_at is None
+
+    async def test_delivery_connects_to_the_address_that_passed(self, db, monkeypatch):
+        """httpx must not resolve the name again: connect to the checked IP and
+        carry the hostname as Host and as the TLS server name."""
+        webhook = await Webhook.create(
+            name='w', url='https://hooks.example:8443/in?x=1',
+            secret='shhh', event_types=['*'],
+        )
+        monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('93.184.216.34', 0))],
+        )
+        fake = WebhookFakeClient([200])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+
+        await WebhookService()._deliver_one(webhook, Event.create(EventType.MATCH_CREATED, {}))
+
+        [call] = fake.calls
+        assert call['url'] == 'https://93.184.216.34:8443/in?x=1'
+        assert call['headers']['Host'] == 'hooks.example:8443'
+        assert call['extensions'] == {'sni_hostname': 'hooks.example'}
+
+    async def test_a_rebind_between_retries_is_caught(self, db, monkeypatch, no_sleep):
+        """Each retry re-checks: public on the first try, internal on the next."""
+        webhook = await Webhook.create(
+            name='w', url='https://rebind.example/hook', secret='shhh', event_types=['*'],
+        )
+        monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
+        answers = iter(['93.184.216.34', '127.0.0.1'])
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', (next(answers), 0))],
+        )
+        fake = WebhookFakeClient([500, 200])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+
+        await WebhookService()._deliver_one(webhook, Event.create(EventType.MATCH_CREATED, {}))
+
+        assert [c['url'] for c in fake.calls] == ['https://93.184.216.34/hook']
+        delivery = await WebhookDelivery.get(webhook=webhook)
+        assert delivery.success is False
+        assert delivery.attempt_count == 1
+        assert 'SSRF' in (delivery.error or '')
 
 
 class TestListWebhooks:

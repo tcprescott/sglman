@@ -21,6 +21,7 @@ from application.repositories.tournament_payout_repository import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.tenant_context import require_tenant_id
 from models import FeatureFlag, Tournament, TournamentPayout, User
 
@@ -224,6 +225,9 @@ class PayoutService:
         """
         tournament = await self._require_manageable(tournament_id, actor)
         cleaned = self._validate_rows(rows)
+        await TenantMembershipService.require_community_users(
+            [row['entrant_id'] for row in cleaned], actor,
+        )
         await self.repository.replace_split(tournament, cleaned)
         await self.audit_service.write_and_publish(
             actor,
@@ -252,6 +256,7 @@ class PayoutService:
         tournament = await self._require_manageable(payout.tournament_id, actor)  # type: ignore[attr-defined]
         entrant = None
         if user_id is not None:
+            await TenantMembershipService.require_community_users([user_id], actor)
             entrant = require_found(await User.get_or_none(id=user_id), 'User')
             # The (tournament, place, entrant) key would raise an IntegrityError
             # here, which reaches the caller as a 500 rather than as the thing

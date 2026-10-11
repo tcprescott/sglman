@@ -135,12 +135,16 @@ class TestUpdateUserProfile:
         await service.update_user_profile(user, actor=user, display_name='New')
         service.repository.update.assert_awaited_once()
 
-    async def test_staff_edit_allowed(self, service):
+    async def test_staff_edit_allowed(self, service, monkeypatch):
         user = make_user(user_id=10)
         actor = make_user(user_id=99)  # different from user
-        # autouse bypass_auth makes is_staff=True
+        # autouse bypass_auth makes is_staff=True; the cross-community guard
+        # reads the DB and is covered in tests/tenancy.
+        guard = AsyncMock()
+        monkeypatch.setattr(service, '_ensure_may_edit_account', guard)
         await service.update_user_profile(user, actor=actor, display_name='New')
         service.repository.update.assert_awaited_once()
+        guard.assert_awaited_once_with(user, actor)
 
     async def test_non_self_non_staff_denied(self, service, monkeypatch):
         from application.services import auth_service

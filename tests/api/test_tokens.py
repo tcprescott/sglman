@@ -11,10 +11,11 @@ from httpx import ASGITransport, AsyncClient
 
 from application.services.api_token_service import ApiTokenService, _hash_token
 from models import ApiToken, User
+from tests.api_helpers import create_community_member
 
 
 async def _user(discord_id: int = 1, username: str = 'u', is_active: bool = True) -> User:
-    return await User.create(discord_id=discord_id, username=username, is_active=is_active)
+    return await create_community_member(discord_id=discord_id, username=username, is_active=is_active)
 
 
 def _client(app, raw_token: str | None = None) -> AsyncClient:
@@ -104,6 +105,22 @@ class TestTokenEndpoints:
             assert {'bootstrap', 'second'} <= names
             # The secret is never returned by the list endpoint.
             assert all('token' not in t for t in listed.json())
+
+    async def test_a_token_cannot_mint_one_that_outlives_it(self, db, app):
+        """A leaked short-lived token must not buy a permanent one."""
+        user = await _user()
+        soon = datetime.now(timezone.utc) + timedelta(hours=1)
+        _, raw = await ApiTokenService().create_token(user, name='short', expires_at=soon)
+        async with _client(app, raw) as c:
+            forever = await c.post('/api/tokens', json={'name': 'forever'})
+            later = await c.post('/api/tokens', json={
+                'name': 'later',
+                'expires_at': (soon + timedelta(days=30)).isoformat(),
+            })
+        assert forever.status_code == later.status_code == 201
+        for resp in (forever, later):
+            minted = datetime.fromisoformat(resp.json()['expires_at'])
+            assert abs((minted - soon).total_seconds()) < 1
 
     async def test_revoke_endpoint(self, db, app):
         user = await _user()

@@ -11,11 +11,12 @@ from typing import Awaitable, Callable, List, Optional, TypeVar
 from tortoise.exceptions import IntegrityError
 from tortoise.transactions import in_transaction
 
-from application.errors import require_found
+from application.errors import NotFoundError, require_found
 from application.feature_flags import requires_feature
 from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.tenant_membership_service import TenantMembershipService
 from models import (
     SYSTEM_USER_DISCORD_ID,
     Equipment,
@@ -40,11 +41,16 @@ class EquipmentService:
         self.audit_service = AuditService()
 
     @staticmethod
-    async def _resolve_owner(owner_user_id: Optional[int]) -> Optional[User]:
+    async def _resolve_owner(owner_user_id: Optional[int], actor: User) -> Optional[User]:
         """Resolve an owner id to a User; ``None`` means the community owns it."""
         if not owner_user_id:
             return None
-        owner = await User.get_or_none(id=owner_user_id)
+        try:
+            await TenantMembershipService.require_community_users([owner_user_id], actor)
+        except NotFoundError:
+            owner = None
+        else:
+            owner = await User.get_or_none(id=owner_user_id)
         if owner is None:
             raise ValueError("That owner doesn't exist. Pick someone from the list.")
         return owner
@@ -84,7 +90,7 @@ class EquipmentService:
         if not name:
             raise ValueError("Asset name is required.")
 
-        owner = await self._resolve_owner(owner_user_id)
+        owner = await self._resolve_owner(owner_user_id, actor)
         description = (description or '').strip() or None
         private_notes = (private_notes or '').strip() or None
         asset_number, equipment = await self._with_next_number(
@@ -124,7 +130,7 @@ class EquipmentService:
         if not 1 <= count <= MAX_BULK_COUNT:
             raise ValueError(f"Count must be between 1 and {MAX_BULK_COUNT}.")
 
-        owner = await self._resolve_owner(owner_user_id)
+        owner = await self._resolve_owner(owner_user_id, actor)
         description = (description or '').strip() or None
         private_notes = (private_notes or '').strip() or None
 
@@ -176,7 +182,7 @@ class EquipmentService:
         equipment.name = name
         equipment.description = (description or '').strip() or None
         equipment.private_notes = (private_notes or '').strip() or None
-        equipment.owner_user = await self._resolve_owner(owner_user_id)
+        equipment.owner_user = await self._resolve_owner(owner_user_id, actor)
         fields = ['name', 'description', 'private_notes', 'owner_user_id', 'updated_at']
 
         async with in_transaction():

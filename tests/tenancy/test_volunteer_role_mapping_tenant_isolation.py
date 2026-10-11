@@ -18,6 +18,7 @@ from application.tenant_context import tenant_scope
 from models import (
     Role,
     RoleSource,
+    TenantMembership,
     UserRole,
     VolunteerAssignment,
     VolunteerPosition,
@@ -56,6 +57,7 @@ async def test_reconcile_stays_in_its_tenant(two_tenants):
             position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12),
         )
         await VolunteerAssignment.create(shift=shift, user=vol)
+        await TenantMembership.create(user=vol, tenant_id=a.id)
     with tenant_scope(b.id):
         # B granted the same role from its own volunteer mapping, now gone.
         await UserRole.create(user=vol, role=Role.STREAM_MANAGER, source=RoleSource.VOLUNTEER)
@@ -94,3 +96,23 @@ async def test_assignment_and_shift_reads_are_isolated(two_tenants):
             positions[b.id].id
         }
         assert await VolunteerShiftRepository.get_by_id(shifts[a.id].id) is None
+
+
+async def test_reconcile_does_not_readmit_a_removed_member(two_tenants):
+    """Their old shifts stay published after removal; a later reconcile must
+    not hand the role, and with it the membership, back."""
+    a, _ = two_tenants
+    staff = await make_user(9011, 'staff')
+    vol = await make_user(9012, 'vol')
+    with tenant_scope(a.id):
+        pos = await VolunteerPosition.create(name='Check-in Desk')
+        await VolunteerRoleMapping.create(position=pos, app_role=Role.PROCTOR)
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12),
+        )
+        await VolunteerAssignment.create(shift=shift, user=vol)
+
+        await VolunteerRoleMappingService().reconcile_users(staff, [vol.id])
+
+    assert not await UserRole.filter(user=vol, tenant_id=a.id).exists()
+    assert not await TenantMembership.filter(user=vol, tenant_id=a.id).exists()

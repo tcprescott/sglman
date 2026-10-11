@@ -7,6 +7,7 @@ Coordinates user-related operations and enforces business rules.
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Set
 
+from application.repositories.tenant_membership_repository import TenantMembershipRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
@@ -316,6 +317,12 @@ class UserService:
         selected_tournament_ids: Set[int],
         current_registrations: List[TournamentPlayers],
     ) -> None:
+        """Staff's roster edit. It skips the signup rules on purpose, so a
+        player's own changes go through ``TournamentService.self_enroll``."""
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can edit another person's tournaments",
+        )
         current_ids = set(tp.tournament_id for tp in current_registrations)
         removed_ids = current_ids - selected_tournament_ids
         added_ids = selected_tournament_ids - current_ids
@@ -415,8 +422,13 @@ class UserService:
             update_data['display_name'] = display_name.strip() if display_name else None
         if pronouns is not None:
             update_data['pronouns'] = pronouns.strip() if pronouns else None
+        update_data = {
+            field: value for field, value in update_data.items()
+            if value != getattr(user, field)
+        }
 
         if update_data:
+            await self._ensure_may_edit_account(user, actor)
             await self.repository.update(user, **update_data)
             await self.audit_service.write_log(
                 actor,
@@ -439,6 +451,9 @@ class UserService:
             "Only Staff can edit admin fields",
         )
 
+        if is_active is not None and is_active != user.is_active:
+            await self._ensure_may_edit_account(user, actor)
+
         await self._check_concurrency(user, check_concurrency, initial_updated_at)
 
         update_data = {}
@@ -455,6 +470,38 @@ class UserService:
                     {'target_user_id': user.id, 'is_active': is_active},
                 )
         return user
+
+    async def may_edit_account(self, user: User, actor: User) -> bool:
+        """Whether ``actor`` may change ``user``'s global name, pronouns and active flag."""
+        try:
+            await self._ensure_may_edit_account(user, actor)
+        except PermissionError:
+            return False
+        return True
+
+    @staticmethod
+    async def _ensure_may_edit_account(user: User, actor: User) -> None:
+        """Refuse community staff an edit to an account that isn't only theirs.
+
+        Display name, pronouns and ``is_active`` are global: deactivating an
+        account locks it out of every community and the platform. Membership
+        is no limit, since staff can add anyone, so community staff may change
+        these only for people who belong to no other community. A super-admin
+        may change anyone; nobody but a super-admin may change a super-admin.
+        """
+        if actor.id == user.id or await AuthService.is_super_admin(actor):
+            return
+        if await AuthService.is_super_admin(user):
+            raise PermissionError(
+                f'{user.preferred_name} is a platform admin, so only another platform '
+                f'admin can change their account.'
+            )
+        if await TenantMembershipRepository.belongs_elsewhere(user.id, require_tenant_id()):
+            raise PermissionError(
+                f'{user.preferred_name} also belongs to another community, so only a '
+                f'platform admin can change their account. Remove them from this '
+                f'community instead.'
+            )
 
     async def grant_role(self, target: User, role: Role, actor: User) -> None:
         await AuthService.ensure(
@@ -503,6 +550,10 @@ class UserService:
                 user, actor, tournament_ids, current_registrations,
             )
         else:
+            await AuthService.ensure(
+                await AuthService.is_staff(actor),
+                "Only Staff can edit another person's tournaments",
+            )
             added: List[int] = []
             for tournament_id in tournament_ids:
                 tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
