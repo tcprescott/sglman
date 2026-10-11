@@ -60,6 +60,7 @@ from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.realtime import refresh_on_reconnect, register_view
@@ -453,6 +454,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             with ui.row().classes('w-full items-center no-wrap gap-2'):
                 title = ui.label(event.name).classes('text-h6 ellipsis col q-ma-none')
                 title.tag = 'h1'
+                await help_icon('check-in-desk', user=user)
                 sync_btn = ui.button(icon='sync').props('flat round color=primary') \
                     .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')
                 if not _can_sync(event):

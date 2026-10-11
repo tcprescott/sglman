@@ -12,6 +12,122 @@
       "path": "/home/tournaments"
     },
     {
+      "slug": "getting-started",
+      "name": "join-door-phone",
+      "user": null,
+      "path": "/",
+      "selector": ".join-card"
+    },
+    {
+      "slug": "getting-started",
+      "name": "profile-reminder-phone",
+      "user": "player_one",
+      "tenant": "second",
+      "path": "/home/schedule",
+      "selector": "[aria-label=\"Recommended profile items\"]"
+    },
+    {
+      "slug": "player",
+      "name": "my-schedule-phone",
+      "user": "player_one",
+      "path": "/home/my-schedule"
+    },
+    {
+      "slug": "player",
+      "name": "bracket-schedule-phone",
+      "user": "player_one",
+      "path": "/home/my-schedule",
+      "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\")"
+    },
+    {
+      "slug": "player",
+      "name": "ask-to-change-phone",
+      "user": "player_one",
+      "path": "/home/my-schedule",
+      "setup": [
+        {
+          "click": "text=Ask to change"
+        },
+        {
+          "waitFor": ".q-dialog"
+        }
+      ],
+      "selector": ".q-dialog .q-card"
+    },
+    {
+      "slug": "accessibility",
+      "name": "ada-card-phone",
+      "user": "player_two",
+      "path": "/home/profile",
+      "selector": ".q-card:has-text(\"ADA accommodation\")"
+    },
+    {
+      "slug": "check-in",
+      "name": "desk-phone",
+      "user": "checkin_desk",
+      "path": "/checkin/1"
+    },
+    {
+      "slug": "check-in",
+      "name": "link-dialog-phone",
+      "user": "checkin_desk",
+      "path": "/checkin/1",
+      "setup": [
+        {
+          "fill": "input[placeholder=\"Search by name or badge code\"]",
+          "value": "Base Buyer"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".checkin-grid-card .checkin-btn"
+        },
+        {
+          "waitFor": ".q-dialog"
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "viewport": {
+        "width": 390,
+        "height": 490
+      }
+    },
+    {
+      "slug": "check-in",
+      "name": "dm-blocked-phone",
+      "user": "checkin_desk",
+      "path": "/checkin/1",
+      "selector": ".checkin-grid-card",
+      "setup": [
+        {
+          "fill": "input[placeholder=\"Search by name or badge code\"]",
+          "value": "Racer Nine"
+        },
+        {
+          "wait": 600
+        }
+      ]
+    },
+    {
+      "slug": "check-in",
+      "name": "refunded-phone",
+      "user": "checkin_desk",
+      "path": "/checkin/1",
+      "selector": ".checkin-grid-card",
+      "setup": [
+        {
+          "fill": "input[placeholder=\"Search by name or badge code\"]",
+          "value": "Refund Requester"
+        },
+        {
+          "wait": 600
+        }
+      ]
+    },
+    {
       "slug": "staff-schedule",
       "name": "board-desktop",
       "user": "staff_user",
