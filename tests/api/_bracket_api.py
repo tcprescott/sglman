@@ -11,10 +11,9 @@ copied them, and a fixture that says "enroll these names and hand back their
 entry ids" has to mean the same thing in every module asserting on those ids.
 """
 
-from application.repositories._tenant import current_tenant_id
-from application.repositories.tenant_membership_repository import TenantMembershipRepository
 from application.services.api_token_service import ApiTokenService
-from models import Role, Tournament
+from application.tenant_context import get_current_tenant_id
+from models import Role, TenantMembership, Tournament
 from tests.api_helpers import create_user_token
 
 
@@ -28,7 +27,7 @@ async def tournament(name='Cup'):
 
 async def token_for(user):
     """A write token for an already-created user (not a freshly-made one)."""
-    await TenantMembershipRepository.add(user, current_tenant_id())
+    await TenantMembership.get_or_create(user=user, tenant_id=get_current_tenant_id())
     _, raw = await ApiTokenService().create_token(user, name='test')
     return raw
 
