@@ -14,6 +14,7 @@ from application.utils.timezone import format_local_date, format_local_time
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
+from theme.help import help_icon
 from theme.page_header import page_header
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -63,6 +64,8 @@ async def admin_volunteer_roster_page() -> None:
             'The pool of opted-in volunteers, their qualifications, and declared '
             'availability. Manage a volunteer to edit which positions they can fill.',
         ):
+            await help_icon('vol-roster', user=actor)
+            await help_icon('vol-hours', label='Hours', user=actor)
             ui.space()
             # Filled once the table exists; the header is drawn first.
             gear_slot = ui.row().classes('items-center')
