@@ -60,7 +60,7 @@ async def build_watch_view(tenant_id: int, root_path: str) -> WatchView:
         )
         by_stage: dict[int, list] = {}
         for match in sorted(matches, key=lambda m: m.scheduled_at):
-            by_stage.setdefault(match.stage_id, []).append(match)
+            by_stage.setdefault(match.stage_id, []).append(match)  # type: ignore[attr-defined]
 
         watch_stages = []
         for stage in stages:
