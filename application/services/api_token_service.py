@@ -52,15 +52,19 @@ class ApiTokenService:
         name: str,
         read_only: bool = False,
         expires_at: Optional[datetime] = None,
+        not_after: Optional[datetime] = None,
     ) -> Tuple[ApiToken, str]:
         """Create a token for ``actor``. Returns (token_record, raw_token).
 
         The raw token is shown only here and never recoverable afterwards.
+        ``not_after`` caps the expiry (the minting token's own, over REST).
         """
         if not name or not name.strip():
             raise ValueError("Token name is required")
         if expires_at is not None and expires_at <= datetime.now(timezone.utc):
             raise ValueError("Expiry must be in the future")
+        if not_after is not None and (expires_at is None or expires_at > not_after):
+            expires_at = not_after
 
         raw_token = TOKEN_PREFIX + secrets.token_urlsafe(32)
         token = await self.repository.create(

@@ -43,24 +43,18 @@ router = APIRouter(
 
 # --- response builders ----------------------------------------------------
 
-def _assignment_resp(a) -> VolunteerAssignmentResponse:
-    user = a.user if a.user_id and hasattr(a, 'user') else None
-    return VolunteerAssignmentResponse(
-        id=a.id,
-        shift_id=a.shift_id,
-        user_id=a.user_id,
-        user_name=(user.preferred_name if user else None),
-        auto_generated=a.auto_generated,
-        acknowledged_at=a.acknowledged_at,
-        reminder_sent_at=a.reminder_sent_at,
-        checked_in_at=a.checked_in_at,
-        checked_in_by_id=a.checked_in_by_id,
-        created_at=a.created_at,
-    )
+_assignment_resp = VolunteerAssignmentResponse.from_row
 
 
-def _shift_resp(s: VolunteerShift) -> VolunteerShiftResponse:
+def _shift_resp(s: VolunteerShift, *, include_drafts: bool) -> VolunteerShiftResponse:
+    """A shift as the caller may see it.
+
+    Drafts are the coordinator's unannounced sketch: only someone who can manage
+    volunteers sees them, so a volunteer never learns of one sideways.
+    """
     assignments = list(s.assignments) if hasattr(s, 'assignments') else []
+    if not include_drafts:
+        assignments = [a for a in assignments if not a.auto_generated]
     return VolunteerShiftResponse(
         id=s.id,
         position_id=s.position_id,
@@ -112,15 +106,17 @@ async def delete_position(position_id: int, actor: User = Depends(require_write_
 async def list_shifts(
     start: datetime = Query(..., description="Window start (UTC ISO 8601)"),
     end: datetime = Query(..., description="Window end (UTC ISO 8601)"),
+    actor: User = Depends(require_api_actor),
 ):
     shifts = await VolunteerScheduleService().list_shifts_for_window(start, end)
-    return [_shift_resp(s) for s in shifts]
+    include_drafts = await AuthService.can_manage_volunteers(actor)
+    return [_shift_resp(s, include_drafts=include_drafts) for s in shifts]
 
 
 @router.get("/shifts/{shift_id}", response_model=VolunteerShiftResponse, summary="Get a shift")
-async def get_shift(shift_id: int):
+async def get_shift(shift_id: int, actor: User = Depends(require_api_actor)):
     shift = require_found(await VolunteerScheduleService().get_shift(shift_id), "Shift")
-    return _shift_resp(shift)
+    return _shift_resp(shift, include_drafts=await AuthService.can_manage_volunteers(actor))
 
 
 @router.post("/shifts", response_model=VolunteerShiftResponse, status_code=status.HTTP_201_CREATED, summary="Create a shift")
@@ -131,7 +127,8 @@ async def create_shift(payload: VolunteerShiftCreate, actor: User = Depends(requ
     shifts = await service.list_shifts_for_window(payload.starts_at, payload.ends_at)
     created = next((s for s in shifts if s.position_id == payload.position_id
                     and s.starts_at == payload.starts_at), None)
-    return _shift_resp(created) if created else _shift_resp(shifts[-1])
+    # create_shift has already required can_manage_volunteers.
+    return _shift_resp(created or shifts[-1], include_drafts=True)
 
 
 @router.delete("/shifts/{shift_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a shift")
@@ -163,6 +160,17 @@ async def unassign(assignment_id: int, actor: User = Depends(require_write_actor
 @router.post("/assignments/{assignment_id}/acknowledge", response_model=VolunteerAssignmentResponse, summary="Acknowledge your assignment")
 async def acknowledge(assignment_id: int, actor: User = Depends(require_write_actor)):
     assignment = await VolunteerScheduleService().acknowledge(assignment_id, actor)
+    return _assignment_resp(assignment)
+
+
+@router.post(
+    "/assignments/{assignment_id}/check-in",
+    response_model=VolunteerAssignmentResponse,
+    summary="Record that a volunteer showed up for their shift (coordinators and staff)",
+)
+async def check_in(assignment_id: int, actor: User = Depends(require_write_actor)):
+    """Doing it twice keeps the first arrival time."""
+    assignment = await VolunteerScheduleService().check_in(assignment_id, actor)
     return _assignment_resp(assignment)
 
 

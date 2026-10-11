@@ -6,7 +6,7 @@ order: 20
 summary: What every column on the Schedule tab means, and what each match state tells you.
 ---
 
-The **Schedule & Crew Signup** tab lists every match in the event. It is the same
+The **Schedule** view on the **Event** tab lists every match in the event. It is the same
 board for everyone: players, crew and spectators all see it.
 
 ## The columns

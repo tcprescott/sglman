@@ -7,7 +7,7 @@ whether a user may see a tenant at all), so it is **not** tenant-scoped.
 
 from typing import Iterable, List, Optional, Set
 
-from models import MembershipSource, TenantMembership, User
+from models import MembershipSource, TenantMembership, User, UserRole
 
 
 class TenantMembershipRepository:
@@ -27,6 +27,15 @@ class TenantMembershipRepository:
             user_id__in=list(wanted), tenant_id=tenant_id,
         ).values_list('user_id', flat=True)
         return set(rows)  # type: ignore[arg-type]  # flat=True yields ints; Tortoise types it as tuples
+
+    @staticmethod
+    async def belongs_elsewhere(user_id: int, tenant_id: int) -> bool:
+        """Whether the user is a member of, or holds a role in, any other tenant."""
+        if await TenantMembership.filter(user_id=user_id).exclude(tenant_id=tenant_id).exists():
+            return True
+        return await UserRole.filter(
+            user_id=user_id, tenant_id__isnull=False,
+        ).exclude(tenant_id=tenant_id).exists()
 
     @staticmethod
     async def add(

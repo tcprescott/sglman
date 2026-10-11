@@ -50,6 +50,17 @@ WRITE_CALLS = {
     'acknowledge_match': {'match_id': 1},
     'watch_match': {'match_id': 1},
     'unwatch_match': {'match_id': 1},
+    'offer_match_for_stream': {'match_id': 1},
+    'withdraw_stream_offer': {'match_id': 1},
+    'check_in_attendee': {'entrant_id': 1},
+    'undo_attendee_check_in': {'entrant_id': 1},
+    'link_attendee': {'entrant_id': 1, 'user_id': 1},
+    'unlink_attendee': {'entrant_id': 1},
+    'add_walk_up': {'event_id': 1, 'user_id': 1},
+    'sync_check_in_event': {'event_id': 1},
+    'check_in_volunteer': {'assignment_id': 1},
+    'approve_join_request': {'request_id': 1},
+    'deny_join_request': {'request_id': 1},
 }
 
 

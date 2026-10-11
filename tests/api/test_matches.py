@@ -26,7 +26,7 @@ from models import (
     Tracker,
     User,
 )
-from tests.api_helpers import client_for, create_user_token
+from tests.api_helpers import client_for, create_community_member, create_user_token
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ async def client(db, app):
     bearer header is sent on every request."""
     from application.services.api_token_service import ApiTokenService
 
-    user = await User.create(discord_id=999999, username='api-test-user')
+    user = await create_community_member(discord_id=999999, username='api-test-user')
     _, raw_token = await ApiTokenService().create_token(user, name='test-suite')
     transport = ASGITransport(app=app)
     async with AsyncClient(

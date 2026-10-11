@@ -30,6 +30,9 @@ HOME_SCHEDULE = 'schedule'
 HOME_MY_CREW = 'my-crew'
 HOME_TOURNAMENTS = 'tournaments'
 
+# Volunteer hub tab slugs.
+VOLUNTEER_MY_SHIFTS = 'my-shifts'
+
 
 def _query(params: dict) -> str:
     """``?a=1&b=2``, dropping empty values; '' when nothing survives.
@@ -65,6 +68,11 @@ def admin_qualifier_queue_url(qualifier_id: int) -> str:
 def home_url(section: Optional[str] = None, **params) -> str:
     """Build ``/home[/<section>][?…]``, dropping empty params."""
     return f"{'/home/' + section if section else '/home'}{_query(params)}"
+
+
+def volunteer_release_url(assignment_id: int) -> str:
+    """My Shifts with one assignment's "Give this shift back?" dialog open."""
+    return f'/volunteer/{VOLUNTEER_MY_SHIFTS}{_query({"release": assignment_id})}'
 
 
 def player_schedule_url(bracket_match_id: int) -> str:

@@ -10,9 +10,11 @@ endpoint (169.254.169.254).
 import asyncio
 import ipaddress
 import socket
+from typing import Dict, List, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 
-async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> None:
+async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> List[str]:
     """Raise ``ValueError`` unless every address ``hostname`` resolves to is public.
 
     Rejects private, loopback, link-local, reserved, multicast, and unspecified
@@ -26,6 +28,7 @@ async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> None:
         infos = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
     except socket.gaierror as exc:
         raise ValueError(f"Could not resolve {subject} host '{hostname}'") from exc
+    addresses: List[str] = []
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if (
@@ -40,3 +43,27 @@ async def ensure_public_host(hostname: str, *, subject: str = 'URL') -> None:
             or not ip.is_global
         ):
             raise ValueError(f"{subject} must point to a public address")
+        addresses.append(str(ip))
+    return addresses
+
+
+async def pin_public_url(
+    url: str, *, subject: str = 'URL',
+) -> Tuple[str, Dict[str, str], Dict[str, str]]:
+    """``url`` rewritten to connect to an address :func:`ensure_public_host` approved.
+
+    Checking a hostname and then handing it to httpx resolves it twice, and a
+    rebinding DNS answer can differ between the two. Connecting to the checked
+    IP, with the original name as ``Host`` and as the TLS server name (which is
+    also what the certificate is verified against), closes that gap.
+
+    Returns ``(url, headers, extensions)`` to pass to the request.
+    """
+    parts = urlsplit(url)
+    hostname = parts.hostname or ''
+    ip = ipaddress.ip_address((await ensure_public_host(hostname, subject=subject))[0])
+    literal = f'[{ip}]' if ip.version == 6 else str(ip)
+    netloc = f'{literal}:{parts.port}' if parts.port else literal
+    host_header = f'{hostname}:{parts.port}' if parts.port else hostname
+    pinned = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    return pinned, {'Host': host_header}, {'sni_hostname': hostname}

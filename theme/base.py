@@ -279,7 +279,7 @@ class BaseLayout:
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
         for font_file in (
             'atkinson-hyperlegible-latin-400-normal',
-            'fraunces-latin-600-normal',
+            'atkinson-hyperlegible-latin-700-normal',
             'ibm-plex-mono-latin-400-normal',
         ):
             ui.add_head_html(
@@ -359,7 +359,7 @@ class BaseLayout:
         if self._chromeless:
             # The one control a kiosk still needs: a room's lighting is not the
             # viewer's system theme, and there is no header left to hang the
-            # toggle on. Floated in the corner, off the header's white palette.
+            # toggle on. Floated in the corner.
             with ui.page_sticky(position='top-right', x_offset=12, y_offset=12):
                 dark_mode_button(self.dark_mode).props('flat color=primary')
             return
@@ -376,8 +376,9 @@ class BaseLayout:
         with ui.header().classes(replace='row items-center no-wrap wiz-header'):
             ui.button(
                 icon='menu',
-                on_click=lambda: self._drawer.toggle()
-            ).props('flat color=white').classes('wiz-burger')
+                on_click=lambda: self._drawer.toggle(),
+                color=None,
+            ).props('flat').classes('wiz-burger')
 
             wordmark_taps = {'n': 0}
 
@@ -408,7 +409,7 @@ class BaseLayout:
                     # default avatar): show a placeholder glyph instead of an empty
                     # ui.image(None), which also renders a broken image + console error.
                     ui.icon('account_circle').classes('user-avatar user-avatar-placeholder')
-                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white').tooltip('Log out')
+                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout', color=None).props('flat').tooltip('Log out')
             else:
                 # The full-text "Login with Discord" button also lives in the page
                 # body; here the label is a child element (not the q-btn text prop)
@@ -422,7 +423,8 @@ class BaseLayout:
                 login_btn = ui.button(
                     on_click=lambda: ui.navigate.to(target),
                     icon='login',
-                ).props('flat color=white').classes('login-button')
+                    color=None,
+                ).props('flat').classes('login-button')
                 with login_btn:
                     ui.label('Login with Discord').classes('login-button-text')
                 login_btn.tooltip('Login with Discord')

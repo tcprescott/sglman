@@ -62,7 +62,7 @@ Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=
 
 The shipped "Phoenix" palette (gold/ember) is overridable per tenant on **Admin → Appearance**. Storage, validation, presets and the contrast checks belong to [`TenantThemeService`](services.md#tenant_theme_servicepy--tenantthemeservice); this section covers only how the palette is *applied*.
 
-`render_chrome()` applies it in two places, because `ui.colors()` alone recolours Quasar's palette and never reaches the header bar, links, or section titles: `ui.colors(primary/secondary/accent=…)`, plus an injected `<style>` re-pointing `--wiz-gold-deep` / `--wiz-gold` / `--wiz-ember*` / `--wiz-header-bg` and the light-mode PWA `theme-color` meta. It is injected after `styles.css`, so it wins; the dark-mode `--wiz-header-bg` override in `styles.css` keeps the header charcoal in dark mode. Reads are fresh per page load, so a save shows on the next navigation (the Appearance form reloads the page).
+`render_chrome()` applies it in two places, because `ui.colors()` alone recolours Quasar's palette and never reaches links, the active nav item, or the header's brand mark: `ui.colors(primary/secondary/accent=…)`, plus an injected `<style>` re-pointing `--wiz-gold-deep` / `--wiz-gold` / `--wiz-ember*` / `--wiz-header-bg` and the light-mode PWA `theme-color` meta. It is injected after `styles.css`, so it wins. `--accent` in `styles.css` is an alias of `--wiz-gold-deep` (light) / `--wiz-gold` (dark), so it follows the override too. The `header` colour no longer paints the bar: since the Studio restyle the header is a neutral surface and `--wiz-header-bg` fills only the small square before the wordmark (Appearance calls it **Brand mark**). Reads are fresh per page load, so a save shows on the next navigation (the Appearance form reloads the page).
 
 `--wiz-*` is declared on `:root`; the bracket renderer's `--bracket-*` properties are declared on **`body`** instead, because `ui.colors()` writes the tenant `--q-primary` onto `body` — a `:root` declaration there would resolve `var(--q-primary)` against Quasar's stock blue.
 
@@ -77,7 +77,7 @@ Two surfaces run on the bare platform host with **no tenant in scope** and so ca
 | `/platform` ([`pages/platform.py`](../../pages/platform.py)) | `Platform` | "Communities" link back to the picker at `/` |
 | `/oauth/mcp/consent` ([`pages/mcp_consent.py`](../../pages/mcp_consent.py)) | `Authorize` | the signed-in user's name — the same identity the consent card names |
 
-**`render_platform_chrome(subtitle=None, *, right=None)`** is the subset they share: font preloads, `styles.css`, the `noindex` meta, the shipped phoenix palette (never a tenant override — these surfaces belong to the platform, and an MCP grant is not scoped to one community), and the `wiz-header` bar with its ember→gold strip, the "Wizzrobe · *subtitle*" wordmark, an optional `right` callable, and the dark-mode toggle.
+**`render_platform_chrome(subtitle=None, *, right=None)`** is the subset they share: font preloads, `styles.css`, the `noindex` meta, the shipped phoenix palette (never a tenant override — these surfaces belong to the platform, and an MCP grant is not scoped to one community), and the neutral `wiz-header` bar with the brand mark, the "Wizzrobe · *subtitle*" wordmark, an optional `right` callable, and the dark-mode toggle.
 
 **`apply_brand_palette(colors)`** is the palette itself, factored out so all three branded surfaces apply it identically: `ui.colors(...)` plus the `--wiz-*` variable block that re-points the header, links, and section titles. `BaseLayout.render_chrome` passes the tenant's resolved palette, `render_platform_chrome` and the auth wait screens the shipped defaults or whatever tenant is in scope.
 
@@ -117,6 +117,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/qualifiers`, `/qualifiers/{qualifier_id}` | [`pages/qualifiers.py`](../../pages/qualifiers.py) | Login required (`ASYNC_QUALIFIERS` flag); player async-qualifier pages (draw, timer, submit, leaderboard) |
 | `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` | [`pages/brackets.py`](../../pages/brackets.py) | **No login** — `@public_page(feature=FeatureFlag.BRACKETS)`; read-only bracket index + per-stage detail |
 | `/live/tournament/{tournament_id}/brackets`, `/live/brackets/{bracket_id}` | [`pages/static_brackets.py`](../../pages/static_brackets.py) | **No login, and not a NiceGUI page** — plain FastAPI routes returning server-rendered, heavily-cached HTML (no websocket) for spectators. Same tenant + `BRACKETS` gate and the same DRAFT/CANCELLED rule as the interactive twins above; see [brackets.md](../features/brackets.md#static-spectator-views--the-link-you-send-a-stream) |
+| `/live` | [`pages/static_watch.py`](../../pages/static_watch.py) | **No login, and not a NiceGUI page** — the spectator **Watch page**: each active stage's stream link with what is on it now and the next three matches, the published brackets (linking their static twins), and a *Get involved* card (crew signup lands on `/home/schedule`, Event information, Help). Rendered by [`theme/watch_view.py`](../../theme/watch_view.py) on the community's clock, served through the static bracket views' cache, `MATCH_*`/`BRACKET_*` invalidation and `Cache-Control: public` + `ETag`. Player names follow `join_page_match_preview`; stage names and stream links always show. No feature flag (decided for SG Live 2026). This is the link to put in a tweet, on stream or on a QR code |
 | `/help`, `/help/{slug}` | [`pages/help.py`](../../pages/help.py) | **No login** — `@public_page`; the in-app help index (search over article cards) and article pages (sidebar nav + anchored headings). Articles are Markdown in `application/help/content/`, parsed to a closed block model and rendered with native elements — never `ui.markdown`. Reached from the **Help** drawer item, which is not gated on a signed-in user. See [help.md](../features/help.md) |
 | `/event-info`, `/event-info/{slug}` | [`pages/event_info.py`](../../pages/event_info.py) | **No login** — `@public_page(feature=FeatureFlag.EVENT_INFO)`; one community's own event handbook (what's on, attending, who to ask, and role-gated floor procedure). Articles are Markdown in `application/event_info/content/<tenant-slug>/`, through the same closed block model as help. Article visibility additionally filters on `roles:`, so the page stays public while the room-staff procedure is not. Reached from the **Event Information** drawer item, above Help. See [event-information.md](../features/event-information.md) |
 | `/room/{token}/seeds` | [`pages/room_seeds.py`](../../pages/room_seeds.py) | **No login** — `@public_page(telemetry_path='/room/seeds')`; authorizes on an unlisted `RoomToken` instead of a session, for a tournament-room machine nobody signs in on. Read-only board of matches whose seed is rolled and which nobody has started. An unknown, revoked, malformed or wrong-community token renders a plain 404. See [the tournament-room seeds board](#the-tournament-room-seeds-board-pagesroom_seedspy) |
@@ -552,8 +553,12 @@ navigate to the relative `'login'`, which from `/home/<section>` resolved to
 Beyond the Request access form it carries two previews with deliberately
 different rules:
 
-- **Brackets** — one button per tournament with published stages, into
-  `/tournament/{id}/brackets`. No opt-in: those pages are already
+- **Watch live** — first on the card, for everyone: a primary button to the
+  static `/live` Watch page, because most people reaching the door from a tweet,
+  the stream or a QR code came to watch and need no account.
+- **Brackets** — one button per tournament with published stages, into the
+  static twin `/live/tournament/{id}/brackets` (the door is where a crowd lands,
+  and every interactive tab costs a websocket). No opt-in: those pages are already
   `@public_page`, they were merely unreachable without knowing the URL. Gated
   only on `FeatureFlag.BRACKETS`, and read through
   `BracketService.list_all_visible_brackets(None)`, so DRAFT and CANCELLED
@@ -1095,9 +1100,23 @@ Marking a control is presentation's job: `.classes(REQUIRES_SOCKET_CLASS)` on a 
 `static/` is served at `/static`. Every stylesheet and script the app links goes through **`theme.assets.asset_url(path)`**, which appends the file's mtime as `?v=<stamp>` — the URL changes exactly when the file does, so a deploy reaches a browser or proxy holding the previous copy. Skipping it is a real failure and not a visible one: `brackets.css` was linked bare, and a fix for group cards overflowing the page went unseen for days while the current markup rendered against the old rules. `VersionedStaticFiles` pairs with it — a stamped URL is `immutable` for a year, an unstamped one revalidates every time, and development stores nothing. `/sw.js` registers with `updateViaCache: 'none'` so the HTTP cache cannot answer for the worker's `importScripts`. `tests/theme/test_static_asset_versioning.py` scans `theme/` and `pages/` for a bare `/static/*.css|js` link. It holds the two stylesheets, the PWA assets ([`manifest.webmanifest`](../../static/manifest.webmanifest), `icons/`, `fonts/`), [`sw.js`](../../static/sw.js) (served from the site root `/sw.js`; a no-cache pass-through worker that satisfies Chrome's installability requirement and renders Web Push messages on browsers without Declarative Web Push — see [../features/web-push.md](../features/web-push.md)), [`js/web-push.js`](../../static/js/web-push.js) + `js/web-push-common.js` (shared with the worker's `importScripts`), `js/table-columns.js` (drag-to-resize table headers, linked by `render_chrome`), `js/report-nav.js` (the Reports tab's scroll keeper), and `triforce.svg`.
 
 - [`css/styles.css`](../../static/css/styles.css) — the app stylesheet, loaded by `BaseLayout.render_chrome()` and `render_platform_chrome()`. Organized into class families (layout containers, headers/text, cards/forms/dialogs/buttons, the On Air timeline, the four table families + their grid cards, dark-mode overrides, report chart sizing, the OAuth consent card) with section comments; grep the family prefix rather than a per-page rule.
+### Design tokens (the Studio system)
+
+Every page reads the same small set of tokens from the top of `styles.css`, and new styling should too rather than reaching for a hex value or a Quasar colour name.
+
+| Token family | Values | Used for |
+|---|---|---|
+| Neutrals | `--n-0` … `--n-900`, aliased as `--page-bg`, `--surface`, `--surface-alt`, `--surface-sunken`, `--border-subtle`, `--border-strong`, `--fg`, `--fg-secondary`, `--fg-muted` | Everything that is not an action or a status. The aliases flip under `.body--dark`, so a rule written once serves both modes |
+| Accent | `--accent`, `--accent-soft` (the tenant's primary/accent) | Filled buttons, links, the active nav icon, focus rings. Not titles, table headers or timestamps |
+| Status | `--status-ok` / `-pending` / `-live` / `-neutral` / `-cancelled` / `-info` | `.wiz-chip--*`, `.wiz-banner--*`, `.st-*` |
+| Type | `--font-body` (Atkinson Hyperlegible, also titles), `--font-mono` (Plex Mono, times and IDs); `--text-xs` 12 · `-sm` 13 · `-md` 14 · `-lg` 16 · `-xl` 22 px | `.page-title` is `-xl`, `.section-title` and `.wiz-panel__title` are `-lg`. `--font-display` survives only as an alias of `--font-body` |
+| Shape | `--radius-sm` 6 (chips), `-md` 8 (buttons, inputs), `-lg` 12 (cards, panels, dialogs); `--shadow-1..3` | Borders separate; shadows only lift |
+
+Shared component rules that come with it: every Quasar "standard" (underline) field is drawn boxed to match the outlined ones; table headers are muted sentence case with no zebra striping; `.wiz-chip` is the one badge (tinted, sentence case); `.wiz-segmented` selects with a raised white tile; tab panels are transparent so cards sit on the page canvas. [`theme/banner.py`](../../theme/banner.py)'s `banner(message, title=, tone=)` context manager is the standard full-width notice (`info` / `ok` / `warning` / `danger`, with an action slot) — use it rather than a hand-coloured row.
+
 - [`css/brackets.css`](../../static/css/brackets.css) — the bracket renderer's geometry and colour, linked per page by `theme/brackets/`. Its pixel constants mirror `theme/brackets/layout.py`; change one, change both.
 
-The one non-obvious rule: `--bracket-*` is declared on **`body`**, not `:root`, because `ui.colors()` writes the tenant `--q-primary` onto `body` while Quasar's stock blue sits on `:root`.
+Its neutrals (`--bracket-line`, `-card-bg`, `-text`, `-muted`, …) point at the app tokens above, so only the status tones carry a dark override. The one non-obvious rule: `--bracket-*` is declared on **`body`**, not `:root`, because `ui.colors()` writes the tenant `--q-primary` onto `body` while Quasar's stock blue sits on `:root`.
 
 ## NiceGUI patterns
 

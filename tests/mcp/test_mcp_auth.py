@@ -19,12 +19,12 @@ TENANT = 'default'
 # Tool -> the minimum role that may call it, with arguments that reach the gate
 # rather than failing validation first.
 ADMIN_TOOLS = {
-    'list_audit_log': {},
     'list_match_crew': {'match_id': 1},
     'crew_coverage_report': {'start': '2026-01-01T00:00:00', 'end': '2026-01-02T00:00:00'},
     'match_operations_report': {'start': '2026-01-01T00:00:00', 'end': '2026-01-02T00:00:00'},
 }
 STAFF_TOOLS = {
+    'list_audit_log': {},
     'list_users': {},
     'telemetry_summary': {},
     'get_system_config': {},

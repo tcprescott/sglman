@@ -8,7 +8,7 @@ from application.errors import FeatureDisabledError
 from application.services.payout_service import PayoutService
 from models import FeatureFlag, Role, TenantFeatureFlag, Tournament, TournamentPayout, UserRole
 from tests.conftest import DEFAULT_TEST_TENANT_ID
-from tests.factories import make_user
+from tests.factories import join_community, make_user
 
 
 @pytest.fixture
@@ -130,6 +130,7 @@ async def test_naming_a_winner_on_a_drafted_row(staff, tournament):
     await _split(tournament, [(1, '50.00', None)])
     row = await TournamentPayout.get(tournament=tournament)
     winner = await make_user(discord_id=5, username='jem')
+    await join_community(winner)
 
     updated = await PayoutService().set_entrant(row.id, winner.id, staff)
 
@@ -138,6 +139,7 @@ async def test_naming_a_winner_on_a_drafted_row(staff, tournament):
 
 async def test_naming_the_same_person_twice_at_one_place_is_refused(staff, tournament):
     winner = await make_user(discord_id=8, username='jem')
+    await join_community(winner)
     await _split(tournament, [(3, '10.00', winner), (3, '10.00', None)])
     drafted = await TournamentPayout.get(tournament=tournament, entrant=None)
 
@@ -204,3 +206,20 @@ async def test_the_export_block_reads_as_it_is_pasted(staff, tournament):
         '3rd place - greenpotion (no Matcherino handle): 10% / $110.00\n'
         '3rd place - (unassigned): 10% / $110.00'
     )
+
+
+async def test_a_split_cannot_name_someone_outside_the_community(staff, tournament):
+    """``User`` is global: an unchecked id named anyone on the platform and
+    returned their Matcherino handle in the split."""
+    stranger = await make_user(discord_id=11, username='elsewhere')
+
+    with pytest.raises(ValueError, match='not found'):
+        await PayoutService().set_split(
+            tournament.id,
+            [{'place': 1, 'percentage': Decimal('50'), 'entrant_id': stranger.id}],
+            staff,
+        )
+    await _split(tournament, [(2, '10.00', None)])
+    drafted = await TournamentPayout.get(tournament=tournament, place=2)
+    with pytest.raises(ValueError, match='not found'):
+        await PayoutService().set_entrant(drafted.id, stranger.id, staff)

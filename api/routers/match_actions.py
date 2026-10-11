@@ -24,7 +24,13 @@ from api.schemas.match_actions import (
 )
 from api.schemas.matches import MatchResponse
 from application.errors import require_found
-from application.services import CrewService, MatchScheduleService, MatchService, MatchWatcherService
+from application.services import (
+    CrewService,
+    MatchScheduleService,
+    MatchService,
+    MatchStreamVolunteerService,
+    MatchWatcherService,
+)
 from application.tenant_context import require_tenant_id
 from models import Match, User
 
@@ -219,3 +225,16 @@ async def watch_match(match_id: int, actor: User = Depends(require_write_actor))
 @router.delete("/{match_id}/watch", status_code=status.HTTP_204_NO_CONTENT, summary="Stop watching a match")
 async def unwatch_match(match_id: int, actor: User = Depends(require_write_actor)):
     await MatchWatcherService().unwatch(match_id, actor)
+
+
+@router.post("/{match_id}/stream-offer", status_code=status.HTTP_200_OK, summary="Offer your match for stream")
+async def offer_for_stream(match_id: int, actor: User = Depends(require_write_actor)):
+    """For a player in the match, before it starts. Stream managers see the offer
+    when they pick stream candidates; it does not put the match on stream."""
+    await MatchStreamVolunteerService().volunteer(match_id, actor)
+    return {"detail": "Offered for stream"}
+
+
+@router.delete("/{match_id}/stream-offer", status_code=status.HTTP_204_NO_CONTENT, summary="Take back your stream offer")
+async def withdraw_stream_offer(match_id: int, actor: User = Depends(require_write_actor)):
+    await MatchStreamVolunteerService().withdraw(match_id, actor)

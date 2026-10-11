@@ -43,6 +43,7 @@ from models import (
     Webhook,
     WebhookDelivery,
 )
+from tests.api_helpers import create_community_member
 from tests.mcp.conftest import call_tool, create_oauth_token, mcp_session
 
 TENANT = 'default'
@@ -542,6 +543,20 @@ class TestPlayerAvailability:
         assert is_error
         assert 'forbidden:' in payload
 
+    async def test_staff_cannot_name_someone_outside_the_community(self, db):
+        """Names come off the global ``User``, so an unchecked id read any
+        account's display name by counting upwards."""
+        _, raw = await _staff()
+        stranger = await User.create(discord_id=556677, username='elsewhere')
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(
+                client, raw, 'get_player_availability',
+                tenant=TENANT, user_ids=[stranger.id], **WINDOW,
+            )
+        assert is_error
+        assert 'not_found:' in payload
+        assert 'elsewhere' not in payload
+
     async def test_staff_may_read_a_squad_and_silence_is_visible(self, db):
         """A player who declared nothing comes back empty, not missing.
 
@@ -549,8 +564,8 @@ class TestPlayerAvailability:
         not asked about", which is the question a scheduler is actually asking.
         """
         _, raw = await _staff()
-        quiet = await User.create(discord_id=112233, username='quiet')
-        answered = await User.create(discord_id=445566, username='answered')
+        quiet = await create_community_member(discord_id=112233, username='quiet')
+        answered = await create_community_member(discord_id=445566, username='answered')
         await PlayerAvailability.create(
             user=answered, starts_at=NOW, ends_at=NOW + timedelta(hours=2),
             status=VolunteerAvailabilityStatus.AVAILABLE,

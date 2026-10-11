@@ -284,7 +284,7 @@ async def test_publish_draft_commits_and_survives_clear_draft(db):
 
     auto = VolunteerAutoscheduleService()
     result = await auto.publish_draft(staff, _at(0), _at(23))
-    assert result == {'published': 3, 'volunteers': 2}
+    assert result == {'published': 3, 'volunteers': 2, 'clashes': []}
     assert await VolunteerAssignment.filter(auto_generated=True).count() == 0
 
     # Idempotent: nothing left to publish.
@@ -590,3 +590,4 @@ async def test_assignable_pool_is_volunteer_or_staff_role_users(db):
     assert ids.count(both.id) == 1
     assert proctor.id not in ids
     assert no_role.id not in ids
+

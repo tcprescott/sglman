@@ -251,10 +251,31 @@ class MatchRepository:
         """
         for field, value in fields.items():
             setattr(match, field, value)
-        
-        await match.save()
+
+        # Only the named columns: the caller's row may predate a check-in or a
+        # start, and a whole-row save would write those back to NULL. Clearing a
+        # lifecycle timestamp therefore has to be asked for by name.
+        if fields:
+            fk = Match._meta.fk_fields
+            await match.save(update_fields=[f'{f}_id' if f in fk else f for f in fields])
         return match
     
+    @staticmethod
+    async def stamp_if_unset(match: Match, field: str, when: datetime) -> bool:
+        """Set one lifecycle timestamp only if it is still empty; True if this call set it.
+
+        The compare-and-set that keeps two taps on the same transition (a second
+        proctor, a double-tapped phone) from both passing the precondition and
+        both stamping, auditing and notifying. Writes that column alone, so a
+        caller holding a stale row cannot overwrite what changed since it loaded.
+        Scoped by the row's own tenant: the match was already loaded in scope.
+        """
+        updated = await scoped(
+            Match.filter(id=match.id, **{f'{field}__isnull': True}),
+            tenant_id=match.tenant_id,  # type: ignore[attr-defined]
+        ).update(**{field: when})
+        return updated == 1
+
     @staticmethod
     async def delete(match: Match) -> None:
         """

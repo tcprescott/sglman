@@ -74,6 +74,11 @@ def service():
     svc.audit_service = make_audit_double()
     svc.discord_service = MagicMock()
     svc.assignment_repository.published_user_ids = AsyncMock(return_value=set())
+    svc.assignment_repository.published_unfinished = AsyncMock(return_value=[])
+    svc.assignment_repository.overlapping_for_user = AsyncMock(return_value=[])
+    svc.position_repository.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=1, is_staggered=False),
+    )
     svc.role_mapping_service = MagicMock(
         reconcile_users=AsyncMock(return_value={}), reconcile_all=AsyncMock(return_value={}),
     )

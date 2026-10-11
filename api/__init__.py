@@ -14,6 +14,7 @@ from api.routers import (
     async_qualifiers,
     audit,
     brackets,
+    check_in,
     crew,
     discord_events,
     discord_role_mappings,
@@ -22,6 +23,7 @@ from api.routers import (
     health,
     match_actions,
     matches,
+    memberships,
     notifications,
     payouts,
     player_availability,
@@ -63,6 +65,7 @@ router.include_router(tournament_actions.router)
 router.include_router(stages.router)
 router.include_router(stage_actions.router)
 router.include_router(users.router)
+router.include_router(memberships.router)
 # The literal ``/users/me/availability`` router must be included before the one
 # carrying ``/users/{user_id}/availability``, or ``me`` matches the int path
 # param and 422s instead of falling through.
@@ -124,6 +127,10 @@ router.include_router(
     dependencies=[Depends(require_feature(FeatureFlag.BRACKETS))],
 )
 router.include_router(service_health.router)
+router.include_router(
+    check_in.router,
+    dependencies=[Depends(require_feature(FeatureFlag.EVENT_CHECK_IN))],
+)
 router.include_router(seeds.router)
 # Live-races MUST be registered before the async-qualifiers router: its literal
 # ``/async-qualifiers/live-races`` prefix would otherwise be shadowed by the

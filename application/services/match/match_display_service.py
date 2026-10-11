@@ -21,6 +21,7 @@ from application.repositories import (
     TournamentRepository,
 )
 from application.services.match.match_status import has_recorded_result, legacy_label, resolve
+from application.services.reporting_shared import crew_requirement
 from application.utils.timezone import (
     format_local_datetime,
     format_local_display,
@@ -411,6 +412,13 @@ class MatchDisplayService:
                     match.tournament.required_trackers > 0 if match.tournament else True
                 ),
             },
+            # How much approved crew the match needs, per role, so the home
+            # board's Needs crew switch can tell a covered match from an open
+            # one. Same numbers (and same no-tournament default) as the
+            # coverage report's ``crew_requirement``.
+            'crew_required': dict(zip(
+                ('commentators', 'trackers'), crew_requirement(match.tournament), strict=True,
+            )),
             'commentators': [
                 {
                     'name': c.user.preferred_name,

@@ -61,6 +61,7 @@ def make_signup_match(**overrides):
         scheduled_at=None,
         stage=None,
         title=None,
+        tournament_id=None,
         commentators=[],
         trackers=[],
         # A tournament that staffs both roles, so a test opts *out* by passing
@@ -194,6 +195,21 @@ class TestUpdateCrewApproval:
         kwargs_or_args = service.discord_service.send_dm_with_crew_acknowledgment_button.call_args.args
         assert kwargs_or_args[2] == 'commentator'
         assert kwargs_or_args[3] == crew.id
+
+    async def test_approval_dm_links_the_crew_members_own_slot(self, service, monkeypatch):
+        # The link sits beside Acknowledge, so it has to land on the card that
+        # carries Confirm and Withdraw, not on the community's whole board.
+        crew_match = AsyncMock(return_value='slot-link')
+        monkeypatch.setattr(
+            'application.services.notification_links.crew_match', crew_match,
+        )
+        crew = make_crew(user=make_user(), match=make_match(match_id=42), approved=False)
+
+        await service.update_crew_approval(crew, 'commentator', approved=True, actor=crew.user)
+
+        crew_match.assert_awaited_once_with(42)
+        call = service.discord_service.send_dm_with_crew_acknowledgment_button.call_args
+        assert call.kwargs['link'] == 'slot-link'
 
     async def test_unapprove_clears_acknowledgment_and_audits_previously_acknowledged(self, service):
         user = make_user()
@@ -374,6 +390,82 @@ class TestSignupCrew:
         service.match_repository.get_by_id = AsyncMock(return_value=match)
         await service.undo_crew_signup(match_id=1, user=user, role="tracker")
         signup.delete.assert_awaited_once()
+
+
+class TestSignupNotifiesCrewOwners:
+    """A new signup tells the people who can approve it.
+
+    Approval was the one wait in the volunteer's journey nothing announced.
+    """
+
+    @pytest.fixture
+    def notifying(self, service, monkeypatch):
+        owner = make_user(user_id=7, discord_id='555')
+        owner.preferred_name = 'Coordinator'
+        monkeypatch.setattr(
+            'application.repositories.TournamentRepository.get_crew_owners',
+            AsyncMock(return_value=[owner]),
+        )
+        monkeypatch.setattr(
+            'application.services.tenant_service.TenantService.current_community_name',
+            AsyncMock(return_value='Test Community'),
+        )
+        admin_match = AsyncMock(return_value='board-link')
+        monkeypatch.setattr(
+            'application.services.notification_links.admin_match', admin_match,
+        )
+        service.commentator_repository.create = AsyncMock()
+        return service, owner, admin_match
+
+    @staticmethod
+    def _match(**overrides):
+        match = make_signup_match(tournament_id=3, **overrides)
+        match.players = MagicMock()
+        match.players.all.return_value.prefetch_related = AsyncMock(return_value=[])
+        return match
+
+    async def test_signup_dms_the_crew_owners_with_the_match_link(self, notifying):
+        service, owner, admin_match = notifying
+        service.match_repository.get_by_id = AsyncMock(return_value=self._match())
+        volunteer = make_user(user_id=42, discord_id='111')
+
+        await service.signup_crew(match_id=1, user=volunteer, role='commentator')
+
+        service.discord_service.send_dm.assert_called_once()
+        call = service.discord_service.send_dm.call_args
+        assert call.args[0] == int(owner.discord_id)
+        assert 'Alice' in call.args[1] and 'waiting for approval' in call.args[1]
+        assert call.kwargs['link'] == 'board-link'
+        assert admin_match.await_args.args == (1,)
+
+    async def test_an_owner_signing_up_is_not_told_about_themselves(self, notifying):
+        service, owner, _ = notifying
+        service.match_repository.get_by_id = AsyncMock(return_value=self._match())
+
+        await service.signup_crew(match_id=1, user=owner, role='commentator')
+
+        service.discord_service.send_dm.assert_not_called()
+
+    async def test_owner_who_opted_out_of_dms_gets_none(self, notifying):
+        service, owner, _ = notifying
+        owner.dm_notifications = False
+        service.match_repository.get_by_id = AsyncMock(return_value=self._match())
+
+        await service.signup_crew(match_id=1, user=make_user(user_id=42), role='commentator')
+
+        service.discord_service.send_dm.assert_not_called()
+
+    async def test_a_failing_notice_never_blocks_the_signup(self, notifying, monkeypatch):
+        service, _, _ = notifying
+        monkeypatch.setattr(
+            'application.repositories.TournamentRepository.get_crew_owners',
+            AsyncMock(side_effect=RuntimeError('db down')),
+        )
+        service.match_repository.get_by_id = AsyncMock(return_value=self._match())
+
+        await service.signup_crew(match_id=1, user=make_user(user_id=42), role='commentator')
+
+        service.commentator_repository.create.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

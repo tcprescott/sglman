@@ -8,6 +8,7 @@ and undo the Matcherino account on a ``User`` when a row is linked or unlinked.
 
 from typing import Dict, Sequence
 
+from application.errors import require_found
 from application.repositories import CheckInUserLookupRepository, UserRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.check_in_rules import IdentityLookups, handle_id
@@ -100,3 +101,11 @@ async def forget_matcherino_account(
         {'user_id': user.id, 'source': 'check_in', 'entrant_id': entrant.id,
          'changed': fields},
     )
+
+
+async def linkable_user(user_id: int) -> User:
+    """The account a desk may link a roster row to: active and not the system user."""
+    user = require_found(await UserRepository.get_by_id(user_id), 'User')
+    if user.is_system or not user.is_active:
+        raise ValueError("That account can't be linked.")
+    return user

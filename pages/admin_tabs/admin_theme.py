@@ -1,7 +1,7 @@
 """Admin Appearance / Theme Colours Page.
 
 Lets a community's STAFF override the shipped brand palette (primary, secondary,
-accent, and the header bar). Reads/writes go through ``TenantThemeService``;
+accent, and the header's brand mark). Reads/writes go through ``TenantThemeService``;
 semantic status colours are intentionally not editable. A preset picker offers
 contrast-verified palettes, and each field shows a live WCAG-AA contrast warning
 when a colour would be hard to read where it is used. Saving reloads the page so
@@ -15,10 +15,10 @@ from application.services.tenant_theme_service import DEFAULT_THEME, THEME_PRESE
 
 # label, config key, helper caption for each editable brand colour.
 _FIELDS = [
-    ('Primary', 'primary', 'Buttons, links, and section titles (deep tone for light mode).'),
+    ('Primary', 'primary', 'Buttons, links, and the selected menu item (deep tone for light mode).'),
     ('Secondary', 'secondary', 'Secondary accents and ember highlights.'),
     ('Accent', 'accent', 'Bright accent — highlights and links in dark mode.'),
-    ('Header bar', 'header', 'Background of the top header bar in light mode.'),
+    ('Brand mark', 'header', "The square beside your community's name in the header."),
 ]
 
 

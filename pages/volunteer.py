@@ -15,7 +15,9 @@ from theme.base import BaseLayout
 def create() -> None:
     @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
                         feature=FeatureFlag.VOLUNTEERS)
-    async def volunteer_page(section: str | None = None, request: Request = None) -> None:
+    async def volunteer_page(
+        section: str | None = None, request: Request = None, release: str | None = None,
+    ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
         discord_id = app.storage.user.get('discord_id', None)
         user = await get_user_from_discord_id(discord_id)
@@ -35,7 +37,10 @@ def create() -> None:
         # Home is when you can't *play*, opt-out.
         if is_volunteer or is_staff:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
-            tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})
+            # ``?release=<assignment id>`` comes from the reminder DM's "Can't
+            # make it" button and opens that shift's give-back dialog.
+            tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',
+                         'content': (my_shifts_tab, (), {'release': release})})
         if is_proctor or is_staff:
             # Bound to the viewer: the tab's help icons read role-gated snippets
             # from the event handbook, and the page has already resolved who is
