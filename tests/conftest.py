@@ -163,6 +163,15 @@ def _reset_rate_limiter():
     _hits.clear()
 
 
+@pytest.fixture(autouse=True)
+def _reset_crew_signup_notices():
+    """Isolate the per-process crew-signup DM throttle; match ids repeat across tests."""
+    from application.services.crew_service import _signup_notices
+    _signup_notices.clear()
+    yield
+    _signup_notices.clear()
+
+
 async def _seed_baseline() -> None:
     """The rows every DB-backed test starts from: the default tenant, flags on.
 

@@ -87,6 +87,18 @@ class MatchRequestMixin:
             # The bracket path names its players from the matchup's entrants,
             # which staff linked; only a caller-supplied roster needs checking.
             await TenantMembershipService.require_community_users(player_ids, actor)
+            # Booking a game names opponents; it isn't a way to sign other people
+            # up. Enrolling someone else is Staff's (``enroll_player``), and the
+            # signup window and a Challonge-owned roster would both be skipped.
+            enrolled = await self.tournament_repository.get_enrolled_user_ids(tournament_id)
+            if any(pid != actor.id and pid not in enrolled for pid in player_ids):
+                raise ValueError(
+                    f"Everyone you're playing has to be signed up for {tournament.name} already."
+                )
+            if tournament.players_per_match and len(set(player_ids)) > tournament.players_per_match:
+                raise ValueError(
+                    f"{tournament.name} matches have {tournament.players_per_match} players."
+                )
 
         try:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)

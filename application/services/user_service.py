@@ -4,6 +4,7 @@ User Service - Business Logic Layer
 Coordinates user-related operations and enforces business rules.
 """
 
+import re
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Set
 
@@ -38,6 +39,21 @@ def _reject_platform_role(role: Role, verb: str) -> None:
             f"Super Admin is a platform role and cannot be {verb} from a "
             "community's Users tab. An existing super-admin does it on /platform."
         )
+
+
+# A name is shown inside bot-authored Discord DMs and embeds, where a masked link
+# (``[Review the signup](https://…)``), a bare URL or a mention renders live. Any
+# member can set their own name and then trigger a DM to staff (a crew signup),
+# so a name carrying one would put an attacker's link in a message from the bot.
+_NAME_MARKUP = re.compile(r'\]\(|://|www\.|discord\.gg/|<[@#&!:]|@everyone|@here', re.IGNORECASE)
+
+
+def _clean_name(value: Optional[str], label: str) -> Optional[str]:
+    """``value`` stripped (blank as ``None``), refusing links and Discord markup."""
+    cleaned = (value or '').strip() or None
+    if cleaned is not None and _NAME_MARKUP.search(cleaned):
+        raise ValueError(f'{label} can’t contain links or Discord mentions.')
+    return cleaned
 
 
 class UserService:
@@ -278,13 +294,13 @@ class UserService:
         changed: Dict[str, object] = {}
         if display_name is not None:
             any_provided = True
-            new_value = display_name.strip() if display_name.strip() else None
+            new_value = _clean_name(display_name, 'Display name')
             if new_value != user.display_name:
                 changed['display_name'] = new_value
             user.display_name = new_value
         if pronouns is not None:
             any_provided = True
-            new_value = pronouns.strip() if pronouns.strip() else None
+            new_value = _clean_name(pronouns, 'Pronouns')
             if new_value != user.pronouns:
                 changed['pronouns'] = new_value
             user.pronouns = new_value
@@ -379,8 +395,8 @@ class UserService:
                 raise ValueError("That Discord account already has a Wizzrobe account.")
         new_user = await self.repository.create(
             username=username.strip(),
-            display_name=display_name.strip() if display_name else None,
-            pronouns=pronouns.strip() if pronouns else None,
+            display_name=_clean_name(display_name, 'Display name'),
+            pronouns=_clean_name(pronouns, 'Pronouns'),
             is_active=is_active,
             discord_id=discord_id,
         )
@@ -419,16 +435,16 @@ class UserService:
 
         update_data = {}
         if display_name is not None:
-            update_data['display_name'] = display_name.strip() if display_name else None
+            update_data['display_name'] = _clean_name(display_name, 'Display name')
         if pronouns is not None:
-            update_data['pronouns'] = pronouns.strip() if pronouns else None
+            update_data['pronouns'] = _clean_name(pronouns, 'Pronouns')
         update_data = {
             field: value for field, value in update_data.items()
             if value != getattr(user, field)
         }
 
         if update_data:
-            await self._ensure_may_edit_account(user, actor)
+            await self.ensure_may_edit_account(user, actor)
             await self.repository.update(user, **update_data)
             await self.audit_service.write_log(
                 actor,
@@ -452,7 +468,7 @@ class UserService:
         )
 
         if is_active is not None and is_active != user.is_active:
-            await self._ensure_may_edit_account(user, actor)
+            await self.ensure_may_edit_account(user, actor)
 
         await self._check_concurrency(user, check_concurrency, initial_updated_at)
 
@@ -474,13 +490,13 @@ class UserService:
     async def may_edit_account(self, user: User, actor: User) -> bool:
         """Whether ``actor`` may change ``user``'s global name, pronouns and active flag."""
         try:
-            await self._ensure_may_edit_account(user, actor)
+            await self.ensure_may_edit_account(user, actor)
         except PermissionError:
             return False
         return True
 
     @staticmethod
-    async def _ensure_may_edit_account(user: User, actor: User) -> None:
+    async def ensure_may_edit_account(user: User, actor: User) -> None:
         """Refuse community staff an edit to an account that isn't only theirs.
 
         Display name, pronouns and ``is_active`` are global: deactivating an

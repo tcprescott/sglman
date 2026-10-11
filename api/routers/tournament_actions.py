@@ -96,7 +96,7 @@ async def suggest_match_time(
     actor: User = Depends(require_api_actor),
 ):
     suggested_at = await MatchSuggestionService().suggest_match_time(
-        tournament_id, player_ids, bracket_match_id=bracket_match_id,
+        tournament_id, player_ids, bracket_match_id=bracket_match_id, actor=actor,
     )
     return MatchSuggestionResponse(suggested_at=suggested_at)
 

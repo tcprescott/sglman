@@ -8,7 +8,7 @@ import pytest
 from application.services.check_in_desk_service import CheckInDeskService
 from application.services.discord.discord_service import DM_REFUSED, DM_USER_NOT_FOUND
 from models import CheckInDmStatus, CheckInEntrant
-from tests.factories import make_user
+from tests.factories import join_community, make_user
 from tests.services.check_in_support import (  # noqa: F401 — fixtures
     client,
     desk,
@@ -48,6 +48,7 @@ def discord(monkeypatch):
 
 async def _member_walk_up(service, staff, event, *, check_in=True, **user_fields):
     person = await make_user(discord_id=4242, username='visitor', **user_fields)
+    await join_community(person)
     return person, await service.add_walk_up(staff, event.id, user_id=person.id, check_in=check_in)
 
 
@@ -127,6 +128,7 @@ async def test_a_resend_needs_a_checked_in_linked_row_and_a_desk_role(service, s
     _, waiting = await _member_walk_up(service, staff, event, check_in=False)
     named = await service.add_walk_up(staff, event.id, name='Walk-in Wendy')
     member = await make_user(discord_id=77, username='member')
+    await join_community(member)
 
     with pytest.raises(ValueError, match='first'):
         await CheckInDeskService().send_test_dm(staff, waiting.id)

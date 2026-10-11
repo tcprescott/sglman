@@ -66,7 +66,7 @@ WRITE_ROOTS = {"create", "get_or_create", "update_or_create"}
 EXEMPT_MARKERS = ("cross-tenant", "unscoped", "tenant-scope: exempt")
 # tenant is the subject of these rows (which tenants does X belong to / may X
 # act in), not a scoping stamp — reads legitimately span or select tenants.
-EXEMPT_MODELS = {"TenantMembership", "TenantJoinRequest", "RacetimeBotTenant"}
+EXEMPT_MODELS = {"TenantMembership", "TenantJoinRequest", "TenantMemberBlock", "RacetimeBotTenant"}
 
 
 def find_models_source(start_path: str) -> str | None:

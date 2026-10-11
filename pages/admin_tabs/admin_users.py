@@ -11,7 +11,6 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
-from application.services.tenant_membership_service import JoinMode
 from application.services.tenant_service import TenantService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_datetime, format_local_display
@@ -340,26 +339,11 @@ async def _members_panel(
                     ui.notify('That account no longer exists', color='negative')
                     return
                 name = user.display_name or user.username
-                # With auto-join on, being in the Discord server is the rule:
-                # removal only lasts until they next open the community.
-                auto_join = await TenantMembershipService.auto_join_active(require_tenant_id())
-                open_door = (
-                    await TenantMembershipService.get_join_mode() is JoinMode.OPEN
-                )
                 consequence = (
-                    'They get a Discord message saying so. This community lets '
-                    'anyone in who signs in, so they\'ll be back the next time '
-                    'they open it. Change who can join under Settings if you '
-                    'need to keep them out.'
-                    if open_door else
-                    'They get a Discord message saying so. This community lets '
-                    'members of its Discord server in automatically, so while '
-                    'they\'re in the server they\'ll be let back in the next time '
-                    'they open it. Remove them from the server too if you want '
-                    'them out.'
-                    if auto_join else
                     'They lose access straight away and get a Discord message '
-                    'saying so. You can add them back later.'
+                    'saying so. They can\'t rejoin on their own, even through '
+                    'open or Discord joining, until staff add them back or '
+                    'approve a request from them.'
                 )
 
                 async def confirmed() -> None:

@@ -345,3 +345,17 @@ async def test_memberships_by_user_is_this_communitys_only(two_tenants):
         assert only_a.id in await TenantMembershipService().memberships_by_user()
     with tenant_scope(b.id):
         assert only_a.id not in await TenantMembershipService().memberships_by_user()
+
+
+async def test_a_removal_block_holds_only_in_its_own_tenant(two_tenants, db):
+    """A ``TenantMemberBlock`` from tenant A must not keep anyone out of tenant B."""
+    from models import TenantMemberBlock
+
+    tenant_a, tenant_b = two_tenants
+    user = await User.create(discord_id=6100, username='removed-from-a')
+    await TenantMemberBlock.create(user=user, tenant=tenant_a)
+    service = TenantMembershipService()
+    with tenant_scope(tenant_a.id):
+        assert await service.was_removed(user, tenant_a.id) is True
+    with tenant_scope(tenant_b.id):
+        assert await service.was_removed(user, tenant_b.id) is False

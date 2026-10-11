@@ -154,7 +154,16 @@ class AdminUserDialog(BaseUserDialog):
                     ChallongeService.is_configured()
                     and await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
                 )
-                if self.user and challonge_live:
+                may_edit_account = (
+                    self.user is None
+                    or await self.user_service.may_edit_account(self.user, actor)
+                )
+                if self.user and challonge_live and not may_edit_account:
+                    ui.label(
+                        f'Challonge: {self.user.challonge_username or self.user.challonge_user_id}'
+                        if self.user.challonge_user_id else 'Challonge: not linked'
+                    ).classes('text-caption text-grey-7')
+                elif self.user and challonge_live:
                     if self.user.challonge_user_id:
                         challonge_username_input = ui.input(
                             'Challonge username',
@@ -171,14 +180,14 @@ class AdminUserDialog(BaseUserDialog):
                             'Challonge username (optional)'
                         ).classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
-                if self.user and not await self.user_service.may_edit_account(self.user, actor):
+                if self.user and not may_edit_account:
                     display_name_input.props('readonly')
                     pronouns_input.props('readonly')
                     is_active_checkbox.disable()
                     ui.label(
                         f'{self.user.preferred_name} also belongs to another community or '
                         'runs the platform, so only a platform admin can change their name, '
-                        'pronouns or active status.'
+                        'pronouns, active status or Challonge link.'
                     ).classes('text-caption text-grey-7')
                 if is_create:
                     discord_id_input = ui.input(

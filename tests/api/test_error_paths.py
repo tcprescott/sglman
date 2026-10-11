@@ -302,6 +302,7 @@ class TestSubmitMatchRequest:
         actor, raw = await create_user_token(username='requester', member=True)
         t = await Tournament.create(name='Cup', is_active=True)
         opponent = await create_community_member(discord_id=8181, username='opp')
+        await TournamentPlayers.create(tournament=t, user=opponent, tenant_id=1)
         async with client_for(app, raw) as c:
             resp = await c.post(
                 '/api/matches/request',

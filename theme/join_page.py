@@ -298,6 +298,7 @@ def render_join_page(
     pending: bool = False,
     preview: Optional[JoinPreview] = None,
     layout: Optional[BaseLayout] = None,
+    removed: bool = False,
     ask_again_at: Optional[datetime] = None,
 ) -> None:
     """Ask to join, or say the request is already in.
@@ -374,8 +375,18 @@ def render_join_page(
                 _render_preview(preview)
                 return
 
-            ui.label(_non_member_message(preview)).classes('error-message')
-            _render_discord(preview, signed_in=True)
+            if removed:
+                # Open membership and Discord auto-join would otherwise have let
+                # them in before this page drew, so say why they didn't.
+                ui.label(
+                    'Staff removed you from this community, so you can’t rejoin on '
+                    'your own. '
+                    + ('Ask to join and its staff will decide.' if preview.join_requests
+                       else 'Reach out to its staff if you think that’s a mistake.')
+                ).classes('error-message')
+            else:
+                ui.label(_non_member_message(preview)).classes('error-message')
+                _render_discord(preview, signed_in=True)
 
             if not preview.join_requests:
                 _render_preview(preview)
@@ -407,6 +418,15 @@ def render_join_page(
             ).props('color=primary')
 
             _render_preview(preview)
+
+
+async def resolve_removed(user: Optional[User], tenant_id: int) -> bool:
+    """Whether staff removed this user here, so the door explains why it stayed shut."""
+    if user is None:
+        return False
+    from application.services import TenantMembershipService
+
+    return await TenantMembershipService.was_removed(user, tenant_id)
 
 
 async def resolve_join_state(user: Optional[User], tenant_id: int) -> bool:

@@ -302,6 +302,7 @@ class TenantService:
 
         await AuthService.ensure_super_admin(actor)
         await TenantMembershipRepository.add(user, tenant_id, MembershipSource.STAFF)
+        await TenantMembershipRepository.unblock(user.id, tenant_id)
         with tenant_scope(tenant_id):
             await UserRoleRepository.add(user, Role.STAFF, granted_by=actor, source=RoleSource.MANUAL)
         await AuditService().write_log(

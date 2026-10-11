@@ -145,5 +145,66 @@ class TestDoorCopy:
         text = _non_member_message(JoinPreview(open_membership=True, join_requests=False))
         assert 'Reload' in text and 'Ask to join' not in text
 
-    def test_a_removal_dm_does_not_promise_a_lockout(self):
-        assert "you'll be back" in member_removed_dm('SGL', open_membership=True)
+    def test_a_removal_dm_says_how_to_come_back(self):
+        assert 'ask to join again' in member_removed_dm('SGL', can_ask=True)
+        assert 'ask to join' not in member_removed_dm('SGL', can_ask=False)
+
+
+class TestRemovalHolds:
+    """Removing someone used to last until their next page view under open join."""
+
+    async def test_a_removed_member_is_not_let_back_in_openly(self, db):
+        await _open()
+        staff = await _staff()
+        user = await _stranger()
+        service = TenantMembershipService()
+        assert await service.join_openly(user, 1) is True
+
+        await service.remove_member(staff, user)
+
+        assert await service.join_openly(user, 1) is False
+        assert await service.admit(user, 1) is False
+        assert await service.was_removed(user, 1) is True
+        assert not await TenantMembership.exists(user=user, tenant_id=1)
+
+    async def test_staff_adding_them_back_lifts_the_block(self, db):
+        await _open()
+        staff = await _staff()
+        user = await _stranger()
+        service = TenantMembershipService()
+        await service.join_openly(user, 1)
+        await service.remove_member(staff, user)
+
+        await service.add_member(staff, user)
+        await service.remove_member(staff, user)
+        assert await service.was_removed(user, 1) is True
+
+        await service.add_member(staff, user)
+        assert await service.was_removed(user, 1) is False
+
+    async def test_an_approved_request_lifts_the_block(self, db):
+        staff = await _staff()
+        user = await _stranger()
+        service = TenantMembershipService()
+        await TenantMembership.create(user=user, tenant_id=1)
+        await service.remove_member(staff, user)
+
+        request = await service.request_to_join(user, 1, 'sorry')
+        await service.approve_request(staff, request.id)
+
+        assert await service.was_removed(user, 1) is False
+        await _open()
+        await service.remove_member(staff, user)
+        assert await service.join_openly(user, 1) is False
+
+    async def test_a_block_is_per_community(self, db):
+        await _open()
+        other = await Tenant.create(name='Elsewhere', slug='elsewhere', is_active=True)
+        await SystemConfiguration.create(name=KEY_OPEN_MEMBERSHIP, value='true', tenant_id=other.id)
+        staff = await _staff()
+        user = await _stranger()
+        service = TenantMembershipService()
+        await service.join_openly(user, 1)
+        await service.remove_member(staff, user)
+
+        assert await service.join_openly(user, other.id) is True

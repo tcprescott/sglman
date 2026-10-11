@@ -98,7 +98,7 @@ from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
 from .system import LogLevelOverride, RoomToken, SystemConfiguration
-from .tenant import ProfileNudgeDismissal, Tenant, TenantJoinRequest, TenantMembership
+from .tenant import ProfileNudgeDismissal, Tenant, TenantJoinRequest, TenantMemberBlock, TenantMembership
 from .tournament import (
     GeneratedSeeds,
     Preset,
@@ -256,6 +256,7 @@ __all__ = [
     'Tenant',
     'TenantFeatureFlag',
     'TenantJoinRequest',
+    'TenantMemberBlock',
     'TenantMembership',
     'Tournament',
     'TournamentGrant',

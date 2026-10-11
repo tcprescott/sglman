@@ -1,5 +1,6 @@
 import functools
 import inspect
+import logging
 import re
 from typing import Iterable, Optional
 
@@ -28,6 +29,7 @@ from application.timezone_context import (
     stash_client_browser_timezone,
     stash_client_timezone,
 )
+from application.utils.hostname import effective_request_host
 from models import FeatureFlag, Role
 
 
@@ -187,6 +189,7 @@ async def enforce_membership(
         resolve_ask_again_at,
         resolve_join_preview,
         resolve_join_state,
+        resolve_removed,
     )
 
     if is_super_admin is None:
@@ -232,6 +235,7 @@ async def enforce_membership(
         # public half of its drawer (Event Information, Help), not Wizzrobe's.
         layout=await prepared_layout(user),
         ask_again_at=await resolve_ask_again_at(user, tenant_id),
+        removed=await resolve_removed(user, tenant_id),
     )
     return True
 
@@ -472,8 +476,45 @@ def protected_tab_page(base: str, **kwargs):
     return deco
 
 
+logger = logging.getLogger(__name__)
+
+SESSION_HOST_KEY = 'session_host'
+
+
+def session_host_matches(storage, host: Optional[str]) -> bool:
+    """Whether a signed-in session may be used on ``host``, binding it on first use.
+
+    Every host shares one signing secret, so a session cookie minted on a custom
+    domain is just as valid on the platform host. Whoever runs a custom domain's
+    DNS or TLS sees those cookies, and replayed on the platform host they act as
+    that person in every community, a super-admin's included. Binding the session
+    to the host it is first used on keeps a stolen cookie inside the domain the
+    thief already controls.
+
+    A session from before this binding existed has no host yet and takes the
+    one it's used on next, rather than signing everyone out.
+    """
+    if not host:
+        return True
+    bound = storage.get(SESSION_HOST_KEY)
+    if bound is None:
+        storage[SESSION_HOST_KEY] = host
+        return True
+    return bound == host
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if app.storage.user.get('authenticated', False) and not session_host_matches(
+            app.storage.user, effective_request_host(request.headers),
+        ):
+            # Ends the session everywhere, the host it belongs to included: a
+            # cookie showing up on another host means it has been copied.
+            logger.warning(
+                'Session bound to %r presented on another host; signing it out',
+                app.storage.user.get(SESSION_HOST_KEY),
+            )
+            app.storage.user.clear()
         # Enforce authentication only for routes that were explicitly marked protected
         if not app.storage.user.get('authenticated', False):
             # Under path mode TenantMiddleware has already stripped /t/<slug> into

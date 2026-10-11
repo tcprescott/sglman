@@ -2,7 +2,7 @@
 
 *Reference for the [`models/`](../../models/) package (every model and enum), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer above these repositories is documented in [services.md](services.md).*
 
-> **Package layout.** Models live in per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `bracket`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`, `feature_flag`, `mcp`, `preferences`), with the shared enums in `models/enums.py` and the column-fit validators in `models/column_guards.py`. The package defines 80 models. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.
+> **Package layout.** Models live in per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `bracket`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`, `feature_flag`, `mcp`, `preferences`), with the shared enums in `models/enums.py` and the column-fit validators in `models/column_guards.py`. The package defines 82 models. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.
 
 ## Overview
 
@@ -33,7 +33,7 @@ community owns or produces is tenant-scoped.**
 |---|---|---|
 | **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `UserTablePreference`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` / `matcherino_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
 | **Nullable `tenant`** — stamped from context, NULL = platform-level row | `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), `UserRole` (`CASCADE`; NULL only for the global `SUPER_ADMIN`), `ApiToken` (`CASCADE`; NULL only for platform-wide OAuth tokens) | |
-| **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
+| **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `TenantMemberBlock`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
 
 **Per-tenant uniqueness** — formerly-global uniques are composite with `tenant`:
@@ -70,6 +70,8 @@ erDiagram
     Tenant ||--o{ Tournament : "tenant"
     Tenant ||--o{ TenantMembership : "tenant"
     User ||--o{ TenantMembership : "user"
+    Tenant ||--o{ TenantMemberBlock : "tenant"
+    User ||--o{ TenantMemberBlock : "user"
     Tenant ||--o{ TenantJoinRequest : "tenant"
     User ||--o{ TenantJoinRequest : "user"
 
@@ -434,6 +436,22 @@ tenants, so it is never auto-scoped.
 | `created_at` | `DatetimeField` | auto | When they joined: the Users tab's **Joined** column and its "Joined in the last 7 days" filter |
 
 Constraints: `unique_together (('user', 'tenant'),)`; index on `tenant` (the composite is user-first, leaving per-tenant member enumeration uncovered).
+
+#### `TenantMemberBlock`
+
+Someone staff removed from a community, kept out of the two ways in that need
+no staff decision (open membership, Discord auto-join). Written by
+`remove_member`; deleted by any staff add. Cross-tenant like `TenantMembership`
+(in `check_tenant_scoping`'s `EXEMPT_MODELS`).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='member_blocks'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='tenant_blocks'` |
+| `blocked_by` | FK → `User` | null, `SET_NULL` | Who removed them |
+| `created_at` | `DatetimeField` | `auto_now_add` | |
+
+Constraints: `unique_together (('user', 'tenant'),)`.
 
 #### `ProfileNudgeDismissal`
 

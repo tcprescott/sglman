@@ -59,6 +59,10 @@ USER_SPECS = [
     ("triforce_sub",  "Triforce Submitter"),
     ("volunteer_only", "Volunteer Only"),
     ("checkin_desk",  "Check-in Desk"),
+    # Removed from every community by staff, and kept out by that removal even
+    # where the door would let anyone in (see seed_access): the fixture for the
+    # join page's "staff removed you" state.
+    ("removed_member", "Removed Member"),
 ]
 
 #: Racers who exist to fill a group play-in start list — staff-run races of ten

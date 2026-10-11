@@ -175,6 +175,7 @@ async def suggest_match_time(
     return MatchTimeSuggestion(
         suggested_at=await MatchSuggestionService().suggest_match_time(
             tournament_id, player_ids, bracket_match_id=bracket_match_id,
+            actor=current_actor().user,
         )
     )
 

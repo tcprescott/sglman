@@ -301,6 +301,28 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
             user, challonge_user_id, challonge_username, actor, manual=False,
         )
 
+    @staticmethod
+    async def _ensure_may_link_for(user: User, actor: User) -> None:
+        """Refuse a staff override on a Challonge identity that isn't only this community's.
+
+        ``challonge_user_id`` is global and unique, and every community's bracket
+        sync resolves participants through it. Pointing a shared account at
+        someone else's Challonge id would hand them that person's bracket rows in
+        every other community, and taking a real id would lock its owner out of
+        linking it anywhere. So the override follows the rule for the other
+        global account fields: Staff only, and only for people who belong to no
+        other community.
+        """
+        if actor.id == user.id:
+            return
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            'Only Staff can change another member’s Challonge link',
+        )
+        from application.services.user_service import UserService
+
+        await UserService.ensure_may_edit_account(user, actor)
+
     @requires_feature(FeatureFlag.CHALLONGE)
     async def participant_tournament_ids(self, user: User) -> Set[int]:
         """Tournament IDs whose mirrored Challonge bracket includes this user.
@@ -327,6 +349,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
         for a player who can't complete the OAuth flow) — the audit row carries
         ``manual`` to tell the two apart.
         """
+        await self._ensure_may_link_for(user, actor)
         await self._write_player_link(
             user, challonge_user_id, challonge_username, actor, manual=True,
         )
@@ -345,6 +368,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
         new_username = (challonge_username or '').strip() or None
         if new_username == user.challonge_username:
             return
+        await self._ensure_may_link_for(user, actor)
         old_username = user.challonge_username
         user.challonge_username = new_username
         await user.save()

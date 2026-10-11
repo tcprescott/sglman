@@ -27,13 +27,14 @@ from typing import List, Optional, Sequence, Tuple
 
 from application.repositories.bracket_repository import BracketRepository
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
+from application.services.auth_service import AuthService
 from application.services.player_availability_service import PlayerAvailabilityService
 from application.services.system_config_service import SystemConfigService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
 from application.timezone_context import get_zone
 from application.utils.timezone import now_local, parse_local_datetime, to_local
-from models import Match, PlayerAvailability, Tournament, VolunteerAvailabilityStatus
+from models import Match, PlayerAvailability, Tournament, User, VolunteerAvailabilityStatus
 
 _SLOT_INTERVAL_MIN = 30
 _PRIMARY_WINDOW_HOURS = 4
@@ -46,11 +47,24 @@ class MatchSuggestionService:
         self.availability_repository = PlayerAvailabilityRepository()
         self.bracket_repository = BracketRepository()
 
+    @staticmethod
+    async def _ensure_may_suggest(actor: User, tournament_id: int, player_ids: List[int]) -> None:
+        from application.services.tenant_membership_service import TenantMembershipService
+
+        if actor.id not in player_ids and not (
+            await AuthService.is_staff(actor)
+            or await AuthService.is_tournament_admin(actor, tournament_id)
+        ):
+            raise PermissionError('You can only ask for a time for a match you play in.')
+        await TenantMembershipService.require_community_users(player_ids, actor)
+
     async def suggest_match_time(
         self,
         tournament_id: int,
         player_ids: List[int],
         bracket_match_id: Optional[int] = None,
+        *,
+        actor: Optional[User] = None,
     ) -> datetime:
         """Return a UTC datetime representing the best slot for the match.
 
@@ -61,7 +75,14 @@ class MatchSuggestionService:
         as a hard bound: the match must fit inside it end to end.
 
         Raises ValueError if no eligible slot is found at all.
+
+        ``actor`` is required from REST and MCP: a member may ask about a match
+        they're in, Staff and the tournament's admins about anyone. Otherwise
+        the answer, or its "no slot" refusal, reads out other players' private
+        availability one probe at a time.
         """
+        if actor is not None:
+            await self._ensure_may_suggest(actor, tournament_id, player_ids)
         tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         duration_min = (tournament.average_match_duration or 90) if tournament else 90
         duration = timedelta(minutes=duration_min)

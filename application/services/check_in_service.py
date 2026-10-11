@@ -40,6 +40,8 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.check_in_accounts import (
     build_lookups,
+    desk_entrant,
+    ensure_desk_sees,
     forget_matcherino_account,
     linkable_user,
     remember_matcherino_account,
@@ -304,7 +306,7 @@ class CheckInService:
         """
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
         async with _sync_lock(event_id):
-            event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
+            event = await ensure_desk_sees(actor, require_found(await self.events.get_by_id(event_id), 'Check-in event'))
             if event.matcherino_venue_id is None and not has_comp_rules(event):
                 raise ValueError(
                     "This event has no Matcherino venue and comps nobody, so there's nothing to sync."
@@ -601,7 +603,7 @@ class CheckInService:
 
     async def _entrant_for_desk(self, actor: User, entrant_id: int) -> CheckInEntrant:
         await AuthService.ensure(await AuthService.can_run_check_in_desk(actor), _DESK_DENIED)
-        return require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry')
+        return await desk_entrant(actor, require_found(await self.entrants.get_by_id(entrant_id), 'Roster entry'))
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def check_in(self, actor: User, entrant_id: int, *, despite_withdrawn: bool = False) -> CheckInOutcome:
@@ -659,7 +661,7 @@ class CheckInService:
     async def link(self, actor: User, entrant_id: int, user_id: int) -> CheckInEntrant:
         entrant = await self._entrant_for_desk(actor, entrant_id)
         refuse_comp_row(entrant)
-        user = await linkable_user(user_id)
+        user = await linkable_user(user_id, actor)
         if entrant.user_id == user.id:
             return entrant
         other = await self.entrants.get_for_user(entrant.event, user)
@@ -735,7 +737,7 @@ class CheckInService:
         """Add someone who didn't buy a badge on Matcherino. Staff only."""
         await AuthService.ensure(await AuthService.can_manage_check_in(actor), _STAFF_DENIED)
         event = require_found(await self.events.get_by_id(event_id), 'Check-in event')
-        user = await linkable_user(user_id) if user_id else None
+        user = await linkable_user(user_id, actor) if user_id else None
         if user is not None:
             other = await self.entrants.get_for_user(event, user)
             if other is not None:

@@ -8,11 +8,12 @@ and undo the Matcherino account on a ``User`` when a row is linked or unlinked.
 
 from typing import Dict, Sequence
 
-from application.errors import require_found
+from application.errors import NotFoundError, require_found
 from application.repositories import CheckInUserLookupRepository, UserRepository
 from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
 from application.services.check_in_rules import IdentityLookups, handle_id
-from models import CheckInEntrant, CheckInLinkMethod, User
+from models import CheckInEntrant, CheckInEvent, CheckInEventStatus, CheckInLinkMethod, User
 
 
 async def build_lookups(rows: Sequence[CheckInEntrant]) -> IdentityLookups:
@@ -103,9 +104,30 @@ async def forget_matcherino_account(
     )
 
 
-async def linkable_user(user_id: int) -> User:
-    """The account a desk may link a roster row to: active and not the system user."""
+async def linkable_user(user_id: int, actor: User) -> User:
+    """The account a desk may link a roster row to: an active member, not the system user.
+
+    Membership because ``User`` is global: linking writes Matcherino payout
+    fields onto the account and names it in the response, so an id from the
+    caller must not reach people outside this community.
+    """
+    from application.services.tenant_membership_service import TenantMembershipService
+
+    await TenantMembershipService.require_community_users([user_id], actor)
     user = require_found(await UserRepository.get_by_id(user_id), 'User')
     if user.is_system or not user.is_active:
         raise ValueError("That account can't be linked.")
     return user
+
+
+async def ensure_desk_sees(actor: User, event: CheckInEvent) -> CheckInEvent:
+    """A desk volunteer works open events only, as ``CheckInDeskService.roster_for`` shows them."""
+    if event.status != CheckInEventStatus.OPEN and not await AuthService.can_manage_check_in(actor):
+        raise NotFoundError('Check-in event not found')
+    return event
+
+
+async def desk_entrant(actor: User, entrant: CheckInEntrant) -> CheckInEntrant:
+    """``entrant``, if its event is one ``actor`` may work at the desk."""
+    await ensure_desk_sees(actor, entrant.event)
+    return entrant
