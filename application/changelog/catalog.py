@@ -165,7 +165,7 @@ def apply_changes(
 
 
 def _read_changes() -> list[tuple[date, str]]:
-    changes = []
+    changes: list[tuple[date, str]] = []
     if not CHANGES_DIR.is_dir():
         return changes
     for path in sorted(CHANGES_DIR.glob('*.md')):
