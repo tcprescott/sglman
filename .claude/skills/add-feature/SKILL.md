@@ -192,3 +192,9 @@ Update the matching doc (`docs/reference/data-model.md` for models,
 `docs/reference/services.md` for services, `docs/reference/frontend.md` for
 pages, feature doc under `docs/features/`). The session-start and Stop doc
 hooks report gaps; keep them quiet.
+
+## 10. Changelog
+
+A feature people will notice gets a bullet in this week's entry of
+`application/changelog/changelog.md`, the in-app "What's new" page. Use the
+[`changelog`](../changelog/SKILL.md) skill for the format and the wording rules.
