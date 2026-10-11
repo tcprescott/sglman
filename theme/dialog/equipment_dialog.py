@@ -5,10 +5,15 @@ from typing import Awaitable, Callable, Optional
 from nicegui import ui
 
 from application.services import EquipmentService, TenantService, UserService
-from models import Equipment, User
+from models import Equipment, EquipmentStatus, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 _WIZ_OWNER = ''  # empty owner value ⇒ owned by the community (its tenant)
+
+_STATUS_OPTIONS = {
+    EquipmentStatus.AVAILABLE.value: 'Available to lend',
+    EquipmentStatus.RETIRED.value: 'Retired (can\'t be checked out)',
+}
 
 
 class EquipmentDialog:
@@ -71,6 +76,20 @@ class EquipmentDialog:
                     value=current_owner,
                 ).props('use-input').classes('full-width')
 
+                # Checked out is owned by check out / check in, so the select only
+                # appears when the asset is on the shelf.
+                status_select = None
+                if is_edit and self.equipment.status != EquipmentStatus.CHECKED_OUT:
+                    status_select = ui.select(
+                        label='Status',
+                        options=_STATUS_OPTIONS,
+                        value=self.equipment.status.value,
+                    ).classes('full-width')
+                elif is_edit:
+                    ui.label(
+                        "It's checked out right now. Check it in before you retire it."
+                    ).classes('italic-note')
+
                 count_input = None
                 if not is_edit:
                     count_input = ui.number(
@@ -98,6 +117,15 @@ class EquipmentDialog:
                                 description=description_input.value,
                                 private_notes=notes_input.value,
                                 owner_user_id=owner_id,
+                                # Only a changed status is sent, so an asset
+                                # checked out while this dialog sat open saves
+                                # its other edits instead of being refused.
+                                status=(
+                                    EquipmentStatus(status_select.value)
+                                    if status_select is not None
+                                    and status_select.value != self.equipment.status.value
+                                    else None
+                                ),
                             )
                             ui.notify('Asset updated.', color='positive')
                         else:
