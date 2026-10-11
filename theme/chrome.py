@@ -5,8 +5,8 @@ These pages run on the bare platform host with no tenant in scope, so they
 cannot use :class:`~theme.base.BaseLayout`: its drawer links into tenant routes
 (``/admin``, ``/volunteer``) and its palette is resolved from the in-scope
 tenant. What they still need is everything that makes a page read as Wizzrobe —
-the stylesheet and its fonts, the phoenix palette, dark mode, and the gold
-header bar with its ember strip. :func:`render_platform_chrome` is that subset,
+the stylesheet and its fonts, the phoenix palette, dark mode, and the header
+bar with the brand mark. :func:`render_platform_chrome` is that subset,
 shared so the tenant-less surfaces cannot drift apart from each other.
 
 :func:`dark_mode_button` is shared with ``BaseLayout``'s header so the toggle
@@ -23,7 +23,7 @@ from theme.assets import asset_url
 # Above-the-fold weights; the rest of the family loads on demand from styles.css.
 _PRELOAD_FONTS = (
     'atkinson-hyperlegible-latin-400-normal',
-    'fraunces-latin-600-normal',
+    'atkinson-hyperlegible-latin-700-normal',
 )
 
 
@@ -85,14 +85,12 @@ def apply_brand_palette(colors: dict[str, str]) -> None:
         warning='#B45309',
         info='#0E7470',
     )
-    # ui.colors only recolors Quasar's palette; the header bar, links, and
-    # section titles read the --wiz-* brand vars from styles.css. Re-point
-    # those to the tenant palette here (loaded after the stylesheet, so this
-    # wins). --wiz-header-bg is set on :root for the light bar; the dark
-    # rule in styles.css re-points it to charcoal on <body>, which stays
-    # authoritative in dark mode. The two dark text-tint rules mirror the
-    # !important defaults in styles.css so primary/secondary text follows the
-    # tenant accent/secondary in dark mode too.
+    # ui.colors only recolors Quasar's palette; links, the active nav item and
+    # the header's brand mark read the --wiz-* brand vars from styles.css.
+    # Re-point those to the tenant palette here (loaded after the stylesheet,
+    # so this wins). The two dark text-tint rules mirror the !important
+    # defaults in styles.css so primary/secondary text follows the tenant
+    # accent/secondary in dark mode too.
     ui.add_head_html(
         '<style>'
         ':root{'
@@ -130,7 +128,7 @@ def dark_mode_button(dark: ui.dark_mode) -> ui.button:
         else 'light_mode' if dark_pref
         else 'dark_mode'
     )
-    ref['btn'] = ui.button(icon=icon, on_click=toggle).props('flat color=white') \
+    ref['btn'] = ui.button(icon=icon, on_click=toggle, color=None).props('flat') \
         .tooltip('Toggle dark mode')
     return ref['btn']
 

@@ -68,10 +68,13 @@ body { margin: 0; color: var(--bracket-text, #1f2328); }
 a { color: var(--wiz-link, #9C6B12); }
 .wizs-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;
   justify-content: space-between; padding: 12px 16px;
-  background: var(--wiz-header-bg, #9C6B12); color: #fff; }
-.wizs-bar a { color: #fff; }
-.wizs-bar .wizs-sub { color: rgba(255, 255, 255, .85); }
-.wizs-brand { font-weight: 700; letter-spacing: .02em; }
+  background: var(--surface, #fff); color: var(--fg, #1c1b19);
+  border-bottom: 1px solid var(--border-subtle, #e2e1de); }
+.wizs-bar a { color: var(--wiz-link, #9C6B12); }
+.wizs-bar .wizs-sub { color: var(--fg-muted, #6f6d67); }
+.wizs-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.wizs-brand::before { content: ''; width: 16px; height: 16px; border-radius: 5px;
+  background: var(--wiz-header-bg, #9C6B12); }
 .wizs-wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
 .wizs-card { background: var(--bracket-card-bg, #fff);
   border: 1px solid var(--bracket-card-border, #e2e5ea); border-radius: 8px;

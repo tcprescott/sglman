@@ -53,13 +53,14 @@ async def _render_platform_landing() -> None:
                 # No avatar URL (mock-login sessions, or Discord users on the
                 # default avatar): show a placeholder glyph rather than a broken image.
                 ui.icon('account_circle').classes('user-avatar user-avatar-placeholder')
-            ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout') \
-                .props('flat color=white').tooltip('Log out')
+            ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout', color=None) \
+                .props('flat').tooltip('Log out')
         else:
             login_btn = ui.button(
                 on_click=lambda: ui.navigate.to('/login'),
                 icon='login',
-            ).props('flat color=white').classes('login-button')
+                color=None,
+            ).props('flat').classes('login-button')
             with login_btn:
                 ui.label('Login with Discord').classes('login-button-text')
             login_btn.tooltip('Login with Discord')

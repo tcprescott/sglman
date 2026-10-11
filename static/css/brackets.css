@@ -19,13 +19,15 @@ body {
 
   --bracket-accent: var(--q-primary, #e0a82e);
   --bracket-accent-text: #ffffff;
-  --bracket-line: #c9cdd4;
-  --bracket-card-bg: #ffffff;
-  --bracket-card-border: #e2e5ea;
-  --bracket-text: #1f2328;
-  --bracket-muted: #6b7280;
-  --bracket-seed-bg: #eef0f3;
-  --bracket-header-bg: rgba(255, 255, 255, 0.92);
+  /* Neutrals follow the app's tokens (styles.css), which switch with the mode,
+   * so only the status tones need a dark override below. */
+  --bracket-line: var(--border-strong);
+  --bracket-card-bg: var(--surface);
+  --bracket-card-border: var(--border-subtle);
+  --bracket-text: var(--fg);
+  --bracket-muted: var(--fg-muted);
+  --bracket-seed-bg: var(--surface-sunken);
+  --bracket-header-bg: color-mix(in srgb, var(--page-bg) 92%, transparent);
   --bracket-run-bg: color-mix(in srgb, var(--bracket-accent) 20%, transparent);
 
   /* Live-status tones (U2). Named for what they *mean*, not what they look
@@ -45,13 +47,6 @@ body {
   --bracket-imminent: #d98324;
   --bracket-attention: #d98324;
   --bracket-done: #9aa3ad;
-  --bracket-line: #3a4048;
-  --bracket-card-bg: #1f242b;
-  --bracket-card-border: #333a43;
-  --bracket-text: #e6e8eb;
-  --bracket-muted: #9aa3ad;
-  --bracket-seed-bg: #2a2f37;
-  --bracket-header-bg: rgba(23, 18, 13, 0.92);
   --bracket-run-bg: color-mix(in srgb, var(--bracket-accent) 16%, transparent);
 }
 

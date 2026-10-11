@@ -29,8 +29,8 @@ from models import User
 # The overridable brand colours and their shipped Phoenix defaults. Keep these in
 # sync with the ``:root`` seed values in static/css/styles.css and the fallback
 # used by theme/base.py — ``primary`` mirrors --wiz-gold-deep, ``accent``
-# --wiz-gold, ``secondary`` --wiz-ember-deep, ``header`` the light-mode
-# --wiz-header-bg.
+# --wiz-gold, ``secondary`` --wiz-ember-deep, ``header`` --wiz-header-bg
+# (the brand mark beside the wordmark).
 DEFAULT_THEME: dict[str, str] = {
     'primary': '#9C6B12',
     'secondary': '#C24E12',
@@ -49,12 +49,11 @@ _HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 # warning means "hard to read where this is used", not an abstract score.
 # primary/secondary sit as text and white-labelled button fills on the light
 # surface; accent is the dark-mode link/title colour on the dark page; the
-# header bar carries white text. The bar is AA normal-text (4.5:1) — the shipped
-# defaults clear it (~4.6:1), so presets and custom colours are held to the same
-# line the app already meets.
+# header colour is the brand mark beside the wordmark on the white header bar.
+# All four are held to AA normal-text (4.5:1) — the shipped defaults clear it
+# (~4.6:1), so presets and custom colours meet the line the app already meets.
 _LIGHT_SURFACE = '#ffffff'   # white cards/tables/page
 _DARK_SURFACE = '#1c1714'    # --wiz-dark-bg (dark-mode page body)
-_WHITE_TEXT = '#ffffff'
 _AA_CONTRAST = 4.5
 
 # key → (colour it is contrasted with, phrase describing where it is used)
@@ -62,7 +61,7 @@ _CONTRAST_AGAINST: dict[str, tuple[str, str]] = {
     'primary': (_LIGHT_SURFACE, 'links and button labels on a light background'),
     'secondary': (_LIGHT_SURFACE, 'secondary text and button labels on a light background'),
     'accent': (_DARK_SURFACE, 'links and titles in dark mode'),
-    'header': (_WHITE_TEXT, 'the white header text'),
+    'header': (_LIGHT_SURFACE, 'the white header bar'),
 }
 
 # Curated palettes, each **verified** to meet the contrast thresholds above —
