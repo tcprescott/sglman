@@ -28,6 +28,8 @@ from models import FeatureFlag, Role
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    'AUDIENCE_EVERYONE',
+    'AUDIENCE_STAFF',
     'ContentArticle',
     'ContentCatalog',
     'ContentSnippet',
@@ -38,6 +40,11 @@ __all__ = [
 _FRONT_MATTER_RE = re.compile(r'^---\s*\n(?P<body>.*?)\n---\s*\n', re.DOTALL)
 _SNIPPET_OPEN_RE = re.compile(r'^:::snippet\s+(?P<name>[a-z0-9-]+)\s*$')
 _SNIPPET_CLOSE = ':::'
+
+AUDIENCE_EVERYONE = 'everyone'
+#: Written for the people who run the community. Listed in its own group and
+#: readable only by someone who can open Admin here.
+AUDIENCE_STAFF = 'staff'
 
 
 @dataclass(frozen=True)
@@ -75,6 +82,8 @@ class ContentArticle:
     #: Roles that may read this article. Empty means anyone, including signed-out
     #: readers. A reader holding *any* one of them qualifies.
     roles: tuple[Role, ...]
+    #: ``AUDIENCE_EVERYONE`` or ``AUDIENCE_STAFF``.
+    audience: str
     blocks: tuple[Block, ...]
     snippets: dict[str, ContentSnippet]
     search_text: str
@@ -133,6 +142,20 @@ def _resolve_roles(raw: str) -> tuple[Role, ...]:
         except KeyError:
             logger.warning('article names unknown role %r; dropping it', name)
     return tuple(roles)
+
+
+def _resolve_audience(raw: str) -> str:
+    """Map a front-matter ``audience:`` to one of the known audiences.
+
+    Closed, like ``roles:``: a misspelt ``audience: staf`` must not publish a
+    staff article to everyone, so any value but ``everyone`` means staff.
+    """
+    value = raw.strip().lower()
+    if not value or value == AUDIENCE_EVERYONE:
+        return AUDIENCE_EVERYONE
+    if value != AUDIENCE_STAFF:
+        logger.warning('article names unknown audience %r; treating as staff', raw)
+    return AUDIENCE_STAFF
 
 
 def _split_snippets(body: str) -> tuple[str, dict[str, tuple[int, int]]]:
@@ -214,6 +237,7 @@ def _load_article(path: Path, base_path: str) -> ContentArticle | None:
         order=order,
         feature=_resolve_feature(meta.get('feature', '')),
         roles=_resolve_roles(meta.get('roles', '')),
+        audience=_resolve_audience(meta.get('audience', '')),
         blocks=tuple(blocks),
         snippets=snippets,
         search_text=' '.join([title, meta.get('summary', ''), plain_text(blocks)]).lower(),

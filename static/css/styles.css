@@ -2616,6 +2616,50 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 .wiz-help-table th { font-weight: 700; white-space: nowrap; }
 
+/* Screenshots (theme/help/render.py). A phone capture is taller than the column
+   is wide, so the inline copy is height-capped and centred; tapping opens the
+   full-size one. The shots are taken in the light theme, so in dark mode they
+   get a frame and are dimmed a touch rather than glaring out of the page. */
+.wiz-help-figure { margin: 0 0 1.25rem; text-align: center; }
+.wiz-help-figure-open {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: zoom-in;
+    border-radius: var(--radius-md, 8px);
+}
+.wiz-help-figure-open:focus-visible { outline: 2px solid var(--wiz-link); outline-offset: 3px; }
+.wiz-help-img {
+    display: block;
+    max-width: 100%;
+    max-height: 30rem;
+    width: auto;
+    height: auto;
+    border-radius: var(--radius-md, 8px);
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+.body--dark .wiz-help-img { filter: brightness(0.9); }
+.wiz-help-caption {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+.wiz-help-zoom { cursor: zoom-out; max-width: 95vw; max-height: 95vh; }
+.wiz-help-zoom .wiz-help-img { max-height: 92vh; max-width: 95vw; border: 0; }
+.wiz-help-menu-body .wiz-help-img { max-height: 16rem; }
+
+/* The "For staff" group on the /help index. */
+.wiz-help-group-label {
+    margin-top: 1rem;
+    font-size: var(--text-sm, 0.8125rem);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
 /* --- /help layout ------------------------------------------------------- */
 
 .wiz-help-layout { gap: 2rem; }
