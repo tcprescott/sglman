@@ -90,7 +90,10 @@ def admin_schedule_page(
                 with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
                     ui.icon('emoji_events', size='14px')
                     n = len(tournament_ids)
-                    ui.label(f'Showing the {n} tournament{"" if n == 1 else "s"} you run')
+                    # "You run" was wrong for a crew coordinator, who is scoped
+                    # here too but runs nothing.
+                    ui.label('Showing only your tournament' if n == 1
+                             else f'Showing only your {n} tournaments')
 
         # A report linked here naming one match. Say so and offer the way out —
         # a one-row board with no explanation reads as a broken board.
