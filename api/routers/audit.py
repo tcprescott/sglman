@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import ServiceErrorRoute, require_admin
+from api.dependencies import ServiceErrorRoute, require_staff
 from api.schemas.audit import AuditLogEntry, AuditLogPage
 from application.services import AuditService
 from application.utils.serialization import decode_json_details
@@ -22,7 +22,7 @@ _decode_details = decode_json_details
     "",
     response_model=AuditLogPage,
     summary="List audit log entries",
-    description="Requires admin access. Supports filtering and pagination.",
+    description="Requires Staff. Supports filtering and pagination.",
 )
 async def list_audit_logs(
     start: Optional[datetime] = Query(None, description="Only entries at or after this time"),
@@ -31,14 +31,14 @@ async def list_audit_logs(
     action_contains: Optional[str] = Query(None, description="Substring match on the action string"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    actor: User = Depends(require_admin),
+    actor: User = Depends(require_staff),
 ):
     service = AuditService()
     total = await service.count_logs(
-        start=start, end=end, user_id=user_id, action_contains=action_contains,
+        actor=actor, start=start, end=end, user_id=user_id, action_contains=action_contains,
     )
     logs = await service.list_logs(
-        start=start, end=end, user_id=user_id, action_contains=action_contains,
+        actor=actor, start=start, end=end, user_id=user_id, action_contains=action_contains,
         limit=limit, offset=offset,
     )
     items = [

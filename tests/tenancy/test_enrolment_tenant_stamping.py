@@ -23,9 +23,20 @@ import pytest
 from tortoise.exceptions import IntegrityError
 from tortoise.models import Model as TortoiseModel
 
+from application.services.auth_service import AuthService
 from application.services.user_service import UserService
 from application.tenant_context import tenant_scope
 from models import Tenant, Tournament, TournamentPlayers, User
+
+
+@pytest.fixture(autouse=True)
+def actor_is_staff(monkeypatch):
+    """These writes are staff's roster edit; this file is about the tenant
+    stamp, so the staff check is taken as passed."""
+    async def yes(*_a, **_kw):
+        return True
+
+    monkeypatch.setattr(AuthService, 'is_staff', yes)
 
 
 @pytest.fixture

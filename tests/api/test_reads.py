@@ -105,6 +105,13 @@ class TestAudit:
         async with client_for(app, raw) as c:
             assert (await c.get('/api/audit-logs')).status_code == 403
 
+    async def test_audit_refuses_admin_roles_below_staff(self, db, app):
+        """The log carries webhook receiver URLs, role grants and who asked
+        for an accommodation, all of which are Staff's alone elsewhere."""
+        _, raw = await create_user_token(username='sm', roles=[Role.STREAM_MANAGER])
+        async with client_for(app, raw) as c:
+            assert (await c.get('/api/audit-logs')).status_code == 403
+
     async def test_staff_reads_audit_page(self, db, app):
         user, raw = await create_user_token(username='boss', roles=[Role.STAFF])
         await AuditLog.create(user=user, action='match.created', details='{"match_id": 1}')

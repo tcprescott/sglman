@@ -13,7 +13,7 @@ validation branches without touching existing test cases.
 
 from tortoise import connections
 
-from models import AuditLog, Match, MatchPlayers, Role, Stage, Tournament, User
+from models import AuditLog, Match, MatchPlayers, Role, Stage, Tournament, TournamentPlayers, User
 from tests.api_helpers import client_for, create_community_member, create_user_token
 
 
@@ -156,6 +156,26 @@ class TestUserEnrollmentWrites:
             resp = await c.put(f'/api/users/{user.id}/tournaments', json={'tournament_ids': [t.id]})
             assert resp.status_code == 200
             assert resp.json() == {'detail': 'Enrollments updated'}
+
+    async def test_self_edit_keeps_the_signup_rules(self, db, app):
+        """The self path used to enrol straight into closed or inactive
+        tournaments, skipping everything the signup button checks."""
+        from datetime import timedelta
+
+        from application.utils.timezone import now_local
+
+        user, raw = await create_user_token(username='late')
+        closed = await Tournament.create(
+            name='Closed', is_active=True, signups_close_at=now_local() - timedelta(days=1),
+        )
+        retired = await Tournament.create(name='Retired', is_active=False)
+        async with client_for(app, raw) as c:
+            for t in (closed, retired):
+                resp = await c.put(
+                    f'/api/users/{user.id}/tournaments', json={'tournament_ids': [t.id]},
+                )
+                assert resp.status_code == 400, resp.text
+        assert not await TournamentPlayers.filter(user=user).exists()
 
     async def test_staff_replaces_other_enrollments(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
@@ -423,13 +443,8 @@ class TestGenerateSeed:
 
 class TestCrewSignup:
     async def test_signup_then_undo(self, db, app):
-        from models import TenantMembership
-
         _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
         caster, caster_raw = await create_user_token(username='caster')
-        # Crew signup refuses a non-member of the community, at the service, so a
-        # token holder who belongs to no community cannot sign up either.
-        await TenantMembership.create(user=caster, tenant_id=1)
         t, p1, p2 = await _tournament_and_players()
         async with client_for(app, staff_raw) as staff, client_for(app, caster_raw) as caster_c:
             mid = (await _create_match(staff, t, p1, p2)).json()['id']
@@ -444,12 +459,12 @@ class TestCrewSignup:
     async def test_signup_refuses_a_non_member(self, db, app):
         """UI-only gating is not gating: the REST path hits the same wall."""
         _, staff_raw = await create_user_token(username='boss2', roles=[Role.STAFF])
-        _, stranger_raw = await create_user_token(username='stranger')
+        _, stranger_raw = await create_user_token(username='stranger', member=False)
         t, p1, p2 = await _tournament_and_players()
         async with client_for(app, staff_raw) as staff, client_for(app, stranger_raw) as stranger:
             mid = (await _create_match(staff, t, p1, p2)).json()['id']
             resp = await stranger.post(f'/api/matches/{mid}/crew', json={'role': 'commentator'})
-            assert resp.status_code == 400
+            assert resp.status_code == 403
             assert 'not a member' in resp.json()['detail']
 
     async def test_invalid_crew_role_is_400(self, db, app):

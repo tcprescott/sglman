@@ -62,12 +62,12 @@ class TestSignup:
             assert (await c.post(f'/api/tournaments/{tournament.id}/signup')).status_code == 400
 
     async def test_a_non_member_is_refused(self, db, app):
-        """The route is reachable by any live token, so the membership gate has
-        to live in the service rather than in whoever renders the button."""
-        _, raw = await create_user_token(username='stranger', discord_id=9502)
+        """A non-member's token is refused before the route runs; the service
+        refuses them too, for the MCP and UI paths."""
+        _, raw = await create_user_token(username='stranger', discord_id=9502, member=False)
         tournament = await _open_tournament()
         async with client_for(app, raw) as c:
-            assert (await c.post(f'/api/tournaments/{tournament.id}/signup')).status_code == 400
+            assert (await c.post(f'/api/tournaments/{tournament.id}/signup')).status_code == 403
 
     async def test_missing_tournament_is_404_not_a_refusal(self, db, app):
         """A tournament that does not exist — including another community's,

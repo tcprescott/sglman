@@ -111,10 +111,15 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         a tournament admin is never shown a request they would then be refused
         for deciding.
         """
-        if actor is not None:
+        if actor is not None and not await AuthService.is_staff(actor):
+            # Deciding a request is ``can_crud_match``, so outside staff the
+            # queue is a tournament admin's own tournaments and nobody else's.
+            admin_ids, _ = await AuthService.tournament_scope(actor)
             await AuthService.ensure(
-                await AuthService.can_view_admin(actor),
-                "Only staff can read the reschedule queue.",
+                bool(admin_ids), "Only staff can read the reschedule queue.",
+            )
+            tournament_ids = sorted(
+                admin_ids if tournament_ids is None else admin_ids & set(tournament_ids)
             )
         return await self.repository.list_pending(tournament_ids=tournament_ids)
 

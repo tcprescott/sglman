@@ -20,7 +20,7 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
-from application.services import UserService
+from application.services import TournamentService, UserService
 from application.services.auth_service import AuthService
 from models import Role, User
 
@@ -142,8 +142,22 @@ async def update_user_admin(user_id: int, body: UserAdminUpdate, actor: User = D
 async def update_user_tournaments(
     user_id: int, body: TournamentEnrollmentUpdate, actor: User = Depends(require_write_actor),
 ):
-    if actor.id != user_id and not await AuthService.is_staff(actor):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
+    if not await AuthService.is_staff(actor):
+        if actor.id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
+        # A player editing their own list goes through the same signup rules
+        # as the Tournaments tab: window, active, Challonge-managed rosters.
+        wanted = set(body.tournament_ids)
+        current = {
+            tp.tournament_id  # type: ignore[attr-defined]
+            for tp in await UserService().get_user_tournament_registrations(actor)
+        }
+        tournaments = TournamentService()
+        for tournament_id in sorted(current - wanted):
+            await tournaments.self_withdraw(tournament_id, actor)
+        for tournament_id in sorted(wanted - current):
+            await tournaments.self_enroll(tournament_id, actor)
+        return {"detail": "Enrollments updated"}
     target = await load_community_user_or_404(user_id, actor)
     await UserService().manage_tournament_enrollments(
         user=target, actor=actor, tournament_ids=set(body.tournament_ids), is_update=True,

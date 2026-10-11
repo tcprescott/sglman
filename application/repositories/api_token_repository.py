@@ -109,23 +109,26 @@ class ApiTokenRepository:
         expires_at: datetime,
         refresh_token_hash: str,
         refresh_expires_at: datetime,
-    ) -> None:
-        """Re-key an OAuth token in place on a refresh exchange.
+    ) -> bool:
+        """Re-key an OAuth token in place on a refresh exchange; False when the
+        refresh token was already spent.
 
         Rotating both halves means a leaked refresh token is single-use: the old
-        hashes stop matching the moment the exchange succeeds.
+        hashes stop matching the moment the exchange succeeds. Conditional on
+        the old refresh hash so two concurrent refreshes can't both succeed.
+        Cross-tenant: OAuth rows carry no tenant.
         """
-        token.token_hash = token_hash
-        token.token_prefix = token_prefix
-        token.expires_at = expires_at
-        token.refresh_token_hash = refresh_token_hash
-        token.refresh_expires_at = refresh_expires_at
-        await token.save(
-            update_fields=[
-                'token_hash', 'token_prefix', 'expires_at',
-                'refresh_token_hash', 'refresh_expires_at',
-            ]
+        rotated = await ApiToken.filter(
+            id=token.id, refresh_token_hash=token.refresh_token_hash,
+            revoked_at__isnull=True,
+        ).update(
+            token_hash=token_hash,
+            token_prefix=token_prefix,
+            expires_at=expires_at,
+            refresh_token_hash=refresh_token_hash,
+            refresh_expires_at=refresh_expires_at,
         )
+        return rotated == 1
 
     @staticmethod
     async def get_by_id(token_id: int) -> Optional[ApiToken]:

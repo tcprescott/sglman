@@ -15,6 +15,7 @@ from application.services import (
     AuthService,
     PlayerAvailabilityService,
     ReportsService,
+    TenantMembershipService,
     UserService,
 )
 from application.tenant_context import require_tenant_id
@@ -163,6 +164,9 @@ async def get_player_availability(
         )
     if wanted != [actor.user.id] and not await AuthService.is_staff(actor.user):
         raise PermissionError("Staff access required to view other players' availability")
+    await TenantMembershipService.require_community_users(
+        [uid for uid in wanted if uid != actor.user.id], actor.user,
+    )
 
     service = UserService()
     windows_by_user = await PlayerAvailabilityService().availability_map(

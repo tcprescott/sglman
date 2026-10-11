@@ -5,18 +5,23 @@ a token requires a *non* read-only token, so a read-only token can never be
 used to mint a more privileged one.
 """
 
-from typing import List
+from typing import List, Tuple
 
 from fastapi import APIRouter, Depends, status
 
-from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
+from api.dependencies import (
+    ServiceErrorRoute,
+    require_api_actor,
+    require_write_actor,
+    resolve_token,
+)
 from api.schemas.tokens import (
     ApiTokenCreatedResponse,
     ApiTokenCreateRequest,
     ApiTokenResponse,
 )
 from application.services.api_token_service import ApiTokenService
-from models import User
+from models import ApiToken, User
 
 router = APIRouter(prefix="/tokens", tags=["API Tokens"], route_class=ServiceErrorRoute)
 
@@ -40,12 +45,17 @@ async def list_tokens(actor: User = Depends(require_api_actor)):
 async def create_token(
     body: ApiTokenCreateRequest,
     actor: User = Depends(require_write_actor),
+    resolved: Tuple[User, ApiToken] = Depends(resolve_token),
 ):
+    # A token minted by a token must not outlive it, or a leaked short-lived
+    # token could be swapped for a permanent one before it expires.
+    _, parent = resolved
     token, raw = await ApiTokenService().create_token(
         actor,
         name=body.name,
         read_only=body.read_only,
         expires_at=body.expires_at,
+        not_after=parent.expires_at,
     )
     return ApiTokenCreatedResponse(
         id=token.id,

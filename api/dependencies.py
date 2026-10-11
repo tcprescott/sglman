@@ -113,6 +113,14 @@ async def resolve_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This tenant is inactive",
         )
+    # Removal revokes a member's tokens, but a token can outlive membership by
+    # other routes (removed before that existed, a super-admin who lost the
+    # role), so the check that decides it runs on every request.
+    if not await TenantService.is_member(user.id, tenant.id) and not await AuthService.is_super_admin(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this community",
+        )
     set_tenant_id(tenant.id)
     # REST responses stay UTC — timezone is a presentation concern and a
     # programmatic client should get one canonical instant. But a few endpoints
