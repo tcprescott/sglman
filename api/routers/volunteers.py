@@ -43,20 +43,7 @@ router = APIRouter(
 
 # --- response builders ----------------------------------------------------
 
-def _assignment_resp(a) -> VolunteerAssignmentResponse:
-    user = a.user if a.user_id and hasattr(a, 'user') else None
-    return VolunteerAssignmentResponse(
-        id=a.id,
-        shift_id=a.shift_id,
-        user_id=a.user_id,
-        user_name=(user.preferred_name if user else None),
-        auto_generated=a.auto_generated,
-        acknowledged_at=a.acknowledged_at,
-        reminder_sent_at=a.reminder_sent_at,
-        checked_in_at=a.checked_in_at,
-        checked_in_by_id=a.checked_in_by_id,
-        created_at=a.created_at,
-    )
+_assignment_resp = VolunteerAssignmentResponse.from_row
 
 
 def _shift_resp(s: VolunteerShift, *, include_drafts: bool) -> VolunteerShiftResponse:
@@ -173,6 +160,17 @@ async def unassign(assignment_id: int, actor: User = Depends(require_write_actor
 @router.post("/assignments/{assignment_id}/acknowledge", response_model=VolunteerAssignmentResponse, summary="Acknowledge your assignment")
 async def acknowledge(assignment_id: int, actor: User = Depends(require_write_actor)):
     assignment = await VolunteerScheduleService().acknowledge(assignment_id, actor)
+    return _assignment_resp(assignment)
+
+
+@router.post(
+    "/assignments/{assignment_id}/check-in",
+    response_model=VolunteerAssignmentResponse,
+    summary="Record that a volunteer showed up for their shift (coordinators and staff)",
+)
+async def check_in(assignment_id: int, actor: User = Depends(require_write_actor)):
+    """Doing it twice keeps the first arrival time."""
+    assignment = await VolunteerScheduleService().check_in(assignment_id, actor)
     return _assignment_resp(assignment)
 
 

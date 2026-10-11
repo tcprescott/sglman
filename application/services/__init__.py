@@ -41,6 +41,7 @@ from .auth_service import AuthService, get_user_from_discord_id
 from .bracket_config import BracketConfig, validate_bracket_config
 from .bracket_service import BracketService
 from .challonge_service import ChallongeService
+from .check_in_desk_service import CheckInDeskService
 from .check_in_service import CheckInService
 from .crew_service import CrewService
 from .discord import (
@@ -139,6 +140,7 @@ __all__ = [
     'BracketService',
     'CancellationMixin',
     'ChallongeService',
+    'CheckInDeskService',
     'CheckInService',
     'CrewService',
     'DiscordEventReconcilerService',

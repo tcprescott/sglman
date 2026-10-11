@@ -19,11 +19,12 @@ from mcp.server.mcpserver import MCPServer
 
 from api._match_view import MATCH_PREFETCH, serialize_match
 from api.schemas.matches import MatchResponse
+from api.schemas.reschedule_requests import RescheduleRequestResponse
 from application.errors import require_found
-from application.services import MatchService, ReportsService
+from application.services import MatchRescheduleService, MatchService, ReportsService
 from application.services.match.match_status import resolve as resolve_status
 from application.tenant_context import require_tenant_id
-from mcpserver.auth import Gate
+from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
 from mcpserver.schemas import MatchSummary, StageBlock, TenantArg
 
@@ -135,7 +136,23 @@ async def match_operations_report(
     )
 
 
+async def my_reschedule_requests(
+    tenant: TenantArg = None,
+    limit: int = 25,
+) -> List[RescheduleRequestResponse]:
+    """Your own requests to move or cancel a match, newest first, and what became of each.
+
+    Mirrors `GET /api/reschedule-requests/mine`. `status` is `pending`,
+    `approved`, `declined` or `withdrawn`.
+    """
+    rows = await MatchRescheduleService().list_mine(
+        current_actor().user, limit=max(1, min(limit, 100)),
+    )
+    return [RescheduleRequestResponse.from_row(row) for row in rows]
+
+
 def register_tools(mcp: MCPServer) -> None:
+    register(mcp, my_reschedule_requests, gate=Gate.ACTOR, title='My reschedule requests')
     register(mcp, list_matches, gate=Gate.ACTOR, title='List matches')
     register(mcp, get_match, gate=Gate.ACTOR, title='Get match')
     register(mcp, get_schedule, gate=Gate.ACTOR, title='Get daily schedule')
