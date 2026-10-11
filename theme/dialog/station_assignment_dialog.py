@@ -9,6 +9,7 @@ from application.services.system_config_service import SystemConfigService
 from application.utils.match_labels import match_model_label
 from models import STATION_REGEXES, Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.help import help_icon
 from theme.notify import notify_error
 
 # Copy for the dialog's two jobs. 'checkin' is the proctor's combined
@@ -96,6 +97,7 @@ class StationAssignmentDialog:
                 else:
                     with ui.row().classes('items-center full-width'):
                         ui.label(copy['lead']).classes('text-subtitle2')
+                        await help_icon('proctor-stations')
                         ui.space()
                         # Only offered for a head-to-head: the draw's whole job
                         # is putting two players on opposite sides, and it

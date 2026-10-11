@@ -41,8 +41,8 @@ is runtime content, not project documentation.
 | `tournament-signup` | Signing up on the Tournaments tab, the signup window, withdrawing, Challonge-synced rosters | — |
 | `player` | Your Schedule, acknowledging, requesting a match, Suggest a time, availability, results | — |
 | `on-air` | The stage timeline, finding a stream, watching a match | — |
-| `proctor` | The Proctor Station board, the four steps of running a match, which stations to use, unclear finishes | `FeatureFlag.VOLUNTEERS` |
-| `volunteering` | Volunteer availability, how shifts reach you, My Shifts, giving a shift back | `FeatureFlag.VOLUNTEERS` |
+| `proctor` | The Proctor Station board and its players column, the four steps of running a match, seeds, stations and Randomize, unclear finishes, the room seeds screen, loaner devices | `FeatureFlag.VOLUNTEERS` |
+| `volunteering` | Volunteer availability, how shifts reach you (drafts, the four shift DMs), My Shifts and hours, giving a shift back | `FeatureFlag.VOLUNTEERS` |
 | `notifications` | What the bot DMs, the DM buttons, DMs not arriving, the Profile notification controls | — |
 | `glossary` | Every term the app uses, plus the match-state table | — |
 
@@ -227,7 +227,7 @@ stages; availability — through the `help_topics=` of each
 Tournaments, Profile → Notifications; the player's match-request dialog and the
 Suggest a time button in it and in the bracket and Challonge schedule dialogs;
 Volunteer → My Shifts and its release dialog; Volunteer → Proctor Station (the
-board, running a match, when things go wrong, and shift change) and the result
+board, running a match, when things go wrong, and shift change), the station picker (seating and Randomize) and the result
 dialog's review flag; Home → On Air; and the shared availability editor, which
 takes `help_snippet=` because the two callers render identical UI over different
 data (only the Volunteer tab passes one — Home's copy sits inside a section panel

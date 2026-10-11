@@ -4,7 +4,7 @@ slug: proctor
 icon: sports_esports
 order: 55
 feature: VOLUNTEERS
-summary: The Proctor Station board, running a match through the app start to finish, and recording the result.
+summary: The Proctor Station board, running a match start to finish, seating players, recording the result, the room's seeds screen and loaner devices.
 ---
 
 A proctor runs a room. You check the matches in, start the players, and record
@@ -18,54 +18,113 @@ publishes one it lives under **Event Information** in the sidebar. Read both
 before your first shift.
 
 The board is **Volunteer → Proctor Station**. If you cannot see it, you have not
-been given the Proctor role yet; ask a coordinator.
+been given the Proctor role yet; ask a coordinator. Being scheduled on a proctor
+shift usually gives it to you.
 
 ## The board
 
 :::snippet proctor-station
-**Proctor Station** is every match in your room, ordered by what needs you next:
-overdue first, then checked in, then in play, then not due yet, then done. Work
-from the top.
+**Proctor Station** is every on-site match, ordered by what needs you next:
+overdue first, then checked in, then in play, then not due yet. Work from the
+top. Matches run from a racetime.gg room are left off, since the room drives
+those, not you.
 
 It is deliberately not the admin Schedule tab. There is no scheduling here and no
 crew or stage columns: this board is for *running* matches, not booking them.
 
-**Next step** tells you the action, and **Players & stations** tells you who and
-where. Each match carries its number (`#`) so you can call it out across a room.
+The counts above the table say how many matches are waiting to be checked in,
+waiting to start, in play, and **Overdue** (past their time with nobody checked
+in). A non-zero overdue count is highlighted.
+
+**Next step** holds the button for whatever comes next, and **Players &
+stations** tells you who and where. Each match carries its number (`#`) so you
+can call it out across a room.
+
+By default the board shows matches that are still to be played or in play. Use
+**Filters** to narrow it to the day and the tournaments your room is running, or
+add **Finished** to the State filter to see what you have already recorded. The
+search box filters the rows by any text in their visible columns, such as a
+player's name.
 :::
+
+### Reading the players column
+
+Beside each name:
+
+| You see | Means |
+|---|---|
+| A tick on a person | They have acknowledged the match, so they know about it. It is not a check-in. |
+| An outlined person | They have not acknowledged it yet. |
+| A chair chip with a number | The station they are seated at. |
+| An accessibility icon | Staff have arranged an accommodation for them. Tap it. |
+| A trophy chip | They won. |
+
+The accessibility popup tells you an accommodation is arranged and to check with
+staff for what it involves. It does not show you the details; those are written
+for staff only. Find out before the match starts.
 
 ## Running a match
 
 :::snippet proctor-run-match
 Four steps, in order, all of them from the match's row.
 
-1. **Check the match in** once both players are seated. Press **Check In**. The
-   dialog asks which station each player is at, so put the numbers in and
-   confirm. That stamps the match as checked in and records where each player is
-   sitting.
+1. **Check the match in** once both players are there. Press **Check In**,
+   pick a station for each player (or press **Randomize**), and press **Check in
+   & seat**. That stamps the match as {state:Checked In} and records where each
+   player is sitting.
 2. **Roll the seed** if the row does not already have one. Usually it is there
-   already.
-3. **Press Start** when the players actually start, not when you seat them. From
-   that moment the match reads as live to everyone watching the board.
-4. **Record the winner** when it ends. That moves the match to
-   {state:Finished}.
+   already. If not, press **Generate** in the Seed column. A seed can only be
+   rolled once per match, and the players get it by DM.
+3. **Press Start** when the players actually start, not when you seat them, and
+   confirm. From that moment the match reads as {state:Started} to everyone
+   watching the board.
+4. **Press Finish** when it ends and say who won. Tap the winner, then the
+   **Yes** button that names them. Picking a name does not record anything on
+   its own, so a mis-tap costs you a **Back**, not a wrong result. (With more
+   than two players, choose the winner from the list and press **Submit
+   Results**.) That moves the match to {state:Finished}.
 
 Everything between those presses (helping players set up, running a countdown,
 keeping the room workable) is the event's to define, not the app's. The app
 records what you did; it does not tell you how to run the room.
 
 You do **not** confirm the result. A staff member does that, and it is what
-makes the result official; your job ends at recording it.
+makes the result official; your job ends at recording it. Until they do, the row
+shows {chip:pending:Awaiting confirmation}.
 :::
+
+### When the seed is not straightforward
+
+Some randomizers take a few minutes to produce a seed. The cell shows a spinner
+while it works; you can leave the page, and the players are DMed when it lands.
+
+A warning icon beside **Generate** means the last roll failed. Hover or tap
+it for the reason, then press **Generate** again.
+
+A bell with a line through it beside a seed means at least one player cannot
+receive Discord DMs. The icon names them. Read the seed out or show it to them,
+because the DM will not reach them.
 
 ### Which stations to use
 
+:::snippet proctor-stations
 There is no pairing rule. Which two stations you seat a match at is your call.
 The app only stops you putting two people in the same seat, or seating someone at
-a station another match in play is already using.
+a station another match in play is already using. A taken station shows in the
+picker as **in use**, with the players sitting there.
+
+**Randomize** draws a free station for each player and puts them on opposite
+sides of the room, away from matches already in play where it can. Nothing is
+saved until you press the button to confirm, so you can change either seat or
+draw again. If the room is too full to honour all of that, it says which part it
+could not manage and seats them anyway.
+
+Seated someone in the wrong place? The **Stations** button in the players column
+changes the seats of a match that is already checked in.
 
 You do **not** need to release a station afterwards. A station frees itself the
 moment its match is recorded as finished.
+:::
 
 ### If you did not see who finished
 
@@ -73,9 +132,43 @@ moment its match is recorded as finished.
 Ask both players. Record what they agree on.
 
 If they **disagree**, record your best call and tick **Flag for admin review**.
-Then tell an admin what happened — the flag is a marker, not a report, and the
+Then tell an admin what happened. The flag is a marker, not a report, and the
 conversation is what settles it.
 
-Flagging does not hold the match up or change its state. It marks it as needing a
-decision so it does not get confirmed on autopilot.
+Flagging does not hold the match up or change its state. It marks it
+{chip:pending:Needs review} so it does not get confirmed on autopilot.
 :::
+
+### If you recorded the wrong winner
+
+You cannot change a result once it is recorded; correcting it is an admin's job.
+Tell one which match (its `#`) and who actually won.
+
+## The room's seeds screen
+
+A room can have a shared screen that shows the seed for every match about to be
+played, so players can read it without anyone signing in. It is a web page
+opened from a private link that staff issue for that machine.
+
+It lists matches that have a seed and have not started. A match leaves the
+screen the moment you press **Start**, and new seeds appear as they are rolled.
+Leave it open; it updates itself.
+
+The screen cannot roll seeds or change anything. If a match is missing from it,
+the match has no seed yet, so roll one from the board. If the screen shows a
+page-not-found message, its link has been withdrawn or mistyped. Ask staff for a
+new one rather than signing in on the machine.
+
+## Lending a device
+
+Where the event lends out equipment, each loaner carries a QR code. The player
+who is going to use it scans the code with their phone, signs in, and borrows it
+in their own name.
+
+Point them at the code rather than doing it for them. A proctor cannot check a
+device out on someone else's behalf, and borrowing it on your own account would
+put the loan in your name.
+
+Returns go back to whoever runs the equipment desk. Only they can check a device
+back in, so if a player is packing up with a borrowed unit, send them and it to
+the desk.
