@@ -35,12 +35,12 @@ async def admin_features_page() -> None:
     tier = await service.current_tenant_group_name()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Features')
-        ui.label(
+        page_header(
+            'Features',
             'Turn community features on or off. Which features are available to '
             'your community is set by a platform administrator (your tier); you '
-            'control whether each available one is on.'
-        ).classes('text-caption text-grey')
+            'control whether each available one is on.',
+        )
         if tier:
             ui.label(f'Your tier: {tier}').classes('text-caption text-primary')
 

@@ -21,13 +21,12 @@ async def admin_tournaments_page() -> None:
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
-        page_header('Tournament Management')
-
-        ui.label(
+        page_header(
+            'Tournament Management',
             'The tournaments this community runs — players per match, durations, '
             'and seed generator. Click a name to edit, or a player count to manage '
-            'entrants.'
-        ).classes('text-caption text-grey')
+            'entrants.',
+        )
 
         columns: list[dict] = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
@@ -80,12 +79,11 @@ async def admin_stages_page() -> None:
     can_manage = await AuthService.can_manage_stages(actor)
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Stage Management')
-
-        ui.label(
+        page_header(
+            'Stage Management',
             'The stages matches can be assigned to. Each maps to a stream URL used '
-            'across the schedule and On Air views. Click a name to edit it.'
-        ).classes('text-caption text-grey')
+            'across the schedule and On Air views. Click a name to edit it.',
+        )
 
         columns: list[dict] = [
             # No id column: the primary key was this table's only edit affordance

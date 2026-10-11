@@ -72,13 +72,12 @@ async def admin_payouts_page() -> None:
     tournament_service = TournamentService()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Payouts')
-
-        ui.label(
+        page_header(
+            'Payouts',
             'Record what each placement wins as a share of the pool. Amounts are '
             'worked out from the pool and the bonus every time they are read, so '
-            'moving the pool moves every share with it.'
-        ).classes('text-caption text-grey')
+            'moving the pool moves every share with it.',
+        )
 
         columns: list[dict] = [
             {'name': 'tournament_id', 'label': 'ID', 'field': 'tournament_id', 'hidden': True},

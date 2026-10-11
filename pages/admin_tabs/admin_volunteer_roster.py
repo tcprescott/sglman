@@ -14,6 +14,7 @@ from application.utils.timezone import format_local_date, format_local_time
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
+from theme.page_header import page_header
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _STATUS_ABBR = {
@@ -57,8 +58,11 @@ async def admin_volunteer_roster_page() -> None:
     volunteers_by_id: dict = {}
 
     with ui.column().classes('page-container-wide'):
-        with ui.row().classes('header-row items-center'):
-            ui.label('Volunteer Roster').classes('page-title')
+        with page_header(
+            'Volunteer Roster',
+            'The pool of opted-in volunteers, their qualifications, and declared '
+            'availability. Manage a volunteer to edit which positions they can fill.',
+        ):
             ui.space()
             # Filled once the table exists; the header is drawn first.
             gear_slot = ui.row().classes('items-center')
@@ -68,12 +72,7 @@ async def admin_volunteer_roster_page() -> None:
                 .tooltip('Download the roster, availability and schedule as CSVs')
             ui.button(icon='refresh', on_click=lambda: load_roster()) \
                 .props('flat color=primary').tooltip('Refresh')
-        ui.separator().classes('separator-spacing')
 
-        ui.label(
-            'The pool of opted-in volunteers, their qualifications, and declared '
-            'availability. Manage a volunteer to edit which positions they can fill.'
-        ).classes('text-caption text-grey')
 
         table = ui.table(
             columns=_COLUMNS,

@@ -125,7 +125,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
             return
         ui.notify('Updated', color='positive')
 
-    with ui.dialog() as dialog, ui.card().classes('w-[34rem] gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f"Features for {row['name']}").classes('text-lg font-semibold')
 
         group_options = {0: '— None (default fallback) —'}
@@ -189,7 +189,7 @@ def _group_form(existing=None):
 
 
 def _open_group_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('w-[32rem] gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label('New feature group').classes('text-lg font-semibold')
         name, description, flags, is_default = _group_form()
 
@@ -218,7 +218,7 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
         'name': group.name, 'description': group.description or '',
         'flags': list(group.flags or []), 'is_default': group.is_default,
     }
-    with ui.dialog() as dialog, ui.card().classes('w-[32rem] gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f"Edit group '{group.name}'").classes('text-lg font-semibold')
         name, description, flags, is_default = _group_form(existing)
 

@@ -22,14 +22,13 @@ async def admin_profile_reminders_page() -> None:
     unavailable = await service.unavailable_reasons()
 
     with ui.column().classes('page-container-narrow'):
-        page_header('Profile reminders')
-
-        ui.label(
+        page_header(
+            'Profile reminders',
             'Pick what every member of this community should have on their profile. '
             "Anyone who hasn't done it sees a red banner at the top of every page, "
             'with a button that takes them straight to the right spot on their profile. '
-            'Leave everything unticked and nobody sees a banner.'
-        ).classes('text-caption text-grey')
+            'Leave everything unticked and nobody sees a banner.',
+        )
 
         controls: dict = {}
         for spec in CHECKS:

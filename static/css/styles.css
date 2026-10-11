@@ -327,6 +327,42 @@ body {
     --chip-c: var(--wiz-gold);
 }
 
+/* Every ui.badge in the app wears the chip above. Fifty-odd call sites pass a
+   Quasar colour (positive, warning, grey-7, blue...), and each used to paint a
+   solid, saturated pill, so one screen could carry five unrelated reds and
+   greens. Here the colour only picks a tone. Floating counters (the filter
+   count on a button) keep Quasar's solid dot. */
+.q-badge:not(.q-badge--floating) {
+    --chip-c: var(--status-neutral);
+    padding: 2px 8px;
+    min-height: 0;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0;
+    /* Quasar's bg-* classes set the background shorthand !important inside
+       its CSS layer, which beats any unlayered !important, so neither the
+       fill nor a background-image over it survives. An inset shadow paints
+       above the background, and a surface-coloured one leaves a 12% tint. */
+    box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--surface) 88%, transparent);
+    color: var(--chip-c) !important;
+    border: 1px solid color-mix(in srgb, var(--chip-c) 24%, transparent);
+}
+.q-badge:not(.q-badge--floating).q-badge--outline {
+    box-shadow: none;
+}
+.q-badge[class*="bg-positive"], .q-badge[class*="bg-green"], .q-badge[class*="bg-light-green"],
+.q-badge--outline[class*="text-positive"], .q-badge--outline[class*="text-green"] { --chip-c: var(--status-ok); }
+.q-badge[class*="bg-warning"], .q-badge[class*="bg-orange"], .q-badge[class*="bg-amber"],
+.q-badge[class*="bg-yellow"], .q-badge--outline[class*="text-warning"] { --chip-c: var(--status-pending); }
+.q-badge[class*="bg-negative"], .q-badge[class*="bg-red"], .q-badge[class*="bg-deep-orange"],
+.q-badge--outline[class*="text-negative"] { --chip-c: var(--status-cancelled); }
+.q-badge[class*="bg-teal"], .q-badge[class*="bg-cyan"] { --chip-c: var(--status-live); }
+.q-badge[class*="bg-blue"], .q-badge[class*="bg-info"], .q-badge[class*="bg-indigo"],
+.q-badge[class*="bg-purple"], .q-badge[class*="bg-deep-purple"], .q-badge--outline[class*="text-info"] { --chip-c: var(--status-info); }
+.q-badge[class*="bg-primary"], .q-badge--outline[class*="text-primary"] { --chip-c: var(--accent); }
+
 /* Availability heatmap (My Availability editor, player + volunteer) — status
    fills mapped to the phoenix --status-* tokens so the bar sits with the
    palette and lifts in dark mode, replacing the old stock-Material
@@ -830,8 +866,8 @@ body {
 
 /* Dialog Styles */
 .dialog-card {
-    width: min(700px, 90vw);
-    max-width: 90vw;
+    width: min(640px, 92vw);
+    max-width: 92vw;
     overflow-y: auto;
     max-height: 85vh;
 }
@@ -839,6 +875,17 @@ body {
 .dialog-card-small {
     min-width: 350px;
 }
+
+/* Three dialog widths, so a form opens the same size wherever it lives: --sm
+   for a few fields or a confirmation, the default for most forms, --lg for a
+   dialog that holds a table or two columns. Each caps at the viewport, so a
+   phone never scrolls sideways inside one. */
+.dialog-card--sm { width: min(520px, 92vw); }
+.dialog-card--md { width: min(640px, 92vw); }
+.dialog-card--lg { width: min(960px, 94vw); }
+
+/* Quasar caps a dialog's child at 560px; the sizes above are the cap now. */
+.q-dialog__inner--minimized > .dialog-card { max-width: 94vw; }
 
 @media (max-width: 768px) {
     .dialog-card-small {

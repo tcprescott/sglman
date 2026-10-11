@@ -22,13 +22,12 @@ def render_setup_checklist(
     advisory = [s for s in steps if not s.required]
 
     with ui.column().classes('page-container-narrow w-full'):
-        page_header('Set up your community')
-
-        ui.label(
+        page_header(
+            'Set up your community',
             'Matches hang off tournaments, and tournaments need players enrolled '
             'in them — so the order is tournament → enrol players → schedule a '
-            'match. Work down this list and it will disappear.'
-        ).classes('text-caption text-grey')
+            'match. Work down this list and it will disappear.',
+        )
 
         with ui.card().classes('w-full'):
             for step in required:

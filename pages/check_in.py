@@ -61,6 +61,7 @@ from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.realtime import refresh_on_reconnect, register_view
 from theme.tables.admin_crud import capture_render_context
 from theme.tables.export import csv_export_button
@@ -413,7 +414,7 @@ def create() -> None:
 
         user = await _desk_page_frame('Check-in')
         with ui.column().classes('page-container-narrow w-full q-pa-md gap-3'):
-            ui.label('Check-in').classes('page-title')
+            page_header('Check-in')
             if not open_events:
                 ui.label('No event is open for check-in right now.').classes('text-body1')
                 if await AuthService.can_manage_check_in(user):

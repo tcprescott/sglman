@@ -32,6 +32,7 @@ from models import FeatureFlag
 from theme.base import BaseLayout, current_local_url
 from theme.error_page import render_not_found
 from theme.help.article import render_article
+from theme.page_header import page_header
 
 __all__ = ['create']
 
@@ -84,8 +85,7 @@ def create() -> None:
         articles = await EventInfoService.list_articles(user)
 
         with ui.column().classes('page-container-narrow w-full'):
-            with ui.row().classes('header-row items-center'):
-                ui.label('Event Information').classes('page-title')
+            page_header('Event Information')
             ui.label(
                 'Everything about this event: what is on, attending on the day, '
                 'and who to ask.'

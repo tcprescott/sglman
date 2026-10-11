@@ -12,6 +12,7 @@ from application.services import AuthService, get_user_from_discord_id
 from application.utils.easter_eggs import CAT_FACT_SECTIONS, CAT_FACTS, random_cat_fact
 from middleware.auth import public_page
 from theme.base import BaseLayout
+from theme.page_header import page_header
 
 __all__ = ['create']
 
@@ -36,8 +37,7 @@ def create() -> None:
             featured.refresh()
 
         with ui.column().classes('page-container-narrow w-full'):
-            with ui.row().classes('header-row items-center'):
-                ui.label('Cat facts').classes('page-title')
+            page_header('Cat facts')
             ui.label(
                 f"You found them. All {len(CAT_FACTS)} of the facts this app "
                 "hides in its empty tables, its spinners, its 404 page and the "

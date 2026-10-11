@@ -137,7 +137,7 @@ def build_live_tab(
                                  ).classes('text-caption text-grey')
 
     def _open_live_race_dialog(pools) -> None:
-        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label('New Live Race').classes('text-h6')
             title_in = ui.input('Race title').classes('w-full')
             pool_options = {p.id: p.name for p in pools}
@@ -176,7 +176,7 @@ def build_live_tab(
         """
         rows: list = []
 
-        with ui.dialog() as dialog, ui.card().classes('w-[40rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
             ui.label(f'Record results — {race.match_title}').classes('text-h6')
             ui.label('For when the racetime event never arrived. Each racer is recorded '
                      'as an approved run, par-scored exactly as the room’s own results '
@@ -265,7 +265,7 @@ def build_live_tab(
         options = {pl.id: pl.url[:64] for p in state['pools'] if p.id == race.pool_id
                    for pl in p.permalinks}
 
-        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label(f'Set permalink — {race.match_title}').classes('text-h6')
             if not options:
                 ui.label('This pool has no permalinks yet. Add one on the Pools tab '

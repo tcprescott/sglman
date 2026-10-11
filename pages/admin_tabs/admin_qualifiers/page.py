@@ -297,7 +297,7 @@ async def admin_qualifiers_page(
 
     def open_qualifier_dialog(existing=None) -> None:
         is_edit = existing is not None
-        with ui.dialog() as dialog, ui.card().classes('w-[38rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
             ui.label('Edit Qualifier' if is_edit else 'New Qualifier').classes('text-h6')
             name_in = ui.input('Name', value=existing.name if is_edit else '').classes('w-full')
             event_in = ui.input(
@@ -493,7 +493,7 @@ async def admin_qualifiers_page(
         runner = run.user.display_name or run.user.username
         was = enum_value(run.review_status)
         approve = was != 'approved'
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label(f'Change the verdict on {runner}’s run').classes('text-h6')
             ui.label(
                 f'This run is {was}. Overturning it {"approves" if approve else "rejects"} '
@@ -528,7 +528,7 @@ async def admin_qualifiers_page(
         if run is None:
             return
         runner = run.user.display_name or run.user.username
-        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             ui.label(f'Grant {runner} another attempt').classes('text-h6')
             ui.label('This voids the run and frees its pool slot. It does not use up '
                      'the runner\u2019s own reattempt allowance.').classes('text-caption text-grey')
@@ -592,12 +592,12 @@ async def admin_qualifiers_page(
     # ------------------------------------------------------------------ shell
 
     with ui.column().classes('page-container'):
-        page_header('Async Qualifiers')
-        ui.label(
+        page_header(
+            'Async Qualifiers',
             'Self-paced permalink-pool qualifiers — a peer of Tournaments. Create a '
             'qualifier, author permalink pools, then review submitted runs. The '
-            'leaderboard and pools stay hidden from players until the qualifier closes.'
-        ).classes('text-caption text-grey')
+            'leaderboard and pools stay hidden from players until the qualifier closes.',
+        )
         list_view()
         detail_view()
 

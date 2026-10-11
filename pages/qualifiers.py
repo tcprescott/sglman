@@ -26,6 +26,7 @@ from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.page_header import page_header
 from theme.qualifier_copy import (
     BAND_EXPLAINER,
     BAND_LABELS,
@@ -132,8 +133,7 @@ def create() -> None:
         await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.column().classes('page-container'):
-            ui.label('Async Qualifiers').classes('page-title')
-            ui.separator()
+            page_header('Async Qualifiers')
             qualifiers = await service.list_open_qualifiers()
             if not qualifiers:
                 ui.label('No qualifiers are open right now. Check back soon.').classes('text-grey')
@@ -424,7 +424,7 @@ def create() -> None:
                 'text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
-            with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
+            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                 ui.label('Use a reattempt?').classes('text-h6')
                 ui.label('This voids that run — it stops counting and its score is '
                          'discarded — and frees the pool slot so you can draw a new '

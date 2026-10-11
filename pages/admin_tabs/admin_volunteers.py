@@ -90,12 +90,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         return start, start + timedelta(hours=30)
 
     with ui.column().classes('page-container-wide'):
-        page_header('Volunteer Scheduling')
-
-        ui.label(
+        page_header(
+            'Volunteer Scheduling',
             'Build the volunteer shift grid: create positions and shifts, auto-fill '
-            'from availability, and assign volunteers per shift.'
-        ).classes('text-caption text-grey')
+            'from availability, and assign volunteers per shift.',
+        )
 
         # --- Coverage strip ----------------------------------------------
         # The one number a coordinator wants on-site — how much of today is
@@ -118,17 +117,15 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                 ui.label('No shifts on this day yet.').classes('text-caption text-grey')
                 return
             with ui.row().classes('items-center gap-2').style('flex-wrap: wrap;'):
-                ui.chip(f"{summary['filled']}/{summary['needed']} slots filled") \
-                    .props('outline dense')
+                ui.label(f"{summary['filled']}/{summary['needed']} slots filled").classes('wiz-chip wiz-chip--neutral')
                 if summary['open']:
-                    ui.chip(f"{summary['open']} open").props('dense color=warning')
+                    ui.label(f"{summary['open']} open").classes('wiz-chip wiz-chip--pending')
                 else:
-                    ui.chip('Fully staffed').props('dense color=positive')
+                    ui.label('Fully staffed').classes('wiz-chip wiz-chip--ok')
                 if summary['unacknowledged']:
-                    ui.chip(f"{summary['unacknowledged']} awaiting acknowledgment") \
-                        .props('outline dense')
+                    ui.label(f"{summary['unacknowledged']} awaiting acknowledgment").classes('wiz-chip wiz-chip--neutral')
                 if summary['drafts']:
-                    ui.chip(f"{summary['drafts']} draft").props('outline dense color=secondary')
+                    ui.label(f"{summary['drafts']} draft").classes('wiz-chip wiz-chip--live')
 
         # --- Controls ----------------------------------------------------
         with ui.card().classes('full-width q-pa-md'):
