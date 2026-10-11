@@ -21,6 +21,7 @@ from nicegui import ui
 
 from application.services.match.match_status import MatchStatus, label, tone
 from models import BracketMatch, BracketMatchState
+from theme.a11y import make_activatable
 
 from .layout import (
     CARD_HEIGHT,
@@ -239,6 +240,7 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
     if ctx.on_card_click is not None:
         card.classes('is-clickable')
         card.on('click', lambda _=None, mid=match.id: ctx.on_card_click(mid))
+        make_activatable(card)
 
 
 def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
@@ -258,6 +260,7 @@ def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
     if ctx.on_card_click is not None:
         card.classes('is-clickable')
         card.on('click', lambda _=None, mid=match.id: ctx.on_card_click(mid))
+        make_activatable(card)
 
 
 def _render_header(

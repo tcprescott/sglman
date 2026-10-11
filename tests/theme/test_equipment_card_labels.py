@@ -18,7 +18,8 @@ from pages.home_tabs.equipment import _VIEW_ICON_BTN, _VIEW_LABEL_BTN
 
 
 def _labels(template: str) -> set:
-    return set(re.findall(r'label="([^"]+)"', template))
+    # Visible labels only: aria-label names an icon button without drawing text.
+    return set(re.findall(r'(?<![-\w])label="([^"]+)"', template))
 
 
 class TestRegisterCard:

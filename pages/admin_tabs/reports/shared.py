@@ -15,6 +15,8 @@ from application.services import SystemConfigService, TournamentService
 from application.utils.easter_eggs import random_cat_fact
 from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
+from theme.a11y import make_activatable
+from theme.page_header import page_title
 from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
@@ -116,7 +118,7 @@ def report_page_shell(title: str, back_to_dashboard: bool = True):
         with ui.row().classes('header-row items-center'):
             if back_to_dashboard:
                 ui.link('← Reports', reports_url()).classes('text-sm')
-            ui.label(title).classes('page-title')
+            page_title(title)
         ui.separator().classes('separator-spacing')
         yield
 
@@ -139,7 +141,7 @@ def date_range_filter(
             with ui.row().classes('justify-end'):
                 ui.button('OK', on_click=start_menu.close).props('flat dense')
         with start_input.add_slot('append'):
-            ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer')
+            make_activatable(ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer'), 'Pick start date')
 
         end_input = ui.input('End date', value=default_end.isoformat()).props('dense')
         with ui.menu().props('no-parent-event') as end_menu:
@@ -147,7 +149,7 @@ def date_range_filter(
             with ui.row().classes('justify-end'):
                 ui.button('OK', on_click=end_menu.close).props('flat dense')
         with end_input.add_slot('append'):
-            ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer')
+            make_activatable(ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer'), 'Pick end date')
 
     def _on_start(e):
         parsed = parse_date(start_input.value)
@@ -343,7 +345,8 @@ _DRILL_CELL = r'''
         <q-td :props="props" class="text-right" @click.stop>
             <q-btn v-if="props.row.drill_url" flat dense round
                    icon="open_in_new" color="primary"
-                   @click.stop="$parent.$emit('drill', props.row)">
+                   @click.stop="$parent.$emit('drill', props.row)"
+                   :aria-label="props.row.drill_hint">
                 <q-tooltip>{{ props.row.drill_hint }}</q-tooltip>
             </q-btn>
         </q-td>

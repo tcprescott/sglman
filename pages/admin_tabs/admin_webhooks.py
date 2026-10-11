@@ -39,19 +39,19 @@ _HEALTH_CHIP = '''
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)">
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
         <q-tooltip>Edit</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="vpn_key" color="primary"
-           @click="$parent.$emit('regenerate', props.row)">
+           @click="$parent.$emit('regenerate', props.row)" aria-label="Regenerate secret">
         <q-tooltip>Regenerate secret</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="history" color="primary"
-           @click="$parent.$emit('deliveries', props.row)">
+           @click="$parent.$emit('deliveries', props.row)" aria-label="Recent deliveries">
         <q-tooltip>Recent deliveries</q-tooltip>
     </q-btn>
     <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)">
+           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
         <q-tooltip>Delete</q-tooltip>
     </q-btn>
 '''

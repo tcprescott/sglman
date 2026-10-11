@@ -95,7 +95,7 @@ async def help_icon(
     button = (
         ui.button(label, icon='help_outline').props(f'flat dense no-caps size={size}')
         if label else
-        ui.button(icon='help_outline').props(f'flat round dense size={size}')
+        ui.button(icon='help_outline').props(f'flat round dense size={size} aria-label=Help')
     )
     with button.classes('wiz-help-icon'):
         with ui.menu().props('max-width=26rem').classes('wiz-help-menu'):

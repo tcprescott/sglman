@@ -15,6 +15,9 @@ from nicegui import ui
 # pane holds Appearance and Timezone). The page still calls page_header() the
 # same way; it just comes out a level down, so the pane keeps a single title.
 _nested: ContextVar[bool] = ContextVar('page_header_nested', default=False)
+# Set when a page_header() renders an h1, so a tab that never calls it can be
+# given a hidden one (see heading_fallback).
+_titled: ContextVar[bool] = ContextVar('page_header_titled', default=False)
 
 
 @contextmanager
@@ -27,6 +30,14 @@ def nested_page_headers() -> Iterator[None]:
         _nested.reset(token)
 
 
+def page_title(text: str) -> ui.label:
+    """A bare page title, for a page that builds its own header row."""
+    heading = ui.label(text).classes('page-title')
+    heading.tag = 'h1'
+    _titled.set(True)
+    return heading
+
+
 def page_header(title: str, subtitle: Optional[str] = None) -> ui.row:
     """Render the header and return its title row.
 
@@ -37,7 +48,29 @@ def page_header(title: str, subtitle: Optional[str] = None) -> ui.row:
     nested = _nested.get()
     with ui.column().classes('wiz-page-header' + (' wiz-page-header--nested' if nested else '')):
         with ui.row().classes('wiz-page-header__row') as row:
-            ui.label(title).classes('section-title' if nested else 'page-title')
+            heading = ui.label(title).classes('section-title' if nested else 'page-title')
+            # One h1 per page names it for screen-reader heading navigation.
+            heading.tag = 'h2' if nested else 'h1'
+            if not nested:
+                _titled.set(True)
         if subtitle:
             ui.label(subtitle).classes('wiz-page-header__sub')
     return row
+
+
+@contextmanager
+def heading_fallback(title: str) -> Iterator[None]:
+    """Give the content built in the block an h1, hidden, if it brings none.
+
+    Some tabs (the home Event board) open on their controls rather than a
+    title; screen-reader users navigate by headings and found none.
+    """
+    fallback = ui.label(title).classes('wiz-sr-only')
+    fallback.tag = 'h1'
+    token = _titled.set(False)
+    try:
+        yield
+    finally:
+        if _titled.get():
+            fallback.delete()
+        _titled.reset(token)

@@ -10,6 +10,7 @@ from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_time, today_local
 from models import Match, User
 from pages.admin_tabs.links import SCHEDULE, admin_url
+from theme.a11y import make_activatable
 from theme.empty_state import empty_state
 from theme.help import help_icon
 from theme.realtime import register_view
@@ -60,7 +61,7 @@ async def stage_timeline_tab():
                     with ui.row().classes('justify-end'):
                         go_btn = ui.button('Go', on_click=lambda: menu.close())
                 with date_input.add_slot('append'):
-                    ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
+                    make_activatable(ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer'), 'Pick a date')
 
         refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button').tooltip('Refresh')
 

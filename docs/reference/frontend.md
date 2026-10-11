@@ -68,6 +68,22 @@ The shipped "Phoenix" palette (gold/ember) is overridable per tenant on **Admin 
 
 Custom colours apply only inside a tenant: the platform surfaces (community picker at `/`, `/platform`) and the synchronous error page keep the shipped palette.
 
+### Accessibility (`theme/a11y.py`)
+
+Target is WCAG 2.1 AA. The shared pieces that keep it:
+
+| Piece | What it does |
+|---|---|
+| `ui.run_with(language='en-US')` | Sets `<html lang>` (screen-reader voice). |
+| `page_header()` | Renders the title as `<h1>` (`<h2>` when nested in a Settings pane). |
+| Skip link (`render_chrome`) | First tab stop, focuses `main.q-page`. |
+| `install_tooltip_labels()` | `.tooltip(text)` on an icon-only `ui.button` also sets `aria-label`. A tooltip alone is not an accessible name. |
+| `make_activatable(el, label=None, role=...)` | For a clickable card/icon: `tabindex=0`, a role, Enter/Space fire its `click`. |
+| `label_field(caption, field)` | Turns a free-standing caption into `<label for>` the field's control. |
+| `enable_mobile_grid(selectable=True)` | Names QTable's selection checkboxes. |
+
+Vue slot templates are strings, so an icon-only `<q-btn>` there spells out `aria-label` (or `:aria-label`) itself; `tests/test_a11y_names.py` fails on one that doesn't. Contrast: badge tints are inset box-shadows, which axe ignores, so axe reports false failures on every badge; use the contrast checker from the style pass for those.
+
 ## Tenant-less chrome (`theme/chrome.py`)
 
 Two surfaces run on the bare platform host with **no tenant in scope** and so cannot use `BaseLayout` — its drawer links into tenant routes and its palette is resolved from the in-scope tenant:

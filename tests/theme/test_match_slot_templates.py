@@ -428,7 +428,8 @@ class TestTheStageCell:
         from theme.tables.match_slots import STAGE_ADMIN_SLOT
         assert 'borderless' in STAGE_ADMIN_SLOT
         assert 'outlined' not in STAGE_ADMIN_SLOT
-        assert 'label="Stage"' not in STAGE_ADMIN_SLOT
+        # aria-label names it for screen readers without drawing anything.
+        assert not re.search(r'(?<![-\w])label="Stage"', STAGE_ADMIN_SLOT)
 
     def test_no_stage_is_an_option_rather_than_a_clear_button(self):
         # "None" is one of the answers, not the absence of one — and a clear

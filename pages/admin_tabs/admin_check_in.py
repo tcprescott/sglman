@@ -48,9 +48,9 @@ _ACTIONS = f'''
     <q-btn dense flat no-caps icon="how_to_reg" color="primary" label="Desk"
            class="{REQUIRES_SOCKET_CLASS}" @click="$parent.$emit('desk', props.row)" />
     <q-btn dense flat round icon="edit" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('edit', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
     <q-btn dense flat round icon="delete" color="negative" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('remove', props.row)"><q-tooltip>Delete</q-tooltip></q-btn>
+           @click="$parent.$emit('remove', props.row)" aria-label="Delete"><q-tooltip>Delete</q-tooltip></q-btn>
 '''
 
 

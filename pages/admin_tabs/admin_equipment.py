@@ -49,16 +49,16 @@ _STATUS_BADGE = '''<q-badge :color="props.row.status_value === 'available' ? 'po
 _ACTIONS_CELL = f'''<q-td :props="props">
     <q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
            class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('checkout', props.row)"><q-tooltip>Check out</q-tooltip></q-btn>
+           @click="$parent.$emit('checkout', props.row)" aria-label="Check out"><q-tooltip>Check out</q-tooltip></q-btn>
     <q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
            class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('checkin', props.row)"><q-tooltip>Check in</q-tooltip></q-btn>
+           @click="$parent.$emit('checkin', props.row)" aria-label="Check in"><q-tooltip>Check in</q-tooltip></q-btn>
     <q-btn dense flat round icon="qr_code_2" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('view', props.row)"><q-tooltip>Open asset page</q-tooltip></q-btn>
+           @click="$parent.$emit('view', props.row)" aria-label="Open asset page"><q-tooltip>Open asset page</q-tooltip></q-btn>
     <q-btn dense flat round icon="edit" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('edit', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
     <q-btn dense flat round icon="delete" color="negative" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('remove', props.row)"><q-tooltip>Delete</q-tooltip></q-btn>
+           @click="$parent.$emit('remove', props.row)" aria-label="Delete"><q-tooltip>Delete</q-tooltip></q-btn>
 </q-td>'''
 
 _GRID_CARD = f'''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">

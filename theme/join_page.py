@@ -318,7 +318,7 @@ def render_join_page(
     with ui.column().classes('error-page-container'):
         with ui.card().classes('error-card join-card'):
             ui.icon('meeting_room').props('size=xl color=primary')
-            ui.label(tenant_name).classes('error-headline')
+            ui.label(tenant_name).classes('error-headline').tag = 'h1'
 
             # First, for everyone: most people who reach this door from a tweet,
             # the stream or a QR code came to watch, and watching needs no

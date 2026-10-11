@@ -34,7 +34,7 @@ _VIEW = {'event': 'view', 'icon': 'open_in_new', 'color': 'primary', 'label': 'V
 
 _VIEW_ICON_BTN = (
     f'<q-btn dense flat round icon="{_VIEW["icon"]}" color="{_VIEW["color"]}"\n'
-    f'               class="{REQUIRES_SOCKET_CLASS}"\n'
+    f'               aria-label="{_VIEW["tooltip"]}" class="{REQUIRES_SOCKET_CLASS}"\n'
     f'               @click="$parent.$emit(\'{_VIEW["event"]}\', props.row)">'
     f'<q-tooltip>{_VIEW["tooltip"]}</q-tooltip></q-btn>'
 )

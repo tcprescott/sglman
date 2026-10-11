@@ -102,7 +102,7 @@ def _mapping_labels(mapping) -> tuple[str, str]:
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)">
+           @click="$parent.$emit('delete', props.row)" aria-label="Remove mapping">
         <q-tooltip>Remove mapping</q-tooltip>
     </q-btn>
 '''

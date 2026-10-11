@@ -37,6 +37,7 @@ from pages.platform_shared import ACTIVE_ICON_SLOT
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
 from theme.notify import notify_error
+from theme.page_header import page_title
 from theme.tables.preferences import (
     TableKeys,
     customize_table,
@@ -108,7 +109,7 @@ def create() -> None:
         with table_prefs_scope(prefs), \
                 ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
             with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Platform Administration').classes('page-title')
+                page_title('Platform Administration')
                 with ui.row().classes('items-center gap-2'):
                     # Filled once the table exists; the header is drawn first.
                     header_row = ui.row().classes('items-center')
@@ -134,11 +135,11 @@ def create() -> None:
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat round icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
+                           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
                     <q-btn dense flat round icon="toggle_on" color="secondary"
-                           @click="$parent.$emit('features', props.row)"><q-tooltip>Features</q-tooltip></q-btn>
+                           @click="$parent.$emit('features', props.row)" aria-label="Features"><q-tooltip>Features</q-tooltip></q-btn>
                     <q-btn dense flat round icon="shield" color="accent"
-                           @click="$parent.$emit('admins', props.row)"><q-tooltip>Admins</q-tooltip></q-btn>
+                           @click="$parent.$emit('admins', props.row)" aria-label="Admins"><q-tooltip>Admins</q-tooltip></q-btn>
                 </q-td>
             ''')
             table.add_slot('item', '''

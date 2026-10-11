@@ -161,7 +161,17 @@ def enable_mobile_grid(
     )
 
     if selectable:
-        rows.insert(0, '<div class="row justify-end"><q-checkbox dense v-model="props.selected" /></div>')
+        first = str(columns[0].get('field', '')) if columns else ''
+        row_name = (
+            f":aria-label=\"'Select ' + (props.row[{first!r}] ?? 'row')\""
+            if first.isidentifier() else 'aria-label="Select row"'
+        )
+        rows.insert(0, f'<div class="row justify-end"><q-checkbox dense v-model="props.selected" {row_name} /></div>')
+        # QTable's own checkboxes carry no name; a screen reader heard
+        # "checkbox, not checked" on every row.
+        table.add_slot('header-selection',
+                       '<q-checkbox v-model="props.selected" dense aria-label="Select all rows" />')
+        table.add_slot('body-selection', f'<q-checkbox v-model="props.selected" dense {row_name} />')
 
     if row_click_event:
         card_open = (

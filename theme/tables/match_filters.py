@@ -18,6 +18,7 @@ from nicegui import ui
 
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import local_day_bounds, today_local
+from theme.a11y import label_field
 
 # Match lifecycle states, and the subset shown by default. Kept as module constants
 # so the storage default, the select options, and the "is this filter changed?"
@@ -213,33 +214,36 @@ class MatchFiltersMixin:
                 # Day filter, first because it is the coarsest narrowing and
                 # the one an operator working a venue reaches for.
                 with ui.column().classes('match-filter-column'):
-                    ui.label('Day').classes('match-filter-label')
+                    caption = ui.label('Day').classes('match-filter-label')
                     self.day_filter = ui.select(
                         options=list(DAY_SCOPES),
                         value=tenant_session_get(self._skey('day_filter'), ALL_DAYS),
                         on_change=self._on_day_filter_change,
                     ).classes('full-width').props('outlined dense')
+                    label_field(caption, self.day_filter)
 
                 with ui.column().classes('match-filter-column'):
-                    ui.label('Tournament').classes('match-filter-label')
+                    caption = ui.label('Tournament').classes('match-filter-label')
                     self.tournament_filter = ui.select(
                         options=[],
                         value=None,
                         multiple=True,
                         on_change=self._on_tournament_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
+                    label_field(caption, self.tournament_filter)
 
                 with ui.column().classes('match-filter-column'):
-                    ui.label('Stage').classes('match-filter-label')
+                    caption = ui.label('Stage').classes('match-filter-label')
                     self.stage_filter = ui.select(
                         options=[],
                         value=None,
                         multiple=True,
                         on_change=self._on_stage_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
+                    label_field(caption, self.stage_filter)
 
                 with ui.column().classes('match-filter-column'):
-                    ui.label('State').classes('match-filter-label')
+                    caption = ui.label('State').classes('match-filter-label')
                     default_states = self._stored_or_default_states()
                     self.state_filter = ui.select(
                         options=list(ALL_MATCH_STATES),
@@ -247,6 +251,7 @@ class MatchFiltersMixin:
                         multiple=True,
                         on_change=self._on_state_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
+                    label_field(caption, self.state_filter)
 
                 ui.space()
 

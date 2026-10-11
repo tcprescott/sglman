@@ -60,7 +60,7 @@ def crew_wanted_js(role: str) -> str:
 # first-column slot costs the same width and says what it does.
 EDIT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit_match', props)">
+           @click="$parent.$emit('edit_match', props)" aria-label="Edit this match">
         <q-tooltip>Edit this match</q-tooltip>
     </q-btn>
 </q-td>'''
@@ -102,7 +102,8 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
     <q-btn :icon="props.row._watching ? 'notifications' : 'notifications_none'"
            :color="props.row._watching ? 'primary' : 'grey'"
            size="sm" flat round
-           @click="$parent.$emit('toggle_watch', props.row)">
+           @click="$parent.$emit('toggle_watch', props.row)"
+           :aria-label="props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates'">
         <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
     </q-btn>
 </q-td>'''
@@ -130,7 +131,8 @@ STREAM_VOLUNTEER_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-
            :icon="props.row._stream_volunteer ? 'videocam' : 'videocam_off'"
            :color="props.row._stream_volunteer ? 'primary' : 'grey'"
            size="sm" flat round
-           @click="$parent.$emit('toggle_stream_volunteer', props.row)">
+           @click="$parent.$emit('toggle_stream_volunteer', props.row)"
+           :aria-label="props.row._stream_volunteer ? 'Withdraw your stream offer' : 'Offer this match for stream'">
         <q-tooltip>{{ props.row._stream_volunteer ? 'Withdraw your stream offer' : "__OFFER__" }}</q-tooltip>
     </q-btn>
     <span v-else-if="props.row.stream_volunteers && props.row.stream_volunteers.length"
@@ -169,7 +171,8 @@ HARD_PRESET_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-f
                :icon="props.row._hard_agreed ? 'bolt' : (props.row._hard_opted_in ? 'hourglass_top' : 'bolt')"
                :color="props.row._hard_opted_in ? 'primary' : 'grey'"
                size="sm" flat round
-               @click="$parent.$emit('open_hard_preset', props.row)">
+               @click="$parent.$emit('open_hard_preset', props.row)"
+               :aria-label="props.row._hard_opted_in ? 'Opted in to ' + props.row._hard_name : 'Opt in to ' + props.row._hard_name">
             <q-tooltip v-if="props.row._hard_agreed">
                 Everyone opted in — this match plays {{ props.row._hard_name }}.
             </q-tooltip>
@@ -199,7 +202,7 @@ RESCHEDULE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     <q-btn v-if="props.row._can_reschedule && props.row.state === 'Scheduled'
                  && props.row.players && props.row.players.some(p => p.discord_id == __DID__)"
            icon="edit_calendar" color="grey" size="sm" flat round
-           @click="$parent.$emit('request_reschedule', props.row)">
+           @click="$parent.$emit('request_reschedule', props.row)" aria-label="__ASK__">
         <q-tooltip>__ASK__</q-tooltip>
     </q-btn>
     <span v-else-if="props.row._reschedule_pending" class="wiz-chip wiz-chip--pending">
@@ -395,7 +398,8 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
                    :icon="props.row.has_result ? 'edit' : 'emoji_events'"
                    :flat="props.row.has_result" :round="props.row.has_result"
                    :outline="!props.row.has_result" :no-caps="!props.row.has_result"
-                   size="sm" dense color="primary">
+                   size="sm" dense color="primary"
+                   :aria-label="props.row.has_result ? 'Change the recorded winner' : null">
                 <template v-if="!props.row.has_result">Record Winner</template>
                 <q-tooltip v-else>Change the recorded winner</q-tooltip>
             </q-btn>
@@ -451,9 +455,10 @@ STAGE_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-
         <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
                   @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
                   dense options-dense borderless emit-value map-options
-                  class="wiz-stage-select" style="min-width: 110px;" />
+                  class="wiz-stage-select" style="min-width: 110px;" aria-label="Stage" />
         <a v-if="props.value && props.row.stage_url" :href="props.row.stage_url"
-           target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);">
+           target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);"
+           aria-label="Open the stream">
             <q-icon name="open_in_new" size="18px" />
             <q-tooltip>Open the stream</q-tooltip>
         </a>
@@ -578,7 +583,7 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                     </span>
                     <q-btn v-if="player.ada" icon="accessible" color="primary" size="sm" dense flat round
                            class="wiz-tap-24"
-                           @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})">
+                           @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})" aria-label="ADA accommodation arranged. Tap for staff notes.">
                         <q-tooltip>ADA accommodation arranged. Tap for staff notes.</q-tooltip>
                     </q-btn>
                     <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
@@ -632,7 +637,8 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                 <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
                        :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
                        :color="item.approved ? 'positive' : 'grey-7'"
-                       @click="$parent.$emit('toggle___SING__', { row: props.row, idx })">
+                       @click="$parent.$emit('toggle___SING__', { row: props.row, idx })"
+                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name">
                     <q-tooltip>{{ item.approved ? 'Approved — click to un-approve' : 'Not approved — click to approve' }}</q-tooltip>
                 </q-btn>
                 <q-icon v-else-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">

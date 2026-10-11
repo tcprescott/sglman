@@ -26,7 +26,7 @@ _ENABLED_ICON = '''
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)">
+           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
         <q-tooltip>Edit</q-tooltip>
     </q-btn>
 '''

@@ -92,7 +92,7 @@ _PLAYERS = '''
                     </span>
                     <q-btn v-if="player.ada" icon="accessible" color="primary" size="sm" dense flat round
                            class="wiz-tap-24"
-                           @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})">
+                           @click.stop="$parent.$emit('show_accommodation', {name: player.name, note: player.ada_note})" aria-label="ADA accommodation arranged. Tap for staff notes.">
                         <q-tooltip>ADA accommodation arranged. Tap for staff notes.</q-tooltip>
                     </q-btn>
                     <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
@@ -141,7 +141,8 @@ _CREW_DETAIL = '''
                         <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
                                :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
                                :color="item.approved ? 'positive' : 'grey-7'"
-                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })">
+                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })"
+                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name">
                             <q-tooltip>{{ item.approved ? 'Approved — tap to un-approve' : 'Not approved — tap to approve' }}</q-tooltip>
                         </q-btn>
                         <q-icon v-else-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
@@ -203,7 +204,8 @@ _STREAM_DETAIL = '''
                 <span v-else-if="props.row.stage">{{ props.row.stage }}</span>
                 <span v-if="!__STREAM__ && props.row.is_stream_candidate && !props.row.stage" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
                 <a v-if="__STREAM__ && props.row.stage && props.row.stage_url" :href="props.row.stage_url"
-                   target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);" class="q-ml-xs">
+                   target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);" class="q-ml-xs"
+                   aria-label="Open the stream">
                     <q-icon name="open_in_new" size="18px" />
                 </a>
                 <span v-if="props.row.stream_volunteers && props.row.stream_volunteers.length"
@@ -332,7 +334,8 @@ _ACTIONS = '''
                 <q-icon name="edit_calendar" size="14px" />Change requested</span>
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
                    :color="props.row._watching ? 'primary' : 'grey'" size="md" flat round
-                   @click="$parent.$emit('toggle_watch', props.row)">
+                   @click="$parent.$emit('toggle_watch', props.row)"
+                   :aria-label="props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates'">
                 <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
             </q-btn>
         </div>'''
@@ -403,6 +406,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     if 'edit' in present and has_edit:
         caption_inner += (
             '<q-btn flat round dense icon="edit" color="primary" size="sm" class="q-ml-xs"'
+            ' aria-label="Edit this match"'
             ' @click="$parent.$emit(\'edit_match\', { row: props.row })">'
             '<q-tooltip>Edit this match</q-tooltip></q-btn>'
         )

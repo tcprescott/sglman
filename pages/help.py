@@ -19,6 +19,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from middleware.auth import public_page
+from theme.a11y import make_activatable
 from theme.base import BaseLayout
 from theme.error_page import render_not_found
 from theme.help.article import render_article
@@ -28,8 +29,8 @@ __all__ = ['create']
 
 
 def _article_card(article: HelpArticle) -> None:
-    with ui.card().classes('wiz-help-card cursor-pointer') \
-            .on('click', lambda slug=article.slug: ui.navigate.to(f'/help/{slug}')):
+    with make_activatable(ui.card().classes('wiz-help-card cursor-pointer')
+                          .on('click', lambda slug=article.slug: ui.navigate.to(f'/help/{slug}')), role='link'):
         with ui.row().classes('items-center no-wrap gap-3'):
             ui.icon(article.icon).props('size=sm').classes('text-primary')
             with ui.column().classes('gap-0 col min-w-0'):
@@ -40,8 +41,8 @@ def _article_card(article: HelpArticle) -> None:
 
 def _whats_new_card() -> None:
     """The way into ``/changelog``, which has no menu item of its own."""
-    with ui.card().classes('wiz-help-card cursor-pointer q-mt-md') \
-            .on('click', lambda: ui.navigate.to('/changelog')):
+    with make_activatable(ui.card().classes('wiz-help-card cursor-pointer q-mt-md')
+                          .on('click', lambda: ui.navigate.to('/changelog')), role='link'):
         with ui.row().classes('items-center no-wrap gap-3'):
             ui.icon('new_releases').props('size=sm').classes('text-primary')
             with ui.column().classes('gap-0 col min-w-0'):

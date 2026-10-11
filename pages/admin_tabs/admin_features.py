@@ -62,10 +62,11 @@ async def admin_features_page() -> None:
                             ui.label(row['label']).classes('text-subtitle2 text-bold')
                             ui.label(row['description']).classes('text-caption text-grey')
                         if row['available']:
-                            ui.switch(
+                            switch = ui.switch(
                                 value=row['enabled'],
                                 on_change=lambda e, fv=row['flag']: _toggle(fv, e.value),
                             ).props('color=primary')
+                            switch.props['aria-label'] = row['label']
                         else:
                             with ui.column().classes('items-end gap-0'):
                                 ui.icon('lock').classes('text-grey')
