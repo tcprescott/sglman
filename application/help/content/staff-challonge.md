@@ -63,6 +63,8 @@ happens.
 Each linked tournament on the Challonge tab shows its stage and when it last
 synced. Press **Sync** after any change you make on Challonge.
 
+![The Challonge tab: the connected account and request count, then a linked tournament with its stage, last sync time, and its Sync, stage, Entrants and Unlink buttons](/static/help/staff-challonge/linked.webp "The Challonge tab with one linked tournament in its group stage.")
+
 ## Matching entrants to members
 
 A player whose Challonge account is linked on their Profile is matched to their
@@ -82,6 +84,8 @@ Pick the member under **Wizzrobe user** and press **Assign**. **Clear** removes 
 hand assignment and falls back to whoever's Challonge account is linked, if
 anyone. A hand assignment wins over a linked account, and the dialog warns you
 when it overrides one.
+
+![The Entrants dialog listing a name-only entrant marked Not linked, two assigned by hand, and two matched through their Challonge accounts](/static/help/staff-challonge/entrants.webp "Unmatched entrants sort to the top.")
 
 The quickest fix at the desk is usually to ask the player to link Challonge on
 their Profile, then press **Sync**.

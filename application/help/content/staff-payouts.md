@@ -44,6 +44,8 @@ For a joint placing, add two rows with the same place and give each its own
 share. Two players tied for third at 10% each are two 10% rows, not one 20% row
 split later.
 
+![The split dialog for a finished tournament: first at 50%, second at 30%, and two third places at 10% each, each with a winner picked](/static/help/staff-payouts/split.webp "Two third places, each paid their own share.")
+
 You can save the split before the tournament finishes and fill in the winners
 afterwards. The winner list holds the tournament's entrants, plus anyone already
 named.

@@ -57,6 +57,8 @@ when that changes, for example {chip:neutral:Not open yet — 20 Oct 09:00} or
 
 The window only limits players. You can add or remove an entrant at any time.
 
+![The Add Tournament dialog with Scheduling open, showing the Player signups open and close fields and the Tournament Days section](/static/help/staff-tournaments/signup-window.webp "The signup window and match days, under Scheduling.")
+
 ## Match hours
 
 **Tournament Days** overrides the community's event dates and daily hours for this

@@ -28,6 +28,8 @@ DM names the member and never what they asked for.
 On the Members tab, the **ADA** column shows each member's request status, and
 the **Needs ADA accommodation** filter narrows the table to people with one open.
 
+![The ADA requests tab listing four requests with their status, the member's details and staff notes, one marked Changed since arranged](/static/help/staff-ada/queue.webp "The ADA queue, oldest first.")
+
 ## Working a request
 
 **Update** on a row opens the request. Set its status and write notes for other
