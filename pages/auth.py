@@ -166,6 +166,9 @@ def _oauth_url(state: str, redirect_uri: str) -> str:
         'response_type': 'code',
         'scope': 'identify',
         'state': state,
+        # Skip Discord's "Authorize" screen for anyone who has already
+        # approved the app; it still shows on a first sign-in.
+        'prompt': 'none',
     })
     return f'https://discord.com/api/oauth2/authorize?{params}'
 

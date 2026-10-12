@@ -4,3 +4,5 @@
   two minutes.
 - Staff can post a permanent **Log in** button in a Discord channel with
   `/wizzrobe login-panel`. Anyone who presses it gets the same private link.
+- Signing in through the website skips Discord's **Authorize** screen if
+  you've approved Wizzrobe before.
