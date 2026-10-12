@@ -8,6 +8,7 @@ from application.services import CommunityEventService, EventDraft
 from application.services.community_event_service import (
     DESCRIPTION_MAX_LENGTH,
     LOCATION_MAX_LENGTH,
+    MAX_RSVP_CAPACITY,
     TITLE_MAX_LENGTH,
 )
 from models import CommunityEvent, CommunityEventStatus, User
@@ -83,6 +84,20 @@ class CommunityEventDialog:
                     'Description', value=event.description if event else '',
                     placeholder="What's happening, who it's for, and anything people should bring.",
                 )
+                with ui.column().classes('gap-1 full-width'):
+                    rsvp_switch = ui.switch(
+                        'Take RSVPs', value=bool(event and event.rsvp_enabled),
+                    ).props('dense')
+                    with ui.row().classes('items-center gap-3 full-width') as cap_row:
+                        cap_input = ui.number(
+                            'Cap (optional)', value=event.rsvp_capacity if event else None,
+                            min=1, max=MAX_RSVP_CAPACITY, format='%d',
+                        ).classes('w-40')
+                        ui.label('Leave blank for no limit.').classes('text-caption text-muted')
+                    cap_row.bind_visibility_from(rsvp_switch, 'value')
+                    ui.label(
+                        "Members can say they're coming, and you'll see who. RSVPing also gets them the reminder."
+                    ).classes('text-caption text-muted')
                 ui.label(f'* required · description up to {DESCRIPTION_MAX_LENGTH:,} characters') \
                     .classes('required-legend')
                 hint = self._hint()
@@ -102,6 +117,8 @@ class CommunityEventDialog:
                             starts_at=starts_at,
                             duration_minutes=duration,
                             location=location.value,
+                            rsvp_enabled=bool(rsvp_switch.value),
+                            rsvp_capacity=int(cap_input.value) if cap_input.value else None,
                         )
                         if event is None:
                             saved = await self.service.submit(self.user, draft)

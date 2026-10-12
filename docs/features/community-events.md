@@ -53,6 +53,17 @@ are mirrored to web push. Senders live in
 `application/services/_community_event_notifications.py`, copy in
 `application/utils/discord_messages_community_events.py`.
 
+## RSVPs
+
+A host can tick **Take RSVPs** when submitting or editing, with an optional cap.
+Members then see an **RSVP** button instead of **Remind me**; RSVPing marks
+their subscription `going`, so it also gets them the reminder, and cancelling
+removes both. At the cap the button reads **Full**. The cap is checked with the
+event row locked, so two people can't take the last place. Everyone sees "N of M
+going"; the host and staff also see the names on the event page. Turning RSVPs
+off keeps the rows but stops counting them. RSVPs aren't audited, like
+subscriptions.
+
 ## Reminders
 
 `application/services/community_event_reminder.py` ticks every 60s. It scans

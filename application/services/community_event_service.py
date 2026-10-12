@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set
 
+from tortoise.transactions import in_transaction
+
 from application.errors import NotFoundError, require_found
 from application.events import EventType
 from application.feature_flags import requires_feature
@@ -43,6 +45,7 @@ REVIEW_NOTE_MAX_LENGTH = 1000
 MIN_DURATION_MINUTES = 5
 #: Three days: long enough for a room that runs the whole weekend.
 MAX_DURATION_MINUTES = 72 * 60
+MAX_RSVP_CAPACITY = 1000
 
 #: How far back the listing looks for an event that is still running. Matches
 #: the longest event allowed, so nothing in progress drops off early.
@@ -60,6 +63,9 @@ class EventDraft:
     starts_at: datetime
     duration_minutes: int
     location: Optional[str] = None
+    rsvp_enabled: bool = False
+    #: The most people who can RSVP; ``None`` means no cap. Ignored without RSVPs.
+    rsvp_capacity: Optional[int] = None
 
 
 def ends_at(event: CommunityEvent) -> datetime:
@@ -95,7 +101,18 @@ def _clean_draft(draft: EventDraft) -> EventDraft:
             f'An event must run between {MIN_DURATION_MINUTES} minutes and '
             f'{MAX_DURATION_MINUTES // 60} hours.'
         )
-    return EventDraft(title, description, draft.starts_at.astimezone(timezone.utc), duration, location)
+    capacity = None
+    if draft.rsvp_enabled and draft.rsvp_capacity not in (None, ''):
+        try:
+            capacity = int(draft.rsvp_capacity)
+        except (TypeError, ValueError):
+            raise ValueError('The RSVP cap must be a whole number.') from None
+        if not 1 <= capacity <= MAX_RSVP_CAPACITY:
+            raise ValueError(f'The RSVP cap must be between 1 and {MAX_RSVP_CAPACITY}.')
+    return EventDraft(
+        title, description, draft.starts_at.astimezone(timezone.utc), duration, location,
+        rsvp_enabled=bool(draft.rsvp_enabled), rsvp_capacity=capacity,
+    )
 
 
 class CommunityEventService:
@@ -211,6 +228,8 @@ class CommunityEventService:
             location=draft.location,
             starts_at=draft.starts_at,
             duration_minutes=draft.duration_minutes,
+            rsvp_enabled=draft.rsvp_enabled,
+            rsvp_capacity=draft.rsvp_capacity,
             status=status,
             reviewed_by=actor if is_staff else None,
             reviewed_at=_now() if is_staff else None,
@@ -244,6 +263,7 @@ class CommunityEventService:
         fields = dict(
             title=draft.title, description=draft.description, location=draft.location,
             starts_at=draft.starts_at, duration_minutes=draft.duration_minutes,
+            rsvp_enabled=draft.rsvp_enabled, rsvp_capacity=draft.rsvp_capacity,
         )
         resubmitted = (
             event.status is CommunityEventStatus.REJECTED and not await AuthService.is_staff(actor)
@@ -298,6 +318,61 @@ class CommunityEventService:
         subscription = await self.subscriptions.get_for(event_id, actor.id)
         if subscription is not None:
             await self.subscriptions.delete(subscription)
+
+    # --- RSVPs ------------------------------------------------------------
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def rsvp_state(
+        self, actor: User, event_ids: List[int],
+    ) -> tuple[Set[int], Dict[int, int]]:
+        """Which of ``event_ids`` ``actor`` RSVP'd to, and how many are going to each."""
+        await self._ensure_member(actor)
+        if not event_ids:
+            return set(), {}
+        mine = await self.subscriptions.going_event_ids_for_user(actor.id, event_ids)
+        counts = await self.subscriptions.going_counts_for(event_ids)
+        return mine, counts
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def rsvp(self, actor: User, event_id: int) -> None:
+        """Say you're coming, which also gets you the reminder. Idempotent.
+
+        Refused once the host's cap is reached. The event row is locked while
+        the count is checked, so two people can't both take the last place.
+        """
+        await self._ensure_member(actor)
+        event = await self._load_visible(actor, event_id)
+        if event.status is not CommunityEventStatus.APPROVED:
+            raise ValueError("You can only RSVP once the event is listed.")
+        if not event.rsvp_enabled:
+            raise ValueError("This event isn't taking RSVPs.")
+        if ends_at(event) <= _now():
+            raise ValueError('This event is over.')
+        async with in_transaction():
+            await self.subscriptions.lock_event(event.id)
+            existing = await self.subscriptions.get_for(event.id, actor.id)
+            if existing is not None and existing.going:
+                return
+            if event.rsvp_capacity is not None:
+                going = (await self.subscriptions.going_counts_for([event.id])).get(event.id, 0)
+                if going >= event.rsvp_capacity:
+                    raise ValueError("This event is full.")
+            if existing is None:
+                await self.subscriptions.create(event=event, user=actor, going=True)
+            else:
+                await self.subscriptions.update(existing, going=True)
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def cancel_rsvp(self, actor: User, event_id: int) -> None:
+        """Take back an RSVP, and the reminder with it. Idempotent."""
+        await self.unsubscribe(actor, event_id)
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def list_attendees(self, actor: User, event_id: int) -> List[User]:
+        """Who RSVP'd, in the order they did. The host and staff only."""
+        await self._ensure_member(actor)
+        event = await self._load_managed(actor, event_id)
+        return [s.user for s in await self.subscriptions.list_going(event.id)]
 
     # --- staff review -----------------------------------------------------
 
