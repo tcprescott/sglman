@@ -3220,3 +3220,149 @@ ol.wiz-help-list { list-style-type: decimal; }
         outline-offset: 2px;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   Markdown editor (theme/markdown_editor): a Tiptap surface with a toolbar.
+   The prose inside mirrors the .wiz-help-* rendering, so what a writer
+   formats looks like what readers will see.
+   --------------------------------------------------------------------------- */
+.wiz-md-editor {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--fg);
+}
+.wiz-md-editor:focus-within {
+    border-color: var(--accent);
+}
+.wiz-md-editor__label {
+    padding: 0.5rem 0.75rem 0;
+    font-size: var(--text-sm);
+    color: var(--fg-secondary);
+}
+.wiz-md-editor__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.wiz-md-editor__sep {
+    width: 1px;
+    height: 1.25rem;
+    margin: 0 0.25rem;
+    background: var(--border-subtle);
+}
+.wiz-md-editor__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--fg-secondary);
+    cursor: pointer;
+}
+.wiz-md-editor__btn .q-icon {
+    font-size: 1.25rem;
+}
+.wiz-md-editor__btn:hover:not(:disabled) {
+    background: var(--surface-alt);
+    color: var(--fg);
+}
+.wiz-md-editor__btn--on {
+    background: var(--accent-soft);
+    color: var(--fg);
+}
+.wiz-md-editor__btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+.wiz-md-editor__content {
+    min-height: 10rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.wiz-md-editor__prose {
+    min-height: 10rem;
+    padding: 0.75rem;
+    outline: none;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+.wiz-md-editor__prose > * + * {
+    margin-top: 0.6rem;
+}
+.wiz-md-editor__prose h2 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    line-height: 1.3;
+}
+.wiz-md-editor__prose h3 {
+    font-size: var(--text-md);
+    font-weight: 700;
+}
+.wiz-md-editor__prose ul,
+.wiz-md-editor__prose ol {
+    padding-left: 1.5rem;
+}
+.wiz-md-editor__prose ul { list-style-type: disc; }
+.wiz-md-editor__prose ol { list-style-type: decimal; }
+.wiz-md-editor__prose a {
+    color: var(--wiz-link);
+    text-decoration: underline;
+}
+.wiz-md-editor__prose code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9em;
+    padding: 0.05rem 0.3rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+}
+.wiz-md-editor__prose blockquote {
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+}
+.wiz-md-editor__prose p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: var(--fg-muted);
+    pointer-events: none;
+}
+.wiz-md-editor--disabled .wiz-md-editor__prose {
+    color: var(--fg-muted);
+}
+
+/* Community events (pages/community_events.py) */
+.wiz-community-event {
+    padding: 0.75rem 1rem;
+}
+.wiz-community-event__title {
+    font-weight: 700;
+    font-size: var(--text-md);
+    color: var(--wiz-link);
+    overflow-wrap: anywhere;
+}
+.wiz-community-event__meta {
+    color: var(--fg-secondary);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+}
+.wiz-community-event__day {
+    margin-top: 0.75rem;
+    font-weight: 700;
+    color: var(--wiz-section-title);
+}
+.wiz-community-event__body {
+    margin-top: 0.5rem;
+}

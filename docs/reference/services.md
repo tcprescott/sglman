@@ -41,6 +41,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
 | `AccommodationService` | [accommodation_service.py](../../application/services/accommodation_service.py) | ADA accommodation requests: member self-service, STAFF queue | [ada-accommodations.md](../features/ada-accommodations.md) |
+| `CommunityEventService` | [community_event_service.py](../../application/services/community_event_service.py) | Member-submitted community events: submit, staff review, edits, cancellation, subscriptions | [community-events.md](../features/community-events.md) |
 | `AnalyticsService` | [analytics_service.py](../../application/services/analytics_service.py) | Longitudinal trends: crew participation, volunteer hours, tournament health | — |
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Bearer credential issue/revoke/authenticate (PATs and OAuth tokens) | [rest-api.md](rest-api.md) |
 | `McpAuthService` | [mcp_auth_service.py](../../application/services/mcp_auth_service.py) | The MCP OAuth 2.1 authorization server: dynamic client registration, authorization codes, access/refresh token issue and rotation | [features/mcp-server.md](../features/mcp-server.md) |
@@ -586,6 +587,31 @@ Per-community ADA accommodation requests. Every public method is gated by `Featu
 
 Collaborators: `AccommodationRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
 
+### community_event_service.py — CommunityEventService
+
+Meetups, panels and side events members run during the onsite event. Members only throughout (`PermissionError` for anyone else; a super-admin passes); gated by `FeatureFlag.COMMUNITY_EVENTS`. Forms pass an `EventDraft(title, description, starts_at, duration_minutes, location)` with `starts_at` already UTC. Every lifecycle write pairs an audit row with the same-named event via `write_and_publish` (`community_event.*`, payload adds `host_id`). DMs live in `_community_event_notifications.py`. See [community-events.md](../features/community-events.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_upcoming(actor)` | `list[CommunityEvent]` | Approved events that haven't ended, soonest first. |
+| `list_mine(actor)` | `list[CommunityEvent]` | The actor's own submissions, any status. |
+| `get_event(actor, event_id)` | `CommunityEvent` | An approved event, or any the actor hosts, or any for staff; otherwise `NotFoundError` (pending submissions stay private). |
+| `subscription_state(actor, event_ids)` | `(set[int], dict[int, int])` | Which events the actor follows, and subscriber counts. |
+| `submit(actor, draft)` | `CommunityEvent` | Validates the draft (future start, 5 min–72 h). STAFF submissions are `APPROVED` (audits submitted + approved); a member's are `PENDING` and DM staff. |
+| `update(actor, event_id, draft)` | `CommunityEvent` | Host or staff. An approved event stays approved; moving its start clears subscribers' reminders and DMs them. A host editing a `REJECTED` event resubmits it (`PENDING`, staff DM'd). Cancelled events refuse. |
+| `cancel(actor, event_id)` | `CommunityEvent` | Host or staff; DMs subscribers if it was listed and not over. |
+| `subscribe(actor, event_id)` / `unsubscribe(actor, event_id)` | `None` | Idempotent; subscribing needs a listed event that hasn't ended. |
+| `list_for_review(actor, statuses=None)` | `list[CommunityEvent]` | STAFF. Every status when omitted. |
+| `pending_count(actor)` | `int` | STAFF. |
+| `approve(actor, event_id)` | `CommunityEvent` | STAFF. From `PENDING` or `REJECTED`; DMs the host. |
+| `reject(actor, event_id, reason)` | `CommunityEvent` | STAFF. Reason required; DMs the host. On a listed event this is "take down" and also DMs subscribers. |
+
+Collaborators: `CommunityEventRepository`, `CommunityEventSubscriptionRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
+
+### community_event_reminder.py — module functions
+
+Background worker (`run_worker_loop`, `TICK_SECONDS = 60`): scans un-reminded subscriptions to approved events starting within `MAX_LEAD_MINUTES` (24 h), then per subscription, inside its tenant, skips tenants with `COMMUNITY_EVENTS` off, re-checks `get_community_event_reminder_lead_minutes`, stamps `reminder_sent_at` and enqueues the DM. `start()` / `stop()` from the `main.py` lifespan. Imported as a module (`from application.services import community_event_reminder`).
+
 ### feedback_service.py — FeedbackService
 
 Records in-app feedback from logged-in attendees and lets admins review it. The submitted category is coerced to a valid `FeedbackCategory` (defaulting to `OTHER`); the page URL is truncated to `PAGE_URL_MAX_LENGTH = 512`. Audited under `feedback.*`; gated by `FeatureFlag.FEEDBACK`.
@@ -1007,6 +1033,7 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stages. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
+| `get_community_event_reminder_lead_minutes(default=30)` | `int` | How far ahead of a community event its subscribers are DM'd; default when unset/non-positive. |
 | `get_volunteer_comp_tiers(default=None)` | `list[float]` | Ascending hour thresholds that earn a volunteer something (`volunteer_comp_tiers`, comma-separated). `[8, 12, 16]` when unset; a lone `0` means no tiers; a malformed value falls back to the default rather than raising. |
 | `get_tournament_hours(tournament=None)` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). A tournament's own `tournament_hours` blob fully replaces the tenant schedule. |
 | `get_tournament_window_for_date(d, tournament=None)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |

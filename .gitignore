@@ -183,3 +183,6 @@ config.yaml
 
 # Scalene profiling artifact (regenerate locally)
 profile.html
+
+# Vendored JS bundles: only package.json, the lockfile and dist/ are committed.
+node_modules/

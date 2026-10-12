@@ -1,0 +1,20 @@
+{
+  "name": "wizzrobe-tiptap-bundle",
+  "version": "1.0.0",
+  "description": "Tiptap bundle for Wizzrobe's markdown editor element (theme/markdown_editor). Rebuild with `npm ci && npm run build`; dist/ is committed.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
+    "@tiptap/markdown": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

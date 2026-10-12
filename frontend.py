@@ -31,6 +31,7 @@ from pages import (
     challonge_oauth,
     changelog,
     check_in,
+    community_events,
     equipment,
     equipment_labels,
     event_info,
@@ -236,6 +237,7 @@ def init(fastapi_app: FastAPI) -> None:
     qualifiers.create()
     help_pages.create()
     event_info.create()
+    community_events.create()
     cat_facts.create()
     changelog.create()
     ui.run_with(

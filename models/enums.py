@@ -103,6 +103,7 @@ class FeatureFlag(str, Enum):
     PAYOUTS = 'payouts'
     ADA_ACCOMMODATIONS = 'ada_accommodations'
     EVENT_CHECK_IN = 'event_check_in'
+    COMMUNITY_EVENTS = 'community_events'
 
 
 class BracketFormat(str, Enum):
@@ -205,6 +206,21 @@ class VolunteerAvailabilityStatus(str, Enum):
     AVAILABLE = 'available'
     UNAVAILABLE = 'unavailable'
     PREFERRED = 'preferred'
+
+
+class CommunityEventStatus(str, Enum):
+    """Where a member-submitted community event stands with staff.
+
+    A member's submission starts ``PENDING``; one submitted by staff starts
+    ``APPROVED``. Only ``APPROVED`` events are listed to members and reminded.
+    ``REJECTED`` covers both a submission staff turned down and an approved event
+    staff pulled. ``CANCELLED`` is the host (or staff) calling it off.
+    """
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    CANCELLED = 'cancelled'
 
 
 class AccommodationStatus(str, Enum):

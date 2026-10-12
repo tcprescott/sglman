@@ -19,6 +19,7 @@ from models import FeatureFlag, Role
 from pages.admin_tabs.admin_brackets import admin_brackets_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_check_in import admin_check_in_page
+from pages.admin_tabs.admin_community_events import admin_community_events_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from pages.admin_tabs.admin_payouts import admin_payouts_page
@@ -84,6 +85,7 @@ def build_admin_tabs(
     qualifier: int | None = None,
     qualifier_tab: str | None = None,
     ada_request: int | None = None,
+    community_event: int | None = None,
     settings_pane: str | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
@@ -181,6 +183,10 @@ def build_admin_tabs(
         tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
     if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
+    if is_staff and FeatureFlag.COMMUNITY_EVENTS in live:
+        # The "event to review" DM lands here with the event's dialog open.
+        tabs.append({'label': 'Community Events', 'icon': 'groups', 'group': 'Community',
+                     'content': (admin_community_events_page, (), {'open_event': community_event})})
     if is_staff and FeatureFlag.FEEDBACK in live:
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
     if is_staff or is_ta_any or is_cc_any:
@@ -226,6 +232,7 @@ def create() -> None:
         qualifier: int | None = None,
         tab: str | None = None,
         ada_request: int | None = None,
+        community_event: int | None = None,
         pane: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
@@ -304,6 +311,7 @@ def create() -> None:
             access, live, reports_kwargs, setup_steps, base_path,
             match_id=match_id, day=day, reschedule_request=reschedule_request,
             qualifier=qualifier, qualifier_tab=tab, ada_request=ada_request,
+            community_event=community_event,
             # A retired tab slug (/admin/appearance) names the pane that took it in.
             settings_pane=pane or LEGACY_TAB_PANES.get(section or ''),
         )

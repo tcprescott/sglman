@@ -23,6 +23,7 @@ CHALLONGE = 'challonge'
 USERS = 'users'
 QUALIFIERS = 'qualifiers'
 CHECK_IN = 'check-in'
+COMMUNITY_EVENTS = 'community-events'
 
 # Home tab slugs.
 HOME_PLAYER = 'player'
@@ -154,6 +155,16 @@ def admin_ada_request_url(request_id: int) -> str:
     the members table two sub-tabs away from it.
     """
     return admin_url(USERS, ada_request=request_id)
+
+
+def community_event_url(event_id: int) -> str:
+    """One community event's own page, where a member subscribes or a host edits."""
+    return f'/community-events/{event_id}'
+
+
+def admin_community_event_url(event_id: int) -> str:
+    """Admin → Community Events with one event's review dialog open."""
+    return admin_url(COMMUNITY_EVENTS, community_event=event_id)
 
 
 def admin_check_in_url() -> str:

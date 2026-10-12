@@ -15,6 +15,7 @@ from . import (
     check_in_rules,
     check_in_sales,
     check_in_sync_worker,
+    community_event_reminder,
     notification_links,
     oauth_handoff_service,
     race_room_worker,
@@ -44,6 +45,7 @@ from .bracket_service import BracketService
 from .challonge_service import ChallongeService
 from .check_in_desk_service import CheckInDeskService
 from .check_in_service import CheckInService
+from .community_event_service import CommunityEventService, EventDraft
 from .crew_service import CrewService
 from .discord import (
     DiscordEventReconcilerService,
@@ -144,6 +146,7 @@ __all__ = [
     'ChallongeService',
     'CheckInDeskService',
     'CheckInService',
+    'CommunityEventService',
     'CrewService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
@@ -152,6 +155,7 @@ __all__ = [
     'DiscordService',
     'DraftPolicy',
     'EquipmentService',
+    'EventDraft',
     'EventInfoService',
     'FeatureFlagService',
     'FeedbackService',
@@ -233,6 +237,7 @@ __all__ = [
     'check_in_rules',
     'check_in_sales',
     'check_in_sync_worker',
+    'community_event_reminder',
     'discord_event_worker',
     'discord_queue',
     'get_user_from_discord_id',

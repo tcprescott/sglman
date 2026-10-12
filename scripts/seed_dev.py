@@ -61,6 +61,7 @@ from scripts.seed_access import seed_access_for_tenant
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_check_in import seed_check_in_for_tenant, seed_check_in_identities
+from scripts.seed_community_events import seed_community_events_for_tenant
 from scripts.seed_crew import seed_crew_for_tenant
 from scripts.seed_discord import seed_discord_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
@@ -480,6 +481,9 @@ async def seed_for_tenant(
 
         # --- Webhooks + telemetry (scripts/seed_observability.py) -------------
         await seed_observability_for_tenant(tenant, staff, finished_match, now_utc, users)
+
+        # --- Community events (scripts/seed_community_events.py) -------------
+        await seed_community_events_for_tenant(tenant, users, now_utc)
 
         # --- ADA accommodation requests ---------------------------------------
         # One in each state, so the staff sub-tab, its

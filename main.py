@@ -200,6 +200,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # shortly before it starts. Ungated — a community with no staged matches has
     # nothing for it to find.
     stage_reminder.start()
+    # Community event reminders: DMs subscribers shortly before an approved
+    # event starts. Skips tenants with COMMUNITY_EVENTS off.
+    from application.services import community_event_reminder
+    community_event_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
     # webhook delivery subscriber (fans published events out to staff webhooks).
     event_dispatch_queue.start()
@@ -224,6 +228,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await async_qualifier_worker.stop()
     await volunteer_reminder.stop()
     await stage_reminder.stop()
+    await community_event_reminder.stop()
     await event_dispatch_queue.stop()
     await discord_queue.stop()
     await web_push_service.aclose_http_client()

@@ -31,6 +31,7 @@ from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_theme import admin_theme_page
 from pages.admin_tabs.admin_timezone import admin_timezone_page
 from pages.admin_tabs.admin_webhooks import admin_webhooks_page
+from pages.admin_tabs.settings.community_events import community_events_settings_pane
 from pages.admin_tabs.settings.event import event_settings_pane
 from pages.admin_tabs.settings.members import members_settings_pane
 from pages.admin_tabs.settings.venue import venue_settings_pane
@@ -115,6 +116,12 @@ def build_settings_panes(access, live: set) -> list[SettingsPane]:
                 'volunteers', 'Volunteers', 'volunteer_activism',
                 'Shift reminders and the hours that earn rewards.',
                 native=volunteers_settings_pane,
+            ))
+        if FeatureFlag.COMMUNITY_EVENTS in live:
+            panes.append(SettingsPane(
+                'community-events', 'Community Events', 'groups',
+                'When subscribers hear about an event starting.',
+                native=community_events_settings_pane,
             ))
     discord: list[EmbeddedPage] = []
     if is_staff:

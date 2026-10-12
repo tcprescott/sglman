@@ -164,6 +164,13 @@ class AuditActions:
     FEEDBACK_REVIEWED = 'feedback.reviewed'
     FEEDBACK_REOPENED = 'feedback.reopened'
 
+    # Community events (member-submitted, staff-approved)
+    COMMUNITY_EVENT_SUBMITTED = 'community_event.submitted'
+    COMMUNITY_EVENT_UPDATED = 'community_event.updated'
+    COMMUNITY_EVENT_APPROVED = 'community_event.approved'
+    COMMUNITY_EVENT_REJECTED = 'community_event.rejected'
+    COMMUNITY_EVENT_CANCELLED = 'community_event.cancelled'
+
     # ADA accommodation requests. Details carry ids and status only, never the
     # requester's text or staff notes.
     ACCOMMODATION_REQUESTED = 'accommodation.requested'

@@ -205,6 +205,16 @@ class EventType:
     CHECK_IN_ENTRANT_WALK_UP_ADDED = 'check_in_entrant.walk_up_added'
     CHECK_IN_ENTRANT_REMOVED = 'check_in_entrant.removed'
 
+    # Community events (mirrors AuditActions.COMMUNITY_EVENT_*). A subscriber
+    # reposting the listing to a Discord channel or a site needs every step: a
+    # submission to route to reviewers, the decisions, edits and cancellations
+    # to keep its copy honest. Subscriptions stay private and are not published.
+    COMMUNITY_EVENT_SUBMITTED = 'community_event.submitted'
+    COMMUNITY_EVENT_UPDATED = 'community_event.updated'
+    COMMUNITY_EVENT_APPROVED = 'community_event.approved'
+    COMMUNITY_EVENT_REJECTED = 'community_event.rejected'
+    COMMUNITY_EVENT_CANCELLED = 'community_event.cancelled'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
@@ -248,6 +258,9 @@ class EventType:
         CHECK_IN_ENTRANT_CHECK_IN_UNDONE, CHECK_IN_ENTRANT_LINKED,
         CHECK_IN_ENTRANT_UNLINKED, CHECK_IN_ENTRANT_WALK_UP_ADDED,
         CHECK_IN_ENTRANT_REMOVED,
+        COMMUNITY_EVENT_SUBMITTED, COMMUNITY_EVENT_UPDATED,
+        COMMUNITY_EVENT_APPROVED, COMMUNITY_EVENT_REJECTED,
+        COMMUNITY_EVENT_CANCELLED,
     })
 
     # Wildcard a subscriber can register to receive every event.
