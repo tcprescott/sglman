@@ -27,8 +27,15 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
-from application.services import DiscordLinkService, TenantService, UserService, get_user_from_discord_id
+from application.services import (
+    DiscordLinkService,
+    DiscordLoginService,
+    TenantService,
+    UserService,
+    get_user_from_discord_id,
+)
 from application.services import oauth_handoff_service as handoff_service
+from application.services.discord.discord_login_service import CLAIM_PATH as DISCORD_LOGIN_PATH
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
 from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
 from application.utils.environment import get_platform_host, host_oauth_handoff_enabled
@@ -159,6 +166,9 @@ def _oauth_url(state: str, redirect_uri: str) -> str:
         'response_type': 'code',
         'scope': 'identify',
         'state': state,
+        # Skip Discord's "Authorize" screen for anyone who has already
+        # approved the app; it still shows on a first sign-in.
+        'prompt': 'none',
     })
     return f'https://discord.com/api/oauth2/authorize?{params}'
 
@@ -245,8 +255,54 @@ def _register_discord_connect_callback() -> None:
         ui.navigate.to(return_path)
 
 
+def _register_discord_login_claim() -> None:
+    """Redeem a one-time login link the bot handed out (``/login`` in Discord).
+
+    Registered in real and mock modes alike: the link carries an identity
+    Discord already vouched for, so nothing here talks to Discord. The token is
+    read only once the socket connects, so a preview fetcher that downloads the
+    HTML never consumes it.
+    """
+    @ui.page(DISCORD_LOGIN_PATH)
+    async def discord_login_claim(client: Client) -> None:
+        tenant_id = get_current_tenant_id()
+        wait = await waiting_screen('Signing you in…')
+        await client.connected()
+        url = await ui.run_javascript('window.location.href')
+        parsed = urlparse(url)
+        token = (parse_qs(parsed.query).get('token') or [''])[0]
+        payload = DiscordLoginService.claim(token, parsed.netloc, tenant_id)
+        if payload is None:
+            stash_notice(
+                "That login link has expired or was already used. Run /login in Discord for a new one.",
+                color='warning',
+            )
+            await wait.navigate_to('/')
+            return
+        user = await get_user_from_discord_id(str(payload['discord_id']))
+        if user is None:
+            app.storage.user.clear()
+            stash_notice('This account is inactive. Contact staff if this seems wrong.', color='negative')
+            await wait.navigate_to('/')
+            return
+        # Someone else was signed in on this browser: drop their whole session
+        # rather than leave their leftovers under the new identity.
+        if str(app.storage.user.get('discord_id')) != str(payload['discord_id']):
+            app.storage.user.clear()
+        app.storage.user.update({
+            'username': payload['username'],
+            'avatar': payload['avatar'],
+            'authenticated': True,
+            'discord_id': payload['discord_id'],
+        })
+        # Self-defensive; never blocks login.
+        await DiscordRoleMappingService().sync_user_roles(user)
+        await wait.navigate_to('/')
+
+
 def create() -> None:
     _register_discord_connect_callback()
+    _register_discord_login_claim()
     if is_mock_discord():
         _create_mock()
         return

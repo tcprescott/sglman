@@ -115,6 +115,7 @@ class AuditActions:
     # Tenant ↔ Discord server link (tenant-scoped; stamped with the tenant)
     DISCORD_SERVER_LINKED = 'discord.server_linked'
     DISCORD_SERVER_UNLINKED = 'discord.server_unlinked'
+    DISCORD_LOGIN_PANEL_POSTED = 'discord.login_panel_posted'
 
     # Discord Scheduled Events mirror (PR 8). The create/update/cancel rows are
     # written by the reconciler (system user on the worker, or a human on-demand);

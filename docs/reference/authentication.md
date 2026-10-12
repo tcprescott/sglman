@@ -147,7 +147,7 @@ The Discord credentials (`DISCORD_TOKEN`, `DISCORD_CLIENT_SECRET`, `DISCORD_CLIE
 | `DISCORD_TOKEN` | yes (real OAuth) | Bot token for the module-level zenora client |
 | `PLATFORM_HOST` | no | Netloc of `BASE_URL`. The host serving the tenant-agnostic surface and every path-mode tenant |
 | `REDIRECT_URL` | no | `{scheme}://{PLATFORM_HOST}/oauth/callback`. An explicit override only; on a custom domain the URI is built from the tenant's stored `domain`, never from `BASE_URL` or a reflected `Host` header |
-| `OAUTH_URL` | no | `https://discord.com/api/oauth2/authorize?client_id=…&redirect_uri=…&response_type=code&scope=identify`, built per request; an explicit value gets `state` appended |
+| `OAUTH_URL` | no | `https://discord.com/api/oauth2/authorize?client_id=…&redirect_uri=…&response_type=code&scope=identify&prompt=none`, built per request; an explicit value gets `state` appended (and no `prompt`, so add it yourself if you want it). `prompt=none` skips Discord's Authorize screen for someone who has already approved the app |
 | `HOST_OAUTH_MODE` | no | Unset = Design A; `handoff` = Design B |
 
 ## Route protection

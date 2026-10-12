@@ -135,3 +135,11 @@ def test_handoff_url_uses_http_for_localhost_dev(auth, monkeypatch):
     monkeypatch.setenv('PLATFORM_HOST', 'localhost:8000')
     assert auth._handoff_start_url('second.localhost:8000', '/').startswith('http://localhost:8000/')
     assert auth._claim_url('second.localhost:8000', 't').startswith('http://second.localhost:8000/')
+
+
+def test_login_authorize_url_skips_consent_for_returning_users(auth, monkeypatch):
+    monkeypatch.delenv('OAUTH_URL', raising=False)
+    url = auth._oauth_url('st8', 'https://main.gg/oauth/callback')
+    assert 'prompt=none' in url
+    assert 'response_type=code' in url
+    assert 'state=st8' in url
