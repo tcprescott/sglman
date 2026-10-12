@@ -33,6 +33,7 @@ from application.repositories.community_event_repository import (
 from application.services import _community_event_notifications as notify
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.system_config_service import SystemConfigService
 from models import CommunityEvent, CommunityEventStatus, FeatureFlag, User
 
 TITLE_MAX_LENGTH = 120
@@ -191,13 +192,18 @@ class CommunityEventService:
 
     @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
     async def submit(self, actor: User, draft: EventDraft) -> CommunityEvent:
-        """Submit an event. Staff's own go straight onto the listing."""
+        """Submit an event.
+
+        Staff's own go straight onto the listing, and so does everyone's when
+        the community has turned off staff approval.
+        """
         await self._ensure_member(actor)
         draft = _clean_draft(draft)
         if draft.starts_at <= _now():
             raise ValueError('Pick a start time in the future.')
         is_staff = await AuthService.is_staff(actor)
-        status = CommunityEventStatus.APPROVED if is_staff else CommunityEventStatus.PENDING
+        listed = is_staff or not await SystemConfigService.community_events_require_approval()
+        status = CommunityEventStatus.APPROVED if listed else CommunityEventStatus.PENDING
         event = await self.repository.create(
             host=actor,
             title=draft.title,
@@ -211,7 +217,7 @@ class CommunityEventService:
         )
         await self._record(actor, AuditActions.COMMUNITY_EVENT_SUBMITTED,
                            EventType.COMMUNITY_EVENT_SUBMITTED, event)
-        if is_staff:
+        if listed:
             await self._record(actor, AuditActions.COMMUNITY_EVENT_APPROVED,
                                EventType.COMMUNITY_EVENT_APPROVED, event, automatic=True)
         else:

@@ -8,6 +8,7 @@ from application.errors import FeatureDisabledError, NotFoundError
 from application.events import EventType
 from application.services.audit_service import AuditActions
 from application.services.community_event_service import CommunityEventService, EventDraft
+from application.services.system_config_service import KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL, SystemConfigService
 from models import (
     AuditLog,
     CommunityEvent,
@@ -112,6 +113,32 @@ async def test_a_staff_submission_is_listed_straight_away(staff, dms):
         AuditActions.COMMUNITY_EVENT_SUBMITTED, AuditActions.COMMUNITY_EVENT_APPROVED,
     ]
     assert await dms() == []
+
+
+async def test_with_approval_turned_off_a_member_submission_is_listed_straight_away(member, staff, dms):
+    await SystemConfigService.set_raw(KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL, 'false', staff)
+    await AuditLog.all().delete()
+
+    event = await CommunityEventService().submit(member, _draft())
+
+    assert event.status is CommunityEventStatus.APPROVED
+    assert event.reviewed_by_id is None
+    assert await _actions() == [
+        AuditActions.COMMUNITY_EVENT_SUBMITTED, AuditActions.COMMUNITY_EVENT_APPROVED,
+    ]
+    assert await dms() == []
+
+
+async def test_with_approval_turned_off_a_taken_down_event_still_goes_back_to_review(member, staff, dms):
+    await SystemConfigService.set_raw(KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL, 'false', staff)
+    service = CommunityEventService()
+    event = await service.submit(member, _draft())
+    await service.reject(staff, event.id, 'Wrong room')
+
+    await service.update(member, event.id, _draft(description='Fixed'))
+
+    await event.refresh_from_db()
+    assert event.status is CommunityEventStatus.PENDING
 
 
 async def test_a_non_member_cannot_submit():
