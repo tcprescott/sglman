@@ -8,6 +8,7 @@ import logging
 from typing import Awaitable, Callable, Dict, Optional, Tuple
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
@@ -107,8 +108,11 @@ VIEW_HARD_PRESET = 'match_hard'
 InteractionHandler = Callable[[discord.Interaction], Awaitable[None]]
 ViewFactory = Callable[..., discord.ui.View]
 
+AppCommand = app_commands.Command | app_commands.Group
+
 _interaction_handlers: Dict[str, InteractionHandler] = {}
 _view_factories: Dict[str, ViewFactory] = {}
+_app_commands: list[AppCommand] = []
 
 
 def register_interaction_handler(prefix: str, handler: InteractionHandler) -> None:
@@ -130,6 +134,26 @@ def register_view_factory(kind: str, factory: ViewFactory) -> None:
     _view_factories[kind] = factory
 
 
+def register_app_command(command: AppCommand) -> None:
+    """Register a slash command (or command group) for the bot's command tree.
+
+    Added to the tree and synced to Discord once, when the bot logs in.
+    """
+    _app_commands.append(command)
+
+
+async def _install_app_commands(bot: commands.Bot) -> None:
+    for command in _app_commands:
+        bot.tree.add_command(command, override=True)
+    try:
+        synced = await bot.tree.sync()
+        logger.info('Synced %d Discord application commands', len(synced))
+    except discord.HTTPException:
+        # Commands already registered with Discord keep working; only a change
+        # to them waits for the next successful sync.
+        logger.exception('Failed to sync Discord application commands')
+
+
 def get_discord_bot() -> commands.Bot:
     """
     Get or create the shared Discord bot instance.
@@ -146,7 +170,12 @@ def get_discord_bot() -> commands.Bot:
         intents.dm_messages = True
         
         _bot_instance = commands.Bot(command_prefix='!', intents=intents)
-        
+
+        async def setup_hook() -> None:
+            await _install_app_commands(_bot_instance)
+
+        _bot_instance.setup_hook = setup_hook  # type: ignore[method-assign]
+
         @_bot_instance.event
         async def on_ready() -> None:
             logger.info('Discord bot ready. Logged in as %s', _bot_instance.user)

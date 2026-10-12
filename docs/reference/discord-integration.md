@@ -31,6 +31,8 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) | Unwatch button + handler (`match_watch:`) |
 | [`discordbot/reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) | The opponent's Agree button + handler (`reschedule_agree:`) |
 | [`discordbot/match_hard_preset.py`](../../discordbot/match_hard_preset.py) | The harder-settings opt-in / back-out button + handler (`match_hard:`) |
+| [`discordbot/login.py`](../../discordbot/login.py) | `/login`, `/wizzrobe login-panel` and the panel's Log in button (`wiz_login:`) |
+| [`application/services/discord/discord_login_service.py`](../../application/services/discord/discord_login_service.py) | `DiscordLoginService` — mints and redeems the one-time login links; the panel's STAFF gate |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, the `import discordbot` registration hook, queue and worker start/stop in the FastAPI lifespan |
 | [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match/_schedule_notifications.py`](../../application/services/match/_schedule_notifications.py) | `MatchNotificationMixin` — the match notification fan-out coroutines, composed into `MatchScheduleService` |
@@ -96,7 +98,8 @@ sequenceDiagram
 `get_discord_bot()` creates the bot once and stores it in module-level `_bot_instance`:
 
 - **Intents**: `discord.Intents.default()` plus `guilds=True`, `members=True`, `dm_messages=True` (needed for DMs and guild/role visibility).
-- **Constructor**: `commands.Bot(command_prefix='!', intents=intents)`. The prefix is set but no text commands are registered — the bot only sends DMs and receives component interactions.
+- **Constructor**: `commands.Bot(command_prefix='!', intents=intents)`. The prefix is set but no text commands are registered. The bot sends DMs, receives component interactions, and serves the slash commands below.
+- **Slash commands**: the bot package hands each command (or group) to `register_app_command`; the bot's `setup_hook` adds them to `bot.tree` and runs one global `tree.sync()` at login. A failed sync is logged and the commands Discord already has keep working. Today that's `/login` and `/wizzrobe login-panel` ([`login.py`](../../discordbot/login.py)), both `guild_only`; the `wizzrobe` group carries `default_permissions=manage_guild`, so Discord shows it only to members with Manage Server.
 
 Four gateway events are registered:
 
@@ -123,6 +126,7 @@ Registered handler prefixes:
 | `volunteer_ack:` | [`volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) → `handle_volunteer_acknowledgment_interaction` |
 | `match_watch:` | [`watch_buttons.py`](../../discordbot/watch_buttons.py) → `handle_unwatch_interaction` |
 | `reschedule_agree:` | [`reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) → `handle_reschedule_agree_interaction` |
+| `wiz_login:` | [`login.py`](../../discordbot/login.py) → `handle_login_panel_interaction`. `wiz_login:<tenant_id>` — the community travels in the id because one server can back several. It doesn't use `run_dm_interaction`: it replies with `response.send_message(..., ephemeral=True, delete_after=LINK_TTL_SECONDS)` without deferring, so the reply can delete itself when the link expires |
 | `match_hard:` | [`match_hard_preset.py`](../../discordbot/match_hard_preset.py) → `handle_hard_preset_interaction`. Two verbs, `match_hard:in:<match_id>` and `match_hard:out:<match_id>`; the pressed message's button is swapped for its opposite, so a second press is the way back rather than a repeat |
 
 Because dispatch is raw-prefix routing rather than registered `discord.ui.View` callbacks, **buttons keep working across bot restarts**: all state is encoded in the `custom_id`, nothing is held in memory, and no `bot.add_view()` persistent-view registration is needed. All views are built with `timeout=None`.

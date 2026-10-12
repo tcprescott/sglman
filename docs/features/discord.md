@@ -296,6 +296,41 @@ is no service-level `get_subscribers()` abstraction.
 `Match.is_stream_candidate` is toggled by admins in the match dialog; turning it on
 fans out to `streamed_and_candidates` subscribers with crew-signup buttons attached.
 
+## Log in from Discord
+
+Discord deliberately won't hand a website's sign-in to its mobile app (its iOS
+universal-link rules exclude `/oauth2/authorize` whenever `response_type` is
+set), so a phone user signing in through OAuth has to log in to discord.com in
+whatever browser they're in. The bot gets around that by vouching for the
+person itself: a button press or slash command already tells us, signed by
+Discord, who pressed it.
+
+- **`/login`** (any channel in a linked server) replies privately with a
+  one-time link per active community linked to that server.
+- **`/wizzrobe login-panel`** posts a permanent *Log in* panel in the current
+  channel. Discord only shows the command to members with Manage Server, and
+  the poster must also be STAFF (or super-admin) in the community. When the
+  server backs several communities, the `community` option picks which one.
+  Each post is audited as `discord.login_panel_posted`.
+- **Pressing the panel's button** gives the same private reply for that one
+  community. A panel for a community that's since been unlinked from the
+  server says so instead.
+
+The reply says the link works once and expires in two minutes
+(`LINK_TTL_SECONDS`), and deletes itself at that moment. The link opens
+`/login/discord?token=…` on the community's own address, which signs the
+person in (replacing any other identity signed in on that browser), syncs their
+Discord roles, and lands them on the community home. The token is single-use,
+bound to the link's host and community, and only read after the page's
+websocket connects, so a link-preview fetcher can't burn it. It isn't bound to
+a browser, which is the reason for the short lifetime. Someone who presses the
+button before ever visiting gets an account the same way an OAuth login
+creates one; a deactivated account gets a refusal in Discord instead of a link.
+
+No feature flag: it's on wherever the bot is in a linked server. The token
+store is in-process, like the Design B handoff's, so it assumes the
+single-worker deployment ([scaling-roadmap.md](../scaling-roadmap.md)).
+
 ## Mock mode
 
 `MOCK_DISCORD=true` makes the whole integration developable with no Discord

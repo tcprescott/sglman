@@ -12,6 +12,15 @@ Everything is tied to your Discord account, so there's no separate password. Tap
 **Sign in** (or **Login with Discord**), approve the request in Discord, and you
 land back on the page you started from.
 
+On a phone, it's often quicker to sign in from Discord itself. In a server
+that's linked to the community, type `/login` (or press **Log in** on the
+community's login panel, if staff have posted one). The bot replies with a link
+only you can see. Tap it and you're signed in, with no Discord login page. The
+link works once and disappears after two minutes, so don't share it.
+
+Staff with Manage Server in Discord can post that panel by running
+`/wizzrobe login-panel` in the channel they want it in.
+
 You don't need an account to watch. **Watch live** on the community's front door
 shows the streams and what's on now without signing in.
 

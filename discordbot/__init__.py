@@ -21,6 +21,7 @@ from application.services.discord.discord_service import (
     VIEW_RESCHEDULE_AGREE,
     VIEW_UNWATCH,
     VIEW_VOLUNTEER_ACK,
+    register_app_command,
     register_interaction_handler,
     register_view_factory,
 )
@@ -37,6 +38,14 @@ from discordbot.crew_signup import (
 from discordbot.crew_signup import (
     handle_crew_signup_interaction,
     make_crew_signup_view,
+)
+from discordbot.login import (
+    CUSTOM_ID_PREFIX as LOGIN_PANEL_PREFIX,
+)
+from discordbot.login import (
+    handle_login_panel_interaction,
+    login_command,
+    wizzrobe_group,
 )
 from discordbot.match_acknowledgment import (
     CUSTOM_ID_PREFIX as MATCH_ACK_PREFIX,
@@ -83,6 +92,11 @@ register_interaction_handler(VOLUNTEER_ACK_PREFIX, handle_volunteer_acknowledgme
 register_interaction_handler(WATCH_PREFIX, handle_unwatch_interaction)
 register_interaction_handler(RESCHEDULE_AGREE_PREFIX, handle_reschedule_agree_interaction)
 register_interaction_handler(HARD_PRESET_PREFIX, handle_hard_preset_interaction)
+register_interaction_handler(LOGIN_PANEL_PREFIX, handle_login_panel_interaction)
+
+# Slash commands, added to the bot's command tree and synced when it logs in.
+register_app_command(login_command)
+register_app_command(wizzrobe_group)
 
 # DM view factories, keyed by the VIEW_* kinds the DM senders look up.
 register_view_factory(VIEW_CREW_SIGNUP, make_crew_signup_view)

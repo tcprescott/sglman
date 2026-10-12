@@ -267,6 +267,8 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # not a tournament domain event a webhook subscriber would act on.
     AuditActions.DISCORD_SERVER_LINKED,
     AuditActions.DISCORD_SERVER_UNLINKED,
+    # Posting the bot's login panel: Discord-side admin setup, same reasoning.
+    AuditActions.DISCORD_LOGIN_PANEL_POSTED,
     # Discord Scheduled Events mirror (PR 8): the per-event create/update/cancel
     # rows DO emit events (see EventType.DISCORD_EVENT_*). The rest are audit-only:
     # the per-run reconcile summary/failure is worker plumbing and the settings
