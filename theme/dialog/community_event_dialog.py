@@ -90,6 +90,8 @@ class CommunityEventDialog:
                 with dialog:
                     try:
                         starts_at = local_input_to_datetime(starts.value)
+                        if starts_at is None:
+                            raise ValueError('Pick when the event starts.')
                         duration = int(hours_input.value or 0) * 60 + int(minutes_input.value or 0)
                         draft = EventDraft(
                             title=title.value or '',

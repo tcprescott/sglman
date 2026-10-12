@@ -69,7 +69,7 @@ class CommunityEventSubscriptionRepository(TenantScopedRepository[CommunityEvent
         rows = await scoped(
             CommunityEventSubscription.filter(user_id=user_id, event_id__in=list(event_ids))
         ).values_list('event_id', flat=True)
-        return set(rows)
+        return set(rows)  # type: ignore[arg-type]
 
     @staticmethod
     async def counts_for(event_ids: Iterable[int]) -> Dict[int, int]:

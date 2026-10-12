@@ -105,6 +105,9 @@ def create() -> None:
     @protected_page('/community-events', feature=FeatureFlag.COMMUNITY_EVENTS)
     async def community_events_index() -> None:
         user = await _viewer()
+        if user is None:
+            ui.label('Your account could not be found.').classes('text-error')
+            return
         await _chrome(user, 'Community Events')
         service = CommunityEventService()
         is_staff = await AuthService.is_staff(user)
@@ -156,6 +159,9 @@ def create() -> None:
     @protected_page('/community-events/{event_id}', feature=FeatureFlag.COMMUNITY_EVENTS)
     async def community_event_detail(event_id: int) -> None:
         user = await _viewer()
+        if user is None:
+            ui.label('Your account could not be found.').classes('text-error')
+            return
         service = CommunityEventService()
         try:
             event = await service.get_event(user, event_id)

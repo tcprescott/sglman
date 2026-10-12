@@ -5,7 +5,7 @@ listed event down the same way. ``open_event`` is the staff DM's deep link: the
 tab opens on that event's review dialog.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from nicegui import ui
 
@@ -24,7 +24,7 @@ from theme.tables.admin_crud import current_actor, refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
-_COLUMNS = [
+_COLUMNS: list[dict[str, Any]] = [
     {'name': 'starts', 'label': 'Starts', 'field': 'starts', 'align': 'left', 'sortable': True},
     {'name': 'title', 'label': 'Event', 'field': 'title', 'align': 'left'},
     {'name': 'host', 'label': 'Host', 'field': 'host', 'align': 'left'},

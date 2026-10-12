@@ -44,7 +44,7 @@ def is_live(event: CommunityEvent) -> bool:
 
 
 def day_label(event: CommunityEvent) -> str:
-    local = to_local(event.starts_at)
+    local = to_local(event.starts_at) or event.starts_at
     return f'{local:%A}, {local:%B} {local.day}'
 
 
