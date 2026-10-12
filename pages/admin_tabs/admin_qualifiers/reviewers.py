@@ -18,6 +18,7 @@ from nicegui import ui
 from application.services import UserService
 from application.services.async_qualifier.async_qualifier_rules import display_name
 from pages.admin_tabs.admin_qualifiers.shared import REVIEWERS_TAB
+from theme.dialog._helpers import dialog_actions, form_dialog
 
 
 def build_reviewers_tab(
@@ -65,8 +66,7 @@ def build_reviewers_tab(
                               ).props('flat color=negative')
 
     def _open_add_dialog() -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('Add a reviewer').classes('text-h6')
+        with form_dialog('Add a reviewer', card_classes='dialog-card dialog-card--sm') as dialog:
             picker = ui.select(
                 state['reviewer_options'], label='Person', with_input=True,
             ).classes('w-full')
@@ -89,7 +89,7 @@ def build_reviewers_tab(
                 dialog.close()
                 await reload_tabs(REVIEWERS_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 add = ui.button('Add', icon='person_add', on_click=submit).props('color=primary')
                 add.bind_enabled_from(picker, 'value', lambda v: v is not None)

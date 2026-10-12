@@ -408,14 +408,15 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
 
             async def sync_all_users(client):
                 with client:
-                    with ui.dialog() as confirm, ui.card().classes('dialog-card dialog-card--sm'):
+                    with form_dialog(
+                        'Re-sync Discord roles?', card_classes='dialog-card dialog-card--sm',
+                    ) as confirm:
                         ui.label(
-                            'Re-sync Discord roles for this community now? This applies '
-                            'the current mappings to its members and to anyone in the '
-                            'server holding a mapped role, creates an account for those '
-                            'who have never signed in, and may take a moment.'
+                            'This applies the current mappings to the community\'s members '
+                            'and to anyone in the server holding a mapped role, creates an '
+                            'account for those who have never signed in, and may take a moment.'
                         )
-                        with ui.row().classes('justify-end w-full'):
+                        with dialog_actions().classes('justify-end'):
                             ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
                             ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
                     if not await confirm:

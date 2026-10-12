@@ -14,6 +14,7 @@ from application.services import (
     UserService,
 )
 from application.tenant_context import get_current_tenant_id
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
@@ -543,10 +544,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         name = (args or {}).get('name') or 'This player'
         note = (args or {}).get('note')
         readable = getattr(self, '_ada_notes_readable', False) and note is not None
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-            with ui.row().classes('items-center gap-2 no-wrap'):
-                ui.icon('accessible', size='sm').classes('text-primary')
-                ui.label(f'ADA accommodation: {name}').classes('text-h6')
+        with form_dialog(f'ADA accommodation: {name}', card_classes='dialog-card dialog-card--sm') as dialog:
             if readable:
                 ui.label('Staff notes').classes('subsection-title q-mt-sm')
                 # Plain text, never markup: staff wrote it.
@@ -557,7 +555,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                     f'Staff have arranged an accommodation for {name}. Check with '
                     'staff for what it involves before the match starts.'
                 ).classes('text-body2 q-mt-sm')
-            with ui.row().classes('w-full justify-end'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Close', on_click=dialog.close).props('flat')
         dialog.open()
 

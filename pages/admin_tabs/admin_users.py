@@ -18,6 +18,7 @@ from models import MembershipSource, Role, User
 from pages.admin_tabs.admin_accommodations import render_accommodation_panel
 from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -291,8 +292,7 @@ async def _members_panel(
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             candidates = await TenantMembershipService().addable_users()
 
-            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-                ui.label('Add a member').classes('text-lg font-semibold')
+            with form_dialog('Add a member', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
                 ui.label(
                     'Bring an existing account into this community. Their profile '
                     'is shared across communities; only the membership is added '
@@ -323,7 +323,7 @@ async def _members_panel(
                     dialog.close()
                     await table_view.refresh()
 
-                with ui.row().classes('w-full justify-end'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Cancel', on_click=dialog.close).props('flat')
                     ui.button('Add', on_click=submit, color='primary')
             dialog.open()

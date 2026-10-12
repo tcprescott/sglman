@@ -7,7 +7,7 @@ from nicegui import app, ui
 from application.services import MatchService, get_user_from_discord_id
 from application.utils.match_labels import match_model_label
 from models import Match
-from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
 from theme.notify import notify_error
 
@@ -124,21 +124,12 @@ class MatchResultDialog:
 
         current_winner = self._current_winner() if self.is_edit else None
 
-        with ui.dialog() as self.dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            mobile_sheet(self.dialog)
-            with ui.row().classes('dialog-header'):
-                # Named by its players, not its primary key — the dialog body
-                # already repeats the tournament, so with_context=False keeps
-                # the heading to the matchup.
-                label = match_model_label(self.match, with_context=False)
-                title = (f'Change result — {label}' if self.is_edit
-                         else f'Enter match results — {label}')
-                ui.label(title).classes('dialog-title')
-                ui.space()
-                ui.button(icon='close', on_click=self.dialog.close).props('flat round dense').tooltip('Close')
-
-            ui.separator()
-
+        # Named by its players, not its primary key — the dialog body already
+        # repeats the tournament, so with_context=False keeps the heading to the
+        # matchup.
+        label = match_model_label(self.match, with_context=False)
+        title = f'Change result — {label}' if self.is_edit else f'Enter match results — {label}'
+        with form_dialog(title, card_classes='dialog-card dialog-card--sm') as self.dialog:
             with ui.column().classes('q-pa-md'):
                 if self.match.tournament:
                     ui.label(f'Tournament: {self.match.tournament.name}').classes('text-subtitle1')

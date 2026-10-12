@@ -13,6 +13,7 @@ to.
 from nicegui import ui
 
 from application.services import TenantService, UserService
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 
 
@@ -20,8 +21,7 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
     """List a tenant's staff and grant a new one, from the platform surface."""
     users = await UserService().get_all_users()
 
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f'Admins for {tenant_name}').classes('text-lg font-semibold')
+    with form_dialog(f'Admins for {tenant_name}', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         ui.label(
             'Staff run a community: they configure it, schedule its matches and '
             'grant its other roles. A community with no staff cannot be '
@@ -70,7 +70,7 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
             select.value = None
             staff_list.refresh()
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
             ui.button('Grant', on_click=submit, color='primary')
     dialog.open()

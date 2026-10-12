@@ -24,6 +24,7 @@ from application.utils.timezone import format_local_display
 from middleware.auth import protected_page
 from models import FeatureFlag
 from theme.base import BaseLayout
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header, page_title
@@ -424,8 +425,7 @@ def create() -> None:
                 'text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
-            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                ui.label('Use a reattempt?').classes('text-h6')
+            with form_dialog('Use a reattempt?', card_classes='dialog-card dialog-card--sm') as dialog:
                 ui.label('This voids that run — it stops counting and its score is '
                          'discarded — and frees the pool slot so you can draw a new '
                          'permalink. It does not restore the run you already played.'
@@ -442,7 +442,7 @@ def create() -> None:
                     dialog.close()
                     await render.refresh()
 
-                with ui.row().classes('justify-end w-full'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Cancel', on_click=dialog.close).props('flat')
                     spend = ui.button('Use reattempt', icon='restart_alt', on_click=submit)
                     spend.props('color=primary')

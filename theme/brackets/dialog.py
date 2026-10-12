@@ -284,13 +284,14 @@ def build_match_dialog(
     def slot_name(slot: int) -> str:
         return slot_display_name(match, slot, entry_name)
 
-    with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card'):  # style-guide: exempt — its header carries the match's status badge
         # House chrome: a full-screen sheet on a phone, sticky title, and the
         # sticky action bar below — so the report buttons stay reachable on a
         # long series rather than sitting under the games list.
         mobile_sheet(dialog)
         with ui.row().classes('dialog-header items-center q-pa-sm'):
-            ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')
+            heading = ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')
+            heading.tag = 'h2'
             ui.space()
             status = (live or {}).get('status')
             if status is not None:
@@ -304,7 +305,6 @@ def build_match_dialog(
                 )
             ui.button(icon='close', on_click=dialog.close) \
                 .props('flat round dense').tooltip('Close')
-        ui.separator()
 
         for slot, entry_id in ((1, match.entry1_id), (2, match.entry2_id)):
             is_winner = (

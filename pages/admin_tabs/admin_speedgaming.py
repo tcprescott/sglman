@@ -13,6 +13,7 @@ from application.services import (
     TournamentService,
     get_user_from_discord_id,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
@@ -145,8 +146,7 @@ async def admin_speedgaming_page() -> None:
 
         async def _build_link_dialog(existing, is_edit: bool, options) -> None:
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                    ui.label('Edit Event Link' if is_edit else 'Add Event Link').classes('text-h6')
+                with form_dialog('Edit Event Link' if is_edit else 'Add Event Link', card_classes='dialog-card dialog-card--sm') as dialog:
                     tournament_select = ui.select(
                         options, label='Tournament',
                         value=existing['tournament_id'] if is_edit else None,
@@ -205,7 +205,7 @@ async def admin_speedgaming_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button(
                             'Save' if is_edit else 'Add', icon='save' if is_edit else 'add',
