@@ -70,17 +70,21 @@ def _render_provider_row(
         linked_at = getattr(user, config.linked_at_attr, None)
         with ui.row().classes('items-center w-full no-wrap gap-3'):
             ui.icon(config.icon, size='sm').classes('icon-primary')
-            with ui.column().classes('gap-0 col'):
+            # min-w-0 lets the text column shrink beside the button on a phone;
+            # without it a long handle pushes the caption under Unlink.
+            with ui.column().classes('gap-0 col min-w-0'):
                 ui.label(config.title).classes('text-weight-medium')
                 if user_id:
-                    with ui.row().classes('items-center gap-1 no-wrap'):
-                        ui.icon('check_circle', size='xs').classes('text-positive')
+                    with ui.row().classes('items-start gap-1 no-wrap'):
+                        ui.icon('check_circle', size='xs').classes('text-positive q-mt-xs')
                         # A date is what lets someone recognise a link they made
                         # years ago under a provider name they have since changed.
                         # Additive: a row linked before the column existed has none.
                         since = f' on {format_local_date(linked_at)}' if linked_at else ''
+                        # Wraps rather than truncates: the date is the part worth keeping.
                         ui.label(f'Linked as {username or user_id}{since}') \
-                            .classes('text-caption text-grey-7 ellipsis')
+                            .classes('text-caption text-grey-7 col min-w-0') \
+                            .style('overflow-wrap: anywhere')
                 else:
                     ui.label('Not linked').classes('text-caption text-grey-7')
                     # Only on the unlinked row: this is where the decision is made,
@@ -93,6 +97,7 @@ def _render_provider_row(
                 # the configured full label is what a screen reader announces, so
                 # the row stops being three identically-named buttons.
                 ui.button('Unlink', icon='link_off', on_click=confirm_unlink) \
+                    .classes('col-auto') \
                     .props(f'flat dense color=negative aria-label="{config.unlink_button_label}"') \
                     .tooltip(config.unlink_button_label)
             elif is_host_mode() and not host_oauth_handoff_enabled():
@@ -107,6 +112,7 @@ def _render_provider_row(
                     .tooltip(f'Open your profile on the main site to link {config.title}.')
             else:
                 ui.button('Link', icon='link', on_click=start_link) \
+                    .classes('col-auto') \
                     .props(f'flat dense color=primary aria-label="{config.link_button_label}"') \
                     .tooltip(config.link_button_label)
 

@@ -11,6 +11,7 @@ from nicegui import ui
 
 from application.services import ApiTokenService
 from application.utils.environment import get_base_url
+from application.utils.timezone import format_local_date
 from models import ApiTokenOrigin, User
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
@@ -27,12 +28,14 @@ async def render_api_tokens_section(user: User) -> None:
         if not tokens:
             ui.label('No API tokens yet.').classes('text-muted')
             return
-        with ui.column().classes('input-full-width'):
-            for t in tokens:
+        with ui.column().classes('input-full-width gap-0'):
+            for i, t in enumerate(tokens):
                 is_oauth = t.origin == ApiTokenOrigin.OAUTH.value
-                with ui.row().classes('row-centered').style('justify-content: space-between; width: 100%;'):
-                    with ui.column().classes('gap-0'):
-                        with ui.row().classes('row-centered'):
+                if i:
+                    ui.separator().classes('q-my-sm')
+                with ui.row().classes('items-center no-wrap w-full gap-2'):
+                    with ui.column().classes('gap-1 col min-w-0'):
+                        with ui.row().classes('items-center gap-1'):
                             ui.label(t.name).classes('text-weight-medium')
                             if is_oauth:
                                 # The row's label is already the client name (it
@@ -45,15 +48,22 @@ async def render_api_tokens_section(user: User) -> None:
                                 # a page people skim.
                                 if not t.read_only:
                                     ui.badge('can make changes').props('color=warning')
-                            else:
-                                if t.read_only:
-                                    ui.badge('read-only').props('color=grey')
-                                ui.label(f'{t.token_prefix}…').classes('text-muted text-caption')
-                        used = f'Last used {t.last_used_at:%Y-%m-%d}' if t.last_used_at else 'Never used'
-                        expires = f' · Expires {t.expires_at:%Y-%m-%d}' if t.expires_at else ''
-                        ui.label(used + expires).classes('text-muted text-caption')
+                            elif t.read_only:
+                                ui.badge('read-only').props('color=grey')
+                        used = (
+                            f'Last used {format_local_date(t.last_used_at)}'
+                            if t.last_used_at else 'Never used'
+                        )
+                        expires = f' · Expires {format_local_date(t.expires_at)}' if t.expires_at else ''
+                        prefix = '' if is_oauth else f'{t.token_prefix}… · '
+                        ui.label(prefix + used + expires) \
+                            .classes('text-caption text-grey-7') \
+                            .style('overflow-wrap: anywhere')
+                    label = f'Disconnect {t.name}' if is_oauth else f'Revoke {t.name}'
                     ui.button(icon='delete', on_click=lambda _, tid=t.id, o=is_oauth: revoke(tid, o)) \
-                        .props('flat dense color=negative')
+                        .classes('col-auto') \
+                        .props('flat dense round color=negative') \
+                        .tooltip(label)
 
     def revoke(token_id: int, is_oauth: bool = False) -> None:
         async def do_revoke() -> None:
@@ -122,22 +132,25 @@ async def render_api_tokens_section(user: User) -> None:
         that is the OAuth flow, which signs them in and shows a consent screen.
         """
         mcp_url = f'{get_base_url()}/mcp'
-        with ui.card().classes('card-full-width q-mb-sm').props('flat bordered'):
-            with ui.row().classes('row-centered no-wrap'):
-                ui.icon('smart_toy').classes('text-primary')
-                ui.label('Connect an AI client').classes('text-weight-medium')
-            ui.label(
-                'Add this URL as a custom connector in Claude (or any MCP client) to '
-                'ask questions about your communities. You will be asked to sign in '
-                'and approve the connection. It can only read unless you tick the box '
-                'to let it make changes.'
-            ).classes('text-muted text-caption')
-            with ui.row().classes('row-centered no-wrap input-full-width'):
-                ui.input(value=mcp_url).classes('col').props('outlined readonly dense')
-                ui.button(
-                    icon='content_copy',
-                    on_click=lambda: copy_to_clipboard(mcp_url, 'MCP server URL'),
-                ).props('flat dense').tooltip('Copy MCP server URL')
+        # Not a nested card: inside the expansion a second border and padding
+        # cost a phone a third of its width, and the URL was cut to a few letters.
+        with ui.row().classes('items-center gap-2 no-wrap'):
+            ui.icon('smart_toy').classes('text-primary')
+            ui.label('Connect an AI client').classes('subsection-title')
+        ui.label(
+            'Add this URL as a custom connector in Claude or any MCP client. '
+            "It's read-only unless you allow changes when you approve it."
+        ).classes('text-muted text-caption')
+        # Shown whole, wrapping if it must: a readonly input cut the URL to a
+        # few letters on a phone, and the copy button is how it gets used.
+        with ui.row().classes('items-center no-wrap w-full gap-2 q-mt-xs'):
+            ui.label(mcp_url).classes('col min-w-0') \
+                .style('font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere')
+            ui.button(
+                icon='content_copy',
+                on_click=lambda: copy_to_clipboard(mcp_url, 'MCP server URL'),
+            ).classes('col-auto').props('flat dense round').tooltip('Copy MCP server URL')
+        ui.separator().classes('q-my-md')
 
     # Developer-only surface — collapsed by default so it doesn't dominate the
     # profile for the majority of users who never touch the REST API.
@@ -146,8 +159,8 @@ async def render_api_tokens_section(user: User) -> None:
                 .props('header-class=text-weight-bold'):
             render_mcp_callout()
             ui.label(
-                'Personal tokens for the Wizzrobe REST API. Each token acts with your '
-                'permissions; mark a token read-only to limit it to read endpoints.'
+                'Personal tokens for the REST API act with your permissions. '
+                'Make one read-only to limit it to reads.'
             ).classes('text-muted text-caption')
             ui.link('API documentation', '/api/docs', new_tab=True).classes('text-caption')
             with ui.row().classes('q-mt-sm'):
