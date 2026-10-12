@@ -131,6 +131,13 @@ read-only is worse than either half alone. The connection's kind is visible
 afterwards on the profile's credential list, where a writing grant carries a
 `can make changes` badge and a read-only one carries none.
 
+**The typed confirmation.** Ticking the box also reveals a warning banner and a
+field asking for the phrase `this is dangerous` (`WRITE_CONFIRMATION_PHRASE`);
+Approve stays disabled until it matches, with case and spacing forgiven.
+`McpAuthService.approve(..., allow_write=True)` re-checks it and raises
+`ValueError` on a mismatch *before* consuming the pending request, so a typo
+leaves the screen usable and no other caller can grant write without it.
+
 ## Choosing a community
 
 Every tool except `whoami` and `list_tenants` takes a required `tenant` argument
