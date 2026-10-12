@@ -16,6 +16,7 @@ from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import tenant_url
 from application.utils.timezone import format_local_display
 from theme.clipboard import copy_to_clipboard
+from theme.dialog._helpers import form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.section import section_panel
@@ -85,8 +86,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
 
     async def show_url_dialog(raw_token: str) -> None:
         url = await _url_for(raw_token)
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-            ui.label('The room PC’s URL').classes('section-title')
+        with form_dialog('The room PC’s URL') as dialog:
             ui.label(
                 'Copy it now — only the hash is stored, so this is the last time '
                 'you can see it. Anyone with this URL can read the seeds board, '

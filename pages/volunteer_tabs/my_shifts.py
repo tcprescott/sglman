@@ -9,6 +9,7 @@ from application.services import SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -106,15 +107,13 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
         async def confirm_release(assignment) -> None:
             shift = assignment.shift
             position = shift.position.name if shift.position else 'Volunteer'
-            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                with ui.row().classes('items-center no-wrap q-pa-sm'):
-                    ui.label('Give this shift back?').classes('text-subtitle1')
-                    await help_icon('shift-release')
-                ui.separator()
+            with form_dialog('Give this shift back?') as dialog:
                 with ui.column().classes('q-pa-md gap-2 full-width'):
-                    ui.label(
-                        position + (f' — {shift.label}' if shift.label else '')
-                    ).classes('text-body2 text-weight-medium')
+                    with ui.row().classes('items-center no-wrap gap-1'):
+                        ui.label(
+                            position + (f' — {shift.label}' if shift.label else '')
+                        ).classes('text-body2 text-weight-medium')
+                        await help_icon('shift-release')
                     ui.label(
                         f'{format_local_display(shift.starts_at)} → '
                         f'{format_local_display(shift.ends_at)}'
@@ -136,8 +135,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                     hours_panel.refresh()
                     shift_list.refresh()
 
-                ui.separator()
-                with ui.row().classes('justify-end q-pa-sm gap-2'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Keep it', on_click=dialog.close).props('flat')
                     ui.button('Give it back', on_click=do_release).props('color=negative')
             dialog.open()

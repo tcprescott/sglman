@@ -13,6 +13,7 @@ from application.services import ApiTokenService
 from application.utils.environment import get_base_url
 from models import ApiTokenOrigin, User
 from theme.clipboard import copy_to_clipboard
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.secret_dialog import show_secret_dialog
 
@@ -95,14 +96,13 @@ async def render_api_tokens_section(user: User) -> None:
         show_token_dialog(raw_token)
 
     def open_generate_dialog() -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-            ui.label('Generate API Token').classes('section-title')
+        with form_dialog('Generate API Token') as dialog:
             name_input = ui.input('Token name', placeholder='e.g. OBS overlay') \
                 .classes('input-full-width').props('outlined dense')
             read_only_cb = ui.checkbox('Read-only (can only call GET endpoints)')
             expires_input = ui.input('Expiry date (optional)', placeholder='YYYY-MM-DD') \
                 .classes('input-full-width').props('outlined dense')
-            with ui.row().classes('button-row'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button(
                     'Generate', icon='vpn_key',

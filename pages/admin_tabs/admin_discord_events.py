@@ -13,6 +13,7 @@ from application.services import (
     DiscordEventSyncService,
     get_user_from_discord_id,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
@@ -136,8 +137,7 @@ async def admin_discord_events_page() -> None:
 
         async def open_settings_dialog(row, client) -> None:
             with tournaments_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                    ui.label(f"Discord events — {row['name']}").classes('text-h6')
+                with form_dialog(f"Discord events — {row['name']}", card_classes='dialog-card dialog-card--sm') as dialog:
                     enabled_switch = ui.switch('Sync this tournament\'s matches', value=row['enabled_bool'])
                     duration_input = ui.number(
                         'Event duration (min)', value=row['duration'], min=1,
@@ -167,7 +167,7 @@ async def admin_discord_events_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button('Save', icon='save', on_click=submit).props('color=primary')
             dialog.open()

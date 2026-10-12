@@ -8,6 +8,7 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 from nicegui import app, background_tasks, context, ui
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
@@ -108,8 +109,7 @@ async def admin_racetime_page() -> None:
         def open_profile_dialog(p=None) -> None:
             is_edit = p is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                    ui.label('Edit Race Room Profile' if is_edit else 'Add Race Room Profile').classes('text-h6')
+                with form_dialog('Edit Race Room Profile' if is_edit else 'Add Race Room Profile', card_classes='dialog-card dialog-card--sm') as dialog:
                     name_input = ui.input('Name', value=p.name if p else '').classes('w-full')
                     goal_input = ui.input('Goal', value=(p.goal or '') if p else '').classes('w-full')
                     switches = {}
@@ -142,7 +142,7 @@ async def admin_racetime_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button(
                             'Save' if is_edit else 'Add', icon='save' if is_edit else 'add',

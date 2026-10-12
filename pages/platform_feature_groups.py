@@ -17,6 +17,7 @@ from application.feature_flags import all_specs, spec_for
 from application.services import FeatureFlagService, TenantService
 from models import FeatureFlag
 from pages.platform_shared import current_actor
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -125,8 +126,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
             return
         ui.notify('Updated', color='positive')
 
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f"Features for {row['name']}").classes('text-lg font-semibold')
+    with form_dialog(f"Features for {row['name']}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
 
         group_options = {0: '— None (default fallback) —'}
         for g in groups:
@@ -151,7 +151,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
                     value=current,
                     on_change=lambda e, fv=f['flag']: _override(fv, e.value),
                 ).props('dense outlined').classes('w-44')
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 
@@ -189,8 +189,7 @@ def _group_form(existing=None):
 
 
 def _open_group_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label('New feature group').classes('text-lg font-semibold')
+    with form_dialog('New feature group', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         name, description, flags, is_default = _group_form()
 
         async def submit():
@@ -206,7 +205,7 @@ def _open_group_create_dialog(actor, table) -> None:
             dialog.close()
             await _refresh_groups(table)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Create', on_click=submit, color='primary')
     dialog.open()
@@ -218,8 +217,7 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
         'name': group.name, 'description': group.description or '',
         'flags': list(group.flags or []), 'is_default': group.is_default,
     }
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f"Edit group '{group.name}'").classes('text-lg font-semibold')
+    with form_dialog(f"Edit group '{group.name}'", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         name, description, flags, is_default = _group_form(existing)
 
         async def submit():
@@ -235,7 +233,7 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
             dialog.close()
             await _refresh_groups(table)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save', on_click=submit, color='primary')
     dialog.open()

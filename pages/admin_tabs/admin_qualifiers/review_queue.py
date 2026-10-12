@@ -33,6 +33,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     other_runs_summary,
     short_url,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 
 
 def build_queue_tab(
@@ -148,8 +149,7 @@ def build_queue_tab(
         """
         verb = 'Approve' if approved else 'Reject'
         runner = run.user.display_name or run.user.username
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label(f'{verb} {runner}\u2019s run').classes('text-h6')
+        with form_dialog(f'{verb} {runner}\u2019s run', card_classes='dialog-card dialog-card--sm') as dialog:
             note_in = ui.textarea(
                 'Note (optional)' if approved else 'Reason (shown to the runner)'
             ).classes('w-full').props('rows=3')
@@ -174,7 +174,7 @@ def build_queue_tab(
                 # approved run on it, so these two really did change.
                 await reload_tabs(BOARD_TAB, RUNS_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 confirm = ui.button(f'{verb} run', icon='check' if approved else 'close',
                                     on_click=submit)
