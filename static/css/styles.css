@@ -1386,6 +1386,13 @@ main.q-page:focus {
     margin-bottom: 1em;
 }
 
+/* `.text-muted text-caption` is the card-description idiom; without this the
+   1.2em above beats Quasar's caption size and the lede outgrows the card title. */
+.text-muted.text-caption {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+}
+
 .text-italic {
     color: var(--status-neutral);
     font-size: 1.2em;
@@ -3412,4 +3419,15 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 .wiz-community-event__body {
     margin-top: 0.5rem;
+}
+
+/* A checkbox label that wraps on a phone: Quasar centres the box on the whole
+   block, so it floats between the lines. Pin it to the first line instead; on a
+   one-line label the padding lands the text exactly where centring did. */
+.q-checkbox:not(.q-checkbox--dense) {
+    align-items: flex-start;
+}
+
+.q-checkbox:not(.q-checkbox--dense) > .q-checkbox__label {
+    padding-top: calc((40px - 1.5em) / 2);
 }
