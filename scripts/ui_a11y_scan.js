@@ -16,9 +16,9 @@
  * to the pytest suite. This is what keeps them from coming back.
  * docs/style-guide.md says what to do when it fails.
  *
- * With a "phone" block in the config it then makes a third pass at phone width
- * (an iPhone 15 Pro, 393px, by default in CI) and fails any page whose layout breaks there: the page
- * scrolls sideways, an element runs past the screen or out of the card that
+ * With a "phone" block in the config it then makes a pass per phone (CI checks
+ * 360, 393, 412 and 440px) and fails any page whose layout breaks there: the
+ * page scrolls sideways, an element runs past the screen or out of the card that
  * holds it, or text is cut off without an ellipsis. The 2026-10 phone sweep
  * found Settings fields 90px past their card and a whole family of these, none
  * of which a desktop-width scan can see.
@@ -39,8 +39,7 @@
  * name) narrows it to one page. Every entry must say why.
  *
  *   "phone": {
- *     "device": "iPhone 15 Pro",          // a Playwright device name, or
- *     "viewport": { "width": 390, "height": 844 },
+ *     "devices": ["iPhone 15 Pro", { "name": "iPhone 16 Pro", "viewport": { "width": 402, "height": 874 } }],
  *     "schemes": ["light"],
  *     "ignore": [ { "selector": ".some-class", "target": "home-player", "why": "..." } ]
  *   }
@@ -259,22 +258,29 @@ async function runAxe(page, source) {
 
   const phone = cfg.phone;
   if (phone) {
-    // A named Playwright device sets the width, pixel ratio and Safari user
-    // agent together; its defaultBrowserType is dropped because CI only has
-    // Chromium, so this is Chromium's layout at that device's size.
-    const { defaultBrowserType, ...device } = (phone.device && devices[phone.device]) || {};
-    if (phone.device && !devices[phone.device]) throw new Error(`unknown phone.device ${phone.device}`);
-    const viewport = phone.viewport || device.viewport || { width: 390, height: 844 };
+    // Each entry is a Playwright device name, which sets the width, pixel ratio
+    // and user agent together, or { name, viewport, deviceScaleFactor } for a
+    // phone Playwright has no profile for. A device's defaultBrowserType is
+    // dropped: CI only has Chromium, so this is Chromium's layout at that size.
+    const phones = (phone.devices || [{ name: 'phone', viewport: phone.viewport || { width: 390, height: 844 } }]).map((d) => {
+      if (typeof d === 'string') {
+        if (!devices[d]) throw new Error(`unknown phone device ${d}`);
+        const { defaultBrowserType, ...profile } = devices[d];
+        return { name: d, profile };
+      }
+      const { name, ...profile } = d;
+      return { name, profile };
+    });
     const phoneIgnore = phone.ignore || [];
-    for (const scheme of phone.schemes || ['light']) {
-      const ctx = await browser.newContext({ isMobile: true, hasTouch: true, ...device, viewport, colorScheme: scheme });
+    for (const { name: phoneName, profile } of phones) for (const scheme of phone.schemes || ['light']) {
+      const ctx = await browser.newContext({ isMobile: true, hasTouch: true, ...profile, colorScheme: scheme });
       const page = await ctx.newPage();
       await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
       await page.locator('tr, .wiz-grid-card', { hasText: loginAs }).first().getByRole('button', { name: 'Log in as' }).click();
       await page.waitForTimeout(1500);
       for (const t of cfg.targets || []) {
-        const label = `phone ${scheme} ${t.name}`;
+        const label = `${phoneName} ${profile.viewport.width}px ${scheme} ${t.name}`;
         try {
           await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
         } catch (e) {

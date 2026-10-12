@@ -18,8 +18,13 @@
     "ignore": []
   },
   "phone": {
-    "_comment": "Layout at phone width (an iPhone 15 Pro: 393px, 3x, Safari user agent, rendered by Chromium): nothing scrolls sideways, runs out of its card or is cut off. Layout does not change with the colour scheme, so one pass is enough. `ignore` takes a CSS selector and a why.",
-    "device": "iPhone 15 Pro",
+    "_comment": "Layout at phone width, on the narrowest and widest phones of the last three years plus the commonest sizes between (360, 393, 412, 440px; a 2026-10 run across nine phones from 360 to 440 found nothing these four miss). Rendered by Chromium with each phone's size, pixel ratio and user agent: nothing scrolls sideways, runs out of its card or is cut off. Layout does not change with the colour scheme, so one pass is enough. `ignore` takes a CSS selector and a why.",
+    "devices": [
+      "Galaxy S24",
+      "iPhone 15 Pro",
+      "Pixel 7",
+      { "name": "iPhone 16 Pro Max", "viewport": { "width": 440, "height": 956 }, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true }
+    ],
     "schemes": ["light"],
     "ignore": []
   },

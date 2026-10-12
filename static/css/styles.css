@@ -3262,6 +3262,13 @@ ol.wiz-help-list { list-style-type: decimal; }
     overflow-wrap: anywhere;
 }
 
+/* The availability graph's hour axis: justify-between spaces the ticks, so the
+   row's own 1rem gap only added 64px that pushed "24:00" past the card at 360px. */
+.avail-day-label + .row.justify-between.no-wrap {
+    gap: 0;
+    min-width: 0;
+}
+
 /* A shift card keeps its 220px column on a wide screen and takes the row on a
    phone, where 220px left a third of the position card empty beside it. */
 .wiz-shift-card {
