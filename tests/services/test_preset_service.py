@@ -270,3 +270,56 @@ class TestTestRoll:
     async def test_missing_preset_raises(self, service, actor):
         with pytest.raises(ValueError):
             await service.test_roll(actor, 999999)
+
+
+class TestWindWakerPresets:
+    """A ``wwr`` preset is one permalink, checked when it's saved, not at the desk."""
+
+    SGL26 = (
+        'eJxLSS2LL0nMy8o31jPUMzTQM9czjk8xNkgxMk9mcGS4//1Tc+mHA/HnJOY/kNiv9INfkeHfX/4/wgYMDA5PT/3n/K/J/ceehUGg4Ub9f3v/'
+        'nE32d0rsjf//L663/v+fg5UBBBy8liYysDEJKDRdnfGzJYFHgIGJkYkFIsUgzODAWMCgxMMBAMVjLfw='
+    )
+
+    async def test_create_stores_the_trimmed_permalink(self, service, actor):
+        preset = await service.create_preset(
+            actor, name='SGL', randomizer='wwr', settings={'permalink': f'  {self.SGL26}\n'},
+        )
+        assert preset.settings == {'permalink': self.SGL26}
+
+    async def test_create_refuses_a_broken_permalink(self, service, actor):
+        with pytest.raises(ValueError, match="isn't a Wind Waker permalink"):
+            await service.create_preset(actor, name='SGL', randomizer='wwr', settings={'permalink': 'garbage!!'})
+        assert await Preset.filter(randomizer='wwr').count() == 0
+
+    async def test_update_refuses_a_broken_permalink(self, service, actor):
+        preset = await service.create_preset(actor, name='SGL', randomizer='wwr', settings={'permalink': self.SGL26})
+        with pytest.raises(ValueError, match='needs a "permalink"'):
+            await service.update_preset(actor, preset.id, settings={})
+        await preset.refresh_from_db()
+        assert preset.settings == {'permalink': self.SGL26}
+
+    async def test_a_rename_leaves_old_settings_unjudged(self, service, actor):
+        # A wwr row saved while the generator was a stub may hold ``{}``.
+        stale = await Preset.create(name='Old', randomizer='wwr', settings={})
+        renamed = await service.update_preset(actor, stale.id, name='Older')
+        assert (renamed.name, renamed.settings) == ('Older', {})
+
+    async def test_switching_a_preset_to_wwr_checks_its_settings(self, service, actor):
+        preset = await service.create_preset(actor, name='Was ALttPR', randomizer='alttpr', settings={'mode': 'open'})
+        with pytest.raises(ValueError, match='needs a "permalink"'):
+            await service.update_preset(actor, preset.id, randomizer='wwr')
+
+    async def test_the_sgl_permalink_is_a_builtin(self, service, actor):
+        created = await service.import_builtins(actor)
+        [sgl] = [p for p in created if (p.randomizer, p.name) == ('wwr', 'sgl2026')]
+        assert sgl.settings == {'permalink': self.SGL26}
+        assert 'dev_tanjo3.1.10.7.3' in sgl.description
+
+    async def test_test_roll_returns_a_permalink_for_the_same_build(self, service, actor, monkeypatch):
+        from application.services._seedgen_wwr import decode_permalink
+
+        monkeypatch.delenv('MOCK_SEEDGEN', raising=False)
+        preset = await service.create_preset(actor, name='SGL', randomizer='wwr', settings={'permalink': self.SGL26})
+        result = await service.test_roll(actor, preset.id)
+        assert result.used_preset_settings is True
+        assert decode_permalink(result.seed_url).version == 'dev_tanjo3.1.10.7.3_d30d27c'

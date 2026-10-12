@@ -226,10 +226,12 @@ unreachable (block it at the firewall). The failure must surface as a user-facin
 error with no half-written seed on the match.
 **Pass:** clear message, match left rollable, error captured in Sentry.
 
-### RG7 · Stub randomizers — S3, cause A
-`wwr` is registered but not wired. Confirm it is not
-offered for an October tournament, and that rolling one raises cleanly.
-**Pass:** not selectable; no traceback reaches the user.
+### RG7 · Wind Waker permalinks — S3, cause A
+`wwr` rolls locally from the tournament's preset permalink. Import the SGL 2026
+built-in, attach it, roll a WW match, and paste the DM'd permalink into build
+`dev_tanjo3.1.10.7.3`. Then detach the preset and roll again.
+**Pass:** the randomizer accepts the permalink and shows the same settings; with
+no preset the proctor sees "Wind Waker needs a preset with a permalink", no traceback.
 
 ### RG8 · Two staff roll the same match at once — S1, cause C/D
 The per-match seed lock is an **in-process singleton**. Two admins on two

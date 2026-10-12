@@ -152,6 +152,12 @@ appears in the **Generated Seed** column on My Schedule.
 Some randomizers take a few minutes to generate a seed. While that happens the
 column shows a spinner, and you can leave the page: the DM still arrives.
 
+Some randomizers don't give you a link. Wind Waker gives you a **permalink** and
+Zelda 1 a seed and flags, which you paste into your own copy of the randomizer.
+The DM shows it in a box you can long-press to copy, and the Generated Seed column
+has a copy button beside it. A Wind Waker permalink only works in the build the DM
+names, so check you've got that one before you paste.
+
 ### Harder settings
 
 :::snippet harder-settings

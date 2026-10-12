@@ -31,6 +31,9 @@ P = ["Player One", "Player Two"]
 T = "Wizzrobe Dev Tournament"
 WHEN = "2026-07-19 22:41 EDT"
 STAGE = "Stage 2"
+WW_PERMALINK = "eJxLSS2LL0nMy8o31jPUMzTQM9czjk8xNkgxMk9mcEktC05NTQnPzEsJT8xO..."
+WW_PASTE = ("Paste this permalink into Wind Waker Randomizer build **dev_tanjo3.1.10.7.3**. "
+            "Other builds will reject it.")
 COMMUNITY = "Wizzrobe Dev Community"  # the per-embed footer (which community sent this)
 # Raw UTC drives the embeds' native <t:unix:F>/<t:unix:R> timestamps (the plain
 # text builders take the pre-formatted Eastern string above instead).
@@ -61,9 +64,12 @@ NOTIFICATIONS = [
      m.scheduled_dm(T, WHEN, player_names=P, stage_name=STAGE)),
     ("Crew approved", "[Acknowledge]",
      mc.crew_assignment_dm("commentator", "Player One vs Player Two", WHEN, STAGE, P)),
-    ("Seed generated", "(no buttons)",
+    ("Seed generated", "[Open your seed] (link, off-site)",
      m.seed_dm("Player One", T, "https://alttpr.com/en/h/abcd1234",
                player_names=P, scheduled_at_display=WHEN, stage_name=STAGE)),
+    ("Seed generated — pasted seed (Wind Waker permalink; Z1R likewise)", "[Copy it from Wizzrobe] (link only)",
+     m.seed_dm("Player One", T, WW_PERMALINK, player_names=P, scheduled_at_display=WHEN,
+               stage_name=STAGE, paste_instructions=WW_PASTE)),
     ("Volunteer shift assigned", "[Acknowledge]",
      mv.volunteer_assignment_dm(*SHIFT)),
     ("Volunteer shift reminder", "[Acknowledge]",
@@ -135,6 +141,10 @@ EMBEDS = [
         player_names=P, when=WHEN_UTC, stage_name=STAGE,
         description="[Open your seed](https://alttpr.com/en/h/abcd1234)",
         url="https://alttpr.com/en/h/abcd1234")),
+    ("Seed ready — pasted seed", e.match_embed(
+        title="🎲 Seed ready", color=e.COLOR_SEED, tournament=T, community_name=COMMUNITY,
+        player_names=P, when=WHEN_UTC, stage_name=STAGE,
+        description=m.seed_paste_block(WW_PERMALINK, WW_PASTE))),
     ("Crew assignment", e.notification_embed(
         title="🎙️ Commentator assignment", color=e.COLOR_CREW, community_name=COMMUNITY,
         description="Tap **Acknowledge** below to confirm you can cover this.",

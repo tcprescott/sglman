@@ -2,8 +2,7 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, and Test.
-Registers a not-yet-implemented stub: WWR.
+Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, DASH, WWR, and Test.
 """
 
 import asyncio
@@ -20,6 +19,7 @@ import aiohttp
 import yaml
 from pyz3r import ALTTPR
 
+import application.services._seedgen_wwr as wwr_permalinks
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
 from application.services._seedgen_dk64r import (
@@ -32,6 +32,7 @@ from application.services._seedgen_types import (
     AsyncRollSubmission,
     RemotePreset,
     RolledSeed,
+    WWPermalinkInfo,
 )
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
 from application.utils.seed_provider import (
@@ -39,6 +40,7 @@ from application.utils.seed_provider import (
     PROVIDER_TIMEOUT_SECONDS,
     ProviderCall,
     SeedProviderBadResponse,
+    SeedProviderInvalidRequest,
     call_provider,
     raise_for_status,
 )
@@ -50,6 +52,7 @@ __all__ = [
     'RemotePreset',
     'RolledSeed',
     'SeedGenerationService',
+    'WWPermalinkInfo',
 ]
 
 
@@ -86,11 +89,17 @@ class SeedGenerationService(DK64RBackend):
 
     # Randomizers registered for selection but whose generator is not yet
     # wired to an upstream API — rolling one raises ``ValueError``.
-    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'wwr'}
+    STUB_RANDOMIZERS: ClassVar[Set[str]] = set()
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'smdash'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'smdash', 'wwr'}
+
+    # Rolls that ``MOCK_SEEDGEN`` leaves alone. DK64R mocks one layer down (see
+    # ``generate_seed_call``); WWR and Z1R are built locally with no upstream to
+    # stand in for, and their seeds are plain strings rather than URLs, which is
+    # exactly what the dev environment needs to show for the copy card to be seen.
+    MOCK_EXEMPT_RANDOMIZERS: ClassVar[Set[str]] = {'dk64r', 'wwr', 'z1r'}
 
     # Backends whose roll is a task queue rather than a request: submit now,
     # collect minutes later. These do not return a seed from one call, so every
@@ -128,6 +137,54 @@ class SeedGenerationService(DK64RBackend):
         # timeout mints a second seed and orphans the first.
         'smdash': 1,
     }
+
+    @staticmethod
+    def normalize_preset_settings(randomizer: str, settings: dict) -> dict:
+        """Check a preset's settings for what its randomizer needs, before it's saved.
+
+        Most backends hand their settings upstream untouched and let upstream
+        judge them. WWR has no upstream, so a pasted permalink is decoded here,
+        and one that isn't a permalink, or doesn't fit its vendored build, is
+        refused with a ``ValueError`` rather than at the desk minutes before a race.
+        """
+        if randomizer != 'wwr':
+            return settings
+        permalink = settings.get('permalink')
+        if not isinstance(permalink, str) or not permalink.strip():
+            raise ValueError('A Wind Waker preset needs a "permalink" copied from the randomizer.')
+        unknown = set(settings) - {'permalink'}
+        if unknown:
+            raise ValueError(f"A Wind Waker preset holds only a permalink, not {', '.join(sorted(unknown))}.")
+        permalink = permalink.strip()
+        wwr_permalinks.summarize(permalink)
+        return {'permalink': permalink}
+
+    @staticmethod
+    def paste_instructions(randomizer: str, settings: Optional[dict]) -> Optional[str]:
+        """What a player does with a seed that isn't a link, or ``None`` for one that is.
+
+        WWR and Z1R seeds are pasted into the player's own copy of the
+        randomizer. WWR names its build, because a permalink only loads in the
+        exact build that made it and the randomizer's own error message is the
+        first a player would otherwise hear of it.
+        """
+        if randomizer == 'wwr':
+            version = (settings or {}).get('version')
+            if version:
+                build = wwr_permalinks.build_name(version)
+                return f'Paste this permalink into Wind Waker Randomizer build **{build}**. Other builds will reject it.'
+            return 'Paste this permalink into the Wind Waker Randomizer.'
+        if randomizer == 'z1r':
+            return 'Enter this seed and these flags in the Zelda 1 Randomizer.'
+        return None
+
+    @staticmethod
+    def describe_wwr_permalink(permalink: str) -> WWPermalinkInfo:
+        """The build and headline settings of a pasted permalink, for the Presets tab."""
+        parsed = wwr_permalinks.decode_permalink(permalink)
+        return WWPermalinkInfo(
+            build=parsed.build, version=parsed.version, summary=wwr_permalinks.summarize(permalink),
+        )
 
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
@@ -241,7 +298,7 @@ class SeedGenerationService(DK64RBackend):
         # at its HTTP session: its roll is a minutes-long task queue, and a
         # permalink returned immediately never puts the presentation layer into
         # the waiting state that is the whole point of testing this backend.
-        if is_mock_seedgen() and randomizer != 'dk64r':
+        if is_mock_seedgen() and randomizer not in self.MOCK_EXEMPT_RANDOMIZERS:
             return ProviderCall(
                 value=RolledSeed(url=self._mock_seed_url(randomizer)),
                 provider=randomizer, operation='generate_seed', surface=surface,
@@ -563,9 +620,31 @@ class SeedGenerationService(DK64RBackend):
         if randomizer not in self.ASYNC_RANDOMIZERS:
             raise ValueError(f"'{randomizer}' is not an asynchronous randomizer.")
 
-    async def _generate_wwr(self) -> str:
-        """Generate a Wind Waker Randomizer seed. Not yet implemented."""
-        raise ValueError("Wind Waker Randomizer seed generation is not yet implemented.")
+    async def _generate_wwr(self, preset: Optional[Preset] = None) -> RolledSeed:
+        """Generate a Wind Waker Randomizer permalink.
+
+        Purely local: the preset's reference permalink (``{"permalink": ...}``,
+        pasted from the randomizer) keeps its build and settings and gets a fresh
+        seed name. Players paste the result into their own copy of that build.
+        There is no bundled fallback, so a tournament that lost its preset fails
+        loudly instead of rolling some other season's settings.
+        """
+        settings = preset.settings if preset is not None else None
+        reference = settings.get('permalink') if isinstance(settings, dict) else None
+        try:
+            if not isinstance(reference, str) or not reference.strip():
+                raise ValueError('Wind Waker needs a preset with a permalink. Paste one on the Presets tab.')
+            version = wwr_permalinks.decode_permalink(reference).version
+        except ValueError as e:
+            # Raised as the envelope's "will never roll" error so the proctor
+            # reads why, rather than the blanket "check the server logs".
+            raise SeedProviderInvalidRequest(str(e), provider='wwr', operation='generate_seed') from None
+        # The first roll for a build reads its word lists from disk.
+        seed_name = await asyncio.to_thread(wwr_permalinks.make_seed_name, version=version)
+        return RolledSeed(
+            url=wwr_permalinks.reseed(reference, seed_name),
+            settings={'reference_permalink': reference.strip(), 'version': version, 'seed_name': seed_name},
+        )
 
     async def _generate_test(self) -> RolledSeed:
         """

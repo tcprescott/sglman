@@ -69,8 +69,9 @@ and checking it back in. Staff can do the same. See [Running the equipment desk]
 **Event check-in**: arriving at the event and picking up your lanyard at the
 check-in desk. Separate from a match's check-in. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
-**Generated Seed**: the column on the schedule that holds the link to a match's
-seed once it has been rolled.
+**Generated Seed**: the column on the schedule that holds a match's seed once
+it has been rolled: a link, or for randomizers you paste into (Wind Waker, Zelda 1)
+the seed itself with a copy button.
 
 **Harder settings**: a tougher preset some tournaments offer beside their
 standard one. A match only plays it when every player privately opts in.
@@ -128,7 +129,7 @@ every match about to be played. It opens from a private link staff issue per
 machine, is read-only, and drops a match once it starts. See [The room's seeds screen](/help/proctor#the-room-s-seeds-screen).
 
 **Seed**: the randomised game the match is played on. When it's rolled you get a
-*Seed ready* DM, and the link appears in the *Generated Seed* column on My
+*Seed ready* DM, and the seed appears in the *Generated Seed* column on My
 Schedule (the *Seed* column on the Proctor Station board).
 
 **Signed up**: you are in a tournament's player pool, from the Tournaments tab or

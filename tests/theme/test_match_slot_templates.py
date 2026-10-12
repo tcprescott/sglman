@@ -407,7 +407,8 @@ def test_the_read_only_cells_have_callers():
 
     assert state_readonly_slot(scheduled_detailed=True) != state_readonly_slot(
         scheduled_detailed=False), 'the two variants must still differ'
-    assert SEED_SLOT_READONLY.count('<q-btn') == 0, 'the read-only cell rolls nothing'
+    assert "$emit('roll'" not in SEED_SLOT_READONLY, 'the read-only cell rolls nothing'
+    assert 'Generate' not in SEED_SLOT_READONLY, 'the read-only cell rolls nothing'
 
 
 def test_the_two_scheduled_variants_differ_only_in_their_scheduled_branch():

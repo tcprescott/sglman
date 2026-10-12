@@ -499,6 +499,20 @@ def stream_candidate_dm(
     )
 
 
+def is_seed_link(seed: str) -> bool:
+    """Whether a rolled seed opens in a browser, or is pasted into a randomizer."""
+    return seed.startswith(('https://', 'http://'))
+
+
+def seed_paste_block(seed: str, instructions: str) -> str:
+    """The instructions, then the seed alone in a code block.
+
+    A code block is what makes it one press to copy in Discord (long-press on
+    mobile) and keeps a base64 permalink from being reflowed or markdown-mangled.
+    """
+    return f"{instructions}\n```\n{seed}\n```"
+
+
 def seed_dm(
     player_name: str,
     tournament_name: str,
@@ -508,7 +522,14 @@ def seed_dm(
     scheduled_at_display: str = '',
     stage_name: str = '',
     bracket_line: str = '',
+    paste_instructions: Optional[str] = None,
 ) -> str:
+    """The seed DM's plain text: the web-push body, and the fallback without an embed.
+
+    ``paste_instructions`` is given for a seed that isn't a link (a WWR
+    permalink, Z1R seed and flags). The seed goes on a line of its own, not in
+    the embed's code block: web push shows this text verbatim, fences and all.
+    """
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
@@ -516,11 +537,12 @@ def seed_dm(
         bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
+    seed = f"{paste_instructions}\n\n{seed_url}" if paste_instructions else seed_url
     return (
         f"Hello {player_name},\n\n"
         f"A seed has been generated for your upcoming match in **{tournament_name}**.\n\n"
         f"{block}"
-        f"{seed_url}\n\n"
+        f"{seed}\n\n"
         f"Good luck and have fun!"
     )
 

@@ -603,3 +603,64 @@ class TestSeedDmDispatch:
         sent_ids = sorted(call.args[0] for call in service.discord_service.send_dm.call_args_list)
         assert sent_ids == [1, 3]
 
+
+
+class TestSeedDmCard:
+    """A link seed opens in a browser; a permalink or seed-and-flags is pasted.
+
+    Discord refuses a non-URL as a link button or embed URL and fails the whole
+    DM, which is what happened to every Z1R seed DM before the pasted kind got
+    its own card.
+    """
+
+    async def _roll(self, service, monkeypatch, generator, rolled):
+        staff = await make_staff()
+        t = await Tournament.create(name="T", seed_generator=generator)
+        m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
+        await MatchPlayers.create(match=m, user=await make_dm_user(1, name="alice"))
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=rolled)
+        service.discord_service.send_dm = AsyncMock(return_value=(True, "ok"))
+        captured = []
+        monkeypatch.setattr("application.services.discord.discord_queue.enqueue", captured.append)
+        ok, _message, _url = await service.generate_seed(m.id, staff)
+        assert ok is True
+        for coro in captured:
+            await coro
+        call = service.discord_service.send_dm.call_args
+        return m, call.args[1], call.kwargs['embed'], call.kwargs['link']
+
+    async def test_a_link_seed_gets_a_button_to_the_randomizer(self, service, db, monkeypatch):
+        _, message, embed, link = await self._roll(
+            service, monkeypatch, 'alttpr', _rolled("https://alttpr.com/h/xyz"),
+        )
+        assert link.url == "https://alttpr.com/h/xyz"
+        assert embed.url == "https://alttpr.com/h/xyz"
+        assert "```" not in embed.description
+
+    async def test_a_wwr_permalink_is_a_copyable_card_naming_its_build(self, service, db, monkeypatch):
+        permalink = 'eJxLSS2LL0nMy8o31jPUMzTQM9czjk8xNkgxMk9m'
+        m, message, embed, link = await self._roll(
+            service, monkeypatch, 'wwr',
+            _rolled(permalink, {'version': 'dev_tanjo3.1.10.7.3_d30d27c', 'seed_name': 'X'}),
+        )
+        assert embed.url is None
+        assert f"```\n{permalink}\n```" in embed.description
+        assert "**dev_tanjo3.1.10.7.3**" in embed.description
+        # The button lands on the match on the Player tab, where the seed has a copy button.
+        from application.utils.app_links import player_match_url
+
+        assert link.url.startswith("http")
+        assert link.url.endswith(player_match_url(m.id))
+        # The plain text is the web-push body, which shows fences literally.
+        assert f"\n\n{permalink}\n" in message
+        assert "```" not in message
+
+    async def test_a_z1r_seed_gets_the_same_card(self, service, db, monkeypatch):
+        seed = "123456789 - 12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA"
+        _, _message, embed, link = await self._roll(
+            service, monkeypatch, 'z1r', _rolled(seed, {'seed': '123456789', 'flags': 'x'}),
+        )
+        assert embed.url is None
+        assert f"```\n{seed}\n```" in embed.description
+        assert "Zelda 1 Randomizer" in embed.description
+        assert link.url.startswith("http")

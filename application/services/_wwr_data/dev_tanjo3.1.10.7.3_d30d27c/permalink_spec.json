@@ -1,0 +1,1128 @@
+{
+ "version": "dev_tanjo3.1.10.7.3_d30d27c",
+ "source_commit": "d30d27ceb19c8d6214a169548e84aef2cc097bc8",
+ "compressed": true,
+ "fields": [
+  {
+   "name": "progression_dungeons",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_tingle_chests",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_dungeon_secrets",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_puzzle_secret_caves",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_combat_secret_caves",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_savage_labyrinth",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_great_fairies",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_short_sidequests",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_long_sidequests",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_spoils_trading",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_minigames",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_battlesquid",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_free_gifts",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_mail",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_platforms_rafts",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_submarines",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_eye_reef_chests",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_big_octos_gunboats",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_triforce_charts",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_treasure_charts",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_expensive_purchases",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_island_puzzles",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_misc",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_rupee_dungeon",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_rupee_overworld",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_blue_chu_jellies",
+   "kind": "bool"
+  },
+  {
+   "name": "progression_orca_minigame",
+   "kind": "bool"
+  },
+  {
+   "name": "excluded_locations",
+   "kind": "flags",
+   "values": [
+    "Outset Island - Underneath Link's House",
+    "Outset Island - Rupee Behind Trees Near Link's House",
+    "Outset Island - Rupee Above Water Pool Near Link's House",
+    "Outset Island - Rupee on Link's House",
+    "Outset Island - Rupee on Jumping Rocks 1",
+    "Outset Island - Rupee on Jumping Rocks 2",
+    "Outset Island - Rupee Underneath Mesa's Door",
+    "Outset Island - Rupee Behind Mesa's Bed",
+    "Outset Island - Mesa the Grasscutter's House",
+    "Outset Island - Rupee on Mesa's House Upper",
+    "Outset Island - Rupee on Mesa's House Lower",
+    "Outset Island - Rupee Above Aryll's Lookout",
+    "Outset Island - Orca - Give 10 Knight's Crests",
+    "Outset Island - Orca - Hit 100 Times",
+    "Outset Island - Orca - Hit 300 Times",
+    "Outset Island - Orca - Hit 500 Times",
+    "Outset Island - Orca - Hit 1000 Times",
+    "Outset Island - Rupee Above Path to Forest of Fairies",
+    "Outset Island - Rupee on Pillar Below Bridge to Forest of Fairies",
+    "Outset Island - Rupee in Log in Forest of Fairies",
+    "Outset Island - Great Fairy",
+    "Outset Island - Jabun's Cave",
+    "Outset Island - Dig up Black Soil",
+    "Outset Island - Savage Labyrinth - Floor 30",
+    "Outset Island - Savage Labyrinth - Floor 50",
+    "Windfall Island - Jail - Tingle - First Gift",
+    "Windfall Island - Jail - Tingle - Second Gift",
+    "Windfall Island - Jail - Rupee Underneath Bed",
+    "Windfall Island - Jail - Rupee in Maze 1",
+    "Windfall Island - Jail - Rupee in Maze 2",
+    "Windfall Island - Jail - Rupee in Maze 3",
+    "Windfall Island - Jail - Maze Chest",
+    "Windfall Island - Chu Jelly Juice Shop - Rupee on Right Shelf",
+    "Windfall Island - Chu Jelly Juice Shop - Rupee on Left Shelf",
+    "Windfall Island - Chu Jelly Juice Shop - Give 15 Green Chu Jelly",
+    "Windfall Island - Chu Jelly Juice Shop - Give 15 Blue Chu Jelly",
+    "Windfall Island - Ivan - Catch Killer Bees",
+    "Windfall Island - Mrs. Marie - Catch Killer Bees",
+    "Windfall Island - Mrs. Marie - Give 1 Joy Pendant",
+    "Windfall Island - Mrs. Marie - Give 21 Joy Pendants",
+    "Windfall Island - Mrs. Marie - Give 40 Joy Pendants",
+    "Windfall Island - Lenzo's House - Left Chest",
+    "Windfall Island - Lenzo's House - Right Chest",
+    "Windfall Island - Lenzo's House - Become Lenzo's Assistant",
+    "Windfall Island - Lenzo's House - Bring Forest Firefly",
+    "Windfall Island - House of Wealth Chest",
+    "Windfall Island - Maggie's Father - Give 20 Skull Necklaces",
+    "Windfall Island - Maggie - Free Item",
+    "Windfall Island - Maggie - Delivery Reward",
+    "Windfall Island - Cafe Bar - Postman",
+    "Windfall Island - Kreeb - Light Up Lighthouse",
+    "Windfall Island - Transparent Chest",
+    "Windfall Island - Tott - Teach Rhythm",
+    "Windfall Island - Pirate Ship",
+    "Windfall Island - 5 Rupee Auction",
+    "Windfall Island - 40 Rupee Auction",
+    "Windfall Island - 60 Rupee Auction",
+    "Windfall Island - 80 Rupee Auction",
+    "Windfall Island - Zunari - Sail",
+    "Windfall Island - Zunari - Stock Exotic Flower in Zunari's Shop",
+    "Windfall Island - Sam - Decorate the Town",
+    "Windfall Island - Kane - Place Shop Guru Statue on Gate",
+    "Windfall Island - Kane - Place Postman Statue on Gate",
+    "Windfall Island - Kane - Place Six Flags on Gate",
+    "Windfall Island - Kane - Place Six Idols on Gate",
+    "Windfall Island - Mila - Follow the Thief",
+    "Windfall Island - Rupee Behind Battlesquid Minigame 1",
+    "Windfall Island - Rupee Behind Battlesquid Minigame 2",
+    "Windfall Island - Rupee Behind Battlesquid Minigame 3",
+    "Windfall Island - Battlesquid - First Prize",
+    "Windfall Island - Battlesquid - Second Prize",
+    "Windfall Island - Battlesquid - Under 20 Shots Prize",
+    "Windfall Island - Dampa Pig Minigame - Deliver 1 Pig",
+    "Windfall Island - Dampa Pig Minigame - Deliver 3 Pigs",
+    "Windfall Island - Pompie and Vera - Secret Meeting Photo",
+    "Windfall Island - Kamo - Full Moon Photo",
+    "Windfall Island - Minenco - Miss Windfall Photo",
+    "Windfall Island - Linda and Anton",
+    "Dragon Roost Island - Rupee in Shallow Pool 1",
+    "Dragon Roost Island - Rupee in Shallow Pool 2",
+    "Dragon Roost Island - Rupee in Shallow Pool 3",
+    "Dragon Roost Island - Rupee in Shallow Pool 4",
+    "Dragon Roost Island - Rupee in Shallow Pool 5",
+    "Dragon Roost Island - Wind Shrine",
+    "Dragon Roost Island - Rupee Above Bomb Flower",
+    "Dragon Roost Island - Rupee Above Grapple Post",
+    "Dragon Roost Island - Rito Aerie - Give Hoskit 20 Golden Feathers",
+    "Dragon Roost Island - Chest on Top of Boulder",
+    "Dragon Roost Island - Fly Across Platforms Around Island",
+    "Dragon Roost Island - Rito Aerie - Mail Sorting",
+    "Dragon Roost Island - Secret Cave",
+    "Dragon Roost Cavern - First Room",
+    "Dragon Roost Cavern - Alcove With Water Jugs",
+    "Dragon Roost Cavern - Water Jug on Upper Shelf",
+    "Dragon Roost Cavern - Boarded Up Chest",
+    "Dragon Roost Cavern - Chest Across Lava Pit",
+    "Dragon Roost Cavern - Rupee in Rat Room Lower Crawlspace 1",
+    "Dragon Roost Cavern - Rupee in Rat Room Lower Crawlspace 2",
+    "Dragon Roost Cavern - Rupee in Rat Room Lower Crawlspace 3",
+    "Dragon Roost Cavern - Rupee in Rat Room Lower Crawlspace 4",
+    "Dragon Roost Cavern - Rupee in Rat Room Lower Crawlspace 5",
+    "Dragon Roost Cavern - Rupee in Rat Room Upper Crawlspace 1",
+    "Dragon Roost Cavern - Rupee in Rat Room Upper Crawlspace 2",
+    "Dragon Roost Cavern - Rupee in Rat Room Upper Crawlspace 3",
+    "Dragon Roost Cavern - Rupee in Rat Room Upper Crawlspace 4",
+    "Dragon Roost Cavern - Rat Room",
+    "Dragon Roost Cavern - Rat Room Boarded Up Chest",
+    "Dragon Roost Cavern - Bird's Nest",
+    "Dragon Roost Cavern - Dark Room",
+    "Dragon Roost Cavern - Tingle Chest in Hub Room",
+    "Dragon Roost Cavern - Pot on Upper Shelf in Pot Room",
+    "Dragon Roost Cavern - Pot Room Chest",
+    "Dragon Roost Cavern - Miniboss",
+    "Dragon Roost Cavern - Under Rope Bridge",
+    "Dragon Roost Cavern - Tingle Statue Chest",
+    "Dragon Roost Cavern - Big Key Chest",
+    "Dragon Roost Cavern - Boss Stairs Right Chest",
+    "Dragon Roost Cavern - Boss Stairs Left Chest",
+    "Dragon Roost Cavern - Boss Stairs Right Pot",
+    "Dragon Roost Cavern - Gohma Heart Container",
+    "Forest Haven - On Tree Branch",
+    "Forest Haven - Small Island Chest",
+    "Forbidden Woods - First Room",
+    "Forbidden Woods - Inside Hollow Tree's Mouth",
+    "Forbidden Woods - Climb to Top Using Boko Baba Bulbs",
+    "Forbidden Woods - Pot High Above Hollow Tree",
+    "Forbidden Woods - Rupee on Lower Tree Branch 1",
+    "Forbidden Woods - Rupee on Lower Tree Branch 2",
+    "Forbidden Woods - Rupee on Lower Tree Branch 3",
+    "Forbidden Woods - Rupee on Lower Tree Branch 4",
+    "Forbidden Woods - Rupee on Upper Tree Branch 1",
+    "Forbidden Woods - Rupee on Upper Tree Branch 2",
+    "Forbidden Woods - Rupee on Upper Tree Branch 3",
+    "Forbidden Woods - Rupee on Upper Tree Branch 4",
+    "Forbidden Woods - Hole in Tree",
+    "Forbidden Woods - Rupee Near Boko Baba 1",
+    "Forbidden Woods - Rupee Near Boko Baba 2",
+    "Forbidden Woods - Rupee Near Boko Baba 3",
+    "Forbidden Woods - Rupee Near Boko Baba 4",
+    "Forbidden Woods - Rupee Near Boko Baba 5",
+    "Forbidden Woods - Rupee in Tree in Hub Room 1",
+    "Forbidden Woods - Rupee in Tree in Hub Room 2",
+    "Forbidden Woods - Rupee in Tree in Hub Room 3",
+    "Forbidden Woods - Rupee in Tree in Hub Room 4",
+    "Forbidden Woods - Rupee in Tree in Hub Room 5",
+    "Forbidden Woods - Morth Pit",
+    "Forbidden Woods - Vine Maze Left Chest",
+    "Forbidden Woods - Vine Maze Right Chest",
+    "Forbidden Woods - Highest Pot in Vine Maze",
+    "Forbidden Woods - Tall Room Before Miniboss",
+    "Forbidden Woods - Mothula Miniboss Room",
+    "Forbidden Woods - Rupee Around Miniboss Chest 1",
+    "Forbidden Woods - Rupee Around Miniboss Chest 2",
+    "Forbidden Woods - Rupee Around Miniboss Chest 3",
+    "Forbidden Woods - Rupee Around Miniboss Chest 4",
+    "Forbidden Woods - Rupee Around Miniboss Chest 5",
+    "Forbidden Woods - Rupee Around Miniboss Chest 6",
+    "Forbidden Woods - Rupee Around Miniboss Chest 7",
+    "Forbidden Woods - Rupee Around Miniboss Chest 8",
+    "Forbidden Woods - Past Seeds Hanging by Vines",
+    "Forbidden Woods - Chest Across Red Hanging Flower",
+    "Forbidden Woods - Tingle Statue Chest",
+    "Forbidden Woods - Chest in Locked Tree Trunk",
+    "Forbidden Woods - Big Key Chest",
+    "Forbidden Woods - Double Mothula Room",
+    "Forbidden Woods - Kalle Demos Heart Container",
+    "Greatfish Isle - Hidden Chest",
+    "Greatfish Isle - Rupee on Small Island 1",
+    "Greatfish Isle - Rupee on Small Island 2",
+    "Greatfish Isle - Rupee on Small Island 3",
+    "Greatfish Isle - Rupee on Small Island 4",
+    "Tower of the Gods - Chest Behind Bombable Walls",
+    "Tower of the Gods - Pot Behind Bombable Walls",
+    "Tower of the Gods - Hop Across Floating Boxes",
+    "Tower of the Gods - Light Two Torches",
+    "Tower of the Gods - Skulls Room Chest",
+    "Tower of the Gods - Shoot Eye Above Skulls Room Chest",
+    "Tower of the Gods - Tingle Statue Chest",
+    "Tower of the Gods - First Chest Guarded by Armos Knights",
+    "Tower of the Gods - Stone Tablet",
+    "Tower of the Gods - Darknut Miniboss Room",
+    "Tower of the Gods - Second Chest Guarded by Armos Knights",
+    "Tower of the Gods - Floating Platforms Room",
+    "Tower of the Gods - Top of Floating Platforms Room",
+    "Tower of the Gods - Eastern Pot in Big Key Chest Room",
+    "Tower of the Gods - Big Key Chest",
+    "Tower of the Gods - Gohdan Heart Container",
+    "Hyrule - Master Sword Chamber",
+    "Forsaken Fortress - Phantom Ganon",
+    "Forsaken Fortress - Chest Outside Upper Jail Cell",
+    "Forsaken Fortress - Chest Inside Lower Jail Cell",
+    "Forsaken Fortress - Chest Guarded By Bokoblin",
+    "Forsaken Fortress - Chest on Bed",
+    "Forsaken Fortress - Helmaroc King Heart Container",
+    "Mother and Child Isles - Inside Mother Isle",
+    "Mother and Child Isles - Blue ChuChu Drop",
+    "Fire Mountain - Cave - Chest",
+    "Fire Mountain - Lookout Platform Chest",
+    "Fire Mountain - Lookout Platform - Destroy the Cannons",
+    "Fire Mountain - Big Octo",
+    "Ice Ring Isle - Frozen Chest",
+    "Ice Ring Isle - Rupee Frozen in Ice",
+    "Ice Ring Isle - Rupee on Iceberg",
+    "Ice Ring Isle - Rupee on Ice Slide in Cave 1",
+    "Ice Ring Isle - Rupee on Ice Slide in Cave 2",
+    "Ice Ring Isle - Cave - Chest",
+    "Ice Ring Isle - Inner Cave - Chest",
+    "Headstone Island - Top of the Island",
+    "Headstone Island - Rupee on Top of Headstone",
+    "Headstone Island - Rupee on Lone Spire",
+    "Headstone Island - Rupee Behind Headstone 1",
+    "Headstone Island - Rupee Behind Headstone 2",
+    "Headstone Island - Rupee Behind Headstone 3",
+    "Headstone Island - Rupee Behind Headstone 4",
+    "Headstone Island - Rupee Behind Headstone 5",
+    "Headstone Island - Rupee Behind Headstone 6",
+    "Headstone Island - Rupee Behind Headstone 7",
+    "Headstone Island - Rupee East of Headstone 1",
+    "Headstone Island - Rupee East of Headstone 2",
+    "Headstone Island - Rupee East of Headstone 3",
+    "Headstone Island - Rupee East of Headstone 4",
+    "Headstone Island - Submarine",
+    "Earth Temple - Transparent Chest In Warp Pot Room",
+    "Earth Temple - Behind Curtain In Warp Pot Room",
+    "Earth Temple - Rupee Behind Curtain In Warp Pot Room",
+    "Earth Temple - Transparent Chest in First Crypt",
+    "Earth Temple - Chest Behind Destructible Walls",
+    "Earth Temple - Chest In Three Blocks Room",
+    "Earth Temple - Chest Behind Statues",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 1",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 2",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 3",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 4",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 5",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 6",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 7",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 8",
+    "Earth Temple - Rupee Behind Destructible Wall in Shortcut 9",
+    "Earth Temple - Rupee Under Destructible Statue in Shortcut",
+    "Earth Temple - Casket in Second Crypt",
+    "Earth Temple - Rupee in Second Crypt",
+    "Earth Temple - Stalfos Miniboss Room",
+    "Earth Temple - Tingle Statue Chest",
+    "Earth Temple - End of Foggy Room With Floormasters",
+    "Earth Temple - Kill All Floormasters in Foggy Room",
+    "Earth Temple - Behind Curtain Next to Hammer Button",
+    "Earth Temple - Rupee Behind Destructible Statue Before Third Crypt",
+    "Earth Temple - Chest in Third Crypt",
+    "Earth Temple - Rupee in Third Crypt 1",
+    "Earth Temple - Rupee in Third Crypt 2",
+    "Earth Temple - Many Mirrors Room Right Chest",
+    "Earth Temple - Many Mirrors Room Left Chest",
+    "Earth Temple - Stalfos Crypt Room",
+    "Earth Temple - Big Key Chest",
+    "Earth Temple - Jalhalla Heart Container",
+    "Gale Isle - Rupee on West Side of Summit 1",
+    "Gale Isle - Rupee on West Side of Summit 2",
+    "Gale Isle - Rupee on West Side of Summit 3",
+    "Gale Isle - Rupee on Summit 1",
+    "Gale Isle - Rupee on Summit 2",
+    "Gale Isle - Rupee on Summit 3",
+    "Gale Isle - Rupee on Summit 4",
+    "Gale Isle - Rupee on East Side of Summit 1",
+    "Gale Isle - Rupee on East Side of Summit 2",
+    "Gale Isle - Rupee on East Side of Summit 3",
+    "Gale Isle - Rupee on East Side of Summit 4",
+    "Gale Isle - Rupee on East Pillars 1",
+    "Gale Isle - Rupee on East Pillars 2",
+    "Gale Isle - Rupee on East Pillars 3",
+    "Wind Temple - Chest Between Two Dirt Patches",
+    "Wind Temple - Behind Stone Head in Hidden Upper Room",
+    "Wind Temple - Tingle Statue Chest",
+    "Wind Temple - Chest Behind Stone Head",
+    "Wind Temple - Chest in Left Alcove",
+    "Wind Temple - Rupee Hidden Under Cracked Floor 1",
+    "Wind Temple - Rupee Hidden Under Cracked Floor 2",
+    "Wind Temple - Rupee Hidden Under Cracked Floor 3",
+    "Wind Temple - Big Key Chest",
+    "Wind Temple - Chest In Many Cyclones Room",
+    "Wind Temple - Behind Stone Head in Many Cyclones Room",
+    "Wind Temple - Chest In Middle Of Hub Room",
+    "Wind Temple - Spike Wall Room - First Chest",
+    "Wind Temple - Spike Wall Room - Destroy All Cracked Floors",
+    "Wind Temple - Wizzrobe Miniboss Room",
+    "Wind Temple - Chest at Top of Hub Room",
+    "Wind Temple - Chest Behind Seven Armos",
+    "Wind Temple - Kill All Enemies in Tall Basement Room",
+    "Wind Temple - Molgera Heart Container",
+    "Ganon's Tower - Maze Chest",
+    "Mailbox - Letter from Hoskit's Girlfriend",
+    "Mailbox - Letter from Baito's Mother",
+    "Mailbox - Letter from Baito",
+    "Mailbox - Letter from Komali's Father",
+    "Mailbox - Letter Advertising Bombs in Beedle's Shop",
+    "Mailbox - Letter Advertising Rock Spire Shop Ship",
+    "Mailbox - Beedle's Silver Membership Reward",
+    "Mailbox - Beedle's Gold Membership Reward",
+    "Mailbox - Letter from Orca",
+    "Mailbox - Letter from Grandma",
+    "Mailbox - Letter from Aryll",
+    "Mailbox - Letter from Tingle",
+    "The Great Sea - Beedle's Shop Ship - 20 Rupee Item",
+    "The Great Sea - Salvage Corp Gift",
+    "The Great Sea - Cyclos",
+    "The Great Sea - Goron Trading Reward",
+    "The Great Sea - Withered Trees",
+    "The Great Sea - Ghost Ship",
+    "Private Oasis - Rupee Underneath Cabana 1",
+    "Private Oasis - Rupee Underneath Cabana 2",
+    "Private Oasis - Rupee Underneath Cabana 3",
+    "Private Oasis - Rupee Underneath Cabana 4",
+    "Private Oasis - Rupee Underneath Cabana 5",
+    "Private Oasis - Rupee Underneath Cabana 6",
+    "Private Oasis - Rupee Underneath Cabana 7",
+    "Private Oasis - Rupee Underneath Cabana 8",
+    "Private Oasis - Rupee Underneath Cabana 9",
+    "Private Oasis - Chest at Top of Waterfall",
+    "Private Oasis - Rupee at the Top of Waterfall",
+    "Private Oasis - Rupee in Waterfall 1",
+    "Private Oasis - Rupee in Waterfall 2",
+    "Private Oasis - Rupee in Waterfall 3",
+    "Private Oasis - Rupee in Waterfall 4",
+    "Private Oasis - Rupee in Waterfall 5",
+    "Private Oasis - Rupee at the Bottom of Waterfall",
+    "Private Oasis - Rupee in Pool 1",
+    "Private Oasis - Rupee in Pool 2",
+    "Private Oasis - Rupee in Pool 3",
+    "Private Oasis - Rupee in Pool 4",
+    "Private Oasis - Rupee in Pool 5",
+    "Private Oasis - Rupee in Pool 6",
+    "Private Oasis - Rupee in Pool 7",
+    "Private Oasis - Cabana Labyrinth - Lower Floor Chest",
+    "Private Oasis - Cabana Labyrinth - Upper Floor Chest",
+    "Private Oasis - Big Octo",
+    "Spectacle Island - Barrel Shooting - First Prize",
+    "Spectacle Island - Barrel Shooting - Second Prize",
+    "Spectacle Island - Blue ChuChu Drop",
+    "Needle Rock Isle - Chest",
+    "Needle Rock Isle - Cave",
+    "Needle Rock Isle - Golden Gunboat",
+    "Needle Rock Isle - Blue ChuChu Drop",
+    "Angular Isles - Peak",
+    "Angular Isles - Cave",
+    "Angular Isles - Blue ChuChu Drop",
+    "Boating Course - Raft",
+    "Boating Course - Cave",
+    "Boating Course - Blue ChuChu Drop",
+    "Stone Watcher Island - Cave",
+    "Stone Watcher Island - Lookout Platform Chest",
+    "Stone Watcher Island - Lookout Platform - Destroy the Cannons",
+    "Stone Watcher Island - Blue ChuChu Drop",
+    "Islet of Steel - Interior",
+    "Islet of Steel - Lookout Platform - Defeat the Enemies",
+    "Overlook Island - Cave",
+    "Overlook Island - Blue ChuChu Drop",
+    "Bird's Peak Rock - Cave",
+    "Bird's Peak Rock - Blue ChuChu Drop",
+    "Pawprint Isle - Rupee Hidden On Small ChuChu Statue 1",
+    "Pawprint Isle - Rupee Hidden On Small ChuChu Statue 2",
+    "Pawprint Isle - Rupee Around Tree 1",
+    "Pawprint Isle - Rupee Around Tree 2",
+    "Pawprint Isle - Rupee Around Tree 3",
+    "Pawprint Isle - Rupee Around Tree 4",
+    "Pawprint Isle - Chuchu Cave - Chest",
+    "Pawprint Isle - Chuchu Cave - Behind Left Boulder",
+    "Pawprint Isle - Chuchu Cave - Behind Right Boulder",
+    "Pawprint Isle - Chuchu Cave - Scale the Wall",
+    "Pawprint Isle - Wizzrobe Cave",
+    "Pawprint Isle - Lookout Platform - Defeat the Enemies",
+    "Pawprint Isle - Blue ChuChu Drop",
+    "Thorned Fairy Island - Great Fairy",
+    "Thorned Fairy Island - Northeastern Lookout Platform - Destroy the Cannons",
+    "Thorned Fairy Island - Southwestern Lookout Platform - Defeat the Enemies",
+    "Thorned Fairy Island - Blue ChuChu Drop",
+    "Eastern Fairy Island - Great Fairy",
+    "Eastern Fairy Island - Lookout Platform - Defeat the Cannons and Enemies",
+    "Eastern Fairy Island - Blue ChuChu Drop",
+    "Western Fairy Island - Great Fairy",
+    "Western Fairy Island - Lookout Platform",
+    "Western Fairy Island - Blue ChuChu Drop",
+    "Southern Fairy Island - Great Fairy",
+    "Southern Fairy Island - Lookout Platform - Destroy the Northwest Cannons",
+    "Southern Fairy Island - Lookout Platform - Destroy the Southeast Cannons",
+    "Southern Fairy Island - Blue ChuChu Drop",
+    "Northern Fairy Island - Great Fairy",
+    "Northern Fairy Island - Submarine",
+    "Northern Fairy Island - Blue ChuChu Drop",
+    "Tingle Island - Ankle - Reward for All Tingle Statues",
+    "Tingle Island - Rupee On Top of Tingle Tower",
+    "Tingle Island - Big Octo",
+    "Tingle Island - Blue ChuChu Drop",
+    "Diamond Steppe Island - Warp Maze Cave - First Chest",
+    "Diamond Steppe Island - Warp Maze Cave - Second Chest",
+    "Diamond Steppe Island - Big Octo",
+    "Diamond Steppe Island - Blue ChuChu Drop",
+    "Bomb Island - Cave",
+    "Bomb Island - Lookout Platform - Defeat the Enemies",
+    "Bomb Island - Submarine",
+    "Rock Spire Isle - Cave",
+    "Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item",
+    "Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item",
+    "Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item",
+    "Rock Spire Isle - Western Lookout Platform - Destroy the Cannons",
+    "Rock Spire Isle - Eastern Lookout Platform - Destroy the Cannons",
+    "Rock Spire Isle - Center Lookout Platform",
+    "Rock Spire Isle - Southeast Gunboat",
+    "Rock Spire Isle - Blue ChuChu Drop",
+    "Shark Island - Rupee in Trees 1",
+    "Shark Island - Rupee in Trees 2",
+    "Shark Island - Rupee in Trees 3",
+    "Shark Island - Rupee in Trees 4",
+    "Shark Island - Rupee in Trees 5",
+    "Shark Island - Rupee in Trees 6",
+    "Shark Island - Rupee in Trees 7",
+    "Shark Island - Rupee in Trees 8",
+    "Shark Island - Rupee on Upper Ledge 1",
+    "Shark Island - Rupee on Upper Ledge 2",
+    "Shark Island - Rupee on Upper Ledge 3",
+    "Shark Island - Cave",
+    "Shark Island - Blue ChuChu Drop",
+    "Cliff Plateau Isles - Cave",
+    "Cliff Plateau Isles - Rupee on Platform in Lower Pool 1",
+    "Cliff Plateau Isles - Rupee on Platform in Lower Pool 2",
+    "Cliff Plateau Isles - Rupee on Platform in Lower Pool 3",
+    "Cliff Plateau Isles - Rupee on Platform in Lower Pool 4",
+    "Cliff Plateau Isles - Rupee on Platform in Middle Pool 1",
+    "Cliff Plateau Isles - Rupee on Platform in Middle Pool 2",
+    "Cliff Plateau Isles - Rupee on Platform in Upper Pool",
+    "Cliff Plateau Isles - Highest Isle",
+    "Cliff Plateau Isles - Lookout Platform",
+    "Cliff Plateau Isles - Blue ChuChu Drop",
+    "Crescent Moon Island - Chest",
+    "Crescent Moon Island - Submarine",
+    "Crescent Moon Island - First Blue ChuChu Drop",
+    "Crescent Moon Island - Second Blue ChuChu Drop",
+    "Horseshoe Island - Play Golf",
+    "Horseshoe Island - Cave",
+    "Horseshoe Island - Northwestern Lookout Platform",
+    "Horseshoe Island - Southeastern Lookout Platform",
+    "Horseshoe Island - Blue ChuChu Drop",
+    "Flight Control Platform - Bird-Man Contest - First Prize",
+    "Flight Control Platform - Submarine",
+    "Star Island - Cave",
+    "Star Island - Lookout Platform",
+    "Star Island - Blue ChuChu Drop",
+    "Star Belt Archipelago - Lookout Platform",
+    "Five-Star Isles - Lookout Platform - Destroy the Cannons",
+    "Five-Star Isles - Raft",
+    "Five-Star Isles - Submarine",
+    "Seven-Star Isles - Center Lookout Platform",
+    "Seven-Star Isles - Northern Lookout Platform",
+    "Seven-Star Isles - Southern Lookout Platform",
+    "Seven-Star Isles - Big Octo",
+    "Cyclops Reef - Destroy the Cannons and Gunboats",
+    "Cyclops Reef - Lookout Platform - Defeat the Enemies",
+    "Two-Eye Reef - Destroy the Cannons and Gunboats",
+    "Two-Eye Reef - Lookout Platform",
+    "Two-Eye Reef - Big Octo Great Fairy",
+    "Three-Eye Reef - Destroy the Cannons and Gunboats",
+    "Four-Eye Reef - Destroy the Cannons and Gunboats",
+    "Five-Eye Reef - Destroy the Cannons",
+    "Five-Eye Reef - Lookout Platform",
+    "Six-Eye Reef - Destroy the Cannons and Gunboats",
+    "Six-Eye Reef - Lookout Platform - Destroy the Cannons",
+    "Six-Eye Reef - Submarine",
+    "Forsaken Fortress Sector - Sunken Treasure",
+    "Star Island - Sunken Treasure",
+    "Northern Fairy Island - Sunken Treasure",
+    "Gale Isle - Sunken Treasure",
+    "Crescent Moon Island - Sunken Treasure",
+    "Seven-Star Isles - Sunken Treasure",
+    "Overlook Island - Sunken Treasure",
+    "Four-Eye Reef - Sunken Treasure",
+    "Mother and Child Isles - Sunken Treasure",
+    "Spectacle Island - Sunken Treasure",
+    "Windfall Island - Sunken Treasure",
+    "Pawprint Isle - Sunken Treasure",
+    "Dragon Roost Island - Sunken Treasure",
+    "Flight Control Platform - Sunken Treasure",
+    "Western Fairy Island - Sunken Treasure",
+    "Rock Spire Isle - Sunken Treasure",
+    "Tingle Island - Sunken Treasure",
+    "Northern Triangle Island - Sunken Treasure",
+    "Eastern Fairy Island - Sunken Treasure",
+    "Fire Mountain - Sunken Treasure",
+    "Star Belt Archipelago - Sunken Treasure",
+    "Three-Eye Reef - Sunken Treasure",
+    "Greatfish Isle - Sunken Treasure",
+    "Cyclops Reef - Sunken Treasure",
+    "Six-Eye Reef - Sunken Treasure",
+    "Tower of the Gods Sector - Sunken Treasure",
+    "Eastern Triangle Island - Sunken Treasure",
+    "Thorned Fairy Island - Sunken Treasure",
+    "Needle Rock Isle - Sunken Treasure",
+    "Islet of Steel - Sunken Treasure",
+    "Stone Watcher Island - Sunken Treasure",
+    "Southern Triangle Island - Sunken Treasure",
+    "Private Oasis - Sunken Treasure",
+    "Bomb Island - Sunken Treasure",
+    "Bird's Peak Rock - Sunken Treasure",
+    "Diamond Steppe Island - Sunken Treasure",
+    "Five-Eye Reef - Sunken Treasure",
+    "Shark Island - Sunken Treasure",
+    "Southern Fairy Island - Sunken Treasure",
+    "Ice Ring Isle - Sunken Treasure",
+    "Forest Haven - Sunken Treasure",
+    "Cliff Plateau Isles - Sunken Treasure",
+    "Horseshoe Island - Sunken Treasure",
+    "Outset Island - Sunken Treasure",
+    "Headstone Island - Sunken Treasure",
+    "Two-Eye Reef - Sunken Treasure",
+    "Angular Isles - Sunken Treasure",
+    "Boating Course - Sunken Treasure",
+    "Five-Star Isles - Sunken Treasure"
+   ]
+  },
+  {
+   "name": "shuffle_small_keys",
+   "kind": "enum",
+   "values": [
+    "Vanilla",
+    "Start With",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Overworld",
+    "Anywhere"
+   ]
+  },
+  {
+   "name": "shuffle_big_keys",
+   "kind": "enum",
+   "values": [
+    "Vanilla",
+    "Start With",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Overworld",
+    "Anywhere"
+   ]
+  },
+  {
+   "name": "shuffle_maps_and_compasses",
+   "kind": "enum",
+   "values": [
+    "Vanilla",
+    "Start With",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Overworld",
+    "Anywhere"
+   ]
+  },
+  {
+   "name": "sword_mode",
+   "kind": "enum",
+   "values": [
+    "Start with Hero's Sword",
+    "No Starting Sword",
+    "Swordless"
+   ]
+  },
+  {
+   "name": "required_bosses",
+   "kind": "bool"
+  },
+  {
+   "name": "num_required_bosses",
+   "kind": "int",
+   "min": 1,
+   "max": 6
+  },
+  {
+   "name": "prioritize_required_bosses",
+   "kind": "bool"
+  },
+  {
+   "name": "chest_type_matches_contents",
+   "kind": "bool"
+  },
+  {
+   "name": "trap_chests",
+   "kind": "bool"
+  },
+  {
+   "name": "boss_soul_shuffle",
+   "kind": "bool"
+  },
+  {
+   "name": "enabled_tricks",
+   "kind": "flags",
+   "values": [
+    "Boating Course Cave with Only Hookshot",
+    "Circumvent Outset Island Trees with Deku Leaf",
+    "Cliff Plateau Isles Cave with Only Grappling Hook",
+    "DRC - Cut Down Hanging Platform with Hookshot or Grappling Hook",
+    "DRC - Hookshot Across Lava Pit",
+    "DRC - Use Deku Leaf to Enter Gaping Maw",
+    "DRC - Use Ice Arrows to Enter Gaping Maw",
+    "Defeat Electric ChuChus with Grappling Hook and Sword",
+    "Defeat Mighty Darknuts with Skull Hammer",
+    "Defeat Puppet Ganon Without Boomerang",
+    "Defeat Wizzrobes with Hookshot",
+    "ET - Defeat Floormasters with Skull Hammer",
+    "ET - Defeat Inactive Blue Bubbles with Bow",
+    "ET - Defeat Inactive Blue Bubbles with a Melee Weapon",
+    "ET - Reach Third Crypt Without Defeating Red Bubbles",
+    "FF - Access via Ganon's Tower Dark Portal",
+    "FF - Reach Boss Entrance via Bedpost Jumps",
+    "FF - Trick Mounted Cannons to Blow Up Gate",
+    "FF - Use Floormaster to Reach Upper Jail Cell",
+    "FW - Fly Through Vines Without Destroying Seeds",
+    "FW - Grapple Up Tall Room Before Miniboss Without Killing Peahats",
+    "Grab Pawprint Isle Rupees with Boomerang",
+    "Grab Shark Island Rupees with Boomerang",
+    "Jump Slash to Water Pool Roof Near Link's House",
+    "Reach Pillar Outside Forest Haven without Grappling Hook",
+    "Reflect Light Arrows with Skull Hammer",
+    "Salvage Without Killing Enemies",
+    "TotG - Fight Gohdan with Hookshot Instead of Bow",
+    "TotG - Hookshot Floating Platforms Room Chest from Door",
+    "TotG - Skip Deku Leaf for North Servant of the Tower",
+    "TotG - Use Deku Leaf to Fly Between Floating Platforms",
+    "Use Big Pig to Cut Down Outset Island Trees",
+    "Use Magic Armor While Salvaging",
+    "WT - Reach Hub Room Upper Level with Hookshot"
+   ]
+  },
+  {
+   "name": "hero_mode",
+   "kind": "bool"
+  },
+  {
+   "name": "orca_one_hit_knockout",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_dungeon_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_secret_cave_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_miniboss_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_boss_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_secret_cave_inner_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_fairy_fountain_entrances",
+   "kind": "bool"
+  },
+  {
+   "name": "mix_entrances",
+   "kind": "enum",
+   "values": [
+    "Separate Dungeons From Caves & Fountains",
+    "Mix Dungeons & Caves & Fountains"
+   ]
+  },
+  {
+   "name": "randomize_enemies",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_enemy_palettes",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_starting_island",
+   "kind": "bool"
+  },
+  {
+   "name": "randomize_charts",
+   "kind": "bool"
+  },
+  {
+   "name": "hoho_hints",
+   "kind": "bool"
+  },
+  {
+   "name": "fishmen_hints",
+   "kind": "bool"
+  },
+  {
+   "name": "korl_hints",
+   "kind": "bool"
+  },
+  {
+   "name": "num_item_hints",
+   "kind": "int",
+   "min": 0,
+   "max": 15
+  },
+  {
+   "name": "num_location_hints",
+   "kind": "int",
+   "min": 0,
+   "max": 15
+  },
+  {
+   "name": "num_barren_hints",
+   "kind": "int",
+   "min": 0,
+   "max": 15
+  },
+  {
+   "name": "num_path_hints",
+   "kind": "int",
+   "min": 0,
+   "max": 15
+  },
+  {
+   "name": "cryptic_hints",
+   "kind": "bool"
+  },
+  {
+   "name": "prioritize_remote_hints",
+   "kind": "bool"
+  },
+  {
+   "name": "hint_importance",
+   "kind": "bool"
+  },
+  {
+   "name": "hoho_hint_shards",
+   "kind": "bool"
+  },
+  {
+   "name": "korl_hints_swords",
+   "kind": "bool"
+  },
+  {
+   "name": "kreeb_hints_bows",
+   "kind": "bool"
+  },
+  {
+   "name": "always_double_magic",
+   "kind": "bool"
+  },
+  {
+   "name": "open_drc",
+   "kind": "bool"
+  },
+  {
+   "name": "rainbow_rupee_progress",
+   "kind": "bool"
+  },
+  {
+   "name": "swift_sail",
+   "kind": "bool"
+  },
+  {
+   "name": "instant_text_boxes",
+   "kind": "bool"
+  },
+  {
+   "name": "reveal_full_sea_chart",
+   "kind": "bool"
+  },
+  {
+   "name": "add_shortcut_warps_between_dungeons",
+   "kind": "bool"
+  },
+  {
+   "name": "skip_rematch_bosses",
+   "kind": "bool"
+  },
+  {
+   "name": "remove_music",
+   "kind": "bool"
+  },
+  {
+   "name": "starting_gear",
+   "kind": "starting_gear",
+   "regular": [
+    "Bait Bag",
+    "Ballad of Gales",
+    "Beedle's Chart",
+    "Bombs",
+    "Boomerang",
+    "Cabana Deed",
+    "Command Melody",
+    "DRC Big Key",
+    "DRC Compass",
+    "DRC Dungeon Map",
+    "Deku Leaf",
+    "Delivery Bag",
+    "Din's Pearl",
+    "Dragon Tingle Statue",
+    "ET Big Key",
+    "ET Compass",
+    "ET Dungeon Map",
+    "Earth God's Lyric",
+    "Earth Tingle Statue",
+    "Empty Bottle",
+    "FF Compass",
+    "FF Dungeon Map",
+    "FW Big Key",
+    "FW Compass",
+    "FW Dungeon Map",
+    "Farore's Pearl",
+    "Fill-Up Coupon",
+    "Forbidden Tingle Statue",
+    "Ghost Ship Chart",
+    "Goddess Tingle Statue",
+    "Grappling Hook",
+    "Great Fairy Chart",
+    "Hero's Charm",
+    "Hookshot",
+    "Hurricane Spin",
+    "Iron Boots",
+    "Light Ring Chart",
+    "Maggie's Letter",
+    "Magic Armor",
+    "Moblin's Letter",
+    "Nayru's Pearl",
+    "Note to Mom",
+    "Octo Chart",
+    "Platform Chart",
+    "Power Bracelets",
+    "Secret Cave Chart",
+    "Skull Hammer",
+    "Song of Passing",
+    "Soul of Gohdan",
+    "Soul of Gohma",
+    "Soul of Helmaroc King",
+    "Soul of Jalhalla",
+    "Soul of Kalle Demos",
+    "Soul of Molgera",
+    "Spoils Bag",
+    "Submarine Chart",
+    "Telescope",
+    "Tingle Tuner",
+    "Tingle's Chart",
+    "TotG Big Key",
+    "TotG Compass",
+    "TotG Dungeon Map",
+    "WT Big Key",
+    "WT Compass",
+    "WT Dungeon Map",
+    "Wind God's Aria",
+    "Wind Tingle Statue"
+   ],
+   "progressive": [
+    "DRC Small Key",
+    "ET Small Key",
+    "FW Small Key",
+    "Progressive Bomb Bag",
+    "Progressive Bow",
+    "Progressive Magic Meter",
+    "Progressive Picto Box",
+    "Progressive Quiver",
+    "Progressive Shield",
+    "Progressive Sword",
+    "Progressive Wallet",
+    "TotG Small Key",
+    "WT Small Key"
+   ],
+   "progressive_bits": 3
+  },
+  {
+   "name": "num_starting_triforce_shards",
+   "kind": "int",
+   "min": 0,
+   "max": 8
+  },
+  {
+   "name": "starting_pohs",
+   "kind": "int",
+   "min": 0,
+   "max": 44
+  },
+  {
+   "name": "starting_hcs",
+   "kind": "int",
+   "min": 1,
+   "max": 9
+  },
+  {
+   "name": "starting_joy_pendant",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_skull_necklace",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_boko_baba_seed",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_golden_feather",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_knights_crest",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_red_chu_jelly",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_green_chu_jelly",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "starting_blue_chu_jelly",
+   "kind": "int",
+   "min": 0,
+   "max": 99
+  },
+  {
+   "name": "num_extra_starting_items",
+   "kind": "int",
+   "min": 0,
+   "max": 3
+  },
+  {
+   "name": "mila_speedup",
+   "kind": "enum",
+   "values": [
+    "None",
+    "Shortened",
+    "Instant"
+   ]
+  },
+  {
+   "name": "split_interdungeon_warps_by_required",
+   "kind": "bool"
+  },
+  {
+   "name": "remove_ballad_of_gales_warp_in_cutscene",
+   "kind": "bool"
+  },
+  {
+   "name": "always_skip_triforce_cutscene",
+   "kind": "bool"
+  },
+  {
+   "name": "add_drops",
+   "kind": "bool"
+  },
+  {
+   "name": "speedup_lenzos_assistant",
+   "kind": "bool"
+  },
+  {
+   "name": "kamo_any_moon_phase",
+   "kind": "bool"
+  },
+  {
+   "name": "shorten_mail_minigame",
+   "kind": "bool"
+  },
+  {
+   "name": "skip_drc_plat_cs",
+   "kind": "bool"
+  },
+  {
+   "name": "wallet_fill_behavior",
+   "kind": "bool"
+  },
+  {
+   "name": "speedup_tingle_jail",
+   "kind": "bool"
+  },
+  {
+   "name": "fix_auction",
+   "kind": "bool"
+  },
+  {
+   "name": "totg_tablet_from_start",
+   "kind": "bool"
+  },
+  {
+   "name": "quick_gohma",
+   "kind": "bool"
+  },
+  {
+   "name": "sunlight_arrows",
+   "kind": "bool"
+  },
+  {
+   "name": "do_not_generate_spoiler_log",
+   "kind": "bool"
+  }
+ ]
+}

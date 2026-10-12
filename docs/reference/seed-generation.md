@@ -63,8 +63,9 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 
 ```python
 AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test']
-STUB_RANDOMIZERS = {'wwr'}
-PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r', 'smdash'}  # use preset.settings when given
+STUB_RANDOMIZERS = set()                                # registered but not wired (none today)
+PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r', 'smdash', 'wwr'}  # use preset.settings when given
+MOCK_EXEMPT_RANDOMIZERS = {'dk64r', 'wwr', 'z1r'}       # MOCK_SEEDGEN leaves these alone
 ASYNC_RANDOMIZERS = {'dk64r'}                           # task-queue backends (submit now, collect later)
 TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}                  # can embed community triforce texts
 REMOTE_PRESET_BRANCHES = {'dk64r': ('stable', 'dev')}   # upstream preset catalogues
@@ -75,7 +76,9 @@ PROVIDER_TIMEOUTS = {'dk64r': 660.0}; PROVIDER_ATTEMPTS = {'dk64r': 1}
 
 ### Stub randomizers
 
-`wwr` (Wind Waker) is a **registered stub** (`STUB_RANDOMIZERS`): it is selectable on tournaments and appears in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but its `_generate_wwr` method is not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so it renders normally in dev.
+`STUB_RANDOMIZERS` is the mechanism for a randomizer that is selectable on tournaments and appears in every UI/API surface reading `AVAILABLE_RANDOMIZERS`, but whose generator raises `ValueError` (the documented user-error contract) because it isn't wired yet. It is empty today: `dk64r`, `smdash` and `wwr` were all promoted out of it.
+
+`MOCK_SEEDGEN` returns a fake `mock.seedgen.local` URL for every randomizer except `MOCK_EXEMPT_RANDOMIZERS`. `dk64r` mocks one layer down (see [dk64r](#dk64r)); `wwr` and `z1r` are built locally with no upstream to stand in for, and their seeds are plain strings, which is what dev needs to show the copy card ([Pasted seeds](#pasted-seeds-the-copy-card)).
 
 ### Per-tenant credentials
 
@@ -99,14 +102,14 @@ The credential acts at two kinds of surface:
 - **Selection** — `available_randomizers(configured)` filters the tournament dialog, the Presets tab randomizer select, and the REST `/seeds/randomizers` catalogue, where `configured` is `RandomizerCredentialService.configured_randomizers()` (a randomizer counts only when *every* credential it declares is set). A *stored* preset on an unconfigured randomizer stays valid and editable — its value is re-added to its own editor.
 - **Roll time** — resolution happens inside each generator, so a missing credential raises `MissingCredentialError` (a `ValueError`) naming it. There is deliberately **no boundary pre-check**: resolution sits after the `MOCK_SEEDGEN` short-circuit, so dev and CI keep rolling every backend with no credentials at all. `MatchScheduleService.generate_seed` catches `MissingCredentialError` specifically and surfaces its message (its blanket handler still hides raw upstream text); the REST `POST /seeds` answers **400** with the message; `AsyncQualifierService.roll_permalinks` lets it propagate, aborting the batch before any permalink row is written.
 
-To promote a stub to a real backend, replace the `ValueError("… not yet implemented.")` body with an actual generator (drop a preset under `presets/<name>/` if the upstream API takes one, and read any credential with `await self._credential(randomizer, key)` after registering a `CredentialSpec` — see [Adding a randomizer](#adding-a-randomizer-or-preset)) and remove the name from `STUB_RANDOMIZERS`. No changes to `AVAILABLE_RANDOMIZERS` or the dispatch map are needed. `dk64r` was promoted this way.
+To promote a stub to a real backend, replace the `ValueError("… not yet implemented.")` body with an actual generator (drop a preset under `presets/<name>/` if the upstream API takes one, and read any credential with `await self._credential(randomizer, key)` after registering a `CredentialSpec` — see [Adding a randomizer](#adding-a-randomizer-or-preset)) and remove the name from `STUB_RANDOMIZERS`. No changes to `AVAILABLE_RANDOMIZERS` or the dispatch map are needed. `dk64r` and `wwr` were promoted this way.
 
 ### Public methods
 
 | Method | Behavior | Returns |
 |---|---|---|
 | `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Convenience wrapper over `generate_seed_call` returning just the permalink. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential, or a `SeedProviderError` subclass naming what the upstream did. |
-| `generate_seed_call(randomizer, preset=None, *, surface=None, triforce_text=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). `triforce_text` is embedded by the `TRIFORCE_TEXT_RANDOMIZERS` (`alttpr`) and ignored by the rest. A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
+| `generate_seed_call(randomizer, preset=None, *, surface=None, triforce_text=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`, `smdash`, `wwr`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). `triforce_text` is embedded by the `TRIFORCE_TEXT_RANDOMIZERS` (`alttpr`) and ignored by the rest. A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `list_remote_presets(randomizer, *, branch=None) -> list[RemotePreset]` | The presets the randomizer's own API publishes, mapped into storable `settings`. Raises `ValueError` for a randomizer with no catalogue or an unknown branch, `MissingCredentialError` without the key. | `list[RemotePreset]`. |
 | `offers_remote_presets(randomizer) -> bool` / `remote_preset_branches(randomizer) -> list[str]` (classmethods) | Membership in and lookup into `REMOTE_PRESET_BRANCHES` — what the Presets tab's import dialog renders from. | `bool` / `list[str]`. |
@@ -123,7 +126,7 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl2026.json` |
 | `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); needs the tenant's `dk64r.api_key` (Donkey Kong 64) |
 | `_generate_smdash` | yes | `GET` dashrando.net `/generate/<tag>?race=1` for `preset.settings['preset']` (else `presets/smdash/sgl26.json`), reading the seed page from the redirect |
-| `_generate_wwr` | yes | **Stub** — raises `ValueError` (Wind Waker) |
+| `_generate_wwr` | yes | Local: the preset's reference permalink under a fresh seed name (Wind Waker); see [wwr](#wwr) |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
 
 ### The provider envelope
@@ -192,7 +195,7 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl2026.json`](../../presets/ootr/sgl2026.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` | JSON body POST with query params `key`, `version=dev_9.1.38-0` (the generatorDev build SGL 2026 races on), `encrypt=true`, status checked through the envelope's `raise_for_status`; an unset key raises rather than sending `key=None`, and a response with no `id` raises `SeedProviderBadResponse` |
 | `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` | Asynchronous submit → poll → result; see below |
 | `smdash` | Super Metroid: DASH | `https://www.dashrando.net/generate/<tag>?race=1` | [`presets/smdash/sgl26.json`](../../presets/smdash/sgl26.json) (fallback when no preset) | — | `https://www.dashrando.net/seed/<key>` | DASH rolls only its own named presets (`packages/core/lib/presets.ts` upstream), so a preset's settings are `{"preset": "<tag>"}`. The call doesn't follow redirects: the 307's `Location` is the seed, and it must be an `https` dashrando.net `/seed/<key>` URL. One attempt only (`PROVIDER_ATTEMPTS`), because upstream saves the seed before answering, so a retry would mint a second one. `race=1` makes the seed page serve a protected ROM, and leaving `spoiler` unset means no spoiler log exists. An unknown tag is a 422 (`SeedProviderInvalidRequest`), and a tag that isn't `[A-Za-z0-9_-]+` raises `ValueError` before any request is sent. Keyless |
-| `wwr` | Wind Waker Randomizer | none yet (**stub**) | — | — | raises `ValueError` | |
+| `wwr` | Wind Waker Randomizer | none (built locally) | [`presets/wwr/sgl2026.json`](../../presets/wwr/sgl2026.json) (built-in only; no fallback) | — | a base64 permalink (**not** a URL) | Needs a preset. Players paste the permalink into their own copy of the build it names; see [wwr](#wwr) |
 | `test` | — (testing) | none | — | — | fixed example URL after a 5 s sleep | Selectable on tournaments on purpose: it exercises the full UI flow (button spinner, per-match lock, persistence, DMs) without an external call |
 
 ### dk64r
@@ -225,6 +228,26 @@ The split in `SeedGenerationService` is `submit_async_roll` → `AsyncRollSubmis
 DK64R is the one randomizer that does **not** take the `MOCK_SEEDGEN` short-circuit. An instantly-returned permalink would skip the very thing that makes this backend different: upstream takes two to three minutes, and the Generate button holds a spinner for all of it. So `MOCK_SEEDGEN` instead swaps the `aiohttp` session for `MockDK64Session` ([`mock_dk64.py`](../../application/utils/mocks/mock_dk64.py)), an in-process stand-in for the queue. `_generate_dk64r` is unchanged under it — it really converts, submits, and polls on the 5 s cadence while a fake task walks `queued` → `started` → `finished` over `MOCK_DK64_SECONDS` (default 20; the suite pins it to 0). No credential is needed while mocked.
 
 `MOCK_DK64_OUTCOME` picks the ending (`finished`, `failed`, `http_error`, `stuck`) and `MOCK_DK64_BROKEN_STAGE` fails `convert` or `submit` instead, so every error branch above is reachable without a live key. `mock_dk64_presets(branch)` returns a `get_presets`-shaped list for surfaces that read the upstream preset catalogue.
+
+### wwr
+
+The Wind Waker Randomizer has no hosted generator: each player builds their own ISO from a **permalink**, `base64(VERSION + b"\0" + seed_name + b"\0" + packed option bits)`, zlib-compressed first by tanjo3's dev builds (their permalinks start `eJx`; the 1.10.0 release's start `MS4`). So `_generate_wwr(preset)` is a string operation in [`_seedgen_wwr.py`](../../application/services/_seedgen_wwr.py): decode the preset's reference permalink, swap its seed name, encode it the way it came in. The version and option bytes pass through untouched, so **any build rolls**, including ones Wizzrobe has no tables for.
+
+- **Preset shape.** `{"permalink": "<copied from the randomizer's Permalink box>"}` and nothing else. `SeedGenerationService.normalize_preset_settings`, called by `PresetService` on create and update, decodes it and refuses anything that isn't a permalink (or doesn't fit its vendored build), so a bad paste fails on the Presets tab and not at the desk. The Presets tab gives `wwr` a Permalink field instead of the JSON editor, with the decoded build and a settings summary under it.
+- **No preset is an error.** There's no bundled fallback, so a tournament that lost its preset can't quietly roll another season. A missing or broken permalink raises `SeedProviderInvalidRequest`, so the proctor reads why rather than "check the server logs".
+- **Seed names** port wwrando's `seedgen.make_random_seed_name` plus `sanitize_seed` (two adjectives, then a noun or a community member's name, e.g. `DirtySkilledGold`). The port consumes the RNG in upstream's order, and `tests/services/test_seedgen_wwr.py` pins it against upstream output for fixed seeds.
+- **Builds are exact.** A permalink only loads in the build whose version it carries, commit suffix included (`dev_tanjo3.1.10.7.3_d30d27c`). The DM names the build (`WWPermalink.build` strips the `_<commit>` the release CI appends).
+- **Settings summaries need vendored tables.** The option bits carry no names or widths, so `summarize()` reads only builds under `application/services/_wwr_data/<version>/`, written by `scripts/vendor_wwr_build.py` from a wwrando checkout at the release commit (MIT; the licence ships beside the data). The same directory holds the build's seed-name word lists; a build without them borrows the SGL build's, since a seed name never affects validity. Vendored today: `dev_tanjo3.1.10.7.3_d30d27c` (SGL 2026).
+- **No seed hash.** The two names on the in-game file select would be the natural "same seed?" check, but with "do not generate spoiler log" on (as SGL 2026's preset has it) wwrando derives them from `md5(permalink + SEED_KEY)`, where `SEED_KEY` is a secret baked into official builds. A hash computed here would disagree with the players' screens. Spoiler-on presets could be computed; that's left for a future event that wants it.
+- `settings_snapshot` records `{reference_permalink, version, seed_name}`.
+
+### Pasted seeds (the copy card)
+
+Most randomizers return a URL. `wwr` (a permalink) and `z1r` (`"<seed> - <flags>"`) return a string the player pastes into their own randomizer, and every surface checks which it has (`discord_messages.is_seed_link`, or `^https?://` in a slot template):
+
+- **Seed DM.** A link seed keeps its `[Open your seed]` embed link and button. A pasted seed goes in a code block under `SeedGenerationService.paste_instructions(randomizer, settings)` (the WWR line names the build), with no embed URL, and its button opens the match on the Player tab, where the same seed has a copy button. Discord refuses a non-URL as a link button or embed URL and fails the whole DM, which is what had been happening to Z1R seed DMs.
+- **Tables and cards.** `match_slots.seed_value_template(expr)` renders a link, or a truncated monospace value with a copy button (`Quasar.copyToClipboard`, toast on success or failure). `SEED_SLOT`, `SEED_SLOT_READONLY` and the mobile card's seed detail all use it.
+- **Test roll dialog.** Shows the full string with a copy button.
 
 ## ALTTPR tournament generation and triforce texts
 

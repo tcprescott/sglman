@@ -1,0 +1,1 @@
+SGL 2026 Wind Waker settings for build dev_tanjo3.1.10.7.3: 3 required bosses, no starting sword, randomized dungeon entrances, random starting island, boss soul shuffle.

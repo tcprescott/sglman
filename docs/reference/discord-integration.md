@@ -309,7 +309,7 @@ Ephemeral confirmation strings sit beside their domain's builders: `match_ack_co
 | Crew withdrew (approved) | `CrewService.undo_crew_signup` → `_notify_crew_withdrawal` (tournament crew owners + approver) | `send_dm` | Fill the slot (link) |
 | Crew approval withdrawn | `CrewService.update_crew_approval(approved=False)` → `_notify_crew_approval_withdrawn` | `send_dm` | none |
 | Bracket matchup ready | `_bracket/notifications.py` → `_send_matchup_ready(...)` per entrant (opt-in only) | `send_dm` | Pick a time (link) |
-| Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | Open your seed (link, off-site) |
+| Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | Open your seed (link, off-site); for a pasted seed (WWR, Z1R) Copy it from Wizzrobe → `player_match` |
 | Volunteer shift assigned — ack request | `VolunteerScheduleService.assign(notify=True)` | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Volunteer shift reminder | `volunteer_reminder` loop, per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Admin direct message | `SendMessageDialog.send` — awaited inline, **not** queued | `send_dm` | none |
