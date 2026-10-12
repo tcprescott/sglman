@@ -291,7 +291,7 @@ async def _members_panel(
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             candidates = await TenantMembershipService().addable_users()
 
-            with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
                 ui.label('Add a member').classes('text-lg font-semibold')
                 ui.label(
                     'Bring an existing account into this community. Their profile '

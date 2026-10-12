@@ -325,7 +325,7 @@ def kpi_card(
     """
     with ui.card().classes('q-pa-md').style(f'flex: 1 1 {min_width}px; min-width: {min_width}px;'):
         ui.label(title).classes('text-caption text-grey-7')
-        ui.label(value).classes(f'text-h4 text-{color}')
+        ui.label(value).classes(f'text-h4 text-{color}')  # style-guide: exempt — a stat figure, not a title
         ui.label(subtitle).classes('text-caption')
         if href:
             ui.link(href_label, href).classes('text-caption q-mt-xs')

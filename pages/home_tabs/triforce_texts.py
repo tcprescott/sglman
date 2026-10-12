@@ -53,7 +53,7 @@ async def _build_triforce_dialog(tournament: Tournament, user: User) -> None:
     )
     can_submit = await AuthService.can_submit_triforce_text(user, tournament)
 
-    with ui.dialog() as dialog, ui.card().classes('w-full'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card'):
         with ui.row().classes('items-center justify-between full-width no-wrap'):
             ui.label(f'Triforce Texts — {tournament.name}').classes('text-h6')
             ui.button(icon='close', on_click=dialog.close).props('flat round dense')

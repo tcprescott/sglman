@@ -165,7 +165,7 @@ def _bot_form(existing=None):
 
 
 def _open_bot_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label('New racetime bot').classes('text-lg font-semibold')
         category, name, client_id, secret, description, handler, active = _bot_form()
 
@@ -193,7 +193,7 @@ def _open_bot_create_dialog(actor, table) -> None:
 async def _open_bot_edit_dialog(actor, table, row) -> None:
     bot = await _bot_service.get_bot(actor, row['id'])
     existing = _bot_service.serialize(bot)
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f"Edit bot #{bot.id}").classes('text-lg font-semibold')
         # serialize() omits the secret; expose the plain fields to the form.
         existing['active'] = 'yes' if bot.is_active else 'no'
@@ -236,7 +236,7 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
     bot_id = row['id']
     tenants = await TenantService.list_tenants()
     grants = {g.tenant_id: g for g in await _bot_service.list_grants(actor, bot_id)}
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f"Tenants for {row['category']}").classes('text-lg font-semibold')
         ui.label('Toggle which tenants may select this bot.').classes('text-caption text-grey')
 

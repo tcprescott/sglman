@@ -222,7 +222,7 @@ def _report_card(card: dict) -> None:
     # middle-click.
     with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;') as card_el:
         with ui.row().classes('items-center no-wrap'):
-            ui.icon(card['icon']).classes('text-h5 q-mr-sm')
+            ui.icon(card['icon']).classes('text-h5 q-mr-sm')  # style-guide: exempt — icon size, not a title
             ui.label(card['title']).classes('text-h6')
         ui.label(card['description']).classes('text-body2 q-mt-xs')
         ui.link('Open report →', url).classes('q-mt-sm')

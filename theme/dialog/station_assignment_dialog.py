@@ -68,7 +68,7 @@ class StationAssignmentDialog:
         stations = await StationService().list_stations(active_only=True)
         occupied = await self.match_service.occupied_stations_for_dialog(self.match.id)
 
-        with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 600px; width: 100%;'):
+        with ui.dialog() as self.dialog, ui.card().classes('dialog-card dialog-card--md'):
             mobile_sheet(self.dialog)
             with ui.row().classes('dialog-header'):
                 ui.label(

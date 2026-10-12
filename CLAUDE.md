@@ -18,6 +18,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | All models, ERD, enums, match lifecycle, migrations | [docs/reference/data-model.md](docs/reference/data-model.md) |
 | Every service & utility module | [docs/reference/services.md](docs/reference/services.md) |
 | Pages, routes, tabs, dialogs, tables, styling | [docs/reference/frontend.md](docs/reference/frontend.md) |
+| **UI style guide** — tokens, components, contrast, a11y rules, how to check | [docs/style-guide.md](docs/style-guide.md) |
 | OAuth mechanics, route protection, `AuthService` | [docs/reference/authentication.md](docs/reference/authentication.md) |
 | Bot singleton, DM queue, interaction handlers | [docs/reference/discord-integration.md](docs/reference/discord-integration.md) |
 | REST endpoints & schemas | [docs/reference/rest-api.md](docs/reference/rest-api.md) |
@@ -175,6 +176,17 @@ entirely whenever an embed is present, so text-only links go unseen.
 Deep-link params are the page's job to honour, and a stale one must say so — a
 DM outlives the thing it points at, and a button that silently does nothing reads
 as a broken app. Detail: [docs/features/discord.md](docs/features/discord.md#calls-to-action).
+
+## UI styling and accessibility
+
+**Read [docs/style-guide.md](docs/style-guide.md) before touching `pages/`, `theme/` or `static/css/`.** The app follows one design system ("Studio": neutral shell, one accent, one type family) and WCAG 2.1 AA, in light *and* dark mode. The rules that regress most:
+
+- **Colour comes from tokens** (`var(--fg-muted)`, `--status-*`, `--wiz-link`) or classes (`.st-*`, `ui.badge(color=...)`), never a hex in a page. The accent is the community's colour, so never hard-code gold, and use it only for actions, links and "you are here".
+- **Reach for the shared component**: `page_header()` for a page top, `section_panel()` for a block, `banner()` for a notice, `form_dialog()` and `dialog-card` / `--sm` / `--lg` for dialogs, a Settings pane card for a new admin setting.
+- **Dark mode**: a `:root` token that aliases a dark-aware token must be restated in the `.body--dark, .q-dark` block, and overriding a Quasar `text-*`/`bg-*` class needs `@layer theme`.
+- **Every control has a name** (`.tooltip()` on icon-only buttons, `aria-label` in slot templates) and text clears 4.5:1.
+
+`tests/theme/test_style_guide.py` and `tests/test_a11y_names.py` check the source; the CI `browser` job runs `scripts/ui_a11y_scan.js` (axe plus a tint-aware contrast check, light and dark) over `scripts/ui_a11y_ci.json`. Add a new page to that list.
 
 ## Timezone handling
 
