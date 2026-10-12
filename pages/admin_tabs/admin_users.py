@@ -23,7 +23,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
-from theme.tables.export import csv_export_button
+from theme.tables.export import csv_export_menu_item
 from theme.tables.preferences import TableKeys, preferences_button, search_input
 from theme.tables.user import UserTableView
 
@@ -111,9 +111,9 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
                 await opener['open'](request_id)
 
         with ui.tab_panels(sub_tabs, value=members_tab).classes('w-full'):
-            with ui.tab_panel(members_tab).classes('q-px-none'):
+            with ui.tab_panel(members_tab).style('padding-left: 0; padding-right: 0'):
                 await _members_panel(accommodations=True, actor=actor, on_open_ada=open_ada)
-            with ui.tab_panel(ada_tab).classes('q-px-none'):
+            with ui.tab_panel(ada_tab).style('padding-left: 0; padding-right: 0'):
                 opener['open'] = await render_accommodation_panel(on_change=recount)
         await recount()
         if ada_request is not None:
@@ -125,10 +125,9 @@ async def _members_panel(
 ) -> None:
     with ui.column().classes('w-full gap-4'):
         ui.label(
-            'Everyone in this community and the roles they hold. Identity is '
-            'shared across communities; membership is not — Add Member brings an '
-            'existing account in, Add User creates a brand-new one. Click a '
-            'username to edit it; filter by role to narrow the list.'
+            'Everyone in this community and the roles they hold. Add Member '
+            'brings in an existing account; Add User creates a new one. Click a '
+            'username to edit it.'
         ).classes('text-caption text-grey')
 
         # Pending join requests, above the member table. The queue carries its
@@ -364,23 +363,13 @@ async def _members_panel(
                     on_confirm=lambda: table_view._bg(_in_client(client, confirmed())),
                 ).open()
 
-        # Toolbar row — rendered before filter and table for correct visual order
-        with ui.row().classes('full-width'):
-            ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
-            ui.button('Add User', icon='add', on_click=add_user).props('flat color=primary')
-            ui.space()
-            # Placeholder filled after the table exists — the toolbar is built
-            # first for visual order, and the gear needs a live table to read.
-            gear_slot = ui.row().classes('items-center')
-            # Lambda, not a direct reference: the toolbar is built before
-            # table_view exists.
-            refresh_button(lambda: table_view.refresh())
+        # One wrapping row: on a phone it folds to the two actions over search,
+        # Filters and refresh, where one control a line used to fill the screen.
+        filters_open = {'value': False}
 
         # Below 1024px the CSS collapses .match-filters-card until it carries
         # .wiz-filters-open, so phones need this toggle (hidden on desktop) or
         # the filters are unreachable — the match board's pattern.
-        filters_open = {'value': False}
-
         def toggle_filters() -> None:
             filters_open['value'] = not filters_open['value']
             if filters_open['value']:
@@ -397,10 +386,29 @@ async def _members_panel(
             filter_badge.set_text(str(count))
             filter_badge.set_visibility(count > 0)
 
-        with ui.row().classes('wiz-filter-toggle full-width items-center'):
-            ui.button('Filters', icon='filter_list', on_click=toggle_filters).props('flat color=primary')
-            filter_badge = ui.badge('0').props('color=primary')
+        with ui.row().classes('wiz-toolbar w-full items-center'):
+            with ui.row().classes('wiz-toolbar__actions items-center no-wrap'):
+                ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
+                # Behind the menu on a phone, where the three don't fit one line.
+                ui.button('Add User', icon='add', on_click=add_user) \
+                    .props('flat color=primary').classes('gt-sm')
+                with ui.button(icon='more_vert').props('flat round dense') \
+                        .tooltip('More actions'):
+                    # Filled after the table exists: the export reads its rows.
+                    more_menu = ui.menu()
+            # Filled after the table exists — the search and gear need a live table.
+            search_slot = ui.row().classes('wiz-toolbar__search items-center no-wrap')
+
+        with search_slot:
+            search_box_slot = ui.element('div').classes('wiz-toolbar__grow')
+            with ui.button('Filters', icon='filter_list', on_click=toggle_filters) \
+                    .props('flat dense color=primary').classes('wiz-filter-toggle--inline'):
+                filter_badge = ui.badge('0').props('floating color=primary')
             filter_badge.set_visibility(False)
+            gear_slot = ui.element('div')
+            # Lambda, not a direct reference: the toolbar is built before
+            # table_view exists.
+            refresh_button(lambda: table_view.refresh())
 
         # Filter card — between toolbar and table, matching match-filters-card pattern
         with ui.card().classes('match-filters-card') as filters_card:
@@ -449,16 +457,22 @@ async def _members_panel(
                 if row.get('ada_request_id'):
                     await on_open_ada(row['ada_request_id'])
             table_view.table.on('open_ada', open_ada)
+        with search_box_slot:
+            search_input(table_view.table, placeholder='Search people…', width='w-full')
         with gear_slot:
-            search_input(table_view.table, placeholder='Search people…')
+            preferences_button(table_view.table)
+        with more_menu:
+            with ui.menu_item(on_click=add_user).classes('lt-md'):
+                with ui.item_section().props('avatar'):
+                    ui.icon('add')
+                ui.item_section('Add User')
             # The plan's columns, not the shipped list: the export matches what
             # the person is looking at, hidden columns and all.
-            csv_export_button(
+            csv_export_menu_item(
                 'community-people',
                 lambda: table_view._plan.columns if table_view._plan else columns,
                 lambda: table_view.table.rows,
             )
-            preferences_button(table_view.table)
 
         # Same rebind as the tab-switch below: an 'update:model-value' handler
         # is a client event, so a bare background task loses the tenant.

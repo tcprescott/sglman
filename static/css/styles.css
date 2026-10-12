@@ -1936,6 +1936,21 @@ main.q-page:focus {
     box-shadow: var(--shadow-1);
 }
 
+/* The member card is a two-column label/value grid: labels take only the
+   width they need, so "Display Name" stays on one line, and empty fields are
+   left out by the slot rather than shown as a column of dashes. */
+.user-grid-card {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    align-items: baseline;
+    padding: var(--space-2) var(--space-3);
+}
+
+.user-grid-card__actions {
+    grid-column: 1 / -1;
+}
+
 /* Field labels in the grid cards use Quasar's text-grey-7, a fixed cool gray
    that goes murky on the dark surface; re-point it at the mode-aware muted token
    (!important to match Quasar's own). ``.wiz-grid-card`` is the generic class for
@@ -2270,6 +2285,45 @@ main.q-page:focus {
 
 @media (min-width: 1024px) {
     .wiz-filter-toggle {
+        display: none;
+    }
+}
+
+/* A table toolbar that folds on a phone: primary actions on one line, then
+   search, Filters and refresh on the next, instead of one control per line. */
+.wiz-toolbar {
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.wiz-toolbar__actions {
+    gap: var(--space-2);
+}
+
+.wiz-toolbar__search {
+    flex: 1 1 18rem;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.wiz-toolbar__grow {
+    flex: 0 1 20rem;
+    min-width: 0;
+}
+
+.wiz-filter-toggle--inline {
+    flex: none;
+}
+
+@media (max-width: 1023.98px) {
+    .wiz-toolbar__grow {
+        flex: 1 1 auto;
+    }
+}
+
+@media (min-width: 1024px) {
+    .wiz-filter-toggle--inline {
         display: none;
     }
 }
