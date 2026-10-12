@@ -185,7 +185,7 @@ async def admin_webhooks_page() -> None:
             return await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
         def show_secret(title: str, secret: str) -> None:
-            with ui.dialog() as dialog, ui.card().classes('w-96'):
+            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                 ui.label(title).classes('text-h6')
                 ui.label('Copy this secret now — it will not be shown again.').classes('text-caption text-warning')
                 ui.input(value=secret).props('readonly outlined').classes('w-full')
@@ -257,7 +257,7 @@ async def admin_webhooks_page() -> None:
         def open_webhook_dialog(existing=None) -> None:
             is_edit = existing is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('w-96'):
+                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
                     ui.label('Edit Webhook' if is_edit else 'Add Webhook').classes('text-h6')
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',

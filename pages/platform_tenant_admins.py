@@ -20,7 +20,7 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
     """List a tenant's staff and grant a new one, from the platform surface."""
     users = await UserService().get_all_users()
 
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f'Admins for {tenant_name}').classes('text-lg font-semibold')
         ui.label(
             'Staff run a community: they configure it, schedule its matches and '

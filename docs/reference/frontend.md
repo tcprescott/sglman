@@ -82,7 +82,7 @@ Target is WCAG 2.1 AA. The shared pieces that keep it:
 | `label_field(caption, field)` | Turns a free-standing caption into `<label for>` the field's control. |
 | `enable_mobile_grid(selectable=True)` | Names QTable's selection checkboxes. |
 
-Vue slot templates are strings, so an icon-only `<q-btn>` there spells out `aria-label` (or `:aria-label`) itself; `tests/test_a11y_names.py` fails on one that doesn't. Contrast: badge tints are inset box-shadows, which axe ignores, so axe reports false failures on every badge; use the contrast checker from the style pass for those.
+Vue slot templates are strings, so an icon-only `<q-btn>` there spells out `aria-label` (or `:aria-label`) itself; `tests/test_a11y_names.py` fails on one that doesn't. Contrast: badge tints are inset box-shadows, which axe ignores, so axe reports false failures on every badge. [`scripts/ui_a11y_scan.js`](../../scripts/ui_a11y_scan.js) (run by CI's `browser` job) turns axe's contrast rule off and runs a tint-aware check in its place; see [../style-guide.md](../style-guide.md#checking-your-change).
 
 ## Tenant-less chrome (`theme/chrome.py`)
 
@@ -1124,6 +1124,8 @@ Marking a control is presentation's job: `.classes(REQUIRES_SOCKET_CLASS)` on a 
 
 - [`css/styles.css`](../../static/css/styles.css) — the app stylesheet, loaded by `BaseLayout.render_chrome()` and `render_platform_chrome()`. Organized into class families (layout containers, headers/text, cards/forms/dialogs/buttons, the On Air timeline, the four table families + their grid cards, dark-mode overrides, report chart sizing, the OAuth consent card) with section comments; grep the family prefix rather than a per-page rule.
 ### Design tokens (the Studio system)
+
+The rules for *using* these (what to reach for, what not to do, and how a change is checked) are in [../style-guide.md](../style-guide.md); this section is the mechanics.
 
 Every page reads the same small set of tokens from the top of `styles.css`, and new styling should too rather than reaching for a hex value or a Quasar colour name.
 

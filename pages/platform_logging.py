@@ -100,7 +100,7 @@ async def _refresh(table) -> None:
 
 def _open_level_dialog(actor, table, row) -> None:
     is_new = row is None
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label('Set a logger level' if is_new else f"Level for {row['logger']}").classes(
             'text-lg font-semibold')
         name = None

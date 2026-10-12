@@ -259,7 +259,7 @@ async def _refresh(table) -> None:
 
 
 def _open_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label('New tenant').classes('text-lg font-semibold')
         name = ui.input('Name').classes('w-full')
         slug = ui.input('Slug').classes('w-full')
@@ -300,7 +300,7 @@ async def _open_edit_dialog(actor, table, row) -> None:
     if tenant is None:
         ui.notify('Tenant no longer exists', color='negative')
         return
-    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
         ui.label(f"Edit tenant #{tenant.id}").classes('text-lg font-semibold')
         name = ui.input('Name', value=tenant.name).classes('w-full')
         slug = ui.input('Slug', value=tenant.slug).classes('w-full')

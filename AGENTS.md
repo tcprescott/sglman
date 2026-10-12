@@ -10,6 +10,7 @@ Orientation beyond that:
 - [docs/README.md](docs/README.md) — documentation index and source-area coverage map
 - [docs/architecture.md](docs/architecture.md) — tech stack, process model, directory map
 - [docs/development.md](docs/development.md) — local setup, `MOCK_DISCORD`, fixtures, tests
+- [docs/style-guide.md](docs/style-guide.md) — UI style and accessibility rules, and the checks that enforce them
 
 `.claude/` holds the guardrail hooks that reject architecture, audit, and test-fixture
 violations at write time; see [`.claude/README.md`](.claude/README.md) for what each

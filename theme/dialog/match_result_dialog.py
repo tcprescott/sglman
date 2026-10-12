@@ -124,7 +124,7 @@ class MatchResultDialog:
 
         current_winner = self._current_winner() if self.is_edit else None
 
-        with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 500px; width: 100%;'):
+        with ui.dialog() as self.dialog, ui.card().classes('dialog-card dialog-card--sm'):
             mobile_sheet(self.dialog)
             with ui.row().classes('dialog-header'):
                 # Named by its players, not its primary key — the dialog body

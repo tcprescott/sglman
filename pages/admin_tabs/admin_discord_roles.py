@@ -408,7 +408,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
 
             async def sync_all_users(client):
                 with client:
-                    with ui.dialog() as confirm, ui.card():
+                    with ui.dialog() as confirm, ui.card().classes('dialog-card dialog-card--sm'):
                         ui.label(
                             'Re-sync Discord roles for this community now? This applies '
                             'the current mappings to its members and to anyone in the '
