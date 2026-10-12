@@ -145,12 +145,12 @@ class UserTableView:
             (", bool: true" if f.get('bool') else '') + " }" for f in grid_fields
         ])
         self.table.add_slot('item', f'''
-        <div class="q-pa-md q-mb-sm user-grid-card" style="width: 100%; box-sizing: border-box;">
-            <div v-for="field in [
+        <div class="q-mb-sm user-grid-card" style="width: 100%; box-sizing: border-box;">
+            <template v-for="field in [
                 {js_field_array}
-            ]" :key="field.key" class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
-                <div class="col-8" style="overflow-wrap: anywhere; min-width: 0">
+            ].filter(f => f.bool || f.event === 'edit_user' || props.row[f.key])" :key="field.key">
+                <div class="text-grey-7">{{{{ field.label }}}}</div>
+                <div style="overflow-wrap: anywhere; min-width: 0">
                 <template v-if="field.event && props.row[field.key]">
                     <a href="#" @click.prevent="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
                 </template>
@@ -161,8 +161,8 @@ class UserTableView:
                     {{{{ props.row[field.key] || '-' }}}}
                 </template>
                 </div>
-            </div>
-            ''' + (f'<div class="row justify-end q-gutter-x-sm q-mt-xs">{self.row_actions}</div>'
+            </template>
+            ''' + (f'<div class="user-grid-card__actions row justify-end q-gutter-x-sm">{self.row_actions}</div>'
                    if self.row_actions else '') + '''
             </div>
             ''')
