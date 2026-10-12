@@ -82,6 +82,35 @@ class CommunityEventSubscriptionRepository(TenantScopedRepository[CommunityEvent
         return {row['event_id']: row['n'] for row in rows}
 
     @staticmethod
+    async def going_event_ids_for_user(user_id: int, event_ids: Iterable[int]) -> Set[int]:
+        rows = await scoped(
+            CommunityEventSubscription.filter(user_id=user_id, event_id__in=list(event_ids), going=True)
+        ).values_list('event_id', flat=True)
+        return set(rows)  # type: ignore[arg-type]
+
+    @staticmethod
+    async def going_counts_for(event_ids: Iterable[int]) -> Dict[int, int]:
+        rows = await (
+            scoped(CommunityEventSubscription.filter(event_id__in=list(event_ids), going=True))
+            .annotate(n=Count('id'))
+            .group_by('event_id')
+            .values('event_id', 'n')
+        )
+        return {row['event_id']: row['n'] for row in rows}
+
+    @staticmethod
+    async def list_going(event_id: int) -> List[CommunityEventSubscription]:
+        """Who RSVP'd, in the order they did."""
+        return await scoped(
+            CommunityEventSubscription.filter(event_id=event_id, going=True)
+        ).order_by('created_at', 'id').prefetch_related('user')
+
+    @staticmethod
+    async def lock_event(event_id: int) -> None:
+        """Row-lock the event so concurrent RSVPs can't both take its last place."""
+        await scoped(CommunityEvent.filter(id=event_id)).select_for_update().first()
+
+    @staticmethod
     async def list_for_event(event_id: int) -> List[CommunityEventSubscription]:
         return await scoped(
             CommunityEventSubscription.filter(event_id=event_id)

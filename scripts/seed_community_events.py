@@ -71,4 +71,10 @@ async def seed_community_events_for_tenant(
             await CommunityEventSubscription.get_or_create(
                 tenant=tenant, event=events[title], user=users[username],
             )
-    print(f"    [{tenant.slug}] community events ok (one per status, with subscriptions)")
+    # Board game night takes RSVPs, capped, with two going and one only reminded.
+    await CommunityEvent.filter(id=events['Board game night'].id).update(rsvp_enabled=True, rsvp_capacity=6)
+    await CommunityEventSubscription.filter(
+        event_id=events['Board game night'].id,
+        user_id__in=[users['player_two'].id, users['player_three'].id],
+    ).update(going=True)
+    print(f"    [{tenant.slug}] community events ok (one per status, with subscriptions and RSVPs)")

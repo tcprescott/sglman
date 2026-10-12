@@ -738,6 +738,8 @@ Something a member is running during the community's onsite event (`community_ev
 | `reviewed_by` | FK → `User` | null, `SET_NULL` | Last staff decision |
 | `reviewed_at` | `DatetimeField` | null | |
 | `review_note` | `TextField` | null | Why staff rejected or took it down; shown to and DM'd to the host |
+| `rsvp_enabled` | `BooleanField` | default `False` | The host takes RSVPs |
+| `rsvp_capacity` | `IntField` | null | RSVP cap; null means no cap |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 
 Index `(tenant, status, starts_at)`.
@@ -752,6 +754,7 @@ A member asking for a DM before a community event starts (`community_event_subsc
 | `event` | FK → `CommunityEvent` | not null, `CASCADE` | `related_name='subscriptions'` |
 | `user` | FK → `User` | not null, `CASCADE` | |
 | `reminder_sent_at` | `DatetimeField` | null | Stamped by `community_event_reminder`; cleared when the event moves |
+| `going` | `BooleanField` | default `False` | An RSVP; counts only while the event has RSVPs on |
 | `created_at` | `DatetimeField` | auto | |
 
 ### Tournament

@@ -42,6 +42,9 @@ class CommunityEvent(Model):
     reviewed_at = fields.DatetimeField(null=True)
     # Why staff rejected or pulled it. Shown to the host, and sent in their DM.
     review_note = fields.TextField(null=True)
+    # The host opted in to RSVPs; ``rsvp_capacity`` caps them (null: no cap).
+    rsvp_enabled = fields.BooleanField(default=False)
+    rsvp_capacity = fields.IntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -56,6 +59,9 @@ class CommunityEventSubscription(Model):
     ``reminder_sent_at`` is stamped by the reminder worker so each subscriber
     hears once; moving the event's start clears it so the reminder fires again
     at the new time.
+
+    ``going`` marks an RSVP: someone who said they're coming, which also gets
+    them the reminder. It only counts while the event has RSVPs turned on.
     """
 
     id = fields.IntField(pk=True)
@@ -72,6 +78,7 @@ class CommunityEventSubscription(Model):
     )
     user_id: int
     reminder_sent_at = fields.DatetimeField(null=True)
+    going = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:

@@ -1,8 +1,8 @@
 """Community events: what members are running for each other during the event.
 
 ``/community-events`` lists the approved events still to come, grouped by day,
-with a subscribe toggle on each, the viewer's own submissions underneath, and the
-Submit button. ``/community-events/{id}`` is one event, and is where every DM
+with a reminder toggle (or an RSVP button, when the host takes RSVPs) on each,
+the viewer's own submissions underneath, and the Submit button. ``/community-events/{id}`` is one event, and is where every DM
 about it lands: a subscriber's reminder, a host's approval or rejection.
 
 Members only (``protected_page`` runs the membership gate) and behind
@@ -85,7 +85,57 @@ def _subscribe_button(service: CommunityEventService, user: User, event: Communi
             .props('flat color=primary').tooltip('Get a Discord DM before this event starts')
 
 
-def _event_card(service, user, event: CommunityEvent, subscribed: bool, count: int, on_change) -> None:
+def going_line(event: CommunityEvent, going: int) -> str:
+    if event.rsvp_capacity is not None:
+        return f'{going} of {event.rsvp_capacity} going'
+    return f'{going} going'
+
+
+def _rsvp_button(service: CommunityEventService, user: User, event: CommunityEvent,
+                 going: bool, count: int, on_change) -> None:
+    async def toggle() -> None:
+        try:
+            if going:
+                await service.cancel_rsvp(user, event.id)
+                ui.notify("RSVP cancelled. You won't get a reminder.", color='positive')
+            else:
+                await service.rsvp(user, event.id)
+                message = "You're going. We'll DM you before it starts."
+                if not user.dm_notifications:
+                    message += ' Turn DMs back on in your profile to get it.'
+                ui.notify(message, color='positive')
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            await on_change()
+            return
+        await on_change()
+
+    if going:
+        ui.button('Going', icon='event_available', on_click=toggle) \
+            .props('outline color=primary').tooltip('Cancel your RSVP')
+    elif event.rsvp_capacity is not None and count >= event.rsvp_capacity:
+        ui.button('Full', icon='event_busy').props('flat disable').tooltip('Every place is taken')
+    else:
+        ui.button('RSVP', icon='how_to_reg', on_click=toggle) \
+            .props('flat color=primary').tooltip("Say you're coming and get a DM before it starts")
+
+
+def _attendance(service, user, event: CommunityEvent, state: dict, on_change) -> None:
+    """The RSVP button when the event takes RSVPs, else the reminder toggle."""
+    if event.rsvp_enabled:
+        _rsvp_button(service, user, event, event.id in state['going'],
+                     state['going_counts'].get(event.id, 0), on_change)
+    else:
+        _subscribe_button(service, user, event, event.id in state['subscribed'], on_change)
+
+
+async def _attendance_state(service: CommunityEventService, user: User, event_ids: list[int]) -> dict:
+    subscribed, counts = await service.subscription_state(user, event_ids)
+    going, going_counts = await service.rsvp_state(user, event_ids)
+    return {'subscribed': subscribed, 'counts': counts, 'going': going, 'going_counts': going_counts}
+
+
+def _event_card(service, user, event: CommunityEvent, state: dict, on_change) -> None:
     with ui.card().classes('wiz-community-event full-width'):
         with ui.row().classes('items-start justify-between no-wrap full-width gap-2'):
             with ui.column().classes('gap-1 col min-w-0'):
@@ -97,9 +147,11 @@ def _event_card(service, user, event: CommunityEvent, subscribed: bool, count: i
                 if event.location:
                     meta_row('place', event.location)
                 meta_row('person', f'Hosted by {event.host.preferred_name}')
-                if count:
-                    meta_row('notifications', f'{count} subscribed')
-            _subscribe_button(service, user, event, subscribed, on_change)
+                if event.rsvp_enabled:
+                    meta_row('how_to_reg', going_line(event, state['going_counts'].get(event.id, 0)))
+                elif state['counts'].get(event.id):
+                    meta_row('notifications', f"{state['counts'][event.id]} subscribed")
+            _attendance(service, user, event, state, on_change)
 
 
 def create() -> None:
@@ -124,12 +176,11 @@ def create() -> None:
                 if not events:
                     empty_state('Nothing is listed yet. Running something? Submit it.')
                     return
-                mine, counts = await service.subscription_state(user, [e.id for e in events])
+                state = await _attendance_state(service, user, [e.id for e in events])
                 for day, group in groupby(events, key=day_label):
                     ui.label(day).classes('wiz-community-event__day')
                     for event in group:
-                        _event_card(service, user, event, event.id in mine, counts.get(event.id, 0),
-                                    refresh_all)
+                        _event_card(service, user, event, state, refresh_all)
 
             @ui.refreshable
             async def submissions() -> None:
@@ -202,10 +253,13 @@ def create() -> None:
 
                 with ui.row().classes('items-center gap-2 wrap'):
                     if current.status is CommunityEventStatus.APPROVED:
-                        mine, counts = await service.subscription_state(user, [current.id])
-                        _subscribe_button(service, user, current, current.id in mine, body.refresh)
-                        if counts.get(current.id):
-                            ui.label(f'{counts[current.id]} subscribed').classes('text-muted')
+                        state = await _attendance_state(service, user, [current.id])
+                        _attendance(service, user, current, state, body.refresh)
+                        if current.rsvp_enabled:
+                            ui.label(going_line(current, state['going_counts'].get(current.id, 0))) \
+                                .classes('text-muted')
+                        elif state['counts'].get(current.id):
+                            ui.label(f"{state['counts'][current.id]} subscribed").classes('text-muted')
                     if can_manage and current.status is not CommunityEventStatus.CANCELLED:
                         ui.button(
                             'Edit', icon='edit',
@@ -219,6 +273,16 @@ def create() -> None:
                 if current.description:
                     with ui.column().classes('wiz-community-event__body gap-0 full-width'):
                         render_blocks(parse_blocks(current.description))
+
+                if can_manage and current.rsvp_enabled:
+                    attendees = await service.list_attendees(user, current.id)
+                    ui.label("Who's going").classes('wiz-community-event__day')
+                    if attendees:
+                        with ui.column().classes('gap-1'):
+                            for person in attendees:
+                                meta_row('person', person.preferred_name)
+                    else:
+                        ui.label('No RSVPs yet.').classes('text-muted')
 
         async def _after_save(_saved) -> None:
             body.refresh()

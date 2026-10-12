@@ -375,3 +375,66 @@ async def test_events_are_published_for_webhooks(member, staff, monkeypatch):
         EventType.COMMUNITY_EVENT_SUBMITTED, EventType.COMMUNITY_EVENT_APPROVED,
     ]
     assert published[0].payload['host_id'] == member.id
+
+
+# --- RSVPs --------------------------------------------------------------------
+
+
+async def test_rsvps_respect_the_cap_and_count_as_a_reminder(member, other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(staff, _draft(rsvp_enabled=True, rsvp_capacity=1))
+
+    await service.rsvp(other_member, event.id)
+    await service.rsvp(other_member, event.id)
+    with pytest.raises(ValueError, match='full'):
+        await service.rsvp(member, event.id)
+
+    going, counts = await service.rsvp_state(member, [event.id])
+    assert going == set() and counts == {event.id: 1}
+    subscribed, _ = await service.subscription_state(other_member, [event.id])
+    assert subscribed == {event.id}
+    assert [u.id for u in await service.list_attendees(staff, event.id)] == [other_member.id]
+
+    await service.cancel_rsvp(other_member, event.id)
+    await service.rsvp(member, event.id)
+    assert (await service.rsvp_state(member, [event.id]))[0] == {event.id}
+
+
+async def test_a_reminder_subscriber_can_rsvp_without_a_second_row(other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(staff, _draft(rsvp_enabled=True))
+    await service.subscribe(other_member, event.id)
+
+    await service.rsvp(other_member, event.id)
+
+    rows = await CommunityEventSubscription.filter(event_id=event.id)
+    assert [(r.user_id, r.going) for r in rows] == [(other_member.id, True)]
+
+
+async def test_rsvps_need_the_host_to_open_them(other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(staff, _draft())
+    with pytest.raises(ValueError, match='RSVP'):
+        await service.rsvp(other_member, event.id)
+
+
+async def test_only_the_host_or_staff_see_who_is_going(member, other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(member, _draft(rsvp_enabled=True))
+    await service.approve(staff, event.id)
+    await service.rsvp(other_member, event.id)
+
+    assert [u.id for u in await service.list_attendees(member, event.id)] == [other_member.id]
+    with pytest.raises(PermissionError):
+        await service.list_attendees(other_member, event.id)
+
+
+@pytest.mark.parametrize('cap', [0, 1001, 'many'])
+async def test_a_bad_rsvp_cap_is_refused(member, cap):
+    with pytest.raises(ValueError, match='cap'):
+        await CommunityEventService().submit(member, _draft(rsvp_enabled=True, rsvp_capacity=cap))
+
+
+async def test_a_cap_without_rsvps_is_dropped(member):
+    event = await CommunityEventService().submit(member, _draft(rsvp_capacity=5))
+    assert event.rsvp_enabled is False and event.rsvp_capacity is None

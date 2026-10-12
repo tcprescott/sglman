@@ -607,6 +607,9 @@ Meetups, panels and side events members run during the onsite event. Members onl
 | `update(actor, event_id, draft)` | `CommunityEvent` | Host or staff. An approved event stays approved; moving its start clears subscribers' reminders and DMs them. A host editing a `REJECTED` event resubmits it (`PENDING`, staff DM'd). Cancelled events refuse. |
 | `cancel(actor, event_id)` | `CommunityEvent` | Host or staff; DMs subscribers if it was listed and not over. |
 | `subscribe(actor, event_id)` / `unsubscribe(actor, event_id)` | `None` | Idempotent; subscribing needs a listed event that hasn't ended. |
+| `rsvp_state(actor, event_ids)` | `(set[int], dict[int, int])` | Which events the actor RSVP'd to, and going counts. |
+| `rsvp(actor, event_id)` / `cancel_rsvp(actor, event_id)` | `None` | Idempotent. RSVPing needs a listed event with RSVPs on that hasn't ended, refuses past `rsvp_capacity` (event row locked while counting), and subscribes the actor to the reminder; cancelling removes the subscription too. |
+| `list_attendees(actor, event_id)` | `list[User]` | Host or staff: who RSVP'd, in order. |
 | `list_for_review(actor, statuses=None)` | `list[CommunityEvent]` | STAFF. Every status when omitted. |
 | `pending_count(actor)` | `int` | STAFF. |
 | `approve(actor, event_id)` | `CommunityEvent` | STAFF. From `PENDING` or `REJECTED`; DMs the host. |
