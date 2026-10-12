@@ -2099,6 +2099,29 @@ main.q-page:focus {
     gap: 2px;
 }
 
+/* An approver's crew line on the phone card: name on the left, the labelled
+   Approve / Approved toggle pushed to the right edge so every row's button
+   lines up in one column. */
+.mgc-crew-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 100%;
+    min-width: 0;
+}
+
+.mgc-crew-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mgc-crew-approve {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 .mgc-id-link {
     color: var(--wiz-link);
     text-decoration: underline;
@@ -2610,11 +2633,9 @@ main.q-page:focus {
         min-height: 48px;
     }
 
-    /* The card's inline controls (crew approve circles, the caption's edit
-       pencil) sit in rows of text. At the 44px floor above, every commentator
-       and tracker line grew to 44px and a two-name list stood a hand tall; 32px
-       stays well clear of WCAG 2.5.8's 24px minimum. */
-    .match-grid-card .wiz-crew-approve,
+    /* The caption's edit pencil sits in a line of text; at the 44px floor
+       above it padded the caption out to a full button row. 32px stays well
+       clear of WCAG 2.5.8's 24px minimum. */
     .match-grid-card .mgc-caption .q-btn {
         min-height: 32px;
         min-width: 32px;

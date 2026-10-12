@@ -138,30 +138,42 @@ _CREW_DETAIL = '''
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <template v-for="(item, idx) in props.row.__KEY__">
-                    <span class="mgc-crew-item">
-                        <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
-                               :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
-                               :color="item.approved ? 'positive' : 'grey-7'"
-                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })"
-                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name">
-                            <q-tooltip>{{ item.approved ? 'Approved — tap to un-approve' : 'Not approved — tap to approve' }}</q-tooltip>
+                    <!-- An approver gets one row per person: the name (opens
+                         their profile) and a labelled Approve / Approved button
+                         at full tap size. A bare status circle beside a name was
+                         too small to hit and didn't say what tapping it did. -->
+                    <span v-if="__CREW__" class="mgc-crew-row">
+                        <a href="#" @click.prevent="$parent.$emit('view___SING__', { row: props.row, idx })"
+                           class="table-link mgc-crew-name">{{ item.name }}</a>
+                        <q-icon v-if="item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs"
+                                aria-label="Acknowledged">
+                            <q-tooltip>Acknowledged{{ item.ack_ts ? ' ' + item.ack_ts : '' }}</q-tooltip>
+                        </q-icon>
+                        <q-icon v-else-if="item.approved" name="schedule" class="st-pending" size="xs"
+                                aria-label="Awaiting acknowledgment">
+                            <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                        </q-icon>
+                        <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
+                               icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
+                               @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
+                            <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
                         </q-btn>
-                        <q-icon v-else-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                        <q-btn v-if="__CREW__" class="mgc-crew-approve" dense no-caps no-wrap size="sm"
+                               :outline="!item.approved" :flat="item.approved"
+                               :color="item.approved ? 'positive' : 'primary'"
+                               :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
+                               :label="item.approved ? 'Approved' : 'Approve'"
+                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name"
+                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })" />
+                    </span>
+                    <span v-else class="mgc-crew-item">
+                        <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
                             <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
                         </q-icon>
                         <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                             <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                         </q-icon>
-                        <a v-if="__CREW__" href="#" @click="$parent.$emit('view___SING__', { row: props.row, idx })"
-                           class="table-link">{{ item.name }}</a>
-                        <span v-else :class="item.approved ? 'st-ok-strong' : 'st-pending'">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</span>
-                        <q-icon v-if="__CREW__ && item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs">
-                            <q-tooltip>Acknowledged{{ item.ack_ts ? ' ' + item.ack_ts : '' }}</q-tooltip>
-                        </q-icon>
-                        <q-icon v-if="__CREW__ && item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
-                            <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
-                        </q-icon>
-                        <span v-if="__CREW__ && idx < props.row.__KEY__.length - 1">,</span>
+                        <span :class="item.approved ? 'st-ok-strong' : 'st-pending'">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</span>
                         <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
                                icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
                                @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
