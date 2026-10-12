@@ -20,6 +20,7 @@ from application.content import parse_blocks
 from application.services import (
     AuthService,
     CommunityEventService,
+    SystemConfigService,
     TenantService,
     get_user_from_discord_id,
 )
@@ -111,6 +112,7 @@ def create() -> None:
         await _chrome(user, 'Community Events')
         service = CommunityEventService()
         is_staff = await AuthService.is_staff(user)
+        needs_review = await SystemConfigService.community_events_require_approval()
 
         with ui.column().classes('page-container-narrow w-full gap-3'):
             page_header('Community Events', 'Meetups, panels and side events members are running.')
@@ -150,7 +152,9 @@ def create() -> None:
 
             ui.button(
                 'Submit an event', icon='add',
-                on_click=lambda: CommunityEventDialog(user, is_staff=is_staff, on_saved=refresh_all).open(),
+                on_click=lambda: CommunityEventDialog(
+                    user, is_staff=is_staff, needs_review=needs_review, on_saved=refresh_all,
+                ).open(),
             ).props('color=primary').classes('self-start')
 
             await upcoming()

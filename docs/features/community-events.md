@@ -13,10 +13,17 @@ is not an endorsement.
 
 ## Lifecycle
 
+Staff approval is a per-community switch, **Require staff approval** under
+Admin → Settings → Community Events (`community_event_require_approval`, on by
+default). Turned off, a member's submission is listed straight away, audited as
+submitted plus an automatic approval, and staff get no DM. Staff can still take
+an event down, and the host's edit of a taken-down event goes back to review
+either way, so the switch can't be used to dodge a take-down.
+
 | Status | Set by | Listed? | Reminded? |
 |---|---|---|---|
-| `PENDING` | a member's submission; a host editing a rejected event | no (host and staff only) | no |
-| `APPROVED` | staff approving; any staff submission (auto-approved) | yes | yes |
+| `PENDING` | a member's submission while approval is required; a host editing a rejected event | no (host and staff only) | no |
+| `APPROVED` | staff approving; any staff submission, and any member submission when approval is off (auto-approved) | yes | yes |
 | `REJECTED` | staff rejecting a submission or taking a listed one down, with a reason | no | no |
 | `CANCELLED` | the host or staff | no | no |
 

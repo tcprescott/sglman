@@ -22,6 +22,8 @@ KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
 KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
 KEY_VOLUNTEER_COMP_TIERS = 'volunteer_comp_tiers'
 KEY_COMMUNITY_EVENT_REMINDER_LEAD_MINUTES = 'community_event_reminder_lead_minutes'
+# Whether a member's community event waits for staff before it's listed.
+KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL = 'community_event_require_approval'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 KEY_STATION_FORMAT = 'station_format'
 # Whether the join page shows non-members today's match times and player names.
@@ -186,6 +188,10 @@ class SystemConfigService:
     async def get_community_event_reminder_lead_minutes(default: int = 30) -> int:
         value = await SystemConfigService.get_int(KEY_COMMUNITY_EVENT_REMINDER_LEAD_MINUTES)
         return value if value is not None and value > 0 else default
+
+    @staticmethod
+    async def community_events_require_approval() -> bool:
+        return await SystemConfigService.get_bool(KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL, default=True)
 
     @staticmethod
     async def get_volunteer_comp_tiers(
@@ -453,6 +459,7 @@ _NORMALIZERS = {
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES: _positive_int_value,
     KEY_VOLUNTEER_COMP_TIERS: _comp_tiers_value,
     KEY_COMMUNITY_EVENT_REMINDER_LEAD_MINUTES: _positive_int_value,
+    KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL: _bool_value,
     KEY_TOURNAMENT_HOURS: _tournament_hours_value,
     KEY_STATION_FORMAT: _station_format_value,
     KEY_JOIN_PREVIEW: _bool_value,

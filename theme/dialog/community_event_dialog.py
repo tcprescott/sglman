@@ -36,20 +36,23 @@ class CommunityEventDialog:
         event: Optional[CommunityEvent] = None,
         *,
         is_staff: bool = False,
+        needs_review: bool = True,
         on_saved: Optional[Callable[[CommunityEvent], Awaitable[None]]] = None,
     ) -> None:
         self.user = user
         self.event = event
         self.is_staff = is_staff
+        self.needs_review = needs_review
         self.on_saved = on_saved
         self.service = CommunityEventService()
 
     def _hint(self) -> str:
         if self.event is None:
-            return (
-                'Staff review each event before it shows up for everyone else.'
-                if not self.is_staff else 'You are staff, so this goes straight onto the listing.'
-            )
+            if self.is_staff:
+                return 'You are staff, so this goes straight onto the listing.'
+            if self.needs_review:
+                return 'Staff review each event before it shows up for everyone else.'
+            return 'This goes straight onto the listing.'
         return 'Changes go live straight away.' if self.event.status is CommunityEventStatus.APPROVED else ''
 
     def open(self) -> None:

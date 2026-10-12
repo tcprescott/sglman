@@ -1034,6 +1034,7 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stages. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
 | `get_community_event_reminder_lead_minutes(default=30)` | `int` | How far ahead of a community event its subscribers are DM'd; default when unset/non-positive. |
+| `community_events_require_approval()` | `bool` | Whether a member's community event waits for staff review (`community_event_require_approval`, default on). |
 | `get_volunteer_comp_tiers(default=None)` | `list[float]` | Ascending hour thresholds that earn a volunteer something (`volunteer_comp_tiers`, comma-separated). `[8, 12, 16]` when unset; a lone `0` means no tiers; a malformed value falls back to the default rather than raising. |
 | `get_tournament_hours(tournament=None)` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). A tournament's own `tournament_hours` blob fully replaces the tenant schedule. |
 | `get_tournament_window_for_date(d, tournament=None)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
