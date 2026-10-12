@@ -17,7 +17,7 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 | Super Metroid Map Randomizer | maprando.com | `Community Race Season 5` preset | `smmap` | `community_race_s5` built-in (site preset, verbatim) | yes |
 | Super Metroid: DASH | dashrando.net | Upstream preset `sgl26` (matches the event page) | `smdash` | `sgl26` fallback | yes (keyless) |
 | The Legend of Zelda Randomizer | Z1R executable (Self Service) | Flag string `12TDBKH6…` from the rules doc | `z1r` | n/a (hard-coded 2026 flags) | yes |
-| Wind Waker Randomizer | tanjo3 wwrando build | Permalink + build `dev_tanjo3.1.10.7.3` | `wwr` | n/a | **no** (stub) |
+| Wind Waker Randomizer | tanjo3 wwrando build | Permalink + build `dev_tanjo3.1.10.7.3` | `wwr` | `sgl2026` (built-in) | **yes** (local) |
 | Best of NES (Relay, High Score) | none | — | — | — | n/a |
 
 `seed_generator` is what the importer sets from the tournament name. "Stub" means `SeedGenerationService.STUB_RANDOMIZERS`: registered, but rolling raises. See [5-wwr-seedgen.md](5-wwr-seedgen.md).
@@ -27,12 +27,12 @@ Research notes, not a plan: what each on-site tournament on the SGL 2026 plannin
 - **ALttPR presets.** `openboots` is now a built-in (`presets/alttpr/openboots.yaml`, copied verbatim from SahasrahBot). Run Admin → Presets → Import built-ins on `sgl26` after deploy, then attach it to the tournament.
 - **HMG preset.** Settled on SahasrahBot's `hmg` preset (open, 7/7, defeat Ganon, boots start) on alttpr.com, not the doors branch the rules doc mentions. It's a built-in now (`presets/alttpr/hmg.yaml`); import it with the others.
 - **FFR flags: settled.** The rules page (the FFR wiki) is authoritative, so `_generate_ff1r` builds from its v4.9.7 "Tournament Flags" link, not the sheet's v4.8.6 link.
-- **WWR build disagrees.** The sheet links release `s8-v2`. The rules doc names build `dev_tanjo3.1.10.7.3` and an `s9-tournament` tracker. The rules doc looks current.
+- **WWR build: settled.** The sheet links release `s8-v2`; the rules doc names build `dev_tanjo3.1.10.7.3`. The rules doc's permalink encodes its own build, `dev_tanjo3.1.10.7.3_d30d27c`, so the rules doc wins.
 - **OoTR and SM Map presets: done.** `presets/ootr/sgl2026.json` is the `settings` object of generatorDev's `SGL 2026 Tournament` preset, copied verbatim, and `_generate_ootr` rolls it on `dev_9.1.38-0`. `presets/smmap/community_race_s5.json` is maprando.com's `Community Race Season 5` preset, copied verbatim. Both generators read their bundled file directly, so neither needs importing.
 - **DASH: done.** dashrando.net defines an `sgl26` preset upstream (`Preset_SGL26` in `packages/core/lib/presets.ts`) that matches all eleven settings on the event page. `GET https://www.dashrando.net/generate/sgl26?race=1` rolls one server-side and 307s to `/seed/<key>`, with no key needed. `_generate_smdash` does exactly that.
 - **DK64: the importer attaches `Season 5 Race Settings`.** Without a preset, `dk64r` falls back to `presets/dk64r/sgl.json`, which is a placeholder string upstream rejects. The preset on `sgl26` matches the rules doc's settings string exactly (checked 2026-10-08).
 - **Tournament descriptions: the rules doc wins.** The importer copies the sheet's Admins, Qualifiers, Trophies and Seed Generation cells into each description, but replaces the seed link where the rules doc disagrees: FFR gets the wiki's v4.9.7 flags (the sheet has v4.8.6), OoTR gets `/generatorDev` (the sheet has `/generator`), WWR gets build `dev_tanjo3.1.10.7.3` (the sheet has `s8-v2`). It also fixes the sheet's "Ansyc" typo. See `_SEED_GENERATION_OVERRIDES` in `scripts/import_sgl_tournaments.py`.
-- **WWR: deferred** to a separate PR.
+- **WWR: done.** `presets/wwr/sgl2026.json` is the rules doc's permalink; `_generate_wwr` re-seeds it locally. Import built-ins on `sgl26` after deploy and attach it to the tournament. See [seed-generation.md](../reference/seed-generation.md#wwr).
 - **SM Map screenshot is cropped (moot now).** The rules doc shows the preset as an image that stops at "Save the animals". Anything below that (QoL details, item progression tweaks) isn't in the doc, so assume the stock preset.
 - **DK64 race rooms.** DK64R rolls asynchronously (`ASYNC_RANDOMIZERS`), so the seed is queued, not instant. Check that's acceptable for a proctor handing seeds out at the desk.
 

@@ -266,7 +266,7 @@ async def _seed_presets(tenant: Tenant, staff: User) -> Preset:
     # The committed ``presets/`` files, imported the way a real community starts:
     # **Import built-ins** on the Presets tab. They are the settings actual events
     # ran (ALTTPR sglive2025/casualboots, OoTR sgl2026, SM Map Rando community race,
-    # DK64 in its settings-string form), so the dev preset list holds real
+    # DK64 in its settings-string form, the Wind Waker SGL 2026 permalink), so the dev preset list holds real
     # multi-randomizer payloads instead of one three-key toy dict — which is what
     # the JSON editor, the payload-size handling and the per-randomizer filter are
     # written against. Idempotent by (randomizer, name) inside the service.

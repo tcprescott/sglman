@@ -1,10 +1,10 @@
 # Wind Waker seed generation (`wwr`) — research notes
 
-**Not a plan.** `wwr` is a registered stub in
-[`seedgen_service.py`](../../application/services/seedgen_service.py) — selectable on a
-tournament, present in every UI/API surface, and raising `ValueError` when
-rolled. Nothing automated it at SGL25. This file records what the wwrando repo
-answers, so the decision can be made before the September 2026 freeze.
+**Done (October 2026).** `wwr` now rolls: the preset's reference permalink is
+re-seeded locally, exactly as the notes below proposed. The implementation and
+its decisions (no bundled fallback, the copy card, why there is no seed hash)
+are in [seed-generation.md § wwr](../reference/seed-generation.md#wwr). These
+notes stay as the research record.
 
 Majora's Mask, the other SGL25 stub, was dropped: SGL 2026 rolls it offline and
 Wizzrobe has no `mmr` randomizer.
@@ -62,19 +62,19 @@ Checked against tag `s8-v2` of `tanjo3/wwrando` (2026-08-03).
   the first field in the encoded blob — which means a stored permalink also
   *tells* us which build it belongs to.
 
-## Open questions
+## Open questions (answered)
 
-1. Which **Season 8 permalink** did SGL25 use? Not recorded; it has to come from
-   the organizers. The build tag is recoverable from the permalink itself, so
-   this is one question rather than two, and it is the only thing blocking an
-   implementation.
-2. Is there a **hosted generator** upstream? Worth knowing, but not blocking —
-   the seed-swap above needs no service.
-3. Do players need anything beyond the permalink to start, such as a **seed
-   hash** for an on-stream "same seed?" check? `WWRandomizer.get_seed_hash()`
-   exists; whether the community uses it that way is unconfirmed.
+1. **Which permalink?** SGL 2026's rules doc carries one. It decodes to build
+   `dev_tanjo3.1.10.7.3_d30d27c`, seed `A`, 105 option bytes, and its settings
+   match the rules doc. It ships as `presets/wwr/sgl2026.json`.
+2. **Hosted generator?** None. wooferzfg/tww-rando-bot (racetime `twwr`) shells
+   out to a checked-out randomizer with `--noui --dry`; its `generator_api.py`
+   is self-hosted only. The seed swap needs no service.
+3. **Seed hash?** Wanted, but not computable for SGL 2026: with "do not generate
+   spoiler log" on, `get_seed_hash` hashes `permalink + SEED_KEY`, a secret
+   injected by the release CI. Deferred to an event that races spoiler-on.
 
-## If the stub is promoted
+## If the stub is promoted (as it was)
 
 The mechanics are already documented — see
 [Adding a randomizer](../reference/seed-generation.md#adding-a-randomizer-or-preset)

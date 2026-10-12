@@ -17,6 +17,7 @@ from typing import Callable, ClassVar, Dict, Optional, Tuple
 from application.errors import MissingCredentialError
 from application.events import EventType, match_live
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
+from application.services import notification_links
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
@@ -46,7 +47,9 @@ from application.utils.discord_embeds import (
 from application.utils.discord_messages import (
     DMLink,
     checked_in_dm,
+    is_seed_link,
     seed_dm,
+    seed_paste_block,
     state_changed_dm,
 )
 from application.utils.seed_provider import SeedProviderError
@@ -510,20 +513,36 @@ class MatchScheduleService(MatchNotificationMixin):
         # Send DMs to players in the background (respects dm_notifications opt-out)
         descriptor = _match_descriptor(match, await bracket_line_for(match.id))
         community = await _community_name()
+        if is_seed_link(seed_url):
+            seed_description = f'[Open your seed]({seed_url})'
+            embed_url: Optional[str] = seed_url
+            paste_instructions = None
+            # The seed URL is the whole point of this DM, so it gets a button
+            # rather than only a hyperlink buried in the embed description. It
+            # points at the randomizer, not at Wizzrobe — the one link here that
+            # is deliberately off-site.
+            seed_link: Optional[DMLink] = DMLink('Open your seed', seed_url)
+        else:
+            # A permalink or seed-and-flags string is pasted into the player's
+            # own randomizer. Discord refuses a non-URL as a button or embed URL
+            # (the whole DM fails), so the seed rides in a copyable code block
+            # and the button opens the match on the Player tab, where the same
+            # seed has a copy button.
+            paste_instructions = (
+                self.seedgen_service.paste_instructions(randomizer, settings)
+                or 'Paste this into your randomizer.'
+            )
+            seed_description = seed_paste_block(seed_url, paste_instructions)
+            embed_url = None
+            seed_link = await notification_links.player_match(match.id, label='Copy it from Wizzrobe')
         seed_embed = match_embed(
             title='🎲 Seed ready', color=COLOR_SEED,
-            description=f'[Open your seed]({seed_url})',
+            description=seed_description,
             tournament=match.tournament.name, community_name=community,
             player_names=descriptor['player_names'], when=match.scheduled_at,
             stage_name=match.stage.name if match.stage else None,
-            url=seed_url,
+            url=embed_url,
         )
-
-        # The seed URL is the whole point of this DM, so it gets a button rather
-        # than only a hyperlink buried in the embed description. It points at the
-        # randomizer, not at Wizzrobe — the one link here that is deliberately
-        # off-site.
-        seed_link = DMLink('Open your seed', seed_url)
 
         async def _send_seed_dms() -> None:
             for player in match.players:
@@ -532,6 +551,7 @@ class MatchScheduleService(MatchNotificationMixin):
                         player.user.preferred_name,
                         match.tournament.name,
                         seed_url,
+                        paste_instructions=paste_instructions,
                         **descriptor,
                     )
                     success, err = await self.discord_service.send_dm(

@@ -281,6 +281,35 @@ MY_ACTIONS_SLOT = """<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     '__OFFER__', STREAM_VOLUNTEER_TOOLTIP,
 ).replace('__ACTIONABLE__', STREAM_VOLUNTEER_ACTIONABLE)
 
+def seed_value_template(expr: str) -> str:
+    """How a rolled seed reads in a cell or card: a link, or a value to copy.
+
+    Most randomizers return a URL. WWR returns a permalink and Z1R a
+    ``seed - flags`` string that players paste into their own copy of the
+    randomizer, so those get a one-tap copy button rather than a dead block of
+    text. ``expr`` is the Vue expression holding the seed (``props.value`` in a
+    cell slot, ``props.row.generated_seed`` in a card).
+
+    A slot template's handlers only see Vue's short list of globals, so neither
+    ``Quasar`` nor ``navigator`` resolves there: the clipboard comes from the
+    click's own window (the event's ``view``) and the toast from ``$q``. The
+    handler is a plain ``evt => {…}``: Vue takes anything opening with ``(…) =>``
+    as the handler itself, so an immediately-called arrow would run at render.
+    """
+    return '''<template v-if="/^https?:\\/\\//.test(__SEED__)">
+            <a :href="__SEED__" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="__SEED__">
+                {{ __SEED__.length > 40 ? __SEED__.substring(0, 37) + '...' : __SEED__ }}
+            </a>
+        </template>
+        <span v-else class="seed-copy">
+            <span class="seed-value" :title="__SEED__">{{ __SEED__.length > 24 ? __SEED__.substring(0, 21) + '...' : __SEED__ }}</span>
+            <q-btn flat dense round size="sm" icon="content_copy" aria-label="Copy seed"
+                   @click.stop="evt => { const clip = evt.view.navigator.clipboard; const copied = () => $q.notify({message: 'Seed copied to clipboard.', color: 'positive', icon: 'content_copy'}); const failed = () => $q.notify({message: 'Couldn\\'t copy the seed. Hover it to see the whole thing.', color: 'warning'}); if (clip) { clip.writeText(__SEED__).then(copied, failed) } else { failed() } }">
+                <q-tooltip>Copy seed</q-tooltip>
+            </q-btn>
+        </span>'''.replace('__SEED__', expr)
+
+
 # The Generate button's own gate, shared with the mobile grid's seed detail.
 # A seed can only be rolled once, so offering the button where it cannot help is
 # not merely noise: on a bracket row with no players yet it burns the one roll on
@@ -307,18 +336,13 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
         <q-tooltip>Last roll failed: {{ props.row.seed_roll_error }} Generate again to retry.</q-tooltip>
     </q-icon>
     <span v-if="props.value">
-        <template v-if="/^https?:\\/\\//.test(props.value)">
-            <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
-                {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
-            </a>
-        </template>
-        <template v-else>{{ props.value }}</template>
+        __SEED_VALUE__
         <q-icon v-if="props.row.seed_dm_blocked && props.row.seed_dm_blocked.length"
                 name="notifications_off" class="st-pending q-ml-xs" size="xs">
             <q-tooltip>Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed. Shows who is unreachable, not whether a DM arrived.</q-tooltip>
         </q-icon>
     </span>
-</q-td>'''.replace('__ROLLABLE__', SEED_ROLLABLE)
+</q-td>'''.replace('__ROLLABLE__', SEED_ROLLABLE).replace('__SEED_VALUE__', seed_value_template('props.value'))
 
 # Carries the capability flags — must be registered through ``_fill``, not raw.
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
@@ -477,14 +501,9 @@ STAGE_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-ro
 # the roll button, so a viewer without a roll callback sees the value only.
 SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <span v-if="props.value">
-        <template v-if="/^https?:\\/\\//.test(props.value)">
-            <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
-                {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
-            </a>
-        </template>
-        <template v-else>{{ props.value }}</template>
+        __SEED_VALUE__
     </span>
-</q-td>'''
+</q-td>'''.replace('__SEED_VALUE__', seed_value_template('props.value'))
 
 
 # Read-only state cell (icons + timestamps, no lifecycle action buttons) — the

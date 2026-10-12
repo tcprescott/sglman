@@ -88,6 +88,7 @@ class PresetService:
         name = (name or '').strip()
         randomizer = (randomizer or '').strip()
         self._validate(name, randomizer, settings)
+        settings = SeedGenerationService.normalize_preset_settings(randomizer, settings)
         if await self.repository.get_by_natural_key(randomizer, name) is not None:
             raise ValueError(f"A '{randomizer}' preset named '{name}' already exists")
         preset = await self.repository.create(
@@ -121,6 +122,10 @@ class PresetService:
         new_randomizer = preset.randomizer if randomizer is None else (randomizer or '').strip()
         new_settings = preset.settings if settings is None else settings
         self._validate(new_name, new_randomizer, new_settings)
+        # A rename leaves the stored settings alone, so they aren't re-judged:
+        # a row saved before its randomizer checked settings stays renameable.
+        if settings is not None or new_randomizer != preset.randomizer:
+            new_settings = SeedGenerationService.normalize_preset_settings(new_randomizer, new_settings)
         if (new_randomizer, new_name) != (preset.randomizer, preset.name):
             existing = await self.repository.get_by_natural_key(new_randomizer, new_name)
             if existing is not None and existing.id != preset.id:
@@ -207,7 +212,9 @@ class PresetService:
             preset = await self.repository.create(
                 name=entry['name'],
                 randomizer=entry['randomizer'],
-                settings=entry['settings'],
+                settings=SeedGenerationService.normalize_preset_settings(
+                    entry['randomizer'], entry['settings'],
+                ),
                 description=entry['description'],
             )
             created.append(preset)
@@ -280,7 +287,7 @@ class PresetService:
             created.append(await self.repository.create(
                 name=name,
                 randomizer=randomizer,
-                settings=entry.settings,
+                settings=SeedGenerationService.normalize_preset_settings(randomizer, entry.settings),
                 description=entry.description,
             ))
 

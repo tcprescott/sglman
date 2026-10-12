@@ -52,6 +52,7 @@ from theme.tables.match_slots import (
     STREAM_VOLUNTEER_ACTIONABLE,
     _bool_js,
     crew_wanted_js,
+    seed_value_template,
 )
 
 # --- Headline: scheduled time (large) + compact state chip -----------------
@@ -237,9 +238,7 @@ _SEED_DETAIL = '''
                     <q-icon name="error_outline" size="14px" class="q-mr-xs" />Last roll failed: {{ props.row.seed_roll_error }} Generate again to retry.
                 </span>
                 <template v-if="props.row.generated_seed">
-                    <a v-if="props.row.generated_seed.startsWith('https://') || props.row.generated_seed.startsWith('http://')"
-                       :href="props.row.generated_seed" target="_blank" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
-                    <span v-else>{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</span>
+                    __SEED_VALUE__
                 </template>
                 <template v-if="props.row.generated_seed && props.row.seed_dm_blocked && props.row.seed_dm_blocked.length">
                     <span class="st-pending" style="flex-basis: 100%;">
@@ -459,6 +458,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
         # Shared with the desktop seed cell so the two boards agree on when a
         # seed can still be rolled (match_slots.SEED_ROLLABLE).
         .replace('__ROLLABLE__', SEED_ROLLABLE)
+        .replace('__SEED_VALUE__', seed_value_template('props.row.generated_seed'))
         .replace('__IA__', ia)
         .replace('__RUN__', _bool_js(access.run))
         .replace('__CONFIRM__', _bool_js(access.confirm))

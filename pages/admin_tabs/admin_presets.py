@@ -10,6 +10,8 @@ from application.services import (
     SeedGenerationService,
     get_user_from_discord_id,
 )
+from application.utils.discord_messages import is_seed_link
+from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
 from theme.notify import notify_error
@@ -151,10 +153,15 @@ async def admin_presets_page() -> None:
                     with ui.row().classes('items-center no-wrap'):
                         ui.icon('check_circle', color='positive')
                         ui.label('The randomizer rolled a seed.').classes('text-weight-medium')
-                    if result.seed_url.startswith(('https://', 'http://')):
+                    if is_seed_link(result.seed_url):
                         ui.link(result.seed_url, result.seed_url, new_tab=True).classes('break-all')
                     else:
-                        ui.label(result.seed_url).classes('font-mono break-all')
+                        with ui.row().classes('items-center no-wrap w-full'):
+                            ui.label(result.seed_url).classes('seed-value break-all')
+                            ui.button(
+                                icon='content_copy',
+                                on_click=lambda: copy_to_clipboard(result.seed_url, 'Seed'),
+                            ).props('flat round dense aria-label="Copy seed"').tooltip('Copy seed')
                     if not result.used_preset_settings:
                         ui.label(
                             f"{result.randomizer} rolls its bundled settings and ignores "
@@ -346,13 +353,58 @@ async def admin_presets_page() -> None:
                         'Settings (JSON)',
                         value=existing['settings'] if is_edit else '{}',
                     ).classes('w-full font-mono').props('rows=12')
+                    # Wind Waker's settings are one permalink copied out of the
+                    # randomizer, so it gets a field for that instead of JSON.
+                    existing_permalink = ''
+                    if is_edit and existing['randomizer'] == 'wwr':
+                        existing_permalink = json.loads(existing['settings'] or '{}').get('permalink', '')
+                    permalink_input = ui.textarea(
+                        'Permalink', value=existing_permalink,
+                        placeholder="Paste the permalink from the randomizer's Permalink box",
+                    ).classes('w-full seed-value').props('rows=3 autogrow')
+
+                    @ui.refreshable
+                    def wwr_summary() -> None:
+                        permalink = (permalink_input.value or '').strip()
+                        if not permalink:
+                            return
+                        try:
+                            info = SeedGenerationService.describe_wwr_permalink(permalink)
+                        except ValueError as e:
+                            ui.label(str(e)).classes('text-negative text-body2')
+                            return
+                        ui.label(f'Build {info.build}').classes('text-weight-medium')
+                        if info.summary is None:
+                            ui.label(
+                                "Settings summary not available for this build. It still rolls: "
+                                "players' permalinks keep this build and these settings."
+                            ).classes('text-grey text-body2')
+                            return
+                        for line in info.summary:
+                            ui.label(line).classes('text-body2')
+
+                    with ui.column().classes('gap-1 w-full') as summary_box:
+                        wwr_summary()
+                    permalink_input.on_value_change(lambda _: wwr_summary.refresh())
+
+                    def show_settings_editor() -> None:
+                        is_wwr = randomizer_input.value == 'wwr'
+                        settings_input.set_visibility(not is_wwr)
+                        permalink_input.set_visibility(is_wwr)
+                        summary_box.set_visibility(is_wwr)
+
+                    randomizer_input.on_value_change(lambda _: show_settings_editor())
+                    show_settings_editor()
 
                     async def submit():
-                        try:
-                            settings = json.loads(settings_input.value or '{}')
-                        except json.JSONDecodeError as e:
-                            ui.notify(f'Settings must be valid JSON: {e}', color='warning')
-                            return
+                        if randomizer_input.value == 'wwr':
+                            settings = {'permalink': permalink_input.value or ''}
+                        else:
+                            try:
+                                settings = json.loads(settings_input.value or '{}')
+                            except json.JSONDecodeError as e:
+                                ui.notify(f'Settings must be valid JSON: {e}', color='warning')
+                                return
                         try:
                             current = await _current()
                             if is_edit:

@@ -18,7 +18,10 @@ fixtures cite them.
 
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
+from application.services._seedgen_wwr import decode_permalink as decode_wwr_permalink
+from application.services._seedgen_wwr import reseed as reseed_wwr_permalink
 from models import (
     GeneratedSeeds,
     Match,
@@ -206,6 +209,35 @@ async def seed_matches_for_tenant(
     if stage3_match.generated_seed_id is None:
         stage3_match.generated_seed = upcoming_seed
         await stage3_match.save()
+
+    # A seed players paste rather than open: a real Wind Waker permalink (the
+    # SGL 2026 preset under a fixed seed name). It's what shows the copy button
+    # beside a seed on the schedule, the Player tab and the proctor board; every
+    # other seeded seed is a link. Pinned to a match that's rolled but unplayed,
+    # with a player who has a login, so the Player tab shows it too.
+    wwr_reference = json.loads(
+        (Path(__file__).resolve().parent.parent / "presets" / "wwr" / "sgl2026.json").read_text()
+    )["permalink"]
+    wwr_seed, _ = await GeneratedSeeds.get_or_create(
+        seed_url=reseed_wwr_permalink(wwr_reference, "DevSeedWindWaker"),
+        tenant=tenant,
+        defaults={
+            "seed_info": "Generated seed for the off-stream match",
+            "randomizer": "wwr",
+            "settings_snapshot": {
+                "reference_permalink": wwr_reference,
+                "version": decode_wwr_permalink(wwr_reference).version,
+                "seed_name": "DevSeedWindWaker",
+            },
+            "provider_meta": {
+                "provider": "wwr", "operation": "generate_seed",
+                "attempts": 1, "latency_ms": 2, "surface": "match",
+            },
+        },
+    )
+    if off_stream_match.generated_seed_id is None:
+        off_stream_match.generated_seed = wwr_seed
+        await off_stream_match.save()
 
     # Provider tasks: the queue that carries a task-queue randomizer's roll
     # across a restart. One row per state so every value of ProviderTaskStatus

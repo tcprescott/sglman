@@ -54,11 +54,10 @@ class TestAvailableRandomizers:
             'smdash', 'dk64r', 'wwr', 'test',
         }
 
-    def test_stub_randomizers_are_registered(self):
-        # Registered for selection but not yet wired to an upstream API.
-        for stub in ('wwr',):
-            assert stub in SeedGenerationService.AVAILABLE_RANDOMIZERS
-            assert stub in SeedGenerationService.STUB_RANDOMIZERS
+    def test_wwr_is_no_longer_a_stub(self):
+        assert 'wwr' in SeedGenerationService.AVAILABLE_RANDOMIZERS
+        assert 'wwr' not in SeedGenerationService.STUB_RANDOMIZERS
+        assert 'wwr' in SeedGenerationService.PRESET_AWARE_RANDOMIZERS
 
     def test_smdash_is_no_longer_a_stub(self):
         assert 'smdash' in SeedGenerationService.AVAILABLE_RANDOMIZERS
@@ -69,25 +68,6 @@ class TestAvailableRandomizers:
         # Promoted to a real backend (api.dk64rando.com); still selectable.
         assert 'dk64r' in SeedGenerationService.AVAILABLE_RANDOMIZERS
         assert 'dk64r' not in SeedGenerationService.STUB_RANDOMIZERS
-
-
-# ---------------------------------------------------------------------------
-# Stub generators — registered but not yet implemented
-# ---------------------------------------------------------------------------
-
-
-class TestStubGenerators:
-    @pytest.mark.parametrize('randomizer', ['wwr'])
-    def test_generator_method_exists(self, service, randomizer):
-        assert hasattr(service, f'_generate_{randomizer}')
-
-    @pytest.mark.parametrize('randomizer', ['wwr'])
-    async def test_raises_not_implemented(self, service, randomizer):
-        # Stub generators raise ValueError (the documented user-error contract),
-        # so a user-reachable roll surfaces a 400 / UI warning rather than an
-        # unhandled NotImplementedError -> 500 (audit §1.3).
-        with pytest.raises(ValueError, match='not yet implemented'):
-            await service.generate_seed(randomizer)
 
 
 # ---------------------------------------------------------------------------
@@ -171,18 +151,25 @@ class TestGenerateSeedPreset:
 
 
 class TestMockSeedgen:
-    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'smdash', 'test'])
+    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'smmap', 'ootr', 'smdash', 'test'])
     async def test_returns_mock_url_without_network(self, service, monkeypatch, randomizer):
         # No ALTTPR.generate / aiohttp / credential rows needed: the mock returns
         # before any backend is reached — even for randomizers that would
         # otherwise raise for a missing credential (smmap/ootr). No ``db``
         # fixture either, which is the point: nothing touches the credential table.
         # ``dk64r`` is deliberately absent: it opts out of this short-circuit and
-        # runs its own simulated queue (``TestMockDK64``).
+        # runs its own simulated queue (``TestMockDK64``). So are ``wwr`` and
+        # ``z1r``, built locally with nothing upstream to stand in for.
         monkeypatch.setenv('ENVIRONMENT', 'development')
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
         url = await service.generate_seed(randomizer)
         assert url.startswith(f'https://mock.seedgen.local/{randomizer}/')
+
+    async def test_local_string_seeds_skip_the_mock(self, service, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        assert ' - ' in await service.generate_seed('z1r')
+        assert SeedGenerationService.MOCK_EXEMPT_RANDOMIZERS == {'dk64r', 'wwr', 'z1r'}
 
     async def test_mock_urls_are_distinct(self, service, monkeypatch):
         monkeypatch.setenv('ENVIRONMENT', 'development')

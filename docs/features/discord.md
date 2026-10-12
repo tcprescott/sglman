@@ -55,7 +55,7 @@ tenant costs the button, not the DM.
 | Match scheduled / rescheduled (crew) | View your crew slot | `/home/my-crew?match=<id>` — their card under Crew you signed up for, outlined and scrolled to |
 | Match scheduled / rescheduled (watchers) | — | Unwatch only; there is nothing to do |
 | Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
-| Seed ready | Open your seed | the randomizer — the one deliberately off-site link |
+| Seed ready | Open your seed | the randomizer — the one deliberately off-site link. A seed that isn't a URL (a Wind Waker permalink, Z1R seed and flags) rides in a code block instead, and the button reads **Copy it from Wizzrobe** and opens the match on the Player tab |
 | Crew assignment | View your crew slot | `/home/my-crew?match=<id>`, beside Acknowledge — the card that also carries Confirm and Withdraw |
 | Crew signup (to admins) | Review the signup | `/admin/schedule?match_id=<id>` — the approval toggle is on that row |
 | Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |

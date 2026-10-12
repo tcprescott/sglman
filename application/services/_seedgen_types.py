@@ -64,3 +64,17 @@ class AsyncRollPoll:
 
     seed: Optional[RolledSeed] = None
     verification_hash: Optional[list] = None
+
+
+@dataclass(frozen=True)
+class WWPermalinkInfo:
+    """What a Wind Waker permalink says about itself.
+
+    ``build`` is the release a player downloads, ``version`` the exact string
+    the build checks (it carries the CI commit). ``summary`` is ``None`` for a
+    build Wizzrobe has no vendored tables for.
+    """
+
+    build: str
+    version: str
+    summary: Optional[list[str]]

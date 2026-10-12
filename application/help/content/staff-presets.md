@@ -25,6 +25,13 @@ There are three ways to add one:
 - **Add Preset** takes a name, a randomizer, a description, and the settings as
   JSON. Use it when you have the exact settings from a randomizer's own tools.
 
+A **Wind Waker** preset is one permalink rather than JSON. Set the settings up
+in the randomizer, copy what its Permalink box shows, and paste it into the
+**Permalink** field. Wizzrobe shows the build it's for and a short list of the
+main settings underneath, so you can check it's this season's. Each roll keeps
+the build and settings and only changes the seed. The SGL 2026 permalink is one
+of the built-ins.
+
 Some randomizers need your community's own API key before they appear in the
 randomizer list or can roll anything. Set those under **Settings → Integrations →
 Randomizer Keys**. A stored key is never shown again, only whether it's set.

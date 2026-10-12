@@ -466,6 +466,22 @@ main.q-page:focus {
     font-variant-numeric: tabular-nums;
 }
 
+/* A seed players paste into their own randomizer (a WWR permalink, a Z1R
+   seed and flags) rather than open. Cells truncate it, so copying goes through
+   the copy button beside it, never a text selection. */
+.seed-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+/* The value and its copy button stay on one line, even in a narrow card. */
+.seed-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
+}
+
 /* Inline timestamp spans inside table cell templates */
 .cell-timestamp {
     font-family: var(--font-mono);
