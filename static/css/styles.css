@@ -501,6 +501,33 @@ main.q-page:focus {
 .avail-window__status { flex: 1 1 calc(100% - 4.5rem); min-width: 0; }
 .avail-window__delete { flex: none; }
 
+/* A list of editable rows inside a dialog (Record results, payout split):
+   one bordered box, a divider between rows, each row wrapping onto two lines
+   so its fields never squeeze into each other on a phone. */
+.wiz-edit-list {
+    width: 100%;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.wiz-edit-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+}
+
+.wiz-edit-row + .wiz-edit-row {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.wiz-edit-row__lead  { flex: 1 1 calc(100% - 4.5rem); min-width: 0; }
+.wiz-edit-row__half  { flex: 1 1 calc(50% - 3rem); min-width: 0; }
+.wiz-edit-row__full  { flex: 1 1 100%; min-width: 0; }
+.wiz-edit-row__fixed { flex: none; }
+
 @media (min-width: 600px) {
     .avail-window { flex-wrap: nowrap; }
     .avail-window__start,

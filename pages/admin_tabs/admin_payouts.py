@@ -195,23 +195,19 @@ async def admin_payouts_page() -> None:
                                 'same place — joint placings are paid separately, not '
                                 'halved.'
                             ).classes('text-caption text-grey')
-                            rows_column = ui.column().classes('w-full gap-2')
+                            rows_column = ui.element('div').classes('wiz-edit-list')
 
                             def add_row(place=1, percentage='', entrant_id=None):
                                 key = next_key['n']
                                 next_key['n'] += 1
                                 with rows_column:
-                                    with ui.row().classes('items-center w-full no-wrap gap-2') as holder:
+                                    with ui.element('div').classes('wiz-edit-row') as holder:
                                         place_input = ui.number(
                                             'Place', value=place, min=1, format='%d',
-                                        ).props('outlined dense').style('width: 6rem')
+                                        ).props('outlined dense').classes('wiz-edit-row__half')
                                         pct_input = ui.input(
                                             'Share', value=str(percentage),
-                                        ).props('outlined dense suffix="%"').style('width: 7rem')
-                                        entrant_select = ui.select(
-                                            options, value=entrant_id, label='Winner',
-                                            with_input=True,
-                                        ).props('outlined dense').classes('col min-w-0')
+                                        ).props('outlined dense suffix="%"').classes('wiz-edit-row__half')
 
                                         def remove():
                                             holder.delete()
@@ -219,7 +215,12 @@ async def admin_payouts_page() -> None:
 
                                         ui.button(icon='delete', on_click=remove) \
                                             .props('flat dense round color=negative') \
+                                            .classes('wiz-edit-row__fixed') \
                                             .tooltip('Remove this place')
+                                        entrant_select = ui.select(
+                                            options, value=entrant_id, label='Winner',
+                                            with_input=True,
+                                        ).props('outlined dense').classes('wiz-edit-row__full')
                                 widgets[key] = {
                                     'place': place_input,
                                     'percentage': pct_input,

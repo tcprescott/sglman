@@ -1,2 +1,3 @@
 - My Availability now groups your windows into one card per day, with each window on its own divided row, so the list is readable on a phone. Start and End no longer get cut off; the timezone is stated once above the cards.
 - Each day card has its own button for adding another window that day, and the Save button now sits right under your windows instead of below the chart.
+- Staff: the Record results and payout split dialogs put each racer or place in its own divided row, so fields no longer run together or get squeezed on a phone.
