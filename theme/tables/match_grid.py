@@ -433,9 +433,13 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
     if 'stage' in present:
         details += _STREAM_DETAIL.replace('__LABEL__', labels.get('stage', 'Stage'))
     if 'generated_seed' in present:
-        # Mobile label column is narrow; "Generated Seed" (the desktop column label) doesn't fit.
+        # "Generated Seed" (the desktop column label) would widen the shared label column.
         details += _SEED_DETAIL.replace('__LABEL__', 'Seed')
     details += _COMMENT_DETAIL.replace('__LABEL__', labels.get('comment', 'Comment'))
+    # One grid for every detail row, so the label column is as wide as the
+    # longest label actually shown rather than a fixed width that starves the
+    # values on a phone.
+    details = f'\n        <div class="mgc-details">{details}\n        </div>'
 
     # Actions (only worth emitting when an admin or the watch toggle is in play).
     # Hoisted above the caption/detail rows when the caller asked for it, with a

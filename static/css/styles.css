@@ -2038,24 +2038,47 @@ main.q-page:focus {
     text-decoration: underline;
 }
 
-/* Two-column grid so every detail row's value starts on the same label column,
-   and a centered axis so action buttons (Sign Up, Generate, Assign Stage)
-   align with their label instead of sitting on the text baseline. */
+/* The detail rows share one two-column grid (.mgc-details, each .mgc-detail
+   dissolving into it), so every value starts on the same column and that column
+   is only as wide as the longest label shown: "Seed" alone doesn't reserve room
+   for "Commentators". minmax(0, 1fr) lets a long value shrink and wrap inside
+   the card instead of pushing past its edge. A centered axis keeps action
+   buttons (Sign Up, Generate, Assign Stage) level with their label. The
+   dispute row sits outside the group and keeps a grid of its own. */
+.mgc-details,
 .mgc-detail {
     display: grid;
-    grid-template-columns: 6.8rem 1fr;
+    grid-template-columns: max-content minmax(0, 1fr);
     align-items: center;
-    gap: 4px var(--space-1);
+    gap: 2px var(--space-2);
     font-size: 0.9em;
     margin-top: var(--space-1);
 }
 
+.mgc-details:empty {
+    display: none;
+}
+
+.mgc-details > .mgc-detail {
+    display: contents;
+}
+
 .mgc-detail-value {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 2px var(--space-1);
     min-width: 0;
+}
+
+/* A seed or stream URL is one unbroken string: clip it to the card on one line
+   (the full URL is the link's title and its target). */
+.mgc-detail-value > a {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mgc-label {
@@ -2507,6 +2530,45 @@ main.q-page:focus {
 
     .q-tab {
         min-height: 48px;
+    }
+
+    /* The card's inline controls (crew approve circles, the caption's edit
+       pencil) sit in rows of text. At the 44px floor above, every commentator
+       and tracker line grew to 44px and a two-name list stood a hand tall; 32px
+       stays well clear of WCAG 2.5.8's 24px minimum. */
+    .match-grid-card .wiz-crew-approve,
+    .match-grid-card .mgc-caption .q-btn {
+        min-height: 32px;
+        min-width: 32px;
+    }
+
+    /* The Filters toggle already gets the page column's gap below it, and the
+       card grid needs no table-style top margin. */
+    .wiz-filter-toggle {
+        margin-bottom: 0;
+    }
+
+    .match-table-container.q-table--grid {
+        margin-top: 0;
+    }
+
+    /* On a phone even the longest-label column ("Commentators") takes a third of
+       the card and wraps a two-name crew list onto a line per name. Stack each
+       label over its value instead, so the value gets the full width. */
+    .mgc-details,
+    .match-grid-card > .mgc-detail {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0;
+    }
+
+    .match-grid-card .mgc-label {
+        font-size: 0.85em;
+        line-height: 1.2;
+        margin-top: var(--space-2);
+    }
+
+    .mgc-details > .mgc-detail:first-child .mgc-label {
+        margin-top: 0;
     }
 
     /* On Air date heading: the full "Friday, July 03, 2026" at 1.8em wraps and
