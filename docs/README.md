@@ -60,6 +60,7 @@ How each shipped subsystem behaves.
 | [features/web-push.md](features/web-push.md) | Declarative Web Push device notifications mirroring Discord DMs |
 | [features/admin-reports.md](features/admin-reports.md) | Crew hours, match export, audit viewer, trended insights |
 | [features/ada-accommodations.md](features/ada-accommodations.md) | Per-community ADA accommodation requests from the profile, a STAFF queue with status and private notes. Behind `FeatureFlag.ADA_ACCOMMODATIONS` |
+| [features/community-events.md](features/community-events.md) | Members-only `/community-events`: member-submitted, staff-approved events with Discord reminders for subscribers, and the reusable Tiptap markdown editor. Behind `FeatureFlag.COMMUNITY_EVENTS` |
 | [features/event-check-in.md](features/event-check-in.md) | Matcherino-backed check-in desk for in-person events: badge-sale sync over the unofficial API, badge tiers, account matching, walk-ups, the `CHECK_IN_DESK` role. Behind `FeatureFlag.EVENT_CHECK_IN` |
 | [features/payouts.md](features/payouts.md) | Prize pool, placement splits with ties, computed amounts, Matcherino handles and the payout block. Behind `FeatureFlag.PAYOUTS` |
 | [features/profile-reminders.md](features/profile-reminders.md) | Staff-picked recommended profile items (Challonge linked, pronouns, ...) and the red banner that asks members to finish them |

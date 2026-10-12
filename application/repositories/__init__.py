@@ -26,6 +26,10 @@ from .check_in_repository import (
     CheckInUserLookupRepository,
 )
 from .commentator_repository import CommentatorRepository
+from .community_event_repository import (
+    CommunityEventRepository,
+    CommunityEventSubscriptionRepository,
+)
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
 from .discord_tournament_grant_repository import DiscordTournamentGrantRepository
@@ -96,6 +100,8 @@ __all__ = [
     'CheckInTierRepository',
     'CheckInUserLookupRepository',
     'CommentatorRepository',
+    'CommunityEventRepository',
+    'CommunityEventSubscriptionRepository',
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
     'DiscordTournamentGrantRepository',

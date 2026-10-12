@@ -89,6 +89,7 @@ the key is set, and rolling without one raises. See
 | `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card, `api/routers/feedback.py` | `feedback_service.py` |
 | `event_info` | Community | no (ships dark) | `/event-info*`, the drawer's Event Information item (`theme/base.py`); `help_icon` resolves the flag itself before reading a handbook snippet (no REST router exists) | `event_info_service.py` |
 | `ada_accommodations` | Community | no (ships dark) | the profile's ADA accommodation card, the Users tab's ADA requests sub-tab, filter and column (no REST router or MCP tool exists) | `accommodation_service.py` |
+| `community_events` | Community | no (ships dark) | `/community-events*`, the drawer's Community Events item for members (`theme/base.py`), admin Community Events tab and Settings pane, reminder worker skips (no REST router or MCP tool exists) | `community_event_service.py` |
 | `payouts` | Operations | no (ships dark) | admin Payouts tab, the profile's Matcherino-handle card, `/tournaments/{id}/payouts` + `/prize-pool` API, the MCP `get_tournament_payouts` tool | `payout_service.py` |
 | `event_check_in` | Operations | no (ships dark) | `/checkin` + `/checkin/{event_id}`, the **Check-in** nav link (`AuthService.can_view_check_in_desk`), admin Check-in tab, sync worker skips (no REST router or MCP tool exists) | `check_in_service.py`, `check_in_sync_worker.py` |
 

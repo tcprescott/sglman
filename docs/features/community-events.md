@@ -1,0 +1,90 @@
+# Community Events
+
+A members-only listing at `/community-events` of the meetups, panels, side
+tournaments and board game nights that attendees run for each other during the
+onsite event. Members submit events, staff approve them, and anyone can subscribe
+to a listed event for a Discord DM shortly before it starts.
+
+Behind `FeatureFlag.COMMUNITY_EVENTS`, which **ships dark**.
+
+Every surface carries the same disclaimer (`theme/community_events.py`
+`DISCLAIMER`): these events are run by members, not event staff, and listing one
+is not an endorsement.
+
+## Lifecycle
+
+| Status | Set by | Listed? | Reminded? |
+|---|---|---|---|
+| `PENDING` | a member's submission; a host editing a rejected event | no (host and staff only) | no |
+| `APPROVED` | staff approving; any staff submission (auto-approved) | yes | yes |
+| `REJECTED` | staff rejecting a submission or taking a listed one down, with a reason | no | no |
+| `CANCELLED` | the host or staff | no | no |
+
+- **Edits by the host go live without re-review** on an approved event. Staff
+  take a bad edit down with Reject ("Take down"), which DMs the host the reason
+  and tells subscribers it's off.
+- Moving an approved event's start DMs its subscribers and clears their
+  `reminder_sent_at` so the reminder fires at the new time. Text-only edits are
+  silent.
+- A cancelled event is frozen: no edits, no approval.
+- The listing shows approved events until they **end**
+  (`starts_at + duration_minutes`), with a "Happening now" chip while running.
+
+## Who is told what
+
+| Trigger | Recipient | Link button |
+|---|---|---|
+| Member submits, or resubmits a rejected event | every STAFF member except the host | Admin → Community Events with the review dialog open (`?community_event=<id>`) |
+| Staff approve | host | the event page |
+| Staff reject / take down | host (with the reason) | the event page, labelled "Edit the event" |
+| Approved event moves | subscribers | the event page |
+| Approved event cancelled or taken down | subscribers | the event page |
+| `lead` minutes before start (worker) | subscribers | the event page |
+
+All DMs go through `discord_queue`, skip anyone with `dm_notifications` off, and
+are mirrored to web push. Senders live in
+`application/services/_community_event_notifications.py`, copy in
+`application/utils/discord_messages_community_events.py`.
+
+## Reminders
+
+`application/services/community_event_reminder.py` ticks every 60s. It scans
+(cross-tenant) un-reminded subscriptions to approved events starting within 24
+hours, then per subscription re-checks the flag and the community's lead
+(`community_event_reminder_lead_minutes`, Admin → Settings → Community Events,
+default 30). It stamps before sending, so a failure never double-sends. Drive it
+by hand with `poetry run python scripts/run_worker_tick.py community_event_reminder`.
+
+## Descriptions and the editor
+
+Descriptions are markdown written in `theme.markdown_editor.MarkdownEditor`, a
+reusable NiceGUI element wrapping [Tiptap](https://tiptap.dev) (MIT). The writer
+sees formatted text and a toolbar; the value is markdown. The toolbar offers only
+what the closed block parser (`application/content/blocks.py`) renders: bold,
+italic, inline code, links (https/mailto/relative), two heading levels, lists and
+notes (blockquotes). Descriptions are rendered with `parse_blocks` +
+`render_blocks`, never `ui.markdown`.
+
+The Tiptap bundle is vendored in `theme/markdown_editor/dist/` (third-party
+notices in `dist/THIRD_PARTY_LICENSES.txt`). To change it, edit
+`theme/markdown_editor/package.json` or `src/`, then run `npm ci && npm run build`
+in that directory and commit `dist/` and the lockfile. `node_modules/` is
+git-ignored.
+
+## Surfaces
+
+| Surface | Who | Gate |
+|---|---|---|
+| `/community-events` | members | `@protected_page(feature=COMMUNITY_EVENTS)`; drawer item for members where the flag is live |
+| `/community-events/{id}` | members (non-approved events: host and staff only, else 404) | same |
+| Admin → Community Events | STAFF | `FeatureFlag.COMMUNITY_EVENTS in live` |
+| Admin → Settings → Community Events | STAFF | same |
+
+No REST router or MCP tool exists yet.
+
+## Audit and webhooks
+
+`AuditActions.COMMUNITY_EVENT_{SUBMITTED,UPDATED,APPROVED,REJECTED,CANCELLED}`,
+each paired with the same-named `EventType` through `write_and_publish`. Details
+carry `community_event_id`, `title`, `starts_at`, `status`; the event adds
+`host_id`. Subscriptions are private and neither audited nor published.

@@ -1,0 +1,120 @@
+"""Discord DMs for community events.
+
+Every sender here is best-effort: a Discord failure is logged and swallowed, so
+it never undoes the save that prompted it. Each DM carries a link button to the
+control it asks about (the review dialog for staff, the event page for hosts and
+subscribers), and each is skipped for anyone who has turned DMs off.
+"""
+
+import logging
+from typing import Iterable, Optional
+
+from models import CommunityEvent, Role, User
+
+logger = logging.getLogger(__name__)
+
+
+def _wants_dm(user: Optional[User]) -> bool:
+    return bool(user and user.discord_id and getattr(user, 'dm_notifications', True))
+
+
+def event_embed(event: CommunityEvent, *, title: str, color: int, community_name: Optional[str],
+                description: str):
+    from application.utils.discord_embeds import notification_embed, time_field
+
+    return notification_embed(
+        title=title,
+        color=color,
+        community_name=community_name,
+        description=description,
+        fields=[
+            ('Event', event.title, False),
+            ('Starts', time_field(event.starts_at), False),
+            ('Length', format_duration(event.duration_minutes), True),
+            ('Where', event.location or '', True),
+        ],
+    )
+
+
+def format_duration(minutes: int) -> str:
+    """``90`` → ``1h 30m``; ``60`` → ``1h``; ``45`` → ``45m``."""
+    hours, mins = divmod(int(minutes), 60)
+    if hours and mins:
+        return f'{hours}h {mins}m'
+    return f'{hours}h' if hours else f'{mins}m'
+
+
+async def _send(recipients: Iterable[User], message: str, embed, link) -> None:
+    from application.services.discord import DiscordService, discord_queue
+
+    service = DiscordService()
+    for user in recipients:
+        if _wants_dm(user):
+            discord_queue.enqueue(service.send_dm(int(user.discord_id), message, embed=embed, link=link))
+
+
+async def notify_staff_of_submission(event: CommunityEvent, host: User) -> None:
+    """Tell the community's staff a member's event is waiting for review."""
+    try:
+        from application.repositories.user_role_repository import UserRoleRepository
+        from application.services import notification_links
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import COLOR_JOIN_REQUEST
+        from application.utils.discord_messages_community_events import submitted_to_staff_dm
+
+        community = await TenantService.current_community_name()
+        message = submitted_to_staff_dm(community, host.preferred_name, event.title)
+        embed = event_embed(event, title='📅 Community event to review', color=COLOR_JOIN_REQUEST,
+                            community_name=community, description=message)
+        link = await notification_links.admin_community_event(event.id)
+        staff = [u for u in await UserRoleRepository.list_users_with_role(Role.STAFF) if u.id != host.id]
+        await _send(staff, message, embed, link)
+    except Exception:
+        logger.exception('community event %s: staff notification failed', event.id)
+
+
+async def notify_host_of_decision(event: CommunityEvent, host: User, *, approved: bool,
+                                  was_listed: bool = False) -> None:
+    """Tell the host staff approved their event, or why they didn't."""
+    try:
+        from application.services import notification_links
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CONFIRMED
+        from application.utils.discord_messages_community_events import approved_dm, rejected_dm
+
+        community = await TenantService.current_community_name()
+        if approved:
+            message = approved_dm(community, event.title)
+            title, color = '✅ Community event approved', COLOR_CONFIRMED
+            link = await notification_links.community_event(event.id)
+        else:
+            message = rejected_dm(community, event.title, event.review_note or '', was_listed)
+            title, color = '📅 Community event not listed', COLOR_CANCELLED
+            link = await notification_links.community_event(event.id, label='Edit the event')
+        embed = event_embed(event, title=title, color=color, community_name=community, description=message)
+        await _send([host], message, embed, link)
+    except Exception:
+        logger.exception('community event %s: host notification failed', event.id)
+
+
+async def notify_subscribers(event: CommunityEvent, subscribers: Iterable[User], *,
+                             cancelled: bool) -> None:
+    """Tell subscribers an approved event moved, or is no longer happening."""
+    try:
+        from application.services import notification_links
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_RESCHEDULED, time_field
+        from application.utils.discord_messages_community_events import cancelled_dm, time_changed_dm
+
+        community = await TenantService.current_community_name()
+        if cancelled:
+            message = cancelled_dm(event.title)
+            title, color = '🚫 Community event cancelled', COLOR_CANCELLED
+        else:
+            message = time_changed_dm(event.title, time_field(event.starts_at))
+            title, color = '🕑 Community event moved', COLOR_RESCHEDULED
+        embed = event_embed(event, title=title, color=color, community_name=community, description=message)
+        link = await notification_links.community_event(event.id)
+        await _send(subscribers, message, embed, link)
+    except Exception:
+        logger.exception('community event %s: subscriber notification failed', event.id)

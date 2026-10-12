@@ -121,6 +121,10 @@ erDiagram
     User ||--o{ ApiToken : "user"
     User ||--o{ Feedback : "user"
     User ||--o{ AccommodationRequest : "user"
+    User ||--o{ CommunityEvent : "host"
+    User |o--o{ CommunityEvent : "reviewed_by"
+    CommunityEvent ||--o{ CommunityEventSubscription : "event"
+    User ||--o{ CommunityEventSubscription : "user"
     User |o--o{ Equipment : "owner_user"
     Equipment ||--o{ EquipmentLoan : "equipment"
     User ||--o{ EquipmentLoan : "borrower"
@@ -254,6 +258,10 @@ Used by both `VolunteerAvailability.status` and `PlayerAvailability.status` (`ma
 ### `AccommodationStatus`
 
 `AccommodationRequest.status` (`max_length=20`, default `NEW`): `NEW` = `'new'`, `ACKNOWLEDGED` = `'acknowledged'`, `ARRANGED` = `'arranged'`, `WITHDRAWN` = `'withdrawn'` (set only by the requester unticking). See [ada-accommodations.md](../features/ada-accommodations.md#lifecycle).
+
+### `CommunityEventStatus`
+
+`CommunityEvent.status` (`max_length=20`, default `PENDING`): `PENDING` = `'pending'`, `APPROVED` = `'approved'`, `REJECTED` = `'rejected'` (a turned-down submission or a listed event taken down), `CANCELLED` = `'cancelled'`. See [community-events.md](../features/community-events.md#lifecycle).
 
 ### `FeedbackCategory` / `FeedbackStatus`
 
@@ -695,6 +703,39 @@ A member's ADA accommodation request in one community (`unique_together = (tenan
 | `staff_notified_at` | `DatetimeField` | null | Last "request opened" staff DM; another isn't sent within 24 h (`STAFF_DM_WINDOW`), so toggling the box doesn't DM staff each time (migration 76) |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 
+#### `CommunityEvent`
+
+Something a member is running during the community's onsite event (`community_event`, migration 92). Members submit, staff approve; only `APPROVED` rows are listed and reminded. `description` is markdown rendered only through the closed block parser. See [community-events.md](../features/community-events.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='community_events'` |
+| `host` | FK → `User` | not null, `CASCADE` | The submitter; `related_name='hosted_community_events'` |
+| `title` | `CharField(120)` | not null | |
+| `description` | `TextField` | default `''` | Markdown (≤5000, enforced by the service) |
+| `location` | `CharField(200)` | null | Free text |
+| `starts_at` | `DatetimeField` | not null | UTC |
+| `duration_minutes` | `IntField` | not null | 5 min to 72 h (service); the end is derived |
+| `status` | `CharEnumField(CommunityEventStatus)` | default `PENDING` | `max_length=20` |
+| `reviewed_by` | FK → `User` | null, `SET_NULL` | Last staff decision |
+| `reviewed_at` | `DatetimeField` | null | |
+| `review_note` | `TextField` | null | Why staff rejected or took it down; shown to and DM'd to the host |
+| `created_at` / `updated_at` | `DatetimeField` | auto | |
+
+Index `(tenant, status, starts_at)`.
+
+#### `CommunityEventSubscription`
+
+A member asking for a DM before a community event starts (`community_event_subscription`, `unique_together = (event, user)`).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='community_event_subscriptions'` |
+| `event` | FK → `CommunityEvent` | not null, `CASCADE` | `related_name='subscriptions'` |
+| `user` | FK → `User` | not null, `CASCADE` | |
+| `reminder_sent_at` | `DatetimeField` | null | Stamped by `community_event_reminder`; cleared when the event moves |
+| `created_at` | `DatetimeField` | auto | |
+
 ### Tournament
 
 #### `Tournament`
@@ -1072,6 +1113,7 @@ Constraint: `unique_together (('tenant', 'name'),)`.
 Keys read by `SystemConfigService`: `event_start_date`, `event_end_date`,
 `max_concurrent_players`, `max_concurrent_stages`,
 `volunteer_reminder_lead_minutes`, `volunteer_comp_tiers`,
+`community_event_reminder_lead_minutes` (default 30),
 `tournament_hours_by_date`, `station_format`, `join_page_match_preview`
 (the join page's today's-matches opt-in, default off — see
 [frontend.md](frontend.md#the-join-page-themejoin_pagepy)), `discord_auto_join`
@@ -1957,6 +1999,8 @@ Consult the source for full signatures.
 | `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `create_oauth_token`, `get_by_id`, `get_by_hash`, `get_by_refresh_hash`, `rotate_refresh`, `list_for_user`, `touch_last_used`, `revoke`. Reads match this tenant's PATs **or** the user's tenant-less OAuth tokens, so MCP connections stay revocable from any community. `create_oauth_token` defaults `read_only=True`, matching the consent screen's own default. |
 | `McpAuthRepository` | [`mcp_auth_repository.py`](../../application/repositories/mcp_auth_repository.py) | `McpOAuthClient`, `McpAuthorizationCode` | `create_client`, `get_client`, `create_code`, `get_code`, `consume_code`, `purge_expired_codes`. Global by design — neither model carries a tenant. |
 | `AccommodationRepository` | [`accommodation_repository.py`](../../application/repositories/accommodation_repository.py) | `AccommodationRequest` | `TenantScopedRepository` CRUD plus `get_by_id` (prefetches `user`), `get_for_user`, `list_by_status` (oldest first), `user_ids_with_status` |
+| `CommunityEventRepository` | [`community_event_repository.py`](../../application/repositories/community_event_repository.py) | `CommunityEvent` | `create`, `get_by_id` (prefetches `host`, `reviewed_by`), `update`, `list_by_status(statuses, starts_after=None)`, `list_for_host`, `count_by_status` |
+| `CommunityEventSubscriptionRepository` | [`community_event_repository.py`](../../application/repositories/community_event_repository.py) | `CommunityEventSubscription` | `create`, `delete`, `get_for`, `event_ids_for_user`, `counts_for`, `list_for_event`, `clear_reminders`, `mark_reminded`; worker scan `due_for_reminder` (deliberately cross-tenant) |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `list_for_user`, `set_status` |
 | `TenantFeatureFlagRepository` | [`feature_flag_repository.py`](../../application/repositories/feature_flag_repository.py) | `TenantFeatureFlag` | `list_for_tenant`, `map_for_tenant`, `get_for_tenant`, `set_override` (tri-state; deletes an all-NULL row) |
 | `FeatureFlagGroupRepository` | [`feature_flag_group_repository.py`](../../application/repositories/feature_flag_group_repository.py) | `FeatureFlagGroup` | `list_all`, `get_by_id`, `get_by_name`, `get_default`, `create`, `update`, `delete`, `clear_default`, `count_tenants` |

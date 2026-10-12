@@ -84,6 +84,7 @@ class TableKeys:
     ADMIN_EQUIPMENT = 'admin.equipment'
     ADMIN_ACCOMMODATIONS = 'admin.accommodations'
     ADMIN_FEEDBACK = 'admin.feedback'
+    ADMIN_COMMUNITY_EVENTS = 'admin.community_events'
     ADMIN_PAYOUTS = 'admin.payouts'
     ADMIN_PRESETS = 'admin.presets'
     ADMIN_QUALIFIERS = 'admin.qualifiers'

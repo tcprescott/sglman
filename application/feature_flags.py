@@ -199,6 +199,15 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             service_modules=('application/services/accommodation_service.py',),
         ),
         FeatureFlagSpec(
+            FeatureFlag.COMMUNITY_EVENTS,
+            'Community Events',
+            'Members submit the meetups, panels and side events they are running '
+            'during the event; staff approve them, and anyone can subscribe for a '
+            'Discord reminder before one starts.',
+            'Community',
+            service_modules=('application/services/community_event_service.py',),
+        ),
+        FeatureFlagSpec(
             FeatureFlag.EVENT_CHECK_IN,
             'Event Check-in',
             'A phone-friendly check-in desk for in-person events, with the '

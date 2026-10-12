@@ -1,0 +1,74 @@
+"""Dev-seed community events: one in each status, plus subscriptions.
+
+Times are relative to the run, and ``update_or_create`` keeps them so: a dev
+database reseeded next week still has events coming up rather than a listing of
+last week's.
+"""
+
+from datetime import datetime, timedelta
+
+from models import (
+    CommunityEvent,
+    CommunityEventStatus,
+    CommunityEventSubscription,
+    Tenant,
+    User,
+)
+
+_BOARD_GAMES = """Bring a game or play one of ours. We'll have **Codenames**, *Wingspan* and a few
+copies of Love Letter.
+
+- Starts small, gets loud
+- Snacks welcome
+- Ask for Player One at the door
+
+> The room stays open after the official schedule ends."""
+
+
+async def seed_community_events_for_tenant(
+    tenant: Tenant, users: dict[str, User], now_utc: datetime,
+) -> None:
+    staff = users['staff_user']
+    specs = [
+        ('Board game night', 'player_one', CommunityEventStatus.APPROVED, timedelta(hours=3), 240,
+         'Board game room, 2nd floor', _BOARD_GAMES, None),
+        ('Morning coffee run', 'sm_user', CommunityEventStatus.APPROVED, timedelta(minutes=-30), 90,
+         'Lobby by the front desk', 'Walking over to the café on the corner. Join us.', None),
+        ('Speedrun route Q&A', 'staff_user', CommunityEventStatus.APPROVED, timedelta(days=1), 90,
+         'Panel room B', '## Bring your questions\n\nRunners answer anything about their routes.', None),
+        ('Retro trading meetup', 'player_two', CommunityEventStatus.PENDING, timedelta(days=1, hours=2), 120,
+         'Food court', 'Swap carts, manuals and stories.', None),
+        ('Late-night blind race', 'player_three', CommunityEventStatus.REJECTED, timedelta(days=1, hours=6), 60,
+         None, 'A blind race in the tournament room.',
+         'The tournament room is closed overnight. Could you pick another room?'),
+        ('Cosplay photo walk', 'player_four', CommunityEventStatus.CANCELLED, timedelta(days=2), 60,
+         'Main entrance', 'Meet at the main entrance with your costume.', None),
+    ]
+    events: dict[str, CommunityEvent] = {}
+    for title, host, status, offset, minutes, location, description, note in specs:
+        reviewed = status in (CommunityEventStatus.APPROVED, CommunityEventStatus.REJECTED)
+        event, _ = await CommunityEvent.update_or_create(
+            tenant=tenant, title=title,
+            defaults={
+                'host': users[host],
+                'status': status,
+                'starts_at': now_utc + offset,
+                'duration_minutes': minutes,
+                'location': location,
+                'description': description,
+                'review_note': note,
+                'reviewed_by': staff if reviewed else None,
+                'reviewed_at': now_utc if reviewed else None,
+            },
+        )
+        events[title] = event
+
+    for title, usernames in (
+        ('Board game night', ('player_two', 'player_three', 'staff_user')),
+        ('Speedrun route Q&A', ('player_one',)),
+    ):
+        for username in usernames:
+            await CommunityEventSubscription.get_or_create(
+                tenant=tenant, event=events[title], user=users[username],
+            )
+    print(f"    [{tenant.slug}] community events ok (one per status, with subscriptions)")

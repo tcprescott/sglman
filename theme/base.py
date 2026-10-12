@@ -128,6 +128,9 @@ class BaseLayout:
         # is a public page, and someone who has not signed in is squarely who it
         # is written for.
         self._show_event_info = False
+        # Members only, like Feedback: the listing is the community's own and
+        # the page's membership gate would turn anyone else away.
+        self._show_community_events = False
         # The check-in desk, offered only while an event is open and to people
         # who can work it. False on the synchronous error path, like Feedback.
         self._show_check_in = False
@@ -218,6 +221,10 @@ class BaseLayout:
             self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
         if self._tenant_id is not None:
             self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
+        if self._is_member:
+            self._show_community_events = await FeatureFlagService().is_enabled(
+                FeatureFlag.COMMUNITY_EVENTS,
+            )
         if self._is_member and await AuthService.can_view_check_in_desk(self.user):
             from application.services import CheckInService
             self._show_check_in = await CheckInService().has_open_event()
@@ -534,6 +541,15 @@ class BaseLayout:
                         ui.icon('event_note').props('size=sm')
                     with ui.item_section():
                         ui.item_label('Event Information')
+
+            if self._show_community_events:
+                with ui.item(
+                    on_click=lambda: ui.navigate.to('/community-events')
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('groups').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Community Events')
 
             # Not gated on ``self.user``: /help is a public page, and a
             # signed-out visitor on any framed public surface is exactly the

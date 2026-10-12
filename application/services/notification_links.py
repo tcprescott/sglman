@@ -35,9 +35,11 @@ from application.utils.app_links import (
     VOL_SCHEDULE,
     admin_ada_request_url,
     admin_check_in_url,
+    admin_community_event_url,
     admin_qualifier_queue_url,
     admin_reschedule_request_url,
     admin_url,
+    community_event_url,
     crew_match_url,
     home_url,
     player_agree_url,
@@ -248,6 +250,18 @@ async def admin_ada_request(
 ) -> Optional[DMLink]:
     """One ADA request's Update dialog, open on arrival."""
     return await link_for(label, admin_ada_request_url(request_id))
+
+
+async def community_event(event_id: int, *, label: str = 'Open the event') -> Optional[DMLink]:
+    """One community event's page, for its host and its subscribers."""
+    return await link_for(label, community_event_url(event_id))
+
+
+async def admin_community_event(
+    event_id: int, *, label: str = 'Review the event',
+) -> Optional[DMLink]:
+    """Admin → Community Events with this event's review dialog open on arrival."""
+    return await link_for(label, admin_community_event_url(event_id))
 
 
 async def admin_matcherino_login(*, label: str = 'Update the Matcherino login') -> Optional[DMLink]:
