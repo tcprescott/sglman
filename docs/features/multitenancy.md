@@ -355,7 +355,7 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
   per-tenant authorization grants** (`RacetimeBotService`; client secrets are
   write-only and never shown), the **Feature Groups** tiers
   ([feature-flags.md](feature-flags.md)), and the platform-wide **Service Health**
-  board. The sections are split across `pages/platform_bots.py`,
+  board, one tab each (`?tab=` opens one). The tabs are split across `pages/platform_bots.py`,
   `platform_feature_groups.py` and `platform_tenant_admins.py`. Its queries pass explicit ids
   (intended cross-tenant capability), backed by `TenantService` /
   `RacetimeBotService`, whose CRUD/grant methods are super-admin-gated and

@@ -10,7 +10,7 @@ from nicegui import ui
 from application.services import LogLevelService
 from application.utils.log_levels import LEVELS
 from application.utils.timezone import format_local_display
-from pages.platform_shared import current_actor
+from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -23,6 +23,12 @@ _LEVEL_CHIP = '''
     </span>
 '''
 
+# A dotted module path is one long word, so it broke mid-segment
+# ("application.services.disc / ord"); <wbr> lets it break before a dot instead.
+_LOGGER_NAME = '''
+    <span><template v-for="(part, i) in props.row.logger.split('.')" :key="i"><wbr v-if="i">{{ i ? '.' : '' }}{{ part }}</template></span>
+'''
+
 _ROW_ACTIONS = '''
     <q-btn dense flat color="primary" label="Set level"
            @click="$parent.$emit('set_level', props.row)" />
@@ -33,16 +39,12 @@ _ROW_ACTIONS = '''
 
 async def render_logging_section(user) -> None:
     """Build the logger table, wire its row actions, and load it."""
-    with ui.row().classes('w-full items-center justify-between'):
-        ui.label('Logging').classes('section-title')
-        # Filled once the table exists; the header is drawn first.
-        header_row = ui.row().classes('items-center')
-    ui.label(
+    header_row = section_intro(
         'Set how much each part of the app writes to the container log. Changes '
         'apply immediately and survive restarts until you reset them. Sentry '
         'still gets errors as events and INFO and up as logs, whatever you pick '
         'here, so DEBUG and TRACE stay in the container log.'
-    ).classes('text-caption text-grey')
+    )
 
     columns: list[dict] = [
         {'name': 'logger', 'label': 'Logger', 'field': 'logger', 'align': 'left', 'sortable': True},
@@ -53,12 +55,13 @@ async def render_logging_section(user) -> None:
         {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
     ]
     table = ui.table(columns=columns, rows=[], row_key='logger').classes('w-full wiz-table')
+    table.add_slot('body-cell-logger', f'<q-td :props="props">{_LOGGER_NAME}</q-td>')
     table.add_slot('body-cell-override', f'<q-td :props="props">{_LEVEL_CHIP}</q-td>')
     table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
     enable_mobile_grid(
         table, columns, actions=_ROW_ACTIONS,
         table_key=TableKeys.PLATFORM_LOG_LEVELS,
-        field_slots={'override': _LEVEL_CHIP},
+        field_slots={'logger': _LOGGER_NAME, 'override': _LEVEL_CHIP},
         wrap=True,
     )
 

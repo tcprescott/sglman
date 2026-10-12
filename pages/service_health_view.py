@@ -5,6 +5,7 @@ board (full, refreshable) and the tenant admin tab (read-only subset). Colored
 status badges make an outage or credential warning scannable at a glance.
 """
 
+from contextlib import nullcontext
 from typing import Callable, List, Optional
 
 from nicegui import background_tasks, context, ui
@@ -125,6 +126,7 @@ def build_refreshable_board(
     *,
     refresh_loader: Optional[Callable[[], 'object']] = None,
     action_for: Optional[ActionFor] = None,
+    refresh_slot: Optional[ui.element] = None,
 ) -> None:
     """Render a health board that loads its rows in the background.
 
@@ -136,6 +138,9 @@ def build_refreshable_board(
 
     ``action_for`` is the caller's map from a result to the page that fixes it —
     per board, because the platform's route out of a problem is not a tenant's.
+
+    ``refresh_slot`` is where "Refresh now" goes when the caller has a toolbar
+    for it; without one the button sits above the board.
     """
     state: dict = {'results': []}
     # Captured at render time (valid slot context); restored inside the background
@@ -159,8 +164,9 @@ def build_refreshable_board(
         # Its loader probes every dependency across the install and takes no
         # tenant, so the rebind theme.tables.admin_crud.refresh_button exists to
         # do would bind nothing. The admin tab passes no refresh_loader at all.
-        ui.button('Refresh now', icon='refresh',
-                  on_click=lambda: background_tasks.create(_load(refresh_loader, notify=True)))
+        with refresh_slot if refresh_slot is not None else nullcontext():
+            ui.button('Refresh now', icon='refresh',
+                      on_click=lambda: background_tasks.create(_load(refresh_loader, notify=True)))
 
     board()
     background_tasks.create(_load(initial_loader, notify=False))

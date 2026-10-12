@@ -7,7 +7,7 @@ share lands here rather than being imported from the page — that direction wou
 be a cycle.
 """
 
-from nicegui import app
+from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
 
@@ -24,3 +24,16 @@ ACTIVE_ICON_SLOT = '''
 async def current_actor():
     """The signed-in super-admin, re-read for a refresh outside a click handler."""
     return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
+
+def section_intro(caption: str) -> ui.row:
+    """One tab's explanation, with a row for its actions beside it on desktop.
+
+    Below ``md`` the caption takes the full width and the actions drop under it:
+    side by side on a phone, a primary button squeezed the caption into a
+    two-word column.
+    """
+    with ui.row().classes('w-full items-start justify-between gap-3'):
+        ui.label(caption).classes('text-caption col-12 col-md')
+        actions = ui.row().classes('items-center gap-2')
+    return actions

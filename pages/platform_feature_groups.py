@@ -16,24 +16,43 @@ from nicegui import ui
 from application.feature_flags import all_specs, spec_for
 from application.services import FeatureFlagService, TenantService
 from models import FeatureFlag
-from pages.platform_shared import current_actor
+from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
-from theme.tables.preferences import TableKeys, customize_table, preferences_button
+from theme.tables.mobile_grid import enable_mobile_grid
+from theme.tables.preferences import TableKeys, preferences_button
+
+# Each feature as its own chip, wrapping in the cell: as one comma-joined
+# string the Full Access tier ran the table out to twice the page width.
+_FLAG_CHIPS = '''
+    <div style="display:flex;flex-wrap:wrap;gap:4px;white-space:normal">
+        <span v-for="f in props.row.flags" :key="f" class="wiz-chip wiz-chip--neutral">{{ f }}</span>
+        <span v-if="!props.row.flags.length">—</span>
+    </div>
+'''
+
+_DEFAULT_CHIP = '''
+    <span v-if="props.row.default" class="wiz-chip wiz-chip--ok">Default</span>
+'''
+
+_ROW_ACTIONS = '''
+    <q-btn dense flat color="primary" label="Edit"
+           @click="$parent.$emit('edit_group', props.row)" />
+    <q-btn dense flat color="negative" label="Delete"
+           @click="$parent.$emit('delete_group', props.row)" />
+'''
 
 
 async def render_feature_groups_section(user) -> None:
     """Build the groups table, wire its row actions, and load it."""
-    with ui.row().classes('w-full items-center justify-between'):
-        ui.label('Feature Groups').classes('section-title')
-        with ui.row().classes('items-center gap-2'):
-            group_header_row = ui.row().classes('items-center')
-            ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
-    ui.label(
+    actions = section_intro(
         'Named feature bundles (tiers). Assign a tenant to a group from its '
         'Features button; ungrouped tenants fall back to the default group. '
         'Editing a group updates every tenant on it, live.'
-    ).classes('text-caption text-grey')
+    )
+    with actions:
+        group_header_row = ui.row().classes('items-center')
+        ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
 
     group_columns: list[dict] = [
         {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
@@ -42,43 +61,16 @@ async def render_feature_groups_section(user) -> None:
         {'name': 'tenants', 'label': 'Tenants', 'field': 'tenants', 'align': 'left'},
         {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
     ]
-    group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes(
-        'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
-    group_table.add_slot('body-cell-actions', '''
-        <q-td :props="props">
-            <q-btn dense flat color="primary" label="Edit"
-                   @click="$parent.$emit('edit_group', props.row)" />
-            <q-btn dense flat color="negative" label="Delete"
-                   @click="$parent.$emit('delete_group', props.row)" />
-        </q-td>
-    ''')
-    group_table.add_slot('item', '''
-        <div class="q-pa-xs col-xs-12 col-sm-6">
-            <q-card bordered flat class="q-pa-sm wiz-grid-card">
-                <div class="row items-center justify-between no-wrap q-mb-xs">
-                    <div class="text-weight-bold">{{ props.row.name }}</div>
-                    <q-badge v-if="props.row.default" color="primary" label="Default" />
-                </div>
-                <div class="row q-mb-xs">
-                    <div class="col-4 text-grey-7 text-caption">Features</div>
-                    <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.flags }}</div>
-                </div>
-                <div class="row q-mb-xs">
-                    <div class="col-4 text-grey-7 text-caption">Tenants</div>
-                    <div class="col-8">{{ props.row.tenants }}</div>
-                </div>
-                <div class="row justify-end q-gutter-x-sm q-mt-xs">
-                    <q-btn dense flat color="primary" label="Edit"
-                           @click="$parent.$emit('edit_group', props.row)" />
-                    <q-btn dense flat color="negative" label="Delete"
-                           @click="$parent.$emit('delete_group', props.row)" />
-                </div>
-            </q-card>
-        </div>
-    ''')
-
-    customize_table(group_table, group_columns,
-                    key=TableKeys.PLATFORM_FEATURE_GROUPS)
+    group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full wiz-table')
+    group_table.add_slot('body-cell-flags', f'<q-td :props="props">{_FLAG_CHIPS}</q-td>')
+    group_table.add_slot('body-cell-default', f'<q-td :props="props">{_DEFAULT_CHIP}</q-td>')
+    group_table.add_slot('body-cell-actions',
+                         f'<q-td :props="props" style="white-space:nowrap">{_ROW_ACTIONS}</q-td>')
+    enable_mobile_grid(
+        group_table, group_columns, actions=_ROW_ACTIONS,
+        table_key=TableKeys.PLATFORM_FEATURE_GROUPS,
+        field_slots={'flags': _FLAG_CHIPS, 'default': _DEFAULT_CHIP},
+    )
     with group_header_row:
         preferences_button(group_table)
 
@@ -134,7 +126,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
         ui.select(
             options=group_options, value=current_group_id or 0, label='Tier / group',
             on_change=lambda e: _assign(e.value),
-        ).classes('w-full')
+        ).props('outlined dense').classes('w-full')
 
         ui.separator()
         ui.label('Per-feature overrides (exceptions to the tier)').classes('text-caption text-grey')
@@ -150,7 +142,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
                     options={'inherit': f'Inherit ({tier})', 'on': 'Force on', 'off': 'Force off'},
                     value=current,
                     on_change=lambda e, fv=f['flag']: _override(fv, e.value),
-                ).props('dense outlined').classes('w-44')
+                ).props('dense outlined').classes('w-44 shrink-0')
         with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
@@ -163,7 +155,7 @@ async def _refresh_groups(table) -> None:
         labels = [spec_for(FeatureFlag(k)).label for k in g['flags']]
         rows.append({
             'id': g['id'], 'name': g['name'],
-            'flags': ', '.join(labels) or '—',
+            'flags': labels,
             'default': 'yes' if g['is_default'] else '',
             'tenants': str(g['tenant_count']),
         })
