@@ -68,7 +68,7 @@ def form_dialog(title: str, *, card_classes: str = 'dialog-card'):
 
 
 def dialog_header(title: str, dialog) -> None:
-    """Standard dialog header row: title + spacer + close button.
+    """Standard dialog header row: title + close button, always on one row.
 
     The row draws its own bottom border (``.dialog-header``); a separator after
     it drew a second hairline under every dialog title.
@@ -78,7 +78,6 @@ def dialog_header(title: str, dialog) -> None:
     with ui.row().classes('dialog-header items-center q-pa-sm'):
         heading = ui.label(title).classes('text-h6 q-ma-none')
         heading.tag = 'h2'
-        ui.space()
         ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
 
 
