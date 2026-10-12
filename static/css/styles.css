@@ -460,6 +460,54 @@ main.q-page:focus {
 .avail-seg--unavailable { background: var(--status-cancelled); }
 .avail-seg--none        { background: var(--avail-none); }
 
+/* Availability window editor: one card per day, one divided row per window.
+   On a phone a window takes two lines (times, then status and delete), so the
+   two time fields get the full width a 12-hour "09:00 AM" needs. */
+.avail-day {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-3);
+    overflow: hidden;
+}
+
+.avail-day__head {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.avail-day__date {
+    width: 11rem;
+    max-width: 60%;
+}
+
+.avail-window {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+}
+
+.avail-window + .avail-window {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.avail-window__start,
+.avail-window__end    { flex: 1 1 calc(50% - var(--space-2)); min-width: 0; }
+.avail-window__status { flex: 1 1 calc(100% - 4.5rem); min-width: 0; }
+.avail-window__delete { flex: none; }
+
+@media (min-width: 600px) {
+    .avail-window { flex-wrap: nowrap; }
+    .avail-window__start,
+    .avail-window__end    { flex: 0 0 8.5rem; }
+    .avail-window__status { flex: 0 0 11rem; }
+}
+
 /* Monospace data cells — match IDs, scheduled times, timestamps */
 .cell-id,
 .cell-time {
