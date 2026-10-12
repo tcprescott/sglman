@@ -6,3 +6,4 @@
   `/wizzrobe login-panel`. Anyone who presses it gets the same private link.
 - Signing in through the website skips Discord's **Authorize** screen if
   you've approved Wizzrobe before.
+- You stay signed in for 90 days after your last visit, up from two weeks.

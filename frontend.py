@@ -128,6 +128,24 @@ class VersionedStaticFiles(StaticFiles):
 ROBOTS_TXT = 'User-agent: *\nDisallow: /\n'
 
 
+# Starlette re-signs the cookie on every response, so this is 90 days since
+# the last visit, not since sign-in.
+SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60
+
+
+def _session_middleware_kwargs() -> dict:
+    """The signed session cookie that carries the login.
+
+    ``Secure`` in production so it never travels over plaintext HTTP; left off
+    in development so local http:// keeps working.
+    """
+    return {
+        'https_only': is_production(),
+        'same_site': 'lax',
+        'max_age': SESSION_MAX_AGE_SECONDS,
+    }
+
+
 def _register_root_routes(fastapi_app: FastAPI) -> None:
     """Register the two site-root routes that cannot live under ``/static``.
 
@@ -251,10 +269,7 @@ def init(fastapi_app: FastAPI) -> None:
         # Also sets <html lang>, which screen readers need to pick a voice.
         language='en-US',
         storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
-        # Mark the session cookie Secure in production so the signed cookie
-        # carrying the auth state is never sent over plaintext HTTP. Left off in
-        # development so local http:// keeps working.
-        session_middleware_kwargs={'https_only': is_production(), 'same_site': 'lax'},
+        session_middleware_kwargs=_session_middleware_kwargs(),
     )
     # Installed on the wrapping app, so it sits *outside* the session middleware
     # ui.run_with just added — that is the only place a Set-Cookie can be taken
