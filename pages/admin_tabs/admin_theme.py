@@ -17,6 +17,7 @@ from application.services import AuthService, TenantLogoService, TenantThemeServ
 from application.services.tenant_logo_service import ACCEPT, MAX_UPLOAD_BYTES
 from application.services.tenant_theme_service import DEFAULT_THEME, THEME_PRESETS
 from application.tenant_context import get_current_tenant_id, tenant_scope
+from theme.notify import notify_error
 from theme.page_header import page_header
 
 # label, config key, helper caption for each editable brand colour.
@@ -64,7 +65,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
             try:
                 await TenantLogoService.set_logo(actor, data)
             except (ValueError, PermissionError) as err:
-                ui.notify(str(err), color='warning')
+                notify_error(err)
                 uploader.reset()
                 return
         ui.notify('Logo saved', color='positive')
@@ -78,7 +79,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
             try:
                 await TenantLogoService.remove_logo(actor)
             except (ValueError, PermissionError) as err:
-                ui.notify(str(err), color='warning')
+                notify_error(err)
                 return
         ui.notify('Logo removed', color='positive')
         ui.navigate.reload()
