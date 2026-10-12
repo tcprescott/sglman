@@ -57,6 +57,13 @@ class TestPostgres:
         assert {k for _, k in conn.statements} == {MIGRATION_LOCK_KEY}
         assert conn.closed is True
 
+    async def test_logs_before_waiting_and_how_long_the_wait_took(self, fake_asyncpg, caplog):
+        caplog.set_level('INFO', logger='wizzrobe.migrations')
+        async with migration_lock('postgres://u:p@localhost:5432/db'):
+            messages = [r.getMessage() for r in caplog.records]
+            assert messages[0].startswith('Waiting for the migration lock')
+            assert 'after waiting' in messages[1]
+
     async def test_releases_and_closes_when_the_block_raises(self, fake_asyncpg):
         with pytest.raises(RuntimeError, match='migration blew up'):
             async with migration_lock('postgresql://u:p@localhost:5432/db'):

@@ -20,6 +20,7 @@ to exclude.
 
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -61,6 +62,10 @@ async def migration_lock(dsn: str, acquire_timeout: float = LOCK_TIMEOUT_SECONDS
 
     conn = await asyncpg.connect(dsn)
     try:
+        # Logged before the wait, not after: a boot queued behind another
+        # process's migration would otherwise sit silent for up to the timeout.
+        logger.info('Waiting for the migration lock (key=%s)...', MIGRATION_LOCK_KEY)
+        wait_started = time.perf_counter()
         try:
             await asyncio.wait_for(
                 conn.execute('SELECT pg_advisory_lock($1)', MIGRATION_LOCK_KEY),
@@ -71,7 +76,10 @@ async def migration_lock(dsn: str, acquire_timeout: float = LOCK_TIMEOUT_SECONDS
                 f'Timed out after {acquire_timeout}s waiting for the migration lock. Another process is '
                 'likely stuck part-way through a migration; resolve that before restarting.'
             ) from exc
-        logger.info('Holding the migration lock (key=%s).', MIGRATION_LOCK_KEY)
+        logger.info(
+            'Holding the migration lock (key=%s) after waiting %.2fs.',
+            MIGRATION_LOCK_KEY, time.perf_counter() - wait_started,
+        )
         try:
             yield True
         finally:
