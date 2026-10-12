@@ -187,7 +187,7 @@ def _kpi_strip(crew: dict, hours: dict, health: dict) -> None:
 def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
     labels = crew['bucket_labels']
     with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Crew participation over time').classes('text-h6')
+        ui.label('Crew participation over time').classes('section-title')
         ui.label('Approved commentator & tracker slots per bucket, with unique people.') \
             .classes('italic-note')
         if not _has_signal(crew['commentator_approved'] + crew['tracker_approved'] + crew['unique_people']):
@@ -231,7 +231,7 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
     ]
     with ui.card().classes('full-width q-pa-md'):
         with ui.row().classes('items-center justify-between'):
-            ui.label('Top crew contributors').classes('text-h6')
+            ui.label('Top crew contributors').classes('section-title')
             csv_export_button(f'crew-contributors-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
         if not rows:
             ui.label('No crew contributors in this window.').classes('italic-note')
@@ -246,7 +246,7 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
 def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = False) -> None:
     labels = hours['bucket_labels']
     with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Volunteer hours over time').classes('text-h6')
+        ui.label('Volunteer hours over time').classes('section-title')
         ui.label('Scheduled vs checked-in volunteer-hours per bucket, with fill rate.') \
             .classes('italic-note')
         if scoped:
@@ -293,7 +293,7 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
     ]
     with ui.card().classes('full-width q-pa-md'):
         with ui.row().classes('items-center justify-between'):
-            ui.label('Top volunteers by hours').classes('text-h6')
+            ui.label('Top volunteers by hours').classes('section-title')
             csv_export_button(f'volunteer-hours-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
         if not rows:
             ui.label('No volunteer assignments in this window.').classes('italic-note')
@@ -310,7 +310,7 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
     scored = [r for r in rows if r['health_score'] is not None]
 
     with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Tournament health').classes('text-h6')
+        ui.label('Tournament health').classes('section-title')
         ui.label('Composite 0–100 score from completion, on-time, crew coverage, and duration adherence.') \
             .classes('italic-note')
         if not scored:
@@ -364,7 +364,7 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
     )]
     with ui.card().classes('full-width q-pa-md'):
         with ui.row().classes('items-center justify-between'):
-            ui.label('Health detail').classes('text-h6')
+            ui.label('Health detail').classes('section-title')
             csv_export_button(f'tournament-health-{start_d}-to-{end_d}', lambda: csv_columns, lambda: csv_rows)
         if not rows:
             ui.label('No tournaments with matches in this window.').classes('italic-note')
@@ -384,7 +384,7 @@ def _activity_section(activity: dict, scoped: bool = False) -> None:
     labels = activity['bucket_labels']
     categories = activity['categories']
     with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Admin activity over time').classes('text-h6')
+        ui.label('Admin activity over time').classes('section-title')
         ui.label('Audit-log actions per bucket, by top action category.').classes('italic-note')
         if scoped:
             ui.label('Event-wide — audit activity is not tied to a tournament.') \

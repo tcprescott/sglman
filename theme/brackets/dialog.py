@@ -290,7 +290,7 @@ def build_match_dialog(
         # long series rather than sitting under the games list.
         mobile_sheet(dialog)
         with ui.row().classes('dialog-header items-center q-pa-sm'):
-            heading = ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')
+            heading = ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn like dialog_header
             heading.tag = 'h2'
             ui.space()
             status = (live or {}).get('status')

@@ -130,7 +130,7 @@ async def _build_triforce_dialog(tournament: Tournament, user: User) -> None:
             ui.button('Submit', icon='send', on_click=on_submit).props('color=primary')
 
         ui.separator().classes('separator-spacing')
-        ui.label('Your Submissions').classes('text-h6')
+        ui.label('Your Submissions').classes('section-title')
         await submissions_list()
 
     dialog.open()

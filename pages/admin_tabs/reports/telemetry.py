@@ -223,7 +223,7 @@ async def _is_staff(actor) -> bool:
 
 def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
     with ui.card().classes('q-pa-md').style('flex: 1 1 320px; min-width: 320px;'):
-        ui.label(title).classes('text-h6 q-mb-sm')
+        ui.label(title).classes('section-title q-mb-sm')
         if not rows:
             ui.label('No data in window.').classes('italic-note')
             return

@@ -142,7 +142,7 @@ def create() -> None:
             for q in qualifiers:
                 with ui.card().classes('w-full'):
                     with ui.row().classes('items-center full-width'):
-                        ui.label(q.name).classes('text-h6')
+                        ui.label(q.name).classes('section-title')
                         ui.space()
                         ui.button('Open', icon='arrow_forward',
                                   on_click=lambda qid=q.id: ui.navigate.to(f'/qualifiers/{qid}')
@@ -236,7 +236,7 @@ def create() -> None:
                 ui.label(f'Pool: {pool_name}').classes('text-caption text-grey')
                 if run.permalink:
                     ui.link('Your permalink (open the seed)', run.permalink.url, new_tab=True)
-                elapsed_label = ui.label('Elapsed: 0:00:00').classes('text-h6')
+                elapsed_label = ui.label('Elapsed: 0:00:00').classes('text-h6')  # style-guide: exempt — a running clock, not a title
                 # The run auto-forfeits at this deadline and the card used to count
                 # up with no hint a countdown existed — the runner's only warning
                 # was a DM an hour out, which is no help to anyone who missed it.

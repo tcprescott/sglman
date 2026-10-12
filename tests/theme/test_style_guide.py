@@ -27,7 +27,7 @@ EXEMPT = 'style-guide: exempt'
 
 _COLOUR_LITERAL = re.compile(r'#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(')
 _WIDTH_CLASS = re.compile(r'(?:^|\s)(?:w-\S+|min-w-\S+|max-w-\S+|full-width)(?:\s|$)')
-_TITLE_CLASS = re.compile(r'(?:^|\s)text-h[1-5](?:\s|$)')
+_TITLE_CLASS = re.compile(r'(?:^|\s)text-h[1-6](?:\s|$)')
 
 
 def _python_sources():
@@ -120,7 +120,8 @@ def test_inline_styles_carry_no_colour_literals():
 
 
 def test_titles_come_from_page_header_not_typography_classes():
-    """`text-h1`…`text-h5` labels were the third page-top style; use page_header()."""
+    """`text-h1`…`text-h6` labels were the third page-top style, and 35 `text-h6`
+    section headings sat beside `section-title` in a different size and weight."""
     bad = []
     for rel, _source, tree, lines in _python_sources():
         for node in ast.walk(tree):

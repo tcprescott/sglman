@@ -823,6 +823,9 @@ main.q-page:focus {
     color: var(--fg);
 }
 
+/* Beside a badge or an action, the row does the spacing. */
+.row > .section-title { margin-bottom: 0; }
+
 .subsection-title {
     font-family: var(--font-body);
     font-weight: 700;

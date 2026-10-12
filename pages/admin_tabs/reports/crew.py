@@ -118,7 +118,7 @@ async def crew_page(
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
-                ui.label('Coverage by match').classes('text-h6')
+                ui.label('Coverage by match').classes('section-title')
                 cov_rows_display = [
                     {
                         'match_id': r['match_id'],
@@ -174,7 +174,7 @@ async def crew_page(
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
-                ui.label('Contribution by person').classes('text-h6')
+                ui.label('Contribution by person').classes('section-title')
                 contribution_rows = data['contribution_rows']
                 contrib_display = []
                 for r in contribution_rows:

@@ -86,7 +86,7 @@ async def match_ops_page(
             rows = [r for r in rows if r['state'] == selected_state]
 
         with ui.card().classes('full-width q-pa-md'):
-            ui.label('Per-tournament aggregates').classes('text-h6')
+            ui.label('Per-tournament aggregates').classes('section-title')
             if not ops['aggregates']:
                 ui.label('No matches in window.').classes('italic-note')
             else:
@@ -123,7 +123,7 @@ async def match_ops_page(
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
-                ui.label('Matches').classes('text-h6')
+                ui.label('Matches').classes('section-title')
                 detail_rows = [
                     {
                         **r,

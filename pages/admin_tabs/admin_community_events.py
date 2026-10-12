@@ -115,7 +115,7 @@ def _review_dialog(service: CommunityEventService, actor, event: CommunityEvent,
     with form_dialog('Review community event', card_classes='dialog-card dialog-card--lg') as dialog:
         with ui.column().classes('q-pa-md gap-2 full-width'):
             with ui.row().classes('items-center gap-2'):
-                ui.label(event.title).classes('text-h6')
+                ui.label(event.title).classes('section-title')
                 status_chip(event)
             meta_row('schedule', when_line(event, with_day=True))
             if event.location:

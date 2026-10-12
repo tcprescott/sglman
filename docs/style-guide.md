@@ -70,7 +70,7 @@ in both modes. `tests/theme/test_style_guide.py` computes this from `styles.css`
 | Times, match IDs | `--font-mono` / `.cell-timestamp` |
 
 Don't put a lede in a caption label after the header (it floated 40px below the
-title on 20 pages), and don't size a title with `text-h1`…`text-h5`.
+title on 20 pages), and don't size a title or a section heading with `text-h1`…`text-h6` (a section heading inside a card is `section-title`).
 
 ## Components: reach for these first
 
