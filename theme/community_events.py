@@ -12,7 +12,7 @@ from theme.banner import banner
 
 DISCLAIMER_TITLE = 'Not official event programming'
 DISCLAIMER = (
-    'These events are run by community members, not by event staff. Listing one '
+    'These events are run by attendees, not by event staff. Listing one '
     "here doesn't mean staff endorse it; the listing is just for convenience."
 )
 

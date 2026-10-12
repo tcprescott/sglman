@@ -23,7 +23,7 @@ from theme.markdown_editor import MarkdownEditor
 from theme.notify import notify_error
 
 DISCLAIMER = (
-    'Community events are run by members, not by event staff. Listing one here '
+    'Community events are run by attendees, not by event staff. Listing one here '
     "doesn't mean staff endorse it; the listing is just for convenience."
 )
 
@@ -96,7 +96,7 @@ class CommunityEventDialog:
                         ui.label('Leave blank for no limit.').classes('text-caption text-muted')
                     cap_row.bind_visibility_from(rsvp_switch, 'value')
                     ui.label(
-                        "Members can say they're coming, and you'll see who. RSVPing also gets them the reminder."
+                        "Attendees can say they're coming, and you'll see who. RSVPing also gets them the reminder."
                     ).classes('text-caption text-muted')
                 ui.label(f'* required · description up to {DESCRIPTION_MAX_LENGTH:,} characters') \
                     .classes('required-legend')

@@ -37,7 +37,7 @@ _WRAP = 'white-space: pre-wrap; min-width: 200px; max-width: 360px'
 
 _COLUMNS: list[dict[str, Any]] = [
     {'name': 'created_at', 'label': 'Requested', 'field': 'created_at', 'align': 'left', 'sortable': True},
-    {'name': 'user', 'label': 'Member', 'field': 'user', 'align': 'left', 'sortable': True},
+    {'name': 'user', 'label': 'Attendee', 'field': 'user', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status_label', 'align': 'left', 'sortable': True},
     {'name': 'details', 'label': 'Details', 'field': 'details', 'align': 'left', 'style': _WRAP},
     {'name': 'staff_notes', 'label': 'Staff notes', 'field': 'staff_notes', 'align': 'left', 'style': _WRAP},
@@ -94,7 +94,7 @@ async def render_accommodation_panel(
     state: dict[str, Any] = {'include_withdrawn': False, 'rows': []}
 
     ui.label(
-        'Members who asked for ADA accommodation, oldest first. Update a '
+        'Attendees who asked for ADA accommodation, oldest first. Update a '
         'request to set its status and add notes only staff can read.'
     ).classes('text-caption text-grey')
     with ui.row().classes('items-center full-width'):
@@ -124,20 +124,20 @@ async def render_accommodation_panel(
                     with ui.row().classes('items-start gap-2 no-wrap'):
                         ui.icon('update', size='sm').classes('text-warning')
                         ui.label(
-                            'The member changed this after it was arranged. It\'s still '
+                            'The attendee changed this after it was arranged. It\'s still '
                             'Arranged, so proctors still see the icon. Check the '
                             'arrangement covers it, then Save to mark it reviewed.'
                         ).classes('text-caption text-warning col')
                     ui.label('When it was arranged').classes('subsection-title')
                     ui.label(row['arranged_details'] or 'No details given.') \
                         .classes('text-body2 text-grey').style('white-space: pre-wrap')
-                ui.label('Details from the member' + (' now' if row.get('changed') else '')) \
+                ui.label('Details from the attendee' + (' now' if row.get('changed') else '')) \
                     .classes('subsection-title')
                 ui.label(row['details'] or 'No details given.') \
                     .classes('text-body2').style('white-space: pre-wrap')
                 if withdrawn:
                     ui.label(
-                        'Withdrawn by the member. It reopens as New if they ask again.'
+                        'Withdrawn by the attendee. It reopens as New if they ask again.'
                     ).classes('text-caption text-grey')
                     status_select = None
                 else:
@@ -150,7 +150,7 @@ async def render_accommodation_panel(
                 ).props(f'outlined autogrow stack-label counter maxlength={STAFF_NOTES_MAX_LENGTH}') \
                     .classes('w-full')
                 ui.label(
-                    'Only staff read these notes. The member never sees them, and '
+                    'Only staff read these notes. The attendee never sees them, and '
                     'proctors only see that the request is arranged.'
                 ).classes('text-caption text-grey')
 

@@ -60,7 +60,7 @@ async def admin_community_events_page(open_event: Optional[int] = None) -> None:
     with ui.column().classes('page-container-narrow w-full'):
         with page_header(
             'Community Events',
-            'Events members want to run during the event. Approve them to list them, '
+            'Events attendees want to run during the event. Approve them to list them, '
             'or reject them with a reason the host will see.',
         ):
             ui.space()
