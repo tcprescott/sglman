@@ -70,7 +70,8 @@ class EditorMode:
     shade_closed_hours: bool = False
     closed_label: str = 'Outside event hours'
     new_row_times: Tuple[str, str] = ('09:00', '13:00')
-    add_button_text: str = 'Add window'
+    add_button_text: str = 'Add a day'
+    add_to_day_text: str = 'Add window'
     save_button_text: str = 'Save availability'
 
     def label(self, status) -> str:
@@ -105,6 +106,7 @@ BLOCK_MODE = EditorMode(
     empty_text="Nothing blocked out — you count as available for the whole event.",
     precedence_text="Where windows overlap, Can't play wins.",
     add_button_text='Block out a time',
+    add_to_day_text='Block more',
     save_button_text='Save',
     legend_statuses=(
         VolunteerAvailabilityStatus.UNAVAILABLE,
@@ -256,26 +258,55 @@ async def render_availability_editor(
             f'({timezone_label()}). {help_text}'
         ).classes('italic-note')
 
+        def _days() -> list[tuple[str, list[dict]]]:
+            by_day: dict[str, list[dict]] = {}
+            for row in rows:
+                by_day.setdefault(row['date'], []).append(row)
+            return [
+                (day, sorted(day_rows, key=lambda r: r['start'] or ''))
+                for day, day_rows in sorted(by_day.items(), key=lambda kv: kv[0] or '~')
+            ]
+
+        def _move_day(day_rows: list[dict], new_date: str) -> None:
+            for row in day_rows:
+                row['date'] = new_date
+            effective_graph.refresh()
+
         @ui.refreshable
         def window_rows() -> None:
             if not rows:
                 ui.label(mode.empty_text).classes('italic-note')
-            for row in rows:
-                with ui.row().classes('items-center gap-2 q-mb-xs'):
-                    native_date_input('Date', row['date'], dense=True) \
-                        .bind_value(row, 'date') \
-                        .on_value_change(effective_graph.refresh)
-                    native_time_input('Start', row['start'], dense=True) \
-                        .bind_value(row, 'start') \
-                        .on_value_change(effective_graph.refresh)
-                    native_time_input('End', row['end'], dense=True) \
-                        .bind_value(row, 'end') \
-                        .on_value_change(effective_graph.refresh)
-                    ui.select(mode.status_options, value=row['status']) \
-                        .props('dense').bind_value(row, 'status').classes('w-40') \
-                        .on_value_change(effective_graph.refresh)
-                    ui.button(icon='delete', on_click=lambda r=row: _remove(r)) \
-                        .props('flat dense color=negative')
+            for day, day_rows in _days():
+                with ui.element('div').classes('avail-day'):
+                    with ui.row().classes('avail-day__head items-center no-wrap'):
+                        # Regroup on blur, not on every change: a typed date
+                        # passes through intermediate valid values, and
+                        # rebuilding the card mid-edit would steal the field.
+                        native_date_input('Day', day, dense=True) \
+                            .classes('avail-day__date') \
+                            .on_value_change(lambda e, d=day_rows: _move_day(d, e.value)) \
+                            .on('blur', lambda: window_rows.refresh())
+                        ui.button(
+                            mode.add_to_day_text, icon='add',
+                            on_click=lambda d=day: _add(d),
+                        ).props('flat dense no-caps no-wrap color=primary').classes('q-ml-auto')
+                    for row in day_rows:
+                        with ui.element('div').classes('avail-window'):
+                            native_time_input('Start', row['start'], dense=True, show_timezone=False) \
+                                .classes('avail-window__start') \
+                                .bind_value(row, 'start') \
+                                .on_value_change(effective_graph.refresh)
+                            native_time_input('End', row['end'], dense=True, show_timezone=False) \
+                                .classes('avail-window__end') \
+                                .bind_value(row, 'end') \
+                                .on_value_change(effective_graph.refresh)
+                            ui.select(mode.status_options, label='Status', value=row['status']) \
+                                .props('dense').bind_value(row, 'status') \
+                                .classes('avail-window__status') \
+                                .on_value_change(effective_graph.refresh)
+                            ui.button(icon='delete', on_click=lambda r=row: _remove(r)) \
+                                .props('flat dense round color=negative') \
+                                .classes('avail-window__delete').tooltip('Remove this window')
 
         def _windows_from_rows() -> list:
             """Parse the working rows into window-like objects, skipping any
@@ -341,19 +372,25 @@ async def render_availability_editor(
             window_rows.refresh()
             effective_graph.refresh()
 
-        def _add() -> None:
+        def _next_free_day() -> str:
+            used = {row['date'] for row in rows if row['date']}
+            day = event_start
+            while day <= event_end:
+                if format_local_date(day) not in used:
+                    return format_local_date(day)
+                day += timedelta(days=1)
+            return format_local_date(event_start)
+
+        def _add(day: Optional[str] = None) -> None:
             start_hhmm, end_hhmm = mode.new_row_times
             rows.append({
-                'date': format_local_date(event_start),
+                'date': day if day is not None else _next_free_day(),
                 'start': start_hhmm,
                 'end': end_hhmm,
                 'status': mode.new_row_status.value,
             })
             window_rows.refresh()
             effective_graph.refresh()
-
-        window_rows()
-        effective_graph()
 
         async def save() -> None:
             windows = []
@@ -373,6 +410,8 @@ async def render_availability_editor(
                 return
             ui.notify('Availability saved.', color='positive')
 
-        with ui.row().classes('q-mt-md gap-2'):
-            ui.button(mode.add_button_text, icon='add', on_click=_add).props('flat color=primary')
+        window_rows()
+        with ui.row().classes('gap-2'):
+            ui.button(mode.add_button_text, icon='add', on_click=lambda: _add()).props('flat color=primary')
             ui.button(mode.save_button_text, icon='save', on_click=save).props('color=primary')
+        effective_graph()

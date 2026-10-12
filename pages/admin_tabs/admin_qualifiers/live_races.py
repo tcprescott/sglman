@@ -189,22 +189,24 @@ def build_live_tab(
                          'here. If one of the outstanding racers is missing, link '
                          'their racetime account on Admin → Users first.'
                          ).classes('text-caption text-orange')
-            holder = ui.column().classes('w-full gap-1')
+            holder = ui.element('div').classes('wiz-edit-list')
 
             def add_row() -> None:
                 with holder:
-                    with ui.row().classes('items-center w-full') as row:
+                    with ui.element('div').classes('wiz-edit-row') as row:
                         person = ui.select(state['racer_options'], label='Racer',
-                                           with_input=True).classes('grow')
+                                           with_input=True).classes('wiz-edit-row__lead')
+                        ui.button(icon='close', on_click=lambda r=row: _drop(r)
+                                  ).props('flat round dense color=grey') \
+                            .classes('wiz-edit-row__fixed').tooltip('Remove this racer')
                         outcome = ui.select(_OUTCOMES, label='Outcome',
-                                            value=_FINISHED).classes('w-40')
-                        time_in = ui.input('Finish time', placeholder='1:23:45').classes('w-40')
+                                            value=_FINISHED).classes('wiz-edit-row__half')
+                        time_in = ui.input('Finish time', placeholder='1:23:45') \
+                            .classes('wiz-edit-row__half')
                         # A forfeit or a DQ has no time; hiding the field is clearer
                         # than accepting a value the service will discard.
                         time_in.bind_visibility_from(outcome, 'value',
                                                      lambda v: v == _FINISHED)
-                        ui.button(icon='close', on_click=lambda r=row: _drop(r)
-                                  ).props('flat round dense color=grey')
                 rows.append({'row': row, 'person': person,
                              'outcome': outcome, 'time': time_in})
 
