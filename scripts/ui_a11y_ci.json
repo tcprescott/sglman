@@ -18,8 +18,8 @@
     "ignore": []
   },
   "phone": {
-    "_comment": "Layout at phone width: nothing scrolls sideways, runs out of its card or is cut off. Layout does not change with the colour scheme, so one pass is enough. `ignore` takes a CSS selector and a why.",
-    "viewport": { "width": 390, "height": 844 },
+    "_comment": "Layout at phone width (an iPhone 15 Pro: 393px, 3x, Safari user agent, rendered by Chromium): nothing scrolls sideways, runs out of its card or is cut off. Layout does not change with the colour scheme, so one pass is enough. `ignore` takes a CSS selector and a why.",
+    "device": "iPhone 15 Pro",
     "schemes": ["light"],
     "ignore": []
   },

@@ -17,7 +17,7 @@
  * docs/style-guide.md says what to do when it fails.
  *
  * With a "phone" block in the config it then makes a third pass at phone width
- * (390px by default) and fails any page whose layout breaks there: the page
+ * (an iPhone 15 Pro, 393px, by default in CI) and fails any page whose layout breaks there: the page
  * scrolls sideways, an element runs past the screen or out of the card that
  * holds it, or text is cut off without an ellipsis. The 2026-10 phone sweep
  * found Settings fields 90px past their card and a whole family of these, none
@@ -39,6 +39,7 @@
  * name) narrows it to one page. Every entry must say why.
  *
  *   "phone": {
+ *     "device": "iPhone 15 Pro",          // a Playwright device name, or
  *     "viewport": { "width": 390, "height": 844 },
  *     "schemes": ["light"],
  *     "ignore": [ { "selector": ".some-class", "target": "home-player", "why": "..." } ]
@@ -46,7 +47,7 @@
  * A phone ignore entry matches an offending element by CSS selector (the
  * element or any ancestor); `target` narrows it to one page.
  */
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -258,10 +259,15 @@ async function runAxe(page, source) {
 
   const phone = cfg.phone;
   if (phone) {
-    const viewport = phone.viewport || { width: 390, height: 844 };
+    // A named Playwright device sets the width, pixel ratio and Safari user
+    // agent together; its defaultBrowserType is dropped because CI only has
+    // Chromium, so this is Chromium's layout at that device's size.
+    const { defaultBrowserType, ...device } = (phone.device && devices[phone.device]) || {};
+    if (phone.device && !devices[phone.device]) throw new Error(`unknown phone.device ${phone.device}`);
+    const viewport = phone.viewport || device.viewport || { width: 390, height: 844 };
     const phoneIgnore = phone.ignore || [];
     for (const scheme of phone.schemes || ['light']) {
-      const ctx = await browser.newContext({ viewport, colorScheme: scheme, isMobile: true, hasTouch: true });
+      const ctx = await browser.newContext({ isMobile: true, hasTouch: true, ...device, viewport, colorScheme: scheme });
       const page = await ctx.newPage();
       await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);

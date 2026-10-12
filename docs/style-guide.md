@@ -114,9 +114,10 @@ title on 20 pages), and don't size a title with `text-h1`…`text-h5`.
 
 ## Phone layout
 
-Most people open this app on a phone at the venue, so 390px is the width that
-matters. The 2026-10 phone sweep found the same handful of mistakes on page after
-page; each has a shared fix in the "Phone layout" block of `styles.css`.
+Most people open this app on a phone at the venue, so about 390px is the width
+that matters (CI checks as an iPhone 15 Pro, 393px). The 2026-10 phone sweep
+found the same handful of mistakes on page after page; each has a shared fix
+in the "Phone layout" block of `styles.css`.
 
 | Do | Don't |
 |---|---|
@@ -129,10 +130,10 @@ page; each has a shared fix in the "Phone layout" block of `styles.css`.
 | Keep a lede to a sentence or two; `.text-muted` drops to body size on a phone | Write a paragraph above the first control, or set lede text above body size |
 
 The phone pass in `scripts/ui_a11y_scan.js` (the `"phone"` block in
-`scripts/ui_a11y_ci.json`) loads every page at 390px and fails when the page
-scrolls sideways, an element runs off the screen or out of its card, or text is
-cut off without an ellipsis. It can't judge spacing or verbosity: look at the page
-at 390px yourself before calling it done.
+`scripts/ui_a11y_ci.json`) loads every page as an iPhone 15 Pro (393px) and
+fails when the page scrolls sideways, an element runs off the screen or out of
+its card, or text is cut off without an ellipsis. It can't judge spacing or
+verbosity: look at the page at phone width yourself before calling it done.
 
 ## Words
 
@@ -158,7 +159,7 @@ Automated, on every PR:
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |
-| `scripts/ui_a11y_scan.js` phone pass | On the same pages at 390px: sideways scrolling, elements running off the screen or out of their card, text cut off without an ellipsis |
+| `scripts/ui_a11y_scan.js` phone pass | On the same pages as an iPhone 15 Pro (393px): sideways scrolling, elements running off the screen or out of their card, text cut off without an ellipsis |
 
 The browser scan runs locally against the seeded app (boot and seed as in the
 [ui-validation skill](../.claude/skills/ui-validation/SKILL.md)):
