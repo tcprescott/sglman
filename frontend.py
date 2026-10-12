@@ -6,8 +6,8 @@ Sets up NiceGUI pages and integrates them with the FastAPI app.
 import logging
 import os
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
@@ -147,7 +147,7 @@ def _session_middleware_kwargs() -> dict:
 
 
 def _register_root_routes(fastapi_app: FastAPI) -> None:
-    """Register the two site-root routes that cannot live under ``/static``.
+    """Register the site-root routes that cannot live under ``/static``.
 
     Extracted from :func:`init` so it can be exercised on a bare app.
     """
@@ -179,6 +179,28 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
             media_type='text/javascript',
             headers={'Cache-Control': 'no-cache'},
         )
+
+    # A community's logo, by content hash (TenantLogoService). The hash names the
+    # bytes, so the response never changes and caches for a year; a new upload is
+    # a new URL. Public, because the logo sits on signed-out pages too. The CSP
+    # and nosniff are belt-and-braces: the bytes are always a WebP we encoded.
+    @fastapi_app.get('/brand-logo/{tenant_id}/{sha256}.webp', include_in_schema=False)
+    async def _brand_logo(tenant_id: int, sha256: str, request: Request) -> Response:
+        from application.services import TenantLogoService
+
+        etag = f'"{sha256}"'
+        headers = {
+            'Cache-Control': 'public, max-age=31536000, immutable',
+            'ETag': etag,
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Security-Policy': "default-src 'none'; sandbox",
+        }
+        content = await TenantLogoService.get_logo_bytes(tenant_id, sha256)
+        if content is None:
+            return Response(status_code=404, headers={'Cache-Control': 'no-store'})
+        if request.headers.get('if-none-match') == etag:
+            return Response(status_code=304, headers=headers)
+        return Response(content, media_type='image/webp', headers=headers)
 
 
 def init(fastapi_app: FastAPI) -> None:

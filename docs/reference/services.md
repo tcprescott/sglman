@@ -97,6 +97,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
 | `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
+| `TenantLogoService` | [tenant_logo_service.py](../../application/services/tenant_logo_service.py) | Per-tenant logo upload: validate, re-encode to WebP, store in `TenantLogo`, serve by hash | [§ below](#tenant_logo_servicepy--tenantlogoservice) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TimezoneService` | [timezone_service.py](../../application/services/timezone_service.py) | Per-tenant display-timezone policy (pin vs. follow-the-viewer) and per-viewer resolution | [timezone-handling.md](../timezone-handling.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
@@ -1129,13 +1130,25 @@ Whether a community has what it needs to run, **derived on every read** — ther
 
 Rendered by `theme/setup_checklist.py` (the `Setup` admin tab) and `pages/platform.py`'s Setup column.
 
+### tenant_logo_service.py — TenantLogoService
+
+A community's **logo**, shown in place of the brand-mark square (28×28 in the header) and as the browser tab icon. Uploads are never stored as sent: `normalise_logo` accepts PNG, JPEG or WebP only (identified by decoding with Pillow, never by extension or declared type, so SVG is refused), up to 1 MB and 4096×4096 (checked from the header before decoding, which stops decompression bombs) and at least 64×64. It honours EXIF rotation, then fits the image onto a transparent 256×256 square and saves a fresh WebP, which drops EXIF/GPS, ICC payloads and any appended data. Decoding runs in `asyncio.to_thread`.
+
+The WebP goes in the `TenantLogo` table (`bytea`), never the filesystem; `Tenant.config['logo']` holds only its SHA-256, which `TenantThemeService.get_theme` turns into a `logo` URL on the palette dict. `frontend.py` serves `/brand-logo/<tenant_id>/<sha256>.webp` publicly with a year-long `immutable` cache, an `ETag` (304 on match), `nosniff` and a `sandbox` CSP; a new upload is a new URL, so nothing needs invalidating. A 128-entry in-process LRU keyed by `(tenant_id, sha256)` saves the DB read on a cold browser.
+
+| Method | Returns | Description |
+|---|---|---|
+| `set_logo(actor, data)` | `str` | STAFF-gated; normalises, upserts the row and the config hash in one transaction, audits `theme.logo_updated`. Returns the URL. `ValueError` with an uploader-facing message for a rejected file |
+| `remove_logo(actor)` | `None` | STAFF-gated; drops the row and the hash, audits `theme.logo_removed` |
+| `get_logo_bytes(tenant_id, sha256)` | `bytes \| None` | For the image route (no tenant in scope); `None` unless that exact tenant and hash match |
+
 ### tenant_theme_service.py — TenantThemeService
 
 The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and `header` (the brand mark beside the wordmark) — stored under `Tenant.config['theme']`, no dedicated columns. Semantic status colours (positive/negative/warning/info) are deliberately not editable. Reads merge overrides onto the defaults so callers always get a full palette; writes are STAFF-gated, validated to 6-digit hex, and audited `theme.updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this service goes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_theme(tenant_id)` | `dict[str, str]` | Full palette for a tenant (overrides merged onto `DEFAULT_THEME`). Fresh read (`get_by_id` is uncached). |
+| `get_theme(tenant_id)` | `dict[str, str]` | Full palette for a tenant (overrides merged onto `DEFAULT_THEME`), plus a `logo` URL when the community has uploaded one (see `TenantLogoService`). Fresh read (`get_by_id` is uncached). |
 | `get_current_theme()` | `dict[str, str]` | Best-effort palette for the in-scope tenant; the shipped defaults when there is no tenant (platform surface / error page). Non-raising. |
 | `set_theme(actor, colors)` | `dict[str, str]` | STAFF-gated; validates hex, persists to `Tenant.config['theme']`, audits. A blank value clears that key; clearing all keys resets to defaults. |
 | `is_customized(colors)` | `bool` | Whether a resolved palette differs from the shipped defaults. |

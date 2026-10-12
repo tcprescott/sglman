@@ -23,7 +23,8 @@ tenant context: that is the platform surface (landing page, ``/platform``, the
 shared OAuth callbacks). Tenant pages guard themselves — ``@protected_page``
 returns 404 when reached with no tenant.
 
-Transport/API paths (``/_nicegui``, ``/static``, ``/sw.js``, ``/api``) are
+Transport/API paths (``/_nicegui``, ``/static``, ``/sw.js``, ``/api``) and the
+logo route (``/brand-logo``, which names its tenant in the path) are
 tenant-agnostic and skipped: the REST API derives its tenant from the bearer
 token, and websocket/asset traffic carries no tenant of its own.
 
@@ -74,7 +75,7 @@ _TENANT_TRANSPORT_RE = re.compile(
 )
 
 # Transport / API prefixes that carry no tenant of their own.
-_EXCLUDED_PREFIXES = ('/_nicegui', '/static', '/api')
+_EXCLUDED_PREFIXES = ('/_nicegui', '/static', '/api', '/brand-logo/')
 _EXCLUDED_EXACT = ('/sw.js',)
 
 

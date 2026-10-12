@@ -106,8 +106,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
     # Per-tenant brand palette — tenant-internal appearance setting, no external
-    # subscriber interest.
+    # subscriber interest. The logo rides the same reasoning.
     AuditActions.THEME_UPDATED,
+    AuditActions.THEME_LOGO_UPDATED,
+    AuditActions.THEME_LOGO_REMOVED,
     # Display-timezone policy, and a member's own timezone preference. Both are
     # presentation settings: they change which clock a time is *rendered* on and
     # never the stored instant, so a webhook receiver — which is served UTC —

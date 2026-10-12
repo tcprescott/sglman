@@ -103,6 +103,7 @@ from .station_service import StationService
 from .system_config_service import SystemConfigService
 from .table_preference_service import TablePreferenceService
 from .telemetry_service import TelemetryService
+from .tenant_logo_service import TenantLogoService
 from .tenant_membership_service import TenantMembershipService
 from .tenant_service import TenantService
 from .tenant_setup_service import SetupStep, TenantSetupService
@@ -207,6 +208,7 @@ __all__ = [
     'SystemConfigService',
     'TablePreferenceService',
     'TelemetryService',
+    'TenantLogoService',
     'TenantMembershipService',
     'TenantService',
     'TenantSetupService',
