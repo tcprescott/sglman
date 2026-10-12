@@ -75,7 +75,12 @@ class WizzrobeOAuthProvider(
             redirect_uris=list(client.redirect_uris or []),
             grant_types=list(client.grant_types or []),
             response_types=list(client.response_types or []),
-            token_endpoint_auth_method=client.token_endpoint_auth_method,
+            # Every client is public: no secret is stored, PKCE binds the code.
+            # mcp 2.x refuses a secret-based client that has no stored secret,
+            # so reporting the registered method would 401 every /token call
+            # from a client (Claude's connectors) that registered with
+            # client_secret_post. Rows from before this fix still carry it.
+            token_endpoint_auth_method='none',
             scope=client.scope,
         )
 
@@ -94,7 +99,9 @@ class WizzrobeOAuthProvider(
             redirect_uris=[str(uri) for uri in client_info.redirect_uris],
             grant_types=list(client_info.grant_types or []),
             response_types=list(client_info.response_types or []),
-            token_endpoint_auth_method=client_info.token_endpoint_auth_method or 'none',
+            # The SDK has already minted a secret and will echo it to the
+            # client, which may keep sending it; it is never checked.
+            token_endpoint_auth_method='none',
             # Both scopes, so a client that explicitly requests write is not
             # rejected at /authorize by the SDK's registered-scope check. It
             # decides nothing: the consent screen grants the scope, and a client

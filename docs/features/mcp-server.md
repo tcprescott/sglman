@@ -84,6 +84,17 @@ Both are served at the **origin root** and need no credential. The SDK's helper
 would register them inside the MCPServer sub-app, where no client looks, so
 `mcpserver/wellknown.py` registers them on the outer app instead.
 
+### Clients are public
+
+Registration is open (RFC 7591) and every client is stored and reported to the
+SDK as `token_endpoint_auth_method: none`, whatever it asked for. Claude's
+connectors register with `client_secret_post` (and the SDK defaults a request
+that names no method to the same), so the SDK mints a secret and echoes it back;
+the client may keep sending it, and it is never checked. PKCE is what binds a
+code to its client. Reporting the requested method would break the flow: mcp 2.x
+refuses a secret-based client with no stored secret, which surfaced as a 401 on
+every `/token` call (`WizzrobeOAuthProvider.get_client`).
+
 ### Consent
 
 `pages/mcp_consent.py` at `/oauth/mcp/consent` is a bespoke `@ui.page`, not a
