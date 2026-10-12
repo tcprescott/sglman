@@ -70,23 +70,22 @@ class StationAssignmentDialog:
 
         title = copy['title'].format(match=match_model_label(self.match, with_context=False))
         with form_dialog(title, card_classes='dialog-card dialog-card--md') as self.dialog:
-            with ui.column().classes('q-pa-md'):
+            with ui.column().classes('full-width gap-3'):
+                context = []
                 if self.match.tournament:
-                    ui.label(f'Tournament: {self.match.tournament.name}').classes('text-subtitle1')
-                
+                    context.append(self.match.tournament.name)
                 if self.match.scheduled_at:
                     from application.utils.timezone import format_local_datetime
-                    ui.label(f'Scheduled: {format_local_datetime(self.match.scheduled_at)}').classes('text-body2 text-grey-7')
-            
-            ui.separator()
-            
-            with ui.column().classes('q-pa-md q-gutter-md full-width'):
+                    context.append(format_local_datetime(self.match.scheduled_at))
+                if context:
+                    ui.label(' · '.join(context)).classes('text-body2 text-grey-7')
+
                 if not self.match.players:
                     ui.label('No players assigned to this match').classes('text-grey-7')
                 else:
-                    with ui.row().classes('items-center full-width'):
-                        ui.label(copy['lead']).classes('text-subtitle2')
-                        ui.space()
+                    with ui.row().classes('items-center no-wrap full-width gap-1'):
+                        ui.label(copy['lead']).classes('text-body2 col')
+                        await help_icon('proctor-stations')
                         # Only offered for a head-to-head: the draw's whole job
                         # is putting two players on opposite sides, and it
                         # refuses any other player count.
@@ -99,55 +98,54 @@ class StationAssignmentDialog:
                                 'Draw a free station for each player, on opposite '
                                 'sides of the room'
                             )
-                        await help_icon('proctor-stations')
-
 
                     for player in self.match.players:
-                        with ui.column().classes('q-gutter-xs full-width'):
-                            ui.label(player.user.preferred_name or player.user.username).classes('text-weight-medium')
+                        # The player's name is the field's label: a name line
+                        # over a "Station" field doubled each row's height.
+                        name = player.user.preferred_name or player.user.username
 
-                            # Station input (leave blank to clear assignment).
-                            # ``occupied`` excludes this match, so a player's own
-                            # current station never shows as taken.
-                            if stations:
-                                # An occupied station names the match sitting at
-                                # it, not its id: the proctor's next move is to
-                                # go and find those players, and "match #23"
-                                # tells them nothing about who to look for.
-                                options = {
-                                    s.name: (
-                                        f'{s.name} — in use ({occupied[s.name]})'
-                                        if s.name in occupied
-                                        else (f'{s.name} · {s.section}' if s.section else s.name)
-                                    )
-                                    for s in stations
-                                }
-                                # An assignment made before the pool existed (or
-                                # to a since-removed station) would otherwise
-                                # render as an empty select, hiding what the
-                                # schedule row still shows.
-                                if player.assigned_station and player.assigned_station not in options:
-                                    options[player.assigned_station] = (
-                                        f'{player.assigned_station} — not in the station pool'
-                                    )
-                                station_input = ui.select(
-                                    options=options,
-                                    label='Station',
-                                    with_input=True,
-                                    clearable=True,
-                                ).props('outlined dense').classes('full-width')
-                            else:
-                                station_input = ui.input(
-                                    label='Station',
-                                    placeholder='e.g., A1, B2, Station 3',
-                                    validation={'Invalid station format': lambda v: not v or STATION_REGEXES[fmt].fullmatch(v) is not None},
-                                ).props('outlined dense maxlength=50').classes('full-width')
+                        # Station input (leave blank to clear assignment).
+                        # ``occupied`` excludes this match, so a player's own
+                        # current station never shows as taken.
+                        if stations:
+                            # An occupied station names the match sitting at
+                            # it, not its id: the proctor's next move is to
+                            # go and find those players, and "match #23"
+                            # tells them nothing about who to look for.
+                            options = {
+                                s.name: (
+                                    f'{s.name} — in use ({occupied[s.name]})'
+                                    if s.name in occupied
+                                    else (f'{s.name} · {s.section}' if s.section else s.name)
+                                )
+                                for s in stations
+                            }
+                            # An assignment made before the pool existed (or
+                            # to a since-removed station) would otherwise
+                            # render as an empty select, hiding what the
+                            # schedule row still shows.
+                            if player.assigned_station and player.assigned_station not in options:
+                                options[player.assigned_station] = (
+                                    f'{player.assigned_station} — not in the station pool'
+                                )
+                            station_input = ui.select(
+                                options=options,
+                                label=name,
+                                with_input=True,
+                                clearable=True,
+                            ).props('outlined dense hide-bottom-space').classes('full-width')
+                        else:
+                            station_input = ui.input(
+                                label=name,
+                                placeholder='Station, e.g. A1, B2, Station 3',
+                                validation={'Invalid station format': lambda v: not v or STATION_REGEXES[fmt].fullmatch(v) is not None},
+                            ).props('outlined dense hide-bottom-space maxlength=50').classes('full-width')
 
-                            if player.assigned_station:
-                                station_input.value = player.assigned_station
+                        if player.assigned_station:
+                            station_input.value = player.assigned_station
 
-                            self.station_inputs[player.id] = station_input
-            
+                        self.station_inputs[player.id] = station_input
+
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 ui.button(copy['submit'], on_click=self._handle_submit).props('color=primary')
