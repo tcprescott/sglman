@@ -18,7 +18,7 @@ from application.utils.timezone import format_local_display, now_local
 from theme.page_header import page_header
 
 _MODE_LABELS = {
-    MODE_USER: 'Follow each member’s own timezone',
+    MODE_USER: 'Follow each person’s own timezone',
     MODE_PINNED: 'Show one timezone to everybody',
 }
 
@@ -35,7 +35,7 @@ async def admin_timezone_page() -> None:
             'Times are always stored precisely; this only controls the clock they '
             'are shown on. Pick one fixed timezone when everyone is in the same '
             'place — an on-site event, where “14:30” means 14:30 at the venue. '
-            'Follow each member’s timezone when they are not — an online '
+            'Follow each person’s timezone when they are not — an online '
             'tournament, where a player in Berlin and a player in Los Angeles '
             'should each see their own local time for the same match.',
         )
@@ -74,7 +74,7 @@ async def admin_timezone_page() -> None:
                 )
             else:
                 zone_caption.text = (
-                    f'Members see their own device’s timezone, or the one they '
+                    f'Everyone sees their own device’s timezone, or the one they '
                     f'choose on their profile. {zone} is the fallback for anyone '
                     f'whose timezone cannot be detected — and for shared pages '
                     f'like public brackets, which are the same for every viewer. '
