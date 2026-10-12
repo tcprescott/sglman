@@ -7,6 +7,7 @@ from nicegui import app, background_tasks, context, ui
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.secret_dialog import show_secret_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -211,8 +212,7 @@ async def admin_webhooks_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
-                    ui.label(f"Recent deliveries — {row['name']}").classes('text-h6')
+                with form_dialog(f"Recent deliveries — {row['name']}", card_classes='dialog-card dialog-card--md') as dialog:
                     if not deliveries:
                         ui.label('No deliveries yet.').classes('text-grey')
                     else:
@@ -242,15 +242,14 @@ async def admin_webhooks_page() -> None:
                         ).classes('w-full wiz-table')
                         enable_mobile_grid(delivery_table, delivery_columns,
                                            table_key=TableKeys.ADMIN_WEBHOOK_DELIVERIES)
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
         def open_webhook_dialog(existing=None) -> None:
             is_edit = existing is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                    ui.label('Edit Webhook' if is_edit else 'Add Webhook').classes('text-h6')
+                with form_dialog('Edit Webhook' if is_edit else 'Add Webhook', card_classes='dialog-card dialog-card--sm') as dialog:
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',
                     ).classes('w-full')
@@ -297,7 +296,7 @@ async def admin_webhooks_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button(
                             'Save' if is_edit else 'Add', icon='save' if is_edit else 'add',

@@ -13,6 +13,7 @@ from nicegui import ui
 
 from application.services import RacetimeBotService, TenantService
 from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -165,8 +166,7 @@ def _bot_form(existing=None):
 
 
 def _open_bot_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label('New racetime bot').classes('text-lg font-semibold')
+    with form_dialog('New racetime bot', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         category, name, client_id, secret, description, handler, active = _bot_form()
 
         async def submit():
@@ -184,7 +184,7 @@ def _open_bot_create_dialog(actor, table) -> None:
             dialog.close()
             await _refresh_bots(table)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Create', on_click=submit, color='primary')
     dialog.open()
@@ -193,8 +193,7 @@ def _open_bot_create_dialog(actor, table) -> None:
 async def _open_bot_edit_dialog(actor, table, row) -> None:
     bot = await _bot_service.get_bot(actor, row['id'])
     existing = _bot_service.serialize(bot)
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f"Edit bot #{bot.id}").classes('text-lg font-semibold')
+    with form_dialog(f"Edit bot #{bot.id}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         # serialize() omits the secret; expose the plain fields to the form.
         existing['active'] = 'yes' if bot.is_active else 'no'
         category, name, client_id, secret, description, handler, active = _bot_form(existing)
@@ -224,7 +223,7 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
             dialog.close()
             await _refresh_bots(table)
 
-        with ui.row().classes('w-full justify-between'):
+        with dialog_actions().classes('justify-between'):
             ui.button('Delete', on_click=delete_bot, color='negative').props('flat')
             with ui.row():
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -236,8 +235,7 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
     bot_id = row['id']
     tenants = await TenantService.list_tenants()
     grants = {g.tenant_id: g for g in await _bot_service.list_grants(actor, bot_id)}
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f"Tenants for {row['category']}").classes('text-lg font-semibold')
+    with form_dialog(f"Tenants for {row['category']}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         ui.label('Toggle which tenants may select this bot.').classes('text-caption text-grey')
 
         async def _toggle(tenant_id: int, enabled: bool):
@@ -258,6 +256,6 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
                 on_change=lambda e, tid=t.id: _toggle(tid, e.value),
             )
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()

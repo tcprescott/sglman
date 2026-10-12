@@ -33,6 +33,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     POOLS_TAB,
     RUNS_TAB,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 
 
 def build_pools_tab(
@@ -110,8 +111,7 @@ def build_pools_tab(
                       ).props('flat round dense color=negative').tooltip('Remove this permalink')
 
     def _open_permalink_dialog(pl) -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('Edit Permalink').classes('text-h6')
+        with form_dialog('Edit Permalink', card_classes='dialog-card dialog-card--sm') as dialog:
             url_in = ui.input('URL', value=pl.url).classes('w-full font-mono')
             notes_in = ui.input('Notes (optional)', value=pl.notes or '').classes('w-full')
             live_in = ui.switch('Live race only', value=pl.live_race)
@@ -134,7 +134,7 @@ def build_pools_tab(
                 # runner was ever offered, so the board moves too.
                 await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', icon='save', on_click=submit).props('color=primary')
         dialog.open()
@@ -149,8 +149,7 @@ def build_pools_tab(
         await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
 
     def _open_pool_dialog(qid: int, preset_options: dict) -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('Add Pool').classes('text-h6')
+        with form_dialog('Add Pool', card_classes='dialog-card dialog-card--sm') as dialog:
             name_in = ui.input('Pool name').classes('w-full')
             options = {None: '(no preset)', **preset_options}
             preset_in = ui.select(options, label='Preset (optional)', value=None).classes('w-full')
@@ -167,7 +166,7 @@ def build_pools_tab(
                 # A pool is a slot per entrant, so the board's totals move too.
                 await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Add', icon='add', on_click=submit).props('color=primary')
         dialog.open()
@@ -179,8 +178,7 @@ def build_pools_tab(
         # to stay open holding the lines that were refused.
         added = {'any': False}
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('Add Permalinks').classes('text-h6')
+        with form_dialog('Add Permalinks', card_classes='dialog-card dialog-card--sm') as dialog:
             ui.label('One http(s) URL per line.').classes('text-caption text-grey')
             urls_in = ui.textarea('Permalink URLs').classes('w-full font-mono').props('rows=8')
 
@@ -212,14 +210,13 @@ def build_pools_tab(
 
             dialog.on('hide', closed)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Add', icon='add', on_click=submit).props('color=primary')
         dialog.open()
 
     def _open_roll_dialog(pool_id: int) -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('Roll Permalinks').classes('text-h6')
+        with form_dialog('Roll Permalinks', card_classes='dialog-card dialog-card--sm') as dialog:
             count_in = ui.number(f'How many (1–{MAX_ROLL_COUNT})', value=5,
                                  min=1, max=MAX_ROLL_COUNT, precision=0).classes('w-full')
 
@@ -256,7 +253,7 @@ def build_pools_tab(
                 dialog.close()
                 await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Roll', icon='casino', on_click=submit).props('color=primary')
         dialog.open()

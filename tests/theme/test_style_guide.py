@@ -136,6 +136,27 @@ def test_titles_come_from_page_header_not_typography_classes():
 
 
 
+
+def test_dialogs_use_the_shared_header():
+    """A hand-built `ui.dialog()` + `ui.card()` skipped dialog_header, so it had no
+    accessible name, no close button and no phone sheet. Use form_dialog."""
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        if rel.as_posix() == 'theme/dialog/_helpers.py':
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            if 'dialog' not in [_ui_call(i.context_expr) for i in node.items]:
+                continue
+            calls = {
+                n.func.id if isinstance(n.func, ast.Name) else getattr(n.func, 'attr', '')
+                for stmt in node.body for n in ast.walk(stmt) if isinstance(n, ast.Call)
+            }
+            if 'dialog_header' not in calls and not _exempt(lines, node.lineno):
+                bad.append(f'{rel}:{node.lineno}')
+    assert not bad, 'Dialogs without dialog_header (use form_dialog):\n  ' + '\n  '.join(bad)
+
 def test_toggles_use_the_segmented_control():
     """A bare `ui.toggle` is Quasar's gold button row; the app's switch is `.wiz-segmented`."""
     bad = []

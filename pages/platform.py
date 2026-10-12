@@ -36,6 +36,7 @@ from pages.platform_logging import render_logging_section
 from pages.platform_shared import ACTIVE_ICON_SLOT
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.page_header import page_title
 from theme.tables.preferences import (
@@ -259,8 +260,7 @@ async def _refresh(table) -> None:
 
 
 def _open_create_dialog(actor, table) -> None:
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label('New tenant').classes('text-lg font-semibold')
+    with form_dialog('New tenant', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         name = ui.input('Name').classes('w-full')
         slug = ui.input('Slug').classes('w-full')
         domain = ui.input('Custom domain (optional)').classes('w-full')
@@ -289,7 +289,7 @@ def _open_create_dialog(actor, table) -> None:
             # action on their own.
             await open_tenant_admins_dialog(actor, tenant.id, tenant.name)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Create', on_click=submit, color='primary')
     dialog.open()
@@ -300,8 +300,7 @@ async def _open_edit_dialog(actor, table, row) -> None:
     if tenant is None:
         ui.notify('Tenant no longer exists', color='negative')
         return
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label(f"Edit tenant #{tenant.id}").classes('text-lg font-semibold')
+    with form_dialog(f"Edit tenant #{tenant.id}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         name = ui.input('Name', value=tenant.name).classes('w-full')
         slug = ui.input('Slug', value=tenant.slug).classes('w-full')
         domain = ui.input('Custom domain', value=tenant.domain or '').classes('w-full')
@@ -328,7 +327,7 @@ async def _open_edit_dialog(actor, table, row) -> None:
             dialog.close()
             await _refresh(table)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save', on_click=submit, color='primary')
     dialog.open()

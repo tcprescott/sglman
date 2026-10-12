@@ -46,7 +46,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     fmt,
     run_rows,
 )
-from theme.dialog._helpers import native_date_input, native_time_input
+from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.qualifier_copy import BOARD_EXPLAINER
@@ -297,8 +297,7 @@ async def admin_qualifiers_page(
 
     def open_qualifier_dialog(existing=None) -> None:
         is_edit = existing is not None
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
-            ui.label('Edit Qualifier' if is_edit else 'New Qualifier').classes('text-h6')
+        with form_dialog('Edit Qualifier' if is_edit else 'New Qualifier', card_classes='dialog-card dialog-card--md') as dialog:
             name_in = ui.input('Name', value=existing.name if is_edit else '').classes('w-full')
             event_in = ui.input(
                 'Feeds event (optional)', value=(existing.event_name or '') if is_edit else ''
@@ -358,7 +357,7 @@ async def admin_qualifiers_page(
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if is_edit else 'Create', icon='save',
                           on_click=submit).props('color=primary')
@@ -493,8 +492,7 @@ async def admin_qualifiers_page(
         runner = run.user.display_name or run.user.username
         was = enum_value(run.review_status)
         approve = was != 'approved'
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label(f'Change the verdict on {runner}’s run').classes('text-h6')
+        with form_dialog(f'Change the verdict on {runner}’s run', card_classes='dialog-card dialog-card--sm') as dialog:
             ui.label(
                 f'This run is {was}. Overturning it {"approves" if approve else "rejects"} '
                 'it instead, tells the runner their earlier result changed, and records '
@@ -515,7 +513,7 @@ async def admin_qualifiers_page(
                 dialog.close()
                 await reload_open_tabs(RUNS_TAB, BOARD_TAB, QUEUE_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 confirm = ui.button(
                     f'{"Approve" if approve else "Reject"} instead', icon='gavel',
@@ -528,8 +526,7 @@ async def admin_qualifiers_page(
         if run is None:
             return
         runner = run.user.display_name or run.user.username
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label(f'Grant {runner} another attempt').classes('text-h6')
+        with form_dialog(f'Grant {runner} another attempt', card_classes='dialog-card dialog-card--sm') as dialog:
             ui.label('This voids the run and frees its pool slot. It does not use up '
                      'the runner\u2019s own reattempt allowance.').classes('text-caption text-grey')
             reason_in = ui.textarea('Reason (shown to the runner)').classes('w-full').props('rows=2')
@@ -548,7 +545,7 @@ async def admin_qualifiers_page(
                 # approved run on that seed.
                 await reload_open_tabs(RUNS_TAB, QUEUE_TAB, BOARD_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 grant = ui.button('Grant reattempt', icon='restart_alt', on_click=submit)
                 grant.props('color=primary')

@@ -10,6 +10,7 @@ from application.services import (
     SeedGenerationService,
     get_user_from_discord_id,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -113,8 +114,7 @@ async def admin_presets_page() -> None:
 
         def open_test_roll_dialog(row) -> None:
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                    ui.label(f"Test roll: {row['name']}").classes('text-h6')
+                with form_dialog(f"Test roll: {row['name']}", card_classes='dialog-card dialog-card--sm') as dialog:
                     ui.label(
                         "Rolls one seed the way a match would, so you can check the "
                         "randomizer works. It isn't attached to any match."
@@ -127,7 +127,7 @@ async def admin_presets_page() -> None:
                             else 'Rolling…',
                             size='md',
                         )
-                    with ui.row().classes('w-full justify-end'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()
             background_tasks.create(run_test_roll(row, body, context.client))
@@ -184,8 +184,7 @@ async def admin_presets_page() -> None:
             catalogue_state: dict = {}
 
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
-                    ui.label('Import from Randomizer').classes('text-h6')
+                with form_dialog('Import from Randomizer', card_classes='dialog-card dialog-card--md') as dialog:
                     ui.label(
                         "Fetches the randomizer's published presets. Importing one "
                         'saves it as a preset of your own — later changes upstream '
@@ -327,8 +326,7 @@ async def admin_presets_page() -> None:
         def open_preset_dialog(existing=None) -> None:
             is_edit = existing is not None
             with table_container:
-                with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
-                    ui.label('Edit Preset' if is_edit else 'Add Preset').classes('text-h6')
+                with form_dialog('Edit Preset' if is_edit else 'Add Preset', card_classes='dialog-card dialog-card--md') as dialog:
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',
                     ).classes('w-full')
@@ -380,7 +378,7 @@ async def admin_presets_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
-                    with ui.row().classes('justify-end w-full'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button(
                             'Save' if is_edit else 'Add', icon='save' if is_edit else 'add',

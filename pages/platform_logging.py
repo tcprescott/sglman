@@ -11,6 +11,7 @@ from application.services import LogLevelService
 from application.utils.log_levels import LEVELS
 from application.utils.timezone import format_local_display
 from pages.platform_shared import current_actor
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -100,9 +101,7 @@ async def _refresh(table) -> None:
 
 def _open_level_dialog(actor, table, row) -> None:
     is_new = row is None
-    with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm gap-2'):
-        ui.label('Set a logger level' if is_new else f"Level for {row['logger']}").classes(
-            'text-lg font-semibold')
+    with form_dialog('Set a logger level' if is_new else f"Level for {row['logger']}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
         name = None
         if is_new:
             name = ui.input(
@@ -125,7 +124,7 @@ def _open_level_dialog(actor, table, row) -> None:
             dialog.close()
             await _refresh(table)
 
-        with ui.row().classes('w-full justify-end'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Apply', on_click=submit, color='primary')
     dialog.open()

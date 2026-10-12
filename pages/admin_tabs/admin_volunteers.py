@@ -20,6 +20,7 @@ from application.utils.timezone import (
     timezone_label,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
@@ -440,12 +441,10 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             picker_state = {'show_all': not has_qualifications}
             search_state = {'text': ''}
 
-            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                title = shift.position.name if shift.position else 'Shift'
-                ui.label(f'Assign to {title} '
-                         f'({format_local_time_range(shift.starts_at, shift.ends_at)})') \
-                    .classes('text-subtitle1 q-pa-sm')
-                ui.separator()
+            title = shift.position.name if shift.position else 'Shift'
+            with form_dialog(
+                f'Assign to {title} ({format_local_time_range(shift.starts_at, shift.ends_at)})',
+            ) as dialog:
                 if not pool:
                     ui.label('No volunteers in pool. Users must have the Volunteer or Staff role assigned.') \
                         .classes('italic-note q-pa-md')
@@ -491,7 +490,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
                 picker_list()
 
-                with ui.row().classes('justify-end q-pa-sm'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
@@ -631,9 +630,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         def open_reset_dialog() -> None:
             CONFIRM_PHRASE = 'yes please delete all shifts'
-            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                ui.label('Reset all volunteer data').classes('text-subtitle1 q-pa-sm text-negative')
-                ui.separator()
+            with form_dialog('Reset all volunteer data') as dialog:
                 with ui.column().classes('q-pa-md gap-3'):
                     ui.label(
                         'This will permanently delete ALL shifts and assignments across every day. '
@@ -655,17 +652,14 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
                         refresh_all()
 
-                ui.separator()
-                with ui.row().classes('justify-end q-pa-sm gap-2'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Cancel', on_click=dialog.close).props('flat')
                     ui.button('Delete everything', on_click=do_reset).props('color=negative')
             dialog.open()
 
         # --- Positions manager ------------------------------------------
         async def open_positions_dialog() -> None:
-            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                ui.label('Volunteer Positions').classes('text-subtitle1 q-pa-sm')
-                ui.separator()
+            with form_dialog('Volunteer Positions') as dialog:
 
                 @ui.refreshable
                 async def position_list() -> None:

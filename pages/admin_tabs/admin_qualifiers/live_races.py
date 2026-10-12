@@ -25,6 +25,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     enum_value,
     live_race_color,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
 
 # The three outcomes a human may assert, worded as a person would say them rather
 # than as the enum spells them.
@@ -137,8 +138,7 @@ def build_live_tab(
                                  ).classes('text-caption text-grey')
 
     def _open_live_race_dialog(pools) -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label('New Live Race').classes('text-h6')
+        with form_dialog('New Live Race', card_classes='dialog-card dialog-card--sm') as dialog:
             title_in = ui.input('Race title').classes('w-full')
             pool_options = {p.id: p.name for p in pools}
             pool_in = ui.select(pool_options, label='Pool',
@@ -162,7 +162,7 @@ def build_live_tab(
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Create', icon='add', on_click=submit).props('color=primary')
         dialog.open()
@@ -176,8 +176,7 @@ def build_live_tab(
         """
         rows: list = []
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--md'):
-            ui.label(f'Record results — {race.match_title}').classes('text-h6')
+        with form_dialog(f'Record results — {race.match_title}', card_classes='dialog-card dialog-card--md') as dialog:
             ui.label('For when the racetime event never arrived. Each racer is recorded '
                      'as an approved run, par-scored exactly as the room’s own results '
                      'would have been.').classes('text-caption text-grey')
@@ -255,7 +254,7 @@ def build_live_tab(
                 # The runs are new rows and the board's totals move with them.
                 await reload_tabs(LIVE_TAB, RUNS_TAB, BOARD_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Record', icon='save', on_click=submit).props('color=primary')
         dialog.open()
@@ -265,8 +264,7 @@ def build_live_tab(
         options = {pl.id: pl.url[:64] for p in state['pools'] if p.id == race.pool_id
                    for pl in p.permalinks}
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-            ui.label(f'Set permalink — {race.match_title}').classes('text-h6')
+        with form_dialog(f'Set permalink — {race.match_title}', card_classes='dialog-card dialog-card--sm') as dialog:
             if not options:
                 ui.label('This pool has no permalinks yet. Add one on the Pools tab '
                          'first.').classes('text-caption text-orange')
@@ -289,7 +287,7 @@ def build_live_tab(
                 dialog.close()
                 await reload_tabs(LIVE_TAB)
 
-            with ui.row().classes('justify-end w-full'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', icon='save', on_click=submit).props('color=primary')
         dialog.open()

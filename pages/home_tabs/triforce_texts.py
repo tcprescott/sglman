@@ -16,6 +16,7 @@ from application.services import (
     TriforceTextService,
 )
 from models import Tournament, User
+from theme.dialog._helpers import form_dialog
 
 _HELP_TEXT = (
     "Submit up to 3 lines (max 19 characters each) that may be embedded into "
@@ -53,10 +54,7 @@ async def _build_triforce_dialog(tournament: Tournament, user: User) -> None:
     )
     can_submit = await AuthService.can_submit_triforce_text(user, tournament)
 
-    with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-        with ui.row().classes('items-center justify-between full-width no-wrap'):
-            ui.label(f'Triforce Texts — {tournament.name}').classes('text-h6')
-            ui.button(icon='close', on_click=dialog.close).props('flat round dense')
+    with form_dialog(f'Triforce texts — {tournament.name}') as dialog:
 
         if not accepts:
             ui.label(
