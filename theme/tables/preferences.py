@@ -547,7 +547,7 @@ def search_input(table: ui.table, *,
     board that reopens still filtered to one name is a board that looks empty.
     """
     box = ui.input(placeholder=placeholder).props('dense outlined clearable') \
-        .props('debounce=200').classes(width)
+        .props('debounce=200').classes(f'wiz-table-search {width}')
     with box.add_slot('prepend'):
         ui.icon('search')
     table.bind_filter_from(box, 'value', backward=lambda v: v or '')

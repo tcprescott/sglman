@@ -105,43 +105,45 @@ class TournamentTableView:
         </q-td>''')
         self.table.add_slot('item', '''
         <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box;">
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Name:</div>
-                <div class="col-8">
+            <div class="wiz-grid-fields">
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Name:</div>
+                <div class="wiz-grid-field__value">
                     <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" class="table-link">{{ props.row.name }}</a>
                 </div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Description:</div>
-                <div class="col-8"><span class="wrap" :title="props.row.description">{{ props.row.description && props.row.description.length > 120 ? props.row.description.substring(0,117) + '...' : (props.row.description || '-') }}</span></div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Description:</div>
+                <div class="wiz-grid-field__value"><span class="wrap" :title="props.row.description">{{ props.row.description && props.row.description.length > 120 ? props.row.description.substring(0,117) + '...' : (props.row.description || '-') }}</span></div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Seed Generator:</div>
-                <div class="col-8">{{ props.row.seed_generator || '-' }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Seed Generator:</div>
+                <div class="wiz-grid-field__value">{{ props.row.seed_generator || '-' }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Active:</div>
-                <div class="col-8"><q-icon :name="props.row.is_active ? 'check_circle' : 'cancel'" :color="props.row.is_active ? 'positive' : 'negative'" size="sm" /></div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Active:</div>
+                <div class="wiz-grid-field__value"><q-icon :name="props.row.is_active ? 'check_circle' : 'cancel'" :color="props.row.is_active ? 'positive' : 'negative'" size="sm" /></div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Players Per Match:</div>
-                <div class="col-8">{{ props.row.players_per_match }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Players Per Match:</div>
+                <div class="wiz-grid-field__value">{{ props.row.players_per_match }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Avg Duration (min):</div>
-                <div class="col-8">{{ props.row.average_match_duration }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Avg Duration (min):</div>
+                <div class="wiz-grid-field__value">{{ props.row.average_match_duration }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Max Duration (min):</div>
-                <div class="col-8">{{ props.row.max_match_duration }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Max Duration (min):</div>
+                <div class="wiz-grid-field__value">{{ props.row.max_match_duration }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Players:</div>
-                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" class="table-link">{{ props.row.player_count }}</a></div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Players:</div>
+                <div class="wiz-grid-field__value"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" class="table-link">{{ props.row.player_count }}</a></div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Signups:</div>
-                <div class="col-8">{{ props.row.signups }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Signups:</div>
+                <div class="wiz-grid-field__value">{{ props.row.signups }}</div>
+            </div>
             </div>
         </div>
         ''')

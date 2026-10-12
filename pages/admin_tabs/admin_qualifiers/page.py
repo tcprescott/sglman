@@ -264,14 +264,15 @@ async def admin_qualifiers_page(
                     ui.badge('Active' if q.is_active else 'Inactive',
                              color='green' if q.is_active else 'grey')
                     ui.space()
-                    ui.button('Manage', icon='tune',
-                              on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
-                    ui.button(icon='edit',
-                              on_click=lambda row=q: open_qualifier_dialog(row)
-                              ).props('flat round color=primary').tooltip('Edit')
-                    ui.button(icon='delete',
-                              on_click=lambda qid=q.id: _delete_qualifier(qid)
-                              ).props('flat round color=negative').tooltip('Delete')
+                    with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
+                        ui.button('Manage', icon='tune',
+                                  on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
+                        ui.button(icon='edit',
+                                  on_click=lambda row=q: open_qualifier_dialog(row)
+                                  ).props('flat round color=primary').tooltip('Edit')
+                        ui.button(icon='delete',
+                                  on_click=lambda qid=q.id: _delete_qualifier(qid)
+                                  ).props('flat round color=negative').tooltip('Delete')
                 ui.label(
                     f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
                     f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'

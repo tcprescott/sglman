@@ -81,17 +81,19 @@ async def equipment_checkouts_section() -> None:
         table.add_slot('body-cell-actions',
                        '<q-td :props="props">' + _VIEW_ICON_BTN + '</q-td>')
         table.add_slot('item', '''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">#:</div>
-                <div class="col-8">{{ props.row.asset_number }}</div>
+            <div class="wiz-grid-fields">
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">#:</div>
+                <div class="wiz-grid-field__value">{{ props.row.asset_number }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Name:</div>
-                <div class="col-8">{{ props.row.name }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Name:</div>
+                <div class="wiz-grid-field__value">{{ props.row.name }}</div>
             </div>
-            <div class="row items-center q-mb-xs">
-                <div class="col-4 text-grey-7">Checked out:</div>
-                <div class="col-8">{{ props.row.checked_out_at }}</div>
+            <div class="wiz-grid-field">
+                <div class="wiz-grid-field__label text-grey-7 text-caption">Checked out:</div>
+                <div class="wiz-grid-field__value">{{ props.row.checked_out_at }}</div>
+            </div>
             </div>
             <div class="row items-center justify-end">''' + _VIEW_LABEL_BTN + '''</div>
         </div>''')
