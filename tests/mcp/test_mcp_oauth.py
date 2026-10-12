@@ -31,15 +31,25 @@ def pkce() -> tuple[str, str]:
 
 
 async def register(client, redirect_uri='http://localhost:9999/callback') -> str:
-    resp = await client.post('/register', json={
+    resp = await register_raw(client, redirect_uri, auth_method='none')
+    return resp['client_id']
+
+
+_OMIT = object()
+
+
+async def register_raw(client, redirect_uri, auth_method=_OMIT) -> dict:
+    body = {
         'client_name': 'Test Client',
         'redirect_uris': [redirect_uri],
         'grant_types': ['authorization_code', 'refresh_token'],
         'response_types': ['code'],
-        'token_endpoint_auth_method': 'none',
-    })
+    }
+    if auth_method is not _OMIT:
+        body['token_endpoint_auth_method'] = auth_method
+    resp = await client.post('/register', json=body)
     assert resp.status_code in (200, 201), resp.text
-    return resp.json()['client_id']
+    return resp.json()
 
 
 async def authorize_and_approve(client, client_id, challenge, user, redirect_uri, state='xyz'):
@@ -269,6 +279,61 @@ class TestRedirectUriRules:
         ))
         with pytest.raises(ValueError):
             await service.approve(txn, user)
+
+
+class TestSecretBasedRegistration:
+    """Clients that register asking for a client secret still connect.
+
+    Claude's connectors register with ``client_secret_post``, and the SDK
+    defaults a registration that names no method to the same. mcp 2.x refuses
+    a secret-based client with no stored secret, and we store none (clients are
+    public; PKCE binds the code), so every such client got a 401 at ``/token``.
+    """
+
+    @pytest.mark.parametrize('auth_method', ['client_secret_post', 'client_secret_basic', _OMIT])
+    async def test_exchange_and_refresh_succeed(self, db, auth_method):
+        user = await User.create(discord_id=555095, username='oauth-secret-client')
+        redirect_uri = 'https://claude.ai/api/mcp/auth_callback'
+        verifier, challenge = pkce()
+        async with mcp_session() as client:
+            reg = await register_raw(client, redirect_uri, auth_method)
+            client_id, secret = reg['client_id'], reg.get('client_secret')
+            code = await authorize_and_approve(client, client_id, challenge, user, redirect_uri)
+            headers = {}
+            if auth_method == 'client_secret_basic':
+                creds = base64.b64encode(f'{client_id}:{secret}'.encode()).decode()
+                headers['Authorization'] = f'Basic {creds}'
+            resp = await client.post('/token', headers=headers, data={
+                'grant_type': 'authorization_code',
+                'client_id': client_id,
+                'client_secret': secret,
+                'code': code,
+                'code_verifier': verifier,
+                'redirect_uri': redirect_uri,
+            })
+            assert resp.status_code == 200, resp.text
+            refreshed = await client.post('/token', headers=headers, data={
+                'grant_type': 'refresh_token',
+                'client_id': client_id,
+                'client_secret': secret,
+                'refresh_token': resp.json()['refresh_token'],
+            })
+            assert refreshed.status_code == 200, refreshed.text
+
+    async def test_client_stored_as_secret_based_still_exchanges(self, db):
+        """A row registered before the fix carries ``client_secret_post``."""
+        user = await User.create(discord_id=555096, username='oauth-legacy-secret')
+        redirect_uri = 'https://claude.ai/api/mcp/auth_callback'
+        await McpAuthService().repository.create_client(
+            client_id='legacy-post', client_name='Legacy', redirect_uris=[redirect_uri],
+            grant_types=['authorization_code', 'refresh_token'], response_types=['code'],
+            token_endpoint_auth_method='client_secret_post', scope='wizzrobe:read',
+        )
+        verifier, challenge = pkce()
+        async with mcp_session() as client:
+            code = await authorize_and_approve(client, 'legacy-post', challenge, user, redirect_uri)
+            resp = await exchange(client, 'legacy-post', code, verifier, redirect_uri)
+        assert resp.status_code == 200, resp.text
 
 
 class TestConcurrentExchange:

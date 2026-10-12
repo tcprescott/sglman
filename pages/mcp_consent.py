@@ -15,7 +15,9 @@ Asking here would imply a scoping the credential does not actually have.
 There *is* a write checkbox, unticked. Write access is the one thing a grant can
 carry that the user cannot undo by reading more carefully, so it is asked for
 here and nowhere else: a client cannot request its way past this, and a refresh
-cannot widen a grant that was approved without it.
+cannot widen a grant that was approved without it. Ticking it is not enough on
+its own: the person also types "this is dangerous", which the service checks
+again, so a hurried click through the card still ends in a read-only grant.
 """
 
 import logging
@@ -27,8 +29,13 @@ from starlette.responses import RedirectResponse
 from application.errors import NotFoundError
 from application.services import McpAuthService
 from application.services.auth_service import get_user_from_discord_id
-from application.services.mcp_auth_service import is_allowed_redirect_uri
+from application.services.mcp_auth_service import (
+    WRITE_CONFIRMATION_PHRASE,
+    is_allowed_redirect_uri,
+    write_confirmation_matches,
+)
 from middleware.auth import protected_routes
+from theme.banner import banner
 from theme.chrome import render_platform_chrome
 
 logger = logging.getLogger(__name__)
@@ -121,11 +128,13 @@ def create() -> None:
 
         # Off by default. Everything below reads it; nothing else decides it.
         allow_write = {'value': False}
+        confirmation = {'value': ''}
 
         async def approve() -> None:
             try:
                 code, redirect_uri, state = await service.approve(
                     txn, user, allow_write=allow_write['value'],
+                    write_confirmation=confirmation['value'],
                 )
             except (ValueError, NotFoundError) as exc:
                 ui.notify(str(exc), color='warning')
@@ -183,9 +192,21 @@ def create() -> None:
                         'and it only ever sees what you can already see.'
                     )
 
+        def sync_approve() -> None:
+            approve_button.set_enabled(
+                not allow_write['value']
+                or write_confirmation_matches(confirmation['value'])
+            )
+
         def on_write_toggle(event) -> None:
             allow_write['value'] = bool(event.value)
+            write_confirm.set_visibility(allow_write['value'])
             grant_summary.refresh()
+            sync_approve()
+
+        def on_confirmation(event) -> None:
+            confirmation['value'] = event.value or ''
+            sync_approve()
 
         render_platform_chrome('Authorize', right=_signed_in_as)
 
@@ -215,10 +236,29 @@ def create() -> None:
                         'matches, record results and manage crew for you. You can '
                         'turn it on later by reconnecting.'
                     ).classes('consent-note')
+                    with ui.column().classes('consent-write-confirm') as write_confirm:
+                        with banner(
+                            'Anything you can change, it can change too, without '
+                            'asking you first: cancel matches, overwrite results, '
+                            'drop people from crew. A model that misreads a request '
+                            'acts on the misreading.',
+                            title='This is dangerous',
+                            tone='warning',
+                        ):
+                            pass
+                        ui.input(
+                            label=f'Type "{WRITE_CONFIRMATION_PHRASE}" to allow changes',
+                            on_change=on_confirmation,
+                        ).props('outlined dense autocomplete=off spellcheck=false').classes(
+                            'consent-write-input'
+                        )
+                    write_confirm.set_visibility(False)
                 ui.label(
                     'You can disconnect it at any time from your profile.'
                 ).classes('consent-note')
                 with ui.row().classes('consent-actions'):
                     ui.button('Deny', on_click=deny).props('flat')
-                    ui.button('Approve', icon='check', on_click=approve).props('color=primary')
+                    approve_button = ui.button(
+                        'Approve', icon='check', on_click=approve,
+                    ).props('color=primary')
         return None

@@ -79,6 +79,15 @@ DEFAULT_SCOPE = READ_SCOPE
 # token unless the person approving it ticks the box.
 CLIENT_SCOPE = f'{READ_SCOPE} {WRITE_SCOPE}'
 
+# Typed by the person approving before a grant may carry write. A checkbox alone
+# is one click a hurried user makes without reading; typing a sentence is not.
+WRITE_CONFIRMATION_PHRASE = 'this is dangerous'
+
+
+def write_confirmation_matches(text: Optional[str]) -> bool:
+    """Case and spacing are forgiven; the words are not."""
+    return ' '.join((text or '').split()).lower() == WRITE_CONFIRMATION_PHRASE
+
 
 def granted_scope(*, allow_write: bool) -> str:
     """The scope a consent decision grants.
@@ -203,6 +212,7 @@ class McpAuthService:
 
     async def approve(
         self, txn_id: str, user: User, *, allow_write: bool = False,
+        write_confirmation: Optional[str] = None,
     ) -> Tuple[str, str, Optional[str]]:
         """Consume a pending request and mint its authorization code.
 
@@ -214,8 +224,17 @@ class McpAuthService:
         whether the resulting token may change anything. It is a keyword with a
         safe default on purpose: a caller that forgets it grants a read-only
         connection, which is the outcome nobody has to be warned about.
+
+        A writing grant also needs ``write_confirmation`` to match
+        :data:`WRITE_CONFIRMATION_PHRASE`. It is checked before the pending
+        request is consumed, so a typo leaves the consent screen usable.
         """
         pending = self.get_pending(txn_id)
+        if allow_write and not write_confirmation_matches(write_confirmation):
+            raise ValueError(
+                f'Type "{WRITE_CONFIRMATION_PHRASE}" to let it make changes, '
+                'or untick the box to connect read-only.'
+            )
         self.discard_pending(txn_id)
         if not is_allowed_redirect_uri(pending.redirect_uri):
             raise ValueError('This app registered a redirect address Wizzrobe will not open.')

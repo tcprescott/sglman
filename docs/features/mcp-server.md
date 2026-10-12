@@ -84,6 +84,17 @@ Both are served at the **origin root** and need no credential. The SDK's helper
 would register them inside the MCPServer sub-app, where no client looks, so
 `mcpserver/wellknown.py` registers them on the outer app instead.
 
+### Clients are public
+
+Registration is open (RFC 7591) and every client is stored and reported to the
+SDK as `token_endpoint_auth_method: none`, whatever it asked for. Claude's
+connectors register with `client_secret_post` (and the SDK defaults a request
+that names no method to the same), so the SDK mints a secret and echoes it back;
+the client may keep sending it, and it is never checked. PKCE is what binds a
+code to its client. Reporting the requested method would break the flow: mcp 2.x
+refuses a secret-based client with no stored secret, which surfaced as a 401 on
+every `/token` call (`WizzrobeOAuthProvider.get_client`).
+
 ### Consent
 
 `pages/mcp_consent.py` at `/oauth/mcp/consent` is a bespoke `@ui.page`, not a
@@ -119,6 +130,13 @@ write lines appear and the closing note flips from "it cannot change anything" t
 read-only is worse than either half alone. The connection's kind is visible
 afterwards on the profile's credential list, where a writing grant carries a
 `can make changes` badge and a read-only one carries none.
+
+**The typed confirmation.** Ticking the box also reveals a warning banner and a
+field asking for the phrase `this is dangerous` (`WRITE_CONFIRMATION_PHRASE`);
+Approve stays disabled until it matches, with case and spacing forgiven.
+`McpAuthService.approve(..., allow_write=True)` re-checks it and raises
+`ValueError` on a mismatch *before* consuming the pending request, so a typo
+leaves the screen usable and no other caller can grant write without it.
 
 ## Choosing a community
 

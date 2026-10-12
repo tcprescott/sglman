@@ -1255,6 +1255,16 @@ main.q-page:focus {
     font-weight: 600;
 }
 
+.consent-write-confirm {
+    width: 100%;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.consent-write-input {
+    width: 100%;
+}
+
 .consent-actions {
     width: 100%;
     justify-content: flex-end;

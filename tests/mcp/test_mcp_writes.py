@@ -15,6 +15,8 @@ Three layers, and each catches something the others cannot:
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from models import Match, MatchPlayers, Role, Stage, Tournament, User
 from tests.api_helpers import create_community_member
 from tests.mcp.conftest import call_tool, create_oauth_token, mcp_session
@@ -300,6 +302,27 @@ class TestConsentDecidesTheGrant:
         assert token.read_only is False
         assert WRITE_SCOPE in token.scope
 
+    @pytest.mark.parametrize('typed', [None, '', 'this is fine', 'dangerous'])
+    async def test_write_without_the_phrase_is_refused(self, db, typed):
+        """Ticking the box is not enough; the sentence has to be typed."""
+        service, user, txn = await _pending_grant()
+        with pytest.raises(ValueError, match='this is dangerous'):
+            await service.approve(txn, user, allow_write=True, write_confirmation=typed)
+        # A typo must not burn the request: the same screen can try again.
+        raw_code, _, _ = await service.approve(
+            txn, user, allow_write=True, write_confirmation='this is dangerous',
+        )
+        assert raw_code
+
+    @pytest.mark.parametrize('typed', ['This Is Dangerous', '  this  is dangerous '])
+    async def test_case_and_spacing_are_forgiven(self, db, typed):
+        service, user, txn = await _pending_grant()
+        assert await service.approve(txn, user, allow_write=True, write_confirmation=typed)
+
+    async def test_read_only_needs_no_phrase(self, db):
+        service, user, txn = await _pending_grant()
+        assert await service.approve(txn, user, allow_write=False)
+
     async def test_a_client_requesting_write_still_gets_read_only(self, db):
         """The client asks; the human decides. Nothing else does.
 
@@ -322,13 +345,13 @@ class TestConsentDecidesTheGrant:
         assert token.read_only is True
 
 
-async def _approve(*, allow_write: bool, requested_scopes: list[str] | None = None):
-    """Drive one grant through consent and return ``(user, token)``."""
+async def _pending_grant(requested_scopes: list[str] | None = None):
+    """Park one authorization request; return ``(service, user, txn)``."""
     import secrets
 
     from application.services import McpAuthService
     from application.services.mcp_auth_service import PendingAuthorization
-    from models import ApiToken, McpOAuthClient
+    from models import McpOAuthClient
 
     service = McpAuthService()
     client = await McpOAuthClient.create(
@@ -351,7 +374,20 @@ async def _approve(*, allow_write: bool, requested_scopes: list[str] | None = No
         resource=None,
         created_at=datetime.now(timezone.utc) - timedelta(seconds=1),
     ))
-    raw_code, _, _ = await service.approve(txn, user, allow_write=allow_write)
-    code = await service.load_code(client.client_id, raw_code)
+    return service, user, txn
+
+
+async def _approve(*, allow_write: bool, requested_scopes: list[str] | None = None):
+    """Drive one grant through consent and return ``(user, token)``."""
+    from application.services.mcp_auth_service import WRITE_CONFIRMATION_PHRASE
+    from models import ApiToken
+
+    service, user, txn = await _pending_grant(requested_scopes)
+    client_id = service.get_pending(txn).client_id
+    raw_code, _, _ = await service.approve(
+        txn, user, allow_write=allow_write,
+        write_confirmation=WRITE_CONFIRMATION_PHRASE if allow_write else None,
+    )
+    code = await service.load_code(client_id, raw_code)
     await service.exchange_code(code)
     return user, await ApiToken.get(user=user)
