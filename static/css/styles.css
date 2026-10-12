@@ -2632,6 +2632,15 @@ body.wiz-offline .wiz-requires-socket {
 .wiz-help-prose {
     display: block;
     width: 100%;
+    overflow-wrap: anywhere;
+}
+
+/* Text a person typed (descriptions, notes, reasons) can hold a seed link or
+   other unbroken run longer than a phone is wide. `anywhere` rather than
+   `break-word` because only `anywhere` lowers the min-content width, which is
+   what lets a flex item holding the text shrink to its column. */
+.wiz-free-text {
+    overflow-wrap: anywhere;
 }
 
 .wiz-help-prose > :first-child { margin-top: 0; }

@@ -94,7 +94,7 @@ class RescheduleDecisionDialog:
 
                 with ui.card().classes('full-width q-pa-sm'):
                     ui.label('Their reason').classes('text-caption text-grey-7')
-                    ui.label(request.reason)
+                    ui.label(request.reason).classes('wiz-free-text')
 
                 if request.opponent_agreed_at:
                     with ui.row().classes('items-center gap-1'):

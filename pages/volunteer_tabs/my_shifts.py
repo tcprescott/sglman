@@ -146,12 +146,12 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             shift = assignment.shift
             description = getattr(shift.position, 'description', None) if shift.position else None
             if description:
-                ui.label(description).classes('text-body2 q-mt-sm')
+                ui.label(description).classes('text-body2 q-mt-sm wiz-free-text')
             if shift.notes:
                 with ui.column().classes('q-mt-sm q-pa-sm gap-0') \
                         .style('border: 1px solid var(--q-primary); border-radius: 4px;'):
                     ui.label('For this shift').classes('text-caption text-weight-medium')
-                    ui.label(shift.notes).classes('text-body2')
+                    ui.label(shift.notes).classes('text-body2 wiz-free-text')
             # Drafts are excluded: naming someone who has not been told would leak
             # the draft invariant out sideways.
             others = sorted(

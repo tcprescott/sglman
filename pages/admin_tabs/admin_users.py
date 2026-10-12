@@ -178,7 +178,7 @@ async def _members_panel(
                                 .classes('text-caption text-grey')
                             if request.message:
                                 # Plain text, never markup — the requester writes it.
-                                ui.label(request.message).classes('text-caption text-grey')
+                                ui.label(request.message).classes('text-caption text-grey wiz-free-text')
                         with ui.row().classes('no-wrap gap-1'):
                             ui.button(
                                 'Approve', icon='check',

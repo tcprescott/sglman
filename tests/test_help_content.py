@@ -94,6 +94,35 @@ class TestInlineParsing:
         assert all(span.href == '' for span in spans)
         assert 'click me' in ''.join(span.text for span in spans)
 
+    def test_a_bare_https_address_becomes_a_link(self):
+        """Staff paste seed links straight into tournament descriptions."""
+        url = 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3N-shYk.mWHn'
+        spans = parse_inline(f'Seed generation: {url}. Good luck')
+        assert [(s.kind, s.text, s.href) for s in spans] == [
+            ('text', 'Seed generation: ', ''),
+            ('link', url, url),
+            ('text', '.', ''),
+            ('text', ' Good luck', ''),
+        ]
+
+    @pytest.mark.parametrize('text, url', [
+        ('(see https://example.com/a)', 'https://example.com/a'),
+        ('https://en.wikipedia.org/wiki/Foo_(bar)!', 'https://en.wikipedia.org/wiki/Foo_(bar)'),
+        ('"https://example.com",', 'https://example.com'),
+    ])
+    def test_a_bare_address_leaves_the_sentence_punctuation_behind(self, text, url):
+        links = [s for s in parse_inline(text) if s.kind == 'link']
+        assert [(s.text, s.href) for s in links] == [(url, url)]
+
+    @pytest.mark.parametrize('text', [
+        'http://insecure.example.com',
+        'javascript:alert(1)',
+        '`https://example.com`',
+        'https://',
+    ])
+    def test_only_a_complete_https_address_outside_code_is_linked(self, text):
+        assert not any(s.kind == 'link' for s in parse_inline(text))
+
     def test_a_chip_carries_a_known_tone(self):
         span = parse_inline('{chip:pending:Awaiting approval}')[0]
         assert (span.kind, span.text, span.tone) == ('chip', 'Awaiting approval', 'pending')

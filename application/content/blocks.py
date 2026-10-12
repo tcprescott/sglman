@@ -46,6 +46,8 @@ _INLINE_RE = re.compile(
     r'|\*(?P<em>[^*\n]+?)\*'
     r'|`(?P<code>[^`]+?)`'
     r'|\[(?P<link_text>[^\]]+?)\]\((?P<href>[^)\s]+?)\)'
+    # A pasted address with no label (a seed link in a tournament description).
+    r'|(?P<bare_url>https://[^\s<>]+)'
     # Colon-delimited, not pipe-delimited: chips are most useful inside the
     # tables that explain what each state means, and a literal `|` there would
     # split the cell it is describing.
@@ -139,6 +141,27 @@ def _safe_href(href: str) -> str:
     return href if _SAFE_HREF_RE.match(href) else ''
 
 
+_BRACKET_PAIRS = {')': '(', ']': '['}
+
+
+def _split_trailing_punctuation(url: str) -> tuple[str, str]:
+    """``(url, tail)``: the sentence's closing punctuation peeled off a bare URL.
+
+    A closing bracket stays when the URL opened one itself
+    (``https://en.wikipedia.org/wiki/Foo_(bar)``).
+    """
+    end = len(url)
+    while end > len('https://'):
+        last = url[end - 1]
+        if last in '.,;:!?\'"':
+            end -= 1
+        elif last in _BRACKET_PAIRS and url.count(_BRACKET_PAIRS[last], 0, end) < url.count(last, 0, end):
+            end -= 1
+        else:
+            break
+    return url[:end], url[end:]
+
+
 def parse_inline(text: str) -> tuple[Span, ...]:
     """Split one line of article text into spans.
 
@@ -166,6 +189,12 @@ def parse_inline(text: str) -> tuple[Span, ...]:
                 Span('link', groups['link_text'], href=href) if href
                 else Span('text', groups['link_text'])
             )
+        elif groups['bare_url'] is not None:
+            url, tail = _split_trailing_punctuation(groups['bare_url'])
+            href = _safe_href(url) if url != 'https://' else ''
+            spans.append(Span('link', url, href=href) if href else Span('text', url))
+            if tail:
+                spans.append(Span('text', tail))
         elif groups['chip_text'] is not None:
             tone = groups['chip_tone'] or 'neutral'
             spans.append(Span(

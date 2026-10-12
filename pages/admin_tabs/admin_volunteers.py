@@ -314,7 +314,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                                         ui.label(f'{open_slots} open') \
                                             .classes('text-caption text-warning')
                             if position.description:
-                                ui.label(position.description).classes('text-caption text-grey')
+                                ui.label(position.description).classes('text-caption text-grey wiz-free-text')
                         with ui.row().classes('gap-1'):
                             ui.button('Generate standard shifts', icon='auto_awesome_motion',
                                       on_click=lambda p=position: generate_shifts(p)) \

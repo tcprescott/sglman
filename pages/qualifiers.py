@@ -150,7 +150,7 @@ def create() -> None:
                     ui.label(f'Window: {_fmt(q.opens_at)} → {_fmt(q.closes_at)}').classes(
                         'text-caption text-grey')
                     if q.description:
-                        ui.label(q.description).classes('text-caption')
+                        ui.label(q.description).classes('text-caption wiz-free-text')
 
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int) -> None:
