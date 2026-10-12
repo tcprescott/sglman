@@ -72,6 +72,7 @@ erDiagram
     User ||--o{ TenantMembership : "user"
     Tenant ||--o{ TenantMemberBlock : "tenant"
     User ||--o{ TenantMemberBlock : "user"
+    Tenant ||--o| TenantLogo : "tenant"
     Tenant ||--o{ TenantJoinRequest : "tenant"
     User ||--o{ TenantJoinRequest : "user"
 
@@ -460,6 +461,23 @@ no staff decision (open membership, Discord auto-join). Written by
 | `created_at` | `DatetimeField` | `auto_now_add` | |
 
 Constraints: `unique_together (('user', 'tenant'),)`.
+
+#### `TenantLogo`
+
+A community's uploaded logo: the header's brand mark and the browser tab icon.
+One row per tenant, holding only the normalised 256×256 WebP that
+`TenantLogoService` produced, never the upload as sent. `Tenant.config['logo']`
+carries the hash so a page build knows the URL without loading the bytes. Served
+from `/brand-logo/<tenant_id>/<sha256>.webp` (`frontend.py`). Tenant-scoped
+(`TenantLogoRepository`).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | O2O → `Tenant` | not null, unique, `CASCADE` | `related_name='logo'` |
+| `content` | `BinaryField` | not null | `bytea`; the WebP, typically 10–40 KB |
+| `sha256` | `CharField(64)` | not null | Hash of `content`; the URL's cache key |
+| `uploaded_by` | FK → `User` | null, `SET_NULL` | |
+| `updated_at` | `DatetimeField` | `auto_now` | |
 
 #### `ProfileNudgeDismissal`
 
@@ -1994,6 +2012,7 @@ Consult the source for full signatures.
 | `UserRoleRepository` | [`user_role_repository.py`](../../application/repositories/user_role_repository.py) | `UserRole` | `add` (idempotent `get_or_create`; a `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation), `remove`, `list_for_user`, `list_for_user_by_source`, `list_user_ids_by_source`, `any_with_role`, `list_users_with_role` |
 | `DiscordRoleMappingRepository` | [`discord_role_mapping_repository.py`](../../application/repositories/discord_role_mapping_repository.py) | `DiscordRoleMapping` | `get_by_id`, `get_by_id_with_tournament`, `get_all`, `list_for_guild` (both prefetch `tournament`), `get_match` / `get_tournament_match` (exact-tuple lookups, one per mapping shape, used to reject duplicates), `create`, `delete` |
 | `DiscordTournamentGrantRepository` | [`discord_tournament_grant_repository.py`](../../application/repositories/discord_tournament_grant_repository.py) | `DiscordTournamentGrant` | `list_for_user`, `get_match`, `add`, `remove` — the provenance rows deciding which `Tournament.admins` / `.crew_coordinators` grants the guild-role sync may revoke |
+| `TenantLogoRepository` | [`tenant_logo_repository.py`](../../application/repositories/tenant_logo_repository.py) | `TenantLogo` | Scoped writes (`upsert`, `delete_current`); `get_content(tenant_id, sha256)` takes the tenant from the image URL, since that route runs with no community bound |
 | `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | **Never scoped** — it resolves which tenant a request belongs to. `get_by_id`, `get_by_slug`, `get_by_domain`, `list_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `set_feature_group`, `clear_feature_group`, `delete` |
 | `TenantMembershipRepository` | [`tenant_membership_repository.py`](../../application/repositories/tenant_membership_repository.py) | `TenantMembership` | **Never scoped** — queried across tenants. `is_member`, `add`, `remove`, `list_for_user`, `list_for_tenant` |
 | `TenantJoinRequestRepository` | [`tenant_join_request_repository.py`](../../application/repositories/tenant_join_request_repository.py) | `TenantJoinRequest` | **Never scoped** — the requester is not in the target tenant. `get`, `get_by_id`, `upsert_pending` (re-opens a decided row in place), `list_pending`, `decide` |

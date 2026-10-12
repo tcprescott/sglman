@@ -114,6 +114,7 @@
     --wiz-dark-surface-2: #262420;
     --wiz-dark-border:    #353230;
     --wiz-dark-muted:     #A8A59E;
+    --wiz-dark-fg:        #ECEBE8;
 
     /* Typography: one family for UI and titles, mono for times and IDs.
        --font-display is kept as an alias so older rules that name it follow. */
@@ -533,6 +534,52 @@ main.q-page:focus {
 
 .wiz-wordmark-sub::before {
     display: none;
+}
+
+/* A community logo (Settings → General) replaces the colour square, a little
+   larger so a real mark reads. theme/chrome.apply_brand_palette sets the URL
+   and the body class only when one is uploaded. */
+.wiz-has-logo .wiz-wordmark::before {
+    width: 28px;
+    height: 28px;
+    border-radius: 0;
+    background: var(--wiz-brand-logo) center / contain no-repeat;
+}
+
+/* Settings → General: the logo as it sits on each header. Fixed light and dark
+   surfaces, not the theme tokens, so both previews show whichever mode the
+   viewer is in. */
+.wiz-logo-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    font-weight: 700;
+}
+
+.wiz-logo-preview--light {
+    background: var(--n-0);
+    color: var(--n-900);
+}
+
+.wiz-logo-preview--dark {
+    background: var(--wiz-dark-surface);
+    color: var(--wiz-dark-fg);
+}
+
+.wiz-logo-preview-mark {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+.wiz-logo-preview-mark--colour {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background: var(--wiz-header-bg);
 }
 
 /* "Wizzrobe · Platform" — names a tenant-less surface without competing with

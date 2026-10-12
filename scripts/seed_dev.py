@@ -59,6 +59,7 @@ from models import (
 )
 from scripts.seed_access import seed_access_for_tenant
 from scripts.seed_brackets import seed_brackets_for_tenant
+from scripts.seed_branding import seed_logo_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_check_in import seed_check_in_for_tenant, seed_check_in_identities
 from scripts.seed_community_events import seed_community_events_for_tenant
@@ -718,6 +719,10 @@ async def seed_all() -> None:
             tenant.config = config
             await tenant.save()
         print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
+        # The default community shows an uploaded logo; the second keeps the
+        # colour square, so both header shapes are reachable.
+        if slug == 'default':
+            await seed_logo_for_tenant(tenant)
         # Tier first: the per-tenant fixtures below consult the live flags (a
         # service that enforces a flag refuses to seed data for a tenant that
         # lacks the feature), so availability has to be settled before seeding.

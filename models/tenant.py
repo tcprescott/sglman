@@ -92,6 +92,29 @@ class TenantMemberBlock(Model):
         table = 'tenantmemberblock'
         unique_together = (('user', 'tenant'),)
 
+class TenantLogo(Model):
+    """A community's logo: the header mark and browser tab icon.
+
+    Holds only the normalised WebP the service produced, never the upload as
+    sent. The bytes live here rather than in ``Tenant.config`` because config is
+    read on every page build; config carries just the hash (``config['logo']``)
+    so the chrome can build the content-addressed URL without loading the image.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.OneToOneField('models.Tenant', related_name='logo', on_delete=fields.CASCADE)  # type: ignore[var-annotated]
+    tenant_id: int
+    content = fields.BinaryField()
+    sha256 = fields.CharField(max_length=64)
+    uploaded_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='tenant_logos_uploaded', null=True, on_delete=fields.SET_NULL
+    )
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'tenantlogo'
+
+
 class TenantJoinRequest(Model):
     """Someone asking to join a community they can see the door of.
 

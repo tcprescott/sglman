@@ -62,6 +62,7 @@ from .station_repository import StationRepository
 from .table_preference_repository import TablePreferenceRepository
 from .telemetry_repository import TelemetryRepository
 from .tenant_join_request_repository import TenantJoinRequestRepository
+from .tenant_logo_repository import TenantLogoRepository
 from .tenant_membership_repository import TenantMembershipRepository
 from .tenant_repository import TenantRepository
 from .tournament_notification_repository import TournamentNotificationRepository
@@ -134,6 +135,7 @@ __all__ = [
     'TelemetryRepository',
     'TenantFeatureFlagRepository',
     'TenantJoinRequestRepository',
+    'TenantLogoRepository',
     'TenantMembershipRepository',
     'TenantRepository',
     'TournamentNotificationRepository',

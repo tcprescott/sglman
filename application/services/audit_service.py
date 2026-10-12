@@ -141,6 +141,8 @@ class AuditActions:
     # System
     SYSTEM_CONFIG_UPDATED = 'system_config.updated'
     THEME_UPDATED = 'theme.updated'
+    THEME_LOGO_UPDATED = 'theme.logo_updated'
+    THEME_LOGO_REMOVED = 'theme.logo_removed'
     TIMEZONE_UPDATED = 'timezone.updated'
     USER_TIMEZONE_UPDATED = 'user.timezone_updated'
     PROFILE_NUDGES_UPDATED = 'profile_nudges.updated'

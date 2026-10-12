@@ -104,6 +104,16 @@ def apply_brand_palette(colors: dict[str, str]) -> None:
         '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--wiz-ember)!important;}'
         '</style>'
     )
+    logo = colors.get('logo')
+    if logo:
+        # The uploaded logo takes the brand mark's place (still the decorative
+        # ::before, so the community name stays the header's accessible text)
+        # and the browser tab icon. Declared after NiceGUI's favicon link, and
+        # browsers use the last icon declared. The URL is service-built from an
+        # int id and a hex hash, so it is safe inside url().
+        ui.add_head_html(f'<link rel="icon" type="image/webp" href="{logo}">')
+        ui.add_head_html(f'<style>:root{{--wiz-brand-logo:url("{logo}");}}</style>')
+        ui.query('body').classes('wiz-has-logo')
 
 
 def dark_mode_button(dark: ui.dark_mode) -> ui.button:
