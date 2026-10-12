@@ -1,12 +1,12 @@
 """Admin Payouts Page — prize pool and placement splits per tournament."""
 
-import json
 from decimal import Decimal, InvalidOperation
 
 from nicegui import app, background_tasks, context, ui
 
 from application.services import PayoutService, TournamentService, get_user_from_discord_id
 from application.services.payout_service import format_percentage
+from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
 from theme.notify import notify_error
@@ -269,9 +269,7 @@ async def admin_payouts_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(block)})')
-                ui.notify('Payout block copied to clipboard.', color='positive',
-                          icon='content_copy')
+                copy_to_clipboard(block, 'Payout block')
 
         with table_container:
             with ui.row().classes('full-width'):

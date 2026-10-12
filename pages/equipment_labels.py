@@ -211,7 +211,7 @@ def create() -> None:
                         {2: '2', 3: '3', 4: '4'},
                         value=state['cols'] if state['cols'] in (2, 3, 4) else 3,
                         on_change=lambda e: _set_cols(int(e.value)),
-                    ).props('dense').tooltip('Columns per row')
+                    ).props('dense unelevated').classes('wiz-segmented').tooltip('Columns per row')
                 ui.button(
                     'Print', icon='print', on_click=lambda: ui.run_javascript('window.print()'),
                 ).props('color=primary')

@@ -2779,17 +2779,24 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 .wiz-segmented .q-btn::before { box-shadow: none; }
 
-.wiz-segmented .q-btn:hover:not(.q-btn--active) {
+.wiz-segmented .q-btn:hover:not([aria-pressed="true"]) {
     color: var(--fg);
 }
 
 /* The selected segment is a raised white tile, not an accent fill. q-btn-toggle
-   paints it with Quasar's `bg-primary text-white` utility classes, which carry
-   !important, so these must too. */
-.wiz-segmented .q-btn--active {
-    background: var(--surface) !important;
-    color: var(--fg) !important;
+   marks it only with aria-pressed (there is no .q-btn--active) and paints it
+   with Quasar's `bg-primary text-white`, which carry !important in Quasar's own
+   layer. For !important the earliest layer wins, so the colours sit in the
+   "theme" layer; the old unlayered .q-btn--active rule never matched at all. */
+.wiz-segmented .q-btn[aria-pressed="true"] {
     box-shadow: 0 1px 2px rgba(28, 27, 25, 0.10), 0 0 0 1px var(--border-subtle);
+}
+
+@layer theme {
+    .wiz-segmented .q-btn[aria-pressed="true"] {
+        background: var(--surface) !important;
+        color: var(--fg) !important;
+    }
 }
 
 /* Phone: a switcher hugging the left edge reads as a stray button cluster.
