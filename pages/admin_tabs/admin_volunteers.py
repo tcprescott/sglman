@@ -362,7 +362,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
         def _render_shift_card(shift) -> None:
             filled = len(shift.assignments)
             understaffed = filled < shift.slots_needed
-            with ui.card().classes('q-pa-sm').style('min-width: 220px; flex: 0 0 auto;'):
+            with ui.card().classes('q-pa-sm wiz-shift-card'):
                 header = shift.label or f'{format_local_time(shift.starts_at)}'
                 with ui.row().classes('items-center justify-between full-width'):
                     ui.label(header).classes('text-weight-medium')

@@ -16,6 +16,13 @@
  * to the pytest suite. This is what keeps them from coming back.
  * docs/style-guide.md says what to do when it fails.
  *
+ * With a "phone" block in the config it then makes a third pass at phone width
+ * (390px by default) and fails any page whose layout breaks there: the page
+ * scrolls sideways, an element runs past the screen or out of the card that
+ * holds it, or text is cut off without an ellipsis. The 2026-10 phone sweep
+ * found Settings fields 90px past their card and a whole family of these, none
+ * of which a desktop-width scan can see.
+ *
  * Prereqs: the app booted and seeded (see the ui-validation skill), Playwright
  * and axe-core resolvable (`npm install --no-save playwright@1.56.1
  * axe-core@4.10.3`, or NODE_PATH pointing at a global install).
@@ -30,6 +37,14 @@
  *   }
  * An ignore entry matches an axe rule id or "contrast"; `target` (a target
  * name) narrows it to one page. Every entry must say why.
+ *
+ *   "phone": {
+ *     "viewport": { "width": 390, "height": 844 },
+ *     "schemes": ["light"],
+ *     "ignore": [ { "selector": ".some-class", "target": "home-player", "why": "..." } ]
+ *   }
+ * A phone ignore entry matches an offending element by CSS selector (the
+ * element or any ancestor); `target` narrows it to one page.
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -114,6 +129,63 @@ function contrastCheck() {
   return res;
 }
 
+// Runs in the page at phone width. Returns layout breaks.
+function layoutCheck(ignoreSelectors) {
+  const vw = window.innerWidth;
+  const out = [];
+  const seen = new Set();
+  const describe = (el) => {
+    const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).slice(0, 4).join('.') : '';
+    return `<${el.tagName.toLowerCase()}${cls ? ' class="' + cls + '"' : ''}>`;
+  };
+  const text = (el) => (el.innerText || el.value || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  const report = (kind, el, by) => {
+    if (ignoreSelectors.some((sel) => el.closest(sel))) return;
+    const key = kind + describe(el) + text(el);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ kind, by: Math.round(by), el: describe(el), text: text(el) });
+  };
+  if (document.documentElement.scrollWidth > vw + 1) {
+    out.push({ kind: 'page scrolls sideways', by: document.documentElement.scrollWidth - vw, el: '<html>', text: '' });
+  }
+  // A horizontal scroller (a wide table, a tab strip) is allowed to hold wide
+  // content; anything else is a box whose content should fit it.
+  const scrolls = (e) => /(auto|scroll)/.test(getComputedStyle(e).overflowX);
+  const boxed = (e) => {
+    if (e.matches('.q-card, .wiz-panel, .q-field__control, .q-btn, .q-item, .q-dialog .q-card')) return true;
+    const s = getComputedStyle(e);
+    return parseFloat(s.borderRightWidth) > 0 && s.borderRightStyle !== 'none';
+  };
+  for (const el of document.querySelectorAll('body *')) {
+    if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') continue;
+    if (el.closest('[aria-hidden="true"], .q-tooltip, .q-menu, .wiz-sr-only, .wiz-skip-link, svg')) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const s = getComputedStyle(el);
+    // A field scrolls its own text, and Quasar's select keeps an invisible
+    // focus input that always measures wider than it is.
+    if (!el.matches('input, textarea, select') && /(hidden|clip)/.test(s.overflowX) && s.textOverflow !== 'ellipsis'
+        && el.scrollWidth > el.clientWidth + 2 && el.childElementCount <= 1 && text(el)) {
+      report('text cut off', el, el.scrollWidth - el.clientWidth);
+    }
+    let box = null;
+    let inScroller = false;
+    for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
+      if (scrolls(e)) { inScroller = true; break; }
+      if (boxed(e)) { box = e; break; }
+    }
+    if (inScroller) continue;
+    const limit = box ? box.getBoundingClientRect().right : vw;
+    // Report the outermost element that escapes, not each of its descendants.
+    const parentRight = el.parentElement.getBoundingClientRect().right;
+    if (r.right > limit + 2 && (parentRight <= limit + 2 || el.parentElement === box)) {
+      report(box ? 'runs out of its card' : 'runs off the screen', el, r.right - limit);
+    }
+  }
+  return out;
+}
+
 async function runAxe(page, source) {
   if (!(await page.evaluate(() => !!window.axe))) await page.addScriptTag({ content: source });
   return page.evaluate(async () => {
@@ -183,9 +255,41 @@ async function runAxe(page, source) {
     }
     await ctx.close();
   }
+
+  const phone = cfg.phone;
+  if (phone) {
+    const viewport = phone.viewport || { width: 390, height: 844 };
+    const phoneIgnore = phone.ignore || [];
+    for (const scheme of phone.schemes || ['light']) {
+      const ctx = await browser.newContext({ viewport, colorScheme: scheme, isMobile: true, hasTouch: true });
+      const page = await ctx.newPage();
+      await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.locator('tr, .wiz-grid-card', { hasText: loginAs }).first().getByRole('button', { name: 'Log in as' }).click();
+      await page.waitForTimeout(1500);
+      for (const t of cfg.targets || []) {
+        const label = `phone ${scheme} ${t.name}`;
+        try {
+          await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
+        } catch (e) {
+          failures.push(`[${label}] navigation failed: ${e.message.split('\n')[0]}`);
+          continue;
+        }
+        await page.waitForTimeout(1800);
+        const selectors = phoneIgnore.filter((i) => !i.target || i.target === t.name).map((i) => i.selector);
+        const layout = await page.evaluate(layoutCheck, selectors);
+        report[label] = { layout };
+        for (const l of layout) failures.push(`[${label}] ${l.kind} by ${l.by}px: ${l.el} "${l.text}"`);
+        if (layout.length) await page.screenshot({ path: path.join(outDir, `${label.replace(/\s+/g, '-')}.png`), fullPage: true });
+        console.log(`  [${label}] layout=${layout.length}`);
+      }
+      await ctx.close();
+    }
+  }
+
   await browser.close();
   fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 1));
-  console.log('=== accessibility and contrast failures ===');
+  console.log('=== accessibility, contrast and phone layout failures ===');
   console.log(failures.length ? failures.join('\n') : '(none)');
   if (failures.length) {
     console.log('\nSee docs/style-guide.md#checking-your-change for how to fix these.');

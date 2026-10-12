@@ -257,9 +257,10 @@ def create() -> None:
                         _attendance(service, user, current, state, body.refresh)
                         if current.rsvp_enabled:
                             ui.label(going_line(current, state['going_counts'].get(current.id, 0))) \
-                                .classes('text-muted')
+                                .classes('wiz-community-event__meta')
                         elif state['counts'].get(current.id):
-                            ui.label(f"{state['counts'][current.id]} subscribed").classes('text-muted')
+                            ui.label(f"{state['counts'][current.id]} subscribed") \
+                                .classes('wiz-community-event__meta')
                     if can_manage and current.status is not CommunityEventStatus.CANCELLED:
                         ui.button(
                             'Edit', icon='edit',

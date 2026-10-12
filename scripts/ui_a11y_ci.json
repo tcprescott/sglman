@@ -17,6 +17,12 @@
     "schemes": ["light", "dark"],
     "ignore": []
   },
+  "phone": {
+    "_comment": "Layout at phone width: nothing scrolls sideways, runs out of its card or is cut off. Layout does not change with the colour scheme, so one pass is enough. `ignore` takes a CSS selector and a why.",
+    "viewport": { "width": 390, "height": 844 },
+    "schemes": ["light"],
+    "ignore": []
+  },
   "targets": [
     { "name": "home-schedule", "path": "/home/schedule" },
     { "name": "home-on-air", "path": "/home/on-air" },

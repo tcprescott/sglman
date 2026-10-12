@@ -148,9 +148,9 @@ def enable_mobile_grid(
             field = name
         label = html.escape(str(col.get('label', name) or ''))
         rows.append(
-            '<div class="row items-center q-mb-xs">'
-            f'<div class="col-5 text-grey-7 text-caption">{label}</div>'
-            '<div class="col-7" style="overflow-wrap:anywhere">'
+            '<div class="wiz-grid-field">'
+            f'<div class="wiz-grid-field__label text-grey-7 text-caption">{label}</div>'
+            '<div class="wiz-grid-field__value">'
             f'{_value_html(name, field, field_slots)}</div>'
             '</div>'
         )
@@ -185,7 +185,7 @@ def enable_mobile_grid(
         'item',
         '<div class="q-pa-xs col-xs-12 col-sm-6">'
         + card_open
-        + ''.join(rows) + footer +
+        + '<div class="wiz-grid-fields">' + ''.join(rows) + '</div>' + footer +
         '</q-card></div>',
     )
 

@@ -110,7 +110,29 @@ title on 20 pages), and don't size a title with `text-h1`…`text-h5`.
 - **Contrast is 4.5:1 for text, 3:1 for large text and icons**, in light and
   dark. Check both modes; most of the 2026-10 failures were dark-only.
 - **Every page works at 390px wide** without sideways scrolling: tables become
-  cards, dialogs become sheets.
+  cards, dialogs become sheets. See [Phone layout](#phone-layout).
+
+## Phone layout
+
+Most people open this app on a phone at the venue, so 390px is the width that
+matters. The 2026-10 phone sweep found the same handful of mistakes on page after
+page; each has a shared fix in the "Phone layout" block of `styles.css`.
+
+| Do | Don't |
+|---|---|
+| Let the page gutter be the one 16px `.nicegui-content` gives you | Pad a tab's content again (tabbed pages started 32px in), or nest a card in a card in a card on a phone |
+| Show a record as label/value fields with `enable_mobile_grid`, or the `.wiz-grid-fields` / `.wiz-grid-field` / `__label` / `__value` classes in a bespoke card slot | Split a card into `col-4`/`col-8` or `col-5`/`col-7` (labels wrap, values get a strip) |
+| Size a control with `width: 100%` and a `max-width`, or a flex basis that can shrink (`min-width: 0`) | Give a field a fixed width wider than about 300px (`.control-width` was 400px), or `no-wrap` a row of fixed-width fields |
+| Put a card's buttons in one `.wiz-card-actions` no-wrap group so they wrap together | Leave Edit and Delete as loose row items that strand one on a line of its own |
+| Let unbroken strings (URLs, seeds, tokens) wrap with `overflow-wrap: anywhere` or end in an ellipsis with the whole value in `title` | Let a long string push its card wider than the screen |
+| Use the shared `search_input` for a table search; it shrinks to its row on a phone | Hard-code a `w-64` search box beside other toolbar buttons |
+| Keep a lede to a sentence or two; `.text-muted` drops to body size on a phone | Write a paragraph above the first control, or set lede text above body size |
+
+The phone pass in `scripts/ui_a11y_scan.js` (the `"phone"` block in
+`scripts/ui_a11y_ci.json`) loads every page at 390px and fails when the page
+scrolls sideways, an element runs off the screen or out of its card, or text is
+cut off without an ellipsis. It can't judge spacing or verbosity: look at the page
+at 390px yourself before calling it done.
 
 ## Words
 
@@ -136,6 +158,7 @@ Automated, on every PR:
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |
+| `scripts/ui_a11y_scan.js` phone pass | On the same pages at 390px: sideways scrolling, elements running off the screen or out of their card, text cut off without an ellipsis |
 
 The browser scan runs locally against the seeded app (boot and seed as in the
 [ui-validation skill](../.claude/skills/ui-validation/SKILL.md)):
@@ -159,6 +182,11 @@ It writes `report.json` under `<outDir>/a11y/`. When it fails:
   every badge as failing. The scan's own tint-aware check replaces it.
 - **`a11y.ignore` in the config is for a finding that is wrong**, not one that is
   inconvenient. Each entry says why.
+- **A phone layout hit** names the element and how far it overflows. "Runs out
+  of its card" usually means a fixed width or a `no-wrap` row: see
+  [Phone layout](#phone-layout). An element inside a horizontal scroller (a wide
+  table, a tab strip) is allowed to be wider and isn't reported. `phone.ignore`
+  takes a CSS selector and, like `a11y.ignore`, a why.
 
 When a new page or a restyle lands, add it to `scripts/ui_a11y_ci.json`, then
 look at it yourself in light, dark and at phone width (the ui-validation skill

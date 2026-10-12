@@ -3231,6 +3231,177 @@ ol.wiz-help-list { list-style-type: decimal; }
     .wiz-station-row > :nth-child(4) { order: 5; flex: 1 1 40%; width: auto !important; min-width: 0; }
 }
 
+/* ── Phone layout (below 600px) ─────────────────────────────────────────────
+   Shared fixes from the 2026-10 phone sweep, written once here rather than per
+   page. docs/style-guide.md#phone-layout has the rules; the phone pass in
+   scripts/ui_a11y_scan.js is what catches a new page breaking them. */
+
+/* A label/value card (enable_mobile_grid, and the bespoke tournament and
+   equipment cards): one grid per card, so the label column is only as wide as
+   its longest label (capped at 40%) and every value starts on the same line.
+   The old col-5/col-4 split gave labels a fixed share of a 300px card, which
+   wrapped "Players Per Match" over two lines and left values a narrow strip. */
+.wiz-grid-fields {
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    align-items: baseline;
+}
+
+.wiz-grid-field {
+    display: contents;
+}
+
+.wiz-grid-fields > :not(.wiz-grid-field) {
+    grid-column: 1 / -1;
+}
+
+.wiz-grid-field__value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A shift card keeps its 220px column on a wide screen and takes the row on a
+   phone, where 220px left a third of the position card empty beside it. */
+.wiz-shift-card {
+    min-width: 220px;
+    flex: 0 0 auto;
+}
+
+/* A card's action buttons travel as one group: when the title row runs out of
+   room the whole group drops to the next line, right-aligned, instead of
+   leaving Delete alone on a line of its own. */
+.wiz-card-actions {
+    margin-left: auto;
+}
+
+@media (max-width: 599px) {
+    /* One 16px gutter. A tabbed page sat inside .nicegui-content's 16px and
+       then the tab panel's own 16px, so Admin, Home and Volunteer content
+       started 32px in while every untabbed page started at 16px. */
+    .nicegui-content > .q-tab-panels > .q-panel > .q-tab-panel {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    /* A fixed-width control never outgrows the screen. */
+    .control-width {
+        width: 100%;
+        max-width: 400px;
+    }
+
+    /* The table search box (theme/tables/preferences.py search_input) is w-64,
+       256px, which with Export and the column gear beside it wrapped each onto a
+       line of its own. Let it take what is left of its row instead. */
+    .wiz-table-search {
+        flex: 1 1 10rem;
+        width: auto;
+        min-width: 0;
+    }
+
+    .row:has(> .wiz-table-search) {
+        flex: 1 1 12rem;
+        min-width: 0;
+        flex-wrap: nowrap;
+        gap: var(--space-1);
+    }
+
+    /* Ledes: 1.2em grey with a 1em bottom margin reads as a paragraph of body
+       copy on a phone and pushes the first real control off the screen. */
+    .text-muted {
+        font-size: 1rem;
+        margin-bottom: var(--space-2);
+    }
+
+    /* Labelled help chips ("Approval", "Queues") inherit size=xs, which Quasar
+       turns into an 8px inline font. Hold them at a caption size that can be read
+       without zooming, and at a touch height that does not stand a row of them
+       a thumb tall. */
+    .wiz-help-icon.q-btn:not(.q-btn--round) {
+        font-size: 0.75rem !important;
+        min-height: 32px;
+    }
+
+    .wiz-panel__help .wiz-help-icon.q-btn--round {
+        min-height: 32px;
+        min-width: 32px;
+    }
+
+    /* A seed string and its copy button stay on one line; the string gives way
+       to an ellipsis (its title holds the whole thing) before the pair outgrows
+       the card. */
+    .seed-copy {
+        max-width: 100%;
+    }
+
+    .seed-copy > .seed-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .wiz-shift-card {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    /* Daily hours: the day over its two times, each time half the row, instead
+       of a day column and two 8rem fields running 40px past the card. */
+    .wiz-settings-hours {
+        flex-wrap: wrap !important;
+        row-gap: var(--space-1);
+    }
+
+    .wiz-settings-hours > .wiz-settings-day {
+        width: 100%;
+        font-weight: 600;
+    }
+
+    /* On Air: page, stage card and match card each padded the one before, so
+       a match got two-thirds of the screen. Pull the stage card in, let the
+       player line sit beside its icon instead of wrapping under it, and put the
+       tournament on its own unindented line. */
+    .timeline-container > .card-full-width {
+        padding: var(--space-3);
+        margin-bottom: var(--space-3);
+    }
+
+    .timeline-container .column-spacing {
+        padding: var(--space-2) 0 0;
+    }
+
+    .match-card .match-tournament {
+        flex-basis: 100%;
+        margin-left: 0;
+    }
+
+    .match-card > .row > .q-space {
+        display: none;
+    }
+
+    .match-details,
+    .match-details-nested {
+        gap: var(--space-1) var(--space-2);
+        align-items: center;
+    }
+
+    .match-details-nested {
+        flex-wrap: nowrap;
+    }
+
+    .match-details > .match-players,
+    .match-details-nested > .q-icon + * {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .match-details .icon-spacing {
+        margin-right: 0;
+    }
+}
+
 /* Quasar's palette classes, re-pointed at the theme. Quasar declares them
    !important in its last cascade layer; for !important declarations the
    earliest layer wins, so these sit in NiceGUI's first layer, "theme".

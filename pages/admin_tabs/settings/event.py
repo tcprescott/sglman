@@ -33,7 +33,7 @@ async def event_settings_pane(can_edit: bool) -> None:
         current = event_start
         while current <= event_end:
             window = tournament_hours.get(current)
-            with ui.row().classes('items-center gap-3 no-wrap'):
+            with ui.row().classes('wiz-settings-hours items-center gap-3 no-wrap'):
                 ui.label(f'{current:%a %b} {current.day}').classes('wiz-settings-day')
                 open_input = native_time_input(
                     'Opens', window[0].strftime('%H:%M') if window else '',
