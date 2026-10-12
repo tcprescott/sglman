@@ -204,6 +204,8 @@ startup: complete in 3.12s (lifespan 0.43s)
 
 Every step logs a `starting` line before it runs, so a step that hangs is the last `starting` with no matching `took`. The usual suspects: `module imports` runs several seconds longer in a fresh container (no bytecode cache); a long `after waiting` on the migration lock means the boot queued behind another process still holding it (up to the 300s timeout); a long `migration upgrade` comes with an `Applied N migration(s)` line.
 
+**Shutdown has a 10s deadline.** uvicorn waits for every open request before it runs the lifespan shutdown below, and without a deadline a single request that never finishes holds the process until the supervisor's stop timeout (systemd: 90s) SIGKILLs it, so the shutdown steps never run at all. `start.sh` passes `--timeout-graceful-shutdown 10`. After that uvicorn cancels whatever is left (`Cancel N running task(s), timeout graceful shutdown exceeded`) and `middleware/inflight_requests.py` logs each one as `Request cancelled while still open: GET /path (open 12.3s)` on `wizzrobe.shutdown`. A host supervisor's stop timeout must stay above 10s.
+
 Shutdown reverses this: the workers stop, the queue workers are cancelled (any still-queued DMs are counted, logged, and dropped), the bot connection closes, then DB connections close. See [architecture.md](architecture.md#process-model-and-startup) for the full sequence.
 
 ### Single worker — required

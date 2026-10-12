@@ -43,6 +43,7 @@ from application.utils.log_levels import default_root_level, register_trace_leve
 from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
+from middleware.inflight_requests import InFlightRequestLogMiddleware
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import DB_URL, TORTOISE_ORM
 
@@ -309,6 +310,8 @@ class FunFactMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(FunFactMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+# Added last so it is outermost and sees every request the shutdown cancels.
+app.add_middleware(InFlightRequestLogMiddleware)
 
 app.include_router(
     api.router,

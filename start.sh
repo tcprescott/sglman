@@ -20,6 +20,13 @@ fi
 # every single login restarts the server. Left unexcluded that produced a reload
 # every few seconds during a validation run, which orphans the timers on any
 # open page and fills the log with teardown noise.
+# uvicorn waits for every open request before running the app's shutdown, and
+# with no deadline one request that never ends (a stream, a hung upstream call)
+# holds the process until systemd's stop timeout (90s by default) SIGKILLs it,
+# skipping the lifespan shutdown entirely. This deadline cancels what is left
+# and lets shutdown run; middleware/inflight_requests.py logs what it cancelled.
+GRACEFUL_SHUTDOWN=(--timeout-graceful-shutdown 10)
+
 RELOAD_EXCLUDES=(
     --reload-exclude '.nicegui/*'
     --reload-exclude '*.log'
@@ -58,10 +65,10 @@ elif [ "$1" = "prod" ]; then
     # STORAGE_SECRET/DB-credential checks, mock-mode refusal) rather than
     # depending on the operator's .env to set it.
     export ENVIRONMENT=production
-    poetry run uvicorn main:app --workers 1 --log-level info --port 8000 --host 0.0.0.0
+    poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --workers 1 --log-level info --port 8000 --host 0.0.0.0
 elif [ "$1" = "dev" ]; then
     echo "Starting Uvicorn server in development mode..."
-    poetry run uvicorn main:app --reload "${RELOAD_EXCLUDES[@]}" --log-level info --port 8000
+    poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --reload "${RELOAD_EXCLUDES[@]}" --log-level info --port 8000
 elif [ "$1" = "mock" ]; then
     echo "Starting Uvicorn server in development mode with mocked Discord, seedgen, Challonge, Twitch, racetime.gg, and Matcherino..."
     # Mock bypasses are refused unless we're explicitly not in production.
@@ -72,7 +79,7 @@ elif [ "$1" = "mock" ]; then
     export MOCK_TWITCH=true
     export MOCK_RACETIME=true
     export MOCK_MATCHERINO=true
-    poetry run uvicorn main:app --reload "${RELOAD_EXCLUDES[@]}" --log-level info --port 8000
+    poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --reload "${RELOAD_EXCLUDES[@]}" --log-level info --port 8000
 elif [ "$1" = "validate" ]; then
     # Same environment as `mock`, but **no `--reload` at all**. This is the mode
     # to boot for /ui-validation, the flag sweep, or any Playwright run.
@@ -90,7 +97,7 @@ elif [ "$1" = "validate" ]; then
     export MOCK_TWITCH=true
     export MOCK_RACETIME=true
     export MOCK_MATCHERINO=true
-    poetry run uvicorn main:app --log-level info --port 8000
+    poetry run uvicorn main:app "${GRACEFUL_SHUTDOWN[@]}" --log-level info --port 8000
 else
     echo "Invalid parameter. Use 'prod', 'dev', 'mock', 'validate', or 'stop'."
     exit 1
