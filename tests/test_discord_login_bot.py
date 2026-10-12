@@ -49,14 +49,30 @@ def _interaction(*, guild_id=GUILD, user_id=777, custom_id=None, channel=None):
     interaction.user.name = 'pressy'
     interaction.user.avatar = None
     interaction.user.display_avatar.url = 'https://cdn.test/a.png'
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=True)
     interaction.response.send_message = AsyncMock()
+    sent = MagicMock()
+    sent.delete = AsyncMock()
+    interaction.followup.send = AsyncMock(return_value=sent)
     return interaction
 
 
 def _reply(interaction):
-    interaction.response.send_message.assert_awaited_once()
-    args, kwargs = interaction.response.send_message.call_args
+    """The one private follow-up the handler sent, after deferring."""
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+    interaction.response.send_message.assert_not_awaited()
+    interaction.followup.send.assert_awaited_once()
+    args, kwargs = interaction.followup.send.call_args
+    assert kwargs['ephemeral'] is True
     return args[0], kwargs
+
+
+def _deleted_after(interaction):
+    sent = interaction.followup.send.return_value
+    if not sent.delete.await_count:
+        return None
+    return sent.delete.call_args.kwargs['delay']
 
 
 def _link_urls(kwargs):
@@ -67,8 +83,7 @@ async def test_login_replies_privately_with_a_self_deleting_link(tenant):
     interaction = _interaction()
     await bot_login.login_command.callback(interaction)
     text, kwargs = _reply(interaction)
-    assert kwargs['ephemeral'] is True
-    assert kwargs['delete_after'] == dls.LINK_TTL_SECONDS
+    assert _deleted_after(interaction) == dls.LINK_TTL_SECONDS
     assert 'works once' in text
     [url] = _link_urls(kwargs)
     assert url.startswith('https://wizzrobe.test/t/default/login/discord?token=')
@@ -87,9 +102,9 @@ async def test_login_offers_one_link_per_linked_community(tenant):
 async def test_login_in_an_unlinked_server(tenant):
     interaction = _interaction(guild_id=1)
     await bot_login.login_command.callback(interaction)
-    text, kwargs = _reply(interaction)
+    text, _kwargs = _reply(interaction)
     assert text == bot_login.MSG_NOT_LINKED
-    assert kwargs['ephemeral'] is True
+    assert _deleted_after(interaction) is None
 
 
 async def test_inactive_account_is_told_why(tenant):
@@ -149,8 +164,7 @@ async def test_staff_posts_the_panel_and_it_is_audited(tenant):
     view = channel.send.call_args.kwargs['view']
     [button] = view.children
     assert button.custom_id == f'wiz_login:{tenant.id}'
-    text, kwargs = _reply(interaction)
-    assert kwargs['ephemeral'] is True
+    text, _kwargs = _reply(interaction)
     assert text == 'Posted the Default login panel.'
     row = await AuditLog.get(action=AuditActions.DISCORD_LOGIN_PANEL_POSTED)
     assert json.loads(row.details)['channel_id'] == 31337
@@ -190,3 +204,29 @@ def test_commands_are_server_only_and_the_panel_needs_manage_server():
     assert bot_login.login_command.guild_only is True
     assert bot_login.wizzrobe_group.guild_only is True
     assert bot_login.wizzrobe_group.default_permissions == discord.Permissions(manage_guild=True)
+
+
+async def test_deferral_comes_before_the_slow_work(tenant):
+    """Discord drops a reply that misses its 3-second window (SGLMAN-P), so the
+    handler acknowledges first and answers through the follow-up."""
+    staff = await make_user(discord_id=777)
+    await UserRole.create(user=staff, role=Role.STAFF, tenant=tenant)
+    order = []
+    channel = _channel()
+    channel.send.side_effect = lambda **_: order.append('post')
+    interaction = _interaction(channel=channel)
+    interaction.response.defer.side_effect = lambda **_: order.append('defer')
+    await bot_login.login_panel_command.callback(interaction)
+    assert order == ['defer', 'post']
+    _reply(interaction)
+
+
+async def test_a_failed_defer_falls_back_to_a_direct_reply(tenant):
+    interaction = _interaction()
+    interaction.response.defer.side_effect = RuntimeError('boom')
+    interaction.response.is_done = MagicMock(return_value=False)
+    await bot_login.login_command.callback(interaction)
+    interaction.followup.send.assert_not_awaited()
+    kwargs = interaction.response.send_message.call_args.kwargs
+    assert kwargs['ephemeral'] is True
+    assert kwargs['delete_after'] == dls.LINK_TTL_SECONDS

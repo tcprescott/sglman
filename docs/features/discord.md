@@ -320,7 +320,7 @@ The reply says the link works once and expires in two minutes
 (`LINK_TTL_SECONDS`), and deletes itself at that moment. The link opens
 `/login/discord?token=…` on the community's own address, which signs the
 person in (replacing any other identity signed in on that browser), syncs their
-Discord roles, and lands them on the community home. The token is single-use,
+Discord roles, and lands them on the community home. Landing there runs the usual membership gate, so a newcomer joins on arrival when the community is open or lets its Discord server's members straight in (they just proved they're in it); a Request-only or Staff-only community, or someone staff removed, still gets the front door. The token is single-use,
 bound to the link's host and community, and only read after the page's
 websocket connects, so a link-preview fetcher can't burn it. It isn't bound to
 a browser, which is the reason for the short lifetime. Someone who presses the
