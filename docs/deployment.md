@@ -189,6 +189,21 @@ Boot sequence (`main.py` lifespan, after the import-time checks above):
 3. **Racetime bot runtime and workers** — the racetime runtime and the env-gated workers (`RACETIME_BOT_ENABLED`, `SPEEDGAMING_SYNC_ENABLED`, `DISCORD_EVENTS_SYNC_ENABLED`, `SERVICE_HEALTH_ENABLED`) start only when switched on; the async-qualifier expiry, seed-roll polling, volunteer and stage reminders always start.
 4. **DM queue and event bus** — `discord_queue.start()` launches a single in-process worker that drains queued Discord notification coroutines sequentially; the event dispatch queue starts and the webhook and telemetry subscribers register.
 
+Each step is timed in the log (`wizzrobe.main` at INFO), so a slow restart names its own culprit:
+
+```
+startup: module imports took 2.69s
+startup: database starting
+startup: aerich init took 0.21s
+Waiting for the migration lock (key=...)...
+Holding the migration lock (key=...) after waiting 0.00s.
+startup: migration upgrade took 0.09s
+...
+startup: complete in 3.12s (lifespan 0.43s)
+```
+
+Every step logs a `starting` line before it runs, so a step that hangs is the last `starting` with no matching `took`. The usual suspects: `module imports` runs several seconds longer in a fresh container (no bytecode cache); a long `after waiting` on the migration lock means the boot queued behind another process still holding it (up to the 300s timeout); a long `migration upgrade` comes with an `Applied N migration(s)` line.
+
 Shutdown reverses this: the workers stop, the queue workers are cancelled (any still-queued DMs are counted, logged, and dropped), the bot connection closes, then DB connections close. See [architecture.md](architecture.md#process-model-and-startup) for the full sequence.
 
 ### Single worker — required

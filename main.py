@@ -4,11 +4,18 @@
 Initializes the database, sets up API and frontend routes, and manages application lifespan.
 """
 
+import time
+
+# Taken before the heavy imports below so the lifespan can report how long
+# importing the app took. A fresh container has no bytecode cache, so this phase
+# alone can run several seconds and is otherwise invisible in the log.
+_IMPORT_STARTED = time.perf_counter()
+
 import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from contextlib import asynccontextmanager, contextmanager
+from typing import AsyncGenerator, Iterator, Optional
 
 from aerich import Command
 from fastapi import FastAPI
@@ -54,6 +61,18 @@ logger = logging.getLogger('wizzrobe.main')
 _bot_task: Optional[asyncio.Task] = None
 
 
+@contextmanager
+def _startup_step(name: str) -> Iterator[None]:
+    """Log how long one boot step took, so a slow restart names its culprit.
+
+    The "starting" line matters as much as the duration: a step that hangs
+    never reaches its "took" line, and the last "starting" is the one stuck.
+    """
+    logger.info('startup: %s starting', name)
+    started = time.perf_counter()
+    yield
+    logger.info('startup: %s took %.2fs', name, time.perf_counter() - started)
+
 async def init_db() -> None:
     """
     Initialize the database using Aerich migrations and Tortoise ORM.
@@ -63,12 +82,17 @@ async def init_db() -> None:
     ``application/utils/migration_lock.py``.
     """
     command = Command(tortoise_config=TORTOISE_ORM, app='models', location='./migrations')
-    await command.init()
+    with _startup_step('aerich init'):
+        await command.init()
     async with migration_lock(DB_URL) as locked:
         if not locked:
             logger.info('Migration lock skipped: backend is not PostgreSQL.')
-        await command.upgrade()
-    await Tortoise.init(config=TORTOISE_ORM)
+        with _startup_step('migration upgrade'):
+            applied = await command.upgrade()
+        if applied:
+            logger.info('Applied %d migration(s), newest %s', len(applied), applied[-1])
+    with _startup_step('tortoise init'):
+        await Tortoise.init(config=TORTOISE_ORM)
 
 async def close_db() -> None:
     """
@@ -139,84 +163,93 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Context manager for FastAPI lifespan events.
     Initializes and tears down the database and Discord bot on application startup and shutdown.
     """
-    await init_db()
-    await _apply_stored_log_levels()
-    # Importing discordbot registers its interaction handlers and DM view
-    # factories with discord_service's registries — the one-way wiring that
-    # replaced the old bidirectional import cycle.
-    import discordbot  # noqa: F401
-    await init_discord_bot()
+    lifespan_started = time.perf_counter()
+    logger.info('startup: module imports took %.2fs', lifespan_started - _IMPORT_STARTED)
+    with _startup_step('database'):
+        await init_db()
+    with _startup_step('stored log levels'):
+        await _apply_stored_log_levels()
+    with _startup_step('discord bot'):
+        # Importing discordbot registers its interaction handlers and DM view
+        # factories with discord_service's registries — the one-way wiring that
+        # replaced the old bidirectional import cycle.
+        import discordbot  # noqa: F401
+        await init_discord_bot()
     # Racetime bot runtime: one long-lived connection per active RacetimeBot
     # category. Gated by RACETIME_BOT_ENABLED (off by default) and mockable via
     # MOCK_RACETIME; a no-op when the switch is off, so it is always safe to call.
     from racetimebot import close_racetime_bot, init_racetime_bot
-    await init_racetime_bot()
-    # Auto-open worker: opens a racetime room ahead of each eligible scheduled
-    # match (opt-in per tournament). Runs only when the racetime runtime is on.
-    from application.services import race_room_worker
-    from application.utils.environment import racetime_bot_enabled
-    if racetime_bot_enabled():
-        race_room_worker.start()
-    # SpeedGaming ETL sync worker: polls active event links on their cadence and
-    # materializes SG episodes into Match rows. Gated by SPEEDGAMING_SYNC_ENABLED
-    # (off by default); mockable via MOCK_SPEEDGAMING.
-    from application.services import speedgaming_sync_worker
-    from application.utils.environment import speedgaming_sync_enabled
-    if speedgaming_sync_enabled():
-        speedgaming_sync_worker.start()
-    # Discord Scheduled Events reconciler: mirrors opted-in tournaments' schedules
-    # into each linked guild's Discord events. Gated by DISCORD_EVENTS_SYNC_ENABLED
-    # (off by default); uses the mock transport under MOCK_DISCORD.
-    from application.services.discord import discord_event_worker
-    from application.utils.environment import discord_events_sync_enabled
-    if discord_events_sync_enabled():
-        discord_event_worker.start()
-    # Platform external-service health monitor: periodically probes every external
-    # dependency so the /platform board is warm and alerts fire on transitions.
-    # Gated by SERVICE_HEALTH_ENABLED (off by default).
-    from application.services import service_health_worker
-    from application.utils.environment import service_health_enabled
-    if service_health_enabled():
-        service_health_worker.start()
-    # Async-qualifier run expiry: forfeits runs a player drew and abandoned, after
-    # one warning. Ungated by an env switch — it only ever touches tenants that
-    # have the qualifier feature on, and a tenant without it has no runs to find.
-    from application.services.async_qualifier import async_qualifier_worker
-    async_qualifier_worker.start()
-    # Seed-roll polling: advances every in-flight ProviderTask, which is the only
-    # thing that finishes a task-queue roll (DK64). Ungated — with no async
-    # randomizer in use there is simply nothing in the queue to poll, and gating
-    # it would mean a restart silently stranding rolls that were already running.
-    from application.services import seed_roll_worker
-    seed_roll_worker.start()
-    # Check-in roster sync: polls each open check-in event's Matcherino venue
-    # on its cadence. No env switch — it only touches events staff have opened,
-    # and skips tenants with EVENT_CHECK_IN off.
-    from application.services import check_in_sync_worker
-    check_in_sync_worker.start()
-    discord_queue.start()
-    volunteer_reminder.start()
-    # Pre-match stage reminder: DMs a stage match's players and approved crew
-    # shortly before it starts. Ungated — a community with no staged matches has
-    # nothing for it to find.
-    stage_reminder.start()
-    # Community event reminders: DMs subscribers shortly before an approved
-    # event starts. Skips tenants with COMMUNITY_EVENTS off.
-    from application.services import community_event_reminder
-    community_event_reminder.start()
-    # Central event bus: start the async-subscriber worker and register the
-    # webhook delivery subscriber (fans published events out to staff webhooks).
-    event_dispatch_queue.start()
-    event_bus.subscribe_async(WebhookService().deliver_event)
-    # Engagement telemetry: mirror every published domain event into the
-    # TelemetryEvent log (page views / interactions are captured separately from
-    # the presentation layer). No event_types filter — record them all.
-    event_bus.subscribe_async(TelemetryService().record_event)
+    with _startup_step('racetime bot'):
+        await init_racetime_bot()
+    with _startup_step('background workers'):
+        # Auto-open worker: opens a racetime room ahead of each eligible scheduled
+        # match (opt-in per tournament). Runs only when the racetime runtime is on.
+        from application.services import race_room_worker
+        from application.utils.environment import racetime_bot_enabled
+        if racetime_bot_enabled():
+            race_room_worker.start()
+        # SpeedGaming ETL sync worker: polls active event links on their cadence and
+        # materializes SG episodes into Match rows. Gated by SPEEDGAMING_SYNC_ENABLED
+        # (off by default); mockable via MOCK_SPEEDGAMING.
+        from application.services import speedgaming_sync_worker
+        from application.utils.environment import speedgaming_sync_enabled
+        if speedgaming_sync_enabled():
+            speedgaming_sync_worker.start()
+        # Discord Scheduled Events reconciler: mirrors opted-in tournaments' schedules
+        # into each linked guild's Discord events. Gated by DISCORD_EVENTS_SYNC_ENABLED
+        # (off by default); uses the mock transport under MOCK_DISCORD.
+        from application.services.discord import discord_event_worker
+        from application.utils.environment import discord_events_sync_enabled
+        if discord_events_sync_enabled():
+            discord_event_worker.start()
+        # Platform external-service health monitor: periodically probes every external
+        # dependency so the /platform board is warm and alerts fire on transitions.
+        # Gated by SERVICE_HEALTH_ENABLED (off by default).
+        from application.services import service_health_worker
+        from application.utils.environment import service_health_enabled
+        if service_health_enabled():
+            service_health_worker.start()
+        # Async-qualifier run expiry: forfeits runs a player drew and abandoned, after
+        # one warning. Ungated by an env switch — it only ever touches tenants that
+        # have the qualifier feature on, and a tenant without it has no runs to find.
+        from application.services.async_qualifier import async_qualifier_worker
+        async_qualifier_worker.start()
+        # Seed-roll polling: advances every in-flight ProviderTask, which is the only
+        # thing that finishes a task-queue roll (DK64). Ungated — with no async
+        # randomizer in use there is simply nothing in the queue to poll, and gating
+        # it would mean a restart silently stranding rolls that were already running.
+        from application.services import seed_roll_worker
+        seed_roll_worker.start()
+        # Check-in roster sync: polls each open check-in event's Matcherino venue
+        # on its cadence. No env switch — it only touches events staff have opened,
+        # and skips tenants with EVENT_CHECK_IN off.
+        from application.services import check_in_sync_worker
+        check_in_sync_worker.start()
+        discord_queue.start()
+        volunteer_reminder.start()
+        # Pre-match stage reminder: DMs a stage match's players and approved crew
+        # shortly before it starts. Ungated — a community with no staged matches has
+        # nothing for it to find.
+        stage_reminder.start()
+        # Community event reminders: DMs subscribers shortly before an approved
+        # event starts. Skips tenants with COMMUNITY_EVENTS off.
+        from application.services import community_event_reminder
+        community_event_reminder.start()
+        # Central event bus: start the async-subscriber worker and register the
+        # webhook delivery subscriber (fans published events out to staff webhooks).
+        event_dispatch_queue.start()
+        event_bus.subscribe_async(WebhookService().deliver_event)
+        # Engagement telemetry: mirror every published domain event into the
+        # TelemetryEvent log (page views / interactions are captured separately from
+        # the presentation layer). No event_types filter — record them all.
+        event_bus.subscribe_async(TelemetryService().record_event)
     # The MCP transport's session manager owns a task group that each per-request
     # server task is started on; entering it here (and exiting it around the
     # yield) means /mcp stops accepting calls before the workers below tear down,
     # rather than after.
     async with mcpserver.session_lifespan():
+        logger.info('startup: complete in %.2fs (lifespan %.2fs)',
+                    time.perf_counter() - _IMPORT_STARTED, time.perf_counter() - lifespan_started)
         yield
     await race_room_worker.stop()
     await seed_roll_worker.stop()
