@@ -206,7 +206,7 @@ async def admin_stages_page() -> None:
                         <q-card-section class="q-pa-sm">
                             <div style="display: flex; align-items: center; justify-content: space-between;">
                                 <div>
-                                    <span class="text-h6">{{ props.row.name }}</span>
+                                    <span class="subsection-title">{{ props.row.name }}</span>
                                     <q-badge :color="props.row.is_active ? 'positive' : 'negative'" class="q-ml-sm">
                                         {{ props.row.is_active ? 'Active' : 'Inactive' }}
                                     </q-badge>

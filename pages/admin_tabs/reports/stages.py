@@ -83,7 +83,7 @@ async def stages_page(
         stages = data['stages']
 
         with ui.card().classes('chart-container q-pa-md'):
-            ui.label('Hours scheduled per stage').classes('text-h6')
+            ui.label('Hours scheduled per stage').classes('section-title')
             if not stages:
                 ui.label('No active stages in the filter.').classes('italic-note')
             else:
@@ -94,7 +94,7 @@ async def stages_page(
                 ui.label(
                     f'Per-stage summary ({data["unplaced_candidate_count"]} '
                     f'unplaced stream candidate{"s" if data["unplaced_candidate_count"] != 1 else ""})'
-                ).classes('text-h6')
+                ).classes('section-title')
 
                 summary_rows = [
                     {
@@ -143,7 +143,7 @@ async def stages_page(
 
         if stage_id_int is not None and stages:
             with ui.card().classes('full-width q-pa-md'):
-                ui.label(f'Matches on {stages[0]["stage_name"]}').classes('text-h6')
+                ui.label(f'Matches on {stages[0]["stage_name"]}').classes('section-title')
                 match_rows = [
                     {
                         'match_id': m['match_id'],

@@ -76,7 +76,7 @@ def dialog_header(title: str, dialog) -> None:
     Call inside the dialog's ``ui.card()`` context so it nests correctly.
     """
     with ui.row().classes('dialog-header items-center q-pa-sm'):
-        heading = ui.label(title).classes('text-h6 q-ma-none')
+        heading = ui.label(title).classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn by dialog_header
         heading.tag = 'h2'
         ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
 

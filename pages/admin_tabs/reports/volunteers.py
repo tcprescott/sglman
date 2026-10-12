@@ -53,7 +53,7 @@ async def volunteers_page(
         total_open = sum(r['needed'] - r['filled'] for r in understaffed)
 
         with ui.card().classes('full-width q-pa-md q-mb-md'):
-            ui.label('Understaffed shifts').classes('text-h6')
+            ui.label('Understaffed shifts').classes('section-title')
             if not understaffed:
                 ui.label('Every shift in this window is fully staffed. 🎉').classes('italic-note')
             else:
@@ -92,7 +92,7 @@ async def volunteers_page(
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
-                ui.label('All shifts').classes('text-h6')
+                ui.label('All shifts').classes('section-title')
                 csv_export_button(
                     f'volunteer-coverage-{start_d}-to-{end_d}',
                     lambda: columns,

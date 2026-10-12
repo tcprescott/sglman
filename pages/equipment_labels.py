@@ -196,7 +196,7 @@ def create() -> None:
                 ).classes('text-warning text-caption')
 
         with ui.row().classes('no-print items-center full-width q-pa-sm').style('gap: 0.75rem'):
-            ui.label(f'{community} — equipment QR labels').classes('text-h6 q-ma-none')
+            ui.label(f'{community} — equipment QR labels').classes('text-h6 q-ma-none')  # style-guide: exempt — a print sheet, not an app page
             if encoded_host:
                 # The sheet was the only surface encoding links without showing
                 # one; the asset page has printed its link under the QR all along.

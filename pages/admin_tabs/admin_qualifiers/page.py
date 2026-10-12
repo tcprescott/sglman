@@ -260,7 +260,7 @@ async def admin_qualifiers_page(
         for q in state['qualifiers']:
             with ui.card().classes('w-full'):
                 with ui.row().classes('items-center full-width'):
-                    ui.label(q.name).classes('text-h6')
+                    ui.label(q.name).classes('section-title')
                     ui.badge('Active' if q.is_active else 'Inactive',
                              color='green' if q.is_active else 'grey')
                     ui.space()
@@ -376,7 +376,7 @@ async def admin_qualifiers_page(
         qualifier = shell['qualifier']
         ui.separator()
         with ui.row().classes('items-center full-width'):
-            ui.label(f'Managing: {qualifier.name}').classes('text-h6')
+            ui.label(f'Managing: {qualifier.name}').classes('section-title')
             ui.space()
             ui.button(icon='close', on_click=_close_manage).props('flat round').tooltip('Close')
         with ui.tabs().classes('w-full') as tabs:

@@ -100,7 +100,7 @@ async def dashboard_page(
     with ui.column().classes('page-container-wide'):
         page_header('Reports')
 
-        ui.label('Event overview').classes('text-h6 q-mt-sm')
+        ui.label('Event overview').classes('section-title q-mt-sm')
 
         # An absent pair still means the event window, so the label below keeps
         # telling the truth and an unfiltered dashboard is unchanged.
@@ -223,7 +223,7 @@ def _report_card(card: dict) -> None:
     with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;') as card_el:
         with ui.row().classes('items-center no-wrap'):
             ui.icon(card['icon']).classes('text-h5 q-mr-sm')  # style-guide: exempt — icon size, not a title
-            ui.label(card['title']).classes('text-h6')
+            ui.label(card['title']).classes('section-title')
         ui.label(card['description']).classes('text-body2 q-mt-xs')
         ui.link('Open report →', url).classes('q-mt-sm')
     card_el.on('click', lambda: ui.navigate.to(url))

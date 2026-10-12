@@ -114,7 +114,7 @@ async def capacity_page(
         with ui.card().classes('chart-container q-pa-md'):
             ui.label(
                 f'Concurrent players ({forecast["interval_minutes"]}-minute intervals, capacity: {capacity})'
-            ).classes('text-h6')
+            ).classes('section-title')
 
             time_labels = [format_local_datetime(t, '%m-%d %H:%M %Z') for t in intervals]
             capacity_series = [capacity] * len(intervals)
@@ -180,7 +180,7 @@ async def capacity_page(
             ui.echart(themed_chart_option(echart_option)).classes('chart-height')
 
         with ui.card().classes('full-width q-mb-md q-pa-md'):
-            ui.label('Top 5 peak times').classes('text-h6')
+            ui.label('Top 5 peak times').classes('section-title')
             peaks = ReportsService.peak_times(intervals, player_counts, top_n=5)
             if not peaks or peaks[0][1] == 0:
                 ui.label('No matches found in the selected window.').classes('italic-note')
@@ -198,7 +198,7 @@ async def capacity_page(
 
         if focus_dt:
             with ui.card().classes('full-width q-pa-md'):
-                ui.label(f'Matches active at {format_local_display(focus_dt)}').classes('text-h6')
+                ui.label(f'Matches active at {format_local_display(focus_dt)}').classes('section-title')
                 focused_matches = await reports_service.matches_active_at(focus_dt, tournament_id=tournament_id)
                 if not focused_matches:
                     ui.label('No active matches at this instant.').classes('italic-note')
@@ -237,7 +237,7 @@ async def capacity_page(
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
-                ui.label('Forecast data').classes('text-h6')
+                ui.label('Forecast data').classes('section-title')
                 rows = [
                     {
                         'time': format_local_display(intervals[i]),

@@ -501,7 +501,7 @@ def paginated_event_log(
     """
     with ui.card().classes(card_classes):
         with ui.row().classes('items-center justify-between full-width'):
-            ui.label(_page_range_label(total, page, page_size, count_noun)).classes('text-h6')
+            ui.label(_page_range_label(total, page, page_size, count_noun)).classes('section-title')
             csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
 
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')
