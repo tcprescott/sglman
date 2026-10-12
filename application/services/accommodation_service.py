@@ -261,9 +261,9 @@ class AccommodationService:
 
         if request.status is AccommodationStatus.WITHDRAWN:
             if status is not AccommodationStatus.WITHDRAWN:
-                raise ValueError('This request was withdrawn. It reopens when the member asks again.')
+                raise ValueError('This request was withdrawn. It reopens when the attendee asks again.')
         elif status is AccommodationStatus.WITHDRAWN:
-            raise ValueError('Only the member can withdraw their request.')
+            raise ValueError('Only the attendee can withdraw their request.')
 
         status_changed = status is not request.status
         notes_changed = staff_notes != request.staff_notes

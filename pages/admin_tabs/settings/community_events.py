@@ -25,7 +25,7 @@ async def community_events_settings_pane(can_edit: bool) -> None:
         with ui.column().classes('gap-1'):
             approval_input = ui.switch('Require staff approval', value=require_approval).props('dense')
             field_hint(
-                "When on, a member's event waits for staff before it's listed. When off, "
+                "When on, an attendee's event waits for staff before it's listed. When off, "
                 "it's listed straight away and staff can still take it down."
             )
         ui.separator()

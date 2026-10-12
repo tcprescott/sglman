@@ -167,7 +167,7 @@ def create() -> None:
         needs_review = await SystemConfigService.community_events_require_approval()
 
         with ui.column().classes('page-container-narrow w-full gap-3'):
-            page_header('Community Events', 'Meetups, panels and side events members are running.')
+            page_header('Community Events', 'Meetups, panels and side events attendees are running.')
             disclaimer()
 
             @ui.refreshable

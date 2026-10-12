@@ -118,6 +118,14 @@ UI copy follows [CLAUDE.md § Writing user-facing text](../CLAUDE.md#writing-use
 and [Calls to action](../CLAUDE.md#calls-to-action-must-land-on-the-control-that-performs-them).
 Sentence case everywhere, badges and table headers included.
 
+Call someone who's coming to or taking part in the event an **attendee**, not a
+member: "side events attendees are running", "Attendees who asked for ADA
+accommodation". Keep **member** for community membership itself, where it means
+belonging to the community in Wizzrobe: joining, the join page, Admin → Members,
+Add member, roles, and "Ask to join it first" gates. If a sentence would still be
+true of someone who joined the community but isn't at the event, "member" is
+right; if it's about the person at the event, it's "attendee".
+
 ## Checking your change
 
 Automated, on every PR:
