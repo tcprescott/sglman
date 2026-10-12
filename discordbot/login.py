@@ -60,9 +60,34 @@ def login_panel_embed(tenant: Tenant) -> discord.Embed:
     )
 
 
-async def _reply(interaction: discord.Interaction, message: str, **kwargs) -> None:
+async def _defer(interaction: discord.Interaction) -> None:
+    """Acknowledge within Discord's 3-second window; the answer follows up.
+
+    Minting provisions an account and the panel posts to the channel first, so
+    an immediate reply can miss the deadline ("Unknown interaction").
+    """
     try:
-        await interaction.response.send_message(message, ephemeral=True, **kwargs)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+    except Exception:
+        logger.exception('Failed to defer Discord login interaction')
+
+
+async def _reply(
+    interaction: discord.Interaction,
+    message: str,
+    *,
+    delete_after: Optional[float] = None,
+    **kwargs,
+) -> None:
+    try:
+        if interaction.response.is_done():
+            sent = await interaction.followup.send(message, ephemeral=True, wait=True, **kwargs)
+            if delete_after is not None:
+                await sent.delete(delay=delete_after)
+        else:
+            await interaction.response.send_message(
+                message, ephemeral=True, delete_after=delete_after, **kwargs,
+            )
     except Exception:
         logger.exception('Failed to send Discord login reply')
 
@@ -102,6 +127,7 @@ async def send_login_links(interaction: discord.Interaction, tenants: list[Tenan
 
 async def handle_login_panel_interaction(interaction: discord.Interaction) -> None:
     """A press on a login panel: custom_id ``wiz_login:<tenant_id>``."""
+    await _defer(interaction)
     custom_id = str((interaction.data or {}).get('custom_id', ''))  # type: ignore[call-overload]
     try:
         tenant_id = int(custom_id.split(':', 1)[1])
@@ -119,6 +145,7 @@ async def handle_login_panel_interaction(interaction: discord.Interaction) -> No
 @app_commands.command(name='login', description='Get a private one-time link that signs you in to Wizzrobe')
 @app_commands.guild_only()
 async def login_command(interaction: discord.Interaction) -> None:
+    await _defer(interaction)
     await send_login_links(
         interaction, await DiscordLoginService.communities_for_guild(interaction.guild_id),
     )
@@ -155,6 +182,7 @@ async def _community_autocomplete(
 @app_commands.describe(community='Which community the button signs people in to (needed when this server has several)')
 @app_commands.autocomplete(community=_community_autocomplete)
 async def login_panel_command(interaction: discord.Interaction, community: Optional[str] = None) -> None:
+    await _defer(interaction)
     tenants = await DiscordLoginService.communities_for_guild(interaction.guild_id)
     if not tenants:
         await _reply(interaction, MSG_NOT_LINKED)
