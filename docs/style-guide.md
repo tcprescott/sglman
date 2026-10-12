@@ -85,7 +85,9 @@ title on 20 pages), and don't size a title with `text-h1`…`text-h5`.
 | Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it) | |
 | A table | `enable_mobile_grid(table, columns, table_key=TableKeys.X, …)` | A bare `ui.table` (the `check_table_grid` and `check_table_prefs` hooks enforce this) |
 | Text input / select | `.props('outlined dense')` | `filled`, `standout` |
-| Two-to-four way toggle | `.wiz-segmented` | A row of separate buttons |
+| Two-to-four way toggle | `ui.toggle(...).props('no-caps dense unelevated').classes('wiz-segmented')` | A row of separate buttons, a bare `ui.toggle` |
+| A Copy button | `copy_to_clipboard(value, label)` (`theme/clipboard.py`) | Inline `navigator.clipboard` JavaScript |
+| A credential shown once | `show_secret_dialog(title, secret, noun=…)` (`theme/dialog/secret_dialog.py`) | A hand-built reveal dialog |
 | Admin refresh | `refresh_button` (`theme/tables/admin_crud.py`) | |
 | A new admin setting | A card in a Settings pane (`pages/admin_tabs/settings/`, `section_panel` + `SaveFooter`, whose bar appears only once something changed) | A new drawer tab, a second Save button |
 

@@ -135,6 +135,36 @@ def test_titles_come_from_page_header_not_typography_classes():
     assert not bad, 'Heading-size classes (use page_header / section_panel / dialog_header):\n  ' + '\n  '.join(bad)
 
 
+
+def test_toggles_use_the_segmented_control():
+    """A bare `ui.toggle` is Quasar's gold button row; the app's switch is `.wiz-segmented`."""
+    bad = []
+    for rel, source, tree, lines in _python_sources():
+        chains = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and _ui_call(n) == 'toggle']
+        inner = {id(n.func.value) for n in chains if isinstance(n.func, ast.Attribute)}
+        for chain in chains:
+            if id(chain) in inner:
+                continue
+            classes = ' '.join(ast.get_source_segment(source, c) or '' for c in _chained(chain, 'classes'))
+            if 'wiz-segmented' not in classes and not _exempt(lines, chain.lineno):
+                bad.append(f'{rel}:{chain.lineno}')
+    assert not bad, 'Toggles without .wiz-segmented:\n  ' + '\n  '.join(bad)
+
+
+def test_clipboard_writes_go_through_the_shared_helper():
+    """Every Copy button calls `theme.clipboard.copy_to_clipboard`, so they all toast alike."""
+    bad = []
+    for rel, source, tree, lines in _python_sources():
+        if rel.as_posix() == 'theme/clipboard.py':
+            continue
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == 'run_javascript'
+                    and 'clipboard' in (ast.get_source_segment(source, node) or '')
+                    and not _exempt(lines, node.lineno)):
+                bad.append(f'{rel}:{node.lineno}')
+    assert not bad, 'Inline clipboard writes (use copy_to_clipboard):\n  ' + '\n  '.join(bad)
+
 # --- styles.css ---------------------------------------------------------------
 
 def _strip_comments(css: str) -> str:

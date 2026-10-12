@@ -7,7 +7,6 @@ issue: only the hash is stored, so a lost one is replaced rather than recovered.
 Presentation only — every mutation goes through :class:`RoomTokenService`.
 """
 
-import json
 
 from nicegui import app, ui
 
@@ -16,14 +15,10 @@ from application.services.room_token_service import room_seeds_path
 from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import tenant_url
 from application.utils.timezone import format_local_display
+from theme.clipboard import copy_to_clipboard
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.section import section_panel
-
-
-def _copy(value: str, label: str) -> None:
-    ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(value)})')
-    ui.notify(f'{label} copied to clipboard.', color='positive', icon='content_copy')
 
 
 async def render_room_tokens_section(can_edit: bool) -> None:
@@ -100,7 +95,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
             ui.input(value=url).classes('input-full-width').props('outlined readonly dense')
             with ui.row().classes('button-row'):
                 ui.button('Copy', icon='content_copy',
-                          on_click=lambda: _copy(url, 'Room URL')).props('flat')
+                          on_click=lambda: copy_to_clipboard(url, 'Room URL')).props('flat')
                 ui.button('Done', on_click=dialog.close).props('color=primary')
         dialog.open()
 

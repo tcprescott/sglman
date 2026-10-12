@@ -152,7 +152,7 @@ def _populate_bracket_toolbar(
             {'list': 'List', 'bracket': 'Bracket'},
             value=view_state['v'],
             on_change=lambda e: set_view(e.value),
-        ).props('dense unelevated no-caps size=sm').classes('bracket-view-toggle')
+        ).props('dense unelevated no-caps size=sm').classes('wiz-segmented bracket-view-toggle')
         # Zoom drives the 2-D canvas only, so it hides with it in list mode.
         with ui.row().classes('bracket-zoom-controls items-center gap-1'):
             ui.button(icon='zoom_out', on_click=lambda: step(-0.1)) \

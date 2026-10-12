@@ -130,7 +130,7 @@ async def open_walk_up_dialog(
     with form_dialog('Add walk-up') as dialog:
         with ui.column().classes('q-pa-md gap-3 full-width'):
             mode = ui.toggle({'member': 'A member', 'name': 'Just a name'}, value='member') \
-                .props('no-caps spread').classes('w-full')
+                .props('no-caps spread unelevated').classes('wiz-segmented w-full')
             member_box = ui.column().classes('w-full gap-1')
             with member_box:
                 picked = ui.label('No member picked yet.').classes('text-caption text-grey-7')

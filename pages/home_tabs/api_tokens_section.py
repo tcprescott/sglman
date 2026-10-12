@@ -5,7 +5,6 @@ mutations go through :class:`ApiTokenService`; the page never writes the ORM
 directly. The plaintext token is shown exactly once, at creation.
 """
 
-import json
 from datetime import datetime, timezone
 
 from nicegui import ui
@@ -13,7 +12,9 @@ from nicegui import ui
 from application.services import ApiTokenService
 from application.utils.environment import get_base_url
 from models import ApiTokenOrigin, User
+from theme.clipboard import copy_to_clipboard
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.secret_dialog import show_secret_dialog
 
 
 async def render_api_tokens_section(user: User) -> None:
@@ -110,22 +111,7 @@ async def render_api_tokens_section(user: User) -> None:
         dialog.open()
 
     def show_token_dialog(raw_token: str) -> None:
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-            ui.label('Your new API token').classes('section-title')
-            ui.label('Copy it now — you will not be able to see it again.').classes('text-warning')
-            ui.input(value=raw_token).classes('input-full-width').props('outlined readonly dense')
-            with ui.row().classes('button-row'):
-                ui.button('Copy', icon='content_copy', on_click=lambda: copy_token(raw_token)).props('flat')
-                ui.button('Done', on_click=dialog.close).props('color=primary')
-        dialog.open()
-
-    def copy_token(raw_token: str) -> None:
-        ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(raw_token)})')
-        ui.notify('Token copied to clipboard.', color='positive', icon='content_copy')
-
-    def copy_text(value: str, label: str) -> None:
-        ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(value)})')
-        ui.notify(f'{label} copied to clipboard.', color='positive', icon='content_copy')
+        show_secret_dialog('Your new API token', raw_token, noun='token')
 
     def render_mcp_callout() -> None:
         """The connect-your-AI-client callout, above the credential list.
@@ -150,7 +136,7 @@ async def render_api_tokens_section(user: User) -> None:
                 ui.input(value=mcp_url).classes('col').props('outlined readonly dense')
                 ui.button(
                     icon='content_copy',
-                    on_click=lambda: copy_text(mcp_url, 'MCP server URL'),
+                    on_click=lambda: copy_to_clipboard(mcp_url, 'MCP server URL'),
                 ).props('flat dense').tooltip('Copy MCP server URL')
 
     # Developer-only surface — collapsed by default so it doesn't dominate the

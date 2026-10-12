@@ -7,6 +7,7 @@ from nicegui import app, background_tasks, context, ui
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
+from theme.dialog.secret_dialog import show_secret_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
@@ -184,15 +185,6 @@ async def admin_webhooks_page() -> None:
         async def _current():
             return await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
-        def show_secret(title: str, secret: str) -> None:
-            with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
-                ui.label(title).classes('text-h6')
-                ui.label('Copy this secret now — it will not be shown again.').classes('text-caption text-warning')
-                ui.input(value=secret).props('readonly outlined').classes('w-full')
-                with ui.row().classes('justify-end w-full'):
-                    ui.button('Done', on_click=dialog.close).props('color=primary')
-            dialog.open()
-
         async def delete_webhook(row, client):
             with client:
                 try:
@@ -210,7 +202,7 @@ async def admin_webhooks_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                show_secret('New signing secret', secret)
+                show_secret_dialog('New signing secret', secret, noun='signing secret')
 
         async def view_deliveries(row, client):
             with client:
@@ -301,7 +293,7 @@ async def admin_webhooks_page() -> None:
                                 )
                                 dialog.close()
                                 await refresh_table()
-                                show_secret('Webhook created — signing secret', webhook.secret)
+                                show_secret_dialog('Webhook created', webhook.secret, noun='signing secret')
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
 
