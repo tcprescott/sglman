@@ -80,4 +80,4 @@ async def render_my_feedback_section(user: User) -> None:
                         format_local_display(feedback.created_at)
                     ).classes('text-caption text-muted')
                 # Plain text, never markup — the submitter wrote it.
-                ui.label(feedback.message).classes('text-body2')
+                ui.label(feedback.message).classes('text-body2 wiz-free-text')

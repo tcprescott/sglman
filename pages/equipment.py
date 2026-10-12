@@ -117,7 +117,7 @@ def create() -> None:
                 with ui.row().classes('w-full gap-6 items-start'):
                     with ui.column().classes('gap-1'):
                         if asset.description:
-                            ui.label(asset.description)
+                            ui.label(asset.description).classes('wiz-free-text')
                         community = await TenantService.current_community_name()
                         ui.label(f'Owner: {asset.owner_label(community)}').classes('italic-note')
                         if open_loan is not None:
@@ -128,11 +128,11 @@ def create() -> None:
                         if can_manage and asset.private_notes:
                             with ui.card().classes('q-pa-sm bg-amber-1 text-grey-10'):
                                 ui.label('Private notes').classes('text-caption text-bold')
-                                ui.label(asset.private_notes)
+                                ui.label(asset.private_notes).classes('wiz-free-text')
 
                     with ui.column().classes('items-center gap-1'):
                         ui.image(asset_qr_data_uri(asset_link)).classes('w-40 h-40')
-                        ui.label(asset_link).classes('text-caption')
+                        ui.label(asset_link).classes('text-caption wiz-free-text')
                         # Manager-only: a volunteer scanning a label cannot act
                         # on a BASE_URL misconfiguration and does not need the
                         # noise. Compared against the tenant's canonical base —
