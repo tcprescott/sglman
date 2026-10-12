@@ -5,8 +5,8 @@ global ``SUPER_ADMIN`` role. Manages tenant CRUD (name, slug, domain, guild id,
 active). Runs tenant-agnostically — its queries pass explicit ids, so the
 per-tenant scoping never applies.
 
-The page stacks five sections; this module owns the tenants table and stacks the
-rest from their own modules, which is what keeps it inside the file-length
+The page is five tabs (``?tab=`` opens one); this module owns the communities
+tab and builds the rest from their own modules, which is what keeps it inside the file-length
 guideline: :mod:`pages.platform_bots` (racetime bots),
 :mod:`pages.platform_feature_groups` (tiers, and one tenant's overrides),
 :mod:`pages.platform_tenant_admins` (a community's first staff member),
@@ -33,7 +33,7 @@ from pages.platform_feature_groups import (
     render_feature_groups_section,
 )
 from pages.platform_logging import render_logging_section
-from pages.platform_shared import ACTIVE_ICON_SLOT
+from pages.platform_shared import ACTIVE_ICON_SLOT, section_intro
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
 from theme.dialog._helpers import dialog_actions, form_dialog
@@ -48,8 +48,19 @@ from theme.tables.preferences import (
 
 _bot_service = RacetimeBotService()
 
-# Shared active-column icon slot (check_circle / cancel), matching the styled
-# admin tables. Rows must carry an ``active_bool`` boolean.
+# (key, label, icon) per tab. The key is the ``?tab=`` value a link can open.
+_SECTIONS: tuple[tuple[str, str, str], ...] = (
+    ('communities', 'Communities', 'groups'),
+    ('bots', 'Racetime bots', 'smart_toy'),
+    ('features', 'Feature groups', 'toggle_on'),
+    ('logging', 'Logging', 'tune'),
+    ('health', 'Service health', 'monitor_heart'),
+)
+_SECTION_KEYS = {key for key, _, _ in _SECTIONS}
+
+# NiceGUI's own 16px panel padding, on top of the page's, cost a phone 64px of a
+# 390px screen. The page column already supplies the gutter.
+_PANEL_STYLE = 'padding-left: 0; padding-right: 0'
 
 # Readiness chip, shared by the desktop Setup cell and the mobile card. Rows must
 # carry ``setup`` (text), ``setup_ready`` and ``setup_missing`` (tooltip).
@@ -81,7 +92,7 @@ def _render_platform_chrome() -> None:
 
 def create() -> None:
     @ui.page('/platform')
-    async def platform() -> None:
+    async def platform(tab: str = '') -> None:
         from theme.error_page import render_error_page
 
         # /platform is a platform-level page: reached via /t/<slug>/platform it
@@ -101,134 +112,148 @@ def create() -> None:
             )
             return
 
-        ui.page_title('Platform Administration')
+        ui.page_title('Platform administration')
         _render_platform_chrome()
         # This surface builds its own chrome rather than BaseLayout, so it primes
         # the viewer's table layouts itself — without this the gears below would
         # save preferences that never came back.
         prefs = await TablePreferenceService().prime(user)
+        current = tab if tab in _SECTION_KEYS else _SECTIONS[0][0]
         with table_prefs_scope(prefs), \
-                ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
-            with ui.row().classes('w-full items-center justify-between'):
-                page_title('Platform Administration')
-                with ui.row().classes('items-center gap-2'):
-                    # Filled once the table exists; the header is drawn first.
-                    header_row = ui.row().classes('items-center')
-                    ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
+                ui.column().classes('w-full max-w-5xl mx-auto py-2 md:p-6 gap-4'):
+            page_title('Platform administration')
+            with ui.tabs(value=current).props(
+                'dense inline-label align=left no-caps outside-arrows mobile-arrows',
+            ).classes('w-full') as tabs:
+                for key, label, icon in _SECTIONS:
+                    ui.tab(key, label=label, icon=icon)
+            # Keep ?tab= in step so a reload or a shared link reopens the same
+            # section; replaceState, because a tab switch is not a navigation.
+            tabs.on_value_change(lambda e: ui.run_javascript(
+                f"history.replaceState(null, '', '/platform?tab={e.value}')"))
+            with ui.tab_panels(tabs, value=current).classes('w-full'):
+                with ui.tab_panel('communities').style(_PANEL_STYLE):
+                    await _render_tenants_section(user)
+                with ui.tab_panel('bots').style(_PANEL_STYLE):
+                    await render_bots_section(user)
+                with ui.tab_panel('features').style(_PANEL_STYLE):
+                    await render_feature_groups_section(user)
+                with ui.tab_panel('logging').style(_PANEL_STYLE):
+                    await render_logging_section(user)
+                with ui.tab_panel('health').style(_PANEL_STYLE):
+                    _render_health_section()
 
-            columns: list[dict] = [
-                {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
-                {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
-                {'name': 'slug', 'label': 'Slug (/t/…)', 'field': 'slug', 'align': 'left'},
-                {'name': 'domain', 'label': 'Domain', 'field': 'domain', 'align': 'left'},
-                {'name': 'guild', 'label': 'Guild', 'field': 'guild', 'align': 'left'},
-                {'name': 'active', 'label': 'Active', 'field': 'active', 'align': 'left'},
-                {'name': 'setup', 'label': 'Setup', 'field': 'setup', 'align': 'left'},
-                {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
-            ]
-            table = ui.table(columns=columns, rows=[], row_key='id').classes(
-                'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
-            table.add_slot('body-cell-active', ACTIVE_ICON_SLOT)
-            table.add_slot('body-cell-setup', f'<q-td :props="props">{_SETUP_CHIP}</q-td>')
-            # Icon actions, not labels: a third action pushed the labelled row
-            # past the card width and clipped it. The mobile card below has room
-            # and keeps the words.
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn dense flat round icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
-                    <q-btn dense flat round icon="toggle_on" color="secondary"
-                           @click="$parent.$emit('features', props.row)" aria-label="Features"><q-tooltip>Features</q-tooltip></q-btn>
-                    <q-btn dense flat round icon="shield" color="accent"
-                           @click="$parent.$emit('admins', props.row)" aria-label="Admins"><q-tooltip>Admins</q-tooltip></q-btn>
-                </q-td>
-            ''')
-            table.add_slot('item', '''
-                <div class="q-pa-xs col-xs-12 col-sm-6">
-                    <q-card bordered flat class="q-pa-sm wiz-grid-card">
-                        <div class="row items-center justify-between no-wrap q-mb-xs">
-                            <div class="text-weight-bold">{{ props.row.name }}</div>
-                            <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
-                                    :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
-                                <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
-                            </q-icon>
-                        </div>
-                        <div class="text-caption text-grey-7 q-mb-xs">#{{ props.row.id }} · /t/{{ props.row.slug }}</div>
-                        <div class="row q-mb-xs">
-                            <div class="col-4 text-grey-7 text-caption">Domain</div>
-                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.domain }}</div>
-                        </div>
-                        <div class="row q-mb-xs">
-                            <div class="col-4 text-grey-7 text-caption">Guild</div>
-                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.guild }}</div>
-                        </div>
-                        <div class="row items-center q-mb-xs">
-                            <div class="col-4 text-grey-7 text-caption">Setup</div>
-                            <div class="col-8">''' + _SETUP_CHIP + '''</div>
-                        </div>
-                        <div class="row justify-end q-gutter-x-sm q-mt-xs">
-                            <q-btn dense flat color="primary" label="Edit"
-                                   @click="$parent.$emit('edit', props.row)" />
-                            <q-btn dense flat color="secondary" label="Features"
-                                   @click="$parent.$emit('features', props.row)" />
-                            <q-btn dense flat color="accent" label="Admins"
-                                   @click="$parent.$emit('admins', props.row)" />
-                        </div>
-                    </q-card>
+
+async def _render_tenants_section(user) -> None:
+    """The communities table, with search, layout and New tenant above it."""
+    actions = section_intro(
+        'Every community on the platform. Features sets its tier and overrides; '
+        'Admins grants its first staff member.'
+    )
+    with actions:
+        # Filled once the table exists; the toolbar is drawn first.
+        header_row = ui.row().classes('items-center no-wrap gap-2')
+        ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
+
+    columns: list[dict] = [
+        {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
+        {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
+        {'name': 'slug', 'label': 'Slug (/t/…)', 'field': 'slug', 'align': 'left'},
+        {'name': 'domain', 'label': 'Domain', 'field': 'domain', 'align': 'left'},
+        {'name': 'guild', 'label': 'Guild', 'field': 'guild', 'align': 'left'},
+        {'name': 'active', 'label': 'Active', 'field': 'active', 'align': 'left'},
+        {'name': 'setup', 'label': 'Setup', 'field': 'setup', 'align': 'left'},
+        {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
+    ]
+    table = ui.table(columns=columns, rows=[], row_key='id').classes(
+        'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
+    table.add_slot('body-cell-active', ACTIVE_ICON_SLOT)
+    table.add_slot('body-cell-setup', f'<q-td :props="props">{_SETUP_CHIP}</q-td>')
+    # Icon actions, not labels: a third action pushed the labelled row
+    # past the card width and clipped it. The mobile card below has room
+    # and keeps the words.
+    table.add_slot('body-cell-actions', '''
+        <q-td :props="props">
+            <q-btn dense flat round icon="edit" color="primary"
+                   @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
+            <q-btn dense flat round icon="toggle_on" color="secondary"
+                   @click="$parent.$emit('features', props.row)" aria-label="Features"><q-tooltip>Features</q-tooltip></q-btn>
+            <q-btn dense flat round icon="shield" color="accent"
+                   @click="$parent.$emit('admins', props.row)" aria-label="Admins"><q-tooltip>Admins</q-tooltip></q-btn>
+        </q-td>
+    ''')
+    table.add_slot('item', '''
+        <div class="q-pa-xs col-xs-12 col-sm-6">
+            <q-card bordered flat class="q-pa-sm wiz-grid-card">
+                <div class="row items-center justify-between no-wrap q-mb-xs">
+                    <div class="text-weight-bold">{{ props.row.name }}</div>
+                    <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+                            :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
+                        <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
+                    </q-icon>
                 </div>
-            ''')
+                <div class="text-caption text-grey-7 q-mb-xs">#{{ props.row.id }} · /t/{{ props.row.slug }}</div>
+                <div class="row q-mb-xs">
+                    <div class="col-4 text-grey-7 text-caption">Domain</div>
+                    <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.domain }}</div>
+                </div>
+                <div class="row q-mb-xs">
+                    <div class="col-4 text-grey-7 text-caption">Guild</div>
+                    <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.guild }}</div>
+                </div>
+                <div class="row items-center q-mb-xs">
+                    <div class="col-4 text-grey-7 text-caption">Setup</div>
+                    <div class="col-8">''' + _SETUP_CHIP + '''</div>
+                </div>
+                <div class="row justify-end q-gutter-x-sm q-mt-xs">
+                    <q-btn dense flat color="primary" label="Edit"
+                           @click="$parent.$emit('edit', props.row)" />
+                    <q-btn dense flat color="secondary" label="Features"
+                           @click="$parent.$emit('features', props.row)" />
+                    <q-btn dense flat color="accent" label="Admins"
+                           @click="$parent.$emit('admins', props.row)" />
+                </div>
+            </q-card>
+        </div>
+    ''')
 
-            customize_table(table, columns, key=TableKeys.PLATFORM_TENANTS)
-            with header_row:
-                search_input(table, placeholder='Search communities…')
-                preferences_button(table)
+    customize_table(table, columns, key=TableKeys.PLATFORM_TENANTS)
+    with header_row:
+        search_input(table, placeholder='Search communities…')
+        preferences_button(table)
 
-            async def _on_edit(e) -> None:
-                # Awaited by NiceGUI within the client's slot context (not a
-                # background task), so ui.* calls in the dialog are safe.
-                await _open_edit_dialog(user, table, e.args)
+    async def _on_edit(e) -> None:
+        # Awaited by NiceGUI within the client's slot context (not a
+        # background task), so ui.* calls in the dialog are safe.
+        await _open_edit_dialog(user, table, e.args)
 
-            async def _on_features(e) -> None:
-                await open_tenant_features_dialog(user, e.args)
+    async def _on_features(e) -> None:
+        await open_tenant_features_dialog(user, e.args)
 
-            async def _on_admins(e) -> None:
-                await open_tenant_admins_dialog(user, e.args['id'], e.args['name'])
+    async def _on_admins(e) -> None:
+        await open_tenant_admins_dialog(user, e.args['id'], e.args['name'])
 
-            table.on('edit', _on_edit)
-            table.on('features', _on_features)
-            table.on('admins', _on_admins)
+    table.on('edit', _on_edit)
+    table.on('features', _on_features)
+    table.on('admins', _on_admins)
 
-            await _refresh(table)
+    await _refresh(table)
 
-            ui.separator().classes('q-my-lg')
 
-            await render_bots_section(user)
+def _render_health_section() -> None:
+    from pages.service_health_view import build_refreshable_board
+    actions = section_intro(
+        'Live health of every external dependency. Probed on a cadence (when the '
+        'monitor worker is enabled) and on demand below; a dependency that goes '
+        'down or hits a credential problem fires an alert.'
+    )
+    health = ServiceHealthService()
 
-            ui.separator().classes('q-my-lg')
+    async def _snapshot():
+        return health.snapshot()
 
-            await render_feature_groups_section(user)
+    build_refreshable_board(_snapshot, refresh_loader=health.refresh, refresh_slot=actions)
 
-            ui.separator().classes('q-my-lg')
-
-            await render_logging_section(user)
-
-            ui.separator().classes('q-my-lg')
-
-            with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Service Health').classes('section-title')
-            ui.label(
-                'Live health of every external dependency. Probed on a cadence '
-                '(when the monitor worker is enabled) and on demand below; '
-                'transitions into down / credential-warning fire an alert.'
-            ).classes('text-caption text-grey')
-
-            from pages.service_health_view import build_refreshable_board
-            health = ServiceHealthService()
-
-            async def _snapshot():
-                return health.snapshot()
-
-            build_refreshable_board(_snapshot, refresh_loader=health.refresh)
 
 
 async def _refresh(table) -> None:

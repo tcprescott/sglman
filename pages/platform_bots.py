@@ -1,4 +1,4 @@
-"""The Racetime Bots section of ``/platform``.
+"""The Racetime bots tab of ``/platform``.
 
 Split out of ``pages/platform.py`` the way ``platform_tenant_admins`` was: the
 page stacks four independent sections and kept running at the file-length
@@ -12,7 +12,7 @@ write-only — the form takes one, nothing ever renders it back.
 from nicegui import ui
 
 from application.services import RacetimeBotService, TenantService
-from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor
+from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
@@ -20,28 +20,40 @@ from theme.tables.preferences import TableKeys, customize_table, preferences_but
 _bot_service = RacetimeBotService()
 
 # Colored bot-health chip, shared by the desktop status cell and the mobile card
-# so the two never drift. Rows must carry ``status`` (text) and ``status_kind``.
+# so the two never drift. Rows must carry ``status`` (text), ``status_kind`` and
+# ``status_message`` (may be empty).
 _BOT_STATUS_CHIP = '''
     <span class="wiz-chip" :class="{
         'wiz-chip--ok': props.row.status_kind === 'connected',
         'wiz-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
         'wiz-chip--neutral': props.row.status_kind === 'unknown'
     }">{{ props.row.status }}</span>
+    <div v-if="props.row.status_message" class="text-caption"
+         style="white-space:normal;overflow-wrap:anywhere;max-width:22rem">{{ props.row.status_message }}</div>
+'''
+
+# Icons on the desktop row, words on the card: three labelled buttons beside the
+# health message pushed the table past the page edge.
+_ROW_ICON_ACTIONS = '''
+    <q-btn dense flat round icon="edit" color="primary" aria-label="Edit"
+           @click="$parent.$emit('edit_bot', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
+    <q-btn dense flat round icon="groups" color="secondary" aria-label="Tenants"
+           @click="$parent.$emit('grant_bot', props.row)"><q-tooltip>Tenants</q-tooltip></q-btn>
+    <q-btn dense flat round icon="restart_alt" color="warning" aria-label="Restart"
+           @click="$parent.$emit('restart_bot', props.row)"><q-tooltip>Restart</q-tooltip></q-btn>
 '''
 
 
 async def render_bots_section(user) -> None:
     """Build the bots table, wire its row actions, and load it."""
-    with ui.row().classes('w-full items-center justify-between'):
-        ui.label('Racetime Bots').classes('section-title')
-        with ui.row().classes('items-center gap-2'):
-            bot_header_row = ui.row().classes('items-center')
-            ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
-    ui.label(
-        'Shared, platform-managed bots — one per racetime category. Grant a '
-        "bot to a tenant to let its sync admins select it on a tournament. "
-        'Client secrets are write-only and never shown.'
-    ).classes('text-caption text-grey')
+    actions = section_intro(
+        'Shared, platform-managed bots, one per racetime category. Grant a bot to '
+        'a tenant to let its sync admins select it on a tournament. Client secrets '
+        'are write-only and never shown.'
+    )
+    with actions:
+        bot_header_row = ui.row().classes('items-center')
+        ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
 
     bot_columns: list[dict] = [
         {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
@@ -56,16 +68,8 @@ async def render_bots_section(user) -> None:
         'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
     bot_table.add_slot('body-cell-active', ACTIVE_ICON_SLOT)
     bot_table.add_slot('body-cell-status', f'<q-td :props="props">{_BOT_STATUS_CHIP}</q-td>')
-    bot_table.add_slot('body-cell-actions', '''
-        <q-td :props="props">
-            <q-btn dense flat color="primary" label="Edit"
-                   @click="$parent.$emit('edit_bot', props.row)" />
-            <q-btn dense flat color="secondary" label="Tenants"
-                   @click="$parent.$emit('grant_bot', props.row)" />
-            <q-btn dense flat color="warning" label="Restart"
-                   @click="$parent.$emit('restart_bot', props.row)" />
-        </q-td>
-    ''')
+    bot_table.add_slot('body-cell-actions',
+                       f'<q-td :props="props" style="white-space:nowrap">{_ROW_ICON_ACTIONS}</q-td>')
     bot_table.add_slot('item', '''
         <div class="q-pa-xs col-xs-12 col-sm-6">
             <q-card bordered flat class="q-pa-sm wiz-grid-card">
@@ -81,7 +85,7 @@ async def render_bots_section(user) -> None:
                     <div class="col-4 text-grey-7 text-caption">Client ID</div>
                     <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.client_id }}</div>
                 </div>
-                <div class="row items-center q-mb-xs">
+                <div class="row items-start q-mb-xs">
                     <div class="col-4 text-grey-7 text-caption">Health</div>
                     <div class="col-8">''' + _BOT_STATUS_CHIP + '''</div>
                 </div>
@@ -126,11 +130,9 @@ async def _refresh_bots(table) -> None:
             'active': 'yes' if b.is_active else 'no',
             'active_bool': b.is_active,
             # Humanized status ('connected' -> 'Connected'), never the raw
-            # 'BotStatus.CONNECTED' repr; message appended when present.
-            'status': (
-                f'{b.status.value.title()} — {b.status_message}'
-                if b.status_message else b.status.value.title()
-            ),
+            # 'BotStatus.CONNECTED' repr; the message renders under the chip.
+            'status': b.status.value.title(),
+            'status_message': b.status_message or '',
             'status_kind': b.status.value,
         }
         for b in bots
