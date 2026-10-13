@@ -10,6 +10,7 @@ from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.empty_state import empty_state
 from theme.help import help_icon, resolve_help
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -171,7 +172,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             )
             if not assignments:
                 msg = 'You have no upcoming shifts.' if state['upcoming_only'] else 'You have no assigned shifts.'
-                ui.label(msg).classes('italic-note')
+                empty_state(msg)
                 return
             for assignment in assignments:
                 shift = assignment.shift
@@ -229,7 +230,8 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             shift_list.refresh()
 
         ui.switch('Show all shifts', on_change=on_toggle)
-        await shift_list()
+        with ui.element('div').classes('wiz-tile-grid'):
+            await shift_list()
 
         release_id, malformed = release_link_target(release)
         if malformed:
