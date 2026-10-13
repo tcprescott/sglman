@@ -257,28 +257,29 @@ async def admin_qualifiers_page(
                       on_click=load_list).props('flat color=primary').tooltip('Refresh')
         if not state['qualifiers']:
             ui.label('No qualifiers yet. Create one to get started.').classes('text-grey')
-        for q in state['qualifiers']:
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(q.name).classes('section-title')
-                    ui.badge('Active' if q.is_active else 'Inactive',
-                             color='green' if q.is_active else 'grey')
-                    ui.space()
-                    with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
-                        ui.button('Manage', icon='tune',
-                                  on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
-                        ui.button(icon='edit',
-                                  on_click=lambda row=q: open_qualifier_dialog(row)
-                                  ).props('flat round color=primary').tooltip('Edit')
-                        ui.button(icon='delete',
-                                  on_click=lambda qid=q.id: _delete_qualifier(qid)
-                                  ).props('flat round color=negative').tooltip('Delete')
-                ui.label(
-                    f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
-                    f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'
-                ).classes('text-caption text-grey')
-                if q.event_name:
-                    ui.label(f'Feeds: {q.event_name}').classes('text-caption text-grey')
+        with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+            for q in state['qualifiers']:
+                with ui.card().classes('w-full gap-1'):
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(q.name).classes('section-title')
+                        ui.badge('Active' if q.is_active else 'Inactive',
+                                 color='green' if q.is_active else 'grey')
+                        ui.space()
+                        with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
+                            ui.button('Manage', icon='tune',
+                                      on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
+                            ui.button(icon='edit',
+                                      on_click=lambda row=q: open_qualifier_dialog(row)
+                                      ).props('flat round color=primary').tooltip('Edit')
+                            ui.button(icon='delete',
+                                      on_click=lambda qid=q.id: _delete_qualifier(qid)
+                                      ).props('flat round color=negative').tooltip('Delete')
+                    ui.label(
+                        f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
+                        f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'
+                    ).classes('text-caption text-grey')
+                    if q.event_name:
+                        ui.label(f'Feeds: {q.event_name}').classes('text-caption text-grey')
 
     async def _manage(qid: int) -> None:
         state['managing'] = qid

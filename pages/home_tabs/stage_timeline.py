@@ -31,7 +31,9 @@ async def stage_timeline_tab():
     # reader means.
     current_date = {'value': today_local()}
 
-    with ui.column().classes('full-width-column'):
+    # `page-container`, like the view switcher above it: `full-width-column`
+    # padded this view 16px in from the switcher's left edge.
+    with ui.column().classes('page-container'):
         with ui.row().classes('timeline-header wiz-help-row'):
             # Keep the chevrons flanking the date as one unit so they never split
             # across lines when the row wraps on a narrow (phone) viewport.

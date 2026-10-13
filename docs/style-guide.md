@@ -69,6 +69,13 @@ in both modes. `tests/theme/test_style_guide.py` computes this from `styles.css`
 | Dialog title | `dialog_header(title, dialog)`, or `form_dialog(title)` which includes it. Its close button is `dialog_close_button(dialog)`: a "Close" pill on desktop, an X disc below 600px |
 | Times, match IDs | `--font-mono` / `.cell-timestamp` |
 
+A list of cards on a desktop page goes in `wiz-tile-grid` (short cards) or
+`wiz-tile-grid wiz-tile-grid--md` (cards with prose), not a column of
+full-width cards: in a 1200-1400px container a full-width card puts its name
+and its button 1100px apart. The grid drops to one column on a phone by itself.
+An empty list inside one spans the grid; a list with nothing to show yet that
+stands alone is a `wiz-empty-panel`.
+
 Don't put a lede in a caption label after the header (it floated 40px below the
 title on 20 pages), and don't size a title or a section heading with `text-h1`…`text-h6` (a section heading inside a card is `section-title`).
 

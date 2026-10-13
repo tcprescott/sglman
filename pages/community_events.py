@@ -179,8 +179,9 @@ def create() -> None:
                 state = await _attendance_state(service, user, [e.id for e in events])
                 for day, group in groupby(events, key=day_label):
                     ui.label(day).classes('wiz-community-event__day')
-                    for event in group:
-                        _event_card(service, user, event, state, refresh_all)
+                    with ui.element('div').classes('wiz-tile-grid'):
+                        for event in group:
+                            _event_card(service, user, event, state, refresh_all)
 
             @ui.refreshable
             async def submissions() -> None:
@@ -188,14 +189,15 @@ def create() -> None:
                 if not events:
                     return
                 ui.label('Your events').classes('wiz-community-event__day')
-                for event in events:
-                    with ui.card().classes('wiz-community-event full-width'):
-                        with ui.row().classes('items-center gap-2'):
-                            ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
-                            status_chip(event)
-                        ui.label(when_line(event, with_day=True)).classes('wiz-community-event__meta')
-                        if event.status is CommunityEventStatus.REJECTED and event.review_note:
-                            meta_row('feedback', f'Staff said: {event.review_note}')
+                with ui.element('div').classes('wiz-tile-grid'):
+                    for event in events:
+                        with ui.card().classes('wiz-community-event full-width'):
+                            with ui.row().classes('items-center gap-2'):
+                                ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
+                                status_chip(event)
+                            ui.label(when_line(event, with_day=True)).classes('wiz-community-event__meta')
+                            if event.status is CommunityEventStatus.REJECTED and event.review_note:
+                                meta_row('feedback', f'Staff said: {event.review_note}')
 
             async def refresh_all(_saved=None) -> None:
                 upcoming.refresh()

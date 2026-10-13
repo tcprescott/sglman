@@ -42,15 +42,16 @@ def create() -> None:
 
         with ui.column().classes('page-container-narrow w-full'):
             ui.link('← All help', '/help').classes('text-caption')
-            page_header("What's new")
-            ui.label(
-                'The bigger changes to Wizzrobe, about a week at a time, newest first.'
-            ).classes('text-muted')
+            page_header(
+                "What's new",
+                'The bigger changes to Wizzrobe, about a week at a time, newest first.',
+            )
 
             entries = all_entries()
             if not entries:
                 ui.label('Nothing to show yet.').classes('text-muted q-mt-md')
-            for index, entry in enumerate(entries):
-                if index:
-                    ui.separator().classes('separator-spacing')
-                _entry(entry)
+            # Weeks as cards, two across on a wide screen: one column of prose
+            # capped at a readable measure left most of a 1200px page empty.
+            with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+                for entry in entries:
+                    _entry(entry)

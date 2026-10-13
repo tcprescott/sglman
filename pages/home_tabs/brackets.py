@@ -78,19 +78,24 @@ async def brackets_tab() -> None:
                 'Tournament brackets, standings, and results.'
             ).classes('text-muted')
 
-        for tournament_id, name, stages in group_by_tournament(brackets):
-            with ui.card().classes('w-full q-pa-md q-mb-sm'):
-                with ui.row().classes('items-center justify-between w-full'):
-                    ui.label(name).classes('text-subtitle1 text-bold')
-                    # Multi-stage tournaments get the stage index too; a
-                    # single-stage one is fully described by the row below it.
-                    if len(stages) > 1:
-                        ui.button(
-                            'All stages', icon='list',
-                            on_click=lambda tid=tournament_id: ui.navigate.to(
-                                f'/tournament/{tid}/brackets'
-                            ),
-                        ).props('flat dense')
-                ui.separator()
-                for bracket in stages:
-                    _render_stage(bracket)
+        with ui.element('div').classes('wiz-tile-grid'):
+            for tournament_id, name, stages in group_by_tournament(brackets):
+                _render_tournament(tournament_id, name, stages)
+
+
+def _render_tournament(tournament_id: int, name: str, stages: List[Bracket]) -> None:
+    with ui.card().classes('w-full q-pa-md'):
+        with ui.row().classes('items-center justify-between w-full'):
+            ui.label(name).classes('text-subtitle1 text-bold')
+            # Multi-stage tournaments get the stage index too; a
+            # single-stage one is fully described by the row below it.
+            if len(stages) > 1:
+                ui.button(
+                    'All stages', icon='list',
+                    on_click=lambda tid=tournament_id: ui.navigate.to(
+                        f'/tournament/{tid}/brackets'
+                    ),
+                ).props('flat dense')
+        ui.separator()
+        for bracket in stages:
+            _render_stage(bracket)
