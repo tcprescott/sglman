@@ -97,7 +97,7 @@ async def render_accommodation_panel(
         'Attendees who asked for ADA accommodation, oldest first. Update a '
         'request to set its status and add notes only staff can read.'
     ).classes('text-caption text-grey')
-    with ui.row().classes('items-center full-width'):
+    with ui.row().classes('items-center full-width wiz-help-row'):
         await help_icon('admin-ada-queue', user=await current_actor())
         ui.space()
         ui.checkbox(

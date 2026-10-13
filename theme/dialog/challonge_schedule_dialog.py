@@ -23,7 +23,7 @@ from theme.dialog._helpers import (
     render_suggest_time_button,
     submit_on_enter,
 )
-from theme.help import help_icon
+from theme.help import resolve_help
 
 
 class ChallongeScheduleDialog:
@@ -51,7 +51,10 @@ class ChallongeScheduleDialog:
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             mobile_sheet(dialog)
-            dialog_header(f'Schedule vs {self.opponent_name}', dialog)
+            dialog_header(
+                f'Schedule vs {self.opponent_name}', dialog,
+                help=await resolve_help(['suggest-time']),
+            )
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label(cm.tournament.name).classes('text-bold')
                 ui.label(f'Opponent: {self.opponent_name}').classes('text-muted')
@@ -61,16 +64,14 @@ class ChallongeScheduleDialog:
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
 
-                with ui.row().classes('items-center gap-1 no-wrap'):
-                    render_suggest_time_button(
-                        dialog,
-                        get_tournament_id=lambda: cm.tournament_id,
-                        get_player_ids=lambda: player_ids,
-                        date=date,
-                        time=time,
-                        missing_message='Unable to suggest a time for this match.',
-                    )
-                    await help_icon('suggest-time')
+                render_suggest_time_button(
+                    dialog,
+                    get_tournament_id=lambda: cm.tournament_id,
+                    get_player_ids=lambda: player_ids,
+                    date=date,
+                    time=time,
+                    missing_message='Unable to suggest a time for this match.',
+                )
 
             async def submit():
                 if not (date.value and time.value):

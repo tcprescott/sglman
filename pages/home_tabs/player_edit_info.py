@@ -316,7 +316,7 @@ async def render_edit_info_tab(focus: str | None = None):
         # Notifications — the delivery master switch, the per-device channel, and
         # per-tournament granularity, so "how do I get notified" lives in one place.
         with ui.card().classes('card-full-width'):
-            with ui.row().classes('items-center gap-1 no-wrap'):
+            with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
                 ui.label('Notifications').classes('section-title')
                 await help_icon('notification-settings')
             ui.label('Choose whether and where Wizzrobe reaches you about your matches.') \

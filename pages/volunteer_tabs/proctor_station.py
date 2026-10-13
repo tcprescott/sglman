@@ -60,15 +60,15 @@ async def proctor_station_tab(user: Optional[User] = None) -> None:
             'Every match in this room. Check players in, seat them, roll the seed, '
             'start them, then record the winner.',
         ):
-            await help_icon('proctor-station', user=user)
-            await help_icon('proctor-run-match', label='Running a match', user=user)
-            # Third icon earns its place: what to do when a player is missing or
-            # the hardware fails is the thing a proctor needs mid-incident, and
-            # it is the one part of the job that is not theirs to decide.
-            # These two now read from the event handbook and are role-gated, so
-            # the viewer is passed in rather than looked up per icon.
-            await help_icon('proctor-escalation', label='When things go wrong', user=user)
-            await help_icon('proctor-handover', label='Shift change', user=user)
+            # The last two read from the event handbook and are role-gated, so
+            # the viewer is passed in rather than looked up per topic.
+            await help_icon(
+                ('proctor-station', 'The station board'),
+                'proctor-run-match',
+                ('proctor-escalation', 'When things go wrong'),
+                ('proctor-handover', 'Shift change'),
+                user=user,
+            )
             ui.space()
 
         def get_query():

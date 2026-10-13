@@ -47,7 +47,7 @@ from theme.dialog._helpers import (
     render_suggest_time_button,
     submit_on_enter,
 )
-from theme.help import help_icon
+from theme.help import resolve_help
 
 
 class BracketScheduleDialog:
@@ -118,7 +118,10 @@ class BracketScheduleDialog:
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             mobile_sheet(dialog)
-            dialog_header(self._heading(), dialog)
+            dialog_header(
+                self._heading(), dialog,
+                help=await resolve_help(['suggest-time'] if can_suggest else []),
+            )
             with ui.column().classes('q-pa-md gap-2'):
                 if self.tournament_name:
                     ui.label(self.tournament_name).classes('text-bold')
@@ -136,17 +139,15 @@ class BracketScheduleDialog:
                     # Player mode only (opponent_name is set from the player
                     # dashboard). The suggestion runs in this click's own
                     # request-scoped tenant context.
-                    with ui.row().classes('items-center gap-1 no-wrap'):
-                        render_suggest_time_button(
-                            dialog,
-                            get_tournament_id=lambda: self.tournament_id,
-                            get_player_ids=lambda: self.player_ids,
-                            get_bracket_match_id=lambda: self.bracket_match_id,
-                            date=date,
-                            time=time,
-                            missing_message='Unable to suggest a time for this match.',
-                        )
-                        await help_icon('suggest-time')
+                    render_suggest_time_button(
+                        dialog,
+                        get_tournament_id=lambda: self.tournament_id,
+                        get_player_ids=lambda: self.player_ids,
+                        get_bracket_match_id=lambda: self.bracket_match_id,
+                        date=date,
+                        time=time,
+                        missing_message='Unable to suggest a time for this match.',
+                    )
 
             async def submit():
                 if not (date.value and time.value):

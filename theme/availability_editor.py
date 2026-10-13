@@ -248,7 +248,7 @@ async def render_availability_editor(
         # only repeat the words and re-add the header/separator margin the panel
         # exists to remove.
         if title:
-            with ui.row().classes('header-row items-center'):
+            with ui.row().classes('header-row items-center wiz-help-row'):
                 ui.label(title).classes(title_class)
                 if help_snippet:
                     await help_icon(help_snippet)

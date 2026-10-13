@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from nicegui import ui
 
@@ -11,6 +11,7 @@ from application.utils.timezone import (
     timezone_label,
     to_local,
 )
+from theme.help import ResolvedHelp, help_button
 
 
 def datetime_to_local_input(value: Optional[datetime]) -> str:
@@ -41,7 +42,7 @@ def local_input_to_datetime(value: Optional[str]) -> Optional[datetime]:
 
 
 @contextmanager
-def form_dialog(title: str, *, card_classes: str = 'dialog-card'):
+def form_dialog(title: str, *, card_classes: str = 'dialog-card', help: Sequence[ResolvedHelp] = ()):
     """Standard inline add/edit dialog scaffold as a context manager.
 
     Opens ``ui.dialog()`` + ``ui.card()``, applies the mobile-sheet behaviour and
@@ -63,12 +64,15 @@ def form_dialog(title: str, *, card_classes: str = 'dialog-card'):
     """
     with ui.dialog() as dialog, ui.card().classes(card_classes):
         mobile_sheet(dialog)
-        dialog_header(title, dialog)
+        dialog_header(title, dialog, help=help)
         yield dialog
 
 
-def dialog_header(title: str, dialog) -> None:
-    """Standard dialog header row: title + close button, always on one row.
+def dialog_header(title: str, dialog, *, help: Sequence[ResolvedHelp] = ()) -> None:
+    """Standard dialog header row: title, help, close button, always on one row.
+
+    ``help`` (from ``resolve_help``) is the dialog's one help button, beside the
+    close button. Nothing inside the body carries its own.
 
     The row draws its own bottom border (``.dialog-header``); a separator after
     it drew a second hairline under every dialog title.
@@ -78,6 +82,7 @@ def dialog_header(title: str, dialog) -> None:
     with ui.row().classes('dialog-header items-center q-pa-sm'):
         heading = ui.label(title).classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn by dialog_header
         heading.tag = 'h2'
+        help_button(help, pill=True)
         dialog_close_button(dialog)
 
 

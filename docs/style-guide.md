@@ -80,6 +80,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`â€
 | A notice across the page | `banner(message, title=, tone=)` (`theme/banner.py`; `info`/`ok`/`warning`/`danger`) | A hand-coloured row |
 | Flash a message across a redirect | `stash_notice` / `drain_notice` (`theme/notice.py`) | |
 | Empty list | `empty_state(message)`, `no_data_slot()` in a table | |
+| Help for a page, section or dialog | One `help_icon(...)` / `help_topics=` / `dialog_header(..., help=)` per heading, listing every topic ([help.md](features/help.md#help-icons)) | A second "?" on the same heading, or one beside an individual control |
 | A form in a dialog | `form_dialog(title)` + `dialog_actions()` + `submit_on_enter()` (`theme/dialog/_helpers.py`) | Hand-rolled `ui.dialog()` + `ui.card()` + title row (`test_dialogs_use_the_shared_header` fails on one) |
 | Dialog width | `dialog-card` (medium, the default), `dialog-card dialog-card--sm` (a few fields, a confirmation), `dialog-card--lg` (a table or two columns) | `w-96`, `w-full`, `.style('max-width: â€¦')` |
 | Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it): a bottom sheet as tall as its content | `maximized` (a short form floats over a screen of blank card) |

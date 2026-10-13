@@ -41,9 +41,10 @@ def page_title(text: str) -> ui.label:
 def page_header(title: str, subtitle: Optional[str] = None) -> ui.row:
     """Render the header and return its title row.
 
-    The row is a container: build help icons, a status chip or right-aligned
-    actions inside ``with page_header(...):`` and they sit on the title's line.
-    Give an action group ``ui.space()`` before it to push it to the right edge.
+    The row is a container: build the page's one ``help_icon``, a status chip or
+    right-aligned actions inside ``with page_header(...):`` and they sit on the
+    title's line. Give an action group ``ui.space()`` before it to push it to the
+    right edge; the help button always moves itself to the very end.
     """
     nested = _nested.get()
     with ui.column().classes('wiz-page-header' + (' wiz-page-header--nested' if nested else '')):

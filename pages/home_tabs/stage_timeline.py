@@ -30,7 +30,7 @@ async def stage_timeline_tab():
     current_date = {'value': today_local()}
 
     with ui.column().classes('full-width-column'):
-        with ui.row().classes('timeline-header'):
+        with ui.row().classes('timeline-header wiz-help-row'):
             # Keep the chevrons flanking the date as one unit so they never split
             # across lines when the row wraps on a narrow (phone) viewport.
             with ui.row().classes('timeline-nav items-center no-wrap'):
@@ -51,8 +51,7 @@ async def stage_timeline_tab():
                 on_click=lambda: None
             ).props('outline')
 
-            await help_icon('on-air')
-            await help_icon('watch-page', label='Watch page', user=user)
+            await help_icon('on-air', 'watch-page', user=user)
 
             ui.space()
 
