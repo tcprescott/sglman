@@ -19,7 +19,8 @@
  * With a "phone" block in the config it then makes a pass per phone (CI checks
  * 360, 393, 412 and 440px) and fails any page whose layout breaks there: the
  * page scrolls sideways, an element runs past the screen or out of the card that
- * holds it, or text is cut off without an ellipsis. The 2026-10 phone sweep
+ * holds it, text is cut off without an ellipsis, or a flex item is stretched
+ * more than 96px past its content (an empty band). The 2026-10 phone sweep
  * found Settings fields 90px past their card and a whole family of these, none
  * of which a desktop-width scan can see.
  *
@@ -131,6 +132,32 @@ function contrastCheck() {
 
 // Runs in the page at phone width. Returns layout breaks.
 function layoutCheck(ignoreSelectors) {
+  const EMPTY_LIMIT = 96;
+  // A flex or grid item stretched well past its content: a flex-basis meant as a
+  // width that became a height in a column (#350's search row left 192px under
+  // the check-in desk's search box), or a grow that soaks up the screen. Padding
+  // is deliberate spacing and doesn't count, and an item that centres or spreads
+  // its content (an error page, a toolbar) is meant to be bigger than it.
+  function emptySpace(el, r, s) {
+    const p = el.parentElement;
+    if (!/flex|grid/.test(getComputedStyle(p).display)) return 0;
+    if (el.matches('img, canvas, video, iframe, input, textarea, select, hr, .q-space') || s.backgroundImage !== 'none') return 0;
+    if (/center|space-/.test(s.justifyContent) || /center|space-/.test(s.alignContent)) return 0;
+    let top = Infinity;
+    let bottom = -Infinity;
+    const take = (cr) => { if (cr.width && cr.height) { top = Math.min(top, cr.top); bottom = Math.max(bottom, cr.bottom); } };
+    for (const c of el.children) if (getComputedStyle(c).visibility !== 'hidden') take(c.getBoundingClientRect());
+    for (const n of el.childNodes) {
+      if (n.nodeType !== Node.TEXT_NODE || !n.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      take(range.getBoundingClientRect());
+    }
+    // Nothing visible inside: a spacer, or a container whose items are hidden.
+    if (bottom <= top) return 0;
+    const inner = r.height - ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((a, k) => a + parseFloat(s[k]), 0);
+    return inner - (bottom - top);
+  }
   const vw = window.innerWidth;
   const out = [];
   const seen = new Set();
@@ -169,6 +196,8 @@ function layoutCheck(ignoreSelectors) {
         && el.scrollWidth > el.clientWidth + 2 && el.childElementCount <= 1 && text(el)) {
       report('text cut off', el, el.scrollWidth - el.clientWidth);
     }
+    const empty = emptySpace(el, r, s);
+    if (empty > EMPTY_LIMIT) report('leaves an empty gap', el, empty);
     let box = null;
     let inScroller = false;
     for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
