@@ -103,6 +103,9 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Need | Use | Not |
 |---|---|---|
 | Status / count | `ui.badge(text, color='positive')`: the colour only picks the tone, CSS draws the chip. Or `.wiz-chip .wiz-chip--ok\|pending\|live\|neutral\|cancelled` in a template | `text-color=` on a solid chip, a hand-built pill |
+| Tags that only name something (a member's roles) | Neutral `.wiz-chip` tags that wrap inside their cell | `<q-chip color="primary" text-color="white">`: a solid accent pill is decoration, and five of them pushed the Members table past a 2000px window |
+| A titled block's own buttons (Export CSV on a report card) | The panel's `aside` slot: `panel = await section_panel(…)`, then `with panel.aside:` | A hand-built title row with a button beside it |
+| Filters on a page that isn't a match board | The match board's compact card: `.match-filters-card.match-filters-card--compact` with `match-filter-field` fields, plus a `.wiz-filter-toggle` Filters button whose badge counts active filters (Admin → Users, Triforce Texts; reports use `report_filter_bar`) | Caption labels over the fields, or the card without its toggle: CSS hides it below 1024px, so a phone never sees the filters |
 | A notice across the page | `banner(message, title=, tone=)` (`theme/banner.py`; `info`/`ok`/`warning`/`danger`) | A hand-coloured row |
 | Flash a message across a redirect | `stash_notice` / `drain_notice` (`theme/notice.py`) | |
 | Empty list | `empty_panel(message, icon=…)` for a list that stands alone, `empty_state(message)` inside a board or column, `no_data_slot()` in a table | A bare grey caption where the list would be |
@@ -130,7 +133,8 @@ goes in a single **Actions** menu at the right of the toolbar: a flat, primary
 coloured `ui.button('Actions')` with `icon-right=expand_more`, holding one
 `menu_action(icon, label, on_click)` (`theme/menu.py`) per item. A destructive
 item goes last, under a `ui.separator()`, with `negative=True`. The menu is the same on a phone and on
-desktop. Vol. Schedule (`pages/admin_tabs/admin_volunteers.py`) is the reference;
+desktop. The shared refresh icon at the far right doesn't count as a second
+button. Vol. Schedule (`pages/admin_tabs/admin_volunteers.py`) is the reference;
 its four loose buttons used to wrap onto three lines on a phone.
 
 **A row or card has one button and a ⋮ menu.** At most one action shows as a
@@ -164,7 +168,12 @@ against Approve, Confirm, Save, Assign, Publish).
 
 **Help is one "?" at the end of the heading row.** See the Help row above; in a
 dialog title it sits just before Close and matches it (a "Help" pill on desktop,
-a grey disc on a phone).
+a grey disc on a phone). It opens as a 24rem popover on desktop and as a bottom
+sheet below 600px, like a phone dialog. With several topics it opens on a list
+of their names; tapping one swaps to that topic, with "‹ Help" back to the list
+and Close in every title row. `help_button` (`theme/help/icon.py`) draws all of
+it, so don't put topics in `ui.expansion` accordions or leave the menu without
+a width (it shrank to one word per line).
 
 ## Dialogs
 
@@ -196,15 +205,21 @@ Desktop pages use the width rather than stretching one column across it:
   On Air's stage columns (stacked one after another on a phone).
 - A page of short forms (Profile) puts them in two columns
   (`wiz-profile-sections`) rather than capping the page at a narrow column.
-- A page around a wide table (Admin → Users, `/platform`) uses
-  `page-container-wide` (1600px).
+- A page around a wide table (Admin → Users, `/platform`, the reports) uses
+  `page-container-wide` (1600px). Let long cells wrap inside a bounded box
+  (Users wraps roles in 9-20rem and names in 7-12rem) rather than leaving
+  Quasar's `nowrap` to stretch one column: a 31-character Discord handle or six
+  role tags otherwise push the table off the page.
 - The side menu is 224px. Don't widen it for one long label; shorten the label.
 
 ## Match boards
 
 Every list of matches follows the Admin → Schedule run sheet
-(`theme/tables/match_run_sheet.py`). Proctor Station uses it too, and the
-player schedule is moving onto it.
+(`theme/tables/match_run_sheet.py`). Proctor Station uses it too. The member
+boards (Event › Schedule, and My Schedule's Your matches and Crew you signed up
+for) use its player version, `layout='player_run_sheet'`. A personal list of
+matches is that board narrowed by a filter (`crew_discord_id=` for the crew
+board), never a new card list.
 
 - **One line per match, grouped by what it needs**: Needs a decision, Live now,
   Up next, Waiting for players, Confirmed. A line says only which match, when,
@@ -212,18 +227,47 @@ player schedule is moving onto it.
 - **Everything you can do to a match lives in its match sheet**
   (`theme/dialog/match_sheet.py`), which opens when you tap the line: a side
   sheet on desktop, a bottom sheet on a phone.
+- **What a player can do to their own match** (Ask to change, Harder settings,
+  Offer for stream) goes in one ⋮ on the line, the same on the phone card.
+  Acknowledge sits under the status and the bell watches the match.
 - **A "Needs you" inbox** beside the board (`theme/match_inbox.py`) lists what's
-  waiting on a person rather than the clock, with the action on each item.
-- **Crew sign-up comes first.** The viewer's own Sign up / Withdraw sits in its
-  own tray above the names, in the same place whether they've signed up or not,
-  on the phone card and the desktop cell alike. A role nobody has signed up for
-  says "No signups yet" in muted italics (`st-neutral italic-note`).
+  waiting on a person rather than the clock, with the action on each item. Open
+  leads each item's buttons, so the main action is always the last one.
+- **One column per crew role** (Commentators, Trackers), on the admin and member
+  boards. Each cell reads count, then the viewer's own Sign up / Withdraw tray,
+  then the names (a tick for approved, a clock and "waiting for approval" or
+  "to approve" for the rest). The tray is never empty: when there's nothing to
+  press it holds a disabled Sign up with the reason beside it ("Signups closed",
+  "You're playing"), so the button sits in the same spot on every line, on the
+  phone card and the desktop cell alike. Withdraw is left of Confirm. A role
+  nobody has signed up for says "No signups yet" in muted italics
+  (`st-neutral italic-note`).
 - **Amber means someone has to act.** In crew counts only "needs crew" is
   amber; "to approve" and plain counts stay neutral.
 - **Filters label themselves** inside their box (no caption line above), a
   multi-select reads as one line of text rather than wrapping chips, and the
   filters sit in a 2×2 grid below 1024px and one row above it
   (`theme/tables/match_filters.py`).
+
+## Reports
+
+Every report page is built from the helpers in
+`pages/admin_tabs/reports/shared.py`, so the nine reports and the dashboard
+read as one set:
+
+- `report_page_shell(title, subtitle)` for the top: an "All reports" link back,
+  then `page_header`, in `page-container-wide`.
+- `report_filter_bar(active)` for the filters: the match board's compact card,
+  one row on desktop and folded behind a Filters button with a count badge
+  below 1024px. Pass each field through `filter_field`, and add `report_jumps`
+  for the whole-event and single-day shortcuts.
+- `section_panel` for each chart or table, with Export CSV in the panel's
+  `aside`. Two panels that are read together (Capacity's busiest times and its
+  forecast) sit side by side on desktop.
+- `kpi_grid()` for a row of `kpi_card` tiles.
+- Charts take their colours from `chart_palette()`: the community's accent,
+  lifted until it clears 3:1 on the light and dark surfaces, with amber as the
+  second series when the accent is close to teal. Never a fixed gold.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -292,7 +336,7 @@ Automated, on every PR:
 
 | Check | Catches |
 |---|---|
-| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a row's ⋮ not named "More for …"; a red menu item that isn't last in its menu; an awaited `delete_*`/`remove_*`/`cancel_*`/`clear_*`/… service call that no `ConfirmationDialog` stands in front of; the side menu off 224px |
+| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a Decline/Reject/Remove/Withdraw-style button right of an Approve/Confirm/Save-style one in the same group; a `.match-filters-card` with no Filters toggle; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a row's ⋮ not named "More for …"; a red menu item that isn't last in its menu; an awaited `delete_*`/`remove_*`/`cancel_*`/`clear_*`/… service call that no `ConfirmationDialog` stands in front of; the side menu off 224px |
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |
