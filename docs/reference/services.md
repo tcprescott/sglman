@@ -1156,10 +1156,11 @@ The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/
 | `set_theme(actor, colors)` | `dict[str, str]` | STAFF-gated; validates hex, persists to `Tenant.config['theme']`, audits. A blank value clears that key; clearing all keys resets to defaults. |
 | `is_customized(colors)` | `bool` | Whether a resolved palette differs from the shipped defaults. |
 | `list_presets()` | `dict[str, dict]` | Curated, contrast-verified palettes (`THEME_PRESETS`) for the editor's preset picker. |
-| `contrast_report(colors)` | `dict[str, dict]` | Per-colour WCAG-AA contrast (`{ratio, ok, threshold, against}`) of each colour against the surface it's used on — pure, skips invalid/blank values. |
-| `contrast_warnings(colors)` | `list[str]` | Human-readable warnings for colours below the 4.5:1 AA target. |
+| `contrast_report(colors)` | `dict[str, list[dict]]` | Every WCAG-AA check per colour (`{use, mode, ratio, threshold, ok}`), modelled on where `styles.css` paints it: white button labels, light-mode links (15% toward black), dark-mode text, the brand mark (3:1). Pure; skips invalid/blank values. |
+| `contrast_issues(colors)` | `dict[str, list[str]]` | One sentence per failing use, keyed by colour: what fails, in which mode, and the ratio. The Appearance editor shows these live under each field; they never block saving. |
+| `contrast_warnings(colors)` | `list[str]` | `contrast_issues` flattened, each prefixed with its colour. |
 
-Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`.
+Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset passes every check, so a preset can never ship failing AA — and `tests/theme/test_style_guide.py` asserts the surfaces and colour mixes the checks model still match `styles.css`. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`.
 
 ### timezone_service.py — TimezoneService
 
