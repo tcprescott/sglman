@@ -29,6 +29,5 @@ class CatFactDialog:
                 self._fact_label = ui.label(random_cat_fact()).classes('text-center')
             with dialog_actions().classes('justify-end'):
                 ui.button('See them all', icon='pets', on_click=self._see_all).props('flat')
-                ui.button('Meow another', icon='refresh', on_click=self._reroll).props('flat')
-                ui.button('Close', on_click=dialog.close).props('color=primary')
+                ui.button('Meow another', icon='refresh', on_click=self._reroll).props('color=primary')
         dialog.open()

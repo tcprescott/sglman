@@ -95,12 +95,12 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
             'Logos can be up to 1 MB, as a PNG, JPEG or WebP.', color='warning'),
     ).props(f'accept="{ACCEPT}"').classes('hidden wiz-logo-upload')
     with ui.row().classes('gap-2 items-center'):
+        if logo:
+            ui.button('Remove logo', icon='delete', on_click=remove).props('flat color=negative')
         ui.button(
             'Replace logo' if logo else 'Upload logo', icon='upload',
             on_click=lambda: uploader.run_method('pickFiles'),
         ).props('outline color=primary')
-        if logo:
-            ui.button('Remove logo', icon='delete', on_click=remove).props('flat color=negative')
 
 
 async def admin_theme_page() -> None:

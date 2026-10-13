@@ -166,9 +166,9 @@ class MatchInbox:
                     self.refresh()
                     if self.view is not None:
                         await self.view.refresh()
-                ui.button('Approve', on_click=approve).props('color=primary')
                 ui.button('Decline', on_click=lambda r=request: self.open_request(r.id)) \
                     .props('outline color=primary')
+                ui.button('Approve', on_click=approve).props('color=primary')
             else:
                 # Cancelling deletes the match, and a request with no time needs
                 # one picked: both go through the full decision dialog.
@@ -192,6 +192,7 @@ class MatchInbox:
         ui.label(meta).classes('match-inbox__meta')
         h = self.handlers
         with ui.row().classes('gap-2 items-center'):
+            ui.button('Open', on_click=lambda: self.open_match(match_id)).props('flat no-caps color=primary')
             if not row.get('has_result'):
                 ui.button('Record winner', on_click=lambda: h.on_edit_result(match_id)).props('color=primary')
             elif row.get('needs_review'):
@@ -201,9 +202,8 @@ class MatchInbox:
                     match = await Match.get(id=match_id, tenant_id=require_tenant_id()) \
                         .prefetch_related('tournament', 'players', 'players__user')
                     await h.confirm_confirming(match)
-                ui.button('Confirm', on_click=confirm).props('color=primary')
                 ui.button('Change', on_click=lambda: h.on_edit_result(match_id)).props('outline color=primary')
-            ui.button('Open', on_click=lambda: self.open_match(match_id)).props('flat no-caps color=primary')
+                ui.button('Confirm', on_click=confirm).props('color=primary')
 
     def _late_item(self, row: dict) -> None:
         match_id = row['id']
@@ -211,5 +211,5 @@ class MatchInbox:
         ui.label(f"{row.get('tournament') or ''} · was {(row.get('scheduled_at') or '')[-5:]}") \
             .classes('match-inbox__meta')
         with ui.row().classes('gap-2 items-center'):
-            ui.button('Check in', on_click=lambda: self.handlers.on_seat(match_id)).props('color=primary')
             ui.button('Open', on_click=lambda: self.open_match(match_id)).props('flat no-caps color=primary')
+            ui.button('Check in', on_click=lambda: self.handlers.on_seat(match_id)).props('color=primary')
