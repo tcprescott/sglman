@@ -235,9 +235,17 @@ _LANYARD_CELL = f'''<q-td :props="props">
     <span v-if="!props.row.lanyard" class="text-grey-7">—</span>
 </q-td>'''
 
-_ACCOUNT_CELL = '''<q-td :props="props">
-    <span v-if="props.row.account">{{ props.row.account }}</span>
-    <span v-else class="text-warning">Not linked</span>
+# "Not linked" opens the same link dialog as the ⋮ menu, and says up front
+# whether the dialog has anyone to suggest.
+_NOT_LINKED = f'''
+    <q-btn flat dense no-caps no-wrap align="left" color="warning" icon="link"
+           :label="props.row.link_label" class="{REQUIRES_SOCKET_CLASS} checkin-link-btn"
+           @click="$parent.$emit('link', props.row)" />
+'''
+
+_ACCOUNT_CELL = f'''<q-td :props="props">
+    <span v-if="props.row.account">{{{{ props.row.account }}}}</span>
+    <template v-else>{_NOT_LINKED}</template>
 </q-td>'''
 
 # Phone card: name and account up top, the state as badges, one thumb-sized
@@ -256,7 +264,7 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
             <div v-if="props.row.account" class="text-caption text-grey-7 ellipsis">
                 {{{{ props.row.account }}}} · {{{{ props.row.linked_via }}}}
             </div>
-            <div v-else class="text-caption text-warning">Not linked to an account</div>
+            <div v-else>{_NOT_LINKED}</div>
             <div v-if="props.row.lanyard" class="q-mt-xs">{_LANYARD_CHIP}</div>
             <div class="q-mt-xs">{_STATUS_BADGES}</div>
             {_DM_NOTE}
@@ -275,7 +283,13 @@ _GRID_CARD = f'''<div class="q-pa-xs col-12">
 </div>'''
 
 
-def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dict:
+def _link_label(suggestions: int) -> str:
+    if not suggestions:
+        return 'Not linked'
+    return f"Not linked · {suggestions} suggestion{'' if suggestions == 1 else 's'}"
+
+
+def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int], suggestions: int = 0) -> Dict:
     user = entrant.user
     checked_by = entrant.checked_in_by
     account = user.preferred_name if user else ''
@@ -348,6 +362,7 @@ def _row(entrant: CheckInEntrant, can_manage: bool, volunteers: set[int]) -> Dic
         'walk_up': walk_up,
         'volunteer_text': 'Yes' if volunteer else '',
         'unlinked': user is None,
+        'link_label': _link_label(suggestions) if user is None else '',
         # A buyer with no account gets asked for one at check-in. Named walk-ups
         # and rows staff unlinked on purpose were left unlinked deliberately.
         'prompt_link': (
@@ -447,7 +462,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
     can_manage = await AuthService.can_manage_check_in(user)
     render_context = capture_render_context()
     client = context.client
-    state: Dict = {'event': event, 'rows': [], 'filter': 'all', 'flash': set()}
+    state: Dict = {'event': event, 'rows': [], 'filter': 'all', 'flash': set(), 'suggestions': (None, {})}
 
     with ui.column().classes('page-container-narrow w-full gap-2 q-px-sm'):
         with ui.column().classes('checkin-toolbar w-full gap-1 q-py-sm'):
@@ -521,6 +536,19 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
         closed_notice.set_visibility(current.status == CheckInEventStatus.CLOSED)
         sync_btn.set_visibility(_can_sync(current))
 
+    async def suggestion_counts(current: CheckInEvent, entrants) -> Dict[int, int]:
+        # Every check-in at any desk reloads the roster, but the counts only
+        # move when someone is linked, unlinked, added or renamed.
+        key = (
+            frozenset((e.id, e.display_name) for e in entrants if e.user_id is None),
+            frozenset(e.user_id for e in entrants if e.user_id is not None),
+        )
+        cached_key, counts = state['suggestions']
+        if key != cached_key:
+            counts = await service.suggestion_counts(current, entrants)
+            state['suggestions'] = (key, counts)
+        return counts
+
     async def reload(flash: Optional[int] = None) -> None:
         current = await service.get_event(state['event'].id)
         if current is None:
@@ -529,8 +557,10 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             return
         state['event'] = current
         volunteers = await service.volunteer_user_ids()
+        entrants = await service.roster(current)
+        suggestions = await suggestion_counts(current, entrants)
         state['rows'] = sorted(
-            (_row(e, can_manage, volunteers) for e in await service.roster(current)),
+            (_row(e, can_manage, volunteers, suggestions.get(e.id, 0)) for e in entrants),
             key=lambda r: r['name'].casefold(),
         )
         if flash is not None:

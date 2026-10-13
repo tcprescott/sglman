@@ -310,6 +310,7 @@ Several phones work one event, and the worker polls it too:
 | `roster` / `get_entrant` | Reads, with each entrant's badges and their tiers prefetched |
 | `tiers_for(event)` | The badge types, dearest first, for the desk's chips |
 | `volunteer_user_ids()` | Accounts with a published volunteer assignment in this community (drafts excluded), for the **Volunteer** chip. An empty set when `FeatureFlag.VOLUNTEERS` is off, never an error |
+| `suggestion_counts(event, entrants)` | How many suggestions `suggest_users` would give each unlinked, non-comp row, for the whole roster in one community read; the scoring runs in a thread. The desk caches the answer until a row is linked, unlinked, added or renamed, and shows it on the clickable **Not linked** button |
 | `suggest_users` / `search_members(event, query, for_link=False)` | Candidate accounts for the link and walk-up dialogs, community members not already on the roster. Linking (`suggest_users`, `for_link=True`) also offers comp-only members, since the link folds their comp in |
 | `check_in` → `CheckInOutcome(entrant, already)` / `undo_check_in` | The desk's main actions |
 | `link` / `unlink` | Manual matching |

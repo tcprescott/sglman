@@ -17,7 +17,6 @@ the failure this guards against.
 """
 
 import asyncio
-import difflib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -51,11 +50,14 @@ from application.services.check_in_dm import start_dm_check
 from application.services.check_in_rules import (
     CheckInOutcome,
     SyncResult,
+    count_suggestions,
     entrant_details,
     is_active_badge,
     norm_name,
     refuse_comp_row,
     resolve_link,
+    suggested_users,
+    suggestion_candidates,
     summarize,
 )
 from application.services.check_in_sales import apply_badges, apply_tiers, buyer_fields, buyers_of
@@ -86,7 +88,6 @@ from models import (
 MIN_SYNC_INTERVAL_MINUTES = 1
 MAX_SYNC_INTERVAL_MINUTES = 120
 SUGGESTION_LIMIT = 3
-SUGGESTION_THRESHOLD = 0.6
 
 _DESK_DENIED = 'Only staff and check-in desk volunteers can do that.'
 _STAFF_DENIED = 'Only staff can do that.'
@@ -547,26 +548,24 @@ class CheckInService:
         already linked to someone else on this roster are left out, except a
         comp, whose row a link folds into this one (:meth:`link`).
         """
-        targets = {norm_name(entrant.display_name)} - {''}
-        if not targets:
+        target = norm_name(entrant.display_name)
+        if not target:
             return []
         taken = await self._taken_user_ids(entrant.event, for_link=True)
-        scored: List[Tuple[float, User]] = []
-        for user in await UserRepository.get_community_people():
-            if user.id in taken:
-                continue
-            names = {
-                norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
-                norm_name((user.matcherino_username or '').split('#')[0]),
-            } - {''}
-            score = max(
-                (difflib.SequenceMatcher(None, t, n).ratio() for t in targets for n in names),
-                default=0.0,
-            )
-            if score >= SUGGESTION_THRESHOLD:
-                scored.append((score, user))
-        scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
-        return [user for _, user in scored[:limit]]
+        candidates = suggestion_candidates(await UserRepository.get_community_people(), taken)
+        return suggested_users(target, candidates, limit)
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def suggestion_counts(
+        self, event: CheckInEvent, entrants: Sequence[CheckInEntrant], limit: int = SUGGESTION_LIMIT,
+    ) -> Dict[int, int]:
+        """How many suggestions :meth:`suggest_users` would offer each unlinked row: one
+        community read for the whole roster, scored off the event loop every desk shares."""
+        if all(e.user_id is not None for e in entrants):
+            return {}
+        taken = await self._taken_user_ids(event, for_link=True)
+        candidates = suggestion_candidates(await UserRepository.get_community_people(), taken)
+        return await asyncio.to_thread(count_suggestions, entrants, candidates, limit)
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def search_members(
