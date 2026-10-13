@@ -33,6 +33,24 @@ Chosen by the project owner over keeping the gold "Phoenix" chrome.
 - **Public pages (bracket, join, Watch) follow the same system** with a little
   more brand colour.
 
+## Before you build
+
+The rules below came out of rounds where several people (and several Claude
+sessions) built pages in parallel. Two process rules keep that from looking like
+ten different apps:
+
+- **Show options before building.** A UI change the project owner asks for
+  starts with two to four mockups, drawn at phone and desktop width (light and
+  dark where colour matters), and waits for a pick. A plain bug fix to a design
+  that was already chosen skips this.
+- **Phone and desktop are one design.** A change made for one width is checked
+  at the other (360-440px and about 1440px), and desktop changes with it when it
+  needs to. If a fix only makes sense at one width, ask rather than let them
+  drift.
+
+When a new page needs something this guide doesn't cover, copy the nearest page
+that already does it, and add the pattern here once it's agreed.
+
 ## Colour
 
 | Do | Don't |
@@ -89,7 +107,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Empty list | `empty_state(message)`, `no_data_slot()` in a table | |
 | Help for a page, section or dialog | One `help_icon(...)` / `help_topics=` / `dialog_header(..., help=)` per heading, listing every topic ([help.md](features/help.md#help-icons)) | A second "?" on the same heading, or one beside an individual control |
 | A form in a dialog | `form_dialog(title)` + `dialog_actions()` + `submit_on_enter()` (`theme/dialog/_helpers.py`) | Hand-rolled `ui.dialog()` + `ui.card()` + title row (`test_dialogs_use_the_shared_header` fails on one) |
-| Dialog width | `dialog-card` (medium, the default), `dialog-card dialog-card--sm` (a few fields, a confirmation), `dialog-card--lg` (a table or two columns) | `w-96`, `w-full`, `.style('max-width: …')` |
+| Dialog width | `dialog-card dialog-card--sm` (520px: a short form, a confirmation), `dialog-card` (640px, the default: a long form such as Add Tournament or Create Match), `dialog-card--lg` (960px: a table or two columns). See [Dialogs](#dialogs) | `w-96`, `w-full`, `.style('max-width: …')` |
 | Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it): a bottom sheet as tall as its content | `maximized` (a short form floats over a screen of blank card) |
 | A table | `enable_mobile_grid(table, columns, table_key=TableKeys.X, …)` | A bare `ui.table` (the `check_table_grid` and `check_table_prefs` hooks enforce this) |
 | Text input / select | `.props('outlined dense')` | `filled`, `standout` |
@@ -97,7 +115,101 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | A Copy button | `copy_to_clipboard(value, label)` (`theme/clipboard.py`) | Inline `navigator.clipboard` JavaScript |
 | A credential shown once | `show_secret_dialog(title, secret, noun=…)` (`theme/dialog/secret_dialog.py`) | A hand-built reveal dialog |
 | Admin refresh | `refresh_button` (`theme/tables/admin_crud.py`) | |
-| A new admin setting | A card in a Settings pane (`pages/admin_tabs/settings/`, `section_panel` + `SaveFooter`, whose bar appears only once something changed) | A new drawer tab, a second Save button |
+| A new admin setting | A card in a Settings pane (`pages/admin_tabs/settings/`, `section_panel` + `SaveFooter`, whose Discard and Save appear only once something changed). Settings opens on a home page of tiles; a pane has an "All settings" link back, and leaving it with unsaved edits asks to save, discard or keep editing | A new drawer tab, a second side bar, a second Save button |
+| Page toolbar actions | One main button plus one Actions menu, see [Actions and menus](#actions-and-menus) | A row of three or more loose buttons |
+| Actions on a row or card | One button plus a ⋮ (`more_vert`) menu, see [Actions and menus](#actions-and-menus) | Open, Edit and Delete as separate buttons on every row |
+| A list of matches | `MatchTableView(layout='run_sheet')`, see [Match boards](#match-boards) | A new card-per-match layout |
+| The viewer's crew Sign up / Withdraw | `crew_signup_section` (`theme/tables/match_slots.py`) | A button placed per surface |
+
+## Actions and menus
+
+**A page toolbar has one main button and one Actions menu.** The main button is
+the thing people do most on that page (Add asset, Add member). Everything else
+goes in a single **Actions** menu at the right of the toolbar: a flat, primary
+coloured `ui.button('Actions')` with `icon-right=expand_more`, holding one
+`menu_action(icon, label, on_click)` (`theme/menu.py`) per item. A destructive
+item goes last, under a `ui.separator()`, with `negative=True`. The menu is the same on a phone and on
+desktop. Vol. Schedule (`pages/admin_tabs/admin_volunteers.py`) is the reference;
+its four loose buttons used to wrap onto three lines on a phone.
+
+**A row or card has one button and a ⋮ menu.** At most one action shows as a
+button on a list row or card, the one people use most (Check in or Check out,
+Test roll). Open, Edit and Delete go in a ⋮ menu at the end of the row: a flat
+round `more_vert` button named for its row ("More for Ana"), holding
+`menu_action` items, Delete last. Tapping the item's
+name opens or edits it. Desktop rows and phone cards carry the same button and
+the same menu. ⋮ is the only overflow icon; `more_horiz` (⋯) isn't used.
+
+**Destructive actions confirm first.** Delete, reset and remove never fire on
+one click. They sit behind a menu and open a `dialog-card--sm` confirmation that
+says what else is affected (the tournaments still using a preset, the shifts a
+reset clears). The confirm button is red and sits on the right.
+
+**Negative on the left, positive on the right, always.** In any pair of actions
+(a card, a sheet, a dialog footer) the negative or dismissive one (Can't make
+it, Decline, Cancel) is on the left and the positive one on the right, in every
+state. When a status replaces a button ("Acknowledged" after you acknowledge),
+the status takes that button's slot and the other button stays put; swapping
+sides between states makes people mis-tap. On a phone a card's pair splits the
+row in equal halves; on desktop it's a right-aligned pair.
+
+**Help is one "?" at the end of the heading row.** See the Help row above; in a
+dialog title it sits just before Close and matches it (a "Help" pill on desktop,
+a grey disc on a phone).
+
+## Dialogs
+
+- **The header is title, "?", Close.** Close is a labelled grey pill on desktop
+  and a grey X disc on a phone, so the dialog's primary button stays the only
+  accent. `dialog_header` draws both.
+- **On a phone every dialog is a bottom sheet** as tall as its content
+  (`mobile_sheet`), never a full screen of blank card.
+- **Pick the narrowest size that fits**: 520px (`--sm`) for a short form or a
+  confirmation, 640px for a long form, 960px (`--lg`) for a table or two columns.
+- **Fields fill the dialog's width.** The card's own padding is the one 16px
+  inset, so the body column doesn't add `q-pa-md` (CSS cancels it if it does).
+  Two short fields that belong together, a date and a time, share a row in a
+  `.form-pair`.
+- **A field's hint wraps under its own field** and never runs into the next one.
+- **The footer sits on the right** with the primary action last and Cancel just
+  left of it. A destructive dialog action (Delete match) sits apart at the far
+  left, with `ui.space()` between.
+
+## Desktop layout
+
+Desktop pages use the width rather than stretching one column across it:
+
+- A list of cards is a `wiz-tile-grid`, described under
+  [Type and page structure](#type-and-page-structure).
+- A page with a list and the thing you picked from it shows them side by side:
+  the run sheet and its match sheet, My Availability's windows beside the chart,
+  On Air's stage columns (stacked one after another on a phone).
+- The side menu is 224px. Don't widen it for one long label; shorten the label.
+
+## Match boards
+
+Every list of matches follows the Admin → Schedule run sheet
+(`theme/tables/match_run_sheet.py`). Proctor Station uses it too, and the
+player schedule is moving onto it.
+
+- **One line per match, grouped by what it needs**: Needs a decision, Live now,
+  Up next, Waiting for players, Confirmed. A line says only which match, when,
+  where, crew counts and status. Anything wider belongs in the sheet.
+- **Everything you can do to a match lives in its match sheet**
+  (`theme/dialog/match_sheet.py`), which opens when you tap the line: a side
+  sheet on desktop, a bottom sheet on a phone.
+- **A "Needs you" inbox** beside the board (`theme/match_inbox.py`) lists what's
+  waiting on a person rather than the clock, with the action on each item.
+- **Crew sign-up comes first.** The viewer's own Sign up / Withdraw sits in its
+  own tray above the names, in the same place whether they've signed up or not,
+  on the phone card and the desktop cell alike. A role nobody has signed up for
+  says "No signups yet" in muted italics (`st-neutral italic-note`).
+- **Amber means someone has to act.** In crew counts only "needs crew" is
+  amber; "to approve" and plain counts stay neutral.
+- **Filters label themselves** inside their box (no caption line above), a
+  multi-select reads as one line of text rather than wrapping chips, and the
+  filters sit in a 2×2 grid below 1024px and one row above it
+  (`theme/tables/match_filters.py`).
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -166,7 +278,7 @@ Automated, on every PR:
 
 | Check | Catches |
 |---|---|
-| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode |
+| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a `more_horiz` overflow icon; a red menu item that isn't last in its menu; the side menu off 224px |
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |

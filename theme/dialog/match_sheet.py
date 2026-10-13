@@ -385,7 +385,7 @@ class MatchSheet:
             else:
                 ui.label("hasn't confirmed").classes('match-sheet__pill-state')
             if self.access.approve_crew:
-                with ui.button(icon='more_horiz').props(f'flat round dense size=sm color=primary aria-label="More for {name}"'):
+                with ui.button(icon='more_vert').props(f'flat round dense size=sm color=primary aria-label="More for {name}"'):
                     with ui.menu():
                         ui.menu_item('Open profile', on_click=self._profile(row, role, idx))
                         ui.menu_item('Un-approve', on_click=self._toggle(row, role, idx))
