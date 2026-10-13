@@ -20,6 +20,7 @@ from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
@@ -51,9 +52,22 @@ _JOINED_VIA_SLOT = '''<q-td :props="props">
 _CC_FILTER = '_crew_coordinator'
 
 _ROW_ACTIONS = '''
-    <q-btn dense flat color="negative" label="Remove"
-           @click="$parent.$emit('remove_member', props.row)">
-        <q-tooltip>Remove from this community</q-tooltip>
+    <q-btn flat round dense icon="more_vert" color="grey-7"
+           :aria-label="'More for ' + props.row.username">
+        <q-menu auto-close anchor="bottom right" self="top right">
+            <q-list style="min-width: 200px">
+                <q-item clickable @click="$parent.$emit('edit_user', { row: props.row })">
+                    <q-item-section avatar><q-icon name="edit"/></q-item-section>
+                    <q-item-section>Edit member</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable class="text-negative"
+                        @click="$parent.$emit('remove_member', props.row)">
+                    <q-item-section avatar><q-icon name="person_remove" color="negative"/></q-item-section>
+                    <q-item-section>Remove from community…</q-item-section>
+                </q-item>
+            </q-list>
+        </q-menu>
     </q-btn>
 '''
 
@@ -126,8 +140,8 @@ async def _members_panel(
     with ui.column().classes('w-full gap-4'):
         ui.label(
             'Everyone in this community and the roles they hold. Add Member '
-            'brings in an existing account; Add User creates a new one. Click a '
-            'username to edit it.'
+            'brings in an existing account; Actions › Add user creates a new one. '
+            'Click a username to edit it.'
         ).classes('text-caption text-grey')
 
         # Pending join requests, above the member table. The queue carries its
@@ -389,11 +403,7 @@ async def _members_panel(
         with ui.row().classes('wiz-toolbar w-full items-center'):
             with ui.row().classes('wiz-toolbar__actions items-center no-wrap'):
                 ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
-                # Behind the menu on a phone, where the three don't fit one line.
-                ui.button('Add User', icon='add', on_click=add_user) \
-                    .props('flat color=primary').classes('gt-sm')
-                with ui.button(icon='more_vert').props('flat round dense') \
-                        .tooltip('More actions'):
+                with ui.button('Actions').props('flat color=primary icon-right=expand_more'):
                     # Filled after the table exists: the export reads its rows.
                     more_menu = ui.menu()
             # Filled after the table exists — the search and gear need a live table.
@@ -411,29 +421,26 @@ async def _members_panel(
             refresh_button(lambda: table_view.refresh())
 
         # Filter card — between toolbar and table, matching match-filters-card pattern
-        with ui.card().classes('match-filters-card') as filters_card:
+        # Fields label themselves and the role multi-select reads as one line of
+        # text, like the match board's filters (theme/tables/match_filters.py).
+        with ui.card().classes('match-filters-card match-filters-card--compact user-filters') as filters_card:
             with ui.row().classes('match-filter-row'):
-                with ui.column().classes('match-filter-column'):
-                    ui.label('Filter by Role').classes('match-filter-label')
-                    role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
-                    role_options[_TA_FILTER] = 'Tournament Admin'
-                    role_options[_CC_FILTER] = 'Crew Coordinator'
-                    role_select = (
-                        ui.select(options=role_options, value=[], multiple=True, label='Roles')
-                        .props('outlined dense use-chips clearable')
-                    )
-                    role_select.bind_value(selected, 'value')
-                with ui.column().classes('match-filter-column'):
-                    ui.label('Recently joined').classes('match-filter-label')
-                    recent_checkbox = ui.checkbox(
-                        f'Joined in the last {RECENT_JOIN_WINDOW.days} days',
-                    ).bind_value(recent_only, 'value')
+                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                role_options[_TA_FILTER] = 'Tournament Admin'
+                role_options[_CC_FILTER] = 'Crew Coordinator'
+                role_select = (
+                    ui.select(options=role_options, value=[], multiple=True, label='Roles')
+                    .classes('match-filter-field')
+                    .props('outlined dense options-dense clearable')
+                )
+                role_select.bind_value(selected, 'value')
+                recent_checkbox = ui.checkbox(
+                    f'Joined in the last {RECENT_JOIN_WINDOW.days} days',
+                ).bind_value(recent_only, 'value')
                 if accommodations:
-                    with ui.column().classes('match-filter-column'):
-                        ui.label('Accessibility').classes('match-filter-label')
-                        ada_checkbox = ui.checkbox(
-                            'Needs ADA accommodation',
-                        ).bind_value(ada_only, 'value')
+                    ada_checkbox = ui.checkbox(
+                        'Needs ADA',
+                    ).bind_value(ada_only, 'value')
 
         # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
@@ -462,10 +469,7 @@ async def _members_panel(
         with gear_slot:
             preferences_button(table_view.table)
         with more_menu:
-            with ui.menu_item(on_click=add_user).classes('lt-md'):
-                with ui.item_section().props('avatar'):
-                    ui.icon('add')
-                ui.item_section('Add User')
+            menu_action('add', 'Add user', add_user)
             # The plan's columns, not the shipped list: the export matches what
             # the person is looking at, hidden columns and all.
             csv_export_menu_item(

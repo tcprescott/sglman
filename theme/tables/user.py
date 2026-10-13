@@ -92,7 +92,7 @@ class UserTableView:
         # props.value is a comma-separated string.
         self.table.add_slot('body-cell-roles', '''<q-td :props="props">
             <div v-if="props.value" class="user-table__roles">
-                <q-chip v-for="r in props.value.split(',')" :key="r" color="primary" text-color="white" dense>{{ r.trim() }}</q-chip>
+                <span v-for="r in props.value.split(',')" :key="r" class="wiz-chip wiz-chip--neutral">{{ r.trim() }}</span>
             </div>
             <span v-else class="text-grey-7">-</span>
         </q-td>''')
@@ -157,6 +157,9 @@ class UserTableView:
                 <template v-if="field.event && props.row[field.key]">
                     <a href="#" @click.prevent="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
                 </template>
+                <div v-else-if="field.key === 'roles'" class="user-table__roles">
+                    <span v-for="r in props.row.roles.split(',')" :key="r" class="wiz-chip wiz-chip--neutral">{{{{ r.trim() }}}}</span>
+                </div>
                 <template v-else-if="field.bool">
                     {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
                 </template>

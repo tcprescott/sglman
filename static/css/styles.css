@@ -2349,10 +2349,10 @@ main.q-page:focus {
 /* A member's role chips wrap inside a capped cell. Quasar cells are nowrap, so
    someone holding four roles otherwise set the Roles column to one long line
    and pushed Joined and Via off the end of the table. */
-.user-table td .user-table__roles {
+.user-table .user-table__roles {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 0;
+    gap: var(--space-1);
     white-space: normal;
     min-width: 9rem;
     max-width: 20rem;
@@ -2363,9 +2363,18 @@ main.q-page:focus {
    columns. Break it inside a capped cell instead. */
 .user-table td .user-table__name {
     display: inline-block;
+    min-width: 7rem;
     max-width: 12rem;
     white-space: normal;
     overflow-wrap: anywhere;
+}
+
+/* Members filters on a phone: Roles across the top, the two checkboxes
+   side by side under it. */
+@media (max-width: 1023.98px) {
+    .user-filters .match-filter-row > .match-filter-field {
+        grid-column: 1 / -1;
+    }
 }
 
 /* Nine columns share a laptop-width page, so the cells give up some of
