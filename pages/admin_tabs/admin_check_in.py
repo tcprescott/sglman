@@ -16,6 +16,7 @@ from models import CheckInEventStatus
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_event_dialog
+from theme.empty_state import no_data_slot
 from theme.matcherino_login_card import matcherino_login_card
 from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
@@ -114,8 +115,9 @@ async def admin_check_in_page() -> None:
             table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
             table.add_slot('body-cell-synced', f'<q-td :props="props">{_SYNCED}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ACTIONS}</q-td>')
-            table.add_slot('no-data', '''<div class="full-width text-center text-grey-7 q-pa-md">
-                No check-in events yet. Create one for your next in-person event.</div>''')
+            table.add_slot('no-data', no_data_slot(
+                'No check-in events yet. Create one for your next in-person event.',
+                icon='how_to_reg'))
             enable_mobile_grid(
                 table, _COLUMNS, actions=_ACTIONS,
                 field_slots={'name': _NAME, 'status': _STATUS_BADGE, 'synced': _SYNCED},

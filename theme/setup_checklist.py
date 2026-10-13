@@ -30,14 +30,16 @@ def render_setup_checklist(
         )
 
         with ui.card().classes('w-full'):
-            for step in required:
-                _render_step(step, on_go)
+            with ui.element('div').classes('wiz-tile-grid'):
+                for step in required:
+                    _render_step(step, on_go)
 
             if advisory:
                 ui.separator().classes('q-my-sm')
                 ui.label('Recommended, not required').classes('text-caption text-grey')
-                for step in advisory:
-                    _render_step(step, on_go)
+                with ui.element('div').classes('wiz-tile-grid'):
+                    for step in advisory:
+                        _render_step(step, on_go)
 
 
 def _render_step(step: SetupStep, on_go: Optional[Callable[[str], None]]) -> None:

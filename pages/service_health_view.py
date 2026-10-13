@@ -12,6 +12,7 @@ from nicegui import background_tasks, context, ui
 
 from application.services import ProbeResult, ServiceStatus
 from application.utils.timezone import format_local_display
+from theme.empty_state import empty_panel
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
 _STATUS_COLOR = {
@@ -87,7 +88,7 @@ def render_health_table(
 ) -> None:
     """Render the status table for a set of probe results (no controls)."""
     if not results:
-        ui.label('Nothing to report. No dependencies configured yet.').classes('text-caption text-grey')
+        empty_panel('Nothing to report. No dependencies configured yet.', icon='monitor_heart')
         return
     gear_slot = ui.row().classes('w-full justify-end')
     table = ui.table(

@@ -48,6 +48,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -258,7 +259,7 @@ async def admin_qualifiers_page(
             ui.button(icon='refresh',
                       on_click=load_list).props('flat color=primary').tooltip('Refresh')
         if not state['qualifiers']:
-            ui.label('No qualifiers yet. Create one to get started.').classes('text-grey')
+            empty_panel('No qualifiers yet. Create one to get started.', icon='timer')
         with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
             for q in state['qualifiers']:
                 with ui.card().classes('w-full gap-1'):

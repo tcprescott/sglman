@@ -32,6 +32,7 @@ from application.utils.tournament_signup import SignupWindow
 from models import FeatureFlag
 from pages.home_tabs.triforce_texts import open_triforce_dialog, supporting_tournament_ids
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
@@ -264,10 +265,9 @@ async def tournaments_tab() -> None:
         async def cards() -> None:
             all_cards = await service.list_signup_cards(user)
             if not all_cards:
-                ui.label(
+                empty_panel(
                     'No tournaments are running right now. Check back when staff '
-                    'have set one up.'
-                ).classes('text-muted')
+                    'have set one up.', icon='emoji_events')
                 return
             for title, icon, predicate in _SECTIONS:
                 section = [c for c in all_cards if predicate(c)]

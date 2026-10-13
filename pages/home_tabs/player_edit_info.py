@@ -90,7 +90,7 @@ async def render_edit_info_tab(focus: str | None = None):
     # gap-2, not gap-4: .card-full-width already carries margin-bottom: 1.5em, so a
     # 1rem column gap on top of it double-spaced every card down a page that is
     # already mostly whitespace. The gap still separates the header/status rows.
-    with ui.column().classes('page-container-form gap-2'):
+    with ui.column().classes('page-container-narrow gap-2'):
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.card().classes('card-centered'):
@@ -258,180 +258,183 @@ async def render_edit_info_tab(focus: str | None = None):
             status_icon = ui.icon('check_circle', size='xs').classes('text-muted')
             status_label = ui.label('Changes save automatically').classes('text-muted text-caption')
 
-        with ui.card().classes('card-full-width').props(f'id={section_anchor(ProfileSection.PERSONAL)}'):
-            ui.label('Personal information').classes('section-title')
+        # CSS columns rather than a grid so
+        # the short sections pack under each other instead of leaving row gaps.
+        with ui.element('div').classes('wiz-profile-sections'):
+            with ui.card().classes('card-full-width').props(f'id={section_anchor(ProfileSection.PERSONAL)}'):
+                ui.label('Personal information').classes('section-title')
 
-            # Two-up on desktop; the .form-grid media query collapses it to a
-            # single column below 600px so neither field is squeezed on a phone.
-            #
-            # Each field carries its caption as its own Quasar label rather than a
-            # preceding ui.label: an empty label prop still sets q-field--labeled,
-            # which suppresses the placeholder entirely (so the hints below never
-            # rendered) and overwrites the input's accessible name with ''.
-            # ``stack-label`` keeps the caption above the box, as the old layout had it.
-            with ui.grid(columns=2).classes('form-grid'):
-                display_name_input = ui.input(
-                    'Display name',
-                    value=user.display_name or '',
-                    placeholder=user.username,
-                    on_change=on_personal_typing,
-                ).props('outlined dense stack-label').classes('input-full-width')
-                display_name_input.props(
-                    f'hint="Shown on schedules, brackets, and crew lists. Defaults to {user.username}."'
-                )
-                display_name_input.on('blur', flush_personal)
-
-                pronouns_input = ui.input(
-                    'Pronouns',
-                    value=user.pronouns or '',
-                    placeholder='e.g. they/them',
-                    on_change=on_personal_typing,
-                ).props('outlined dense stack-label hint="Shown next to your name. Leave blank to omit."') \
-                    .classes('input-full-width')
-                pronouns_input.on('blur', flush_personal)
-
-                # Only meaningful when the community follows each member's clock;
-                # when it pins one, this control would promise something it cannot
-                # deliver, so it is replaced by a note saying so.
-                if tz_pinned:
-                    ui.label(
-                        f'Times are shown in {tz_settings["name"]} for everyone in '
-                        'this community.'
-                    ).classes('text-caption text-grey q-mt-sm')
-                else:
-                    # A saved zone outside the shortlist must survive a re-save.
-                    if user.timezone and user.timezone not in tz_options:
-                        tz_options[user.timezone] = user.timezone
-                    tz_select = ui.select(
-                        tz_options, value=user.timezone or '',
-                        label='Timezone', with_input=True,
-                        on_change=lambda _: background_tasks.create(
-                            save_timezone(context.client)
-                        ),
+                # Two-up on desktop; the .form-grid media query collapses it to a
+                # single column below 600px so neither field is squeezed on a phone.
+                #
+                # Each field carries its caption as its own Quasar label rather than a
+                # preceding ui.label: an empty label prop still sets q-field--labeled,
+                # which suppresses the placeholder entirely (so the hints below never
+                # rendered) and overwrites the input's accessible name with ''.
+                # ``stack-label`` keeps the caption above the box, as the old layout had it.
+                with ui.grid(columns=2).classes('form-grid'):
+                    display_name_input = ui.input(
+                        'Display name',
+                        value=user.display_name or '',
+                        placeholder=user.username,
+                        on_change=on_personal_typing,
                     ).props('outlined dense stack-label').classes('input-full-width')
-                    tz_select.props(
-                        'hint="Times are shown in this timezone. '
-                        'Leave on Detect automatically to follow your device."'
+                    display_name_input.props(
+                        f'hint="Shown on schedules, brackets, and crew lists. Defaults to {user.username}."'
                     )
+                    display_name_input.on('blur', flush_personal)
 
-        # Notifications, split by the two questions people actually have: where
-        # a message goes (each channel is its own switch) and what they'll hear
-        # about. The Discord switch is enforced inside send_dm, so turning it
-        # off leaves device notifications running.
-        with ui.card().classes('card-full-width'):
-            with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
-                ui.label('Notifications').classes('section-title')
-                await help_icon('notification-settings')
+                    pronouns_input = ui.input(
+                        'Pronouns',
+                        value=user.pronouns or '',
+                        placeholder='e.g. they/them',
+                        on_change=on_personal_typing,
+                    ).props('outlined dense stack-label hint="Shown next to your name. Leave blank to omit."') \
+                        .classes('input-full-width')
+                    pronouns_input.on('blur', flush_personal)
 
-            device_count = {'n': 0}
-
-            @ui.refreshable
-            def all_off_note() -> None:
-                if dm_switch.value or device_count['n']:
-                    return
-                with banner(
-                    "Everything's off, so Wizzrobe can't reach you. Turn on "
-                    'Discord DMs or a device to hear about your matches.',
-                    tone='warning', icon='notifications_off',
-                ):
-                    pass
-
-            with ui.column().classes('wiz-notify-group'):
-                ui.label('Where it goes').classes('wiz-notify-group__head')
-                with ui.row().classes('wiz-notify-item no-wrap'):
-                    ui.icon('chat', size='sm').classes('wiz-notify-item__icon')
-                    with ui.column().classes('gap-0 col min-w-0'):
-                        ui.label('Discord DMs').classes('wiz-notify-item__name')
-                        ui.label(f'To @{user.username}').classes('text-muted text-caption ellipsis')
-                    dm_switch = ui.switch(
-                        value=user.dm_notifications, on_change=on_dm_change,
-                    ).props('aria-label="Discord DMs"')
-
-                def on_device_count(n: int) -> None:
-                    device_count['n'] = n
-                    all_off_note.refresh()
-
-                await render_device_rows(user, on_count_change=on_device_count)
-
-            all_off_note()
-
-            with ui.column().classes('wiz-notify-group'):
-                ui.label('What you hear about').classes('wiz-notify-group__head')
-                with ui.column().classes('wiz-notify-item gap-1'):
-                    ui.label('About you').classes('wiz-notify-item__name')
-                    for line in (
-                        'Your matches: scheduled, moved, cancelled, seeds and race rooms',
-                        'Crew slots and volunteer shifts, with reminders',
-                        'Answers to requests you sent, and matches you watch',
-                    ):
-                        with ui.row().classes('items-start gap-2 no-wrap'):
-                            ui.icon('check', size='xs').classes('st-ok q-mt-xs')
-                            ui.label(line).classes('text-caption col')
-
-                # A follow is not a consequence of enrollment:
-                # get_match_notification_subscribers never checks the player
-                # pool, so every active tournament is listed and the ones the
-                # player is in are marked.
-                with ui.column().classes('wiz-notify-item gap-2'):
-                    with ui.column().classes('gap-0'):
-                        ui.label('Tournaments you follow').classes('wiz-notify-item__name')
+                    # Only meaningful when the community follows each member's clock;
+                    # when it pins one, this control would promise something it cannot
+                    # deliver, so it is replaced by a note saying so.
+                    if tz_pinned:
                         ui.label(
-                            "Hear about other people's matches too. You don't have to be playing."
-                        ).classes('text-muted text-caption')
-                    if not active_tournaments:
-                        ui.label('No tournaments are running right now.').classes('text-muted text-caption')
-                    for tournament in active_tournaments:
-                        existing = prefs_by_tournament.get(tournament.id)
-                        current_level = existing.match_notifications if existing else 'none'
-                        with ui.row().classes('wiz-notify-follow items-center w-full gap-2'):
-                            with ui.row().classes('items-center gap-2 col min-w-0 no-wrap'):
-                                ui.label(tournament.name).classes('ellipsis')
-                                if tournament.id in selected_tournament_ids:
-                                    ui.badge('Playing').props('outline color=primary')
-                            pref_widgets[tournament.id] = ui.select(
-                                options=level_options,
-                                value=current_level,
-                                on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
-                            ).props(f'outlined dense aria-label="Alerts for {tournament.name}"') \
-                                .classes('wiz-notify-follow__select')
+                            f'Times are shown in {tz_settings["name"]} for everyone in '
+                            'this community.'
+                        ).classes('text-caption text-grey q-mt-sm')
+                    else:
+                        # A saved zone outside the shortlist must survive a re-save.
+                        if user.timezone and user.timezone not in tz_options:
+                            tz_options[user.timezone] = user.timezone
+                        tz_select = ui.select(
+                            tz_options, value=user.timezone or '',
+                            label='Timezone', with_input=True,
+                            on_change=lambda _: background_tasks.create(
+                                save_timezone(context.client)
+                            ),
+                        ).props('outlined dense stack-label').classes('input-full-width')
+                        tz_select.props(
+                            'hint="Times are shown in this timezone. '
+                            'Leave on Detect automatically to follow your device."'
+                        )
 
-        # Connected accounts (Challonge / Twitch / racetime) — one compact card
-        # of rows instead of three near-identical cards.
-        link_configs = [TWITCH_CONFIG, RACETIME_CONFIG]
-        if challonge_live:
-            link_configs.insert(0, CHALLONGE_CONFIG)
-        await render_connected_accounts_section(user, link_configs)
+            # Notifications, split by the two questions people actually have: where
+            # a message goes (each channel is its own switch) and what they'll hear
+            # about. The Discord switch is enforced inside send_dm, so turning it
+            # off leaves device notifications running.
+            with ui.card().classes('card-full-width'):
+                with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
+                    ui.label('Notifications').classes('section-title')
+                    await help_icon('notification-settings')
 
-        # Deliberately its own card rather than a row among the linked accounts:
-        # those three are verified by the provider, this one is typed in, and
-        # sitting it beside them would let it read as verified too.
-        if payouts_live:
-            with ui.card().classes('card-full-width') \
-                    .props(f'id={section_anchor(ProfileSection.MATCHERINO)}'):
-                ui.label('Matcherino handle').classes('section-title')
-                ui.label(
-                    'Where prize money is sent, and how your event ticket gets '
-                    'linked to this profile at check-in. Copy it from your '
-                    'Matcherino profile, including the number after the hash. '
-                    "It's verified before any payout goes out."
-                ).classes('text-muted text-caption')
-                matcherino_input = ui.input(
-                    'Matcherino handle',
-                    value=user.matcherino_username or '',
-                    placeholder='e.g. yourname#123456',
-                    on_change=on_personal_typing,
-                ).props('outlined dense stack-label').classes('input-full-width')
-                matcherino_input.on('blur', flush_personal)
+                device_count = {'n': 0}
 
-        if accommodations_live:
-            await render_accommodation_section(user)
+                @ui.refreshable
+                def all_off_note() -> None:
+                    if dm_switch.value or device_count['n']:
+                        return
+                    with banner(
+                        "Everything's off, so Wizzrobe can't reach you. Turn on "
+                        'Discord DMs or a device to hear about your matches.',
+                        tone='warning', icon='notifications_off',
+                    ):
+                        pass
 
-        # What you sent through the feedback form and whether it was read.
-        # Draws nothing when you have sent none, or when the community has the
-        # feature off.
-        await render_my_feedback_section(user)
+                with ui.column().classes('wiz-notify-group'):
+                    ui.label('Where it goes').classes('wiz-notify-group__head')
+                    with ui.row().classes('wiz-notify-item no-wrap'):
+                        ui.icon('chat', size='sm').classes('wiz-notify-item__icon')
+                        with ui.column().classes('gap-0 col min-w-0'):
+                            ui.label('Discord DMs').classes('wiz-notify-item__name')
+                            ui.label(f'To @{user.username}').classes('text-muted text-caption ellipsis')
+                        dm_switch = ui.switch(
+                            value=user.dm_notifications, on_change=on_dm_change,
+                        ).props('aria-label="Discord DMs"')
 
-        # API token management (self-contained; collapsed developer surface).
-        await render_api_tokens_section(user)
+                    def on_device_count(n: int) -> None:
+                        device_count['n'] = n
+                        all_off_note.refresh()
+
+                    await render_device_rows(user, on_count_change=on_device_count)
+
+                all_off_note()
+
+                with ui.column().classes('wiz-notify-group'):
+                    ui.label('What you hear about').classes('wiz-notify-group__head')
+                    with ui.column().classes('wiz-notify-item gap-1'):
+                        ui.label('About you').classes('wiz-notify-item__name')
+                        for line in (
+                            'Your matches: scheduled, moved, cancelled, seeds and race rooms',
+                            'Crew slots and volunteer shifts, with reminders',
+                            'Answers to requests you sent, and matches you watch',
+                        ):
+                            with ui.row().classes('items-start gap-2 no-wrap'):
+                                ui.icon('check', size='xs').classes('st-ok q-mt-xs')
+                                ui.label(line).classes('text-caption col')
+
+                    # A follow is not a consequence of enrollment:
+                    # get_match_notification_subscribers never checks the player
+                    # pool, so every active tournament is listed and the ones the
+                    # player is in are marked.
+                    with ui.column().classes('wiz-notify-item gap-2'):
+                        with ui.column().classes('gap-0'):
+                            ui.label('Tournaments you follow').classes('wiz-notify-item__name')
+                            ui.label(
+                                "Hear about other people's matches too. You don't have to be playing."
+                            ).classes('text-muted text-caption')
+                        if not active_tournaments:
+                            ui.label('No tournaments are running right now.').classes('text-muted text-caption')
+                        for tournament in active_tournaments:
+                            existing = prefs_by_tournament.get(tournament.id)
+                            current_level = existing.match_notifications if existing else 'none'
+                            with ui.row().classes('wiz-notify-follow items-center w-full gap-2'):
+                                with ui.row().classes('items-center gap-2 col min-w-0 no-wrap'):
+                                    ui.label(tournament.name).classes('ellipsis')
+                                    if tournament.id in selected_tournament_ids:
+                                        ui.badge('Playing').props('outline color=primary')
+                                pref_widgets[tournament.id] = ui.select(
+                                    options=level_options,
+                                    value=current_level,
+                                    on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
+                                ).props(f'outlined dense aria-label="Alerts for {tournament.name}"') \
+                                    .classes('wiz-notify-follow__select')
+
+            # Connected accounts (Challonge / Twitch / racetime) — one compact card
+            # of rows instead of three near-identical cards.
+            link_configs = [TWITCH_CONFIG, RACETIME_CONFIG]
+            if challonge_live:
+                link_configs.insert(0, CHALLONGE_CONFIG)
+            await render_connected_accounts_section(user, link_configs)
+
+            # Deliberately its own card rather than a row among the linked accounts:
+            # those three are verified by the provider, this one is typed in, and
+            # sitting it beside them would let it read as verified too.
+            if payouts_live:
+                with ui.card().classes('card-full-width') \
+                        .props(f'id={section_anchor(ProfileSection.MATCHERINO)}'):
+                    ui.label('Matcherino handle').classes('section-title')
+                    ui.label(
+                        'Where prize money is sent, and how your event ticket gets '
+                        'linked to this profile at check-in. Copy it from your '
+                        'Matcherino profile, including the number after the hash. '
+                        "It's verified before any payout goes out."
+                    ).classes('text-muted text-caption')
+                    matcherino_input = ui.input(
+                        'Matcherino handle',
+                        value=user.matcherino_username or '',
+                        placeholder='e.g. yourname#123456',
+                        on_change=on_personal_typing,
+                    ).props('outlined dense stack-label').classes('input-full-width')
+                    matcherino_input.on('blur', flush_personal)
+
+            if accommodations_live:
+                await render_accommodation_section(user)
+
+            # What you sent through the feedback form and whether it was read.
+            # Draws nothing when you have sent none, or when the community has the
+            # feature off.
+            await render_my_feedback_section(user)
+
+            # API token management (self-contained; collapsed developer surface).
+            await render_api_tokens_section(user)
 
     focus_profile_section(focus)

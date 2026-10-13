@@ -27,6 +27,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.menu import menu_action, more_menu
 
 # The three outcomes a human may assert, worded as a person would say them rather
@@ -80,56 +81,57 @@ def build_live_tab(
             'entrant\'s result is captured as an approved, par-scored run.'
         ).classes('text-caption text-grey')
         if not pools:
-            ui.label('Add a pool first, then schedule a live race for it.').classes('text-grey')
+            empty_panel('Add a pool first, then schedule a live race for it.', icon='flag')
             return
         if not state['live_races']:
-            ui.label("No live races scheduled. Start one when you're ready.").classes('text-grey')
-        for lr in state['live_races']:
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(lr.match_title).classes('text-subtitle1')
-                    ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
-                    ui.badge(f'pool: {lr.pool.name}', color='grey')
-                    ui.space()
-                    cancelled = enum_value(lr.status) == 'cancelled'
-                    can_open = not lr.racetime_slug and not cancelled
-                    # The next step is the one button; the step after it waits in ⋮.
-                    # A cancelled race is over: offering to open a room for it invites
-                    # a click that only produces a refusal.
-                    if can_open:
-                        ui.button('Open room', icon='meeting_room',
-                                  on_click=lambda lid=lr.id: _open_room(lid)
-                                  ).props('flat color=primary')
-                    elif not cancelled:
-                        _result_action(lr, as_button=True)
-                    if not cancelled:
-                        with more_menu(lr.match_title):
-                            if can_open:
-                                _result_action(lr, as_button=False)
-                                ui.separator()
-                            menu_action('cancel', 'Cancel race',
-                                        lambda race=lr: _cancel_live_race(race), negative=True)
-                if lr.racetime_slug:
-                    ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
-                if lr.permalink_id is None:
-                    ui.label('No permalink assigned, so results cannot be scored. '
-                             'Set one before the race runs.'
-                             ).classes('text-caption text-orange')
-                # The to-do the audit log used to keep to itself: these racers came out
-                # of the room with no run, and nothing said so.
-                if lr.unmatched_handles:
-                    with ui.column().classes('gap-0'):
-                        with ui.row().classes('items-center text-caption text-orange'):
-                            ui.icon('person_off')
-                            ui.label(f'{len(lr.unmatched_handles)} racer(s) could not be '
-                                     'recorded: ' + ', '.join(lr.unmatched_handles))
-                        # Two causes, and the admin cannot tell them apart from the
-                        # handle alone: no linked account, or racetime calling them
-                        # finished without sending a time. Both remedies named.
-                        ui.label('Either their racetime account is not linked here — link '
-                                 'it on Admin → Users and record the race again — or type '
-                                 'the result in with Record results.'
-                                 ).classes('text-caption text-grey')
+            empty_panel("No live races scheduled. Start one when you're ready.", icon='flag')
+        with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+            for lr in state['live_races']:
+                with ui.card():
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(lr.match_title).classes('text-subtitle1')
+                        ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
+                        ui.badge(f'pool: {lr.pool.name}', color='grey')
+                        ui.space()
+                        cancelled = enum_value(lr.status) == 'cancelled'
+                        can_open = not lr.racetime_slug and not cancelled
+                        # The next step is the one button; the step after it waits in ⋮.
+                        # A cancelled race is over: offering to open a room for it invites
+                        # a click that only produces a refusal.
+                        if can_open:
+                            ui.button('Open room', icon='meeting_room',
+                                      on_click=lambda lid=lr.id: _open_room(lid)
+                                      ).props('flat color=primary')
+                        elif not cancelled:
+                            _result_action(lr, as_button=True)
+                        if not cancelled:
+                            with more_menu(lr.match_title):
+                                if can_open:
+                                    _result_action(lr, as_button=False)
+                                    ui.separator()
+                                menu_action('cancel', 'Cancel race',
+                                            lambda race=lr: _cancel_live_race(race), negative=True)
+                    if lr.racetime_slug:
+                        ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
+                    if lr.permalink_id is None:
+                        ui.label('No permalink assigned, so results cannot be scored. '
+                                 'Set one before the race runs.'
+                                 ).classes('text-caption text-orange')
+                    # The to-do the audit log used to keep to itself: these racers came out
+                    # of the room with no run, and nothing said so.
+                    if lr.unmatched_handles:
+                        with ui.column().classes('gap-0'):
+                            with ui.row().classes('items-center text-caption text-orange'):
+                                ui.icon('person_off')
+                                ui.label(f'{len(lr.unmatched_handles)} racer(s) could not be '
+                                         'recorded: ' + ', '.join(lr.unmatched_handles))
+                            # Two causes, and the admin cannot tell them apart from the
+                            # handle alone: no linked account, or racetime calling them
+                            # finished without sending a time. Both remedies named.
+                            ui.label('Either their racetime account is not linked here — link '
+                                     'it on Admin → Users and record the race again — or type '
+                                     'the result in with Record results.'
+                                     ).classes('text-caption text-grey')
 
     def _open_live_race_dialog(pools) -> None:
         with form_dialog('New Live Race', card_classes='dialog-card dialog-card--sm') as dialog:

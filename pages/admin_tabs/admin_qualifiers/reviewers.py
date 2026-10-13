@@ -20,6 +20,7 @@ from application.services.async_qualifier.async_qualifier_rules import display_n
 from pages.admin_tabs.admin_qualifiers.shared import REVIEWERS_TAB
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.menu import menu_action, more_menu
 
 
@@ -50,22 +51,23 @@ def build_reviewers_tab(
         if not reviewers:
             # Not a broken state: community STAFF can administer every qualifier,
             # so an empty roster is the default rather than a lockout.
-            ui.label('No qualifier-specific reviewers. Community staff can still '
-                     'review every run here.').classes('text-grey')
+            empty_panel('No qualifier-specific reviewers. Community staff can still '
+                        'review every run here.', icon='group')
             return
-        for person in reviewers:
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(display_name(person)).classes('text-subtitle1')
-                    if not person.discord_id:
-                        # Review verdicts DM the runner, and the queue notification
-                        # DMs the reviewer — neither reaches someone with no Discord.
-                        ui.badge('no Discord', color='grey').tooltip(
-                            'This reviewer will not receive queue notifications.')
-                    ui.space()
-                    with more_menu(display_name(person)):
-                        menu_action('person_remove', 'Remove reviewer',
-                                    lambda p=person: _remove(p), negative=True)
+        with ui.element('div').classes('wiz-tile-grid'):
+            for person in reviewers:
+                with ui.card():
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(display_name(person)).classes('text-subtitle1')
+                        if not person.discord_id:
+                            # Review verdicts DM the runner, and the queue notification
+                            # DMs the reviewer — neither reaches someone with no Discord.
+                            ui.badge('no Discord', color='grey').tooltip(
+                                'This reviewer will not receive queue notifications.')
+                        ui.space()
+                        with more_menu(display_name(person)):
+                            menu_action('person_remove', 'Remove reviewer',
+                                        lambda p=person: _remove(p), negative=True)
 
     def _open_add_dialog() -> None:
         with form_dialog('Add a reviewer', card_classes='dialog-card dialog-card--sm') as dialog:

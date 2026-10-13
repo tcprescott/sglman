@@ -6,6 +6,7 @@ from application.services import AuthService, TriforceTextService, get_user_from
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.menu import menu_action, more_menu
 from theme.page_header import page_header
 
@@ -40,7 +41,7 @@ async def admin_triforce_texts_page() -> None:
     if not tournaments:
         with ui.column().classes('page-container-narrow'):
             page_header('Triforce Texts')
-            ui.label('You are not an admin of any active tournament.').classes('text-grey-7')
+            empty_panel('You are not an admin of any active tournament.', icon='emoji_events')
         return
 
     state = {
@@ -107,53 +108,54 @@ async def admin_triforce_texts_page() -> None:
                     )
                 with table_container:
                     if not rows:
-                        ui.label('No submissions match the current filter.').classes('text-grey-7')
+                        empty_panel('No submissions match the current filter.', icon='change_history')
                         return
-                    for entry in rows:
-                        with ui.card().classes('w-full q-mb-sm'):
-                            with ui.row().classes('items-start justify-between w-full'):
-                                with ui.column().classes('q-gutter-xs'):
-                                    ui.label(entry.text).style(
-                                        'white-space: pre-line; font-family: monospace;'
-                                    )
-                                    author = entry.author or (
-                                        entry.user.preferred_name if entry.user else 'unknown'
-                                    )
-                                    ui.label(f'by {author}').classes('text-caption text-grey-7')
-                                with ui.column().classes('q-gutter-xs items-end'):
-                                    status = (
-                                        'Pending' if entry.approved is None
-                                        else 'Approved' if entry.approved
-                                        else 'Rejected'
-                                    )
-                                    status_color = (
-                                        'orange' if entry.approved is None
-                                        else 'positive' if entry.approved
-                                        else 'negative'
-                                    )
-                                    ui.badge(status, color=status_color)
-                                    with ui.row().classes('items-center no-wrap gap-1'):
-                                        if entry.approved is None:
-                                            ui.button(
-                                                'Reject', icon='close',
-                                                on_click=lambda _, eid=entry.id: _moderate(eid, False),
-                                            ).props('flat dense no-caps color=negative')
-                                            ui.button(
-                                                'Approve', icon='check',
-                                                on_click=lambda _, eid=entry.id: _moderate(eid, True),
-                                            ).props('flat dense no-caps color=primary')
-                                        with more_menu(f'text by {author}'):
-                                            if entry.approved is True:
-                                                menu_action('close', 'Reject',
-                                                            lambda _, eid=entry.id: _moderate(eid, False))
-                                                ui.separator()
-                                            elif entry.approved is False:
-                                                menu_action('check', 'Approve',
-                                                            lambda _, eid=entry.id: _moderate(eid, True))
-                                                ui.separator()
-                                            menu_action('delete', 'Delete',
-                                                        lambda _, eid=entry.id: _confirm_delete(eid),
-                                                        negative=True)
+                    with ui.element('div').classes('wiz-tile-grid'):
+                        for entry in rows:
+                            with ui.card():
+                                with ui.row().classes('items-start justify-between w-full'):
+                                    with ui.column().classes('q-gutter-xs'):
+                                        ui.label(entry.text).style(
+                                            'white-space: pre-line; font-family: monospace;'
+                                        )
+                                        author = entry.author or (
+                                            entry.user.preferred_name if entry.user else 'unknown'
+                                        )
+                                        ui.label(f'by {author}').classes('text-caption text-grey-7')
+                                    with ui.column().classes('q-gutter-xs items-end'):
+                                        status = (
+                                            'Pending' if entry.approved is None
+                                            else 'Approved' if entry.approved
+                                            else 'Rejected'
+                                        )
+                                        status_color = (
+                                            'orange' if entry.approved is None
+                                            else 'positive' if entry.approved
+                                            else 'negative'
+                                        )
+                                        ui.badge(status, color=status_color)
+                                        with ui.row().classes('items-center no-wrap gap-1'):
+                                            if entry.approved is None:
+                                                ui.button(
+                                                    'Reject', icon='close',
+                                                    on_click=lambda _, eid=entry.id: _moderate(eid, False),
+                                                ).props('flat dense no-caps color=negative')
+                                                ui.button(
+                                                    'Approve', icon='check',
+                                                    on_click=lambda _, eid=entry.id: _moderate(eid, True),
+                                                ).props('flat dense no-caps color=primary')
+                                            with more_menu(f'text by {author}'):
+                                                if entry.approved is True:
+                                                    menu_action('close', 'Reject',
+                                                                lambda _, eid=entry.id: _moderate(eid, False))
+                                                    ui.separator()
+                                                elif entry.approved is False:
+                                                    menu_action('check', 'Approve',
+                                                                lambda _, eid=entry.id: _moderate(eid, True))
+                                                    ui.separator()
+                                                menu_action('delete', 'Delete',
+                                                            lambda _, eid=entry.id: _confirm_delete(eid),
+                                                            negative=True)
             background_tasks.create(render())
 
         async def _moderate(text_id: int, approved: bool) -> None:

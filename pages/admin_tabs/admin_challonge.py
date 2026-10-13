@@ -12,6 +12,7 @@ from application.utils.timezone import format_local_display
 from models import Tournament
 from theme.dialog.challonge_participants_dialog import ChallongeParticipantsDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
@@ -114,51 +115,52 @@ async def admin_challonge_page() -> None:
         async def linked_tournaments() -> None:
             tournaments = await Tournament.filter(challonge_tournament_id__isnull=False, tenant_id=require_tenant_id()).order_by('name')
             if not tournaments:
-                ui.label('No tournaments are linked to Challonge yet. Link one from its edit dialog '
-                         'on the Tournaments tab.').classes('text-muted')
+                empty_panel('No tournaments are linked to Challonge yet. Link one from its edit dialog '
+                            'on the Tournaments tab.', icon='link_off')
                 return
             can_change_stages = await service.can_change_stages()
-            for t in tournaments:
-                with ui.row().classes('items-center w-full no-wrap'):
-                    with ui.column().classes('gap-0 col'):
-                        with ui.row().classes('items-center gap-2'):
-                            ui.label(t.name).classes('text-bold')
-                            if t.challonge_tournament_url:
-                                ui.link('bracket', t.challonge_tournament_url,
-                                        new_tab=True).classes('text-caption')
-                            stage = service.stage_label_for(t)
-                            if stage:
-                                ui.badge(stage).props('outline color=primary')
-                        synced = (
-                            format_local_display(t.challonge_last_synced_at)
-                            if t.challonge_last_synced_at else 'never'
-                        )
-                        ui.label(f'Last synced: {synced}').classes('text-caption text-muted')
-                    ui.button(
-                        'Sync', icon='sync',
-                        # Return the coroutine so NiceGUI awaits it in the button's
-                        # slot; a bare background task has no slot, so the notify /
-                        # refresh calls in sync_one would raise and be lost.
-                        on_click=lambda _=None, tid=t.id: sync_one(tid),
-                    ).props('flat color=primary')
-                    with more_menu(t.name):
-                        for action in service.stage_actions_for(t):
-                            item = menu_action(
-                                'skip_next', action.label,
-                                lambda _=None, row=t, a=action: confirm_stage(row, a),
+            with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+                for t in tournaments:
+                    with ui.card(), ui.row().classes('items-center w-full no-wrap'):
+                        with ui.column().classes('gap-0 col'):
+                            with ui.row().classes('items-center gap-2'):
+                                ui.label(t.name).classes('text-bold')
+                                if t.challonge_tournament_url:
+                                    ui.link('bracket', t.challonge_tournament_url,
+                                            new_tab=True).classes('text-caption')
+                                stage = service.stage_label_for(t)
+                                if stage:
+                                    ui.badge(stage).props('outline color=primary')
+                            synced = (
+                                format_local_display(t.challonge_last_synced_at)
+                                if t.challonge_last_synced_at else 'never'
                             )
-                            if not can_change_stages:
-                                item.disable()
-                                item.tooltip(
-                                    'Reconnect Challonge above to let Wizzrobe change '
-                                    'tournament stages'
+                            ui.label(f'Last synced: {synced}').classes('text-caption text-muted')
+                        ui.button(
+                            'Sync', icon='sync',
+                            # Return the coroutine so NiceGUI awaits it in the button's
+                            # slot; a bare background task has no slot, so the notify /
+                            # refresh calls in sync_one would raise and be lost.
+                            on_click=lambda _=None, tid=t.id: sync_one(tid),
+                        ).props('flat color=primary')
+                        with more_menu(t.name):
+                            for action in service.stage_actions_for(t):
+                                item = menu_action(
+                                    'skip_next', action.label,
+                                    lambda _=None, row=t, a=action: confirm_stage(row, a),
                                 )
-                        menu_action('group', 'Entrants',
-                                    lambda _=None, row=t: ChallongeParticipantsDialog(row).open())
-                        if is_staff:
-                            ui.separator()
-                            menu_action('link_off', 'Unlink from Challonge',
-                                        lambda _=None, row=t: confirm_unlink(row), negative=True)
+                                if not can_change_stages:
+                                    item.disable()
+                                    item.tooltip(
+                                        'Reconnect Challonge above to let Wizzrobe change '
+                                        'tournament stages'
+                                    )
+                            menu_action('group', 'Entrants',
+                                        lambda _=None, row=t: ChallongeParticipantsDialog(row).open())
+                            if is_staff:
+                                ui.separator()
+                                menu_action('link_off', 'Unlink from Challonge',
+                                            lambda _=None, row=t: confirm_unlink(row), negative=True)
 
         def confirm_stage(tournament, action) -> None:
             async def do_advance() -> None:
