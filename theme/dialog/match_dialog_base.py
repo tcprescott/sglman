@@ -30,6 +30,7 @@ from models import Match, PresetOverride
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
+    mobile_sheet,
     native_date_input,
     native_time_input,
     render_suggest_time_button,
@@ -503,9 +504,10 @@ class BaseMatchDialog:
 
         # Built inline rather than through ConfirmationDialog: both exits act,
         # and its cancel button only closes itself.
-        with ui.dialog() as choice, ui.card().classes('dialog-card'):
+        with ui.dialog() as choice, ui.card().classes('dialog-card dialog-card--sm'):
+            mobile_sheet(choice)
             dialog_header('Someone else saved this match first', choice)
-            with ui.column().classes('q-pa-md'):
+            with ui.column():
                 ui.label(self.stale_edit_message(stale_message, latest)).style(
                     'white-space: pre-line')
             with dialog_actions().classes('justify-end'):

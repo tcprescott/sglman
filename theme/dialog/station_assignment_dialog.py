@@ -70,7 +70,7 @@ class StationAssignmentDialog:
 
         title = copy['title'].format(match=match_model_label(self.match, with_context=False))
         help = await resolve_help(['proctor-stations'])
-        with form_dialog(title, card_classes='dialog-card dialog-card--md', help=help) as self.dialog:
+        with form_dialog(title, card_classes='dialog-card dialog-card--sm', help=help) as self.dialog:
             with ui.column().classes('full-width gap-3'):
                 context = []
                 if self.match.tournament:

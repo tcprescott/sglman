@@ -13,6 +13,7 @@ form; a blank submit is rejected and clearing is an explicit action.
 from nicegui import app, background_tasks, context, ui
 
 from application.services import RandomizerCredentialService, get_user_from_discord_id
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import wire_tab_refresh
@@ -46,6 +47,18 @@ async def admin_randomizer_keys_page() -> None:
             ui.notify('Credential cleared', color='positive')
             credentials_section.refresh()
 
+    def confirm_clear(row: dict) -> None:
+        client = context.client
+        ConfirmationDialog(
+            f"Clear the {row['label']} for {row['randomizer']}? Seeds for it can’t be rolled, "
+            'and it disappears from the Presets and Tournament pickers, until someone '
+            'enters a key again.',
+            on_confirm=lambda: background_tasks.create(
+                clear(row['randomizer'], row['key'], client)
+            ),
+            confirm_text='Clear', title='Clear credential?',
+        ).open()
+
     @ui.refreshable
     async def credentials_section() -> None:
         try:
@@ -72,19 +85,17 @@ async def admin_randomizer_keys_page() -> None:
                     ).classes('flex-grow')
                     if row['configured']:
                         value_input.props('hint="Entering a new value replaces the stored one"')
+                    if row['configured']:
+                        ui.button(
+                            'Clear', icon='delete',
+                            on_click=lambda r=row: confirm_clear(r),
+                        ).props('flat color=negative dense')
                     ui.button(
                         'Save', icon='save',
                         on_click=lambda r=row, i=value_input: background_tasks.create(
                             save(r['randomizer'], r['key'], i, context.client)
                         ),
                     ).props('color=primary dense')
-                    if row['configured']:
-                        ui.button(
-                            'Clear', icon='delete',
-                            on_click=lambda r=row: background_tasks.create(
-                                clear(r['randomizer'], r['key'], context.client)
-                            ),
-                        ).props('flat color=negative dense')
 
     with ui.column().classes('page-container-narrow'):
         page_header(

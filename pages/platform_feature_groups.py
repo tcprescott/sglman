@@ -18,6 +18,8 @@ from application.services import FeatureFlagService, TenantService
 from models import FeatureFlag
 from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, preferences_button
@@ -35,12 +37,11 @@ _DEFAULT_CHIP = '''
     <span v-if="props.row.default" class="wiz-chip wiz-chip--ok">Default</span>
 '''
 
-_ROW_ACTIONS = '''
-    <q-btn dense flat color="primary" label="Edit"
-           @click="$parent.$emit('edit_group', props.row)" />
-    <q-btn dense flat color="negative" label="Delete"
-           @click="$parent.$emit('delete_group', props.row)" />
-'''
+_NAME = slot_name_link('name', 'edit_group')
+_ROW_ACTIONS = slot_more_menu('props.row.name', [
+    SlotItem('edit', 'Edit group', 'edit_group'),
+    SlotItem('delete', 'Delete group', 'delete_group', negative=True),
+])
 
 
 async def render_feature_groups_section(user) -> None:
@@ -62,6 +63,7 @@ async def render_feature_groups_section(user) -> None:
         {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
     ]
     group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full wiz-table')
+    group_table.add_slot('body-cell-name', f'<q-td :props="props">{_NAME}</q-td>')
     group_table.add_slot('body-cell-flags', f'<q-td :props="props">{_FLAG_CHIPS}</q-td>')
     group_table.add_slot('body-cell-default', f'<q-td :props="props">{_DEFAULT_CHIP}</q-td>')
     group_table.add_slot('body-cell-actions',
@@ -69,7 +71,7 @@ async def render_feature_groups_section(user) -> None:
     enable_mobile_grid(
         group_table, group_columns, actions=_ROW_ACTIONS,
         table_key=TableKeys.PLATFORM_FEATURE_GROUPS,
-        field_slots={'flags': _FLAG_CHIPS, 'default': _DEFAULT_CHIP},
+        field_slots={'name': _NAME, 'flags': _FLAG_CHIPS, 'default': _DEFAULT_CHIP},
     )
     with group_header_row:
         preferences_button(group_table)
@@ -118,7 +120,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
             return
         ui.notify('Updated', color='positive')
 
-    with form_dialog(f"Features for {row['name']}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
+    with form_dialog(f"Features for {row['name']}", card_classes='dialog-card gap-2') as dialog:
 
         group_options = {0: '— None (default fallback) —'}
         for g in groups:
@@ -143,8 +145,6 @@ async def open_tenant_features_dialog(actor, row) -> None:
                     value=current,
                     on_change=lambda e, fv=f['flag']: _override(fv, e.value),
                 ).props('dense outlined').classes('w-44 shrink-0')
-        with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 
 
@@ -232,10 +232,17 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
 
 
 async def _delete_group(actor, table, row) -> None:
-    try:
-        await FeatureFlagService().delete_group(actor, row['id'])
-    except (ValueError, PermissionError) as e:
-        notify_error(e)
-        return
-    ui.notify('Group deleted; its tenants fell back to the default', color='positive')
-    await _refresh_groups(table)
+    async def do_delete() -> None:
+        try:
+            await FeatureFlagService().delete_group(actor, row['id'])
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify('Group deleted; its tenants fell back to the default', color='positive')
+        await _refresh_groups(table)
+
+    ConfirmationDialog(
+        message=f"Delete the {row['name']} group? Its {row['tenants']} tenant(s) fall back "
+                'to the default group straight away, which can switch features off for them.',
+        on_confirm=do_delete, confirm_text='Delete', title='Delete feature group?',
+    ).open()

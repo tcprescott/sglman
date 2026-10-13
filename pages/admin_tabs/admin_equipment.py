@@ -57,7 +57,7 @@ _ROW_ACTIONS = f'''<q-btn v-if="props.row.status_value === 'available'" outline 
            class="equipment-state-btn {REQUIRES_SOCKET_CLASS}"
            @click="$parent.$emit('checkin', props.row)" />
     <q-btn flat round icon="more_vert" color="grey-7" class="equipment-more-btn"
-           :aria-label="'More actions for ' + props.row.name">
+           :aria-label="'More for ' + props.row.name">
         <q-menu auto-close anchor="bottom right" self="top right">
             <q-list style="min-width: 200px">
                 <q-item clickable class="{REQUIRES_SOCKET_CLASS}"

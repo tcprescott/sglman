@@ -81,6 +81,13 @@ class TestCrew:
     def test_closed_signup_offers_nothing_and_needs_nobody(self):
         role = _role(_row(crew_signup_open=False), 'commentators')
         assert not role['can_sign_up'] and not role['short']
+        assert role['unavailable'] == 'Signups closed'
+
+    def test_the_disabled_button_says_why(self):
+        assert _role(_row(), 'commentators', discord_id='900')['unavailable'] == "You're playing"
+        assert _role(_row(), 'commentators')['unavailable'] == ''
+        row = _row(state='Started', crew_signup_open=False, commentators=[{'discord_id': ME, 'approved': True}])
+        assert _role(row, 'commentators')['unavailable'] == ''
 
     def test_withdraw_stays_once_the_match_is_under_way(self):
         # The crew help promises it: a stale signup can be cleared at any time.
@@ -88,6 +95,17 @@ class TestCrew:
                    commentators=[{'discord_id': ME, 'approved': True}])
         role = _role(row, 'commentators')
         assert role['can_withdraw'] and not role['can_sign_up']
+
+    def test_names_show_with_the_viewer_as_you_and_approved_first(self):
+        row = _row(commentators=[{'name': 'Me', 'discord_id': ME, 'approved': False},
+                                 {'name': 'SM User', 'discord_id': '5', 'approved': True}])
+        people = _role(row, 'commentators')['people']
+        assert [(p['name'], p['me'], p['note']) for p in people] == [
+            ('SM User', False, ''), ('Me', True, 'waiting for approval')]
+
+    def test_no_signups_yet_only_while_the_role_can_fill(self):
+        assert _role(_row(), 'commentators')['empty']
+        assert not _role(_row(crew_signup_open=False), 'commentators')['empty']
 
     def test_a_role_the_tournament_does_not_use_is_left_off(self):
         row = _row(crew_wanted={'commentators': True, 'trackers': False})
@@ -116,9 +134,22 @@ class TestTemplates:
         opener = _ITEM_SLOT.split('<button type="button" class="player-sheet__open"')[1].split('</button>')[0]
         assert '<q-btn' not in opener
 
+    def test_every_role_draws_its_button_between_count_and_names(self):
+        # Thomas, 2026-10-13: the button in a fixed place on every line, a
+        # disabled one when there's nothing to press, under the count.
+        for slot in (_BODY_SLOT, _ITEM_SLOT):
+            assert slot.index('run-sheet__crew') < slot.index('wiz-crew-action') < slot.index('run-sheet__people')
+            assert '<div class="wiz-crew-action">' in slot
+            assert ' disable ' in slot
+        assert 'player-sheet__crew-cell' in _BODY_SLOT
+
+    def test_withdraw_sits_left_of_confirm(self):
+        # Style guide: in a pair the negative action is on the left.
+        assert _BODY_SLOT.index('Withdraw') < _BODY_SLOT.index('label="Confirm"')
+
     def test_the_columns_fit_without_sorting(self):
         assert [c['name'] for c in PLAYER_RUN_SHEET_COLUMNS] == [
-            'scheduled_at', 'match', 'stage', 'crew', 'status', 'watch']
+            'scheduled_at', 'match', 'stage', 'commentators', 'trackers', 'status', 'watch']
         assert not any(c.get('sortable') for c in PLAYER_RUN_SHEET_COLUMNS)
 
     def test_the_schedule_page_uses_it(self):

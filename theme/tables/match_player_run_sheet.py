@@ -1,10 +1,11 @@
 """The run sheet for the Event > Schedule board everyone reads.
 
 The same one-line-per-match board staff got (``match_run_sheet``), with the
-buttons a player or volunteer actually uses left on the line: their own crew
-Sign up / Withdraw next to each role, Acknowledge on a match they play, and the
-watch bell. Anything else about a match (seed, stations, who's confirmed) is in
-the details sheet a tapped line opens.
+buttons a player or volunteer actually uses left on the line: who's on crew in a
+Commentators and a Trackers column, with the viewer's own Sign up / Withdraw in
+a tray above each role's names, Acknowledge on a match they play, and the watch
+bell. Anything else about a match (seed, stations) is in the details sheet a
+tapped line opens.
 
 The viewer's own state is stamped server-side by :func:`arrange_player_run_sheet`
 rather than worked out in the templates, so the rules live in one tested place:
@@ -12,13 +13,14 @@ a line's buttons are only ever as current as its row, which the board already
 re-fetches after every change.
 """
 
-from theme.tables.match_run_sheet import decorate_run_sheet_row
+from theme.tables.match_run_sheet import CREW_NAMES, crew_people, decorate_run_sheet_row
 
 PLAYER_RUN_SHEET_COLUMNS = [
     {'name': 'scheduled_at', 'label': 'Time', 'field': 'scheduled_at', 'align': 'left'},
     {'name': 'match', 'label': 'Match', 'field': 'title', 'align': 'left'},
     {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'align': 'left'},
-    {'name': 'crew', 'label': 'Crew', 'field': 'commentators', 'align': 'left'},
+    {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators', 'align': 'left'},
+    {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers', 'align': 'left'},
     {'name': 'status', 'label': 'Status', 'field': 'state', 'align': 'left'},
     {'name': 'watch', 'label': 'Watch', 'field': 'watch', 'align': 'center'},
 ]
@@ -78,6 +80,8 @@ def player_crew(row: dict, discord_id) -> list[dict]:
     ``'approved'``, ``'waiting'`` or None; ``can_sign_up`` mirrors the gate the
     old crew cell used (``match_slots.CREW_CAN_SIGN_UP_JS``), and ``ack_idx`` is
     set when the viewer is approved but hasn't confirmed they'll cover it.
+    ``unavailable`` is why there's no button to press. ``people`` are the names, the viewer's printed as "You", and ``empty`` is
+    the "No signups yet" line while the role can still be filled.
     """
     wanted = row.get('crew_wanted') or {}
     required = row.get('crew_required') or {}
@@ -107,10 +111,28 @@ def player_crew(row: dict, discord_id) -> list[dict]:
             'short': open_ and approved < need,
             'mine': mine,
             'can_sign_up': bool(discord_id) and open_ and mine is None and not plays,
+            'unavailable': _unavailable(mine, open_, plays),
             'can_withdraw': mine is not None,
             'ack_idx': ack_idx,
+            'people': crew_people(people, discord_id, waiting_note='waiting for approval'),
+            'empty': open_ and not people,
         })
     return roles
+
+
+def _unavailable(mine, open_: bool, plays: bool) -> str:
+    """Why the viewer has no crew button on a role, or '' when they have one.
+
+    The line still draws a disabled Sign up with this beside it, so the
+    button's spot never empties.
+    """
+    if mine is not None:
+        return ''
+    if plays:
+        return "You're playing"
+    if not open_:
+        return 'Signups closed'
+    return ''
 
 
 def needs_my_ack(row: dict, discord_id) -> bool:
@@ -130,6 +152,7 @@ def decorate_player_row(row: dict, discord_id) -> dict:
     row['_status'] = label
     row['_tone'] = tone
     row['_roles'] = player_crew(row, discord_id)
+    row['_role_by'] = {r['key']: r for r in row['_roles']}
     row['_ack'] = needs_my_ack(row, discord_id)
     row['_mine'] = bool(discord_id) and any(
         str(p.get('discord_id')) == str(discord_id) for p in row.get('players') or [])
@@ -164,23 +187,37 @@ _TITLE = "props.row._who || (props.row.bracket ? props.row.bracket.name : props.
 
 _YOU = '<span v-if="props.row._mine" class="player-sheet__you">You</span>'
 
-# One role: its count, then the viewer's own control. "needs crew" is spelled
-# out rather than left to the amber. Every button stops the click so pressing it
-# doesn't also open the details sheet.
-_ROLE = r'''<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">{{ c.label }} <b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
-<span class="player-sheet__act">
-<span v-if="c.mine" class="player-sheet__mine">You · {{ c.mine === 'approved' ? 'approved' : 'waiting for approval' }}</span>
-<q-btn v-if="c.ack_idx !== null" outline no-caps no-wrap color="primary" dense label="Confirm"
+# One role: the count, the viewer's own control in a tray of its own, then the
+# names. Every role draws a button, a disabled Sign up with the reason beside it
+# when there's nothing to press, and the cell is top-aligned, so the button sits
+# in the same spot on every line. In the tray the negative action sits left of
+# the positive one. The phone card has no
+# column header above it, so it names the role; the desktop cell sits under a
+# Commentators or Trackers header and doesn't need to. Every button stops the
+# click so pressing it doesn't also open the details sheet.
+_ROLE = r'''<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
+<div class="wiz-crew-action">
+<q-btn v-if="c.can_withdraw" outline no-caps no-wrap color="negative" dense icon="undo" :label="__WITHDRAW__"
+       :aria-label="'Withdraw as ' + c.singular"
+       @click.stop="$parent.$emit('undo_' + c.singular, props.row)" />
+<q-btn v-else-if="c.can_sign_up" outline no-caps no-wrap color="primary" dense icon="assignment_ind" :label="__SIGN_UP__"
+       :aria-label="'Sign up as ' + c.singular"
+       @click.stop="$parent.$emit('signup_' + c.singular, props.row)" />
+<q-btn v-if="c.ack_idx !== null" outline no-caps no-wrap color="primary" dense icon="check" label="Confirm"
        @click.stop="$parent.$emit('acknowledge_' + c.singular, { row: props.row, idx: c.ack_idx })">
     <q-tooltip>Confirm you can cover this {{ c.singular }} slot</q-tooltip>
 </q-btn>
-<q-btn v-if="c.can_withdraw" outline no-caps no-wrap color="negative" dense label="Withdraw"
-       :aria-label="'Withdraw as ' + c.singular"
-       @click.stop="$parent.$emit('undo_' + c.singular, props.row)" />
-<q-btn v-else-if="c.can_sign_up" outline no-caps no-wrap color="primary" dense label="Sign up"
-       :aria-label="'Sign up as ' + c.singular"
-       @click.stop="$parent.$emit('signup_' + c.singular, props.row)" />
-</span>'''
+<template v-if="!c.can_withdraw && !c.can_sign_up">
+<q-btn outline no-caps no-wrap dense disable icon="assignment_ind" :label="__SIGN_UP__" />
+<span v-if="c.unavailable" class="wiz-crew-why st-neutral">{{ c.unavailable }}</span>
+</template>
+</div>
+''' + CREW_NAMES
+
+_ROLE_CELL = _ROLE.replace('__LABEL__', '').replace(
+    '__WITHDRAW__', "'Withdraw'").replace('__SIGN_UP__', "'Sign up'")
+_ROLE_CARD = _ROLE.replace('__LABEL__', '{{ c.label }} ').replace(
+    '__WITHDRAW__', "'Withdraw as ' + c.singular").replace('__SIGN_UP__', "'Sign up as ' + c.singular")
 
 _ACK = r'''<q-btn v-if="props.row._ack" unelevated no-caps no-wrap color="primary" dense label="Acknowledge"
        @click.stop="$parent.$emit('acknowledge_match', props.row)">
@@ -205,7 +242,8 @@ _BODY_SLOT = r'''
 </q-tr>
 <q-tr :props="props" class="run-sheet__row player-sheet__row" :class="props.row._flash ? 'wiz-row-flash' : ''"
       @click="$parent.$emit('open_match', props.row.id)">
-    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+    <q-td v-for="col in props.cols" :key="col.name" :props="props"
+          :class="col.name === 'commentators' || col.name === 'trackers' ? 'player-sheet__crew-cell' : ''">
         <template v-if="col.name === 'scheduled_at'">''' + _WHEN + '''</template>
         <template v-else-if="col.name === 'match'">
             <button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
@@ -213,10 +251,9 @@ _BODY_SLOT = r'''
             <span class="run-sheet__meta">''' + _YOU + '''{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
         </template>
         <template v-else-if="col.name === 'stage'">''' + _STAGE + '''</template>
-        <template v-else-if="col.name === 'crew'">
-            <div class="player-sheet__roles">
-                <div v-for="c in props.row._roles" :key="c.key" class="player-sheet__role">''' + _ROLE + '''</div>
-            </div>
+        <template v-else-if="col.name === 'commentators' || col.name === 'trackers'">
+            <div v-for="c in (props.row._role_by[col.name] ? [props.row._role_by[col.name]] : [])" :key="c.key"
+                 class="player-sheet__role">''' + _ROLE_CELL + '''</div>
         </template>
         <template v-else-if="col.name === 'status'">
             <div class="player-sheet__status">
@@ -246,7 +283,7 @@ _ITEM_SLOT = r'''
             </button>''' + _BELL + '''
         </div>
         <div v-if="props.row._ack || props.row._roles.length" class="player-sheet__acts">''' + _ACK + '''
-            <div v-for="c in props.row._roles" :key="c.key" class="player-sheet__role">''' + _ROLE + '''</div>
+            <div v-for="c in props.row._roles" :key="c.key" class="player-sheet__role">''' + _ROLE_CARD + '''</div>
         </div>
     </div>
 </div>

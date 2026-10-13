@@ -18,6 +18,7 @@ from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_event_dialog
 from theme.empty_state import no_data_slot
 from theme.matcherino_login_card import matcherino_login_card
+from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button
@@ -45,14 +46,13 @@ _STATUS_BADGE = '''<q-badge :color="props.row.status === 'open' ? 'positive'
 
 _SYNCED = '''<span :class="props.row.sync_error ? 'text-warning' : ''">{{ props.row.synced }}</span>'''
 
-_ACTIONS = f'''
-    <q-btn dense flat no-caps icon="how_to_reg" color="primary" label="Desk"
-           class="{REQUIRES_SOCKET_CLASS}" @click="$parent.$emit('desk', props.row)" />
-    <q-btn dense flat round icon="edit" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
-    <q-btn dense flat round icon="delete" color="negative" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('remove', props.row)" aria-label="Delete"><q-tooltip>Delete</q-tooltip></q-btn>
-'''
+_ACTIONS = slot_row_button('Open desk', 'how_to_reg', 'desk', extra_class=REQUIRES_SOCKET_CLASS) + slot_more_menu(
+    'props.row.name', [
+        SlotItem('edit', 'Edit event', 'edit'),
+        SlotItem('delete', 'Delete event', 'remove', negative=True),
+    ], extra_class=REQUIRES_SOCKET_CLASS,
+)
+_NAME = slot_name_link('name', 'edit')
 
 
 def _synced_text(event) -> str:
@@ -111,6 +111,7 @@ async def admin_check_in_page() -> None:
                 for e in events
             ]
             table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full')
+            table.add_slot('body-cell-name', f'<q-td :props="props">{_NAME}</q-td>')
             table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
             table.add_slot('body-cell-synced', f'<q-td :props="props">{_SYNCED}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ACTIONS}</q-td>')
@@ -119,7 +120,7 @@ async def admin_check_in_page() -> None:
                 icon='how_to_reg'))
             enable_mobile_grid(
                 table, _COLUMNS, actions=_ACTIONS,
-                field_slots={'status': _STATUS_BADGE, 'synced': _SYNCED},
+                field_slots={'name': _NAME, 'status': _STATUS_BADGE, 'synced': _SYNCED},
                 table_key=TableKeys.ADMIN_CHECK_IN_EVENTS,
             )
 

@@ -37,6 +37,7 @@ from pages.platform_shared import ACTIVE_ICON_SLOT, section_intro
 from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.page_header import page_title
 from theme.tables.preferences import (
@@ -71,6 +72,11 @@ _SETUP_CHIP = '''
     </span>
 '''
 
+_NAME = slot_name_link('name', 'edit')
+_ACTIONS = slot_row_button('Features', 'toggle_on', 'features') + slot_more_menu('props.row.name', [
+    SlotItem('edit', 'Edit community', 'edit'),
+    SlotItem('shield', 'Admins', 'admins'),
+])
 
 
 def _render_platform_chrome() -> None:
@@ -169,24 +175,13 @@ async def _render_tenants_section(user) -> None:
         'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
     table.add_slot('body-cell-active', ACTIVE_ICON_SLOT)
     table.add_slot('body-cell-setup', f'<q-td :props="props">{_SETUP_CHIP}</q-td>')
-    # Icon actions, not labels: a third action pushed the labelled row
-    # past the card width and clipped it. The mobile card below has room
-    # and keeps the words.
-    table.add_slot('body-cell-actions', '''
-        <q-td :props="props">
-            <q-btn dense flat round icon="edit" color="primary"
-                   @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
-            <q-btn dense flat round icon="toggle_on" color="secondary"
-                   @click="$parent.$emit('features', props.row)" aria-label="Features"><q-tooltip>Features</q-tooltip></q-btn>
-            <q-btn dense flat round icon="shield" color="accent"
-                   @click="$parent.$emit('admins', props.row)" aria-label="Admins"><q-tooltip>Admins</q-tooltip></q-btn>
-        </q-td>
-    ''')
+    table.add_slot('body-cell-name', f'<q-td :props="props">{_NAME}</q-td>')
+    table.add_slot('body-cell-actions', f'<q-td :props="props" style="white-space:nowrap">{_ACTIONS}</q-td>')
     table.add_slot('item', '''
         <div class="q-pa-xs col-xs-12 col-sm-6">
             <q-card bordered flat class="q-pa-sm wiz-grid-card">
                 <div class="row items-center justify-between no-wrap q-mb-xs">
-                    <div class="text-weight-bold">{{ props.row.name }}</div>
+                    <div class="text-weight-bold">''' + _NAME + '''</div>
                     <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
                             :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
                         <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
@@ -205,14 +200,7 @@ async def _render_tenants_section(user) -> None:
                     <div class="col-4 text-grey-7 text-caption">Setup</div>
                     <div class="col-8">''' + _SETUP_CHIP + '''</div>
                 </div>
-                <div class="row justify-end q-gutter-x-sm q-mt-xs">
-                    <q-btn dense flat color="primary" label="Edit"
-                           @click="$parent.$emit('edit', props.row)" />
-                    <q-btn dense flat color="secondary" label="Features"
-                           @click="$parent.$emit('features', props.row)" />
-                    <q-btn dense flat color="accent" label="Admins"
-                           @click="$parent.$emit('admins', props.row)" />
-                </div>
+                <div class="row justify-end items-center q-gutter-x-xs q-mt-xs">''' + _ACTIONS + '''</div>
             </q-card>
         </div>
     ''')

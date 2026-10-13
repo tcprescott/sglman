@@ -8,7 +8,7 @@ editor assigns them here; the assignment survives every re-sync.
 from nicegui import app, ui
 
 from application.services import ChallongeService, UserService, get_user_from_discord_id
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.notify import notify_error
 
 _STATUS = {
@@ -75,11 +75,7 @@ class ChallongeParticipantsDialog:
                             picker = ui.select(
                                 options=options, label='Wizzrobe user', with_input=True,
                                 value=row['user'].id if row['user'] is not None else None,
-                            ).props('dense outlined').classes('grow').style('min-width: 14rem')
-                            ui.button(
-                                'Assign', icon='person_add',
-                                on_click=lambda _=None, r=row, p=picker: assign(r, p.value),
-                            ).props('flat color=primary')
+                            ).props('dense outlined').classes('grow min-w-56')
                             if row['status'] == 'manual':
                                 ui.button(
                                     'Clear', icon='link_off',
@@ -87,6 +83,10 @@ class ChallongeParticipantsDialog:
                                 ).props('flat color=negative').tooltip(
                                     'Go back to whoever their Challonge account is linked to'
                                 )
+                            ui.button(
+                                'Assign', icon='person_add',
+                                on_click=lambda _=None, r=row, p=picker: assign(r, p.value),
+                            ).props('flat color=primary')
                         ui.separator()
 
                 async def assign(row: dict, user_id) -> None:
@@ -104,7 +104,7 @@ class ChallongeParticipantsDialog:
 
                 async def clear(row: dict) -> None:
                     try:
-                        await service.clear_participant_user(row['id'], actor)
+                        await service.clear_participant_user(row['id'], actor)  # style-guide: exempt — clears a mapping, reassigned in place
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
                         return
@@ -118,6 +118,4 @@ class ChallongeParticipantsDialog:
 
                 await roster()
 
-            with dialog_actions().classes('justify-end'):
-                ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()

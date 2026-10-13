@@ -197,18 +197,18 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
                             # Acknowledging from here is the same act the approval
                             # DM's button performs; a volunteer who missed the DM
                             # had no other way to do it.
-                            if row['approved'] and not row['acknowledged'] and not row['finished']:
-                                ui.button(
-                                    'Confirm I can cover this', icon='check',
-                                    on_click=lambda _e, r=row: background_tasks.create(
-                                        acknowledge(r, context.client)),
-                                ).props('color=primary dense no-caps')
                             if not row['finished']:
                                 ui.button(
                                     'Withdraw', icon='undo',
                                     on_click=lambda _e, r=row: background_tasks.create(
                                         withdraw(r, context.client)),
                                 ).props('flat color=negative dense no-caps')
+                            if row['approved'] and not row['acknowledged'] and not row['finished']:
+                                ui.button(
+                                    'Confirm I can cover this', icon='check',
+                                    on_click=lambda _e, r=row: background_tasks.create(
+                                        acknowledge(r, context.client)),
+                                ).props('color=primary dense no-caps')
             if focused_id:
                 # Scrolling is the one thing here the Python API cannot do. Once
                 # only: a later refresh (Confirm, Withdraw) must not yank the

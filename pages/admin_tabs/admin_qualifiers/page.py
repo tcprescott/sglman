@@ -47,7 +47,9 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     run_rows,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
+from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.qualifier_copy import BOARD_EXPLAINER
@@ -269,12 +271,12 @@ async def admin_qualifiers_page(
                         with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
                             ui.button('Manage', icon='tune',
                                       on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
-                            ui.button(icon='edit',
-                                      on_click=lambda row=q: open_qualifier_dialog(row)
-                                      ).props('flat round color=primary').tooltip('Edit')
-                            ui.button(icon='delete',
-                                      on_click=lambda qid=q.id: _delete_qualifier(qid)
-                                      ).props('flat round color=negative').tooltip('Delete')
+                            with more_menu(q.name):
+                                menu_action('edit', 'Edit qualifier',
+                                            lambda row=q: open_qualifier_dialog(row))
+                                ui.separator()
+                                menu_action('delete', 'Delete qualifier',
+                                            lambda row=q: _delete_qualifier(row), negative=True)
                     ui.label(
                         f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
                         f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'
@@ -286,17 +288,27 @@ async def admin_qualifiers_page(
         state['managing'] = qid
         await load_shell()
 
-    async def _delete_qualifier(qid: int) -> None:
-        try:
-            await service.delete_qualifier(await _current(), qid)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Qualifier deleted', color='positive')
-        if state['managing'] == qid:
-            state['managing'] = None
-            await load_shell()
-        await load_list()
+    def _delete_qualifier(qualifier) -> None:
+        qid = qualifier.id
+
+        async def do_delete() -> None:
+            try:
+                await service.delete_qualifier(await _current(), qid)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Qualifier deleted', color='positive')
+            if state['managing'] == qid:
+                state['managing'] = None
+                await load_shell()
+            await load_list()
+
+        ConfirmationDialog(
+            message=f'Delete {qualifier.name}? Every pool, permalink and submitted run '
+                    'in it goes too, and this can’t be undone.',
+            on_confirm=do_delete, confirm_text='Delete forever', title='Delete qualifier?',
+            require_phrase='permanently delete',
+        ).open()
 
     def open_qualifier_dialog(existing=None) -> None:
         is_edit = existing is not None
@@ -309,18 +321,18 @@ async def admin_qualifiers_page(
                 'Description', value=(existing.description or '') if is_edit else ''
             ).classes('w-full').props('rows=2')
             ui.label('Window (leave a date blank for open-ended)').classes('text-caption text-grey')
-            with ui.row().classes('w-full'):
-                opens_date = native_date_input('Opens date').classes('flex-1')
-                opens_time = native_time_input('Opens time', '00:00').classes('flex-1')
-            with ui.row().classes('w-full'):
-                closes_date = native_date_input('Closes date').classes('flex-1')
-                closes_time = native_time_input('Closes time', '23:59').classes('flex-1')
-            with ui.row().classes('w-full'):
+            with ui.row().classes('form-pair gap-2'):
+                opens_date = native_date_input('Opens date')
+                opens_time = native_time_input('Opens time', '00:00')
+            with ui.row().classes('form-pair gap-2'):
+                closes_date = native_date_input('Closes date')
+                closes_time = native_time_input('Closes time', '23:59')
+            with ui.row().classes('form-pair gap-2'):
                 rpp_in = ui.number('Runs per pool', value=existing.runs_per_pool if is_edit else 1,
-                                   min=1, precision=0).classes('flex-1')
+                                   min=1, precision=0)
                 reattempts_in = ui.number('Allowed reattempts',
                                           value=existing.allowed_reattempts if is_edit else 0,
-                                          min=0, precision=0).classes('flex-1')
+                                          min=0, precision=0)
             active_in = ui.switch('Active', value=existing.is_active if is_edit else True)
 
             def _parse(date_in, time_in):

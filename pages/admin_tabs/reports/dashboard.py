@@ -17,13 +17,19 @@ from application.services import (
 from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
 from theme.page_header import page_header
+from theme.section import section_panel
 
 from .shared import (
     date_range_filter,
     default_date_range,
     display_bounds,
+    event_jump_options,
+    is_custom_range,
     kpi_card,
+    kpi_grid,
     navigate_with_params,
+    report_filter_bar,
+    report_jumps,
     reports_url,
 )
 
@@ -97,29 +103,25 @@ async def dashboard_page(
     is_staff = await AuthService.is_staff(viewer)
     live = live if live is not None else set()
 
-    with ui.column().classes('page-container-wide'):
-        page_header('Reports')
+    # An absent pair still means the event window, so the overview's subtitle
+    # keeps telling the truth and an unfiltered dashboard is unchanged.
+    start_d, end_d = await default_date_range(start, end)
+    bounds_start, bounds_end = display_bounds(start_d, end_d)
 
-        ui.label('Event overview').classes('section-title q-mt-sm')
+    def nav(s, e) -> None:
+        navigate_with_params(report=None, start=s, end=e)
 
-        # An absent pair still means the event window, so the label below keeps
-        # telling the truth and an unfiltered dashboard is unchanged.
-        start_d, end_d = await default_date_range(start, end)
-        bounds_start, bounds_end = display_bounds(start_d, end_d)
-        ui.label(
-            f'Window: {format_local_date(start_d)} → {format_local_date(end_d)} ({timezone_label()})'
-        ).classes('italic-note')
+    with ui.column().classes('page-container-wide wiz-report'):
+        page_header('Reports', 'How the event is going, and the reports behind each number.')
 
         # `Peak players 14 / 12` is the loudest number here and the one most
         # likely to make someone ask "over what period?"; until now there was no
         # way to answer. No CSV: each KPI links to a report that already exports
         # the data it comes from, so a fifth export would be maintenance, not a
         # feature.
-        with ui.card().classes('full-width q-pa-md q-mt-sm'):
-            date_range_filter(
-                start_d, end_d,
-                on_change=lambda s, e: navigate_with_params(report=None, start=s, end=e),
-            )
+        with report_filter_bar(int(await is_custom_range(start_d, end_d))):
+            date_range_filter(start_d, end_d, on_change=nav)
+            report_jumps(await event_jump_options(), start_d, end_d, on_pick=nav)
 
         forecast, ops, coverage, utilization, max_stages = await asyncio.gather(
             reports_service.generate_capacity_forecast(bounds_start, bounds_end),
@@ -155,8 +157,11 @@ async def dashboard_page(
         covered = sum(1 for r in candidate_rows if r['commentators_approved'] > 0 and r['trackers_approved'] > 0)
         coverage_pct = (covered / len(candidate_rows) * 100) if candidate_rows else None
 
-        with ui.row().classes('full-width gap-3 q-mt-md no-wrap items-stretch') \
-                .style('flex-wrap: wrap;'):
+        overview = await section_panel(
+            'Event overview', icon='insights',
+            subtitle=f'{format_local_date(start_d)} to {format_local_date(end_d)} ({timezone_label()})',
+        )
+        with overview.body, kpi_grid():
             # Each KPI is computed from exactly one report's data, and every
             # link carries this page's window so the destination cannot
             # contradict the tile it came from.
@@ -204,8 +209,8 @@ async def dashboard_page(
                 href_label='Crew activity →',
             )
 
-        ui.label('Reports').classes('section-title q-mt-lg')
-        with ui.row().classes('full-width gap-3').style('flex-wrap: wrap;'):
+        reports = await section_panel('All reports', icon='bar_chart')
+        with reports.body, ui.element('div').classes('wiz-tile-grid'):
             for card in REPORT_CARDS:
                 if card.get('staff_only') and not is_staff:
                     continue
@@ -220,7 +225,7 @@ def _report_card(card: dict) -> None:
     # cursor-pointer was on the card while only the link navigated. Make the
     # whole card do what it looks like it does; the link stays for keyboard and
     # middle-click.
-    with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;') as card_el:
+    with ui.card().classes('q-pa-md cursor-pointer wiz-kpi') as card_el:
         with ui.row().classes('items-center no-wrap'):
             ui.icon(card['icon']).classes('text-h5 q-mr-sm')  # style-guide: exempt — icon size, not a title
             ui.label(card['title']).classes('section-title')

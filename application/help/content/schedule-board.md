@@ -23,7 +23,7 @@ players** and, if you've brought them back with the State filter, **Finished**.
 | **Time** | When it starts, in your local time. A date under it means it isn't today. |
 | **Match** | Who's playing, and the tournament. **You** marks a match you're playing in. |
 | **Stage** | Which stage it's on. If the stage is streamed, its name links to the stream. |
-| **Crew** | Approved commentators and trackers against how many the match needs, with your own **Sign up** or **Withdraw** beside each role. |
+| **Commentators**, **Trackers** | Approved crew against how many the match needs, your own **Sign up** or **Withdraw** under that, then the names of everyone signed up. |
 | **Status** | Where the match is, plus **Acknowledge** on a match you play that you haven't confirmed yet. |
 | **Watch** | The bell. Tap it to get a DM every time this match changes. |
 :::

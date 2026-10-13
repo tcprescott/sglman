@@ -109,7 +109,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
             ))
             add_button.set_enabled(bool(new))
 
-        with container, form_dialog('Add volunteer role mappings') as dialog:
+        with container, form_dialog('Add volunteer role mappings', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 ui.label('Every position you pick grants every role you pick.') \
                     .classes('text-caption text-grey')
@@ -150,7 +150,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
         dialog.open()
 
     async def delete_mapping(row: dict, client) -> None:
-        with client:
+        async def do_remove() -> None:
             try:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await service.remove_mapping(actor, row['id'])
@@ -159,6 +159,13 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
                 return
             ui.notify('Mapping removed', color='positive')
             await refresh_table()
+
+        with client:
+            ConfirmationDialog(
+                f"Stop giving {row['position']} volunteers the {row['app_role']} role? "
+                'Anyone who only held it through this mapping loses it now.',
+                on_confirm=do_remove, confirm_text='Remove', title='Remove mapping?',
+            ).open()
 
     async def remove_selected() -> None:
         try:

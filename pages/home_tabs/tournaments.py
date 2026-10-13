@@ -31,6 +31,7 @@ from application.utils.timezone import format_local_date, format_local_display
 from application.utils.tournament_signup import SignupWindow
 from models import FeatureFlag
 from pages.home_tabs.triforce_texts import open_triforce_dialog, supporting_tournament_ids
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.help.render import render_blocks
@@ -173,6 +174,15 @@ async def tournaments_tab() -> None:
                 await cards.refresh()
                 follow_card(tournament_id)
 
+        def confirm_withdraw(tournament) -> None:
+            client = context.client
+            ConfirmationDialog(
+                message=f'Withdraw from {tournament.name}? Once sign-ups close you’ll '
+                        'need staff to put you back in.',
+                on_confirm=lambda: background_tasks.create(withdraw(tournament.id, client)),
+                confirm_text='Withdraw', cancel_text='Stay in', title='Withdraw?',
+            ).open()
+
         def render_card(card: TournamentSignupCard) -> None:
             t = card.tournament
             chip_class, status = signup_status(card)
@@ -229,8 +239,7 @@ async def tournaments_tab() -> None:
                     elif card.can_withdraw:
                         ui.button(
                             'Withdraw', icon='undo',
-                            on_click=lambda _e, tid=t.id: background_tasks.create(
-                                withdraw(tid, context.client)),
+                            on_click=lambda _e, tour=t: confirm_withdraw(tour),
                         ).props('flat color=negative dense no-caps')
                     elif card.challonge_managed:
                         ui.label(

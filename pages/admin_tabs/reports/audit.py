@@ -3,7 +3,7 @@
 Server-side paginated, filterable view of the AuditLog table.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from nicegui import app, ui
 
@@ -15,12 +15,20 @@ from .shared import (
     date_range_filter,
     default_date_range,
     display_bounds,
+    event_jump_options,
+    filter_field,
+    is_custom_range,
     navigate_with_params,
     paginated_event_log,
     parse_details,
     parse_int,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
 )
+
+SUBTITLE = 'Who changed what, and when.'
+
 
 PAGE_SIZE = 50
 
@@ -35,7 +43,7 @@ async def audit_page(
 ) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if actor is None or not await AuthService.is_staff(actor):
-        with report_page_shell('Audit Log'):
+        with report_page_shell('Audit Log', SUBTITLE):
             ui.label('Only Staff can view the audit log.').classes('text-error')
         return
     start_d, end_d = await default_date_range(start, end)
@@ -43,42 +51,37 @@ async def audit_page(
     page_int = max(1, parse_int(page) or 1)
     action_filter = (action or '').strip()
 
-    with report_page_shell('Audit Log'):
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
-                date_range_filter(
-                    start_d, end_d,
-                    on_change=lambda s, e: navigate_with_params(
-                        report='audit',
-                        start=s, end=e,
-                        user_id=user_id_int,
-                        action=action_filter or None,
-                    ),
-                )
-                action_input = ui.input(
-                    'Action contains',
-                    value=action_filter,
-                ).props('dense').classes('control-width')
+    def nav(**overrides) -> None:
+        params: dict[str, Any] = {
+            'report': 'audit',
+            'start': start_d, 'end': end_d,
+            'user_id': user_id_int,
+            'action': action_filter or None,
+        }
+        params.update(overrides)
+        navigate_with_params(**params)
 
-                def _on_action(_e):
-                    navigate_with_params(
-                        report='audit',
-                        start=start_d, end=end_d,
-                        user_id=user_id_int,
-                        action=(action_input.value or '').strip() or None,
-                    )
-                action_input.on('blur', _on_action)
-                action_input.on('keydown.enter', _on_action)
+    active = (
+        int(await is_custom_range(start_d, end_d)) + int(bool(action_filter))
+        + int(user_id_int is not None)
+    )
+    with report_page_shell('Audit Log', SUBTITLE):
+        with report_filter_bar(active):
+            date_range_filter(start_d, end_d, on_change=lambda s, e: nav(start=s, end=e))
+            action_input = filter_field(ui.input('Action contains', value=action_filter))
 
-                if user_id_int is not None:
-                    ui.button(
-                        'Clear user filter', icon='close',
-                        on_click=lambda: navigate_with_params(
-                            report='audit',
-                            start=start_d, end=end_d,
-                            action=action_filter or None,
-                        ),
-                    ).props('flat dense')
+            def _on_action(_e):
+                nav(action=(action_input.value or '').strip() or None)
+            action_input.on('blur', _on_action)
+            action_input.on('keydown.enter', _on_action)
+
+            if user_id_int is not None:
+                ui.button(
+                    'Clear person', icon='close',
+                    on_click=lambda: nav(user_id=None),
+                ).props('flat dense no-caps color=primary')
+            report_jumps(await event_jump_options(), start_d, end_d,
+                         on_pick=lambda s, e: nav(start=s, end=e))
 
         bounds_start, bounds_end = display_bounds(start_d, end_d)
         service = AuditService()
@@ -115,23 +118,11 @@ async def audit_page(
         def _on_user_click(row: dict) -> None:
             clicked_uid = row.get('user_id')
             if clicked_uid:
-                navigate_with_params(
-                    report='audit',
-                    start=start_d, end=end_d,
-                    user_id=clicked_uid,
-                    action=action_filter or None,
-                )
+                nav(user_id=clicked_uid)
 
-        def _go_to_page(new_page: int) -> None:
-            navigate_with_params(
-                report='audit',
-                start=start_d, end=end_d,
-                user_id=user_id_int,
-                action=action_filter or None,
-                page=new_page,
-            )
-
-        paginated_event_log(
+        await paginated_event_log(
+            title='Entries',
+            icon='fact_check',
             columns=columns,
             rows=rows,
             row_key='log_id',
@@ -139,7 +130,7 @@ async def audit_page(
             total=total,
             page=page_int,
             page_size=PAGE_SIZE,
-            on_page=_go_to_page,
+            on_page=lambda new_page: nav(page=new_page),
             csv_filename_prefix=f'audit-log-page-{page_int}-{start_d}-to-{end_d}',
             count_noun='entries',
             note=(

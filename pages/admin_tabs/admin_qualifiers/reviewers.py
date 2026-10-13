@@ -19,7 +19,9 @@ from application.services import UserService
 from application.services.async_qualifier.async_qualifier_rules import display_name
 from pages.admin_tabs.admin_qualifiers.shared import REVIEWERS_TAB
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
+from theme.menu import menu_action, more_menu
 
 
 def build_reviewers_tab(
@@ -63,9 +65,9 @@ def build_reviewers_tab(
                             ui.badge('no Discord', color='grey').tooltip(
                                 'This reviewer will not receive queue notifications.')
                         ui.space()
-                        ui.button('Remove', icon='person_remove',
-                                  on_click=lambda p=person: _remove(p)
-                                  ).props('flat color=negative')
+                        with more_menu(display_name(person)):
+                            menu_action('person_remove', 'Remove reviewer',
+                                        lambda p=person: _remove(p), negative=True)
 
     def _open_add_dialog() -> None:
         with form_dialog('Add a reviewer', card_classes='dialog-card dialog-card--sm') as dialog:
@@ -97,13 +99,19 @@ def build_reviewers_tab(
                 add.bind_enabled_from(picker, 'value', lambda v: v is not None)
         dialog.open()
 
-    async def _remove(person) -> None:
-        try:
-            await service.remove_admin(await current(), state['managing'], person)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Reviewer removed', color='positive')
-        await reload_tabs(REVIEWERS_TAB)
+    def _remove(person) -> None:
+        async def do_remove() -> None:
+            try:
+                await service.remove_admin(await current(), state['managing'], person)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Reviewer removed', color='positive')
+            await reload_tabs(REVIEWERS_TAB)
+
+        ConfirmationDialog(
+            message=f'Remove {display_name(person)} as a reviewer for this qualifier?',
+            on_confirm=do_remove, confirm_text='Remove', title='Remove reviewer?',
+        ).open()
 
     return reviewers_view

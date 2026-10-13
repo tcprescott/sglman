@@ -9,6 +9,7 @@ from application.services.payout_service import format_percentage
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.help import help_icon
+from theme.menu import SlotItem, slot_more_menu, slot_row_button
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
@@ -19,20 +20,10 @@ _STATUS_CHIP = '''
     <span class="wiz-chip" :class="props.row.status_chip">{{ props.row.status }}</span>
 '''
 
-_ROW_ACTIONS = '''
-    <q-btn flat round dense icon="payments" color="primary"
-           @click="$parent.$emit('pool', props.row)" aria-label="Prize pool">
-        <q-tooltip>Prize pool</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="leaderboard" color="primary"
-           @click="$parent.$emit('split', props.row)" aria-label="Edit split">
-        <q-tooltip>Edit split</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="content_copy" color="primary"
-           @click="$parent.$emit('copy', props.row)" aria-label="Copy for Matcherino">
-        <q-tooltip>Copy for Matcherino</q-tooltip>
-    </q-btn>
-'''
+_ROW_ACTIONS = slot_row_button('Prize pool', 'payments', 'pool') + slot_more_menu('props.row.name', [
+    SlotItem('leaderboard', 'Edit split', 'split'),
+    SlotItem('content_copy', 'Copy for Matcherino', 'copy'),
+])
 
 
 def _money(value: Decimal) -> str:
@@ -131,14 +122,15 @@ async def admin_payouts_page() -> None:
                     notify_error(e)
                     return
                 with table_container:
-                    with form_dialog(f"Prize pool — {row['name']}") as dialog:
-                        with ui.column().classes('q-pa-md gap-2 full-width'):
-                            pool_input = ui.input(
-                                'Prize pool', value=f'{split.pool:.2f}',
-                            ).props('outlined dense prefix="$"').classes('w-full')
-                            bonus_input = ui.input(
-                                'Bonus', value=f'{split.bonus:.2f}',
-                            ).props('outlined dense prefix="$"').classes('w-full')
+                    with form_dialog(f"Prize pool — {row['name']}", card_classes='dialog-card dialog-card--sm') as dialog:
+                        with ui.column().classes('gap-2 full-width'):
+                            with ui.row().classes('form-pair gap-2'):
+                                pool_input = ui.input(
+                                    'Prize pool', value=f'{split.pool:.2f}',
+                                ).props('outlined dense prefix="$"')
+                                bonus_input = ui.input(
+                                    'Bonus', value=f'{split.bonus:.2f}',
+                                ).props('outlined dense prefix="$"')
                             ui.label(
                                 'Shares are taken from the pool and the bonus added '
                                 'together. Leave a field blank if nobody has decided it yet.'

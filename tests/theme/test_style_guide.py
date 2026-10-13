@@ -271,6 +271,130 @@ def test_dialog_footer_puts_the_primary_action_last():
     assert not bad, 'Dialog footers out of order:\n  ' + '\n  '.join(bad)
 
 
+_NEGATIVE_LABEL = re.compile(
+    r"^(Cancel|Close|Back|Not now|Keep editing|Decline|Reject|Deny|Remove|Delete|Clear"
+    r"|Withdraw|Change|Can't make it|Disconnect|Unlink)\b"
+)
+_POSITIVE_LABEL = re.compile(
+    r"^(Approve|Accept|Agree|Confirm|Save|Submit|Assign|Start|Grant|Publish|Yes|Acknowledge"
+    r"|Sign up|Create)\b"
+)
+
+
+def _button_runs(stmts: list[ast.stmt]) -> list[list[ast.Call]]:
+    """Every order the buttons directly inside a block can render in.
+
+    Each branch of an `if` is its own run, so `Sign up` / `elif` `Withdraw` is
+    two runs of one button, not a pair. A nested `with` is a container of its
+    own and is checked on its own.
+    """
+    runs: list[list[ast.Call]] = [[]]
+    for st in stmts:
+        if isinstance(st, (ast.With, ast.AsyncWith, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(st, ast.If):
+            options = _button_runs(st.body) + _button_runs(st.orelse)
+        elif isinstance(st, (ast.For, ast.AsyncFor, ast.While, ast.Try)):
+            options = _button_runs(st.body)
+        else:
+            options = [_ui_buttons([st])]
+        runs = [r + o for r in runs for o in options][:64]
+    return runs
+
+
+def test_negative_action_sits_left_of_the_positive_one():
+    """Negative on the left, positive on the right, in every pair on every
+    surface: inbox cards, review rows, inline forms and footers alike. Approve
+    then Decline in one place and Decline then Approve in another is how people
+    tap the wrong one."""
+    bad = set()
+    for rel, _source, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            for run in _button_runs(node.body):
+                positive = None
+                for button in run:
+                    label = _button_label(button)
+                    if not isinstance(label, str):
+                        continue
+                    if positive and _NEGATIVE_LABEL.match(label) and not _exempt(lines, button.lineno):
+                        bad.add(f'{rel}:{button.lineno}: {label!r} right of {positive!r}')
+                    if _POSITIVE_LABEL.match(label):
+                        positive = label
+    assert not bad, 'Negative action right of the positive one:\n  ' + '\n  '.join(sorted(bad))
+
+
+def _dialog_blocks():
+    """Every `with ui.dialog()` / `with form_dialog(...)` block, with its source."""
+    for rel, source, tree, lines in _python_sources():
+        if rel.as_posix() == 'theme/dialog/_helpers.py':
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            kinds = {_ui_call(i.context_expr) for i in node.items} | {_base_name(i.context_expr) for i in node.items}
+            if kinds & {'dialog', 'form_dialog'}:
+                yield rel, source, node, lines
+
+
+def test_dialogs_open_as_phone_sheets():
+    """ConfirmationDialog skipped mobile_sheet, so all 35 confirmations opened as a
+    centred card on a phone while every form beside them was a bottom sheet.
+    form_dialog does it; a hand-built `ui.dialog()` calls mobile_sheet itself."""
+    bad = []
+    for rel, source, node, lines in _dialog_blocks():
+        if any(_base_name(i.context_expr) == 'form_dialog' for i in node.items):
+            continue
+        dialog_expr = next(i.context_expr for i in node.items if _ui_call(i.context_expr) == 'dialog')
+        calls = {
+            n.func.id if isinstance(n.func, ast.Name) else getattr(n.func, 'attr', '')
+            for stmt in node.body for n in ast.walk(stmt) if isinstance(n, ast.Call)
+        }
+        if 'mobile_sheet' in calls or 'position' in (ast.get_source_segment(source, dialog_expr) or ''):
+            continue
+        if not _exempt(lines, node.lineno):
+            bad.append(f'{rel}:{node.lineno}')
+    assert not bad, 'Dialogs that never become a phone sheet (call mobile_sheet):\n  ' + '\n  '.join(bad)
+
+
+def test_dialog_footers_carry_no_second_close():
+    """The header already ends in Close. A footer whose only job was a second
+    Close (15 of them) gave every reader two ways to leave and pushed the real
+    actions off the right edge. A form footer dismisses with Cancel."""
+    # Seed Presets is being reworked separately; its test-roll dialog is fixed there.
+    pending = {'pages/admin_tabs/admin_presets.py'}
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        if rel.as_posix() in pending:
+            continue
+        for node in ast.walk(tree):
+            if not (isinstance(node, (ast.With, ast.AsyncWith))
+                    and any(_base_name(i.context_expr) == 'dialog_actions' for i in node.items)):
+                continue
+            for button in _ui_buttons(node.body):
+                if _button_label(button) == 'Close' and not _exempt(lines, button.lineno):
+                    bad.append(f'{rel}:{button.lineno}')
+    assert not bad, 'Footer Close buttons duplicating the header Close:\n  ' + '\n  '.join(bad)
+
+
+_INLINE_WIDTH = re.compile(r'\b(?:min|max)-width\s*:')
+
+
+def test_dialog_bodies_set_no_inline_width():
+    """The card's size is the dialog's width. A body column with its own
+    `min-width: 420px` ran wider than a phone sheet and scrolled sideways."""
+    bad = []
+    for rel, source, node, lines in _dialog_blocks():
+        for stmt in node.body:
+            for n in ast.walk(stmt):
+                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'style'):
+                    continue
+                if _INLINE_WIDTH.search(ast.get_source_segment(source, n) or '') and not _exempt(lines, n.lineno):
+                    bad.append(f'{rel}:{n.lineno}')
+    assert not bad, 'Inline min/max-width inside a dialog (the card sets the width):\n  ' + '\n  '.join(sorted(set(bad)))
+
+
 def test_overflow_menus_use_the_vertical_dots():
     """⋮ (`more_vert`) is the one overflow icon on rows, cards and sheets; a ⋯ beside it reads as a different control."""
     bad = [
@@ -280,6 +404,31 @@ def test_overflow_menus_use_the_vertical_dots():
         if 'more_horiz' in line and EXEMPT not in line
     ]
     assert not bad, 'more_horiz overflow buttons (use more_vert):\n  ' + '\n  '.join(bad)
+
+
+_ROW_SCOPE = re.compile(r'props\.row|\brow\[|\{row')
+
+
+def test_overflow_buttons_are_named_for_their_row():
+    """A ⋮ button says what it's for. On a row or card it's "More for <name>",
+    so a screen reader lists thirty different buttons rather than thirty
+    "More actions"; a page toolbar's single ⋮ may say "More actions"."""
+    bad = []
+    for rel, _source, _tree, lines in _python_sources():
+        for i, line in enumerate(lines):
+            if 'more_vert' not in line or EXEMPT in line:
+                continue
+            # The button's own tag or call: up to the closing `>` of a <q-btn>,
+            # or the next few chained lines of a ui.button.
+            chunk = '\n'.join(lines[i:i + 4])
+            chunk = chunk.split('<q-menu', 1)[0].split('ui.menu(', 1)[0]
+            named = re.search(r"""aria-label[^\n]*?['"]\s*More|tooltip\(\s*['"]More""", chunk)
+            per_row = _ROW_SCOPE.search(chunk) or '<q-btn' in line
+            if not named:
+                bad.append(f'{rel}:{i + 1}: ⋮ button with no "More …" name')
+            elif per_row and 'More for' not in chunk:
+                bad.append(f'{rel}:{i + 1}: row ⋮ should be named "More for <name>"')
+    assert not bad, 'Overflow buttons:\n  ' + '\n  '.join(bad)
 
 
 def _menu_item_kind(stmt: ast.stmt, source: str) -> str | None:
@@ -308,7 +457,8 @@ def test_destructive_menu_items_come_last():
     for rel, source, tree, lines in _python_sources():
         for node in ast.walk(tree):
             if not (isinstance(node, (ast.With, ast.AsyncWith))
-                    and any(_ui_call(i.context_expr) == 'menu' for i in node.items)):
+                    and any(_ui_call(i.context_expr) == 'menu' or _base_name(i.context_expr) == 'more_menu'
+                            for i in node.items)):
                 continue
             kinds = [(st, _menu_item_kind(st, source)) for st in node.body]
             kinds = [(st, k) for st, k in kinds if k]
@@ -320,6 +470,61 @@ def test_destructive_menu_items_come_last():
                     bad.append(f'{rel}:{seen_negative.lineno}: destructive item before {st.lineno}')
                     break
     assert not bad, 'Destructive menu items not last:\n  ' + '\n  '.join(bad)
+
+
+_DESTRUCTIVE_CALL = re.compile(
+    r'^(delete|remove|unenroll|drop|retire|disconnect|cancel|clear|reset|unassign|deny|revoke|unlink)(_|$)'
+)
+
+
+def _confirmed_functions(tree: ast.AST) -> set[str]:
+    """Names of the functions that only run once a ConfirmationDialog is answered:
+    whatever its ``on_confirm`` names, plus whatever those call, to a fixpoint."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _base_name(node) == 'ConfirmationDialog':
+            for expr in [k.value for k in node.keywords if k.arg == 'on_confirm'] + node.args[1:2]:
+                names |= {n.id for n in ast.walk(expr) if isinstance(n, ast.Name)}
+                names |= {n.attr for n in ast.walk(expr) if isinstance(n, ast.Attribute)}
+    bodies: dict[str, list[ast.AST]] = {}
+    for f in ast.walk(tree):
+        if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bodies.setdefault(f.name, []).append(f)
+    while True:
+        called = {
+            (c.func.id if isinstance(c.func, ast.Name) else c.func.attr)
+            for name in names for body in bodies.get(name, [])
+            for c in ast.walk(body)
+            if isinstance(c, ast.Call) and isinstance(c.func, (ast.Name, ast.Attribute))
+        }
+        if called <= names:
+            return names
+        names |= called
+
+
+def test_destructive_calls_go_through_a_confirmation():
+    """A delete, removal, cancel or disconnect asks first, through ConfirmationDialog.
+    Checked by name: an awaited ``<service>.delete_*/remove_*/cancel_*/...`` call has
+    to sit in a function that only runs from a ConfirmationDialog's ``on_confirm``."""
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        confirmed = _confirmed_functions(tree)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Await) and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Attribute)
+                    and _DESTRUCTIVE_CALL.match(node.value.func.attr)):
+                continue
+            fn = parents.get(node)
+            while fn is not None and not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn = parents.get(fn)
+            if fn is not None and fn.name in confirmed:
+                continue
+            if not _exempt(lines, node.lineno):
+                bad.append(f'{rel}:{node.lineno}: {node.value.func.attr}')
+    assert not bad, (
+        'Destructive calls with no ConfirmationDialog in front of them:\n  ' + '\n  '.join(bad)
+    )
 
 
 def test_side_menu_is_224px():
@@ -460,3 +665,22 @@ def test_theme_editor_contrast_checks_match_the_stylesheet():
     assert 'body:not(.body--dark) .text-primary { color: color-mix(in srgb, var(--q-primary) 85%, #000)' in STYLES.read_text()
     assert '.body--dark .text-secondary { color: color-mix(in srgb, var(--wiz-ember) 70%, #fff)' in STYLES.read_text()
     assert DARK_TOKENS['--wiz-link'].strip() == 'var(--wiz-gold)'
+
+
+def test_collapsible_filter_cards_have_a_toggle():
+    """Below 1024px ``.match-filters-card`` is hidden until a Filters toggle opens it.
+
+    A page that uses the card without a toggle strands phone users on its
+    default filter (Triforce Texts did, 2026-10).
+    """
+    offenders = [
+        str(rel)
+        for rel, source, _tree, _lines in _python_sources()
+        if "'match-filters-card" in source
+        and 'wiz-filter-toggle' not in source
+        and EXEMPT not in source
+    ]
+    assert not offenders, (
+        'These use .match-filters-card, which CSS hides below 1024px, but render no '
+        f'.wiz-filter-toggle / .wiz-filter-toggle--inline button to open it: {offenders}'
+    )
