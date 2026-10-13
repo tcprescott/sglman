@@ -171,14 +171,14 @@ _TITLE = "props.row._who || (props.row.bracket ? props.row.bracket.name : props.
 
 _YOU = '<span v-if="props.row._mine" class="player-sheet__you">You</span>'
 
-# One role: its count, the viewer's own control in a tray of its own, then the
-# names. The tray comes first so the button keeps one spot whatever the list
-# holds. In it the negative action sits left of the positive one. The phone
-# card has no column header above it, so it names the role; the desktop cell
-# sits under a Commentators or Trackers header and doesn't need to. Every
-# button stops the click so pressing it doesn't also open the details sheet.
-_ROLE = r'''<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
-<div v-if="c.can_withdraw || c.can_sign_up || c.ack_idx !== null" class="wiz-crew-action">
+# One role: the viewer's own control in a tray of its own, then the count, then
+# the names. The tray comes first, and the cell is top-aligned, so the button
+# sits in the same spot on every line whatever the role says or holds. In the
+# tray the negative action sits left of the positive one. The phone card has no
+# column header above it, so it names the role; the desktop cell sits under a
+# Commentators or Trackers header and doesn't need to. Every button stops the
+# click so pressing it doesn't also open the details sheet.
+_ROLE = r'''<div v-if="c.can_withdraw || c.can_sign_up || c.ack_idx !== null" class="wiz-crew-action">
 <q-btn v-if="c.can_withdraw" outline no-caps no-wrap color="negative" dense icon="undo" :label="__WITHDRAW__"
        :aria-label="'Withdraw as ' + c.singular"
        @click.stop="$parent.$emit('undo_' + c.singular, props.row)" />
@@ -190,6 +190,7 @@ _ROLE = r'''<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">_
     <q-tooltip>Confirm you can cover this {{ c.singular }} slot</q-tooltip>
 </q-btn>
 </div>
+<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
 ''' + CREW_NAMES
 
 _ROLE_CELL = _ROLE.replace('__LABEL__', '').replace(
@@ -220,7 +221,8 @@ _BODY_SLOT = r'''
 </q-tr>
 <q-tr :props="props" class="run-sheet__row player-sheet__row" :class="props.row._flash ? 'wiz-row-flash' : ''"
       @click="$parent.$emit('open_match', props.row.id)">
-    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+    <q-td v-for="col in props.cols" :key="col.name" :props="props"
+          :class="col.name === 'commentators' || col.name === 'trackers' ? 'player-sheet__crew-cell' : ''">
         <template v-if="col.name === 'scheduled_at'">''' + _WHEN + '''</template>
         <template v-else-if="col.name === 'match'">
             <button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">

@@ -127,10 +127,12 @@ class TestTemplates:
         opener = _ITEM_SLOT.split('<button type="button" class="player-sheet__open"')[1].split('</button>')[0]
         assert '<q-btn' not in opener
 
-    def test_the_button_keeps_one_spot_above_the_names(self):
-        # Thomas, 2026-10-13: names back, and the button in a fixed place.
+    def test_the_button_comes_first_in_each_role(self):
+        # Thomas, 2026-10-13: names back, and the button in a fixed place,
+        # ahead of the count and the names.
         for slot in (_BODY_SLOT, _ITEM_SLOT):
-            assert slot.index('wiz-crew-action') < slot.index('run-sheet__people')
+            assert slot.index('wiz-crew-action') < slot.index('run-sheet__crew') < slot.index('run-sheet__people')
+        assert 'player-sheet__crew-cell' in _BODY_SLOT
 
     def test_withdraw_sits_left_of_confirm(self):
         # Style guide: in a pair the negative action is on the left.

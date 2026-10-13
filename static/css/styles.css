@@ -4769,6 +4769,9 @@ ol.wiz-help-list { list-style-type: decimal; }
 .player-sheet__row > td:first-child {
     white-space: nowrap;
 }
+.player-sheet__row > td.player-sheet__crew-cell {
+    vertical-align: top;
+}
 .player-sheet__role {
     display: flex;
     flex-direction: column;

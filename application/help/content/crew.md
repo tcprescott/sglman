@@ -124,15 +124,16 @@ Turn on **Include past** to see the ones you've already worked.
 
 ## Reading the crew columns
 
-The board has a **Commentators** and a **Trackers** column. Each starts with
-approved crew against what the match needs: "1/2" means one approved
+The board has a **Commentators** and a **Trackers** column. Your own **Sign
+up** or **Withdraw** sits in a shaded box at the top of each, so it's in the same
+spot on every match. Under it is approved crew against what the match needs:
+"1/2" means one approved
 commentator out of two. Someone still waiting for approval doesn't count, so a
 match can have three signups and still say "needs crew". **Needs crew** uses
 the same rule when it decides whether a match is covered. On a phone each card
 names the role instead ("Commentary 1/2").
 
-Your own **Sign up** or **Withdraw** sits in a shaded box just under the count,
-so it's in the same spot on every match. Under that are the names: a tick for
+Under the count are the names: a tick for
 approved, a clock and "waiting for approval" for everyone else, and **You** for
 you. "No signups yet" means nobody has asked for that slot.
 
