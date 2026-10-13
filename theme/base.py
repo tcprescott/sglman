@@ -131,6 +131,8 @@ class BaseLayout:
         # Members only, like Feedback: the listing is the community's own and
         # the page's membership gate would turn anyone else away.
         self._show_community_events = False
+        # Members only, for the same reason: /qualifiers runs the membership gate.
+        self._show_qualifiers = False
         # The check-in desk, offered only while an event is open and to people
         # who can work it. False on the synchronous error path, like Feedback.
         self._show_check_in = False
@@ -224,6 +226,9 @@ class BaseLayout:
         if self._is_member:
             self._show_community_events = await FeatureFlagService().is_enabled(
                 FeatureFlag.COMMUNITY_EVENTS,
+            )
+            self._show_qualifiers = await FeatureFlagService().is_enabled(
+                FeatureFlag.ASYNC_QUALIFIERS,
             )
         if self._is_member and await AuthService.can_view_check_in_desk(self.user):
             from application.services import CheckInService
@@ -554,6 +559,15 @@ class BaseLayout:
                         ui.icon('groups').props('size=sm')
                     with ui.item_section():
                         ui.item_label('Community Events')
+
+            if self._show_qualifiers:
+                with ui.item(
+                    on_click=lambda: ui.navigate.to('/qualifiers')
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('timer').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Qualifiers')
 
             # Not gated on ``self.user``: /help is a public page, and a
             # signed-out visitor on any framed public surface is exactly the
