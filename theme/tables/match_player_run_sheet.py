@@ -80,7 +80,7 @@ def player_crew(row: dict, discord_id) -> list[dict]:
     ``'approved'``, ``'waiting'`` or None; ``can_sign_up`` mirrors the gate the
     old crew cell used (``match_slots.CREW_CAN_SIGN_UP_JS``), and ``ack_idx`` is
     set when the viewer is approved but hasn't confirmed they'll cover it.
-    ``people`` are the names, the viewer's printed as "You", and ``empty`` is
+    ``unavailable`` is why there's no button to press. ``people`` are the names, the viewer's printed as "You", and ``empty`` is
     the "No signups yet" line while the role can still be filled.
     """
     wanted = row.get('crew_wanted') or {}
@@ -111,12 +111,28 @@ def player_crew(row: dict, discord_id) -> list[dict]:
             'short': open_ and approved < need,
             'mine': mine,
             'can_sign_up': bool(discord_id) and open_ and mine is None and not plays,
+            'unavailable': _unavailable(mine, open_, plays),
             'can_withdraw': mine is not None,
             'ack_idx': ack_idx,
             'people': crew_people(people, discord_id, waiting_note='waiting for approval'),
             'empty': open_ and not people,
         })
     return roles
+
+
+def _unavailable(mine, open_: bool, plays: bool) -> str:
+    """Why the viewer has no crew button on a role, or '' when they have one.
+
+    The line still draws a disabled Sign up with this beside it, so the
+    button's spot never empties.
+    """
+    if mine is not None:
+        return ''
+    if plays:
+        return "You're playing"
+    if not open_:
+        return 'Signups closed'
+    return ''
 
 
 def needs_my_ack(row: dict, discord_id) -> bool:
@@ -171,14 +187,16 @@ _TITLE = "props.row._who || (props.row.bracket ? props.row.bracket.name : props.
 
 _YOU = '<span v-if="props.row._mine" class="player-sheet__you">You</span>'
 
-# One role: the viewer's own control in a tray of its own, then the count, then
-# the names. The tray comes first, and the cell is top-aligned, so the button
-# sits in the same spot on every line whatever the role says or holds. In the
-# tray the negative action sits left of the positive one. The phone card has no
+# One role: the count, the viewer's own control in a tray of its own, then the
+# names. Every role draws a button, a disabled Sign up with the reason beside it
+# when there's nothing to press, and the cell is top-aligned, so the button sits
+# in the same spot on every line. In the tray the negative action sits left of
+# the positive one. The phone card has no
 # column header above it, so it names the role; the desktop cell sits under a
 # Commentators or Trackers header and doesn't need to. Every button stops the
 # click so pressing it doesn't also open the details sheet.
-_ROLE = r'''<div v-if="c.can_withdraw || c.can_sign_up || c.ack_idx !== null" class="wiz-crew-action">
+_ROLE = r'''<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
+<div class="wiz-crew-action">
 <q-btn v-if="c.can_withdraw" outline no-caps no-wrap color="negative" dense icon="undo" :label="__WITHDRAW__"
        :aria-label="'Withdraw as ' + c.singular"
        @click.stop="$parent.$emit('undo_' + c.singular, props.row)" />
@@ -189,8 +207,11 @@ _ROLE = r'''<div v-if="c.can_withdraw || c.can_sign_up || c.ack_idx !== null" cl
        @click.stop="$parent.$emit('acknowledge_' + c.singular, { row: props.row, idx: c.ack_idx })">
     <q-tooltip>Confirm you can cover this {{ c.singular }} slot</q-tooltip>
 </q-btn>
+<template v-if="!c.can_withdraw && !c.can_sign_up">
+<q-btn outline no-caps no-wrap dense disable icon="assignment_ind" :label="__SIGN_UP__" />
+<span v-if="c.unavailable" class="wiz-crew-why st-neutral">{{ c.unavailable }}</span>
+</template>
 </div>
-<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template></span>
 ''' + CREW_NAMES
 
 _ROLE_CELL = _ROLE.replace('__LABEL__', '').replace(

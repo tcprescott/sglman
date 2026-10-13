@@ -4881,6 +4881,10 @@ ol.wiz-help-list { list-style-type: decimal; }
     gap: 0.25rem;
     font-size: var(--text-sm);
 }
+.wiz-crew-why {
+    font-size: var(--text-sm);
+    white-space: nowrap;
+}
 .player-sheet__role .wiz-crew-action .q-btn {
     padding: 0 0.625rem;
 }
