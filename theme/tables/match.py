@@ -30,6 +30,7 @@ from theme.tables.match_filters import (
 )
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
+from theme.tables.match_run_sheet import arrange_run_sheet, register_run_sheet_slots
 from theme.tables.match_slots import (
     CANDIDATE_STAGE,
     MY_ACTIONS_COLUMN,
@@ -64,6 +65,11 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
     (``match_handlers``). Uses MatchService for all data operations.
     """
 
+    #: Class-level defaults for the two layout attributes, so a view assembled
+    #: without ``__init__`` (the tests' ``__new__`` stubs) reads as a table.
+    layout = 'table'
+    on_open_match = None
+
     def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_result=None, on_set_stage=None, on_assign_stations=None,
@@ -71,8 +77,14 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                  row_sort=None, row_filter=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
                  scope_tournament_ids=None, table_key=None, searchable=False,
-                 show_accommodations=False):
+                 show_accommodations=False, layout='table', on_open_match=None):
         self.columns = columns
+        # 'table' draws every column's control in its cell (and a full card per
+        # match on a phone); 'run_sheet' draws one grouped line per match and
+        # hands a tapped line to ``on_open_match(match_id)``, which shows the
+        # controls (see match_run_sheet).
+        self.layout = layout
+        self.on_open_match = on_open_match
         # When set, this board's desktop columns follow the viewer's saved
         # layout. Each surface built on this class passes its **own** key: a
         # proctor's column choices must not follow them onto the admin board.
@@ -183,6 +195,35 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         scoped_background(self._render_context, coro)
 
 
+    def _register_table_slots(self, discord_id) -> None:
+        """The 'table' layout: a slot per column, and the full card on a phone."""
+        # The want_* flags mirror the callback availability so the
+        # seed/state/stage slots register exactly as before (see match_slots).
+        register_body_slots(
+            self.table,
+            admin_controls=self.admin_controls,
+            access=self.access,
+            discord_id=discord_id,
+            extra_slots=self.extra_slots,
+            has_edit=self.on_edit is not None,
+            want_seed_slot=self.admin_controls and self.on_generate_seed is not None,
+            want_seed_readonly=self.admin_controls and self.on_generate_seed is None,
+            # Every operator's board gets the state cell, including one whose
+            # viewer can run nothing: it carries the chips and timestamps, and
+            # the capability flags inside it decide which buttons appear.
+            want_state_slot=self.admin_controls,
+            want_stage_admin=self.admin_controls and self.on_set_stage is not None,
+            want_stage_readonly=self.on_set_stage is None,
+        )
+
+        # Register the mobile grid slot (see match_grid).
+        render_grid_slot(
+            self.table, self.columns,
+            admin_controls=self.admin_controls, access=self.access, discord_id=discord_id,
+            has_edit=self.on_edit is not None,
+            actions_first=self.actions_first,
+        )
+
     def _setup_ui(self):
         if self.submit_match_callback:
             with ui.row().classes('full-width row-spacing'):
@@ -214,36 +255,15 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # Resolve current user's discord_id once for slot templates and event wiring.
         discord_id = app.storage.user.get('discord_id', None)
 
-        # Register the column slot templates (see match_slots). The want_* flags
-        # mirror the callback availability so the seed/state/stage slots
-        # register exactly as before.
-        register_body_slots(
-            self.table,
-            admin_controls=self.admin_controls,
-            access=self.access,
-            discord_id=discord_id,
-            extra_slots=self.extra_slots,
-            has_edit=self.on_edit is not None,
-            want_seed_slot=self.admin_controls and self.on_generate_seed is not None,
-            want_seed_readonly=self.admin_controls and self.on_generate_seed is None,
-            # Every operator's board gets the state cell, including one whose
-            # viewer can run nothing: it carries the chips and timestamps, and
-            # the capability flags inside it decide which buttons appear.
-            want_state_slot=self.admin_controls,
-            want_stage_admin=self.admin_controls and self.on_set_stage is not None,
-            want_stage_readonly=self.on_set_stage is None,
-        )
-
-        # Register the mobile grid slot (see match_grid).
-        render_grid_slot(
-            self.table, self.columns,
-            admin_controls=self.admin_controls, access=self.access, discord_id=discord_id,
-            has_edit=self.on_edit is not None,
-            actions_first=self.actions_first,
-        )
+        if self.layout == 'run_sheet':
+            register_run_sheet_slots(self.table)
+            if self.on_open_match is not None:
+                self.table.on('open_match', lambda event: self._bg(self.on_open_match(event.args)))
+        else:
+            self._register_table_slots(discord_id)
 
         if self.table_key:
-            # **After** render_grid_slot(), never before: the card's item slot is
+            # **After** the item slot is registered, never before: the card is
             # generated from these columns at build time, so applying a saved
             # layout here cannot reach it. Pinned by
             # tests/theme/test_table_preferences.py.
@@ -454,6 +474,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         if self.row_sort is not None:
             rows = self.row_sort(rows)
+        if self.layout == 'run_sheet':
+            rows = arrange_run_sheet(rows)
 
         self.table.rows = rows
         self.table.update()
@@ -640,6 +662,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if flash:
             match_data['_flash'] = True
         self.table.rows[idx] = match_data
+        if self.layout == 'run_sheet':
+            # A state change can move the match to another group.
+            self.table.rows[:] = arrange_run_sheet(self.table.rows)
         self.table.update()
         self._notify_rows_changed()
         if flash:

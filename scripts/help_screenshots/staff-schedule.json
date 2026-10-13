@@ -6,14 +6,31 @@
     "viewport": "desktop",
     "setup": [
       {
-        "fill": "input[placeholder^=\"Search matches\"]",
-        "value": "Wizzrobe Dev"
-      },
-      {
         "wait": 1500
       }
     ],
-    "selector": ".match-table"
+    "selector": ".schedule-layout__board .match-table"
+  },
+  {
+    "name": "match-sheet",
+    "user": "staff_user",
+    "path": "/admin/schedule",
+    "viewport": "desktop",
+    "setup": [
+      {
+        "wait": 1500
+      },
+      {
+        "click": ".run-sheet__open:has-text(\"Player One vs Player Two\")"
+      },
+      {
+        "waitFor": ".match-sheet"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "selector": ".match-sheet"
   },
   {
     "name": "match-dialog",
@@ -22,22 +39,24 @@
     "viewport": "desktop",
     "setup": [
       {
-        "fill": "input[placeholder^=\"Search matches\"]",
-        "value": "Wizzrobe Dev"
-      },
-      {
         "wait": 1500
       },
       {
-        "click": "[aria-label=\"Edit this match\"]"
+        "click": ".run-sheet__open:has-text(\"Player Two vs Player Three\")"
       },
       {
-        "waitFor": ".dialog-card"
+        "waitFor": ".match-sheet"
+      },
+      {
+        "click": ".match-sheet button:has-text(\"Edit match\")"
+      },
+      {
+        "waitFor": ".dialog-card:not(.match-sheet)"
       },
       {
         "wait": 800
       }
     ],
-    "selector": ".dialog-card"
+    "selector": ".dialog-card:not(.match-sheet)"
   }
 ]
