@@ -3,36 +3,39 @@
 Concurrent player counts over a date range, against the configured capacity.
 """
 
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
+from typing import Any, Optional
 
 from nicegui import app, ui
 
 from application.services import (
     AuthService,
     ReportsService,
-    SystemConfigService,
     get_user_from_discord_id,
 )
 from application.utils.timezone import format_local_datetime, format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
+from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
 from .shared import (
-    CHART_GOLD,
-    CHART_GOLD_AREA,
     CHART_GRID,
     CHART_RED,
-    CHART_TEAL,
     CHART_TEXT,
+    chart_palette,
     csv_export_button,
     date_range_filter,
     default_date_range,
     display_bounds,
     enable_drill_link,
+    event_jump_options,
+    is_custom_range,
     navigate_with_params,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
+    reports_url,
     themed_chart_option,
     tournament_filter,
 )
@@ -52,54 +55,21 @@ async def capacity_page(
     viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_open_board = await AuthService.can_view_schedule_board(viewer)
 
-    with report_page_shell('Capacity Forecast'):
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
-                date_range_filter(
-                    start_d,
-                    end_d,
-                    on_change=lambda s, e: navigate_with_params(
-                        report='capacity',
-                        start=s,
-                        end=e,
-                        tournament_id=tournament_id,
-                    ),
-                )
-                await tournament_filter(
-                    tournament_id,
-                    on_change=lambda t_id: navigate_with_params(
-                        report='capacity',
-                        start=start_d,
-                        end=end_d,
-                        tournament_id=t_id,
-                    ),
-                )
+    def nav(**overrides) -> None:
+        params: dict[str, Any] = {'report': 'capacity', 'start': start_d, 'end': end_d, 'tournament_id': tournament_id}
+        params.update(overrides)
+        navigate_with_params(**params)
 
-            event_start, event_end = await SystemConfigService.get_event_window()
-            with ui.row().classes('q-mt-sm items-center gap-2'):
-                ui.label('Shortcuts:').classes('text-caption')
-                ui.button(
-                    'Whole event',
-                    on_click=lambda: navigate_with_params(
-                        report='capacity',
-                        start=event_start,
-                        end=event_end,
-                        tournament_id=tournament_id,
-                    ),
-                ).props('flat dense')
-                for offset in range(0, (event_end - event_start).days + 1):
-                    day_d = event_start + timedelta(days=offset)
-                    if day_d > event_end:
-                        break
-                    ui.button(
-                        day_d.strftime('%a %m-%d'),
-                        on_click=lambda d=day_d: navigate_with_params(
-                            report='capacity',
-                            start=d,
-                            end=d,
-                            tournament_id=tournament_id,
-                        ),
-                    ).props('flat dense')
+    active = int(await is_custom_range(start_d, end_d)) + int(tournament_id is not None)
+    with report_page_shell(
+        'Capacity Forecast',
+        "How many players are at a setup at once, against the venue's capacity.",
+    ):
+        with report_filter_bar(active):
+            date_range_filter(start_d, end_d, on_change=lambda s, e: nav(start=s, end=e))
+            await tournament_filter(tournament_id, on_change=lambda t_id: nav(tournament_id=t_id))
+            report_jumps(await event_jump_options(), start_d, end_d,
+                         on_pick=lambda s, e: nav(start=s, end=e))
 
         bounds_start, bounds_end = display_bounds(start_d, end_d)
         forecast = await reports_service.generate_capacity_forecast(
@@ -111,21 +81,22 @@ async def capacity_page(
         on_stream_counts = forecast['on_stream_player_counts']
         capacity = forecast['max_capacity']
 
-        with ui.card().classes('chart-container q-pa-md'):
-            ui.label(
-                f'Concurrent players ({forecast["interval_minutes"]}-minute intervals, capacity: {capacity})'
-            ).classes('section-title')
-
+        palette = await chart_palette()
+        chart_panel = await section_panel(
+            'Concurrent players', icon='show_chart',
+            subtitle=f'{forecast["interval_minutes"]}-minute intervals. Capacity {capacity}.',
+        )
+        with chart_panel.body:
             time_labels = [format_local_datetime(t, '%m-%d %H:%M %Z') for t in intervals]
             capacity_series = [capacity] * len(intervals)
 
-            # The slider ships in stock ECharts blue; restyle it to the gold
-            # chrome so it sits with the palette in both modes.
+            # The slider ships in stock ECharts blue; restyle it to the
+            # community's colour so it sits with the palette in both modes.
             slider_style = {
-                'fillerColor': 'rgba(181, 121, 28, 0.15)',
+                'fillerColor': palette.primary_wash,
                 'borderColor': CHART_GRID,
-                'handleStyle': {'color': CHART_GOLD},
-                'moveHandleStyle': {'color': CHART_GOLD},
+                'handleStyle': {'color': palette.primary},
+                'moveHandleStyle': {'color': palette.primary},
                 'textStyle': {'color': CHART_TEXT},
             }
             data_zoom_options = [{'type': 'inside'}, {'type': 'slider', **slider_style}]
@@ -155,17 +126,17 @@ async def capacity_page(
                         'type': 'line',
                         'data': player_counts,
                         'smooth': True,
-                        'itemStyle': {'color': CHART_GOLD},
-                        'areaStyle': {'color': CHART_GOLD_AREA},
-                        'lineStyle': {'width': 2, 'color': CHART_GOLD},
+                        'itemStyle': {'color': palette.primary},
+                        'areaStyle': {'color': palette.primary_area},
+                        'lineStyle': {'width': 2, 'color': palette.primary},
                     },
                     {
                         'name': 'On-stream players',
                         'type': 'line',
                         'data': on_stream_counts,
                         'smooth': True,
-                        'itemStyle': {'color': CHART_TEAL},
-                        'lineStyle': {'width': 2, 'color': CHART_TEAL},
+                        'itemStyle': {'color': palette.secondary},
+                        'lineStyle': {'width': 2, 'color': palette.secondary},
                     },
                     {
                         'name': 'Capacity',
@@ -179,31 +150,16 @@ async def capacity_page(
             }
             ui.echart(themed_chart_option(echart_option)).classes('chart-height')
 
-        with ui.card().classes('full-width q-mb-md q-pa-md'):
-            ui.label('Top 5 peak times').classes('section-title')
-            peaks = ReportsService.peak_times(intervals, player_counts, top_n=5)
-            if not peaks or peaks[0][1] == 0:
-                ui.label('No matches found in the selected window.').classes('italic-note')
-            else:
-                for peak_time, count in peaks:
-                    with ui.row().classes('items-center q-gutter-xs'):
-                        ui.label(f'{format_local_display(peak_time)} — {count} players')
-                        ui.link(
-                            'Inspect',
-                            f'/admin/reports?report=capacity'
-                            f'&start={start_d.isoformat()}&end={end_d.isoformat()}'
-                            + (f'&tournament_id={tournament_id}' if tournament_id else '')
-                            + f'&focus={peak_time.isoformat()}',
-                        ).classes('text-caption q-ml-sm')
-
         if focus_dt:
-            with ui.card().classes('full-width q-pa-md'):
-                ui.label(f'Matches active at {format_local_display(focus_dt)}').classes('section-title')
+            focus_panel = await section_panel(
+                f'Matches active at {format_local_display(focus_dt)}', icon='schedule',
+            )
+            with focus_panel.body:
                 focused_matches = await reports_service.matches_active_at(focus_dt, tournament_id=tournament_id)
                 if not focused_matches:
                     ui.label('No active matches at this instant.').classes('italic-note')
                 else:
-                    rows = [
+                    focus_rows = [
                         {
                             'match_id': m.id,
                             'tournament': m.tournament.name if m.tournament else '',
@@ -214,7 +170,7 @@ async def capacity_page(
                         }
                         for m in focused_matches
                     ]
-                    columns = [
+                    focus_columns = [
                         {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
                         {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
                         {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
@@ -223,44 +179,67 @@ async def capacity_page(
                         {'name': 'stage', 'label': 'Stage', 'field': 'stage'},
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]
-                    focus_table = ui.table(columns=columns, rows=rows, row_key='match_id', pagination=25).classes('full-width')
+                    focus_table = ui.table(columns=focus_columns, rows=focus_rows, row_key='match_id',
+                                           pagination=25).classes('full-width')
                     # Peak players over the ceiling is fixed by moving one of
                     # *these* matches; this is the only table that names them.
                     focus_actions = enable_drill_link(
-                        focus_table, columns, rows,
+                        focus_table, focus_columns, focus_rows,
                         lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
                         enabled=can_open_board,
                         hint='Open on the schedule board',
                     )
-                    enable_mobile_grid(focus_table, columns, actions=focus_actions,
+                    enable_mobile_grid(focus_table, focus_columns, actions=focus_actions,
                                        table_key=TableKeys.REPORTS_CAPACITY_FOCUS)
 
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center justify-between'):
-                ui.label('Forecast data').classes('section-title')
-                rows = [
-                    {
-                        'time': format_local_display(intervals[i]),
-                        'active_players': player_counts[i],
-                        'on_stream_players': on_stream_counts[i],
-                        'match_ids': ','.join(str(m) for m in forecast['match_ids_per_interval'][i]),
-                    }
-                    for i in range(len(intervals))
-                ]
-                columns = [
-                    {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
-                    {'name': 'active_players', 'label': 'Active players', 'field': 'active_players', 'sortable': True},
-                    {'name': 'on_stream_players', 'label': 'On-stream players', 'field': 'on_stream_players', 'sortable': True},
-                    {'name': 'match_ids', 'label': 'Match IDs', 'field': 'match_ids'},
-                ]
+        with ui.element('div').classes('wiz-report-split'):
+            peaks_panel = await section_panel('Busiest times', icon='bar_chart')
+            with peaks_panel.body:
+                peaks = ReportsService.peak_times(intervals, player_counts, top_n=5)
+                if not peaks or peaks[0][1] == 0:
+                    ui.label('No matches found in the selected window.').classes('italic-note')
+                else:
+                    for peak_time, count in peaks:
+                        with ui.row().classes('items-center no-wrap full-width'):
+                            ui.label(format_local_display(peak_time)).classes('cell-timestamp')
+                            ui.label(f'{count} players').classes(
+                                'text-weight-bold' + (' text-negative' if count > capacity else ''))
+                            ui.space()
+                            ui.link(
+                                'Inspect',
+                                reports_url(
+                                    'capacity', start=start_d, end=end_d,
+                                    tournament_id=tournament_id, focus=peak_time.isoformat(),
+                                ),
+                            )
+
+            rows = [
+                {
+                    'time': format_local_display(intervals[i]),
+                    'active_players': player_counts[i],
+                    'on_stream_players': on_stream_counts[i],
+                    'match_ids': ','.join(str(m) for m in forecast['match_ids_per_interval'][i]),
+                }
+                for i in range(len(intervals))
+            ]
+            columns = [
+                {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
+                {'name': 'active_players', 'label': 'Active players', 'field': 'active_players', 'sortable': True},
+                {'name': 'on_stream_players', 'label': 'On-stream players', 'field': 'on_stream_players', 'sortable': True},
+                {'name': 'match_ids', 'label': 'Match IDs', 'field': 'match_ids'},
+            ]
+            data_panel = await section_panel('Forecast data', icon='table_chart')
+            with data_panel.aside:
                 csv_export_button(
                     f'capacity-forecast-{start_d}-to-{end_d}',
                     lambda: columns,
                     lambda: rows,
                 )
-            forecast_table = ui.table(columns=columns, rows=rows, pagination=25, row_key='time').classes('full-width')
-            enable_mobile_grid(forecast_table, columns,
-                               table_key=TableKeys.REPORTS_CAPACITY_FORECAST)
+            with data_panel.body:
+                forecast_table = ui.table(columns=columns, rows=rows, pagination=25, row_key='time') \
+                    .classes('full-width')
+                enable_mobile_grid(forecast_table, columns,
+                                   table_key=TableKeys.REPORTS_CAPACITY_FORECAST)
 
 
 def _parse_focus(value: Optional[str]) -> Optional[datetime]:

@@ -829,6 +829,12 @@ main.q-page:focus {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
 }
 
+/* Stat tiles: four across a desktop report, stretched to one height. */
+.wiz-tile-grid--sm {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    align-items: stretch;
+}
+
 .wiz-tile-grid > * {
     min-width: 0;
     margin: 0;
@@ -2221,6 +2227,66 @@ main.q-page:focus {
 .chart-height {
     width: 100%;
     height: 400px;
+}
+
+/* A report page (pages/admin_tabs/reports): an "All reports" link above the
+   header, the match boards' filter card, then section panels. */
+.wiz-report {
+    gap: var(--space-4);
+}
+
+.wiz-report > .wiz-page-header {
+    margin-bottom: 0;
+}
+
+.wiz-report > .match-filters-card {
+    margin-bottom: 0;
+}
+
+.wiz-report-back {
+    align-self: flex-start;
+    margin-left: calc(-1 * var(--space-2));
+    margin-bottom: calc(-1 * var(--space-3));
+}
+
+/* Shortcut ranges under the filter fields: a line of their own on desktop and
+   the full width of the phone's 2x2 grid, scrolling sideways rather than
+   wrapping when a long event has more days than fit. */
+.wiz-report-jumps {
+    flex-basis: 100%;
+    grid-column: 1 / -1;
+    gap: var(--space-2);
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.wiz-report-jumps > .text-caption,
+.wiz-report-jumps .q-btn {
+    white-space: nowrap;
+}
+
+.wiz-report-jumps .wiz-segmented {
+    flex: 0 0 auto;
+}
+
+/* Two panels side by side on desktop, the second twice as wide (a short
+   ranked list beside the table it comes from); stacked on a phone. */
+.wiz-report-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    width: 100%;
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .wiz-report-split {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    }
+}
+
+.wiz-kpi {
+    height: 100%;
 }
 
 .control-width {

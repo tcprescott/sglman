@@ -798,20 +798,25 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | Helper | Purpose |
 |---|---|
 | `REPORT_KEYS` | Tuple of report keys — currently unreferenced; the dashboard cards are driven by `dashboard.REPORT_CARDS` |
-| `CHART_GOLD` / `CHART_TEAL` / `CHART_RED` / `CHART_NEUTRAL` / `CHART_GOLD_AREA` / `CHART_TEXT` / `CHART_GRID` | The chart palette. Fixed mid-tone steps chosen to clear 3:1 on **both** the light and dark card surfaces; colours are assigned **by role** (primary series, secondary series, threshold, idle), never per chart |
+| `async chart_palette()` / `chart_palette_for(accent)` | The main series in the community's colour, moved by `TenantThemeService.chart_series_colour` just far enough to clear 3:1 on **both** the light and dark card surfaces (canvas charts are painted once), its area and slider washes, and a second-series colour that is never the same hue (teal, or amber for a teal community) |
+| `CHART_TEAL` / `CHART_AMBER` / `CHART_RED` / `CHART_NEUTRAL` / `CHART_TEXT` / `CHART_GRID` | Fixed colours that carry a meaning (threshold, idle, a middling score) and chart chrome; assigned **by role**, never per chart |
 | `themed_chart_option(option)` | Overlay the mode-neutral chrome colours onto an ECharts option without clobbering what the chart already sets |
 | `reports_url(report=None, **params)` | Build `/admin/reports[?report=…]` URLs — `admin_url('reports', …)` from [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py), which drops empty params and ISO-formats dates |
 | `parse_date(value)` / `parse_int(value)` | Lenient parsing; `None` on garbage |
 | `display_bounds(start_d, end_d)` | picked date range → half-open UTC bounds on the display clock (end clamped ≥ start) |
 | `async default_date_range(start_param, end_param)` | The URL dates if both parse, else `SystemConfigService.get_event_window()` |
-| `report_page_shell(title, back_to_dashboard=True)` | Context manager: page container, "← Reports" back link, title, separator |
-| `date_range_filter(default_start, default_end, on_change)` | Start/End inputs with calendar popups; fires `on_change(start, end)` on either change |
+| `report_page_shell(title, subtitle=None)` | Context manager: page container, an "All reports" button back to the dashboard, then `page_header` |
+| `report_filter_bar(active=0)` | Context manager: the match boards' filter card (`match-filters-card--compact`). One row of outlined fields on desktop; below 1024px it folds behind a Filters button whose badge shows `active`, and its open state survives a filter refresh |
+| `filter_field(element)` | Style a report filter like a match-board field (`match-filter-field`, outlined, dense) |
+| `report_jumps(options, start_d, end_d, on_pick)` / `async event_jump_options()` | A segmented "Jump to" row of preset ranges under the fields; the event window plus each of its days (up to a week), or Insights' last 30/90/365 days |
+| `async is_custom_range(start_d, end_d)` | Whether the range differs from the event window, for the filter badge |
+| `date_range_filter(default_start, default_end, on_change)` | Start/End filter fields with calendar popups; fires `on_change(start, end)` on either change |
 | `async tournament_filter(current_id, on_change)` | Tournament select with an "All tournaments" (`0`) option |
-| `kpi_card(title, value, subtitle, color, min_width, href, href_label)` | One flex KPI tile for report strips (dashboard and insights); `href` makes it a route to the report the number comes from |
+| `kpi_card(title, value, subtitle, color, href, href_label)` / `kpi_grid()` | One KPI tile, inside the `wiz-tile-grid--sm` grid `kpi_grid` returns (dashboard, insights, telemetry); `href` makes it a route to the report the number comes from |
 | `enable_drill_link(table, columns, rows, url_for, enabled=True, hint=…)` | Per-row navigating control — desktop `body-cell-drill` slot **and** the string to pass as `enable_mobile_grid(actions=…)`, in one call. Renders nothing when `enabled` is false. Returns the card-action markup |
 | `parse_details(raw)` | `(parsed_json_or_none, display_text)` for an audit/telemetry blob; legacy plain-text rows pass through unchanged |
 | `clicked_row(e)` | Extract the row dict from a NiceGUI `row-click` event |
-| `paginated_event_log(...)` | The shared server-side-paginated log table (audit + telemetry): columns, CSV, pager, and a header stating the page range (`count_noun='entries'` → `Showing 51–100 of 124 entries`) |
+| `async paginated_event_log(title=, icon=, ...)` | The shared server-side-paginated log panel (audit + telemetry): a `section_panel` with CSV in its header, the page range as its subtitle (`count_noun='entries'` → `Showing 51–100 of 124 entries`), the table and the pager |
 | `show_navigating()` | The overlay that acknowledges a click costing a full navigation — now only the per-row drill-out, since filter changes refresh in place. A NiceGUI element, not `run_javascript` — the outbox emits element updates before messages, so this reaches the browser ahead of the `open` |
 | `bind_report_refresh(refresh)` | Registers the dispatcher's in-place re-render on the client (never module state); what turns every `navigate_with_params` into a refresh |
 | `csv_export_button(filename_prefix, columns_provider, rows_provider, label='Export CSV')` | Download button; notifies on failure. Re-exported from [`theme/tables/export.py`](../../theme/tables/export.py) |
