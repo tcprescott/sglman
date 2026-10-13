@@ -2358,6 +2358,16 @@ main.q-page:focus {
     max-width: 20rem;
 }
 
+/* Discord handles run to 30-odd characters with no break point, and the
+   display name falls back to the handle, so one long name was two wide
+   columns. Break it inside a capped cell instead. */
+.user-table td .user-table__name {
+    display: inline-block;
+    max-width: 12rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 /* Nine columns share a laptop-width page, so the cells give up some of
    Quasar's 16px side padding rather than push Via and Remove off the end. */
 .user-table .q-table th,

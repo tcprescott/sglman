@@ -65,7 +65,10 @@ class UserTableView:
             self.table.add_slot(
                 'body-cell-actions', f'<q-td :props="props">{self.row_actions}</q-td>')
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link user-table__name">{{ props.value }}</a>
+        </q-td>''')
+        self.table.add_slot('body-cell-preferred_name', '''<q-td :props="props">
+            <span class="user-table__name">{{ props.value }}</span>
         </q-td>''')
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
             <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
