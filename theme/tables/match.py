@@ -14,7 +14,7 @@ from application.services import (
     UserService,
 )
 from application.tenant_context import get_current_tenant_id
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import form_dialog
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
@@ -606,8 +606,6 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                     f'Staff have arranged an accommodation for {name}. Check with '
                     'staff for what it involves before the match starts.'
                 ).classes('text-body2 q-mt-sm')
-            with dialog_actions().classes('justify-end'):
-                ui.button('Close', on_click=dialog.close).props('flat')
         dialog.open()
 
     def _shows_column(self, name: str) -> bool:

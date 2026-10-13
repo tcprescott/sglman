@@ -3,7 +3,7 @@ from typing import Any, Optional
 from nicegui import ui
 from nicegui.events import ClickEventArguments, handle_event
 
-from theme.dialog._helpers import dialog_actions, dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 
 class ConfirmationDialog:
@@ -35,8 +35,9 @@ class ConfirmationDialog:
     def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(self.title, dialog)
-            with ui.column().classes('q-pa-md'):
+            with ui.column():
                 # pre-line, because callers have always written these messages as
                 # paragraphs with '\n\n' and a plain label collapsed every one of
                 # them onto a single line.

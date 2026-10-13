@@ -42,7 +42,7 @@ class VolunteerExportDialog:
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         event_start, event_end = await SystemConfigService.get_event_window()
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             mobile_sheet(dialog)
             dialog_header('Export volunteer data', dialog)
             with ui.column().classes('q-pa-md gap-3 full-width'):
@@ -51,7 +51,7 @@ class VolunteerExportDialog:
                     'availability, positions, shifts, assignments, and a slot-by-slot '
                     'schedule grid — for building a schedule in a spreadsheet.'
                 ).classes('text-body2')
-                with ui.row().classes('gap-2 items-center full-width'):
+                with ui.row().classes('form-pair gap-2'):
                     start_input = native_date_input('Start date', event_start.isoformat())
                     end_input = native_date_input('End date', event_end.isoformat())
                 ui.label(

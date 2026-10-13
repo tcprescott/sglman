@@ -212,7 +212,7 @@ async def admin_webhooks_page() -> None:
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                with form_dialog(f"Recent deliveries — {row['name']}", card_classes='dialog-card dialog-card--md') as dialog:
+                with form_dialog(f"Recent deliveries — {row['name']}", card_classes='dialog-card dialog-card--lg') as dialog:
                     if not deliveries:
                         ui.label('No deliveries yet.').classes('text-grey')
                     else:
@@ -242,8 +242,6 @@ async def admin_webhooks_page() -> None:
                         ).classes('w-full wiz-table')
                         enable_mobile_grid(delivery_table, delivery_columns,
                                            table_key=TableKeys.ADMIN_WEBHOOK_DELIVERIES)
-                    with dialog_actions().classes('justify-end'):
-                        ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
         def open_webhook_dialog(existing=None) -> None:

@@ -157,7 +157,7 @@ def open_sign_in_first_dialog(config: LinkSectionConfig, sign_in_url: str) -> No
         dialog.close()
         ui.navigate.to(config.link_route)
 
-    with form_dialog(f'Sign in to {config.title} first') as dialog:
+    with form_dialog(f'Sign in to {config.title} first', card_classes='dialog-card dialog-card--sm') as dialog:
         with ui.column().classes('q-pa-md gap-2'):
             ui.label(
                 f"If you aren't signed in to {config.title} already, it shows an "
