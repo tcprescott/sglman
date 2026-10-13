@@ -91,3 +91,20 @@ class TestScoreCell:
     def test_a_finished_run_keeps_its_band(self):
         run = self._run('finished', band='above', score=80.0)
         assert qualifiers_page._score_cell(run, exact=False) == 'Above par'
+
+
+class TestPendingLiveRaceRun:
+    """A live race creates the run before the race starts; it isn't under review."""
+
+    @staticmethod
+    def _run():
+        from types import SimpleNamespace
+        return SimpleNamespace(status=SimpleNamespace(value='pending'), reattempted=False,
+                               review_status=SimpleNamespace(value='pending'))
+
+    def test_status_reads_in_words(self):
+        from theme.qualifier_copy import STATUS_LABELS
+        assert STATUS_LABELS['pending'] == 'Waiting for the race'
+
+    def test_review_is_blank_not_awaiting_review(self):
+        assert qualifiers_page._review_cell(self._run()) == '—'

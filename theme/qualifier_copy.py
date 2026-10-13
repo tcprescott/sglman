@@ -50,7 +50,10 @@ BAND_EXPLAINER = (
 
 # Raw enum values were rendering straight onto both tables — `in_progress`,
 # `disqualified` — which is the database's vocabulary, not a competitor's.
+# ``pending`` only exists on a live race: the run is created when the racer is
+# entered, before the race starts.
 STATUS_LABELS = {
+    'pending': 'Waiting for the race',
     'in_progress': 'Running',
     'finished': 'Finished',
     'forfeit': 'Forfeited',

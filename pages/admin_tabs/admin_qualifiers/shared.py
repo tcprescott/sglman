@@ -133,7 +133,7 @@ def status_label(run) -> str:
 
 def review_label(run) -> str:
     """A run's review state, or '—' while there is nothing to review yet."""
-    if enum_value(run.status) == 'in_progress':
+    if enum_value(run.status) in ('pending', 'in_progress'):
         return '—'
     value = enum_value(run.review_status)
     return REVIEW_LABELS.get(value, value)

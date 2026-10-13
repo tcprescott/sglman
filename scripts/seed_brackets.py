@@ -201,9 +201,14 @@ async def _cancelled_stage(
     The one terminal state that writes no ranking. Seeded so the admin's cancelled
     row (and its absence from every public view) is visible without anyone having
     to abandon a demo bracket by hand.
+
+    The tournament is archived once the stage is cancelled: an active one with no
+    signup window reads as open, and the player Tournaments tab offered Sign up
+    on an event the fixture says was abandoned.
     """
     tournament = await _demo_tournament(tenant, "Bracket Demo — Cancelled")
     if await _already_built(service, tournament.id):
+        await _archive(tournament)
         return
     bracket = await service.create_bracket(
         actor, tournament.id, "Abandoned Bracket", BracketFormat.SINGLE_ELIM,
@@ -222,6 +227,13 @@ async def _cancelled_stage(
     await service.start_bracket(actor, bracket.id)
     await _report_earliest_open_round(service, actor, bracket.id, best_of=3)
     await service.cancel_stage(actor, bracket.id)
+    await _archive(tournament)
+
+
+async def _archive(tournament: Tournament) -> None:
+    if tournament.is_active:
+        tournament.is_active = False
+        await tournament.save(update_fields=["is_active"])
 
 
 async def _double_elim(

@@ -89,7 +89,7 @@ def _review_cell(run) -> str:
     """
     if run.reattempted:
         return 'Voided'
-    if run.status.value == 'in_progress':
+    if run.status.value in ('pending', 'in_progress'):
         return '—'
     return REVIEW_LABELS.get(run.review_status.value, run.review_status.value)
 
