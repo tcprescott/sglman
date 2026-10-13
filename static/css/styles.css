@@ -3057,9 +3057,9 @@ ol.wiz-help-list { list-style-type: decimal; }
     margin-left: auto;
 }
 
-/* In a dialog header it matches the close button beside it: a neutral pill
-   with its label on desktop; on a phone a bare 36px icon, like the bare X, with
-   the word kept as its accessible name. */
+/* In a dialog header it is a pill matching the Close pill beside it: neutral
+   on desktop with its label, a 36px disc on a phone with the word kept as its
+   accessible name. */
 .q-btn.wiz-help-icon.dialog-help {
     border-radius: var(--radius-pill);
     background: var(--surface-sunken);
@@ -3087,7 +3087,6 @@ ol.wiz-help-list { list-style-type: decimal; }
         min-height: 36px;
         padding: 0;
         border-radius: 50%;
-        background: transparent;
     }
 
     .q-btn.dialog-help .q-icon { margin-right: 0; }

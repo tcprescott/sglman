@@ -145,8 +145,8 @@ def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
     Rendered inside a heading row it moves itself to the row's far end (CSS
     ``order``), so a caller can add actions after it without reordering.
 
-    ``pill`` is the dialog-header form, matching the close button beside it: a
-    labelled "Help" pill on desktop, a bare icon on a phone.
+    ``pill`` is the dialog-header form: a labelled "Help" pill on desktop and a
+    disc on a phone, the same shape as the Close button beside it.
     """
     if not topics:
         return
