@@ -633,24 +633,50 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
     </div>
 </q-td>'''
 
+CREW_MINE_JS = '(__LIST__ || []).some(item => item.discord_id == __DID__)'
+CREW_CAN_SIGN_UP_JS = (
+    '(__WANTED__ && props.row.crew_signup_open && !' + CREW_MINE_JS
+    + ' && !props.row.players.some(p => p.discord_id == __DID__))'
+)
+# "No signups yet" shows to every viewer while a signup can still fill the role,
+# and goes away with the rest of the empty row once the match starts.
+CREW_EMPTY_JS = '(__WANTED__ && props.row.crew_signup_open && !(__LIST__ || []).length)'
+
+
+def crew_signup_section(list_expr: str, *, name_the_role: bool = False) -> str:
+    """The viewer's own Sign up / Withdraw control for one crew role, in a tray of
+    its own above the names, plus the empty-state line under it.
+
+    Shared by the desktop crew cell and the phone card so the button sits in the
+    same place on both, and in the same place whether the viewer is in the list
+    or not. ``list_expr`` is the Vue expression for the role's signup list; the
+    ``__IA__``/``__DID__``/``__WANTED__``/``__SING__`` placeholders are left for
+    the caller to fill. ``name_the_role`` spells the role out in the button
+    ("Sign up as commentator"): the phone card's tray is full width, while the
+    desktop cell sits under its column header and is kept narrow.
+    """
+    suffix = ' as __SING__' if name_the_role else ''
+    mine = CREW_MINE_JS.replace('__LIST__', list_expr)
+    can_sign_up = CREW_CAN_SIGN_UP_JS.replace('__LIST__', list_expr)
+    empty = CREW_EMPTY_JS.replace('__LIST__', list_expr)
+    return f'''
+        <div v-if="!__IA__ && ({mine} || {can_sign_up})" class="wiz-crew-action">
+            <q-btn v-if="{mine}"
+                   icon="undo" color="negative" size="sm" outline no-caps no-wrap label="Withdraw{suffix}"
+                   @click="$parent.$emit('undo___SING__', props.row)" />
+            <q-btn v-else
+                   icon="assignment_ind" color="primary" size="sm" outline no-caps no-wrap label="Sign up{suffix}"
+                   @click="$parent.$emit('signup___SING__', props.row)" />
+        </div>
+        <span v-if="{empty}" class="wiz-crew-empty st-neutral italic-note">No signups yet</span>'''
+
+
 # Crew (commentators/trackers): admins who can crud get an approval toggle plus a
 # name that opens the user (the same split players already have — a name reads as
 # a name, not as a control that mutates approval); everyone else a plain name.
-# Non-admins get signup/undo + self-ack.
+# Non-admins get crew_signup_section's Sign up / Withdraw above the names + self-ack.
 CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <div class="wrap">
-        <div v-if="!__IA__" style="margin-bottom: 6px;">
-            <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"
-                   icon="undo" color="negative" size="sm" no-caps dense label="Withdraw"
-                   @click="$parent.$emit('undo___SING__', props.row)" style="margin-right: 6px;">
-                   <q-tooltip>Withdraw my __SING__ signup</q-tooltip>
-            </q-btn>
-            <q-btn v-if="__WANTED__ && props.row.crew_signup_open && props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
-                   icon="assignment_ind" color="primary" size="sm" no-caps dense label="Sign up"
-                   @click="$parent.$emit('signup___SING__', props.row)" style="margin-right: 6px;">
-                   <q-tooltip>Sign up as __SING__</q-tooltip>
-            </q-btn>
-        </div>
+    <div class="wrap">''' + crew_signup_section('props.value') + '''
         <template v-for="(item, idx) in props.value">
             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
                 <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
