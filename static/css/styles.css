@@ -1165,6 +1165,33 @@ main.q-page:focus {
     align-self: stretch;
 }
 
+/* The card's own padding is the dialog's one inset. Most bodies also carried
+   q-pa-md, which set their fields 32px in while form_dialog bodies sat 16px in,
+   and stacked 40px of blank above the first field. Fields fill the body, so a
+   form's right edge lines up with the header and footer instead of stopping at
+   whatever width its label needed (Pick a time, Edit Stage). */
+.dialog-card > .nicegui-column:not(.dialog-header):not(.dialog-actions).q-pa-md {
+    padding: 0;
+}
+.dialog-card > .nicegui-column > .q-field {
+    align-self: stretch;
+}
+
+/* Fields that share a row and split it evenly (a date and a time, Commentators
+   and Trackers). A checkbox beside them keeps its own width. They stay side by
+   side down to a phone and only stack when each would drop under 9rem. */
+.form-pair {
+    align-self: stretch;
+    flex-wrap: wrap;
+}
+.form-pair > .q-field {
+    flex: 1 1 9rem;
+    min-width: 0;
+}
+/* Multi-selects with longer labels (Commentators) stack on a phone rather than
+   truncate. */
+.form-pair--wide > .q-field { flex-basis: 12rem; }
+
 /* Sticky action bar pinned to the bottom of the scrolling .dialog-card so the
    primary Submit/Cancel row stays reachable without scrolling (fixes footers
    clipped below the fold). Negative margins of the card's own padding bleed the

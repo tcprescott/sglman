@@ -24,7 +24,7 @@ class FeedbackDialog:
         self.initial_message = initial_message
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header('Send Feedback', dialog)

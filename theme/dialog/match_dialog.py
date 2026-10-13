@@ -246,7 +246,7 @@ class AdminMatchDialog(BaseMatchDialog):
                     user_ids = [tp.user_id for tp in enrolled]
                     return [u for u in users if u.id in user_ids]
 
-                with ui.row().classes('items-start gap-2 flex-wrap'):
+                with ui.row().classes('form-pair items-start gap-2'):
                     selected_players = ui.select(
                         label='Players',
                         options={},
@@ -291,7 +291,7 @@ class AdminMatchDialog(BaseMatchDialog):
                         names, tournament.name if tournament else 'this tournament',
                     )
 
-                with ui.row().classes('items-start gap-2 flex-wrap'):
+                with ui.row().classes('form-pair form-pair--wide items-start gap-2'):
                     selected_commentators = ui.select(
                         label='Commentators',
                         options={u.id: u.preferred_name for u in users},
@@ -548,7 +548,7 @@ class UserMatchDialog(BaseMatchDialog):
         is_create = self.match is None
         title = 'Submit Match' if is_create else 'Edit Match'
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             # Suggest a time is only on the player's dialog: what it is built
