@@ -21,8 +21,8 @@ It opens on your today, not the server's, so late in the evening it still shows
 the day you're actually in.
 :::
 
-Each stage card has the stage's name, a **Watch Stream** link where the stage is
-streamed, and how many matches it has left that day. Each match on it shows:
+Each stage card has the stage's name, a **Watch** button (or a **Watch Stream**
+link) where the stage is streamed, and how many matches it has left that day. Each match on it shows:
 
 - its start time, in your local time
 - {chip:neutral:Scheduled} until the players are checked in, then
@@ -40,9 +40,20 @@ card. The view updates by itself as matches change.
 
 ## Finding the stream
 
-Where a stage is streamed, **Watch Stream** on its On Air card and the stage's
-name on the schedule board both link straight to the stream. A stage with no
-link isn't being streamed.
+Where a stage streams on Twitch, **Watch** on its On Air card plays the stream
+right on the page, above the stage cards, with the match that's on now beside
+it. It starts muted, since browsers won't autoplay with sound, so unmute it in
+the player. Pressing **Watch** on another stage switches the player over, and
+**Close player** stops it. On a phone the player stays pinned to the top while
+you scroll the stages. **Open on Twitch** takes you to the channel, or to the
+Twitch app on a phone.
+
+Nothing loads from Twitch until you press **Watch**. Once it plays, Twitch's
+own player and cookies apply.
+
+A stage streamed somewhere other than Twitch gets a **Watch Stream** link that
+opens the stream in a new tab. The stage's name on the schedule board links to
+the stream too. A stage with no link isn't being streamed.
 
 ## The Watch page
 

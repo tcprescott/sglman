@@ -1897,6 +1897,121 @@ main.q-page:focus {
     opacity: 0.9;
 }
 
+/* On Air theater (theme/twitch_theater.py): one Twitch player above the stage
+   columns, its stage's current match beside it. */
+.twitch-theater {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.twitch-theater__player {
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.twitch-theater__player iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+
+.twitch-theater__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+}
+
+.twitch-theater__eyebrow {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+}
+
+.twitch-theater__players {
+    font-size: 1.0625rem;
+    font-weight: 700;
+}
+
+.twitch-theater__tournament {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+}
+
+.twitch-theater__actions {
+    margin-top: auto;
+    gap: var(--space-3);
+}
+
+.stage-watch {
+    margin-left: auto;
+}
+
+/* Phone: the player pins under the app header while the stages scroll past,
+   and the side panel shrinks to one bar under the video. */
+@media (max-width: 599px) {
+    .twitch-theater {
+        position: sticky;
+        top: var(--wiz-header-height, 56px);
+        z-index: 3;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        margin-bottom: var(--space-3);
+        background: var(--surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        box-shadow: var(--shadow-2);
+    }
+
+    /* Quasar's tab panel clips its overflow, which would pin the player to
+       the panel instead of the window. */
+    .q-tab-panels:has(.twitch-theater),
+    .q-panel:has(.twitch-theater) {
+        overflow: visible;
+    }
+
+    .twitch-theater__player {
+        border-radius: 0;
+    }
+
+    .twitch-theater__panel {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: var(--space-2) var(--space-3);
+        border: 0;
+        border-radius: 0;
+    }
+
+    .twitch-theater__eyebrow,
+    .twitch-theater__now,
+    .twitch-theater__tournament {
+        display: none;
+    }
+
+    .twitch-theater__players {
+        font-size: 0.9375rem;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .twitch-theater__actions {
+        margin-top: 0;
+    }
+}
+
 .match-card {
     width: 100%;
     margin-bottom: 0.5em;
