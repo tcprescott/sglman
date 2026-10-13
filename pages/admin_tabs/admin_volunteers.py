@@ -27,6 +27,7 @@ from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 from theme.help import help_icon
+from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -49,13 +50,6 @@ def stored_or_default_day(
 ) -> str:
     """The day to open on. A stored day from a previous event is not a day of this one."""
     return stored if stored in day_options else fallback
-
-
-def _menu_action(icon: str, label: str, on_click, negative: bool = False) -> None:
-    with ui.menu_item(on_click=on_click).classes('text-negative' if negative else ''):
-        with ui.item_section().props('avatar'):
-            ui.icon(icon)
-        ui.item_section(label)
 
 
 async def admin_volunteers_page(day: str | None = None) -> None:
@@ -156,11 +150,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                 ui.space()
                 with ui.button('Actions').props('flat color=primary icon-right=expand_more'):
                     with ui.menu():
-                        _menu_action('smart_toy', 'Auto-fill from availability', lambda: auto_fill())
-                        _menu_action('badge', 'Manage positions', lambda: open_positions_dialog())
-                        _menu_action('download', 'Export data', lambda: VolunteerExportDialog().open())
+                        menu_action('smart_toy', 'Auto-fill from availability', lambda: auto_fill())
+                        menu_action('badge', 'Manage positions', lambda: open_positions_dialog())
+                        menu_action('download', 'Export data', lambda: VolunteerExportDialog().open())
                         ui.separator()
-                        _menu_action('delete_forever', 'Reset all volunteer data',
+                        menu_action('delete_forever', 'Reset all volunteer data',
                                      lambda: open_reset_dialog(), negative=True)
 
         # --- Draft banner ------------------------------------------------

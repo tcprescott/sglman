@@ -12,7 +12,8 @@ import pytest
 
 from application.services.preset_service import PresetService
 from application.services.user_service import UserService
-from models import Preset
+from application.tenant_context import require_tenant_id
+from models import Preset, Tournament
 
 
 @pytest.fixture
@@ -323,3 +324,19 @@ class TestWindWakerPresets:
         result = await service.test_roll(actor, preset.id)
         assert result.used_preset_settings is True
         assert decode_permalink(result.seed_url).version == 'dev_tanjo3.1.10.7.3_d30d27c'
+
+
+class TestUsage:
+    async def test_counts_main_and_hard_presets(self, service, actor):
+        main = await service.create_preset(actor, name='Main', randomizer='alttpr', settings={})
+        hard = await service.create_preset(actor, name='Hard', randomizer='alttpr', settings={})
+        unused = await service.create_preset(actor, name='Spare', randomizer='alttpr', settings={})
+        tenant_id = require_tenant_id()
+        await Tournament.create(name='Weekly', tenant_id=tenant_id, preset=main)
+        await Tournament.create(name='Finals', tenant_id=tenant_id, preset=main, hard_preset=hard)
+
+        usage = await service.usage(actor)
+
+        assert usage[main.id] == ['Finals', 'Weekly']
+        assert usage[hard.id] == ['Finals']
+        assert unused.id not in usage
