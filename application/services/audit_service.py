@@ -264,9 +264,6 @@ class AuditActions:
     RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
 
     # Volunteer scheduling
-    VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
-    VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'
-    VOLUNTEER_NOTE_UPDATED = 'volunteer.note_updated'
     VOLUNTEER_POSITION_CREATED = 'volunteer.position_created'
     VOLUNTEER_POSITION_UPDATED = 'volunteer.position_updated'
     VOLUNTEER_POSITION_DELETED = 'volunteer.position_deleted'

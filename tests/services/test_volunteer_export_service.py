@@ -1,7 +1,7 @@
 """Tests for VolunteerExportService.
 
 The export is what a coordinator takes into a spreadsheet, so the assertions are
-about the *content* of each sheet: that opted-in notes and declared availability
+about the *content* of each sheet: that qualifications and declared availability
 travel with the roster, that open slots survive into the schedule grid, and that
 the range and permission gates hold.
 """
@@ -19,7 +19,6 @@ from models import (
     VolunteerAvailability,
     VolunteerAvailabilityStatus,
     VolunteerPosition,
-    VolunteerProfile,
     VolunteerQualification,
     VolunteerShift,
 )
@@ -44,16 +43,13 @@ WINDOW_END = utc(2026, 10, 5, 0)
 
 
 async def _fixture_data():
-    """A position, one 4-hour 2-slot shift, one opted-in volunteer who can fill it."""
+    """A position, one 4-hour 2-slot shift, one volunteer who can fill it."""
     position = await VolunteerPosition.create(name='Check-in', description='Front desk')
     shift = await VolunteerShift.create(
         position=position, starts_at=utc(2026, 10, 4, 12), ends_at=utc(2026, 10, 4, 16),
         label='Shift 2', slots_needed=2,
     )
     volunteer = await _person('Alex', roles=[Role.VOLUNTEER])
-    await VolunteerProfile.create(
-        user=volunteer, opted_in_at=utc(2026, 9, 1, 0), note='Prefers mornings; no heavy lifting',
-    )
     await VolunteerQualification.create(user=volunteer, position=position)
     await VolunteerAvailability.create(
         user=volunteer, starts_at=utc(2026, 10, 4, 12), ends_at=utc(2026, 10, 4, 20),
@@ -73,16 +69,14 @@ class TestBuild:
             'volunteers', 'availability', 'positions', 'shifts', 'assignments', 'schedule',
         ]
 
-    async def test_volunteers_sheet_carries_note_and_qualifications(self, db):
+    async def test_volunteers_sheet_carries_qualifications(self, db):
         actor = await _coordinator()
         await _fixture_data()
 
         bundle = await VolunteerExportService().build(actor, WINDOW_START, WINDOW_END)
         row = next(r for r in bundle.sheet('volunteers').rows if r['name'] == 'Alex')
 
-        assert row['note'] == 'Prefers mornings; no heavy lifting'
         assert row['qualifications'] == 'Check-in'
-        assert row['opted_in'] is True
         assert row['in_volunteer_pool'] is True
         assert row['availability_windows'] == 1
         assert row['available_hours'] == 8.0
@@ -210,7 +204,7 @@ class TestBuild:
         assert [r['name'] for r in bundle.sheet('volunteers').rows] == ['Alex']
         assert len(bundle.sheet('shifts').rows) == 1
 
-    async def test_opted_out_volunteer_still_exported(self, db):
+    async def test_role_holder_with_nothing_declared_still_exported(self, db):
         actor = await _coordinator()
         await _fixture_data()
         await _person('Casey', roles=[Role.VOLUNTEER])
@@ -218,8 +212,9 @@ class TestBuild:
         bundle = await VolunteerExportService().build(actor, WINDOW_START, WINDOW_END)
         row = next(r for r in bundle.sheet('volunteers').rows if r['name'] == 'Casey')
 
-        assert row['opted_in'] is False
-        assert row['note'] == ''
+        assert row['in_volunteer_pool'] is True
+        assert row['availability_windows'] == 0
+        assert 'opted_in' not in row
 
     async def test_readme_lists_every_sheet(self, db):
         actor = await _coordinator()
@@ -281,9 +276,6 @@ class TestTenantIsolation:
         with tenant_scope(tenant_b.id):
             other_position = await VolunteerPosition.create(name='B Desk')
             other_volunteer = await _person('Bea', roles=[Role.VOLUNTEER])
-            await VolunteerProfile.create(
-                user=other_volunteer, opted_in_at=utc(2026, 9, 1, 0), note='tenant B note',
-            )
             await VolunteerAvailability.create(
                 user=other_volunteer, starts_at=utc(2026, 10, 4, 12), ends_at=utc(2026, 10, 4, 20),
             )
@@ -298,5 +290,4 @@ class TestTenantIsolation:
 
         assert [r['name'] for r in bundle.sheet('volunteers').rows] == ['Alex']
         assert [r['name'] for r in bundle.sheet('positions').rows] == ['Check-in']
-        assert all('tenant B' not in (r['note'] or '') for r in bundle.sheet('volunteers').rows)
         assert len(bundle.sheet('shifts').rows) == 1

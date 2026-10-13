@@ -42,9 +42,7 @@ community owns or produces is tenant-scoped.**
 `RaceRoomProfile.name` → `(tenant, name)`; `Equipment.asset_number` →
 `(tenant, asset_number)`; `CheckInEvent.matcherino_venue_id` →
 `(tenant, matcherino_venue_id)`; `TenantFeatureFlag.flag` → `(tenant, flag)`;
-`ChallongeApiUsage.period` → `(tenant, period)`; `VolunteerProfile` →
-`(tenant, user)` (opt-in is per tenant, so `User.volunteer_profiles` is a plural
-reverse relation, not a one-to-one); `DiscordRoleMapping` →
+`ChallongeApiUsage.period` → `(tenant, period)`; `DiscordRoleMapping` →
 `(tenant, discord_role_id, app_role)` and
 `(tenant, discord_role_id, tournament_grant, tournament)`;
 `DiscordTournamentGrant` → `(tournament, user, grant)`;
@@ -142,7 +140,6 @@ erDiagram
     User |o--o{ CheckInEntrant : "linked_by"
     User |o--o{ CheckInEntrant : "checked_in_by"
 
-    User ||--o{ VolunteerProfile : "user (one per tenant)"
     VolunteerPosition ||--o{ VolunteerShift : "position"
     VolunteerShift ||--o{ VolunteerAssignment : "shift"
     User ||--o{ VolunteerAssignment : "user"
@@ -193,7 +190,7 @@ Used by `UserRole.role`, `DiscordRoleMapping.app_role` and `VolunteerRoleMapping
 | `TRIFORCE_SUBMITTER` = `'triforce_submitter'` | May submit triforce-screen texts |
 | `VOLUNTEER_COORDINATOR` = `'volunteer_coordinator'` | Manages volunteer positions, shifts, and assignments |
 | `EQUIPMENT_MANAGER` = `'equipment_manager'` | Manages lending equipment and checkouts |
-| `VOLUNTEER` = `'volunteer'` | Opted-in onsite volunteer |
+| `VOLUNTEER` = `'volunteer'` | Onsite volunteer; puts the holder in the assignable pool |
 | `CHECK_IN_DESK` = `'check_in_desk'` | Works the event check-in desk: checks people in, links registrants, runs a sync. Event setup and walk-ups stay `STAFF` ([event-check-in.md](../features/event-check-in.md#who-may-do-what)) |
 | `PRESET_MANAGER` = `'preset_manager'` | Manages seed-rolling presets (online-tournament surface) |
 | `SYNC_ADMIN` = `'sync_admin'` | Manages upstream sync config: SpeedGaming links, Discord events, racetime bot/room config |
@@ -1404,19 +1401,7 @@ Constraint: `unique_together (('tenant',),)`.
 
 ### Volunteering
 
-Onsite-volunteer subsystem: opt-in profiles, coordinator-defined positions and shifts, assignments, qualifications, and availability. Coordinated via the `VolunteerScheduleService` / `VolunteerAutoscheduleService` family; gated by `VOLUNTEER_COORDINATOR` (or Staff) for management, with self-service opt-in for any logged-in user and availability for anyone holding a volunteer role. See [services.md](services.md).
-
-#### `VolunteerProfile`
-
-Per-tenant opt-in record for onsite volunteering — one row per `(tenant, user)`. Any logged-in user can have a profile; only users with `opted_in_at` set are assignable / appear in the coordinator's pool.
-
-| Field | Type | Null / default | Notes |
-|---|---|---|---|
-| `user` | FK → `User` | not null, `CASCADE` | `related_name='volunteer_profiles'` |
-| `opted_in_at` | `DatetimeField` | null | Null = not currently opted in |
-| `note` | `TextField` | null | Free-text note (e.g. arrival/departure) |
-
-Constraint: `unique_together (('tenant', 'user'),)`.
+Onsite-volunteer subsystem: coordinator-defined positions and shifts, assignments, qualifications, and availability. Coordinated via the `VolunteerScheduleService` / `VolunteerAutoscheduleService` family; gated by `VOLUNTEER_COORDINATOR` (or Staff) for management, with availability for anyone holding a volunteer role. The assignable pool is every VOLUNTEER or STAFF role holder in the tenant; there is no opt-in record. See [services.md](services.md).
 
 #### `VolunteerPosition`
 
@@ -1498,7 +1483,7 @@ Self-declared availability windows. Volunteer and player availability share the 
 
 #### `VolunteerAvailability`
 
-A window an opted-in volunteer self-declares (UTC). Read by the coordinator picker and the auto-scheduler.
+A window a volunteer self-declares (UTC). Read by the coordinator picker and the auto-scheduler.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -2029,7 +2014,6 @@ Consult the source for full signatures.
 | `FeatureFlagGroupRepository` | [`feature_flag_group_repository.py`](../../application/repositories/feature_flag_group_repository.py) | `FeatureFlagGroup` | `list_all`, `get_by_id`, `get_by_name`, `get_default`, `create`, `update`, `delete`, `clear_default`, `count_tenants` |
 | `EquipmentRepository` | [`equipment_repository.py`](../../application/repositories/equipment_repository.py) | `Equipment`, `EquipmentLoan` | `create`, `get_by_id`, `list_all`, `list_by_ids`, `next_asset_number`, `bulk_create`, `update`, `delete`, `create_loan`, `get_open_loan`, `close_loan`, `list_open_loans_for_user`, `list_loans_for_equipment`, `count_loans_for_equipment`, `open_loans_by_equipment_id` |
 | `CheckInEventRepository`, `CheckInEntrantRepository`, `CheckInUserLookupRepository` | [`check_in_repository.py`](../../application/repositories/check_in_repository.py) | `CheckInEvent`, `CheckInEntrant`, `User` | Events: `list_all`, `list_by_status`, `get_by_bounty`, and the worker's cross-tenant `list_syncable_all` (open events with a bounty, unscoped). Entrants: `get_by_id`, `list_for_event`, `matcherino_rows_by_user_id` (the sync's upsert index), `linked_user_ids`, `get_for_user`, `bulk_create`, `save`. `CheckInUserLookupRepository` is **deliberately global** (`User` has no tenant): exact-identifier lookups for auto-linking, `users_by_identifiers`, `users_with_unverified_handle`, `user_with_matcherino_id`. Who may be *offered* as a manual match stays community-scoped in `UserRepository` |
-| `VolunteerProfileRepository` | [`volunteer_profile_repository.py`](../../application/repositories/volunteer_profile_repository.py) | `VolunteerProfile` | `get_for_user`, `get_or_create_for_user`, `save`, `list_opted_in`, `opted_in_user_ids` |
 | `VolunteerPositionRepository` | [`volunteer_position_repository.py`](../../application/repositories/volunteer_position_repository.py) | `VolunteerPosition` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `VolunteerShiftRepository` | [`volunteer_shift_repository.py`](../../application/repositories/volunteer_shift_repository.py) | `VolunteerShift` | `get_by_id`, `list_for_window`, `list_for_position_window`, `create`, `update`, `delete`, `delete_all` |
 | `VolunteerAssignmentRepository` | [`volunteer_assignment_repository.py`](../../application/repositories/volunteer_assignment_repository.py) | `VolunteerAssignment` | `get_by_id`, `get_for_shift_and_user`, `exists`, `create`, `delete`, `save`, `overlapping_for_user`, `list_for_user` (excludes drafts unless `include_drafts`; `with_shiftmates` adds the sibling-assignment joins), `list_for_window`, `published_for_window`, `published_position_ids_for_user`, `published_user_ids` (both skip drafts), `list_for_shift`, draft lifecycle `count_auto_for_window` / `list_auto_for_window` / `mark_published` / `delete_auto_for_window`, `due_for_reminder` (**deliberately unscoped** — the reminder worker scans every tenant; skips drafts) |

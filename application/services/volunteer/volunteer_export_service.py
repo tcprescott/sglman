@@ -21,7 +21,6 @@ from application.repositories import (
     VolunteerAssignmentRepository,
     VolunteerAvailabilityRepository,
     VolunteerPositionRepository,
-    VolunteerProfileRepository,
     VolunteerQualificationRepository,
     VolunteerShiftRepository,
 )
@@ -30,7 +29,7 @@ from application.services.auth_service import AuthService
 from application.services.volunteer.volunteer_availability_service import (
     VolunteerAvailabilityService,
 )
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.timezone_context import current_timezone_name
 from application.utils.timezone import (
     format_local_date,
@@ -134,11 +133,10 @@ class VolunteerExportService:
         self.assignment_repository = VolunteerAssignmentRepository()
         self.availability_repository = VolunteerAvailabilityRepository()
         self.position_repository = VolunteerPositionRepository()
-        self.profile_repository = VolunteerProfileRepository()
         self.qualification_repository = VolunteerQualificationRepository()
         self.shift_repository = VolunteerShiftRepository()
         self.user_repository = UserRepository()
-        self.profile_service = VolunteerProfileService()
+        self.pool_service = VolunteerPoolService()
         self.audit_service = AuditService()
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
@@ -161,13 +159,10 @@ class VolunteerExportService:
 
         positions = await self.position_repository.list_all()
         shifts = await self.shift_repository.list_for_window(start, end)
-        pool = await self.profile_service.assignable_volunteers()
-        profiles = await self.profile_repository.list_opted_in()
+        pool = await self.pool_service.assignable_volunteers()
         qualifications = await self.qualification_repository.list_all()
 
         users: Dict[int, User] = {u.id: u for u in pool}
-        for profile in profiles:
-            users.setdefault(profile.user_id, profile.user)
         for shift in shifts:
             for assignment in shift.assignments:
                 if assignment.user is not None:
@@ -197,7 +192,6 @@ class VolunteerExportService:
                 names[uid] = user.preferred_name
 
         pool_ids = {u.id for u in pool}
-        opted_in = {p.user_id: p for p in profiles}
         qualifications_by_user: Dict[int, List[str]] = {}
         for qualification in qualifications:
             if qualification.position is not None:
@@ -206,7 +200,7 @@ class VolunteerExportService:
                 )
 
         sheets = [
-            self._volunteers_sheet(users, pool_ids, opted_in, qualifications_by_user,
+            self._volunteers_sheet(users, pool_ids, qualifications_by_user,
                                    windows_by_user, shifts),
             self._availability_sheet(users, windows_by_user),
             self._positions_sheet(positions, shifts),
@@ -236,7 +230,6 @@ class VolunteerExportService:
         self,
         users: Mapping[int, User],
         pool_ids: set,
-        opted_in: Mapping[int, object],
         qualifications_by_user: Mapping[int, Sequence[str]],
         windows_by_user: Mapping[int, Sequence[VolunteerAvailability]],
         shifts: Sequence,
@@ -253,7 +246,6 @@ class VolunteerExportService:
 
         rows = []
         for user in sorted(users.values(), key=lambda u: u.preferred_name.lower()):
-            profile = opted_in.get(user.id)
             windows = windows_by_user.get(user.id, [])
             rows.append({
                 'user_id': user.id,
@@ -261,9 +253,6 @@ class VolunteerExportService:
                 'username': user.username,
                 'pronouns': user.pronouns or '',
                 'in_volunteer_pool': user.id in pool_ids,
-                'opted_in': profile is not None,
-                'opted_in_at_local': format_local_display(getattr(profile, 'opted_in_at', None)),
-                'note': getattr(profile, 'note', None) or '',
                 'qualifications': ', '.join(sorted(qualifications_by_user.get(user.id, []))),
                 'availability_windows': len(windows),
                 'available_hours': round(
@@ -276,7 +265,7 @@ class VolunteerExportService:
         return ExportSheet(
             name='volunteers',
             title='Volunteers',
-            description='the roster — who is in the pool, their opt-in note, qualifications, '
+            description='the roster — who is in the pool, their qualifications, '
                         'and how much they are already carrying',
             columns=_columns(
                 ('user_id', 'User ID'),
@@ -284,9 +273,6 @@ class VolunteerExportService:
                 ('username', 'Discord Username'),
                 ('pronouns', 'Pronouns'),
                 ('in_volunteer_pool', 'In Pool'),
-                ('opted_in', 'Opted In'),
-                ('opted_in_at_local', f'Opted In At ({_tz_label()})'),
-                ('note', 'Volunteer Note'),
                 ('qualifications', 'Qualified Positions'),
                 ('availability_windows', 'Availability Windows'),
                 ('available_hours', 'Available Hours'),
