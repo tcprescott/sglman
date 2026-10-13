@@ -608,7 +608,7 @@ class VolunteerScheduleService:
         from application.utils.discord_messages_volunteer import volunteer_assignment_dm
 
         discord_id = getattr(user, 'discord_id', None)
-        if not discord_id or not getattr(user, 'dm_notifications', True):
+        if not discord_id:
             return
         position_name = shift.position.name if shift.position else ''
         message = volunteer_assignment_dm(
@@ -641,7 +641,7 @@ class VolunteerScheduleService:
         from application.utils.discord_messages_volunteer import volunteer_unassigned_dm
 
         discord_id = getattr(user, 'discord_id', None)
-        if not discord_id or not getattr(user, 'dm_notifications', True):
+        if not discord_id:
             return
         position_name = shift.position.name if shift.position else ''
         message = volunteer_unassigned_dm(
@@ -672,7 +672,7 @@ class VolunteerScheduleService:
         from application.utils.discord_messages_volunteer import volunteer_shift_changed_dm
 
         discord_id = getattr(user, 'discord_id', None)
-        if not discord_id or not getattr(user, 'dm_notifications', True):
+        if not discord_id:
             return
         position_name = shift.position.name if shift.position else ''
         message = volunteer_shift_changed_dm(
@@ -753,7 +753,7 @@ class VolunteerScheduleService:
         link = await notification_links.admin_volunteer_schedule(day, label='Find cover')
         for coordinator in recipients.values():
             discord_id = getattr(coordinator, 'discord_id', None)
-            if not discord_id or not getattr(coordinator, 'dm_notifications', True):
+            if not discord_id:
                 continue
             discord_queue.enqueue(
                 self.discord_service.send_dm(

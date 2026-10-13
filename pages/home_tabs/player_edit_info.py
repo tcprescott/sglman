@@ -22,7 +22,8 @@ from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
-from pages.home_tabs.web_push_section import render_web_push_section
+from pages.home_tabs.web_push_section import render_device_rows
+from theme.banner import banner
 from theme.help import help_icon
 from theme.page_header import page_title
 from theme.profile_nudge_banner import focus_profile_section, section_anchor
@@ -130,10 +131,10 @@ async def render_edit_info_tab(focus: str | None = None):
         prefs_by_tournament = {p.tournament_id: p for p in existing_prefs}  # type: ignore[attr-defined]
 
         level_options = {
-            'none': 'None',
-            'streamed': 'Streamed only',
-            'streamed_and_candidates': 'Streamed & Candidates',
-            'all': 'All matches',
+            'none': 'Not following',
+            'streamed': 'Streamed matches',
+            'streamed_and_candidates': 'Streamed, plus possible streams',
+            'all': 'Every match',
         }
         pref_widgets: dict[int, ui.select] = {}
 
@@ -156,7 +157,7 @@ async def render_edit_info_tab(focus: str | None = None):
                     actor=user,
                     display_name=display_name_input.value,
                     pronouns=pronouns_input.value,
-                    dm_notifications=dm_checkbox.value,
+                    dm_notifications=dm_switch.value,
                     matcherino_username=(
                         matcherino_input.value if payouts_live else None
                     ),
@@ -211,7 +212,7 @@ async def render_edit_info_tab(focus: str | None = None):
             personal_token['n'] += 1
             await save_personal()
             # Defined further down (the notifications card); resolved at call time.
-            delivery_off_note.refresh()
+            all_off_note.refresh()
 
         async def on_notification_pref_change(tournament_id: int):
             mark_dirty()
@@ -313,74 +314,86 @@ async def render_edit_info_tab(focus: str | None = None):
                         'Leave on Detect automatically to follow your device."'
                     )
 
-        # Notifications — the delivery master switch, the per-device channel, and
-        # per-tournament granularity, so "how do I get notified" lives in one place.
+        # Notifications, split by the two questions people actually have: where
+        # a message goes (each channel is its own switch) and what they'll hear
+        # about. The Discord switch is enforced inside send_dm, so turning it
+        # off leaves device notifications running.
         with ui.card().classes('card-full-width'):
             with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
                 ui.label('Notifications').classes('section-title')
                 await help_icon('notification-settings')
-            ui.label('Choose whether and where Wizzrobe reaches you about your matches.') \
-                .classes('text-muted text-caption')
 
-            # Not labelled "Discord": device push is a *mirror* of the DM send path
-            # (discord_service.send_dm), and every call site gates on
-            # dm_notifications before reaching it — so this one checkbox governs
-            # both channels. Presenting it as Discord-only made unchecking it look
-            # like a way to move notifications onto the phone instead of silencing
-            # them everywhere.
-            ui.label('Delivery').classes('subsection-title q-mt-sm')
-            dm_checkbox = ui.checkbox(
-                'Send me notifications about match updates',
-                value=user.dm_notifications,
-                on_change=on_dm_change,
-            )
-            ui.label('Delivered as a Discord DM, and mirrored to any devices you add below.') \
-                .classes('text-caption text-grey-7 q-ml-lg')
+            device_count = {'n': 0}
 
             @ui.refreshable
-            def delivery_off_note() -> None:
-                if dm_checkbox.value:
+            def all_off_note() -> None:
+                if dm_switch.value or device_count['n']:
                     return
-                with ui.row().classes('items-center gap-2 q-mt-sm no-wrap'):
-                    ui.icon('notifications_off', size='sm').classes('text-warning')
-                    ui.label(
-                        'Notifications are off. Neither Discord DMs nor device '
-                        'notifications will be sent, whatever the settings below say.'
-                    ).classes('text-caption text-warning col')
+                with banner(
+                    "Everything's off, so Wizzrobe can't reach you. Turn on "
+                    'Discord DMs or a device to hear about your matches.',
+                    tone='warning', icon='notifications_off',
+                ):
+                    pass
 
-            delivery_off_note()
+            with ui.column().classes('wiz-notify-group'):
+                ui.label('Where it goes').classes('wiz-notify-group__head')
+                with ui.row().classes('wiz-notify-item no-wrap'):
+                    ui.icon('chat', size='sm').classes('wiz-notify-item__icon')
+                    with ui.column().classes('gap-0 col min-w-0'):
+                        ui.label('Discord DMs').classes('wiz-notify-item__name')
+                        ui.label(f'To @{user.username}').classes('text-muted text-caption ellipsis')
+                    dm_switch = ui.switch(
+                        value=user.dm_notifications, on_change=on_dm_change,
+                    ).props('aria-label="Discord DMs"')
 
-            # Device notifications (web push) render inline here as a delivery
-            # target; the section self-hides when VAPID keys aren't configured.
-            await render_web_push_section(user)
+                def on_device_count(n: int) -> None:
+                    device_count['n'] = n
+                    all_off_note.refresh()
 
-            # An alert level is a *follow*, not a consequence of enrollment —
-            # get_match_notification_subscribers never checks the player pool — so
-            # the list deliberately spans every active tournament and marks the ones
-            # the player is enrolled in rather than filtering down to them.
-            with ui.expansion('Match alerts by tournament', icon='tune').classes('w-full q-mt-sm') \
-                    .props('header-class=text-weight-bold'):
-                ui.label(
-                    'Follow a tournament to hear when its matches are scheduled — you do not '
-                    'have to be playing in it. "Streamed & Candidates" also alerts you when a '
-                    'match may be streamed. To play in one, sign up on the Tournaments tab.'
-                ).classes('text-caption text-grey-7')
-                if not active_tournaments:
-                    ui.label('No active tournaments.').classes('text-muted')
-                else:
+                await render_device_rows(user, on_count_change=on_device_count)
+
+            all_off_note()
+
+            with ui.column().classes('wiz-notify-group'):
+                ui.label('What you hear about').classes('wiz-notify-group__head')
+                with ui.column().classes('wiz-notify-item gap-1'):
+                    ui.label('About you').classes('wiz-notify-item__name')
+                    for line in (
+                        'Your matches: scheduled, moved, cancelled, seeds and race rooms',
+                        'Crew slots and volunteer shifts, with reminders',
+                        'Answers to requests you sent, and matches you watch',
+                    ):
+                        with ui.row().classes('items-start gap-2 no-wrap'):
+                            ui.icon('check', size='xs').classes('st-ok q-mt-xs')
+                            ui.label(line).classes('text-caption col')
+
+                # A follow is not a consequence of enrollment:
+                # get_match_notification_subscribers never checks the player
+                # pool, so every active tournament is listed and the ones the
+                # player is in are marked.
+                with ui.column().classes('wiz-notify-item gap-2'):
+                    with ui.column().classes('gap-0'):
+                        ui.label('Tournaments you follow').classes('wiz-notify-item__name')
+                        ui.label(
+                            "Hear about other people's matches too. You don't have to be playing."
+                        ).classes('text-muted text-caption')
+                    if not active_tournaments:
+                        ui.label('No tournaments are running right now.').classes('text-muted text-caption')
                     for tournament in active_tournaments:
                         existing = prefs_by_tournament.get(tournament.id)
                         current_level = existing.match_notifications if existing else 'none'
-                        with ui.row().classes('items-center justify-between w-full q-my-xs gap-2'):
-                            with ui.row().classes('items-center gap-2 col min-w-0'):
+                        with ui.row().classes('wiz-notify-follow items-center w-full gap-2'):
+                            with ui.row().classes('items-center gap-2 col min-w-0 no-wrap'):
                                 ui.label(tournament.name).classes('ellipsis')
                                 if tournament.id in selected_tournament_ids:
-                                    ui.badge('Enrolled').props('outline color=primary')
+                                    ui.badge('Playing').props('outline color=primary')
                             pref_widgets[tournament.id] = ui.select(
                                 options=level_options,
                                 value=current_level,
                                 on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
-                            ).props('outlined dense').style('min-width: 170px')
+                            ).props(f'outlined dense aria-label="Alerts for {tournament.name}"') \
+                                .classes('wiz-notify-follow__select')
 
         # Connected accounts (Challonge / Twitch / racetime) — one compact card
         # of rows instead of three near-identical cards.

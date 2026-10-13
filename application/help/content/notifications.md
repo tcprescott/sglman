@@ -6,7 +6,8 @@ order: 70
 summary: What the bot DMs you, what each button does, and what to do when nothing arrives.
 ---
 
-Wizzrobe tells you things by Discord DM. There is no email and no SMS.
+Wizzrobe tells you things by Discord DM, and on any phone or browser you turn
+on under **Profile → Notifications**. There is no email and no SMS.
 
 ## What you get DMed
 
@@ -56,28 +57,35 @@ missed.
 Everything is on the **Profile** tab, under *Notifications*.
 
 :::snippet notification-settings
-**Send me notifications about match updates** is the master switch. Turn it off
-and nothing is sent, neither Discord DMs nor device notifications, whatever
-else is set below it.
+**Where it goes** has a switch for each way Wizzrobe can reach you.
 
-**Devices** adds browser push on the device you are holding. It mirrors the same
-DMs rather than replacing them, and it is still governed by the master switch.
+- **Discord DMs** turns the Discord copy on or off.
+- **This phone** or **This browser** turns on pop-up notifications on the device
+  you're holding. Other devices you've turned on are listed below it, each with
+  **Remove**.
 
-**Match alerts by tournament** is a *follow*, not a consequence of playing. Pick
-a level per tournament:
+They're independent: you can turn Discord DMs off and keep getting
+notifications on your phone. If everything is off, the page warns you, because
+nothing can reach you.
+
+**What you hear about** lists what always comes to you: your own matches, crew
+slots and volunteer shifts, and answers to requests you sent. Below that,
+**Tournaments you follow** adds other people's matches. Pick a level per
+tournament:
 
 | Level | You hear about |
 |---|---|
-| None | Nothing from that tournament |
-| Streamed only | Its streamed matches being scheduled |
-| Streamed & Candidates | The above, plus matches that *may* be streamed |
-| All matches | Every match it schedules |
+| Not following | Nothing extra from that tournament |
+| Streamed matches | Its streamed matches being scheduled |
+| Streamed, plus possible streams | The above, plus matches that *might* be streamed |
+| Every match | Every match it schedules |
 
-You do not have to be enrolled in a tournament to follow it.
+You don't have to be playing in a tournament to follow it, and your own matches
+reach you either way.
 :::
 
 ## Turning it down
 
-If one tournament is noisier than you want, set its level to **None** rather than
+If one tournament is noisier than you want, set it to **Not following** rather than
 blocking the bot. Blocking the bot also cuts off the DMs you do want: being
 told your match moved, or that you have been approved for a slot.

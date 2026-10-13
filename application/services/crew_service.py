@@ -613,7 +613,6 @@ class CrewService:
                 owner for owner in await TournamentRepository.get_crew_owners(tournament_id)
                 if owner.id != volunteer.id
                 and getattr(owner, 'discord_id', None)
-                and getattr(owner, 'dm_notifications', True)
             ]
             if not owners:
                 return
@@ -710,7 +709,7 @@ class CrewService:
 
         for recipient in recipients.values():
             discord_id = getattr(recipient, 'discord_id', None)
-            if not discord_id or not getattr(recipient, 'dm_notifications', True):
+            if not discord_id:
                 continue
             discord_queue.enqueue(
                 self.discord_service.send_dm(

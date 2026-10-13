@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _wants_dm(user: Optional[User]) -> bool:
-    return bool(user and user.discord_id and getattr(user, 'dm_notifications', True))
+    return bool(user and user.discord_id)
 
 
 def event_embed(event: CommunityEvent, *, title: str, color: int, community_name: Optional[str],

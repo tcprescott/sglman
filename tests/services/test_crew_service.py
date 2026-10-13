@@ -446,14 +446,15 @@ class TestSignupNotifiesCrewOwners:
 
         service.discord_service.send_dm.assert_not_called()
 
-    async def test_owner_who_opted_out_of_dms_gets_none(self, notifying):
+    async def test_owner_with_discord_off_still_reaches_send_dm(self, notifying):
         service, owner, _ = notifying
         owner.dm_notifications = False
         service.match_repository.get_by_id = AsyncMock(return_value=self._match())
 
         await service.signup_crew(match_id=1, user=make_user(user_id=42), role='commentator')
 
-        service.discord_service.send_dm.assert_not_called()
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+        service.discord_service.send_dm.assert_called_once()
 
     async def test_a_failing_notice_never_blocks_the_signup(self, notifying, monkeypatch):
         service, _, _ = notifying
@@ -583,7 +584,7 @@ class TestWithdrawalNotifiesCrewOwners:
 
         service.discord_service.send_dm.assert_not_called()
 
-    async def test_owner_who_opted_out_of_dms_gets_none(self, notifying):
+    async def test_owner_with_discord_off_still_reaches_send_dm(self, notifying):
         service, owner = notifying
         owner.dm_notifications = False
         user = make_user(user_id=42, discord_id='111')
@@ -592,7 +593,8 @@ class TestWithdrawalNotifiesCrewOwners:
 
         await service.undo_crew_signup(match_id=1, user=user, role="tracker")
 
-        service.discord_service.send_dm.assert_not_called()
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+        service.discord_service.send_dm.assert_called_once()
 
 
 # --- Scheduling conflicts (crew F7) ----------------------------------------

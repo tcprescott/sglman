@@ -30,9 +30,13 @@ class MatchRecipient(NamedTuple):
     is_watcher: bool
 
 
-def _dm_opt_ok(user: User, *, require_opt_in: bool) -> bool:
-    """Whether a user can receive a DM: has a discord_id and (if required) opts in."""
-    return bool(user.discord_id) and (not require_opt_in or user.dm_notifications)
+def _dm_opt_ok(user: User) -> bool:
+    """Whether a user can be notified at all: they have a discord_id.
+
+    The Discord on/off switch is enforced inside ``send_dm``, so a user with
+    Discord DMs off still gets the device-notification mirror.
+    """
+    return bool(user.discord_id)
 
 
 async def collect_match_recipients(
@@ -41,7 +45,6 @@ async def collect_match_recipients(
     include_players: bool = True,
     include_watchers: bool = True,
     exclude_players: bool = False,
-    require_opt_in: bool = True,
 ) -> dict[int, bool]:
     """``{discord_id: is_watcher}`` — :func:`collect_match_audience` without the audience."""
     audience = await collect_match_audience(
@@ -49,7 +52,6 @@ async def collect_match_recipients(
         include_players=include_players,
         include_watchers=include_watchers,
         exclude_players=exclude_players,
-        require_opt_in=require_opt_in,
     )
     return {discord_id: r.is_watcher for discord_id, r in audience.items()}
 
@@ -60,7 +62,6 @@ async def collect_match_audience(
     include_players: bool = True,
     include_watchers: bool = True,
     exclude_players: bool = False,
-    require_opt_in: bool = True,
 ) -> dict[int, MatchRecipient]:
     """Return ``{discord_id: MatchRecipient}`` for a match's DM recipients.
 
@@ -74,8 +75,6 @@ async def collect_match_audience(
     - ``include_watchers``: add match watchers (with the watcher flag).
     - ``exclude_players``: drop any crew/watcher who is also a player (used by the
       crew notification, where players get a separate acknowledgment DM).
-    - ``require_opt_in``: honor each user's ``dm_notifications`` opt-out. Set
-      ``False`` for the subscriber-dedup pass, which only needs the ids.
     """
     tenant_id = require_tenant_id()
     recipients: dict[int, MatchRecipient] = {}
@@ -92,7 +91,7 @@ async def collect_match_audience(
 
     if include_players:
         for mp in players:
-            if _dm_opt_ok(mp.user, require_opt_in=require_opt_in):
+            if _dm_opt_ok(mp.user):
                 recipients.setdefault(
                     mp.user.discord_id, MatchRecipient(AUDIENCE_PLAYER, False),
                 )
@@ -101,14 +100,14 @@ async def collect_match_audience(
         match=match, approved=True, tenant_id=tenant_id
     ).prefetch_related('user')
     for c in commentators:
-        if _dm_opt_ok(c.user, require_opt_in=require_opt_in) and not _blocked(c.user):
+        if _dm_opt_ok(c.user) and not _blocked(c.user):
             recipients.setdefault(c.user.discord_id, MatchRecipient(AUDIENCE_CREW, False))
 
     trackers = await Tracker.filter(
         match=match, approved=True, tenant_id=tenant_id
     ).prefetch_related('user')
     for t in trackers:
-        if _dm_opt_ok(t.user, require_opt_in=require_opt_in) and not _blocked(t.user):
+        if _dm_opt_ok(t.user) and not _blocked(t.user):
             recipients.setdefault(t.user.discord_id, MatchRecipient(AUDIENCE_CREW, False))
 
     if include_watchers:
@@ -116,7 +115,7 @@ async def collect_match_audience(
             match=match, tenant_id=tenant_id
         ).prefetch_related('user')
         for w in watchers:
-            if _dm_opt_ok(w.user, require_opt_in=require_opt_in) and not _blocked(w.user):
+            if _dm_opt_ok(w.user) and not _blocked(w.user):
                 held = recipients.get(w.user.discord_id)
                 recipients[w.user.discord_id] = MatchRecipient(
                     held.audience if held else AUDIENCE_WATCHER, True,

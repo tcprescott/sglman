@@ -404,7 +404,7 @@ class MatchNotificationMixin:
             for ack in acks:
                 if ack.acknowledged_at is not None:
                     continue
-                if not ack.user.dm_notifications or not ack.user.discord_id:
+                if not ack.user.discord_id:
                     continue
                 success, err = await self.discord_service.send_dm_with_acknowledgment_button(
                     ack.user.discord_id, message, match.id, embed=embed, link=link,
@@ -583,6 +583,6 @@ class MatchNotificationMixin:
         Used to deduplicate tournament-subscriber notifications.
         """
         recipients = await collect_match_recipients(
-            match, include_watchers=False, require_opt_in=False,
+            match, include_watchers=False,
         )
         return list(recipients)

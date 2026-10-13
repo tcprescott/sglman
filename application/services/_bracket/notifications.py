@@ -287,14 +287,14 @@ class BracketNotificationMixin(ComposedBracketService):
         schedule_link: Optional[DMLink],
         rebook: bool,
     ) -> None:
-        """One entrant's DM. Honours the ``dm_notifications`` opt-out."""
+        """One entrant's DM. ``send_dm`` honours the Discord on/off switch."""
         from application.services.discord.discord_service import DiscordService
         from application.services.match.match_schedule_service import (
             _community_name,
             _dm_opt_ok,
         )
 
-        if not _dm_opt_ok(user, require_opt_in=True):
+        if not _dm_opt_ok(user):
             return
         schedule_url = schedule_link.url if schedule_link else ''
         message = matchup_ready_dm(

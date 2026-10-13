@@ -632,7 +632,7 @@ class TestNotifyMatchParticipants:
         real_notify_service.discord_service.send_dm.assert_not_awaited()
         real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id, embed=None, link=None)
 
-    async def test_dm_notifications_opt_out_skips_user(self, real_notify_service):
+    async def test_discord_off_still_reaches_send_dm(self, real_notify_service):
         match = MockMatch()
         opted_out = SimpleNamespace(user=SimpleNamespace(discord_id=444, dm_notifications=False))
 
@@ -642,8 +642,8 @@ class TestNotifyMatchParticipants:
              self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
-        real_notify_service.discord_service.send_dm.assert_not_awaited()
-        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+        real_notify_service.discord_service.send_dm.assert_awaited_once()
 
     async def test_each_recipient_gets_exactly_one_dm(self, real_notify_service):
         match = MockMatch()

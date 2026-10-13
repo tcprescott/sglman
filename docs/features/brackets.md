@@ -371,7 +371,7 @@ on purpose: *a DM is sent when it asks the recipient to act.*
   matchup is open to reschedule."
 
 All of it goes out on `discord_queue` (which re-binds the tenant scope), respects
-`dm_notifications`, and is best-effort — a Discord failure never blocks the
+`dm_notifications` (inside `send_dm`), and is best-effort — a Discord failure never blocks the
 advancement that fired it. **No feature-flag check**: these fire from inside
 bracket code that only runs when a bracket exists, and an `is_enabled` read inside
 a service transaction is what [feature-flags.md](feature-flags.md) forbids.

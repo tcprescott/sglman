@@ -56,6 +56,7 @@ from models import (
     User,
     UserRole,
     VolunteerAvailabilityStatus,
+    WebPushSubscription,
 )
 from scripts.seed_access import seed_access_for_tenant
 from scripts.seed_brackets import seed_brackets_for_tenant
@@ -664,6 +665,15 @@ async def seed_profile_reminders(tenant: Tenant, users: dict[str, User]) -> None
     )
 
 
+async def seed_push_devices(users: dict[str, User]) -> None:
+    """One phone with device notifications on; ``.invalid`` so a push can't land."""
+    ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) Version/18.4 Mobile/15E148 Safari/604.1'
+    await WebPushSubscription.get_or_create(
+        endpoint='https://push.example.invalid/seed/player_one-iphone',
+        defaults={'user': users['player_one'], 'p256dh': 'seed', 'auth': 'seed', 'user_agent': ua},
+    )
+
+
 async def seed_all() -> None:
     """Seed everything into the already-initialized ORM connection.
 
@@ -675,6 +685,7 @@ async def seed_all() -> None:
     await seed_log_levels(users)
     await seed_table_preferences(users)
     await seed_mcp_oauth(users)
+    await seed_push_devices(users)
     bots = await seed_racetime_bots()
     groups = await seed_feature_groups()
     for slug, name, guild_id, _label, domain in TENANT_SPECS:
