@@ -489,7 +489,8 @@ class TestListRecent:
             await Feedback.create(
                 user=user, category=FeedbackCategory.BUG, message=f'm{i}', page_url='/',
             )
-        recent = await FeedbackService().list_recent()
+        staff = await make_user(11, username='staffer', staff=True)
+        recent = await FeedbackService().list_recent(staff)
         assert len(recent) == 3
         # user is prefetched, so the relation is accessible without an await.
         assert recent[0].user.username == 'attendee'
@@ -500,11 +501,23 @@ class TestListRecent:
             await Feedback.create(
                 user=user, category=FeedbackCategory.OTHER, message=f'm{i}', page_url='/',
             )
-        limited = await FeedbackService().list_recent(limit=2)
+        staff = await make_user(11, username='staffer', staff=True)
+        limited = await FeedbackService().list_recent(staff, limit=2)
         assert len(limited) == 2
 
     async def test_empty_when_no_feedback(self, db):
-        assert await FeedbackService().list_recent() == []
+        staff = await make_user(11, username='staffer', staff=True)
+        assert await FeedbackService().list_recent(staff) == []
+
+    async def test_refused_for_anyone_but_staff(self, db):
+        """The queue carries every submitter's name and message, so the service
+        gates it the way it gates ``set_reviewed``, not only the routes in front."""
+        user = await make_user(10, username='attendee')
+        await Feedback.create(user=user, category=FeedbackCategory.BUG, message='m', page_url='/')
+        with pytest.raises(PermissionError):
+            await FeedbackService().list_recent(user)
+        with pytest.raises(PermissionError):
+            await FeedbackService().list_recent(None)
 
 
 # ---------------------------------------------------------------------------

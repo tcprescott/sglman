@@ -91,8 +91,18 @@ class FeedbackService:
         )
         return feedback
 
+    @staticmethod
+    async def _ensure_staff(actor: User) -> None:
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can review feedback.",
+        )
+
     @requires_feature(FeatureFlag.FEEDBACK)
-    async def list_recent(self, limit: int = 200) -> List[Feedback]:
+    async def list_recent(self, actor: User, limit: int = 200) -> List[Feedback]:
+        """The community's feedback queue, newest first. Staff-only: it carries
+        every submitter's name and message."""
+        await self._ensure_staff(actor)
         return await self.repository.list_recent(limit)
 
     @requires_feature(FeatureFlag.FEEDBACK)
@@ -115,10 +125,7 @@ class FeedbackService:
         mis-click quietly dropped a submission out of the only queue anyone
         looks at, with no way to retrieve it short of the database.
         """
-        await AuthService.ensure(
-            await AuthService.is_staff(actor),
-            "Only Staff can review feedback.",
-        )
+        await self._ensure_staff(actor)
         feedback = require_found(await self.repository.get_by_id(feedback_id), "Feedback")
 
         status = FeedbackStatus.REVIEWED if reviewed else FeedbackStatus.NEW
