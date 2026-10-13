@@ -176,3 +176,12 @@ def test_a_live_race_status_reads_as_words_not_the_enum_value():
     assert live_race_label(S.PENDING) == 'Room open'
     assert live_race_label('scheduled') == 'Scheduled'
     assert all('_' not in live_race_label(s) for s in S)
+
+
+def test_the_unmatched_racer_remedy_does_not_send_qualifier_admins_to_a_staff_tab():
+    """Admin → Users is STAFF-only and cannot link a racetime account anyway."""
+    import inspect
+
+    import pages.admin_tabs.admin_qualifiers.live_races as live_races
+
+    assert 'Admin → Users' not in inspect.getsource(live_races)

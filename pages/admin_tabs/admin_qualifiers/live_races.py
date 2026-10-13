@@ -129,9 +129,12 @@ def build_live_tab(
                             # Two causes, and the admin cannot tell them apart from the
                             # handle alone: no linked account, or racetime calling them
                             # finished without sending a time. Both remedies named.
-                            ui.label('Either their racetime account is not linked here — link '
-                                     'it on Admin → Users and record the race again — or type '
-                                     'the result in with Record results.'
+                            # Only the racer can link their own racetime account
+                            # (Profile → Connected accounts); no admin screen does it.
+                            ui.label("Either they haven't linked racetime.gg here (each racer "
+                                     'does that from their own Profile; then record the race '
+                                     'again), or racetime finished them without a time. '
+                                     'Record results lets you type it in for either.'
                                      ).classes('text-caption text-grey')
 
     def _open_live_race_dialog(pools) -> None:
@@ -182,9 +185,9 @@ def build_live_tab(
                 # was only ever true of the unlinked half: a racer racetime finished
                 # without timing is linked, in the picker, and typing their time in
                 # here is exactly the remedy.
-                ui.label('A racer reaches this picker only once they have an account '
-                         'here. If one of the outstanding racers is missing, link '
-                         'their racetime account on Admin → Users first.'
+                ui.label('The picker lists members of this community. If one of the '
+                         "outstanding racers isn't there, they need to sign in and join "
+                         'first.'
                          ).classes('text-caption text-orange')
             holder = ui.element('div').classes('wiz-edit-list')
 
