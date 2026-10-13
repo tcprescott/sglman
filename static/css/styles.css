@@ -2277,6 +2277,63 @@ main.q-page:focus {
     box-shadow: var(--shadow-1);
 }
 
+/* Equipment card (pages/admin_tabs/admin_equipment.py): name and status chip on
+   top, "#n · owner · with holder" under it, then the state's one button on the
+   left and the overflow menu on the right. */
+.equipment-grid-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.equipment-grid-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.equipment-grid-card__name {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.equipment-grid-card__meta {
+    color: var(--status-neutral);
+    font-size: var(--text-md);
+    margin-top: 2px;
+}
+
+.equipment-grid-card__meta strong {
+    color: var(--fg);
+}
+
+.equipment-grid-card__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+/* The state button leads; the menu holds the far edge whether or not there is
+   a state button (a retired asset has none). */
+.equipment-grid-card__actions > .equipment-state-btn {
+    margin-right: auto;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+}
+
+.equipment-grid-card__actions > .equipment-more-btn {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.equipment-table .equipment-state-btn {
+    padding: 0 var(--space-2);
+}
+
 /* The member card is a two-column label/value grid: labels take only the
    width they need, so "Display Name" stays on one line, and empty fields are
    left out by the slot rather than shown as a column of dashes. */
@@ -3092,6 +3149,65 @@ body.wiz-offline .wiz-requires-socket {
 @media (max-width: 1023.98px) {
     .wiz-position-folded {
         display: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   My Shifts card actions — "Can't make it" on the left, Acknowledge (or the
+   status that replaces it) on the right, in every state. A wide card packs the
+   pair right at a fixed width; a narrow one (a phone, or a desktop card in a
+   multi-column list) splits the row into equal halves so the pair never wraps
+   onto two lines. Keyed to the row's own width, not the viewport, for that
+   second case.
+--------------------------------------------------------------------------- */
+.wiz-shift-actions {
+    container-type: inline-size;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.wiz-shift-actions > * {
+    flex: 0 0 auto;
+    min-width: 168px;
+}
+
+.wiz-shift-status {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.wiz-shift-status .q-icon {
+    font-size: 18px;
+}
+
+@container (max-width: 479.98px) {
+    .wiz-shift-actions > * {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .wiz-shift-actions .q-btn__content {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 599.98px) {
+    .wiz-shift-status {
+        min-height: 44px;
     }
 }
 

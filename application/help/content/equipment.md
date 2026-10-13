@@ -74,17 +74,19 @@ Your register is **Admin → Equipment**. It lists every item with its number,
 owner, status, and who has it. Search filters it as you type, which is the fast
 way to find an item by its number or a person by name.
 
-Each row has the actions you need:
+Each row has one button for what the item needs next: **Check out** when it's
+available, or **Check in** when someone has it. Everything else is in the ⋮ menu
+at the end of the row:
 
-| Button | Does |
+| Menu entry | Does |
 |---|---|
-| **Check out** | Lends the item to someone. Pick the borrower from the list. |
-| **Check in** | Records the item as returned. It's available again straight away. |
-| **Open** | Opens the item's own page, the same one its QR code leads to. |
+| **Open asset page** | Opens the item's own page, the same one its QR code leads to. |
 | **Edit** | Changes its name, description, owner, notes, or status. |
-| **Delete** | Removes the item for good. |
+| **Delete** | Removes the item for good. It asks first. |
 
-On a phone the list turns into cards with labelled buttons.
+Check out lends the item to someone (pick the borrower from the list), and Check
+in records it as returned, so it's available again straight away. On a phone the
+list turns into cards with the same button and menu.
 
 Scanning an item's QR code works for you too, and is often quicker at a busy
 desk. You get **Check out…** (with the borrower picker) instead of *Check out to
@@ -105,7 +107,7 @@ never signed in has to do that first.
 
 ### Adding gear
 
-**Add Asset** creates a new item. Numbers are handed out automatically, one
+**Add asset** creates a new item. Numbers are handed out automatically, one
 after another, so you never pick one.
 
 Only the name is required. Leave the owner as the community unless the gear
@@ -118,7 +120,7 @@ consecutive numbers. Ten of the same controller is one save.
 
 ### Printing labels
 
-**Print QR labels** picks which items to print, then opens a printable sheet in
+**Actions → Print QR labels** picks which items to print, then opens a printable sheet in
 a new tab. You can select by hand, or narrow the list to available items, one
 owner, or a range of numbers.
 
