@@ -8,7 +8,7 @@ from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, ope
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
-from theme.tables.admin_crud import refresh_button
+from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.preferences import (
     TableKeys,
     customize_table,
@@ -43,74 +43,71 @@ _STATUS_BADGE = '''<q-badge :color="props.row.status_value === 'available' ? 'po
                     {{ props.row.status }}
                 </q-badge>'''
 
-# Desktop stays icon-only: a tooltip does open on a mouse, and the wide row has
-# no space for four labels. Every button emits, so every button needs the socket
-# and carries the offline guard's class (theme/connection.py) — the test asserts
-# that count matches, in this slot and in the card below.
+# One shape for the desktop row and the phone card: the state's own action as a
+# labelled button, everything else behind a menu. Delete sits last in that menu,
+# under a divider, so it is never a thumb-width from the button you meant. Every
+# emitting control carries the offline guard's class (theme/connection.py); the
+# test counts them against the emits, in this snippet and in both templates.
+_ROW_ACTIONS = f'''<q-btn v-if="props.row.status_value === 'available'" outline dense no-caps
+           icon="logout" color="primary" label="Check out"
+           class="equipment-state-btn {REQUIRES_SOCKET_CLASS}"
+           @click="$parent.$emit('checkout', props.row)" />
+    <q-btn v-if="props.row.status_value === 'checked_out'" unelevated dense no-caps
+           icon="login" color="secondary" label="Check in"
+           class="equipment-state-btn {REQUIRES_SOCKET_CLASS}"
+           @click="$parent.$emit('checkin', props.row)" />
+    <q-btn flat round icon="more_vert" color="grey-7" class="equipment-more-btn"
+           :aria-label="'More actions for ' + props.row.name">
+        <q-menu auto-close anchor="bottom right" self="top right">
+            <q-list style="min-width: 200px">
+                <q-item clickable class="{REQUIRES_SOCKET_CLASS}"
+                        @click="$parent.$emit('view', props.row)">
+                    <q-item-section avatar><q-icon name="qr_code_2"/></q-item-section>
+                    <q-item-section>Open asset page</q-item-section>
+                </q-item>
+                <q-item clickable class="{REQUIRES_SOCKET_CLASS}"
+                        @click="$parent.$emit('edit', props.row)">
+                    <q-item-section avatar><q-icon name="edit"/></q-item-section>
+                    <q-item-section>Edit</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable class="text-negative {REQUIRES_SOCKET_CLASS}"
+                        @click="$parent.$emit('remove', props.row)">
+                    <q-item-section avatar><q-icon name="delete" color="negative"/></q-item-section>
+                    <q-item-section>Delete</q-item-section>
+                </q-item>
+            </q-list>
+        </q-menu>
+    </q-btn>'''
+
 _ACTIONS_CELL = f'''<q-td :props="props">
-    <q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
-           class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('checkout', props.row)" aria-label="Check out"><q-tooltip>Check out</q-tooltip></q-btn>
-    <q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
-           class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('checkin', props.row)" aria-label="Check in"><q-tooltip>Check in</q-tooltip></q-btn>
-    <q-btn dense flat round icon="qr_code_2" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('view', props.row)" aria-label="Open asset page"><q-tooltip>Open asset page</q-tooltip></q-btn>
-    <q-btn dense flat round icon="edit" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('edit', props.row)" aria-label="Edit"><q-tooltip>Edit</q-tooltip></q-btn>
-    <q-btn dense flat round icon="delete" color="negative" class="{REQUIRES_SOCKET_CLASS}"
-           @click="$parent.$emit('remove', props.row)" aria-label="Delete"><q-tooltip>Delete</q-tooltip></q-btn>
+    <div class="row no-wrap items-center justify-end q-gutter-x-xs">
+    {_ROW_ACTIONS}
+    </div>
 </q-td>'''
 
-_GRID_CARD = f'''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
-    <div class="wiz-grid-fields">
-    <div class="wiz-grid-field">
-        <div class="wiz-grid-field__label text-grey-7 text-caption">#:</div>
-        <div class="wiz-grid-field__value">{{{{ props.row.asset_number }}}}</div>
-    </div>
-    <div class="wiz-grid-field">
-        <div class="wiz-grid-field__label text-grey-7 text-caption">Name:</div>
-        <div class="wiz-grid-field__value">{{{{ props.row.name }}}}</div>
-    </div>
-    <div class="wiz-grid-field">
-        <div class="wiz-grid-field__label text-grey-7 text-caption">Owner:</div>
-        <div class="wiz-grid-field__value">{{{{ props.row.owner }}}}</div>
-    </div>
-    <div class="wiz-grid-field">
-        <div class="wiz-grid-field__label text-grey-7 text-caption">Status:</div>
-        <div class="wiz-grid-field__value">
-            {_STATUS_BADGE}
+_GRID_CARD = f'''<div class="q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
+    <div class="equipment-grid-card__head">
+        <div style="min-width: 0">
+            <div class="equipment-grid-card__name">{{{{ props.row.name }}}}</div>
+            <div class="equipment-grid-card__meta">
+                #{{{{ props.row.asset_number }}}} · {{{{ props.row.owner }}}}<template
+                    v-if="props.row.holder_name"> · with <strong>{{{{ props.row.holder_name }}}}</strong></template>
+            </div>
         </div>
+        {_STATUS_BADGE}
     </div>
-    <div class="wiz-grid-field">
-        <div class="wiz-grid-field__label text-grey-7 text-caption">Checked out to:</div>
-        <div class="wiz-grid-field__value">{{{{ props.row.holder }}}}</div>
-    </div>
-    </div>
-    <!-- Labelled, not icon-only: this register is read on a phone at the venue,
-         where a tooltip never opens — the same reason the proctor card's buttons
-         carry text (theme/tables/match_slots.py). Delete is on its own line, so
-         the destructive control is not a thumb-width from Edit. -->
-    <div class="row items-center justify-end q-gutter-xs">
-        <q-btn v-if="props.row.status_value === 'available'" dense no-caps icon="logout" color="primary"
-               label="Check out" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkout', props.row)" />
-        <q-btn v-if="props.row.status_value === 'checked_out'" dense no-caps icon="login" color="secondary"
-               label="Check in" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkin', props.row)" />
-        <q-btn dense no-caps flat icon="qr_code_2" color="primary" label="Open"
-               class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('view', props.row)" />
-        <q-btn dense no-caps flat icon="edit" color="primary" label="Edit"
-               class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('edit', props.row)" />
-    </div>
-    <div class="row items-center justify-end q-mt-sm">
-        <q-btn dense no-caps outline icon="delete" color="negative" label="Delete"
-               class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('remove', props.row)" />
+    <div class="equipment-grid-card__actions">
+    {_ROW_ACTIONS}
     </div>
 </div>'''
+
+
+def _menu_action(icon: str, label: str, on_click) -> None:
+    with ui.menu_item(on_click=on_click):
+        with ui.item_section().props('avatar'):
+            ui.icon(icon)
+        ui.item_section(label)
 
 
 async def admin_equipment_page() -> None:
@@ -120,7 +117,7 @@ async def admin_equipment_page() -> None:
         with page_header('Equipment'):
             await help_icon('equipment-desk')
 
-        with ui.row().classes('full-width items-center'):
+        with ui.row().classes('full-width items-center equipment-toolbar'):
             async def add_asset():
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await EquipmentDialog(actor, on_saved=_render_table.refresh).open()
@@ -129,38 +126,43 @@ async def admin_equipment_page() -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await QrLabelDialog(actor).open()
 
-            ui.button('Add Asset', icon='add', on_click=add_asset).props(
+            refresh_context = capture_render_context()
+
+            async def reload():
+                await _render_table.refresh()
+
+            ui.button('Add asset', icon='add', on_click=add_asset).props(
                 'color=primary').classes(REQUIRES_SOCKET_CLASS)
-            ui.button('Print QR labels', icon='qr_code_2', on_click=print_labels).props(
-                'flat color=primary').classes(REQUIRES_SOCKET_CLASS)
+            with ui.button('Actions').props('flat color=primary icon-right=expand_more') \
+                    .classes(REQUIRES_SOCKET_CLASS):
+                with ui.menu():
+                    _menu_action('qr_code_2', 'Print QR labels', print_labels)
+                    # Same context capture as refresh_button: a bare task from a
+                    # click has no tenant and fails silently.
+                    _menu_action('refresh', 'Refresh list', lambda: scoped_background(
+                        refresh_context, reload()))
             ui.space()
             # Filled from inside _render_table, which owns the table.
-            gear_slot = ui.row().classes('items-center')
-            # Lambda, not a direct reference: the toolbar is built before
-            # _render_table exists.
-            refresh_button(lambda: _render_table.refresh(), tooltip='Refresh') \
-                .classes(REQUIRES_SOCKET_CLASS)
+            gear_slot = ui.row().classes('items-center no-wrap equipment-search')
 
         @ui.refreshable
         async def _render_table() -> None:
             assets = await service.list_assets()
             open_loans = await service.open_loans_by_equipment_id()
             community = await TenantService.current_community_name()
-            rows = [
-                {
+            rows = []
+            for a in assets:
+                holder = open_loans[a.id].borrower.preferred_name if a.id in open_loans else None
+                rows.append({
                     'id': a.id,
                     'asset_number': a.asset_number,
                     'name': a.name,
                     'owner': a.owner_label(community),
                     'status': _STATUS_LABELS.get(a.status.value, a.status.value),
                     'status_value': a.status.value,
-                    'holder': (
-                        open_loans[a.id].borrower.preferred_name
-                        if a.id in open_loans else '-'
-                    ),
-                }
-                for a in assets
-            ]
+                    'holder': holder or '-',
+                    'holder_name': holder,
+                })
 
             table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes(
                 'equipment-table equipment-table-container w-full'

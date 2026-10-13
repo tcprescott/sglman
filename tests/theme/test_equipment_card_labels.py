@@ -1,19 +1,16 @@
-"""The equipment cards say what their buttons do, and Delete stands apart.
+"""The equipment register's actions name themselves, and Delete stays out of reach.
 
-The register's mobile card used to end in four icon-only buttons — check-out,
-QR, edit, **delete** — explained only by a `q-tooltip`. On a phone a tooltip
-never opens, so the audit's operator had four unlabelled circles, one of which
-deletes the asset, all a thumb-width apart. This codebase had already settled
-the principle for the proctor board ("the proctor reads this board on a tablet,
-where a tooltip never opens", `theme/tables/match_slots.py`).
-
-Desktop deliberately stays icon-only: a tooltip does open on a mouse, and the
-wide row has no room for four labels.
+The register's card used to end in four icon-only buttons explained only by a
+`q-tooltip`, which never opens on a phone. Labelling all four fixed that but
+crowded the card (Delete wrapped onto a line of its own, and the solid Check in
+button touched the line above). The card and the desktop row now share one
+shape: the asset's state action as a labelled button, and a menu holding Open,
+Edit and, under a divider, Delete.
 """
 
 import re
 
-from pages.admin_tabs.admin_equipment import _ACTIONS_CELL, _GRID_CARD
+from pages.admin_tabs.admin_equipment import _ACTIONS_CELL, _GRID_CARD, _ROW_ACTIONS
 from pages.home_tabs.equipment import _VIEW_ICON_BTN, _VIEW_LABEL_BTN
 
 
@@ -22,32 +19,33 @@ def _labels(template: str) -> set:
     return set(re.findall(r'(?<![-\w])label="([^"]+)"', template))
 
 
-class TestRegisterCard:
-    def test_every_card_action_carries_visible_text(self):
-        assert _labels(_GRID_CARD) == {'Check out', 'Check in', 'Open', 'Edit', 'Delete'}
+def _menu_items(template: str) -> list:
+    return re.findall(r'<q-item\b[^>]*>.*?</q-item>', template, re.S)
 
-    def test_no_card_action_relies_on_a_tooltip_alone(self):
-        # Every button in the card must have a label; none may be a bare icon.
-        buttons = re.findall(r'<q-btn\b[^>]*', _GRID_CARD)
-        assert buttons, 'no buttons found in the card'
-        for button in buttons:
-            assert 'label=' in button, f'icon-only button in the card: {button[:80]}'
 
-    def test_delete_leaves_the_row_the_others_share(self):
-        # Delete must not sit in the same flex row as Edit — it gets its own.
-        rows = _GRID_CARD.split('<div class="row')
-        edit_row = next(r for r in rows if "$emit('edit'" in r)
-        assert "$emit('remove'" not in edit_row, 'Delete is adjacent to Edit'
+class TestRegisterActions:
+    def test_card_and_row_share_one_shape(self):
+        assert _ROW_ACTIONS in _GRID_CARD
+        assert _ROW_ACTIONS in _ACTIONS_CELL
 
-    def test_delete_stays_visually_distinct(self):
-        remove = next(b for b in re.findall(r'<q-btn\b[^>]*', _GRID_CARD)
-                      if "$emit('remove'" in b or 'Delete' in b)
-        assert 'outline' in remove
-        assert 'color="negative"' in remove
+    def test_state_actions_are_labelled_buttons(self):
+        assert _labels(_ROW_ACTIONS) == {'Check out', 'Check in'}
 
-    def test_desktop_stays_icon_only(self):
-        assert _labels(_ACTIONS_CELL) == set()
-        assert '<q-tooltip>' in _ACTIONS_CELL
+    def test_everything_else_is_a_named_menu_entry(self):
+        items = _menu_items(_ROW_ACTIONS)
+        texts = [re.findall(r'<q-item-section>([^<]+)</q-item-section>', i)[0] for i in items]
+        assert texts == ['Open asset page', 'Edit', 'Delete']
+
+    def test_menu_trigger_has_a_name(self):
+        trigger = re.search(r'<q-btn\b[^>]*icon="more_vert"[^>]*>', _ROW_ACTIONS).group(0)
+        assert 'aria-label' in trigger
+
+    def test_delete_is_last_and_set_apart(self):
+        items = _menu_items(_ROW_ACTIONS)
+        assert "$emit('remove'" in items[-1]
+        assert 'negative' in items[-1]
+        before_delete = _ROW_ACTIONS[:_ROW_ACTIONS.index(items[-1])]
+        assert before_delete.rstrip().endswith('<q-separator />')
 
 
 class TestHomeCheckoutsSection:

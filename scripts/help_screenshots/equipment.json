@@ -33,7 +33,7 @@
     "viewport": "desktop",
     "setup": [
       {
-        "click": "[aria-label=\"Check out\"]"
+        "click": ".equipment-table .equipment-state-btn >> text=Check out"
       },
       {
         "waitFor": ".q-dialog .q-card"
