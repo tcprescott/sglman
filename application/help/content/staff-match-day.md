@@ -15,26 +15,31 @@ editing matches is in [Running the schedule](/help/staff-schedule).
 ## What's waiting on you
 
 :::snippet staff-queues
-Two strips sit above the board when there's something to do, and disappear when
-there isn't.
+**Needs you** sits beside the board on a computer and above it on a phone. Each
+item carries its own buttons, so most of it clears without opening anything.
+Each group shows three items; **Show more** lists the rest.
 
 **Reschedule requests** come first, because a player is waiting on an answer.
-The strip names up to three requests (who asked, and for what time) and counts
-the rest. Press one to open it.
+Each names who asked, the match, and the time it moves from and to.
+**Approve** moves it at the time they asked for. **Decline** opens the request
+so you can write the note they'll see. A cancellation, or a request with no time
+in it, has **Review** instead, which opens the request in full.
 
-**Results** come next, as up to three counts:
+**Results** come next, disputed ones first:
 
 | Chip | Means | What to do |
 |---|---|---|
-| {chip:cancelled:Flagged for review} | The proctor recorded a winner but the players disagreed | Talk to the proctor, then confirm or correct |
-| {chip:cancelled:No result recorded} | The match is {state:Finished} with no winner on it | Record the winner, then confirm |
-| {chip:pending:Awaiting confirmation} | A winner is recorded and nobody has disputed it | Check it and confirm |
+| {chip:cancelled:Flagged} | The proctor recorded a winner but the players disagreed | **Review**, after talking to the proctor |
+| {chip:cancelled:No winner} | The match is {state:Finished} with no winner on it | **Record winner**, then confirm |
+| none | A winner is recorded and nobody has disputed it | Check the line ("Player One beat Player Two") and press **Confirm**, or **Change** to fix the winner |
 
-**Show only these** filters the board down to {state:Finished} matches so you
-can work through them. Clear the State filter to get the full board back.
+**Running late** lists matches past their start that nobody has checked in.
+**Check in** does it from there.
+
+**Open** on any item opens the match.
 :::
 
-![The top of Admin Schedule with three reschedule requests waiting and counts of flagged, resultless and unconfirmed results](/static/help/staff-match-day/queues-desktop.webp)
+![Needs you: reschedule requests with Approve and Decline, results to confirm, and matches running late](/static/help/staff-match-day/queues-desktop.webp)
 
 You'll also get a Discord DM for each new reschedule request. Its button opens
 the request on this page directly. If someone else has already answered it, the
@@ -78,21 +83,22 @@ A proctor's job ends at recording the winner. Yours is to confirm it, and that's
 what makes the result official. Confirming advances the bracket and pushes the
 result to Challonge where the tournament is linked to one.
 
-On a {state:Finished} row, press **Confirm**. The dialog names the winner and the
-loser so you can check them against what you were told without closing it.
+Press **Confirm** on the result in **Needs you**, or open the match and press
+**Confirm result**, where a dialog names the winner and the loser before you
+commit.
 
-To fix the winner first, press the pencil beside **Confirm**. A row with no
-winner shows **Record Winner** instead. Either way, correcting the result doesn't
-re-finish the match or DM anyone again.
+To fix the winner first, press **Change** (**Change result** in the match). A
+match with no winner shows **Record winner** instead. Either way, correcting the
+result doesn't re-finish the match or DM anyone again.
 
-If the result has already advanced a bracket, the pencil is refused. Correct it
+If the result has already advanced a bracket, the change is refused. Correct it
 from the bracket instead (**Results → Override**), so the bracket moves with it.
 :::
 
 ### Disputes
 
 :::snippet staff-review-flag
-A {chip:pending:Needs review} chip on a row means the proctor ticked **Flag for
+A {chip:cancelled:Flagged} chip on a match means the proctor ticked **Flag for
 admin review** because the players disagreed about who won. It's a marker, not a
 report. Find the proctor and hear what happened.
 
@@ -104,24 +110,25 @@ flag.
 ## Seeds
 
 :::snippet staff-seeds
-The **Seed** column shows each match's seed once it's rolled. **Generate** rolls
-it and DMs it to the players. Proctors and tournament admins can press it too.
+Open a match to see its seed. **Generate seed** rolls it and DMs it to the
+players. Proctors roll seeds from **Generate** in the Proctor Station's Seed
+column.
 
-**Generate** only appears where a roll can help: the tournament has a randomizer
+The button only appears where a roll can help: the tournament has a randomizer
 set up, the match has players, it isn't finished, and it isn't a racetime.gg
 match (the race room rolls its own).
 
-Some randomizers work through a queue. Those show a spinner for a few minutes,
-and the players are DMed as soon as the seed lands, so you can leave the page.
+Some randomizers work through a queue. Those take a few minutes, and the players
+are DMed as soon as the seed lands, so you can leave the page.
 
 | You see | Means |
 |---|---|
-| A spinner | The seed is still being generated |
-| An error icon next to **Generate** | The last roll failed. Hover over it for the reason, then press **Generate** to try again. |
-| A bell with a line through it, after the seed | Someone on the match can't receive DMs from the bot. Hand them the seed in person. |
+| "Rolling…" with a timer (a spinner on the Proctor Station) | The seed is still being generated |
+| The reason in red (an error icon on the Proctor Station) | The last roll failed. Fix the cause, then roll again. |
+| "Couldn't DM" and a name (a bell with a line through it on the Proctor Station) | That person can't receive DMs from the bot. Hand them the seed in person. |
 
-To roll a new seed, open the match, press **Clear Seed** and **Save**, then press
-**Generate** again.
+To roll a new seed, open the match, press **Edit match**, then **Clear Seed** and
+**Save**, then **Generate seed** again.
 :::
 
 ### Room screens
@@ -151,5 +158,5 @@ room** tells the app to stop treating it as live, and the match keeps its time.
 The room stays open on racetime.gg, so close it there too if nobody should race
 in it.
 
-On a racetime.gg match the State column reads "racetime.gg" instead of offering
-**Check In**, because the room drives the match from there.
+On a racetime.gg match the match says "Runs on racetime.gg" instead of offering
+**Check in**, because the room drives the match from there.

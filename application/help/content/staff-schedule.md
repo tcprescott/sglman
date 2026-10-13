@@ -19,23 +19,31 @@ disputes, seeds and race rooms) have their own page:
 ## The board
 
 :::snippet staff-schedule-board
-**Admin → Schedule** lists every match in the community. Out of the box it hides
-{state:Confirmed} matches, because a confirmed match needs nothing more from you.
-Change that with the **State** filter, and narrow by day, tournament or a search
-the same way as [the public board](/help/schedule-board).
+**Admin → Schedule** lists every match in the community, one line each: the
+time, who's playing, the stage and where the match stands. Out of the box it
+hides {state:Confirmed} matches, because a confirmed match needs nothing more
+from you. Change that with the **State** filter, and narrow by day, tournament or
+a search the same way as [the public board](/help/schedule-board).
 
-The pencil at the start of a row opens the match. **Create Match** adds one.
+The lines are grouped by what they need: **Needs a decision** (finished, not yet
+confirmed), **Live now**, **Up next**, **Waiting for players** (bracket matches
+whose players aren't decided) and **Confirmed**. A time in orange with a
+{chip:pending:Late} chip means the match is past its start and nobody has
+checked it in.
 
-The row is also where most match-day work happens without opening anything:
-**Check In**, **Start** and **Finish** in the State column, **Generate** in the
-Seed column, the Stage dropdown, and the approval circle beside each commentator
-and tracker.
+Tap a line to open the match. Everything you can do to it is there: **Check
+in**, **Start match**, **Finish** and **Confirm result**, the stage, the seed,
+stations, and the crew. **Edit match** at the bottom opens the full dialog, and
+**New match** at the top of the page adds one.
 
-A clock icon beside the time means the match is past its scheduled time and
-nobody has checked it in yet.
+**Needs you**, beside the board on a computer and above it on a phone, lists
+the work that's waiting on you rather than on the clock. See
+[Match day queues](/help/staff-match-day).
 :::
 
-![The Admin Schedule board with a flagged finished match awaiting confirmation, and rows ready to start](/static/help/staff-schedule/board-desktop.webp "Pencils open the match; Confirm, Finish and Start sit in the State column.")
+![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next](/static/help/staff-schedule/board-desktop.webp)
+
+![A match opened from the board: its status and next step, players and stations, stage, seed and crew](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match.")
 
 ### Who sees what
 
@@ -55,7 +63,7 @@ and you make it official.
 
 ## Creating a match
 
-Press **Create Match**, pick the tournament, the players, a date and a time, and
+Press **New match**, pick the tournament, the players, a date and a time, and
 press **Create**. Everything else is optional.
 
 - **Players** lists only people enrolled in that tournament. Tick **Include
@@ -74,7 +82,7 @@ Saving DMs the players and asks each of them to acknowledge the match.
 
 ## Editing a match
 
-Open the pencil. The top of the dialog says where the match is now (its state,
+Open the match and press **Edit match**. The top of the dialog says where the match is now (its state,
 the winner, and whether it's flagged), then everything below edits it.
 
 ![The Edit Match dialog for a finished match, showing its winner and a Needs review flag above the fields](/static/help/staff-schedule/match-dialog.webp)
@@ -107,11 +115,11 @@ pair. Each button (**Clear Check In**, **Clear Started**, **Clear Finish**,
 second. Nothing changes until you press **Save**, and the line under the buttons
 says exactly what will be undone.
 
-Clearing a seed is how you re-roll one. The Seed column offers **Generate** again
+Clearing a seed is how you re-roll one. The match offers **Generate seed** again
 once it's gone.
 
-To correct only the winner, don't rewind. Use the pencil beside **Confirm** on
-the row instead (see [Match day queues](/help/staff-match-day)).
+To correct only the winner, don't rewind. Open the match and press **Change
+result** instead (see [Match day queues](/help/staff-match-day)).
 
 ## Calling a match off
 
@@ -129,10 +137,11 @@ answers them in one step.
 ## Stages and streams
 
 :::snippet staff-stage
-The **Stage** column is a dropdown on every row. Click the stage name, or the
-empty cell, to change it.
+Open the match and pick from **Stage**. The board's Stage column shows what each
+match is on.
 
-- A stage name puts the match on that stream. Its link icon opens the stream.
+- A stage name puts the match on that stream. **Watch** beside it opens the
+  stream.
 - **Candidate** means "this is going out, we haven't picked a stage yet". It's
   what you set while you're still planning, and the coverage report counts it.
 - **No Stage** takes it off.
@@ -142,7 +151,7 @@ the reports, so you don't have to untick anything.
 
 When a player offers their match for stream, the dialog names them under
 **Stream candidate**. That's advisory. It doesn't make the match a candidate
-until you tick the box or pick Candidate on the row.
+until you tick the box or pick Candidate on the match.
 :::
 
 The stages themselves (name, stream URL, and whether they're active) live on
@@ -152,18 +161,16 @@ The stages themselves (name, stream URL, and whether they're active) live on
 ## Approving crew
 
 :::snippet staff-crew-approval
-Commentators and trackers who sign up themselves arrive unapproved. On the board
-each one has a circle beside their name: empty means waiting for you, a green
-tick means approved. Click the circle to approve or un-approve.
+Commentators and trackers who sign up themselves arrive unapproved. Open the
+match: under **Crew**, each person says "signed up", "approved, hasn't
+confirmed" or "confirmed", and the role says how many more it needs. Press
+**Approve** or **Un-approve** beside a name.
 
 Approving asks you to confirm first, and warns you if that person is already
 committed somewhere else at the same time. Once you approve, they're DMed and
 asked to acknowledge. Un-approving clears their acknowledgment and tells them.
 
-After approval the icon beside the name tracks them: a clock while you're
-waiting for their acknowledgment, a tick once they've confirmed.
-
-Click a name to see that person's profile.
+Press a name to see that person's profile.
 :::
 
 ### Finding gaps in coverage
@@ -172,7 +179,7 @@ Click a name to see that person's profile.
 short of crew. **Coverage by match** counts approved against total signups for
 each role, set against what the tournament needs, and marks every match that's
 short with **GAP**. Filter it to **Pending only** to see signups still waiting on
-you. Each row opens that match on the board, where you can approve someone.
+you. Each row opens that match on the board, where you can open it and approve someone.
 
 **Contribution by person** shows how much each volunteer has covered, which helps
 when you're choosing between two people for the same slot.

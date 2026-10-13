@@ -1,0 +1,213 @@
+"""The "Needs you" inbox above a run-sheet match board.
+
+Three kinds of work wait on staff rather than on the clock: a player's request to
+move or cancel a match, a finished match nobody has confirmed, and a match past
+its start that nobody has checked in. They used to be three differently built
+strips of counts above the board, none of which did anything but filter. Here
+each is a short list of items with the action on the item.
+
+Requests come from ``MatchRescheduleService``; results and late matches are read
+off the board's own rows, so they follow the board's filters the way the old
+count strip did.
+"""
+
+from typing import Any, Awaitable, Callable, Optional
+
+from nicegui import ui
+
+from application.services import MatchRescheduleService
+from application.tenant_context import require_tenant_id
+from application.utils.timezone import format_local_time, to_local, today_local
+from models import Match, RescheduleRequestKind
+from theme.notify import notify_error
+from theme.tables.admin_crud import current_actor
+from theme.tables.match_access import MatchBoardAccess
+
+#: Items a group shows before "Show N more".
+_GROUP_LIMIT = 3
+
+
+def _when(dt) -> str:
+    """``14:58`` today, ``Sat 1 Aug 14:58`` on any other day."""
+    local = to_local(dt)
+    if local is None:
+        return 'no time set'
+    if local.date() == today_local():
+        return format_local_time(dt)
+    return f'{local:%a} {local.day} {local:%b} {format_local_time(dt)}'
+
+
+def _names(match) -> str:
+    names = [p.user.preferred_name for p in match.players]
+    return ' vs '.join(names) if len(names) == 2 else ', '.join(names) or (match.title or 'a match')
+
+
+def _winner_line(row: dict) -> str:
+    players = row.get('players') or []
+    winner = next((p for p in players if p.get('finish_rank') == 1), None)
+    if winner is None:
+        return ' vs '.join(p.get('name') or '' for p in players)
+    others = [p for p in players if p is not winner]
+    if len(others) == 1:
+        return f"{winner.get('name')} beat {others[0].get('name')}"
+    return f"{winner.get('name')} won"
+
+
+class MatchInbox:
+    """Build with ``render`` inside the page; refresh with ``refresh``."""
+
+    def __init__(
+        self,
+        *,
+        access: MatchBoardAccess,
+        handlers,
+        open_match: Callable[[int], Awaitable[None]],
+        open_request: Callable[[int], Awaitable[None]],
+        tournament_ids: Optional[list[int]] = None,
+    ) -> None:
+        self.access = access
+        self.handlers = handlers
+        self.open_match = open_match
+        self.open_request = open_request
+        self.tournament_ids = tournament_ids
+        self.view: Any = None
+        self._expanded: set[str] = set()
+
+    def refresh(self) -> None:
+        self.render.refresh()
+
+    async def _requests(self) -> list:
+        if not self.access.edit:
+            return []
+        actor = await current_actor()
+        if actor is None:
+            return []
+        return await MatchRescheduleService().list_pending(
+            actor, tournament_ids=self.tournament_ids,
+        )
+
+    @ui.refreshable
+    async def render(self) -> None:
+        rows: list = self.view.table.rows if self.view else []
+        requests = await self._requests()
+        finished = [r for r in rows if r.get('state') == 'Finished'] if self.access.confirm else []
+        late = [
+            r for r in rows
+            if self.access.run and r.get('state') == 'Scheduled' and r.get('is_overdue')
+            and r.get('players') and not r.get('is_racetime')
+        ]
+        total = len(requests) + len(finished) + len(late)
+        if not (self.access.edit or self.access.confirm or self.access.run):
+            return
+        with ui.column().classes('match-inbox full-width'):
+            with ui.row().classes('items-center gap-2'):
+                heading = ui.label('Needs you').classes('section-title')
+                heading.tag = 'h2'
+                if total:
+                    with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                        ui.label(str(total))
+            if not total:
+                ui.label('Nothing is waiting on you.').classes('text-muted')
+                return
+            self._group('requests', 'Reschedule requests', requests, self._request_item)
+            # Disputed first: it needs a decision, an unflagged result only a click.
+            finished.sort(key=lambda r: (not r.get('needs_review'), r.get('has_result'), r.get('scheduled_ts') or 0))
+            self._group('results', 'Results', finished, self._result_item)
+            self._group('late', 'Running late', late, self._late_item)
+
+    def _group(self, key: str, title: str, items: list, build) -> None:
+        if not items:
+            return
+        label = ui.label(f'{title} · {len(items)}').classes('match-inbox__group')
+        label.tag = 'h3'
+        shown = items if key in self._expanded else items[:_GROUP_LIMIT]
+        for item in shown:
+            with ui.element('div').classes('match-inbox__item'):
+                build(item)
+        hidden = len(items) - len(shown)
+        if hidden > 0:
+            def expand(k=key):
+                self._expanded.add(k)
+                self.refresh()
+            ui.button(f'Show {hidden} more', on_click=expand) \
+                .props('flat dense no-caps color=primary').classes('self-start')
+
+    def _request_item(self, request) -> None:
+        match = request.match
+        who = request.requested_by.preferred_name
+        cancel = request.kind is RescheduleRequestKind.CANCEL
+        what = 'cancel' if cancel else 'move'
+        ui.label(f'{who} wants to {what} {_names(match)}').classes('match-inbox__title')
+        if cancel:
+            detail = f'{match.tournament.name} · {_when(match.scheduled_at)}'
+        elif request.proposed_at:
+            detail = (f'{match.tournament.name} · {_when(match.scheduled_at)}'
+                      f' to {_when(request.proposed_at)}')
+        else:
+            detail = f'{match.tournament.name} · no time suggested'
+        ui.label(detail).classes('match-inbox__meta')
+        if request.opponent_agreed_at:
+            ui.label('The other player agreed').classes('match-inbox__meta st-ok')
+        with ui.row().classes('gap-2 items-center'):
+            if not cancel and request.proposed_at:
+                async def approve(r=request):
+                    actor = await current_actor()
+                    if actor is None:
+                        ui.notify('Log in again to decide this.', color='warning')
+                        return
+                    try:
+                        await MatchRescheduleService().approve(r.id, actor)
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
+                        return
+                    ui.notify('Match moved and everyone told.', color='positive')
+                    self.refresh()
+                    if self.view is not None:
+                        await self.view.refresh()
+                ui.button('Approve', on_click=approve).props('color=primary')
+                ui.button('Decline', on_click=lambda r=request: self.open_request(r.id)) \
+                    .props('outline color=primary')
+            else:
+                # Cancelling deletes the match, and a request with no time needs
+                # one picked: both go through the full decision dialog.
+                ui.button('Review', on_click=lambda r=request: self.open_request(r.id)) \
+                    .props('color=primary')
+
+    def _result_item(self, row: dict) -> None:
+        match_id = row['id']
+        with ui.row().classes('items-center gap-2 no-wrap full-width'):
+            ui.label(_winner_line(row)).classes('match-inbox__title col')
+            if row.get('needs_review'):
+                with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
+                    ui.label('Flagged')
+            elif not row.get('has_result'):
+                with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
+                    ui.label('No winner')
+        finished = row.get('finished') or ''
+        meta = row.get('tournament') or ''
+        if finished:
+            meta += f' · finished {finished[-5:]}'
+        ui.label(meta).classes('match-inbox__meta')
+        h = self.handlers
+        with ui.row().classes('gap-2 items-center'):
+            if not row.get('has_result'):
+                ui.button('Record winner', on_click=lambda: h.on_edit_result(match_id)).props('color=primary')
+            elif row.get('needs_review'):
+                ui.button('Review', on_click=lambda: h.on_confirm(match_id)).props('color=primary')
+            else:
+                async def confirm():
+                    match = await Match.get(id=match_id, tenant_id=require_tenant_id()) \
+                        .prefetch_related('tournament', 'players', 'players__user')
+                    await h.confirm_confirming(match)
+                ui.button('Confirm', on_click=confirm).props('color=primary')
+                ui.button('Change', on_click=lambda: h.on_edit_result(match_id)).props('outline color=primary')
+            ui.button('Open', on_click=lambda: self.open_match(match_id)).props('flat no-caps color=primary')
+
+    def _late_item(self, row: dict) -> None:
+        match_id = row['id']
+        ui.label(row.get('_who') or row.get('title') or 'Match').classes('match-inbox__title')
+        ui.label(f"{row.get('tournament') or ''} · was {(row.get('scheduled_at') or '')[-5:]}") \
+            .classes('match-inbox__meta')
+        with ui.row().classes('gap-2 items-center'):
+            ui.button('Check in', on_click=lambda: self.handlers.on_seat(match_id)).props('color=primary')
+            ui.button('Open', on_click=lambda: self.open_match(match_id)).props('flat no-caps color=primary')

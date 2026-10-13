@@ -471,7 +471,7 @@ on every route (Discord, web, REST).
 |---|---|---|
 | The player | Home → My Schedule, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
 | The opponent | Home → My Schedule, **Your opponent asked to reschedule** above the board | The request (time now, proposed time, reason) with **Agree**; `MatchRescheduleService.list_awaiting_agreement`, two-player matches only |
-| Staff | Admin → Schedule, the reschedule strip | *"2 reschedule requests waiting"* plus the first few named individually, each opening the decision dialog |
+| Staff | Admin → Schedule, **Needs you** | Each request named, with *Approve* for a move at the proposed time and *Decline* / *Review* opening the decision dialog |
 
 The strip is **live**. Submitting, withdrawing, agreeing and declining all
 publish on `match_live`, and the strip subscribes through

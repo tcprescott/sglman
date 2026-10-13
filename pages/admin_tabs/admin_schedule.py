@@ -7,54 +7,38 @@ from nicegui import background_tasks, context, ui
 
 from application.services import MatchRescheduleService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import format_local_display
-from models import Match, RescheduleRequestKind, RescheduleRequestStatus
+from models import Match, RescheduleRequestStatus
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
+from theme.dialog.match_sheet import MatchSheet
 from theme.dialog.reschedule_decision_dialog import RescheduleDecisionDialog
 from theme.help import help_icon
+from theme.match_inbox import MatchInbox
 from theme.page_header import page_header
 from theme.realtime import register_view
 from theme.tables.admin_crud import current_actor
 from theme.tables.match import MatchTableView
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
+from theme.tables.match_run_sheet import RUN_SHEET_COLUMNS
 from theme.tables.preferences import TableKeys
 
-# How many requests the strip names individually before collapsing to a count.
-# Enough to answer a couple without leaving the board, few enough that a busy
-# day does not push the schedule off screen.
-_STRIP_REQUEST_LIMIT = 3
 
+async def _render_inbox(inbox, anchor, request_id, open_decision, client, *, may_decide: bool) -> None:
+    """Draw the inbox into its anchor, then open a deep-linked request's dialog.
 
-def _request_chip_label(request) -> str:
-    """Who asked, and for what — short enough to sit on a chip."""
-    who = request.requested_by.preferred_name
-    if request.kind is RescheduleRequestKind.CANCEL:
-        return f'{who}: cancel'
-    if request.proposed_at:
-        return f'{who}: {format_local_display(request.proposed_at)}'
-    return f'{who}: any time'
+    Sequenced rather than concurrent: the dialog's Approve refreshes the inbox,
+    so the inbox has to exist first. Runs as a background task, hence the
+    explicit client, and it renders inside ``anchor`` so the inbox keeps its
+    place beside the board rather than landing wherever the task ran.
 
-
-async def _render_reschedule_queue(
-    section, anchor, request_id, open_decision, client, *, may_decide: bool,
-) -> None:
-    """Draw the strip into its anchor, then open a deep-linked request's dialog.
-
-    Sequenced rather than concurrent: the dialog's Approve refreshes the strip,
-    so the strip has to exist first. Runs as a background task, hence the
-    explicit client — the strip's own ``ui.*`` calls need a slot too — and it
-    renders inside ``anchor`` so the strip keeps its place above the board
-    rather than landing wherever the task ran.
-
-    ``may_decide`` gates the deep link as well as the strip. A stream manager or
-    crew coordinator reaches this board with ``edit=False``; a forwarded
+    ``may_decide`` gates the deep link as well as the requests. A stream manager
+    or crew coordinator reaches this board with ``edit=False``; a forwarded
     ``?reschedule_request=`` would otherwise show them the requester's reason
     and two buttons the service then refuses.
     """
     with client, anchor:
-        await section()
+        await inbox.render()
     if request_id is not None and may_decide:
         await open_decision(int(request_id), client)
 
@@ -83,6 +67,10 @@ async def admin_schedule_page(
         with page_header('Schedule Management'):
             await help_icon('staff-schedule-board')
             await help_icon('staff-queues', label='Queues')
+            if access.edit:
+                ui.space()
+                ui.button('New match', icon='add', on_click=lambda: submit_admin_match()) \
+                    .props('color=primary')
 
         # Same reasoning as the match_id chip below: a board showing a subset
         # with no explanation reads as a board that lost rows.
@@ -108,27 +96,14 @@ async def admin_schedule_page(
                     on_click=lambda: ui.navigate.to(admin_url(SCHEDULE)),
                 ).props('flat dense color=primary')
 
-        columns = [
-            # A pencil, not the primary key. The id was this board's only edit
-            # affordance and the last database value on a community-facing
-            # screen; the proctor board keeps its '#' because a proctor really
-            # does call a match out by number.
-            {'name': 'edit', 'label': '', 'field': 'id'},
-            {'name': 'tournament', 'label': 'Tournament',
-                'field': 'tournament', 'sortable': True},
-            {'name': 'scheduled_at', 'label': 'Scheduled At',
-                'field': 'scheduled_at', 'sortable': True},
-            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
-            # Not sortable: a joined roster of names, where the sort would run on
-            # whoever happens to be listed first.
-            {'name': 'players', 'label': 'Players', 'field': 'players'},
-            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
-            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
-            {'name': 'stage', 'label': 'Stage',
-                'field': 'stage', 'sortable': True},
-            # Sorts present-vs-absent, which is the question actually asked of it.
-            {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed', 'sortable': True},
-        ]
+        # Creating a match is a scheduling action, not a lifecycle one, so it
+        # stays here rather than moving into MatchLifecycleHandlers.
+        async def submit_admin_match():
+            async def after_submit():
+                await table_view.refresh()
+            with page_container:
+                dialog = AdminMatchDialog(on_submit=after_submit)
+                await dialog.open()
 
         def get_query():
             # The handlers' per-row lookup. The *board's* rows come from
@@ -140,110 +115,16 @@ async def admin_schedule_page(
                 qs = qs.filter(tournament_id__in=tournament_ids)
             return qs
 
-        # Creating a match is a scheduling action, not a lifecycle one, so it
-        # stays here rather than moving into MatchLifecycleHandlers.
-        async def submit_admin_match():
-            async def after_submit():
-                await table_view.refresh()
-            with page_container:
-                dialog = AdminMatchDialog(on_submit=after_submit)
-                await dialog.open()
-
-        extra_slots: dict = {}
-
         # Bound after the view exists (two-phase; see MatchLifecycleHandlers).
         table_view: Any = None
 
-        # Built before the view so the view can be handed a callback that
-        # refreshes it; guarded because the view's first load can land before
-        # the local name is bound.
-        @ui.refreshable
-        def review_queue() -> None:
-            # The strip counts confirmation work. A viewer who cannot confirm —
-            # a crew coordinator — would be reading a queue they cannot act on.
-            if not access.confirm:
-                return
-            rows: list = table_view.table.rows if table_view else []
-            pending = [r for r in rows if r.get('state') == 'Finished']
-            if not pending:
-                return
-            # A proctor flagged these as contested. Counted separately and shown
-            # first: a disputed result needs a decision, an unflagged one only
-            # needs a click.
-            flagged = [r for r in pending if r.get('needs_review')]
-            # Finished with nobody recorded is a third thing again: it cannot be
-            # confirmed at all (``confirm_match`` refuses it), so counting it as
-            # "awaiting confirmation" overstates the one-click pile the admin is
-            # planning their queue from.
-            resultless = [r for r in pending if not r.get('has_result')]
-            confirmable = [r for r in pending if r.get('has_result')]
-            with ui.row().classes('items-center gap-2 q-mb-sm'):
-                # ui.element + ui.label rather than ui.html: NiceGUI's raw-HTML
-                # sinks are reserved for static literals (check_markdown_xss).
-                if flagged:
-                    with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
-                        ui.icon('report_problem', size='14px')
-                        ui.label(f'Flagged for review: {len(flagged)}')
-                if resultless:
-                    with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
-                        ui.icon('report_problem', size='14px')
-                        ui.label(f'No result recorded: {len(resultless)}')
-                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
-                    ui.icon('flag', size='14px')
-                    ui.label(f'Awaiting confirmation: {len(confirmable)}')
-                ui.button(
-                    'Show only these', icon='filter_alt', on_click=lambda: _only_finished(),
-                ).props('flat dense color=primary')
-
-        # An empty anchor claiming this strip's place in the layout, filled by a
-        # background task once the table exists. Without it the strip renders
-        # wherever the task happens to run — which is the end of the page, below
-        # the board, where staff would have to scroll past every match to find
-        # the thing waiting on them.
-        reschedule_anchor = ui.column().classes('full-width gap-0')
-
-        # The third queue on this board: players asking staff to move or call
-        # off a match. Counted separately from the two above because it is the
-        # only one where somebody is waiting on a reply.
-        @ui.refreshable
-        async def reschedule_queue() -> None:
-            if not access.edit:
-                return
-            actor = await current_actor()
-            if actor is None:
-                return
-            # Narrowed like the board below it: a tournament admin shown a
-            # request on somebody else's tournament gets a dialog whose Approve
-            # is refused by ``can_crud_match``.
-            pending = await MatchRescheduleService().list_pending(
-                actor, tournament_ids=tournament_ids,
-            )
-            if not pending:
-                return
-            with ui.row().classes('items-center gap-2 q-mb-sm'):
-                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
-                    ui.icon('edit_calendar', size='14px')
-                    ui.label(
-                        f'{len(pending)} reschedule request'
-                        f'{"s" if len(pending) != 1 else ""} waiting'
-                    )
-                for request in pending[:_STRIP_REQUEST_LIMIT]:
-                    ui.button(
-                        _request_chip_label(request),
-                        icon='open_in_new',
-                        on_click=lambda _=None, r=request: background_tasks.create(
-                            _open_decision(r.id, context.client)
-                        ),
-                    ).props('flat dense color=primary')
-                if len(pending) > _STRIP_REQUEST_LIMIT:
-                    ui.label(
-                        f'+{len(pending) - _STRIP_REQUEST_LIMIT} more'
-                    ).classes('text-caption text-grey-7')
+        handlers = MatchLifecycleHandlers(page_container, access=access)
+        sheet = MatchSheet(handlers, access=access)
 
         async def _open_decision(request_id: int, client) -> None:
-            """Open one request's decision dialog, from the strip or a DM link.
+            """Open one request's decision dialog, from the inbox or a DM link.
 
-            Takes the client because both entry points run it as a background
+            Takes the client because the DM entry point runs it as a background
             task, where the slot stack is empty and every ``ui.*`` call below —
             the notice and the dialog itself — would otherwise have nowhere to
             render.
@@ -265,64 +146,72 @@ async def admin_schedule_page(
                     return
 
                 async def after():
-                    reschedule_queue.refresh()
+                    inbox.refresh()
                     await table_view.refresh()
 
-                await RescheduleDecisionDialog(request, actor, on_decision=after).open()
+                with page_container:
+                    await RescheduleDecisionDialog(request, actor, on_decision=after).open()
 
-        def _only_finished() -> None:
-            # Assigning the select's value fires _on_state_filter_change, which
-            # stores the choice and reloads the table.
-            table_view.state_filter.value = ['Finished']
-
-        review_queue()
-
-        handlers = MatchLifecycleHandlers(page_container, access=access)
-        table_view = MatchTableView(
-            columns=columns,
-            get_query=get_query,
-            admin_controls=True,
+        inbox = MatchInbox(
             access=access,
-            submit_match_callback=submit_admin_match if access.edit else None,
-            extra_slots=extra_slots,
-            storage_key='admin_schedule',
-            table_key=TableKeys.ADMIN_SCHEDULE,
-            show_accommodations=True,
-            searchable=True,
-            # The admin's job *is* the Finished-not-yet-Confirmed set, so it
-            # must be on screen without them discovering the State filter.
-            default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
-            match_ids=[match_id] if match_id else None,
-            scope_tournament_ids=tournament_ids,
-            on_rows_changed=lambda _rows: review_queue.refresh(),
-            **handlers.callbacks(),
+            handlers=handlers,
+            open_match=sheet.open,
+            open_request=lambda request_id: _open_decision(request_id, context.client),
+            tournament_ids=tournament_ids,
         )
-        handlers.table_view = table_view
 
-        # After the table exists, so the strip's buttons can refresh it, and so
-        # the deep-linked dialog opens over a rendered board.
-        background_tasks.create(_render_reschedule_queue(
-            reschedule_queue, reschedule_anchor, reschedule_request,
+        def _rows_changed(rows) -> None:
+            inbox.refresh()
+            sheet.sync(rows)
+
+        # The inbox sits beside the board on a desktop and above it on a phone.
+        with ui.element('div').classes('schedule-layout full-width'):
+            # An empty anchor claiming the inbox's place, filled by a background
+            # task once the board exists (the inbox reads the board's rows).
+            inbox_anchor = ui.column().classes('schedule-layout__inbox gap-0')
+            with ui.column().classes('schedule-layout__board gap-0'):
+                table_view = MatchTableView(
+                    columns=RUN_SHEET_COLUMNS,
+                    get_query=get_query,
+                    admin_controls=True,
+                    access=access,
+                    storage_key='admin_schedule',
+                    table_key=TableKeys.ADMIN_SCHEDULE,
+                    show_accommodations=True,
+                    searchable=True,
+                    # The admin's job *is* the Finished-not-yet-Confirmed set, so it
+                    # must be on screen without them discovering the State filter.
+                    default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
+                    match_ids=[match_id] if match_id else None,
+                    scope_tournament_ids=tournament_ids,
+                    on_rows_changed=_rows_changed,
+                    layout='run_sheet',
+                    on_open_match=sheet.open,
+                    **handlers.callbacks(),
+                )
+        handlers.table_view = table_view
+        sheet.view = table_view
+        inbox.view = table_view
+
+        # After the board exists, so the inbox can read its rows, and so the
+        # deep-linked dialog opens over a rendered board.
+        background_tasks.create(_render_inbox(
+            inbox, inbox_anchor, reschedule_request,
             _open_decision, context.client, may_decide=access.edit,
         ))
 
         async def _on_live_change(_match_id, _change_type) -> None:
-            """Re-read the queue when anything about a match changes elsewhere.
+            """Re-read the inbox when anything about a match changes elsewhere.
 
-            Its own subscription rather than the table's ``on_rows_changed``,
-            which the other two strips use: those summarise the *visible rows*,
-            while this one summarises requests. A request can land on a match the
-            board's day or state filter is hiding, and ``update_row_by_id``
-            returns early for a row that is not on screen — so riding the table
-            would leave staff looking at a stale count precisely when a filter
-            is narrowing their view.
-
-            ``register_view`` re-enters the captured client, which is what makes
-            the tenant resolvable (it falls back to the client stash) and the
-            refresh land in the right browser.
+            Its own subscription as well as the board's ``on_rows_changed``: the
+            requests are not rows. A request can land on a match the board's
+            day or state filter is hiding, and ``update_row_by_id`` returns early
+            for a row that is not on screen, so riding the board alone would
+            leave staff looking at a stale inbox precisely when a filter is
+            narrowing their view.
             """
             if access.edit:
-                reschedule_queue.refresh()
+                inbox.refresh()
 
         register_view(_on_live_change)
 

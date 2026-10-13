@@ -62,7 +62,9 @@ class TableKeys:
 
     # Match boards. Four surfaces share one class and each carries its own key:
     # a proctor's column choices must not follow them onto the admin board.
-    ADMIN_SCHEDULE = 'admin.schedule'
+    # _v2 since the board became a run sheet (Time, Match, Stage, Status): v1
+    # layouts name the old per-control columns, which no longer exist.
+    ADMIN_SCHEDULE = 'admin.schedule_v2'
     HOME_SCHEDULE = 'home.schedule'
     # _v2 since the player's four action columns became one "Your actions"
     # beside Players: rule 3 appends a new default at the far right, so every
