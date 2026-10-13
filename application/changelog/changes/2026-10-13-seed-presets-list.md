@@ -1,3 +1,4 @@
+### Improved
 - Seed Presets is now a list grouped by randomizer, one line per preset, and
   each line says how many tournaments use it. Click a name to edit it; Test
   roll, Edit and Delete are in the ⋮ menu at the end of the line.
