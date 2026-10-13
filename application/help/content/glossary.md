@@ -14,10 +14,10 @@ Profile. See [Asking for an accommodation](/help/accessibility).
 
 **Acknowledge**: to tell staff you have seen something and accept it. Players
 acknowledge a match they have been scheduled into; crew acknowledge an approved
-slot. The button sometimes reads *Confirm I can cover this*; it does the same
+slot. The crew button reads *Confirm*; it does the same
 thing. Acknowledging is not checking in.
 
-**Ask to change**: the button under *Your actions* that asks staff to move or
+**Ask to change**: the item in a match's ⋮ menu on My Schedule that asks staff to move or
 call off one of your matches. It's a request, not a booking. Your requests and
 staff's answers are listed under *Your change requests* on My Schedule.
 
@@ -94,7 +94,7 @@ still short of approved crew. See [Signing up as crew](/help/crew#signing-up).
 look at. Confirming the result clears it. See
 [Running a match](/help/proctor#running-a-match).
 
-**Offer for stream**: the button under *Your actions* that tells staff you'd be
+**Offer for stream**: the item in a match's ⋮ menu on My Schedule that tells staff you'd be
 happy for a match to be streamed. A hint, not a booking.
 
 **On Air**: the Event tab view that lays one day out by stage. See
@@ -176,9 +176,6 @@ shows each stage's stream, what's on now and what's up next. See [The Watch page
 **Withdraw**: to take yourself off something you signed up for: a crew slot, a
 tournament while its signups are open, or a change request staff haven't
 answered yet.
-
-**Your actions**: the cell on each of your matches on My Schedule that holds
-everything you can do to it.
 
 ## Match states
 

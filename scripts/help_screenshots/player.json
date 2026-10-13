@@ -16,6 +16,9 @@
     "path": "/home/my-schedule",
     "setup": [
       {
+        "click": "button[aria-label^=\"More for\"] >> nth=1"
+      },
+      {
         "click": "text=Ask to change"
       },
       {

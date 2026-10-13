@@ -75,7 +75,10 @@ class TableKeys:
     # saved v1 layout would have put the player's own controls back past the
     # table's edge. A fresh key starts everyone on the shipped order; v1 rows
     # name columns that no longer exist, so there is little in them to keep.
-    HOME_PLAYER_MATCHES = 'home.player_matches_v2'
+    # _v3 since it became the player run sheet with a ⋮ per line.
+    HOME_PLAYER_MATCHES = 'home.player_matches_v3'
+    # My Schedule's crew section, the same run sheet filtered to your slots.
+    HOME_MY_CREW = 'home.my_crew'
     # _v2 since the proctor board became a run sheet too (Time, Match, Stage,
     # Next step); v1 layouts name the old Seed, Tournament and # columns.
     PROCTOR_STATION = 'volunteer.proctor_station_v2'
