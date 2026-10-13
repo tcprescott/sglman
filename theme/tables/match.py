@@ -30,6 +30,7 @@ from theme.tables.match_filters import (
 )
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
+from theme.tables.match_player_run_sheet import arrange_player_run_sheet, register_player_run_sheet_slots
 from theme.tables.match_run_sheet import arrange_run_sheet, register_run_sheet_slots
 from theme.tables.match_slots import (
     CANDIDATE_STAGE,
@@ -82,7 +83,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # 'table' draws every column's control in its cell (and a full card per
         # match on a phone); 'run_sheet' draws one grouped line per match and
         # hands a tapped line to ``on_open_match(match_id)``, which shows the
-        # controls (see match_run_sheet).
+        # controls (see match_run_sheet); 'player_run_sheet' is the same with
+        # the viewer's own crew, acknowledge and watch buttons left on the line
+        # (see match_player_run_sheet).
         self.layout = layout
         self.on_open_match = on_open_match
         # When set, this board's desktop columns follow the viewer's saved
@@ -254,9 +257,15 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         # Resolve current user's discord_id once for slot templates and event wiring.
         discord_id = app.storage.user.get('discord_id', None)
+        # Kept for _arrange: row updates run in background tasks, where
+        # app.storage.user is out of reach.
+        self._discord_id = discord_id
 
-        if self.layout == 'run_sheet':
-            register_run_sheet_slots(self.table)
+        if self.layout in ('run_sheet', 'player_run_sheet'):
+            if self.layout == 'run_sheet':
+                register_run_sheet_slots(self.table)
+            else:
+                register_player_run_sheet_slots(self.table)
             if self.on_open_match is not None:
                 self.table.on('open_match', lambda event: self._bg(self.on_open_match(event.args)))
         else:
@@ -474,12 +483,19 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         if self.row_sort is not None:
             rows = self.row_sort(rows)
-        if self.layout == 'run_sheet':
-            rows = arrange_run_sheet(rows)
+        rows = self._arrange(rows)
 
         self.table.rows = rows
         self.table.update()
         self._notify_rows_changed()
+
+    def _arrange(self, rows: list) -> list:
+        """Group and order ``rows`` for a run-sheet layout; a table keeps its order."""
+        if self.layout == 'run_sheet':
+            return arrange_run_sheet(rows)
+        if self.layout == 'player_run_sheet':
+            return arrange_player_run_sheet(rows, getattr(self, '_discord_id', None))
+        return rows
 
     def _stage_options(self):
         """The Stage select's choices, or ``None`` for a board that cannot set one.
@@ -662,9 +678,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if flash:
             match_data['_flash'] = True
         self.table.rows[idx] = match_data
-        if self.layout == 'run_sheet':
+        if self.layout != 'table':
             # A state change can move the match to another group.
-            self.table.rows[:] = arrange_run_sheet(self.table.rows)
+            self.table.rows[:] = self._arrange(self.table.rows)
         self.table.update()
         self._notify_rows_changed()
         if flash:

@@ -76,11 +76,12 @@ class TestSortableColumnsSortOnSomethingSortable:
             f'whoever happens to be listed first: {offenders}')
 
     def test_the_boards_the_audit_named_are_sortable_now(self):
+        # The home schedule left this list when it became a run sheet: its
+        # groups are the order, so no column sorts (see match_player_run_sheet).
         expected = {
             'pages/admin_tabs/admin_users.py': {'username', 'preferred_name',
                                                 'pronouns', 'challonge'},
             'pages/home_tabs/player.py': {'tournament', 'scheduled_at', 'state'},
-            'pages/home_tabs/schedule.py': {'tournament', 'scheduled_at', 'state'},
         }
         for rel, names in expected.items():
             sortable = {c.get('name') for _, c in _column_dicts(REPO / rel)

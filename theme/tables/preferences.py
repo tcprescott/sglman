@@ -65,7 +65,8 @@ class TableKeys:
     # _v2 since the board became a run sheet (Time, Match, Stage, Status): v1
     # layouts name the old per-control columns, which no longer exist.
     ADMIN_SCHEDULE = 'admin.schedule_v2'
-    HOME_SCHEDULE = 'home.schedule'
+    # _v2 for the same reason, when the Event > Schedule board followed it.
+    HOME_SCHEDULE = 'home.schedule_v2'
     # _v2 since the player's four action columns became one "Your actions"
     # beside Players: rule 3 appends a new default at the far right, so every
     # saved v1 layout would have put the player's own controls back past the
