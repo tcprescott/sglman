@@ -1,3 +1,4 @@
+### Improved
 - On a wide screen, On Air puts each stage in its own column side by side, so
   you can see every stage's day at once. On a phone the stages still run one
   after another.

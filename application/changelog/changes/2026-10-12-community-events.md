@@ -1,3 +1,4 @@
+### New
 - Communities can turn on Community Events: a listing of the meetups, panels
   and side events members are running during the event. It's off until a
   community has it switched on.

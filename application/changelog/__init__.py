@@ -8,14 +8,20 @@ root-level ``*.md``.
 """
 
 from application.changelog.catalog import (
+    CATEGORIES,
+    UNSORTED,
     ChangelogEntry,
+    ChangelogSection,
     all_entries,
     parse_changelog,
     reload_entries,
 )
 
 __all__ = [
+    'CATEGORIES',
+    'UNSORTED',
     'ChangelogEntry',
+    'ChangelogSection',
     'all_entries',
     'parse_changelog',
     'reload_entries',
