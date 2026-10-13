@@ -1,7 +1,7 @@
 from nicegui import ui
 
 from application.utils.easter_eggs import random_cat_fact
-from theme.dialog._helpers import dialog_actions, dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 
 class CatFactDialog:
@@ -21,10 +21,11 @@ class CatFactDialog:
         ui.navigate.to('/cat-facts')
 
     def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header('🐱 Cat fact', dialog)
-            with ui.column().classes('q-pa-md items-center'):
+            with ui.column().classes('items-center'):
                 ui.icon('pets').props('size=lg')
                 self._fact_label = ui.label(random_cat_fact()).classes('text-center')
             with dialog_actions().classes('justify-end'):

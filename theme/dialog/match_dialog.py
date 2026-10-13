@@ -13,7 +13,6 @@ from application.utils.timezone import format_local_display
 from models import FeatureFlag, RaceRoomStatus
 from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog._helpers import (
-    dialog_actions,
     dialog_header,
     mobile_sheet,
 )
@@ -563,8 +562,6 @@ class UserMatchDialog(BaseMatchDialog):
                     ui.label(_no_requestable_message(
                         enrolled=bool(enrolments), enrolled_running=enrolled_running,
                     )).classes('text-negative')
-                    with dialog_actions().classes('justify-end'):
-                        ui.button('Close', on_click=dialog.close).props('flat')
                     dialog.open()
                     return
 

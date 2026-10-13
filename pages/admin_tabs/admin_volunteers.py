@@ -490,8 +490,6 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
                 picker_list()
 
-                with dialog_actions().classes('justify-end'):
-                    ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
         def _render_picker_row(
@@ -630,7 +628,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         def open_reset_dialog() -> None:
             CONFIRM_PHRASE = 'yes please delete all shifts'
-            with form_dialog('Reset all volunteer data') as dialog:
+            with form_dialog('Reset all volunteer data', card_classes='dialog-card dialog-card--sm') as dialog:
                 with ui.column().classes('q-pa-md gap-3'):
                     ui.label(
                         'This will permanently delete ALL shifts and assignments across every day. '

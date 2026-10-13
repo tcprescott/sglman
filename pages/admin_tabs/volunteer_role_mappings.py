@@ -109,7 +109,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
             ))
             add_button.set_enabled(bool(new))
 
-        with container, form_dialog('Add volunteer role mappings') as dialog:
+        with container, form_dialog('Add volunteer role mappings', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 ui.label('Every position you pick grants every role you pick.') \
                     .classes('text-caption text-grey')

@@ -131,14 +131,15 @@ async def admin_payouts_page() -> None:
                     notify_error(e)
                     return
                 with table_container:
-                    with form_dialog(f"Prize pool — {row['name']}") as dialog:
-                        with ui.column().classes('q-pa-md gap-2 full-width'):
-                            pool_input = ui.input(
-                                'Prize pool', value=f'{split.pool:.2f}',
-                            ).props('outlined dense prefix="$"').classes('w-full')
-                            bonus_input = ui.input(
-                                'Bonus', value=f'{split.bonus:.2f}',
-                            ).props('outlined dense prefix="$"').classes('w-full')
+                    with form_dialog(f"Prize pool — {row['name']}", card_classes='dialog-card dialog-card--sm') as dialog:
+                        with ui.column().classes('gap-2 full-width'):
+                            with ui.row().classes('form-pair gap-2'):
+                                pool_input = ui.input(
+                                    'Prize pool', value=f'{split.pool:.2f}',
+                                ).props('outlined dense prefix="$"')
+                                bonus_input = ui.input(
+                                    'Bonus', value=f'{split.bonus:.2f}',
+                                ).props('outlined dense prefix="$"')
                             ui.label(
                                 'Shares are taken from the pool and the bonus added '
                                 'together. Leave a field blank if nobody has decided it yet.'

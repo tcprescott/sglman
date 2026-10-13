@@ -55,7 +55,7 @@ class RescheduleRequestDialog:
         default_date = local.strftime('%Y-%m-%d') if local else ''
         default_time = local.strftime('%H:%M') if local else ''
 
-        with form_dialog('Ask staff to change this match') as dialog:
+        with form_dialog('Ask staff to change this match', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-3 full-width'):
                 ui.label(
                     'Staff decide on this. Nothing changes until they do, so keep '
@@ -74,13 +74,9 @@ class RescheduleRequestDialog:
                         'Leave the time blank if you only know you cannot make '
                         'the current slot — staff will pick one.'
                     ).classes('text-caption text-grey-7')
-                    with ui.row().classes('gap-2 full-width no-wrap'):
-                        date_input = native_date_input(
-                            'Preferred date', default_date,
-                        ).classes('col')
-                        time_input = native_time_input(
-                            'Preferred time', default_time,
-                        ).classes('col')
+                    with ui.row().classes('form-pair gap-2'):
+                        date_input = native_date_input('Preferred date', default_date)
+                        time_input = native_time_input('Preferred time', default_time)
 
                 # The time block is meaningless for a cancellation, and leaving
                 # it on screen invites someone to fill it in and expect it to

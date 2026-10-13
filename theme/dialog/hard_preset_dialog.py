@@ -42,7 +42,7 @@ class HardPresetDialog:
     async def open(self) -> None:
         state = self.state
 
-        with form_dialog('Harder settings') as dialog:
+        with form_dialog('Harder settings', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-3 full-width'):
                 ui.label(state.preset_name).classes('text-bold text-subtitle1')
 
@@ -57,8 +57,6 @@ class HardPresetDialog:
                         f'Staff set this match to {chosen}. That settles it, so there '
                         'is nothing to choose here.'
                     ).classes('text-caption text-grey-7')
-                    with dialog_actions().classes('justify-end'):
-                        ui.button('Close', on_click=dialog.close).props('flat')
                     dialog.open()
                     return
 
@@ -67,8 +65,6 @@ class HardPresetDialog:
                         'The seed for this match is already rolled, so its settings '
                         'are decided.'
                     ).classes('text-caption text-grey-7')
-                    with dialog_actions().classes('justify-end'):
-                        ui.button('Close', on_click=dialog.close).props('flat')
                     dialog.open()
                     return
 

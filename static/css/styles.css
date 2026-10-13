@@ -164,6 +164,7 @@
     --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.05);
     --shadow-2: 0 4px 12px rgba(28, 27, 25, 0.08);
     --shadow-3: 0 12px 32px rgba(28, 27, 25, 0.14);
+    --scrim: rgba(28, 27, 25, 0.4);
 
     /* Motion */
     --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -213,6 +214,7 @@ body.wiz-has-bottom-nav {
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
     --shadow-3: 0 12px 36px rgba(0, 0, 0, 0.55);
+    --scrim: rgba(0, 0, 0, 0.6);
 }
 
 /* Base typography — wins over Quasar's Roboto default because this sheet loads
@@ -3708,25 +3710,86 @@ ol.wiz-help-list { list-style-type: decimal; }
     }
 }
 
-.wiz-help-menu-title {
-    font-weight: 700;
-    margin-bottom: 0.4rem;
+/* The popover: a fixed reading width on desktop. Without one the menu shrank
+   to its narrowest word and wrapped a snippet a word or two per line. */
+.q-menu.wiz-help-menu {
+    width: min(24rem, calc(100vw - 2rem));
+    max-width: none !important;
+    max-height: min(32rem, 75vh) !important;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-3);
+    background: var(--surface);
+    color: var(--fg);
 }
 
-/* Several topics: a list of names, full width, that each open in place. */
-.wiz-help-menu-body > .wiz-help-topic {
-    align-self: stretch;
-    border-top: 1px solid var(--border-subtle);
+.wiz-help-view { gap: 0; width: 100%; }
+
+.wiz-help-menu-head {
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.5rem 1rem;
+    background: var(--surface);
 }
-.wiz-help-menu-body:has(> .wiz-help-topic) { gap: 0; }
-.wiz-help-topic .q-item { padding: 0; min-height: 44px; }
-.wiz-help-topic .q-expansion-item__content { padding: 0 0 0.6rem; }
+
+.wiz-help-menu-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: var(--text-lg);
+}
+
+.q-btn.wiz-help-back {
+    color: var(--wiz-link);
+    font-weight: 700;
+    margin-left: -0.5rem;
+    padding: 0 0.5rem 0 0.25rem;
+    min-height: 36px;
+}
 
 .wiz-help-menu-body {
-    padding: 0.85rem 1rem;
-    max-height: 60vh;
-    overflow-y: auto;
-    font-size: 0.9rem;
+    width: 100%;
+    padding: 0 1rem 1rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+/* Several topics: a list of names that each open in place, with Back. */
+.wiz-help-topic-list { gap: 0; padding: 0 0.5rem 0.5rem; }
+.q-btn.wiz-help-topic {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0;
+    color: var(--fg);
+    font-weight: 400;
+    font-size: 0.95rem;
+    text-align: left;
+}
+.q-btn.wiz-help-topic .q-icon { color: var(--fg-muted); }
+
+/* On a phone the same menu rises as a bottom sheet, like the app's dialogs:
+   full width, Close in thumb reach, the page dimmed behind it. Quasar
+   positions a menu with inline top/left, hence the !important. */
+@media (max-width: 599.98px) {
+    .q-menu.wiz-help-menu {
+        position: fixed !important;
+        top: auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        max-height: 85vh !important;
+        border-width: 1px 0 0;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 0 0 100vmax var(--scrim);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .wiz-help-menu-head { padding-top: 1rem; }
 }
 
 /* The popup's last paragraph should not push the Read more link off its baseline
