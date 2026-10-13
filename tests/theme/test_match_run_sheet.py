@@ -83,6 +83,17 @@ class TestCrew:
         assert crew[0]['short'] is False
         assert crew[0]['unapproved'] is True
 
+    def test_lists_names_approved_first_and_marks_who_to_approve(self):
+        crew = self._crew(commentators=[{'name': 'B', 'approved': False}, {'name': 'A', 'approved': True}])
+        assert [(p['name'], p['note']) for p in crew[0]['people']] == [('A', ''), ('B', 'to approve')]
+        assert crew[0]['empty'] is False
+        assert self._crew()[0]['empty'] is True
+
+    def test_each_role_has_its_own_column(self):
+        from theme.tables.match_run_sheet import RUN_SHEET_COLUMNS
+        names = [c['name'] for c in RUN_SHEET_COLUMNS]
+        assert 'commentators' in names and 'trackers' in names and 'crew' not in names
+
     def test_a_started_match_is_not_short(self):
         row = _row(1, 'Started', crew_wanted={'commentators': True},
                    crew_required={'commentators': 2})

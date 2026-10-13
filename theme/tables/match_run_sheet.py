@@ -23,7 +23,8 @@ RUN_SHEET_COLUMNS = [
     {'name': 'scheduled_at', 'label': 'Time', 'field': 'scheduled_at', 'align': 'left'},
     {'name': 'match', 'label': 'Match', 'field': 'title', 'align': 'left'},
     {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'align': 'left'},
-    {'name': 'crew', 'label': 'Crew', 'field': 'commentators', 'align': 'left'},
+    {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators', 'align': 'left'},
+    {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers', 'align': 'left'},
     {'name': 'status', 'label': 'Status', 'field': 'state', 'align': 'left'},
 ]
 
@@ -185,11 +186,27 @@ def _day_label(ts) -> str:
 _CREW_ROLES = (('commentators', 'Commentary'), ('trackers', 'Tracking'))
 
 
+def crew_people(people: list, discord_id=None, *, waiting_note: str = 'to approve') -> list[dict]:
+    """The names in one crew role, approved first, as the boards print them.
+
+    ``me`` marks the viewer, whose name the player board prints as "You";
+    ``note`` is what an unapproved name carries after it.
+    """
+    ordered = sorted(people, key=lambda p: not p.get('approved'))
+    return [{
+        'name': p.get('name') or '',
+        'approved': bool(p.get('approved')),
+        'me': bool(discord_id) and str(p.get('discord_id')) == str(discord_id),
+        'note': '' if p.get('approved') else waiting_note,
+    } for p in ordered]
+
+
 def run_sheet_crew(row: dict) -> list[dict]:
-    """Signups against need, per crew role the tournament uses.
+    """Signups against need, and who they are, per crew role the tournament uses.
 
     ``short`` marks a role with fewer signups than it needs, while that can
     still be fixed: once a match has started, a gap is history, not a task.
+    ``empty`` is the "No signups yet" line, shown on the same terms.
     """
     wanted = row.get('crew_wanted') or {}
     required = row.get('crew_required') or {}
@@ -203,9 +220,11 @@ def run_sheet_crew(row: dict) -> list[dict]:
         approved = sum(1 for p in people if p.get('approved'))
         count = f'{len(people)}/{need}' if need else str(len(people))
         crew.append({
-            'label': label, 'count': count,
+            'key': key, 'label': label, 'count': count,
             'short': open_ and len(people) < need,
             'unapproved': open_ and len(people) >= need > approved,
+            'people': crew_people(people),
+            'empty': open_ and not people,
         })
     return crew
 
@@ -227,6 +246,7 @@ def decorate_run_sheet_row(row: dict) -> dict:
     else:
         row['_stage'] = ''
     row['_crew'] = run_sheet_crew(row)
+    row['_crew_by'] = {c['key']: c for c in row['_crew']}
     row['_next'] = next_step(row)
     row['_seats'] = _seats(row)
     row['_seat_line'] = seat_line(row)
@@ -267,9 +287,28 @@ def arrange_run_sheet(rows: list, group: Callable[[dict], tuple[int, str]] = adm
 
 _STATUS_CHIP = """<span class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>"""
 
-# Signups over need, per role. "needs crew" is spelled out rather than left to
-# the amber, which no screen reader and not every eye can read.
-_CREW = r"""<span v-for="c in props.row._crew" :key="c.label" class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">{{ c.label }} <b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template><template v-else-if="c.unapproved"> · to approve</template></span>"""
+# Signups over need. "needs crew" is spelled out rather than left to the amber,
+# which no screen reader and not every eye can read. The desktop cell sits under
+# a Commentators or Trackers header, so it leaves the role's name off.
+_CREW_COUNT = r"""<span class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">__LABEL__<b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template><template v-else-if="c.unapproved"> · to approve</template></span>"""
+
+# Who signed up: a tick for approved, a clock and a note for the rest.
+CREW_NAMES = r"""<span class="run-sheet__people">
+    <span v-for="(p, i) in c.people" :key="i" class="run-sheet__person" :class="p.approved ? '' : 'st-pending'">
+        <q-icon :name="p.approved ? 'check_circle' : 'schedule'" size="14px" :class="p.approved ? 'st-ok' : 'st-pending'" aria-hidden="true" /><span class="run-sheet__person-name">{{ p.me ? 'You' : p.name }}</span><span v-if="p.note" class="run-sheet__person-note"> · {{ p.note }}</span>
+    </span>
+</span>
+<span v-if="c.empty" class="wiz-crew-empty st-neutral italic-note">No signups yet</span>"""
+
+_CREW_CELL = r"""<div v-for="c in (props.row._crew_by[col.name] ? [props.row._crew_by[col.name]] : [])" :key="c.key" class="run-sheet__role">
+                """ + _CREW_COUNT.replace('__LABEL__', '') + """
+                """ + CREW_NAMES + """
+            </div>"""
+
+_CREW_LINES = r"""<span v-for="c in props.row._crew" :key="c.key" class="run-sheet__role">
+                """ + _CREW_COUNT.replace('__LABEL__', '{{ c.label }} ') + """
+                """ + CREW_NAMES + """
+            </span>"""
 
 _TIME = """<span v-if="props.row._time" class="run-sheet__time" :class="props.row._status === 'Late' ? 'st-pending' : ''">{{ props.row._time }}</span>
             <span v-else class="run-sheet__day">No time</span>
@@ -337,8 +376,8 @@ def _body_slot(proctor: bool, can_run: bool = False) -> str:
             <span v-if="props.row._stage">{{ props.row._stage }}</span>
             <span v-else class="run-sheet__none">None</span>
         </template>
-        <template v-else-if="col.name === 'crew'">
-            <span class="run-sheet__crew-list">""" + _CREW + """</span>
+        <template v-else-if="col.name === 'commentators' || col.name === 'trackers'">
+            """ + _CREW_CELL + """
         </template>
         <template v-else-if="col.name === 'status'">""" + _STATUS_CHIP + """</template>
 """ + ("""        <template v-else-if="col.name === 'next'">""" + _next(can_run) + """</template>
@@ -382,7 +421,7 @@ def _item_slot(proctor: bool, can_run: bool = False) -> str:
         <span class="run-sheet__main">
             <span class="run-sheet__who">""" + _WHO + """</span>
             <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
-            <span v-if="props.row._crew.length" class="run-sheet__crew-list">""" + _CREW + """</span>
+            <span v-if="props.row._crew.length" class="run-sheet__crew-list">""" + _CREW_LINES + """</span>
         </span>
         <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
     </button>
