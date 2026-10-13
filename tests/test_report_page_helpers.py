@@ -8,13 +8,22 @@ labels; a URL that carries a hand-built tenant prefix).
 
 from datetime import date
 
+from application.services.tenant_theme_service import THEME_PRESETS, TenantThemeService
+from application.utils.color_contrast import contrast_ratio
 from pages.admin_tabs.links import SCHEDULE, VOL_SCHEDULE, admin_url
 from pages.admin_tabs.reports.insights import (
     HEALTH_DISPLAY_CELLS,
     HEALTH_SORTED_DISPLAY_FIELDS,
     health_display_rows,
 )
-from pages.admin_tabs.reports.shared import _page_range_label, _refresh_params, reports_url
+from pages.admin_tabs.reports.shared import (
+    CHART_AMBER,
+    CHART_TEAL,
+    _page_range_label,
+    _refresh_params,
+    chart_palette_for,
+    reports_url,
+)
 
 
 class TestPageRangeLabel:
@@ -163,3 +172,28 @@ class TestHealthDisplayRows:
         [row] = health_display_rows([self._row()])
         assert row['matches'] == '6/8'
         assert row['avg_duration_min'] == '41 (40)'
+
+
+class TestChartPalette:
+    """Charts are canvas, painted once for both modes, in the community's colour."""
+
+    def test_default_accent_is_used_as_is(self):
+        assert chart_palette_for('#9c6b12').primary == '#9c6b12'
+
+    def test_every_preset_clears_3_to_1_on_both_card_surfaces(self):
+        surfaces = ('#ffffff', '#f5f5f4', '#fafaf9', '#1f1d1a', '#161513', '#262420')
+        for preset in THEME_PRESETS.values():
+            primary = chart_palette_for(preset['primary']).primary
+            assert min(contrast_ratio(primary, s) for s in surfaces) >= 3.0, (preset, primary)
+
+    def test_a_dark_accent_is_lifted_not_replaced(self):
+        primary = TenantThemeService.chart_series_colour('#6d28d9')
+        assert primary != '#6d28d9'
+        assert primary[1:3] > '6d'
+
+    def test_second_series_is_never_the_accents_hue(self):
+        assert chart_palette_for('#9c6b12').secondary == CHART_TEAL
+        assert chart_palette_for('#17a097').secondary == CHART_AMBER
+
+    def test_area_wash_is_the_primary_colour(self):
+        assert chart_palette_for('#9c6b12').primary_area == 'rgba(156, 107, 18, 0.18)'

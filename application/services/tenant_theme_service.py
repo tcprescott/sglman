@@ -162,6 +162,34 @@ class TenantThemeService:
             return dict(DEFAULT_THEME)
 
     @staticmethod
+    def chart_series_colour(colour: str) -> str:
+        """``colour`` moved just far enough to read as a chart line in both modes.
+
+        Report charts are canvas, painted once, so one value has to clear the
+        3:1 graphic line on the light and the dark card surfaces alike. A
+        community's own colour usually does; when it doesn't (a deep purple
+        vanishes on the dark card), mix it toward white or black by the smallest
+        step that gets there, so the line stays recognisably that colour.
+        """
+        surfaces = _LIGHT_SURFACES + _DARK_SURFACES
+
+        def worst(c: str) -> float:
+            return min(contrast_ratio(c, s) for s in surfaces)
+
+        if worst(colour) >= _AA_GRAPHIC:
+            return colour
+        best = colour
+        for step in range(1, 51):
+            amount = step / 50
+            for target in ('#ffffff', '#000000'):
+                candidate = mix(target, colour, amount)
+                if worst(candidate) >= _AA_GRAPHIC:
+                    return candidate
+                if worst(candidate) > worst(best):
+                    best = candidate
+        return best
+
+    @staticmethod
     def is_customized(colors: dict[str, str]) -> bool:
         """Whether a resolved palette differs from the shipped defaults."""
         return any(colors.get(key) != value for key, value in DEFAULT_THEME.items())

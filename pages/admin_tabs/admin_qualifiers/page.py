@@ -47,6 +47,8 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     run_rows,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.qualifier_copy import BOARD_EXPLAINER
@@ -268,12 +270,12 @@ async def admin_qualifiers_page(
                         with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
                             ui.button('Manage', icon='tune',
                                       on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
-                            ui.button(icon='edit',
-                                      on_click=lambda row=q: open_qualifier_dialog(row)
-                                      ).props('flat round color=primary').tooltip('Edit')
-                            ui.button(icon='delete',
-                                      on_click=lambda qid=q.id: _delete_qualifier(qid)
-                                      ).props('flat round color=negative').tooltip('Delete')
+                            with more_menu(q.name):
+                                menu_action('edit', 'Edit qualifier',
+                                            lambda row=q: open_qualifier_dialog(row))
+                                ui.separator()
+                                menu_action('delete', 'Delete qualifier',
+                                            lambda row=q: _delete_qualifier(row), negative=True)
                     ui.label(
                         f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
                         f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'
@@ -285,17 +287,27 @@ async def admin_qualifiers_page(
         state['managing'] = qid
         await load_shell()
 
-    async def _delete_qualifier(qid: int) -> None:
-        try:
-            await service.delete_qualifier(await _current(), qid)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Qualifier deleted', color='positive')
-        if state['managing'] == qid:
-            state['managing'] = None
-            await load_shell()
-        await load_list()
+    def _delete_qualifier(qualifier) -> None:
+        qid = qualifier.id
+
+        async def do_delete() -> None:
+            try:
+                await service.delete_qualifier(await _current(), qid)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Qualifier deleted', color='positive')
+            if state['managing'] == qid:
+                state['managing'] = None
+                await load_shell()
+            await load_list()
+
+        ConfirmationDialog(
+            message=f'Delete {qualifier.name}? Every pool, permalink and submitted run '
+                    'in it goes too, and this can’t be undone.',
+            on_confirm=do_delete, confirm_text='Delete forever', title='Delete qualifier?',
+            require_phrase='permanently delete',
+        ).open()
 
     def open_qualifier_dialog(existing=None) -> None:
         is_edit = existing is not None

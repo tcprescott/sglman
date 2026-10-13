@@ -19,6 +19,8 @@ class _FakeStorage(dict):
 
 
 class _FakeClient:
+    is_deleted = False
+
     async def connected(self) -> None:
         return None
 

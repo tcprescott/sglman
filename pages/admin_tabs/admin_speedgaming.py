@@ -14,26 +14,19 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
-_ROW_ACTIONS = '''
-    <q-btn flat round dense icon="sync" color="primary"
-           @click="$parent.$emit('sync_now', props.row)" aria-label="Sync now">
-        <q-tooltip>Sync now</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
-        <q-tooltip>Edit</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
-        <q-tooltip>Delete</q-tooltip>
-    </q-btn>
-'''
+_ROW_ACTIONS = slot_row_button('Sync now', 'sync', 'sync_now') + slot_more_menu('props.row.event_slug', [
+    SlotItem('edit', 'Edit link', 'edit'),
+    SlotItem('delete', 'Delete link', 'delete', negative=True),
+])
+_EVENT_SLUG = slot_name_link('event_slug', 'edit')
 _ACTIVE_ICON = '''
     <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
             :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
@@ -104,7 +97,7 @@ async def admin_speedgaming_page() -> None:
             table.update()
 
         async def delete_link(row, client):
-            with client:
+            async def do_delete() -> None:
                 try:
                     await service.delete_link(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -112,6 +105,12 @@ async def admin_speedgaming_page() -> None:
                     return
                 ui.notify('Event link deleted', color='positive')
                 await refresh_table()
+
+            with client:
+                ConfirmationDialog(
+                    message=f"Stop syncing {row['event_slug']} from SpeedGaming and delete the link?",
+                    on_confirm=do_delete, confirm_text='Delete', title='Delete event link?',
+                ).open()
 
         async def sync_now(row, client):
             with client:
@@ -225,12 +224,13 @@ async def admin_speedgaming_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
+            table.add_slot('body-cell-event_slug', f'<q-td :props="props">{_EVENT_SLUG}</q-td>')
             table.add_slot('body-cell-active', f'<q-td :props="props">{_ACTIVE_ICON}</q-td>')
             table.add_slot('body-cell-last_status', f'<q-td :props="props">{_LAST_STATUS_CHIP}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
                                table_key=TableKeys.ADMIN_SPEEDGAMING,
-                               field_slots={'active': _ACTIVE_ICON, 'last_status': _LAST_STATUS_CHIP})
+                               field_slots={'event_slug': _EVENT_SLUG, 'active': _ACTIVE_ICON, 'last_status': _LAST_STATUS_CHIP})
 
             table.on('edit', lambda e: background_tasks.create(
                 open_link_dialog(context.client, e.args)))

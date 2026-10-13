@@ -6,6 +6,10 @@ deadline passes, but only logs a count ("Cancel 3 running task(s)"). This
 middleware logs each cancelled request's method, path and age, so a restart
 that stalls on "Waiting for connections to close" says which route did it.
 
+``_before_send`` in ``application/utils/sentry.py`` drops uvicorn's own
+cancellation errors, which fire on every deploy, so this warning (shipped to
+Sentry Logs) is the record of what a shutdown cut off.
+
 Pure ASGI rather than ``BaseHTTPMiddleware``: it must wrap websockets too, and
 must see the ``CancelledError`` raised inside the request task.
 """

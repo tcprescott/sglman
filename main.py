@@ -42,7 +42,7 @@ from application.utils.http_headers import header_safe
 from application.utils.log_levels import default_root_level, register_trace_level
 from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
-from application.utils.sentry import init_sentry
+from application.utils.sentry import flush_sentry, init_sentry
 from middleware.inflight_requests import InFlightRequestLogMiddleware
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import DB_URL, TORTOISE_ORM
@@ -252,22 +252,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info('startup: complete in %.2fs (lifespan %.2fs)',
                     time.perf_counter() - _IMPORT_STARTED, time.perf_counter() - lifespan_started)
         yield
-    await race_room_worker.stop()
-    await seed_roll_worker.stop()
-    await check_in_sync_worker.stop()
-    await speedgaming_sync_worker.stop()
-    await discord_event_worker.stop()
-    await service_health_worker.stop()
-    await close_racetime_bot()
-    await async_qualifier_worker.stop()
-    await volunteer_reminder.stop()
-    await stage_reminder.stop()
-    await community_event_reminder.stop()
-    await event_dispatch_queue.stop()
-    await discord_queue.stop()
-    await web_push_service.aclose_http_client()
-    await close_discord_bot()
-    await close_db()
+    try:
+        await race_room_worker.stop()
+        await seed_roll_worker.stop()
+        await check_in_sync_worker.stop()
+        await speedgaming_sync_worker.stop()
+        await discord_event_worker.stop()
+        await service_health_worker.stop()
+        await close_racetime_bot()
+        await async_qualifier_worker.stop()
+        await volunteer_reminder.stop()
+        await stage_reminder.stop()
+        await community_event_reminder.stop()
+        await event_dispatch_queue.stop()
+        await discord_queue.stop()
+        await web_push_service.aclose_http_client()
+        await close_discord_bot()
+        await close_db()
+    finally:
+        await flush_sentry()
 
 API_DESCRIPTION = """
 REST API for managing tournaments, matches, players, crew, and event

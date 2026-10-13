@@ -829,6 +829,12 @@ main.q-page:focus {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
 }
 
+/* Stat tiles: four across a desktop report, stretched to one height. */
+.wiz-tile-grid--sm {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    align-items: stretch;
+}
+
 .wiz-tile-grid > * {
     min-width: 0;
     margin: 0;
@@ -2223,6 +2229,66 @@ main.q-page:focus {
     height: 400px;
 }
 
+/* A report page (pages/admin_tabs/reports): an "All reports" link above the
+   header, the match boards' filter card, then section panels. */
+.wiz-report {
+    gap: var(--space-4);
+}
+
+.wiz-report > .wiz-page-header {
+    margin-bottom: 0;
+}
+
+.wiz-report > .match-filters-card {
+    margin-bottom: 0;
+}
+
+.wiz-report-back {
+    align-self: flex-start;
+    margin-left: calc(-1 * var(--space-2));
+    margin-bottom: calc(-1 * var(--space-3));
+}
+
+/* Shortcut ranges under the filter fields: a line of their own on desktop and
+   the full width of the phone's 2x2 grid, scrolling sideways rather than
+   wrapping when a long event has more days than fit. */
+.wiz-report-jumps {
+    flex-basis: 100%;
+    grid-column: 1 / -1;
+    gap: var(--space-2);
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.wiz-report-jumps > .text-caption,
+.wiz-report-jumps .q-btn {
+    white-space: nowrap;
+}
+
+.wiz-report-jumps .wiz-segmented {
+    flex: 0 0 auto;
+}
+
+/* Two panels side by side on desktop, the second twice as wide (a short
+   ranked list beside the table it comes from); stacked on a phone. */
+.wiz-report-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    width: 100%;
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .wiz-report-split {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    }
+}
+
+.wiz-kpi {
+    height: 100%;
+}
+
 .control-width {
     width: 400px;
 }
@@ -2346,6 +2412,45 @@ main.q-page:focus {
     word-break: normal;
     overflow-wrap: break-word;
     max-width: 120px; /* reasonable default, table can expand as needed */
+}
+
+/* A member's role chips wrap inside a capped cell. Quasar cells are nowrap, so
+   someone holding four roles otherwise set the Roles column to one long line
+   and pushed Joined and Via off the end of the table. */
+.user-table .user-table__roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    white-space: normal;
+    min-width: 9rem;
+    max-width: 20rem;
+}
+
+/* Discord handles run to 30-odd characters with no break point, and the
+   display name falls back to the handle, so one long name was two wide
+   columns. Break it inside a capped cell instead. */
+.user-table td .user-table__name {
+    display: inline-block;
+    min-width: 7rem;
+    max-width: 12rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Members filters on a phone: Roles across the top, the two checkboxes
+   side by side under it. */
+@media (max-width: 1023.98px) {
+    .user-filters .match-filter-row > .match-filter-field {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Nine columns share a laptop-width page, so the cells give up some of
+   Quasar's 16px side padding rather than push Via and Remove off the end. */
+.user-table .q-table th,
+.user-table .q-table td {
+    padding-left: 10px;
+    padding-right: 10px;
 }
 
 /* Ensure links inside the wrapper also wrap */
@@ -4981,7 +5086,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 .match-sheet__select {
     min-width: 0;
-    max-width: 16rem;
+    max-width: 20rem;
 }
 .match-sheet__seed {
     overflow-wrap: anywhere;

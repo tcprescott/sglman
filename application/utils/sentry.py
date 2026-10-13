@@ -21,6 +21,7 @@ Three things on top of the SDK defaults make an event diagnosable mid-event:
   user. Workers, queues and bot handlers add their own with :func:`sentry_tags`.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import contextmanager
@@ -46,6 +47,13 @@ _PRODUCTION_TRACES_SAMPLE_RATE = 0.1
 #: One line per HTTP request or outbound call: useful in the container log,
 #: pure quota burn in Sentry Logs.
 _NOISY_FOR_SENTRY_LOGS = ('uvicorn.access', 'httpx', 'httpcore')
+
+#: uvicorn's wording both for its "Cancel N running task(s)" error and for the
+#: ``CancelledError`` it throws into each request still open at the deadline.
+_GRACEFUL_SHUTDOWN_CANCEL = 'timeout graceful shutdown exceeded'
+
+#: How long the lifespan shutdown waits for queued events and logs to ship.
+_SHUTDOWN_FLUSH_TIMEOUT = 2.0
 
 
 def _scrub_event(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -99,14 +107,37 @@ def _enrich_event(event: Dict[str, Any]) -> Dict[str, Any]:
     return event
 
 
-def _before_send(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Drop the NiceGUI timer-teardown race, then enrich and scrub what's left.
+def _is_graceful_shutdown_cancel(event: Dict[str, Any], exc: Optional[BaseException]) -> bool:
+    """Whether the event is uvicorn cutting off requests at the shutdown deadline.
 
-    The ``nicegui`` logger filter already stops it reaching the logging hook;
-    this catches the same exception arriving by any other integration.
+    Every deploy leaves a few socket.io long-polls open past the 10s deadline in
+    ``start.sh``, and uvicorn reports each as an ERROR: once as a count, once per
+    request as a ``CancelledError`` traceback. Neither is actionable on its own.
+    ``middleware/inflight_requests.py`` names each cancelled request on
+    ``wizzrobe.shutdown`` at WARNING, which still reaches Sentry Logs, so a
+    route that really does stall the shutdown stays visible there.
+    """
+    if isinstance(exc, asyncio.CancelledError):
+        return _GRACEFUL_SHUTDOWN_CANCEL in str(exc)
+    if exc is not None or event.get('logger') != 'uvicorn.error':
+        return False
+    logentry = event.get('logentry') or {}
+    text = logentry.get('formatted') or logentry.get('message') or ''
+    return text.startswith('Cancel ') and _GRACEFUL_SHUTDOWN_CANCEL in text
+
+
+def _before_send(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Drop known noise, then enrich and scrub what's left.
+
+    Noise is the NiceGUI timer-teardown race (the ``nicegui`` logger filter
+    already stops it reaching the logging hook; this catches it arriving by any
+    other integration) and uvicorn's graceful-shutdown cancellations.
     """
     exc_info = (hint or {}).get('exc_info')
-    if exc_info and exc_info[1] is not None and is_timer_teardown_race(exc_info[1]):
+    exc = exc_info[1] if exc_info else None
+    if exc is not None and is_timer_teardown_race(exc):
+        return None
+    if _is_graceful_shutdown_cancel(event, exc):
         return None
     try:
         _enrich_event(event)
@@ -192,6 +223,17 @@ def init_sentry() -> None:
         get_environment(), _release() or 'unset', _traces_sample_rate(),
         logging.getLevelName(logs_level) if logs_level is not None else 'off',
     )
+
+
+async def flush_sentry() -> None:
+    """Ship queued events and logs before the process exits.
+
+    Sentry Logs go out in batches every few seconds, so without this the last
+    lines of a shutdown (including ``wizzrobe.shutdown``'s cancelled-request
+    warnings) never left the process. Runs off the event loop because
+    ``flush`` blocks. Safe with Sentry disabled.
+    """
+    await asyncio.to_thread(sentry_sdk.flush, _SHUTDOWN_FLUSH_TIMEOUT)
 
 
 @contextmanager

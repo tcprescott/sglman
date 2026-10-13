@@ -6,37 +6,74 @@ button, URL-state helpers, and a small page-shell wrapper.
 
 import json
 from contextlib import contextmanager
-from datetime import date, datetime
-from typing import Any, Callable, Mapping, Optional, Sequence
+from datetime import date, datetime, timedelta
+from typing import Any, Callable, Iterator, Mapping, NamedTuple, Optional, Sequence, TypeVar
 
 from nicegui import context, ui
 
-from application.services import SystemConfigService, TournamentService
+from application.services import SystemConfigService, TenantThemeService, TournamentService
 from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
 from theme.a11y import make_activatable
 from theme.empty_state import cat_fact
-from theme.page_header import page_title
+from theme.page_header import page_header
+from theme.section import section_panel
 from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
 REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stages', 'audit')
 
-# ECharts series palette. Canvas charts can't read CSS var() tokens and are
-# painted once server-side, so these are fixed mid-tone steps of the phoenix
-# hues chosen to hold ≥3:1 contrast on BOTH the light and dark card surfaces
-# (validated against #FFFFFF and #241e19). Assign by role — never per-chart:
-CHART_GOLD = '#B5791C'     # primary series (brand gold, mid step)
-CHART_TEAL = '#17A097'     # secondary series (status-live hue)
+# ECharts colours. Canvas charts can't read CSS var() tokens and are painted
+# once server-side, so every colour has to hold >=3:1 on BOTH the light and dark
+# card surfaces. The main series is the community's own colour (``chart_palette``);
+# these fixed ones carry a meaning, so they stay put whatever the accent is.
+CHART_TEAL = '#17A097'     # second series (status-live hue)
+CHART_AMBER = '#B5791C'    # "middling" in a score; the second series when the accent is teal
 CHART_RED = '#C94E3D'      # thresholds/limits (status-cancelled hue)
 CHART_NEUTRAL = '#8D8379'  # absence/idle series (warm gray — reads gray by design)
-CHART_GOLD_AREA = 'rgba(181, 121, 28, 0.18)'  # CHART_GOLD at 18% for area fills
 
 # Chart chrome. ECharts' default axis/legend grays assume a white canvas and
 # go illegible in dark mode; these sit at the equal-contrast point between the
 # light and dark surfaces (~4:1 against both), the best a single value can do.
 CHART_TEXT = '#877D72'                       # axis labels, axis names, legend
 CHART_GRID = 'rgba(135, 125, 114, 0.35)'     # gridlines/axis lines — recessive on both
+
+
+class ChartPalette(NamedTuple):
+    """The series colours one report's charts are painted with."""
+
+    #: The main series, in the community's colour.
+    primary: str
+    #: ``primary`` at 18%, for the area under a line.
+    primary_area: str
+    #: ``primary`` at 15%, for the zoom slider's selected window.
+    primary_wash: str
+    #: The series beside it, never the same hue as ``primary``.
+    secondary: str
+
+
+def _rgb(colour: str) -> tuple[int, int, int]:
+    return int(colour[1:3], 16), int(colour[3:5], 16), int(colour[5:7], 16)
+
+
+def chart_palette_for(accent: str) -> ChartPalette:
+    """The palette for a community whose accent is ``accent``. Pure."""
+    primary = TenantThemeService.chart_series_colour(accent)
+    r, g, b = _rgb(primary)
+    # A teal community would draw both series teal; amber stands in there.
+    distance = sum((x - y) ** 2 for x, y in zip((r, g, b), _rgb(CHART_TEAL), strict=True)) ** 0.5
+    return ChartPalette(
+        primary=primary,
+        primary_area=f'rgba({r}, {g}, {b}, 0.18)',
+        primary_wash=f'rgba({r}, {g}, {b}, 0.15)',
+        secondary=CHART_AMBER if distance < 90 else CHART_TEAL,
+    )
+
+
+async def chart_palette() -> ChartPalette:
+    """The in-scope community's chart palette. Read once per report body."""
+    theme = await TenantThemeService.get_current_theme()
+    return chart_palette_for(theme['primary'])
 
 
 def themed_chart_option(option: dict) -> dict:
@@ -112,15 +149,107 @@ async def default_date_range(
 
 
 @contextmanager
-def report_page_shell(title: str, back_to_dashboard: bool = True):
-    """Render a report-detail title bar with an optional back-to-dashboard link."""
-    with ui.column().classes('page-container-wide'):
-        with ui.row().classes('header-row items-center'):
-            if back_to_dashboard:
-                ui.link('← Reports', reports_url()).classes('text-sm')
-            page_title(title)
-        ui.separator().classes('separator-spacing')
+def report_page_shell(title: str, subtitle: Optional[str] = None) -> Iterator[None]:
+    """A report's page top: an "All reports" link back, then the page header."""
+    with ui.column().classes('page-container-wide wiz-report'):
+        ui.button(
+            'All reports', icon='chevron_left',
+            on_click=lambda: navigate_with_params(report=None),
+        ).props('flat dense no-caps color=primary').classes('wiz-report-back')
+        page_header(title, subtitle)
         yield
+
+
+# Per client (never module state): a filter change re-renders the report body,
+# and a phone's filter card should still be open on the far side of it.
+_FILTERS_OPEN_ATTR = '_wiz_report_filters_open'
+
+
+@contextmanager
+def report_filter_bar(active: int = 0) -> Iterator[None]:
+    """The match boards' filter card, for a report. Build the fields inside.
+
+    Desktop shows one row of outlined fields. Below 1024px the card folds behind
+    a Filters button whose badge counts ``active`` (the filters set away from
+    their default), and the fields sit two to a row. Pass each field through
+    ``filter_field``; ``report_jumps`` adds a row of shortcuts under them.
+    """
+    client = context.client
+    is_open = getattr(client, _FILTERS_OPEN_ATTR, False)
+    with ui.row().classes('wiz-filter-toggle full-width items-center'):
+        toggle = ui.button('Filters', icon='filter_list').props('flat color=primary')
+        badge = ui.badge(str(active)).props('color=primary')
+        badge.set_visibility(active > 0)
+    card = ui.card().classes('match-filters-card match-filters-card--compact')
+    if is_open:
+        card.classes(add='wiz-filters-open')
+    toggle.props(f'aria-expanded={str(is_open).lower()}')
+
+    def _toggle() -> None:
+        now_open = not getattr(client, _FILTERS_OPEN_ATTR, False)
+        setattr(client, _FILTERS_OPEN_ATTR, now_open)
+        if now_open:
+            card.classes(add='wiz-filters-open')
+        else:
+            card.classes(remove='wiz-filters-open')
+        toggle.props(f'aria-expanded={str(now_open).lower()}')
+
+    toggle.on_click(_toggle)
+    with card, ui.row().classes('match-filter-row'):
+        yield
+
+
+FilterField = TypeVar('FilterField', bound=ui.element)
+
+
+def filter_field(element: FilterField) -> FilterField:
+    """Style one report filter the way the match boards style theirs."""
+    element.classes('match-filter-field').props('outlined dense')
+    if isinstance(element, ui.select):
+        element.props('options-dense')
+    return element
+
+
+def report_jumps(
+    options: Sequence[tuple[str, date, date]],
+    start_d: date,
+    end_d: date,
+    on_pick: Callable[[date, date], None],
+) -> None:
+    """A segmented row of preset ranges under the filter fields.
+
+    The preset matching the current range shows as selected, so the row also
+    says which day you are looking at; a hand-picked range selects none.
+    """
+    by_label = {text: (s, e) for text, s, e in options}
+    current = next((text for text, s, e in options if (s, e) == (start_d, end_d)), None)
+    with ui.row().classes('wiz-report-jumps items-center no-wrap'):
+        ui.label('Jump to').classes('text-caption')
+        jumps = ui.toggle(list(by_label), value=current) \
+            .props('no-caps dense unelevated aria-label="Jump to"').classes('wiz-segmented')
+
+        def _picked(e) -> None:
+            if e.value in by_label:
+                on_pick(*by_label[e.value])
+
+        jumps.on_value_change(_picked)
+
+
+async def event_jump_options() -> list[tuple[str, date, date]]:
+    """"Whole event", plus one shortcut per day when the event is a week or less."""
+    event_start, event_end = await SystemConfigService.get_event_window()
+    options = [('Whole event', event_start, event_end)]
+    days = (event_end - event_start).days + 1
+    if 1 < days <= 7:
+        for offset in range(days):
+            day = event_start + timedelta(days=offset)
+            options.append((day.strftime('%a %m-%d'), day, day))
+    return options
+
+
+async def is_custom_range(start_d: date, end_d: date) -> bool:
+    """Whether the range is not the event window, i.e. counts as a set filter."""
+    return (start_d, end_d) != await SystemConfigService.get_event_window()
 
 
 def date_range_filter(
@@ -128,28 +257,29 @@ def date_range_filter(
     default_end: date,
     on_change: Callable[[date, date], None],
 ) -> tuple[ui.input, ui.input]:
-    """Render a Start/End date pair. Calls ``on_change`` when either changes."""
+    """Render a Start/End date pair as two filter fields. Calls ``on_change`` when either changes."""
     state = {'start': default_start, 'end': default_end}
 
     def _fire():
         on_change(state['start'], state['end'])
 
-    with ui.row().classes('items-end gap-3'):
-        start_input = ui.input('Start date', value=default_start.isoformat()).props('dense')
+    start_input = filter_field(ui.input('Start date', value=default_start.isoformat()))
+    with start_input:
         with ui.menu().props('no-parent-event') as start_menu:
             start_picker = ui.date(value=default_start.isoformat()).bind_value(start_input)
             with ui.row().classes('justify-end'):
                 ui.button('OK', on_click=start_menu.close).props('flat dense')
-        with start_input.add_slot('append'):
-            make_activatable(ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer'), 'Pick start date')
+    with start_input.add_slot('append'):
+        make_activatable(ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer'), 'Pick start date')
 
-        end_input = ui.input('End date', value=default_end.isoformat()).props('dense')
+    end_input = filter_field(ui.input('End date', value=default_end.isoformat()))
+    with end_input:
         with ui.menu().props('no-parent-event') as end_menu:
             end_picker = ui.date(value=default_end.isoformat()).bind_value(end_input)
             with ui.row().classes('justify-end'):
                 ui.button('OK', on_click=end_menu.close).props('flat dense')
-        with end_input.add_slot('append'):
-            make_activatable(ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer'), 'Pick end date')
+    with end_input.add_slot('append'):
+        make_activatable(ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer'), 'Pick end date')
 
     def _on_start(e):
         parsed = parse_date(start_input.value)
@@ -179,11 +309,7 @@ async def tournament_filter(
     for t in tournaments:
         options[t.id] = t.name
     value = current_id if current_id and current_id in options else 0
-    select = ui.select(
-        options=options,
-        value=value,
-        label='Tournament',
-    ).classes('control-width').props('dense')
+    select = filter_field(ui.select(options=options, value=value, label='Tournament'))
 
     def _on_change(_e):
         v = select.value
@@ -191,8 +317,6 @@ async def tournament_filter(
 
     select.on('update:model-value', _on_change)
     return select
-
-
 
 
 def show_navigating() -> None:
@@ -311,22 +435,26 @@ def kpi_card(
     value: str,
     subtitle: str,
     color: str = 'primary',
-    min_width: int = 220,
     href: Optional[str] = None,
     href_label: str = 'See the detail →',
 ) -> None:
-    """A single flex KPI tile (title / big value / subtitle) for report strips.
+    """One KPI tile (title / big value / subtitle). Put them in ``kpi_grid``.
 
     ``href`` turns the tile into a route to the report that explains the number
     — it must carry the same window the number was computed over, or the
     destination contradicts the tile it came from.
     """
-    with ui.card().classes('q-pa-md').style(f'flex: 1 1 {min_width}px; min-width: {min_width}px;'):
+    with ui.card().classes('wiz-kpi q-pa-md'):
         ui.label(title).classes('text-caption text-grey-7')
         ui.label(value).classes(f'text-h4 text-{color}')  # style-guide: exempt — a stat figure, not a title
         ui.label(subtitle).classes('text-caption')
         if href:
             ui.link(href_label, href).classes('text-caption q-mt-xs')
+
+
+def kpi_grid() -> ui.element:
+    """The tile grid a row of ``kpi_card`` tiles sits in."""
+    return ui.element('div').classes('wiz-tile-grid wiz-tile-grid--sm')
 
 
 # Per-row drill-out. Reports identify work; the surface that fixes it lives
@@ -470,8 +598,10 @@ def _page_range_label(total: int, page: int, page_size: int, noun: str) -> str:
     return f'Showing {first:,}–{last:,} of {total:,} {noun}'
 
 
-def paginated_event_log(
+async def paginated_event_log(
     *,
+    title: str,
+    icon: str,
     columns: Sequence[Mapping],
     rows: Sequence[Mapping],
     row_key: str,
@@ -483,10 +613,9 @@ def paginated_event_log(
     count_noun: str,
     note: str,
     on_row_click: Optional[Callable[[dict], None]] = None,
-    card_classes: str = 'full-width q-pa-md',
     table_key: Optional[str] = None,
 ) -> None:
-    """Server-paginated event-log card (count + CSV + expandable table + pager).
+    """Server-paginated event-log panel (count + CSV + expandable table + pager).
 
     Shared by the Audit Log and Engagement Telemetry reports. ``on_row_click``,
     when given, wires a per-row drill-down filter (receives the clicked row
@@ -497,11 +626,12 @@ def paginated_event_log(
     own visible-columns-in-order list, so hiding and reordering both land. Only
     the ``details`` cell is special-cased, and it is matched by name.
     """
-    with ui.card().classes(card_classes):
-        with ui.row().classes('items-center justify-between full-width'):
-            ui.label(_page_range_label(total, page, page_size, count_noun)).classes('section-title')
-            csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
-
+    panel = await section_panel(
+        title, icon=icon, subtitle=_page_range_label(total, page, page_size, count_noun),
+    )
+    with panel.aside:
+        csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
+    with panel.body:
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')
         table.add_slot('body', _EVENT_LOG_BODY_ROWCLICK if on_row_click else _EVENT_LOG_BODY_PLAIN)
         if on_row_click is not None:

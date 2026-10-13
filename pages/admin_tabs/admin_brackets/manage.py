@@ -160,13 +160,13 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
                     confirm.open()
 
                 actions.clear()
+                actions.set_visibility(bool(is_draft and entries))
                 with actions:
                     if is_draft and entries:
                         ui.button('Save seeds', icon='save', on_click=save_seeds) \
                             .props('flat color=primary')
                         ui.button('Start bracket', icon='play_arrow', on_click=start) \
                             .props('color=primary')
-                    ui.button('Close', on_click=dialog.close).props('flat')
 
             # Both containers exist before anything fills them, so the DOM order
             # is body-then-actions while the action bar still sits *outside* the
@@ -382,7 +382,7 @@ def _roster_row(
                 'flat color=primary' + ('' if is_draft else ' disable')
             )
 
-        async def drop(_=None) -> None:
+        async def do_drop() -> None:
             with tenant_scope(tenant_id):
                 try:
                     await service.drop_entrant(actor, entrant.id)
@@ -391,6 +391,13 @@ def _roster_row(
                     return
             ui.notify('Entrant retired from the roster', color='positive')
             await body.refresh()
+
+        def drop(_=None) -> None:
+            ConfirmationDialog(
+                message=f'Retire {entrant.display_name} from the tournament roster? '
+                        'Their stage entries are left alone.',
+                on_confirm=do_drop, confirm_text='Retire', title='Retire from roster?',
+            ).open()
 
         if not dropped:
             ui.button(icon='person_off', on_click=drop) \
@@ -451,17 +458,17 @@ def _render_entries(
                 'inputmode=numeric dense' + ('' if is_draft else ' disable')
             ).classes('w-24')
             _render_entry_actions(
-                entry, retired, is_draft,
+                entry, retired, is_draft, name_of.get(entry.id, f'Entry {entry.id}'),
                 service=service, actor=actor, tenant_id=tenant_id, body=body,
             )
     return seed_widgets
 
 
 def _render_entry_actions(
-    entry, retired, is_draft, *, service, actor, tenant_id, body,
+    entry, retired, is_draft, name, *, service, actor, tenant_id, body,
 ) -> None:
     """Leaving the stage: un-enrolled while DRAFT, retired once it is running."""
-    async def unenroll(_=None) -> None:
+    async def do_unenroll() -> None:
         with tenant_scope(tenant_id):
             try:
                 await service.unenroll(actor, entry.id)
@@ -471,7 +478,13 @@ def _render_entry_actions(
         ui.notify('Un-enrolled', color='positive')
         await body.refresh()
 
-    async def retire(_=None) -> None:
+    def unenroll(_=None) -> None:
+        ConfirmationDialog(
+            message=f'Un-enroll {name} from this stage?',
+            on_confirm=do_unenroll, confirm_text='Un-enroll', title='Un-enroll?',
+        ).open()
+
+    async def do_retire() -> None:
         with tenant_scope(tenant_id):
             try:
                 await service.retire_entry(actor, entry.id)
@@ -480,6 +493,13 @@ def _render_entry_actions(
                 return
         ui.notify('Entry retired', color='positive')
         await body.refresh()
+
+    def retire(_=None) -> None:
+        ConfirmationDialog(
+            message=f'Retire {name} from this stage? Their played results stand, but '
+                    'Swiss stops pairing them and advancement skips them.',
+            on_confirm=do_retire, confirm_text='Retire', title='Retire from stage?',
+        ).open()
 
     if is_draft:
         ui.button(icon='remove_circle_outline', on_click=unenroll) \
@@ -527,8 +547,14 @@ def _render_seed_tools(
             {e.id: i for i, e in enumerate(shuffled, start=1)}, 'Seeding randomized',
         )
 
-    async def clear() -> None:
-        await apply({e.id: None for e in ordered}, 'Seeds cleared')
+    def clear() -> None:
+        async def do_clear() -> None:
+            await apply({e.id: None for e in ordered}, 'Seeds cleared')
+
+        ConfirmationDialog(
+            message='Clear every seed in this stage? Seeds you typed by hand are lost.',
+            on_confirm=do_clear, confirm_text='Clear seeds', title='Clear seeds?',
+        ).open()
 
     async def from_qualifier() -> None:
         await _open_qualifier_seeding(

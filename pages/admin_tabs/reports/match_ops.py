@@ -4,13 +4,14 @@ Per-match operational metrics (start delay, duration, confirmation lag)
 plus per-tournament aggregates.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from nicegui import app, ui
 
 from application.services import AuthService, ReportsService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
+from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
@@ -20,7 +21,12 @@ from .shared import (
     default_date_range,
     display_bounds,
     enable_drill_link,
+    event_jump_options,
+    filter_field,
+    is_custom_range,
     navigate_with_params,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
     reports_url,
     tournament_filter,
@@ -41,41 +47,34 @@ async def match_ops_page(
     viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_open_board = await AuthService.can_view_schedule_board(viewer)
 
-    with report_page_shell('Match Operations'):
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
-                date_range_filter(
-                    start_d, end_d,
-                    on_change=lambda s, e: navigate_with_params(
-                        report='match_ops',
-                        start=s, end=e,
-                        tournament_id=tournament_id,
-                        state=None if selected_state == 'All' else selected_state,
-                    ),
-                )
-                await tournament_filter(
-                    tournament_id,
-                    on_change=lambda t_id: navigate_with_params(
-                        report='match_ops',
-                        start=start_d, end=end_d,
-                        tournament_id=t_id,
-                        state=None if selected_state == 'All' else selected_state,
-                    ),
-                )
-                state_select = ui.select(
-                    STATE_OPTIONS,
-                    value=selected_state,
-                    label='State',
-                ).props('dense').classes('control-width')
+    def nav(**overrides) -> None:
+        params: dict[str, Any] = {
+            'report': 'match_ops',
+            'start': start_d, 'end': end_d,
+            'tournament_id': tournament_id,
+            'state': None if selected_state == 'All' else selected_state,
+        }
+        params.update(overrides)
+        navigate_with_params(**params)
 
-                def _on_state(_e):
-                    navigate_with_params(
-                        report='match_ops',
-                        start=start_d, end=end_d,
-                        tournament_id=tournament_id,
-                        state=None if state_select.value == 'All' else state_select.value,
-                    )
-                state_select.on('update:model-value', _on_state)
+    active = (
+        int(await is_custom_range(start_d, end_d)) + int(tournament_id is not None)
+        + int(selected_state != 'All')
+    )
+    with report_page_shell(
+        'Match Operations',
+        'Start delays, durations and on-time rate, per tournament and per match.',
+    ):
+        with report_filter_bar(active):
+            date_range_filter(start_d, end_d, on_change=lambda s, e: nav(start=s, end=e))
+            await tournament_filter(tournament_id, on_change=lambda t_id: nav(tournament_id=t_id))
+            state_select = filter_field(ui.select(STATE_OPTIONS, value=selected_state, label='State'))
+            state_select.on(
+                'update:model-value',
+                lambda _e: nav(state=None if state_select.value == 'All' else state_select.value),
+            )
+            report_jumps(await event_jump_options(), start_d, end_d,
+                         on_pick=lambda s, e: nav(start=s, end=e))
 
         bounds_start, bounds_end = display_bounds(start_d, end_d)
         ops = await ReportsService().match_operations(
@@ -85,8 +84,8 @@ async def match_ops_page(
         if selected_state != 'All':
             rows = [r for r in rows if r['state'] == selected_state]
 
-        with ui.card().classes('full-width q-pa-md'):
-            ui.label('Per-tournament aggregates').classes('section-title')
+        agg_panel = await section_panel('Per tournament', icon='emoji_events')
+        with agg_panel.body:
             if not ops['aggregates']:
                 ui.label('No matches in window.').classes('italic-note')
             else:
@@ -121,32 +120,32 @@ async def match_ops_page(
                 enable_mobile_grid(agg_table, agg_columns, actions=agg_actions,
                                    table_key=TableKeys.REPORTS_MATCH_OPS_SUMMARY)
 
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center justify-between full-width'):
-                ui.label('Matches').classes('section-title')
-                detail_rows = [
-                    {
-                        **r,
-                        'scheduled_at': format_local_display(r['scheduled_at']),
-                    }
-                    for r in rows
-                ]
-                detail_columns = [
-                    {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
-                    {'name': 'tournament_name', 'label': 'Tournament', 'field': 'tournament_name', 'sortable': True},
-                    {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
-                    {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
-                    {'name': 'start_delay_min', 'label': 'Start delay (min)', 'field': 'start_delay_min', 'sortable': True},
-                    {'name': 'duration_min', 'label': 'Duration (min)', 'field': 'duration_min', 'sortable': True},
-                    {'name': 'confirmation_lag_min', 'label': 'Confirm lag (min)', 'field': 'confirmation_lag_min', 'sortable': True},
-                    {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
-                    {'name': 'player_count', 'label': 'Players', 'field': 'player_count', 'sortable': True},
-                ]
-                csv_export_button(
-                    f'match-ops-{start_d}-to-{end_d}',
-                    lambda: detail_columns,
-                    lambda: detail_rows,
-                )
+        detail_rows = [
+            {
+                **r,
+                'scheduled_at': format_local_display(r['scheduled_at']),
+            }
+            for r in rows
+        ]
+        detail_columns = [
+            {'name': 'match_id', 'label': 'Match', 'field': 'match_id', 'sortable': True},
+            {'name': 'tournament_name', 'label': 'Tournament', 'field': 'tournament_name', 'sortable': True},
+            {'name': 'scheduled_at', 'label': 'Scheduled', 'field': 'scheduled_at', 'sortable': True},
+            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
+            {'name': 'start_delay_min', 'label': 'Start delay (min)', 'field': 'start_delay_min', 'sortable': True},
+            {'name': 'duration_min', 'label': 'Duration (min)', 'field': 'duration_min', 'sortable': True},
+            {'name': 'confirmation_lag_min', 'label': 'Confirm lag (min)', 'field': 'confirmation_lag_min', 'sortable': True},
+            {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
+            {'name': 'player_count', 'label': 'Players', 'field': 'player_count', 'sortable': True},
+        ]
+        detail_panel = await section_panel('Matches', icon='sports_esports')
+        with detail_panel.aside:
+            csv_export_button(
+                f'match-ops-{start_d}-to-{end_d}',
+                lambda: detail_columns,
+                lambda: detail_rows,
+            )
+        with detail_panel.body:
             detail_table = ui.table(
                 columns=detail_columns,
                 rows=detail_rows,

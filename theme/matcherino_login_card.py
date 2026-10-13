@@ -153,15 +153,15 @@ async def matcherino_login_card() -> None:
                 ).classes('flex-grow')
                 if status.configured:
                     token_input.props('hint="Saving a new token replaces the one stored"')
-                ui.button(
-                    'Save', icon='save',
-                    on_click=lambda: background_tasks.create(save(token_input, context.client)),
-                ).props('color=primary dense').classes(REQUIRES_SOCKET_CLASS)
                 if status.configured:
                     ui.button(
                         'Remove', icon='delete',
                         on_click=lambda: background_tasks.create(remove(context.client)),
                     ).props('flat color=negative dense').classes(REQUIRES_SOCKET_CLASS)
+                ui.button(
+                    'Save', icon='save',
+                    on_click=lambda: background_tasks.create(save(token_input, context.client)),
+                ).props('color=primary dense').classes(REQUIRES_SOCKET_CLASS)
             if status.configured:
                 options = {0: 'Nobody', **{u.id: u.preferred_name for u in candidates}}
                 ui.select(
