@@ -3680,6 +3680,18 @@ ol.wiz-help-list { list-style-type: decimal; }
     .wiz-segmented.checkin-filters .q-btn { flex: 1 1 auto; padding: 4px 12px; }
 }
 
+/* Quasar cells never wrap, so a long test-DM note stretched Status until the
+   Check in button and ⋮ ran off the card. The note wraps; the actions don't. */
+.checkin-table td.checkin-status {
+    white-space: normal;
+    min-width: 220px;
+}
+
+.checkin-table td.checkin-actions {
+    white-space: nowrap;
+    width: 1%;
+}
+
 .checkin-lanyard {
     font-size: 0.95rem;
     letter-spacing: 0.02em;
