@@ -206,3 +206,20 @@ def test_the_outsider_is_in_no_mock_discord_server():
     from application.utils.mocks.mock_discord_data import MOCK_NON_GUILD_MEMBERS
 
     assert int(fixture_discord_id('outsider')) in MOCK_NON_GUILD_MEMBERS
+
+
+async def test_the_dev_tournament_keeps_its_prize_pool(seeded_db):
+    """The Payouts tab's drafting fixture: a $500 pool with nobody placed.
+
+    Later seed steps hold the same ``Tournament`` loaded before the payout seed
+    ran, and a full-row ``save()`` on that stale copy wrote the pool back to
+    NULL, so a freshly seeded app showed $0.00.
+    """
+    from decimal import Decimal
+
+    from models import Tournament
+
+    tournament = await Tournament.get(
+        name='Wizzrobe Dev Tournament', tenant_id=DEFAULT_TEST_TENANT_ID,
+    )
+    assert tournament.prize_pool == Decimal('500.00')
