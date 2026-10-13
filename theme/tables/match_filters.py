@@ -18,7 +18,6 @@ from nicegui import ui
 
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import local_day_bounds, today_local
-from theme.a11y import label_field
 
 # Match lifecycle states, and the subset shown by default. Kept as module constants
 # so the storage default, the select options, and the "is this filter changed?"
@@ -208,61 +207,53 @@ class MatchFiltersMixin:
             ui.space()
             ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary round dense').tooltip('Refresh table')
 
-        self.filters_card = ui.card().classes('match-filters-card')
+        # Each field carries its own label inside the box rather than a caption
+        # line above it: with captions the open card stood ~550px tall on a
+        # 393px phone, four half-width fields stacked one per line.
+        self.filters_card = ui.card().classes('match-filters-card match-filters-card--compact')
         with self.filters_card:
             with ui.row().classes('match-filter-row'):
                 # Day filter, first because it is the coarsest narrowing and
                 # the one an operator working a venue reaches for.
-                with ui.column().classes('match-filter-column'):
-                    caption = ui.label('Day').classes('match-filter-label')
-                    self.day_filter = ui.select(
-                        options=list(DAY_SCOPES),
-                        value=tenant_session_get(self._skey('day_filter'), ALL_DAYS),
-                        on_change=self._on_day_filter_change,
-                    ).classes('full-width').props('outlined dense')
-                    label_field(caption, self.day_filter)
+                self.day_filter = ui.select(
+                    options=list(DAY_SCOPES),
+                    label='Day',
+                    value=tenant_session_get(self._skey('day_filter'), ALL_DAYS),
+                    on_change=self._on_day_filter_change,
+                ).classes('match-filter-field').props('outlined dense options-dense')
 
-                with ui.column().classes('match-filter-column'):
-                    caption = ui.label('Tournament').classes('match-filter-label')
-                    self.tournament_filter = ui.select(
-                        options=[],
-                        value=None,
-                        multiple=True,
-                        on_change=self._on_tournament_filter_change
-                    ).classes('full-width').props('outlined dense use-chips')
-                    label_field(caption, self.tournament_filter)
+                # Multi-selects read as one line of text, not chips: chips
+                # wrapped the State field to two lines on a phone.
+                self.tournament_filter = ui.select(
+                    options=[],
+                    label='Tournament',
+                    value=None,
+                    multiple=True,
+                    on_change=self._on_tournament_filter_change
+                ).classes('match-filter-field').props('outlined dense options-dense')
 
-                with ui.column().classes('match-filter-column'):
-                    caption = ui.label('Stage').classes('match-filter-label')
-                    self.stage_filter = ui.select(
-                        options=[],
-                        value=None,
-                        multiple=True,
-                        on_change=self._on_stage_filter_change
-                    ).classes('full-width').props('outlined dense use-chips')
-                    label_field(caption, self.stage_filter)
+                self.stage_filter = ui.select(
+                    options=[],
+                    label='Stage',
+                    value=None,
+                    multiple=True,
+                    on_change=self._on_stage_filter_change
+                ).classes('match-filter-field').props('outlined dense options-dense')
 
-                with ui.column().classes('match-filter-column'):
-                    caption = ui.label('State').classes('match-filter-label')
-                    default_states = self._stored_or_default_states()
-                    self.state_filter = ui.select(
-                        options=list(ALL_MATCH_STATES),
-                        value=default_states,
-                        multiple=True,
-                        on_change=self._on_state_filter_change
-                    ).classes('full-width').props('outlined dense use-chips')
-                    label_field(caption, self.state_filter)
+                self.state_filter = ui.select(
+                    options=list(ALL_MATCH_STATES),
+                    label='State',
+                    value=self._stored_or_default_states(),
+                    multiple=True,
+                    on_change=self._on_state_filter_change
+                ).classes('match-filter-field').props('outlined dense options-dense')
 
-                ui.space()
-
-                # Refresh button, and a placeholder the preferences gear is
-                # rendered into once the table exists (the filter strip is built
-                # first, for visual order).
-                with ui.column().classes('flex-center'):
-                    with ui.row().classes('items-center'):
-                        search_slot = ui.row().classes('items-center')
-                        gear_slot = ui.row().classes('items-center')
-                        ui.button(icon='refresh', on_click=self.refresh) \
-                            .props('flat color=primary').tooltip('Refresh table')
+                # Search, then the CSV/preferences gear once the table exists,
+                # then refresh (which a phone already has on the toggle row).
+                with ui.row().classes('match-filter-tools items-center no-wrap'):
+                    search_slot = ui.row().classes('items-center')
+                    gear_slot = ui.row().classes('items-center')
+                    ui.button(icon='refresh', on_click=self.refresh) \
+                        .props('flat color=primary').classes('gt-sm').tooltip('Refresh table')
 
         return search_slot, gear_slot
