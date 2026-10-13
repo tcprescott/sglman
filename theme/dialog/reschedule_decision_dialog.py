@@ -116,13 +116,9 @@ class RescheduleDecisionDialog:
                         'Approve at this time, or change it — either way they are told '
                         'which time they got.'
                     ).classes('text-caption text-grey-7')
-                    with ui.row().classes('gap-2 full-width no-wrap'):
-                        date_input = native_date_input(
-                            'New date', default_date,
-                        ).classes('col')
-                        time_input = native_time_input(
-                            'New time', default_time,
-                        ).classes('col')
+                    with ui.row().classes('form-pair gap-2'):
+                        date_input = native_date_input('New date', default_date)
+                        time_input = native_time_input('New time', default_time)
 
                 note_input = ui.textarea(
                     label='Note to the player',
@@ -176,7 +172,6 @@ class RescheduleDecisionDialog:
                 await self._finish(dialog)
 
             with dialog_actions().classes('justify-end'):
-                ui.button('Close', on_click=dialog.close).props('flat')
                 ui.button('Decline', on_click=decline).props('flat color=negative')
                 ui.button(
                     'Cancel the match' if cancel else 'Approve and move it',

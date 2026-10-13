@@ -31,6 +31,7 @@ from application.services.feature_flag_service import FeatureFlagService
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.mocks.mock_challonge import is_mock_challonge
 from models import FeatureFlag
+from pages._browser_url import browser_url
 from pages._oauth_link import (
     LinkHandoffProvider,
     handle_link_handoff_callback,
@@ -125,8 +126,9 @@ def create() -> None:
 
     @ui.page('/challonge/oauth/callback')
     async def challonge_callback(client: Client) -> None:
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         # Cross-host player-link handoff leg (platform host): exchange + mint +
         # hand the verified identity back to the custom domain's /oauth/link/claim.
         if await handle_link_handoff_callback(url):

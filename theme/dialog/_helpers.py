@@ -54,7 +54,7 @@ def form_dialog(title: str, *, card_classes: str = 'dialog-card', help: Sequence
     Usage::
 
         with form_dialog('Add Webhook') as dialog:
-            with ui.column().classes('q-pa-md gap-2 full-width'):
+            with ui.column().classes('gap-2'):
                 name = ui.input('Name')
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

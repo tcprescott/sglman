@@ -33,7 +33,7 @@ Signing up is a request, not a booking. It tells staff you're available for that
 slot; a staff member decides who actually gets it.
 
 **Every streamed match has commentary.** Trackers are the role some tournaments
-don't use. Where that's the case there's no **Tracking** line in the Crew cell,
+don't use. Where that's the case the **Trackers** column is left empty,
 and that's deliberate rather than a fault.
 :::
 
@@ -96,7 +96,7 @@ Until you do, staff can't tell whether you've seen the approval.
 You can confirm from three places, and they all do the same thing:
 
 - **Confirm I can cover this**, on your slot in My Schedule
-- **Confirm**, beside the role in the match's Crew cell on the schedule board
+- **Confirm**, next to **Withdraw** in the role's column on the schedule board
 - **Acknowledge**, on the DM you were sent
 :::
 
@@ -122,16 +122,20 @@ Turn on **Include past** to see the ones you've already worked.
 
 ![Crew you signed up for on a phone, with two slots awaiting approval and one approved slot showing a Confirm I can cover this button](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
 
-## Reading the crew cell
+## Reading the crew columns
 
-The Crew cell on the board counts approved crew against what the match needs,
-one line per role: "Commentary 1/2" means one approved commentator out of two.
-Someone still waiting for approval doesn't count, so a match can have three
-signups and still say "needs crew". **Needs crew** uses the same rule when it
-decides whether a match is covered.
+The board has a **Commentators** and a **Trackers** column. Your own **Sign
+up** or **Withdraw** sits in a shaded box at the top of each, so it's in the same
+spot on every match. Under it is approved crew against what the match needs:
+"1/2" means one approved
+commentator out of two. Someone still waiting for approval doesn't count, so a
+match can have three signups and still say "needs crew". **Needs crew** uses
+the same rule when it decides whether a match is covered. On a phone each card
+names the role instead ("Commentary 1/2").
 
-If you're signed up, the line says so: "You · waiting for approval" or "You ·
-approved". Tap the match for everyone's names and whether they've confirmed.
+Under the count are the names: a tick for
+approved, a clock and "waiting for approval" for everyone else, and **You** for
+you. "No signups yet" means nobody has asked for that slot.
 
 ## Withdrawing
 

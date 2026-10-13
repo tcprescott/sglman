@@ -255,8 +255,10 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
 
             async def delete_mapping(row, client):
                 async def do_remove() -> None:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    if current is None:
+                        return
                     try:
-                        current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                         await service.remove_mapping(row['id'], current)
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
@@ -348,7 +350,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                     summary.set_text(text)
                     add_button.set_enabled(bool(new) and not needs_tournament)
 
-                with table_container, form_dialog('Add Role Mappings') as dialog:
+                with table_container, form_dialog('Add Role Mappings', card_classes='dialog-card dialog-card--sm') as dialog:
                     with ui.column().classes('q-pa-md gap-2 full-width'):
                         ui.label(
                             'Every Discord role you pick gets every grant you pick.'
@@ -539,8 +541,6 @@ def _show_sync_result(result: dict) -> None:
                         ui.label('; '.join(parts)).classes('text-caption')
             if not created and not changed:
                 ui.label('Nothing needed changing.').classes('text-caption text-grey q-mt-sm')
-        with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 
 

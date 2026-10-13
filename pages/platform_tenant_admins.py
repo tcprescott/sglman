@@ -71,6 +71,6 @@ async def open_tenant_admins_dialog(actor, tenant_id: int, tenant_name: str) -> 
             staff_list.refresh()
 
         with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
+            ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Grant', on_click=submit, color='primary')
     dialog.open()

@@ -72,13 +72,13 @@ class VolunteerShiftDialog:
                 position_select = ui.select(
                     position_options, value=default_position, label='Position',
                 ).classes('input-full-width')
-                with ui.row().classes('gap-2 items-center full-width'):
+                with ui.row().classes('form-pair gap-2'):
                     start_date_input = native_date_input('Start date', default_start_date)
                     start_time_input = native_time_input('Start time', default_start_time)
                 # Keep the end date aligned with the start date until the user edits it.
                 end_date_edited = {'value': editing}
 
-                with ui.row().classes('gap-2 items-center full-width'):
+                with ui.row().classes('form-pair gap-2'):
                     end_date_input = native_date_input('End date', default_end_date)
                     end_time_input = native_time_input('End time', default_end_time)
                 end_date_input.on('change', lambda: end_date_edited.update(value=True))

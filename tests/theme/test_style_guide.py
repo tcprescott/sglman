@@ -271,6 +271,76 @@ def test_dialog_footer_puts_the_primary_action_last():
     assert not bad, 'Dialog footers out of order:\n  ' + '\n  '.join(bad)
 
 
+def _dialog_blocks():
+    """Every `with ui.dialog()` / `with form_dialog(...)` block, with its source."""
+    for rel, source, tree, lines in _python_sources():
+        if rel.as_posix() == 'theme/dialog/_helpers.py':
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            kinds = {_ui_call(i.context_expr) for i in node.items} | {_base_name(i.context_expr) for i in node.items}
+            if kinds & {'dialog', 'form_dialog'}:
+                yield rel, source, node, lines
+
+
+def test_dialogs_open_as_phone_sheets():
+    """ConfirmationDialog skipped mobile_sheet, so all 35 confirmations opened as a
+    centred card on a phone while every form beside them was a bottom sheet.
+    form_dialog does it; a hand-built `ui.dialog()` calls mobile_sheet itself."""
+    bad = []
+    for rel, source, node, lines in _dialog_blocks():
+        if any(_base_name(i.context_expr) == 'form_dialog' for i in node.items):
+            continue
+        dialog_expr = next(i.context_expr for i in node.items if _ui_call(i.context_expr) == 'dialog')
+        calls = {
+            n.func.id if isinstance(n.func, ast.Name) else getattr(n.func, 'attr', '')
+            for stmt in node.body for n in ast.walk(stmt) if isinstance(n, ast.Call)
+        }
+        if 'mobile_sheet' in calls or 'position' in (ast.get_source_segment(source, dialog_expr) or ''):
+            continue
+        if not _exempt(lines, node.lineno):
+            bad.append(f'{rel}:{node.lineno}')
+    assert not bad, 'Dialogs that never become a phone sheet (call mobile_sheet):\n  ' + '\n  '.join(bad)
+
+
+def test_dialog_footers_carry_no_second_close():
+    """The header already ends in Close. A footer whose only job was a second
+    Close (15 of them) gave every reader two ways to leave and pushed the real
+    actions off the right edge. A form footer dismisses with Cancel."""
+    # Seed Presets is being reworked separately; its test-roll dialog is fixed there.
+    pending = {'pages/admin_tabs/admin_presets.py'}
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        if rel.as_posix() in pending:
+            continue
+        for node in ast.walk(tree):
+            if not (isinstance(node, (ast.With, ast.AsyncWith))
+                    and any(_base_name(i.context_expr) == 'dialog_actions' for i in node.items)):
+                continue
+            for button in _ui_buttons(node.body):
+                if _button_label(button) == 'Close' and not _exempt(lines, button.lineno):
+                    bad.append(f'{rel}:{button.lineno}')
+    assert not bad, 'Footer Close buttons duplicating the header Close:\n  ' + '\n  '.join(bad)
+
+
+_INLINE_WIDTH = re.compile(r'\b(?:min|max)-width\s*:')
+
+
+def test_dialog_bodies_set_no_inline_width():
+    """The card's size is the dialog's width. A body column with its own
+    `min-width: 420px` ran wider than a phone sheet and scrolled sideways."""
+    bad = []
+    for rel, source, node, lines in _dialog_blocks():
+        for stmt in node.body:
+            for n in ast.walk(stmt):
+                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'style'):
+                    continue
+                if _INLINE_WIDTH.search(ast.get_source_segment(source, n) or '') and not _exempt(lines, n.lineno):
+                    bad.append(f'{rel}:{n.lineno}')
+    assert not bad, 'Inline min/max-width inside a dialog (the card sets the width):\n  ' + '\n  '.join(sorted(set(bad)))
+
+
 def test_overflow_menus_use_the_vertical_dots():
     """⋮ (`more_vert`) is the one overflow icon on rows, cards and sheets; a ⋯ beside it reads as a different control."""
     bad = [
@@ -541,3 +611,22 @@ def test_theme_editor_contrast_checks_match_the_stylesheet():
     assert 'body:not(.body--dark) .text-primary { color: color-mix(in srgb, var(--q-primary) 85%, #000)' in STYLES.read_text()
     assert '.body--dark .text-secondary { color: color-mix(in srgb, var(--wiz-ember) 70%, #fff)' in STYLES.read_text()
     assert DARK_TOKENS['--wiz-link'].strip() == 'var(--wiz-gold)'
+
+
+def test_collapsible_filter_cards_have_a_toggle():
+    """Below 1024px ``.match-filters-card`` is hidden until a Filters toggle opens it.
+
+    A page that uses the card without a toggle strands phone users on its
+    default filter (Triforce Texts did, 2026-10).
+    """
+    offenders = [
+        str(rel)
+        for rel, source, _tree, _lines in _python_sources()
+        if "'match-filters-card" in source
+        and 'wiz-filter-toggle' not in source
+        and EXEMPT not in source
+    ]
+    assert not offenders, (
+        'These use .match-filters-card, which CSS hides below 1024px, but render no '
+        f'.wiz-filter-toggle / .wiz-filter-toggle--inline button to open it: {offenders}'
+    )

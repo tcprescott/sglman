@@ -5,6 +5,7 @@ picks up on the way out: the tenant in scope, the signed-in user when the
 request scope is gone, and scoped tags that never outlive their block.
 """
 
+import asyncio
 import logging
 
 import sentry_sdk
@@ -118,3 +119,67 @@ class TestScopedTags:
             assert sentry_sdk.get_current_scope()._tags['tenant_id'] == '3'
         outside = sentry_sdk.get_current_scope()._tags
         assert 'worker' not in outside and 'tenant_id' not in outside
+
+
+class TestGracefulShutdownNoise:
+    """uvicorn's shutdown-deadline cancellations are dropped; real errors are not."""
+
+    @staticmethod
+    def _hint(exc):
+        return {'exc_info': (type(exc), exc, None)}
+
+    def test_drops_cancelled_request_traceback(self):
+        exc = asyncio.CancelledError('Task cancelled, timeout graceful shutdown exceeded')
+        event = {'logger': 'uvicorn.error', 'logentry': {'message': 'Exception in ASGI application'}}
+        assert wiring._before_send(event, self._hint(exc)) is None
+
+    def test_drops_cancel_count_message(self):
+        event = {
+            'logger': 'uvicorn.error',
+            'logentry': {
+                'message': 'Cancel %s running task(s), timeout graceful shutdown exceeded',
+                'params': [2],
+                'formatted': 'Cancel 2 running task(s), timeout graceful shutdown exceeded',
+            },
+        }
+        assert wiring._before_send(event, {}) is None
+
+    def test_keeps_other_cancelled_errors(self):
+        exc = asyncio.CancelledError()
+        assert wiring._before_send({}, self._hint(exc)) is not None
+
+    def test_keeps_other_uvicorn_errors(self):
+        event = {'logger': 'uvicorn.error', 'logentry': {'formatted': 'Exception in ASGI application'}}
+        assert wiring._before_send(event, {}) is not None
+
+    def test_keeps_same_text_from_another_logger(self):
+        event = {
+            'logger': 'wizzrobe.main',
+            'logentry': {'formatted': 'Cancel 2 running task(s), timeout graceful shutdown exceeded'},
+        }
+        assert wiring._before_send(event, {}) is not None
+
+    def test_keeps_real_exception_logged_with_the_message(self):
+        exc = RuntimeError('boom')
+        event = {
+            'logger': 'uvicorn.error',
+            'logentry': {'formatted': 'Cancel 2 running task(s), timeout graceful shutdown exceeded'},
+        }
+        assert wiring._before_send(event, self._hint(exc)) is not None
+
+    def test_shutdown_warning_still_reaches_sentry_logs(self):
+        # The per-request warning is what keeps a real stall visible; it must
+        # stay out of the logger blocklist and at a level Sentry Logs ships.
+        assert 'wizzrobe.shutdown' not in wiring._NOISY_FOR_SENTRY_LOGS
+        assert wiring._sentry_logs_level() <= logging.WARNING
+
+
+class TestFlush:
+    async def test_flush_sentry_flushes_with_a_timeout(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(sentry_sdk, 'flush', lambda timeout=None: calls.append(timeout))
+        await wiring.flush_sentry()
+        assert calls == [wiring._SHUTDOWN_FLUSH_TIMEOUT]
+
+    async def test_flush_sentry_is_safe_without_init(self):
+        await wiring.flush_sentry()

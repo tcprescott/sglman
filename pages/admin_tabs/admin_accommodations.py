@@ -117,7 +117,7 @@ async def render_accommodation_panel(
 
     async def open_editor(row: dict) -> None:
         withdrawn = row['status'] == AccommodationStatus.WITHDRAWN.value
-        with form_dialog(f"ADA request: {row['user']}") as dialog:
+        with form_dialog(f"ADA request: {row['user']}", card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 ui.label(f"Requested {row['created_at']}").classes('text-caption text-muted')
                 if row.get('changed'):

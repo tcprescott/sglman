@@ -37,7 +37,7 @@ class VolunteerProfileDialog:
             mobile_sheet(dialog)
             dialog_header(self.user.preferred_name, dialog)
 
-            with ui.column().classes('q-pa-md gap-4').style('min-width: 420px; max-width: 560px;'):
+            with ui.column().classes('gap-4'):
 
                 # --- Availability section ---
                 ui.label('Availability').classes('text-subtitle2')

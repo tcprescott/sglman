@@ -145,7 +145,7 @@ async def admin_speedgaming_page() -> None:
 
         async def _build_link_dialog(existing, is_edit: bool, options) -> None:
             with table_container:
-                with form_dialog('Edit Event Link' if is_edit else 'Add Event Link', card_classes='dialog-card dialog-card--sm') as dialog:
+                with form_dialog('Edit Event Link' if is_edit else 'Add Event Link') as dialog:
                     tournament_select = ui.select(
                         options, label='Tournament',
                         value=existing['tournament_id'] if is_edit else None,
@@ -159,7 +159,7 @@ async def admin_speedgaming_page() -> None:
                         'Content Type (optional)',
                         value=existing['content_type'] if is_edit else '',
                     ).classes('w-full')
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         interval_input = ui.number(
                             'Sync interval (min)',
                             value=existing['sync_interval_minutes'] if is_edit else 15, min=1,

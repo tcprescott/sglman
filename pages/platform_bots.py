@@ -167,7 +167,7 @@ def _bot_form(existing=None):
 
 
 def _open_bot_create_dialog(actor, table) -> None:
-    with form_dialog('New racetime bot', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
+    with form_dialog('New racetime bot', card_classes='dialog-card gap-2') as dialog:
         category, name, client_id, secret, description, handler, active = _bot_form()
 
         async def submit():
@@ -194,7 +194,7 @@ def _open_bot_create_dialog(actor, table) -> None:
 async def _open_bot_edit_dialog(actor, table, row) -> None:
     bot = await _bot_service.get_bot(actor, row['id'])
     existing = _bot_service.serialize(bot)
-    with form_dialog(f"Edit bot #{bot.id}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
+    with form_dialog(f"Edit bot #{bot.id}", card_classes='dialog-card gap-2') as dialog:
         # serialize() omits the secret; expose the plain fields to the form.
         existing['active'] = 'yes' if bot.is_active else 'no'
         category, name, client_id, secret, description, handler, active = _bot_form(existing)
@@ -264,6 +264,4 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
                 on_change=lambda e, tid=t.id: _toggle(tid, e.value),
             )
 
-        with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()

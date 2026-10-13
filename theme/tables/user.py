@@ -65,7 +65,10 @@ class UserTableView:
             self.table.add_slot(
                 'body-cell-actions', f'<q-td :props="props">{self.row_actions}</q-td>')
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link user-table__name">{{ props.value }}</a>
+        </q-td>''')
+        self.table.add_slot('body-cell-preferred_name', '''<q-td :props="props">
+            <span class="user-table__name">{{ props.value }}</span>
         </q-td>''')
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
             <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
@@ -88,9 +91,9 @@ class UserTableView:
         </q-td>''')
         # props.value is a comma-separated string.
         self.table.add_slot('body-cell-roles', '''<q-td :props="props">
-            <template v-if="props.value">
-                <q-chip v-for="r in props.value.split(',')" :key="r" color="primary" text-color="white" dense>{{ r.trim() }}</q-chip>
-            </template>
+            <div v-if="props.value" class="user-table__roles">
+                <span v-for="r in props.value.split(',')" :key="r" class="wiz-chip wiz-chip--neutral">{{ r.trim() }}</span>
+            </div>
             <span v-else class="text-grey-7">-</span>
         </q-td>''')
         self.render_grid_slot()
@@ -154,6 +157,9 @@ class UserTableView:
                 <template v-if="field.event && props.row[field.key]">
                     <a href="#" @click.prevent="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
                 </template>
+                <div v-else-if="field.key === 'roles'" class="user-table__roles">
+                    <span v-for="r in props.row.roles.split(',')" :key="r" class="wiz-chip wiz-chip--neutral">{{{{ r.trim() }}}}</span>
+                </div>
                 <template v-else-if="field.bool">
                     {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
                 </template>

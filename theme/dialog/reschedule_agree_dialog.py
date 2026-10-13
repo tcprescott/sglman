@@ -85,7 +85,7 @@ class RescheduleAgreeDialog:
         self.on_agreed = on_agreed
 
     async def open(self) -> None:
-        with form_dialog('Your opponent asked to reschedule') as dialog:
+        with form_dialog('Your opponent asked to reschedule', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 render_agreement_summary(self.request)
                 ui.label(AGREE_NOTE).classes('text-caption q-mt-sm')

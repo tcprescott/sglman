@@ -127,7 +127,7 @@ async def open_walk_up_dialog(
     """Add someone who didn't buy a badge on Matcherino. Staff only."""
     chosen: dict = {'user': None}
 
-    with form_dialog('Add walk-up') as dialog:
+    with form_dialog('Add walk-up', card_classes='dialog-card dialog-card--sm') as dialog:
         with ui.column().classes('q-pa-md gap-3 full-width'):
             mode = ui.toggle({'member': 'A member', 'name': 'Just a name'}, value='member') \
                 .props('no-caps spread unelevated').classes('wiz-segmented w-full')

@@ -48,7 +48,7 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
         # full-screen sheet on a phone plus a sticky header — and the action bar
         # below is sticky with it. Hand-rolled, this dialog put 'Start bracket'
         # and 'Close' ~1200-4400px below the fold.
-        with form_dialog(f"Manage — {row['name']} · {row['stage']}") as dialog:
+        with form_dialog(f"Manage — {row['name']} · {row['stage']}", card_classes='dialog-card dialog-card--lg') as dialog:
 
             @ui.refreshable
             async def body() -> None:
@@ -198,7 +198,7 @@ def _render_roster(
     """The tournament roster, and the way entrants get into this stage."""
     async def link_user(entrant) -> None:
         """Attach (or detach) one entrant's user account."""
-        with form_dialog(f'Link user — {entrant.display_name}') as link_dialog:
+        with form_dialog(f'Link user — {entrant.display_name}', card_classes='dialog-card dialog-card--sm') as link_dialog:
             picker = ui.select(
                 user_names, value=entrant.user_id, label='User', with_input=True,
             ).props('clearable').classes('w-full')
@@ -605,7 +605,7 @@ async def _open_qualifier_seeding(
         ui.notify('No qualifiers yet. Create one first to link entrants.', color='info')
         return
 
-    with form_dialog('Seed from a qualifier') as dialog:
+    with form_dialog('Seed from a qualifier', card_classes='dialog-card dialog-card--sm') as dialog:
         picker = ui.select(
             {q.id: q.name for q in qualifiers}, label='Qualifier',
             value=qualifiers[0].id, with_input=True,

@@ -336,7 +336,7 @@ async def admin_brackets_page() -> None:
                     f'{stage_label(from_stage_order)} → '
                     f'{stage_label(plan.destination.stage_order)}'
                 )
-                with form_dialog(f'Advance — {title}') as dialog:
+                with form_dialog(f'Advance — {title}', card_classes='dialog-card dialog-card--sm') as dialog:
                     if plan.already_seeded:
                         ui.label(
                             f'“{plan.destination.name}” has already been seeded from '

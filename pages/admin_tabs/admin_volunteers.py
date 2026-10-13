@@ -20,7 +20,7 @@ from application.utils.timezone import (
     timezone_label,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
@@ -511,8 +511,6 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
                 picker_list()
 
-                with dialog_actions().classes('justify-end'):
-                    ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
         def _render_picker_row(

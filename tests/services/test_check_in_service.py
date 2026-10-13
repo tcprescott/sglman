@@ -636,6 +636,34 @@ class TestWorker:
 
         assert await CheckInEntrant.filter(event=event).count() == 0
 
+    async def test_a_repeated_failure_drops_to_a_warning(self, staff, event, monkeypatch, caplog):
+        import logging
+
+        from application.services import check_in_sync_worker
+        from application.utils.clients.matcherino_client import MatcherinoAuthError
+
+        failing = ScriptedClient([])
+        failing.error = MatcherinoAuthError('Matcherino refused the saved login')
+        monkeypatch.setattr(
+            'application.services.check_in_service.get_matcherino_client', lambda refresh_token: failing,
+        )
+        monkeypatch.setattr(check_in_sync_worker, '_due', lambda event, now: True)
+
+        def levels():
+            return [r.levelno for r in caplog.records if r.name == check_in_sync_worker.__name__]
+
+        with caplog.at_level(logging.INFO, logger=check_in_sync_worker.__name__):
+            await check_in_sync_worker._tick()
+            await check_in_sync_worker._tick()
+            assert levels() == [logging.ERROR, logging.WARNING]
+
+            failing.error = MatcherinoAPIError('shape changed')
+            await check_in_sync_worker._tick()
+            assert levels()[-1] == logging.ERROR
+
+        await event.refresh_from_db()
+        assert event.last_sync_error == 'shape changed'
+
     async def test_an_event_is_not_due_inside_its_interval(self, event):
         from application.services.check_in_sync_worker import _due
         from tests.factories import utc

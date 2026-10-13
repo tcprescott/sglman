@@ -89,6 +89,17 @@ class TestCrew:
         role = _role(row, 'commentators')
         assert role['can_withdraw'] and not role['can_sign_up']
 
+    def test_names_show_with_the_viewer_as_you_and_approved_first(self):
+        row = _row(commentators=[{'name': 'Me', 'discord_id': ME, 'approved': False},
+                                 {'name': 'SM User', 'discord_id': '5', 'approved': True}])
+        people = _role(row, 'commentators')['people']
+        assert [(p['name'], p['me'], p['note']) for p in people] == [
+            ('SM User', False, ''), ('Me', True, 'waiting for approval')]
+
+    def test_no_signups_yet_only_while_the_role_can_fill(self):
+        assert _role(_row(), 'commentators')['empty']
+        assert not _role(_row(crew_signup_open=False), 'commentators')['empty']
+
     def test_a_role_the_tournament_does_not_use_is_left_off(self):
         row = _row(crew_wanted={'commentators': True, 'trackers': False})
         assert [r['key'] for r in player_crew(row, ME)] == ['commentators']
@@ -116,9 +127,20 @@ class TestTemplates:
         opener = _ITEM_SLOT.split('<button type="button" class="player-sheet__open"')[1].split('</button>')[0]
         assert '<q-btn' not in opener
 
+    def test_the_button_comes_first_in_each_role(self):
+        # Thomas, 2026-10-13: names back, and the button in a fixed place,
+        # ahead of the count and the names.
+        for slot in (_BODY_SLOT, _ITEM_SLOT):
+            assert slot.index('wiz-crew-action') < slot.index('run-sheet__crew') < slot.index('run-sheet__people')
+        assert 'player-sheet__crew-cell' in _BODY_SLOT
+
+    def test_withdraw_sits_left_of_confirm(self):
+        # Style guide: in a pair the negative action is on the left.
+        assert _BODY_SLOT.index('Withdraw') < _BODY_SLOT.index('label="Confirm"')
+
     def test_the_columns_fit_without_sorting(self):
         assert [c['name'] for c in PLAYER_RUN_SHEET_COLUMNS] == [
-            'scheduled_at', 'match', 'stage', 'crew', 'status', 'watch']
+            'scheduled_at', 'match', 'stage', 'commentators', 'trackers', 'status', 'watch']
         assert not any(c.get('sortable') for c in PLAYER_RUN_SHEET_COLUMNS)
 
     def test_the_schedule_page_uses_it(self):
