@@ -106,7 +106,7 @@ async def render_api_tokens_section(user: User) -> None:
         show_token_dialog(raw_token)
 
     def open_generate_dialog() -> None:
-        with form_dialog('Generate API Token') as dialog:
+        with form_dialog('Generate API Token', card_classes='dialog-card dialog-card--sm') as dialog:
             name_input = ui.input('Token name', placeholder='e.g. OBS overlay') \
                 .classes('input-full-width').props('outlined dense')
             read_only_cb = ui.checkbox('Read-only (can only call GET endpoints)')

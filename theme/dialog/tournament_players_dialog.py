@@ -10,7 +10,7 @@ offered every account on the platform.
 from nicegui import app, ui
 
 from application.services import TournamentService, UserService, get_user_from_discord_id
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.dialog._helpers import dialog_header, mobile_sheet
 
 
 class TournamentPlayersDialog:
@@ -110,6 +110,4 @@ class TournamentPlayersDialog:
                     ui.button('Enrol', icon='person_add', on_click=add).props('color=primary')
                 await refresh_candidates()
 
-            with dialog_actions().classes('justify-end'):
-                ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()

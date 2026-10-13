@@ -61,8 +61,8 @@ class CommunityEventDialog:
         hours, minutes = divmod(event.duration_minutes if event else 60, 60)
         title_text = 'Edit community event' if event else 'Submit a community event'
 
-        with form_dialog(title_text, card_classes='dialog-card dialog-card--lg') as dialog:
-            with ui.column().classes('q-pa-md gap-3 full-width'):
+        with form_dialog(title_text) as dialog:
+            with ui.column().classes('gap-3 full-width'):
                 ui.label(DISCLAIMER).classes('text-caption text-muted')
                 title = ui.input(
                     'Title', value=event.title if event else '',
@@ -71,11 +71,9 @@ class CommunityEventDialog:
                 starts = native_datetime_input(
                     'Starts', datetime_to_local_input(event.starts_at) if event else '', required=True,
                 ).classes('full-width')
-                with ui.row().classes('items-end gap-3 no-wrap full-width'):
-                    hours_input = ui.number('Length (hours)', value=hours, min=0, max=72, format='%d') \
-                        .classes('col')
-                    minutes_input = ui.number('and minutes', value=minutes, min=0, max=59, step=5, format='%d') \
-                        .classes('col')
+                with ui.row().classes('form-pair gap-2'):
+                    hours_input = ui.number('Length (hours)', value=hours, min=0, max=72, format='%d')
+                    minutes_input = ui.number('and minutes', value=minutes, min=0, max=59, step=5, format='%d')
                 location = ui.input(
                     'Where', value=(event.location or '') if event else '',
                     placeholder='Board game room, 2nd floor',
@@ -92,7 +90,7 @@ class CommunityEventDialog:
                         cap_input = ui.number(
                             'Cap (optional)', value=event.rsvp_capacity if event else None,
                             min=1, max=MAX_RSVP_CAPACITY, format='%d',
-                        ).classes('w-40')
+                        ).classes('grow')
                         ui.label('Leave blank for no limit.').classes('text-caption text-muted')
                     cap_row.bind_visibility_from(rsvp_switch, 'value')
                     ui.label(

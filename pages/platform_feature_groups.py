@@ -118,7 +118,7 @@ async def open_tenant_features_dialog(actor, row) -> None:
             return
         ui.notify('Updated', color='positive')
 
-    with form_dialog(f"Features for {row['name']}", card_classes='dialog-card dialog-card--sm gap-2') as dialog:
+    with form_dialog(f"Features for {row['name']}", card_classes='dialog-card gap-2') as dialog:
 
         group_options = {0: '— None (default fallback) —'}
         for g in groups:
@@ -143,8 +143,6 @@ async def open_tenant_features_dialog(actor, row) -> None:
                     value=current,
                     on_change=lambda e, fv=f['flag']: _override(fv, e.value),
                 ).props('dense outlined').classes('w-44 shrink-0')
-        with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 
 

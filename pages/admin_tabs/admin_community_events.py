@@ -112,7 +112,7 @@ async def admin_community_events_page(open_event: Optional[int] = None) -> None:
 
 
 def _review_dialog(service: CommunityEventService, actor, event: CommunityEvent, on_change) -> None:
-    with form_dialog('Review community event', card_classes='dialog-card dialog-card--lg') as dialog:
+    with form_dialog('Review community event') as dialog:
         with ui.column().classes('q-pa-md gap-2 full-width'):
             with ui.row().classes('items-center gap-2'):
                 ui.label(event.title).classes('section-title')
@@ -154,7 +154,6 @@ def _review_dialog(service: CommunityEventService, actor, event: CommunityEvent,
             await on_change()
 
         with dialog_actions().classes('justify-end wrap'):
-            ui.button('Close', on_click=dialog.close).props('flat')
             if event.status is not CommunityEventStatus.CANCELLED:
                 ui.button('Edit', icon='edit', on_click=lambda: CommunityEventDialog(
                     actor, event, is_staff=True, on_saved=edited,

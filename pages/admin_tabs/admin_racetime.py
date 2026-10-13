@@ -119,7 +119,7 @@ async def admin_racetime_page() -> None:
                                 label, value=getattr(p, attr) if p else _default_bool(attr),
                             )
                     numbers = {}
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         for attr, label, default in _INT_FIELDS:
                             numbers[attr] = ui.number(
                                 label, value=getattr(p, attr) if p else default, min=0,

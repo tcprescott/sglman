@@ -86,7 +86,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
 
     async def show_url_dialog(raw_token: str) -> None:
         url = await _url_for(raw_token)
-        with form_dialog('The room PC’s URL') as dialog:
+        with form_dialog('The room PC’s URL', card_classes='dialog-card dialog-card--sm') as dialog:
             ui.label(
                 'Copy it now — only the hash is stored, so this is the last time '
                 'you can see it. Anyone with this URL can read the seeds board, '

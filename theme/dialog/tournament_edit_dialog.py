@@ -73,7 +73,7 @@ class TournamentDialog:
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(title, dialog)
-            with ui.column().classes('q-pa-md gap-2'):
+            with ui.column().classes('gap-2'):
                 ui.label('* required').classes('required-legend')
                 name_input = ui.input(
                     'Tournament Name *',
@@ -101,7 +101,7 @@ class TournamentDialog:
                 with ui.expansion(
                     'Scheduling', icon='schedule', value=sections_open,
                 ).classes('w-full').props('dense'):
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         average_match_duration_input = ui.number(
                             'Avg Match Duration (min)',
                             value=self.tournament.average_match_duration if self.tournament and self.tournament.average_match_duration else None,
@@ -112,7 +112,7 @@ class TournamentDialog:
                             value=self.tournament.max_match_duration if self.tournament and self.tournament.max_match_duration else None,
                             min=0,
                         ).props('inputmode=numeric')
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         players_per_match_input = ui.number(
                             'Players per Match',
                             value=self.tournament.players_per_match if self.tournament else 2,
@@ -127,7 +127,7 @@ class TournamentDialog:
                         'Leave both blank to keep signups open indefinitely. Staff can '
                         'always add or remove entrants, window or no window.'
                     ).classes('text-caption text-grey')
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         signups_open_input = native_datetime_input(
                             'Signups open',
                             datetime_to_local_input(
@@ -152,16 +152,17 @@ class TournamentDialog:
                     ).classes('text-caption text-grey')
 
                     t = self.tournament
-                    event_start_input = native_date_input(
-                        'Event Start Date',
-                        t.event_start_date.isoformat() if t and t.event_start_date else '',
-                        clearable=True,
-                    )
-                    event_end_input = native_date_input(
-                        'Event End Date',
-                        t.event_end_date.isoformat() if t and t.event_end_date else '',
-                        clearable=True,
-                    )
+                    with ui.row().classes('form-pair gap-2'):
+                        event_start_input = native_date_input(
+                            'Event Start Date',
+                            t.event_start_date.isoformat() if t and t.event_start_date else '',
+                            clearable=True,
+                        )
+                        event_end_input = native_date_input(
+                            'Event End Date',
+                            t.event_end_date.isoformat() if t and t.event_end_date else '',
+                            clearable=True,
+                        )
 
                     # Stored blob seeds the grid; snapshotted on every refresh so
                     # typed-but-unsaved values survive a date-window change.
@@ -196,7 +197,7 @@ class TournamentDialog:
                             window = hours_state.get(current.isoformat())
                             open_val = window.get('open', '') if isinstance(window, dict) else ''
                             close_val = window.get('close', '') if isinstance(window, dict) else ''
-                            with ui.row().classes('items-center gap-3'):
+                            with ui.row().classes('form-pair items-center gap-3'):
                                 ui.label(current.isoformat()).classes('w-28 text-mono')
                                 open_i = native_time_input('Open', open_val)
                                 close_i = native_time_input('Close', close_val)
@@ -250,7 +251,7 @@ class TournamentDialog:
                         'to 0 stops accepting signups; anyone already signed up can still '
                         'withdraw.'
                     ).classes('text-caption text-grey')
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         required_commentators_input = ui.number(
                             'Commentators needed',
                             value=self.tournament.required_commentators if self.tournament else 1,
@@ -275,7 +276,7 @@ class TournamentDialog:
                         'Nothing to do with Open Room under Racetime, which decides '
                         'when a race room is created.'
                     ).classes('text-caption text-grey')
-                    with ui.row().classes('gap-2'):
+                    with ui.row().classes('form-pair gap-2'):
                         stage_reminder_input = ui.number(
                             'Remind about the stage (min before)',
                             value=(
@@ -416,7 +417,7 @@ class TournamentDialog:
                             'Default Goal',
                             value=(t.racetime_default_goal if t and t.racetime_default_goal else ''),
                         ).classes('input-full-width')
-                        with ui.row().classes('gap-2'):
+                        with ui.row().classes('form-pair gap-2'):
                             rt['open_before_input'] = ui.number(
                                 'Open Room (min before)',
                                 value=(t.room_open_minutes_before if t else 30),
