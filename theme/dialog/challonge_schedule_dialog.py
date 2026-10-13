@@ -48,7 +48,7 @@ class ChallongeScheduleDialog:
         default_time = slot.strftime('%H:%M')
         player_ids = [cm.participant1.user_id, cm.participant2.user_id]
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(
@@ -60,7 +60,7 @@ class ChallongeScheduleDialog:
                 ui.label(f'Opponent: {self.opponent_name}').classes('text-muted')
                 ui.label('Pick a time you both can play.').classes('text-caption text-grey-7')
 
-                with ui.row().classes('items-center gap-2'):
+                with ui.row().classes('form-pair items-center gap-2'):
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
 

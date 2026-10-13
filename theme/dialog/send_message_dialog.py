@@ -12,7 +12,7 @@ class SendMessageDialog:
         self.discord_service = DiscordService()
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header('Send Message', dialog)

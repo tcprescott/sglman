@@ -64,11 +64,18 @@ def test_retired_slugs_resolve_to_their_pane():
     assert tab_slug('Settings') not in LEGACY_TAB_PANES
 
 
-def test_unknown_pane_falls_back_to_the_first():
+def test_no_pane_or_an_unknown_one_opens_the_settings_home():
     panes = build_settings_panes(STAFF, set())
-    assert resolve_pane(panes, 'nonsense').slug == 'general'
-    assert resolve_pane(panes, None).slug == 'general'
+    assert resolve_pane(panes, 'nonsense') is None
+    assert resolve_pane(panes, None) is None
+    assert resolve_pane(panes, 'event').slug == 'event'
     assert resolve_pane([], 'event') is None
+
+
+def test_a_single_pane_skips_the_home():
+    panes = build_settings_panes(AdminAccess(is_sync_admin=True), set())
+    assert resolve_pane(panes, None).slug == 'discord'
+    assert resolve_pane(panes, 'general').slug == 'discord'
 
 
 def test_legacy_slug_reaches_the_tab_as_its_pane():

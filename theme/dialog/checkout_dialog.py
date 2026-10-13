@@ -45,7 +45,7 @@ class CheckoutDialog:
         # themselves must always be in their own picker.
         community = await user_service.get_community_people(include_user_ids=[self.actor.id])
         options = _borrower_options(community)
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             mobile_sheet(dialog)
             dialog_header('Check out equipment', dialog)
             with ui.column().classes('q-pa-md gap-2 full-width'):

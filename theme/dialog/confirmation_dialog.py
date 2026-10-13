@@ -33,7 +33,7 @@ class ConfirmationDialog:
         self.dialog: Any = None
 
     def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             dialog_header(self.title, dialog)
             with ui.column().classes('q-pa-md'):

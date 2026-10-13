@@ -3,7 +3,12 @@
     "name": "board-phone",
     "user": "proctor_user",
     "path": "/volunteer/proctor-station",
-    "selector": ".match-grid-card:has-text('Check In'):has-text('Wizzrobe Cup')"
+    "selector": ".run-sheet__card--split:has-text('ADA'):has-text('Check in')",
+    "setup": [
+      {
+        "wait": 1500
+      }
+    ]
   },
   {
     "name": "check-in-phone",

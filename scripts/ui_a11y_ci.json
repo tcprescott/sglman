@@ -51,6 +51,7 @@
     { "name": "admin-vol-schedule", "path": "/admin/vol-schedule" },
     { "name": "admin-equipment", "path": "/admin/equipment" },
     { "name": "admin-reports", "path": "/admin/reports" },
+    { "name": "settings-home", "path": "/admin/settings" },
     { "name": "settings-general", "path": "/admin/settings/general" },
     { "name": "settings-event", "path": "/admin/settings/event" },
     { "name": "settings-venue", "path": "/admin/settings/venue" },

@@ -70,6 +70,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
     #: without ``__init__`` (the tests' ``__new__`` stubs) reads as a table.
     layout = 'table'
     on_open_match = None
+    run_sheet_group = None
+    proctor_run_sheet = False
 
     def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
@@ -78,7 +80,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                  row_sort=None, row_filter=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
                  scope_tournament_ids=None, table_key=None, searchable=False,
-                 show_accommodations=False, layout='table', on_open_match=None):
+                 show_accommodations=False, layout='table', on_open_match=None,
+                 run_sheet_group=None, proctor_run_sheet=False):
         self.columns = columns
         # 'table' draws every column's control in its cell (and a full card per
         # match on a phone); 'run_sheet' draws one grouped line per match and
@@ -88,6 +91,11 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # (see match_player_run_sheet).
         self.layout = layout
         self.on_open_match = on_open_match
+        # The run sheet's grouping (``match_run_sheet.admin_group`` when None)
+        # and whether its lines are the proctor's: stations on the names and
+        # the next lifecycle step as a button.
+        self.run_sheet_group = run_sheet_group
+        self.proctor_run_sheet = proctor_run_sheet
         # When set, this board's desktop columns follow the viewer's saved
         # layout. Each surface built on this class passes its **own** key: a
         # proctor's column choices must not follow them onto the admin board.
@@ -193,6 +201,16 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self.accommodation_service = AccommodationService()
         self._setup_ui()
 
+    def _arrange(self, rows: list) -> list:
+        """Group and order ``rows`` for a run-sheet layout; a table keeps its order."""
+        if self.layout == 'player_run_sheet':
+            return arrange_player_run_sheet(rows, getattr(self, '_discord_id', None))
+        if self.layout != 'run_sheet':
+            return rows
+        if self.run_sheet_group is None:
+            return arrange_run_sheet(rows)
+        return arrange_run_sheet(rows, self.run_sheet_group)
+
     def _bg(self, coro) -> None:
         """Schedule ``coro`` with this view's tenant *and* display zone rebound."""
         scoped_background(self._render_context, coro)
@@ -263,7 +281,10 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         if self.layout in ('run_sheet', 'player_run_sheet'):
             if self.layout == 'run_sheet':
-                register_run_sheet_slots(self.table)
+                register_run_sheet_slots(
+                    self.table, proctor=self.proctor_run_sheet,
+                    can_run=self.proctor_run_sheet and self.admin_controls and self.access.run,
+                )
             else:
                 register_player_run_sheet_slots(self.table)
             if self.on_open_match is not None:
@@ -488,14 +509,6 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self.table.rows = rows
         self.table.update()
         self._notify_rows_changed()
-
-    def _arrange(self, rows: list) -> list:
-        """Group and order ``rows`` for a run-sheet layout; a table keeps its order."""
-        if self.layout == 'run_sheet':
-            return arrange_run_sheet(rows)
-        if self.layout == 'player_run_sheet':
-            return arrange_player_run_sheet(rows, getattr(self, '_discord_id', None))
-        return rows
 
     def _stage_options(self):
         """The Stage select's choices, or ``None`` for a board that cannot set one.
