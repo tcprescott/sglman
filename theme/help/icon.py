@@ -10,7 +10,8 @@ A hover tooltip is unreachable on a touch screen, and most of the people this
 help is for are reading it on a phone in a loud room. So this is a real button
 with a ``q-menu``: it opens on tap and on click alike, stays open until
 dismissed, and its content is selectable. With one topic the menu shows that
-snippet; with several it lists them by name and each opens in place.
+snippet; with several it lists them by name and each opens in place, with Back
+to the list. On a phone the menu becomes a bottom sheet.
 
 The snippet it shows is a region of an article, not a second copy of the words —
 the popup and the article cannot drift apart, and "Read more" deep-links to the
@@ -139,6 +140,48 @@ def _snippet_body(snippet: HelpSnippet) -> None:
     ui.link('Read more', snippet.href).classes('wiz-help-more')
 
 
+def _menu_header(menu, title: str, back=None):
+    """Title row of the help popover: an optional Back, the title, and Close."""
+    with ui.row().classes('wiz-help-menu-head no-wrap items-center'):
+        if back is not None:
+            ui.button('Help', icon='chevron_left', on_click=back, color=None) \
+                .props('flat dense no-caps aria-label="Back to help topics"').classes('wiz-help-back')
+        ui.label(title).classes('wiz-help-menu-title')
+        ui.button('Close', icon='close', on_click=menu.close, color=None) \
+            .props('flat dense no-caps').classes('dialog-close')
+
+
+def _topic_menu(menu, topics: Sequence[ResolvedHelp]) -> None:
+    """Several topics: a list of names, each opening its snippet in place.
+
+    One view at a time rather than accordions: an expanded section inside a
+    capped popup was what left the text a word or two wide beside a scrollbar.
+    """
+    views: dict = {}
+
+    def show(target) -> None:
+        for view in views.values():
+            view.set_visibility(view is target)
+
+    with ui.column().classes('wiz-help-view') as index:
+        views[None] = index
+        _menu_header(menu, 'Help')
+        with ui.column().classes('wiz-help-menu-body wiz-help-topic-list'):
+            for i, topic in enumerate(topics):
+                ui.button(topic.label, color=None, on_click=lambda i=i: show(views[i])) \
+                    .props('flat no-caps align=between icon-right=chevron_right') \
+                    .classes('wiz-help-topic')
+    for i, topic in enumerate(topics):
+        with ui.column().classes('wiz-help-view') as page:
+            views[i] = page
+            _menu_header(menu, topic.label, back=lambda: show(index))
+            with ui.column().classes('wiz-help-menu-body'):
+                _snippet_body(topic.snippet)
+        page.set_visibility(False)
+
+    menu.on('hide', lambda: show(index))
+
+
 def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
     """Render the "?" for already-resolved ``topics``, or nothing if there are none.
 
@@ -147,6 +190,9 @@ def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
 
     ``pill`` is the dialog-header form: a labelled "Help" pill on desktop and a
     disc on a phone, the same shape as the Close button beside it.
+
+    It opens a popover with a fixed reading width on desktop; below 600px the
+    same menu is restyled as a bottom sheet, like the app's phone dialogs.
     """
     if not topics:
         return
@@ -158,16 +204,14 @@ def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
         .classes('wiz-help-icon')
     )
     with button:
-        with ui.menu().props('max-width=26rem').classes('wiz-help-menu'):
-            with ui.column().classes('wiz-help-menu-body'):
-                if len(topics) == 1:
-                    ui.label(topics[0].label).classes('wiz-help-menu-title')
+        with ui.menu().props('anchor="bottom end" self="top end" :offset="[0, 6]"') \
+                .classes('wiz-help-menu') as menu:
+            if len(topics) == 1:
+                _menu_header(menu, topics[0].label)
+                with ui.column().classes('wiz-help-menu-body'):
                     _snippet_body(topics[0].snippet)
-                else:
-                    ui.label('Help').classes('wiz-help-menu-title')
-                    for topic in topics:
-                        with ui.expansion(topic.label).props('dense').classes('wiz-help-topic'):
-                            _snippet_body(topic.snippet)
+            else:
+                _topic_menu(menu, topics)
 
 
 async def help_icon(*topics: HelpTopic, user: Optional[User] = None) -> None:

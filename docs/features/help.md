@@ -343,6 +343,14 @@ button with no topics left renders nothing.
 A tappable button with a `q-menu`, not a hover tooltip: a tooltip is unreachable
 on a touch screen, and this help is read on phones in loud rooms.
 
+The menu is a popover with a fixed reading width (`min(24rem, 100vw - 2rem)`) on
+desktop and, below 600px, the same `q-menu` restyled as a bottom sheet over a
+dimmed page, matching the phone dialogs (`.wiz-help-menu` in `styles.css`).
+Without a set width it shrank to the snippet's narrowest word. One topic opens
+straight to its snippet; several open on a list of names, each swapping the
+popover to that topic with **‹ Help** back to the list (not accordions, which
+crushed the text beside a scrollbar). Every view has a Close in its title row.
+
 The shared availability editor takes `help_snippet=` because its two callers
 render identical UI over different data (only the Volunteer tab passes one;
 Home's copy sits inside a section panel that already carries
