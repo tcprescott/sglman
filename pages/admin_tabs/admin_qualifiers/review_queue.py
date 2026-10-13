@@ -34,6 +34,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     short_url,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.menu import menu_action, more_menu
 
 
 def build_queue_tab(
@@ -87,17 +88,22 @@ def build_queue_tab(
                                   on_click=lambda r=run: _release_claim(r)
                                   ).props('flat color=warning').tooltip(
                             f'{holder} is reviewing this run. Release it if they are done.')
+                    elif not holder:
+                        ui.button('Claim', icon='lock',
+                                  on_click=lambda r=run: _claim_run(r)
+                                  ).props('flat color=primary')
+                        with more_menu(runner):
+                            menu_action('check', 'Approve', lambda r=run: _open_review_dialog(r, True))
+                            menu_action('close', 'Reject', lambda r=run: _open_review_dialog(r, False))
                     else:
-                        if not holder:
-                            ui.button('Claim', icon='lock',
-                                      on_click=lambda r=run: _claim_run(r)
-                                      ).props('flat color=primary')
                         ui.button('Reject', icon='close',
                                   on_click=lambda r=run: _open_review_dialog(r, False)
                                   ).props('flat color=negative')
                         ui.button('Approve', icon='check',
                                   on_click=lambda r=run: _open_review_dialog(r, True)
-                                  ).props('flat color=positive')
+                                  ).props('flat color=primary')
+                        with more_menu(runner):
+                            menu_action('lock_open', 'Release claim', lambda r=run: _release_claim(r))
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
                              f'Timed {format_hms(run.measured_seconds)}').classes(

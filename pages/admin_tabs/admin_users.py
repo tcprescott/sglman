@@ -177,6 +177,13 @@ async def _members_panel(
                     await table_view.refresh()
                 table_view._bg(after_decision())
 
+            def confirm_decline(request_id: int, name: str) -> None:
+                ConfirmationDialog(
+                    message=f'Decline {name}’s request to join?',
+                    on_confirm=lambda: decide(request_id, False), confirm_text='Decline',
+                    title='Decline request?',
+                ).open()
+
             with ui.card().classes('w-full'):
                 ui.label(f'{len(pending)} pending join request'
                          f"{'s' if len(pending) != 1 else ''}").classes('text-bold')
@@ -196,7 +203,8 @@ async def _members_panel(
                         with ui.row().classes('no-wrap gap-1'):
                             ui.button(
                                 'Decline', icon='close',
-                                on_click=lambda _=None, r=request.id: decide(r, False),
+                                on_click=lambda _=None, r=request.id,
+                                n=person.display_name or person.username: confirm_decline(r, n),
                             ).props('flat dense color=negative')
                             ui.button(
                                 'Approve', icon='check',

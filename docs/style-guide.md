@@ -138,12 +138,17 @@ Test roll). Open, Edit and Delete go in a ⋮ menu at the end of the row: a flat
 round `more_vert` button named for its row ("More for Ana"), holding
 `menu_action` items, Delete last. Tapping the item's
 name opens or edits it. Desktop rows and phone cards carry the same button and
-the same menu. ⋮ is the only overflow icon; `more_horiz` (⋯) isn't used.
+the same menu. `more_menu(name)` (`theme/menu.py`) builds it for Python-built
+rows; `slot_more_menu`, `slot_row_button` and `slot_name_link` do the same in a
+`ui.table` slot. ⋮ is the only overflow icon; `more_horiz` (⋯) isn't used.
 
 **Destructive actions confirm first.** Delete, reset and remove never fire on
 one click. They sit behind a menu and open a `dialog-card--sm` confirmation that
 says what else is affected (the tournaments still using a preset, the shifts a
-reset clears). The confirm button is red and sits on the right.
+reset clears). The confirm button is red and sits on the right. Use
+`ConfirmationDialog`; for something that can't be undone and takes a lot with it
+(a qualifier and all its runs, every shift), add `require_phrase` so the button
+stays off until the phrase is typed.
 
 **Negative on the left, positive on the right, always.** In any pair of actions
 (a card, a sheet, a dialog footer) the negative or dismissive one (Can't make
@@ -282,7 +287,7 @@ Automated, on every PR:
 
 | Check | Catches |
 |---|---|
-| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a red menu item that isn't last in its menu; the side menu off 224px |
+| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a row's ⋮ not named "More for …"; a red menu item that isn't last in its menu; an awaited `delete_*`/`remove_*`/`cancel_*`/`clear_*`/… service call that no `ConfirmationDialog` stands in front of; the side menu off 224px |
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |

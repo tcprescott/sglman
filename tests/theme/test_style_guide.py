@@ -406,6 +406,31 @@ def test_overflow_menus_use_the_vertical_dots():
     assert not bad, 'more_horiz overflow buttons (use more_vert):\n  ' + '\n  '.join(bad)
 
 
+_ROW_SCOPE = re.compile(r'props\.row|\brow\[|\{row')
+
+
+def test_overflow_buttons_are_named_for_their_row():
+    """A ⋮ button says what it's for. On a row or card it's "More for <name>",
+    so a screen reader lists thirty different buttons rather than thirty
+    "More actions"; a page toolbar's single ⋮ may say "More actions"."""
+    bad = []
+    for rel, _source, _tree, lines in _python_sources():
+        for i, line in enumerate(lines):
+            if 'more_vert' not in line or EXEMPT in line:
+                continue
+            # The button's own tag or call: up to the closing `>` of a <q-btn>,
+            # or the next few chained lines of a ui.button.
+            chunk = '\n'.join(lines[i:i + 4])
+            chunk = chunk.split('<q-menu', 1)[0].split('ui.menu(', 1)[0]
+            named = re.search(r"""aria-label[^\n]*?['"]\s*More|tooltip\(\s*['"]More""", chunk)
+            per_row = _ROW_SCOPE.search(chunk) or '<q-btn' in line
+            if not named:
+                bad.append(f'{rel}:{i + 1}: ⋮ button with no "More …" name')
+            elif per_row and 'More for' not in chunk:
+                bad.append(f'{rel}:{i + 1}: row ⋮ should be named "More for <name>"')
+    assert not bad, 'Overflow buttons:\n  ' + '\n  '.join(bad)
+
+
 def _menu_item_kind(stmt: ast.stmt, source: str) -> str | None:
     """'negative', 'item' or None for one statement directly inside a `ui.menu()`."""
     if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
@@ -432,7 +457,8 @@ def test_destructive_menu_items_come_last():
     for rel, source, tree, lines in _python_sources():
         for node in ast.walk(tree):
             if not (isinstance(node, (ast.With, ast.AsyncWith))
-                    and any(_ui_call(i.context_expr) == 'menu' for i in node.items)):
+                    and any(_ui_call(i.context_expr) == 'menu' or _base_name(i.context_expr) == 'more_menu'
+                            for i in node.items)):
                 continue
             kinds = [(st, _menu_item_kind(st, source)) for st in node.body]
             kinds = [(st, k) for st, k in kinds if k]
@@ -444,6 +470,61 @@ def test_destructive_menu_items_come_last():
                     bad.append(f'{rel}:{seen_negative.lineno}: destructive item before {st.lineno}')
                     break
     assert not bad, 'Destructive menu items not last:\n  ' + '\n  '.join(bad)
+
+
+_DESTRUCTIVE_CALL = re.compile(
+    r'^(delete|remove|unenroll|drop|retire|disconnect|cancel|clear|reset|unassign|deny|revoke|unlink)(_|$)'
+)
+
+
+def _confirmed_functions(tree: ast.AST) -> set[str]:
+    """Names of the functions that only run once a ConfirmationDialog is answered:
+    whatever its ``on_confirm`` names, plus whatever those call, to a fixpoint."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _base_name(node) == 'ConfirmationDialog':
+            for expr in [k.value for k in node.keywords if k.arg == 'on_confirm'] + node.args[1:2]:
+                names |= {n.id for n in ast.walk(expr) if isinstance(n, ast.Name)}
+                names |= {n.attr for n in ast.walk(expr) if isinstance(n, ast.Attribute)}
+    bodies: dict[str, list[ast.AST]] = {}
+    for f in ast.walk(tree):
+        if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bodies.setdefault(f.name, []).append(f)
+    while True:
+        called = {
+            (c.func.id if isinstance(c.func, ast.Name) else c.func.attr)
+            for name in names for body in bodies.get(name, [])
+            for c in ast.walk(body)
+            if isinstance(c, ast.Call) and isinstance(c.func, (ast.Name, ast.Attribute))
+        }
+        if called <= names:
+            return names
+        names |= called
+
+
+def test_destructive_calls_go_through_a_confirmation():
+    """A delete, removal, cancel or disconnect asks first, through ConfirmationDialog.
+    Checked by name: an awaited ``<service>.delete_*/remove_*/cancel_*/...`` call has
+    to sit in a function that only runs from a ConfirmationDialog's ``on_confirm``."""
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        confirmed = _confirmed_functions(tree)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Await) and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Attribute)
+                    and _DESTRUCTIVE_CALL.match(node.value.func.attr)):
+                continue
+            fn = parents.get(node)
+            while fn is not None and not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn = parents.get(fn)
+            if fn is not None and fn.name in confirmed:
+                continue
+            if not _exempt(lines, node.lineno):
+                bad.append(f'{rel}:{node.lineno}: {node.value.func.attr}')
+    assert not bad, (
+        'Destructive calls with no ConfirmationDialog in front of them:\n  ' + '\n  '.join(bad)
+    )
 
 
 def test_side_menu_is_224px():

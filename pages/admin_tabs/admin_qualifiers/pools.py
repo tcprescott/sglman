@@ -34,6 +34,8 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     RUNS_TAB,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 
 
 def build_pools_tab(
@@ -67,17 +69,22 @@ def build_pools_tab(
                     if pool.preset:
                         ui.badge(f'preset: {pool.preset.randomizer}/{pool.preset.name}', color='grey')
                     ui.space()
-                    ui.button('Add permalinks', icon='playlist_add',
-                              on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
-                              ).props('flat color=primary')
                     refusal = roll_refusal(pool.preset) if pool.preset else None
-                    if pool.preset and refusal is None:
+                    rollable = pool.preset is not None and refusal is None
+                    if rollable:
                         ui.button('Roll', icon='casino',
                                   on_click=lambda pid=pool.id: _open_roll_dialog(pid)
                                   ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda pid=pool.id: _delete_pool(pid)
-                              ).props('flat round color=negative').tooltip('Delete pool')
+                    else:
+                        ui.button('Add permalinks', icon='playlist_add',
+                                  on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
+                                  ).props('flat color=primary')
+                    with more_menu(pool.name):
+                        if rollable:
+                            menu_action('playlist_add', 'Add permalinks',
+                                        lambda pid=pool.id: _open_permalinks_dialog(pid))
+                            ui.separator()
+                        menu_action('delete', 'Delete pool', lambda p=pool: _delete_pool(p), negative=True)
                 # Said here rather than in the dialog the button used to open: that
                 # dialog held a count field and nothing that could change the preset,
                 # so the only exit was Cancel. A disabled flat button would not do
@@ -105,10 +112,10 @@ def build_pools_tab(
             if pl.par_time:
                 ui.badge(f'par {format_hms(pl.par_time)}', color='green')
             ui.space()
-            ui.button(icon='edit', on_click=lambda p=pl: _open_permalink_dialog(p)
-                      ).props('flat round dense color=primary').tooltip('Edit this permalink')
-            ui.button(icon='delete', on_click=lambda p=pl: _delete_permalink(p)
-                      ).props('flat round dense color=negative').tooltip('Remove this permalink')
+            with more_menu(pl.url):
+                menu_action('edit', 'Edit permalink', lambda p=pl: _open_permalink_dialog(p))
+                ui.separator()
+                menu_action('delete', 'Remove permalink', lambda p=pl: _delete_permalink(p), negative=True)
 
     def _open_permalink_dialog(pl) -> None:
         with form_dialog('Edit Permalink', card_classes='dialog-card dialog-card--sm') as dialog:
@@ -139,14 +146,20 @@ def build_pools_tab(
                 ui.button('Save', icon='save', on_click=submit).props('color=primary')
         dialog.open()
 
-    async def _delete_permalink(pl) -> None:
-        try:
-            await service.delete_permalink(await current(), pl.id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Permalink removed', color='positive')
-        await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
+    def _delete_permalink(pl) -> None:
+        async def do_delete() -> None:
+            try:
+                await service.delete_permalink(await current(), pl.id)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Permalink removed', color='positive')
+            await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
+
+        ConfirmationDialog(
+            message=f'Remove this permalink from the pool?\n\n{pl.url}',
+            on_confirm=do_delete, confirm_text='Remove', title='Remove permalink?',
+        ).open()
 
     def _open_pool_dialog(qid: int, preset_options: dict) -> None:
         with form_dialog('Add Pool', card_classes='dialog-card dialog-card--sm') as dialog:
@@ -258,15 +271,22 @@ def build_pools_tab(
                 ui.button('Roll', icon='casino', on_click=submit).props('color=primary')
         dialog.open()
 
-    async def _delete_pool(pool_id: int) -> None:
-        try:
-            await service.delete_pool(await current(), pool_id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Pool deleted', color='positive')
-        # Deleting a pool cascades its permalinks and detaches their runs, so the
-        # runs list and the board both move.
-        await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
+    def _delete_pool(pool) -> None:
+        async def do_delete() -> None:
+            try:
+                await service.delete_pool(await current(), pool.id)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Pool deleted', color='positive')
+            # Deleting a pool cascades its permalinks and detaches their runs, so the
+            # runs list and the board both move.
+            await reload_tabs(POOLS_TAB, LIVE_TAB, BOARD_TAB, RUNS_TAB)
+
+        ConfirmationDialog(
+            message=f'Delete the {pool.name} pool and all its permalinks? '
+                    'Runs already played on it stay, but lose their pool.',
+            on_confirm=do_delete, confirm_text='Delete', title='Delete pool?',
+        ).open()
 
     return pools_view

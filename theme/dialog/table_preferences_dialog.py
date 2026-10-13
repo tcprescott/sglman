@@ -16,6 +16,7 @@ from nicegui import ui
 
 from application.services import TablePreferenceService
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.tables.admin_crud import current_actor
 from theme.tables.preferences import apply_saved_config, customization_of
 
@@ -198,11 +199,18 @@ async def open_table_preferences(table: ui.table) -> None:
             ui.notify('Preferences saved', color='positive')
             dialog.close()
 
-        async def reset() -> None:
+        async def do_reset() -> None:
             await service.reset(actor, custom.key)
             apply_saved_config(table, None)
             ui.notify('Table reset to defaults', color='positive')
             dialog.close()
+
+        def reset() -> None:
+            ConfirmationDialog(
+                message='Put this table’s columns, order, widths and page size back to '
+                        'the defaults?',
+                on_confirm=do_reset, confirm_text='Reset', title='Reset table?',
+            ).open()
 
         with dialog_actions().classes('justify-end'):
             ui.button('Reset to defaults', on_click=reset).props('flat color=negative')

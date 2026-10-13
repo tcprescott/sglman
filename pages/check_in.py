@@ -144,7 +144,8 @@ _STATUS_BADGES = '''
 '''
 
 _MENU = f'''
-    <q-btn flat round dense icon="more_vert" class="{REQUIRES_SOCKET_CLASS}" aria-label="More actions">
+    <q-btn flat round dense icon="more_vert" class="{REQUIRES_SOCKET_CLASS}"
+           :aria-label="'More for ' + props.row.name">
         <q-menu auto-close>
             <q-list style="min-width: 200px">
                 <q-item v-if="!props.row.comp_only" clickable @click="$parent.$emit('link', props.row)">
@@ -164,8 +165,10 @@ _MENU = f'''
                     <q-item-section avatar><q-icon name="undo"/></q-item-section>
                     <q-item-section>Undo check-in</q-item-section>
                 </q-item>
-                <q-item v-if="props.row.can_remove" clickable @click="$parent.$emit('remove', props.row)">
-                    <q-item-section avatar><q-icon name="delete" color="negative"/></q-item-section>
+                <q-separator v-if="props.row.can_remove"/>
+                <q-item v-if="props.row.can_remove" clickable class="text-negative"
+                        @click="$parent.$emit('remove', props.row)">
+                    <q-item-section avatar><q-icon name="delete"/></q-item-section>
                     <q-item-section>Remove walk-up</q-item-section>
                 </q-item>
             </q-list>

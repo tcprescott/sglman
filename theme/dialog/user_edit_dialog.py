@@ -249,7 +249,7 @@ class AdminUserDialog(BaseUserDialog):
                 for added in desired - current:
                     await self.user_service.grant_role(target_user, Role(added), actor=actor)
                 for removed in current - desired:
-                    await self.user_service.revoke_role(target_user, Role(removed), actor=actor)
+                    await self.user_service.revoke_role(target_user, Role(removed), actor=actor)  # style-guide: exempt — part of Save
 
             async def sync_tournament_memberships(target_user, multiselect, current_ids_str, add_method, remove_method):
                 desired = set(map(int, multiselect.value or []))

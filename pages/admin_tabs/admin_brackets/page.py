@@ -62,7 +62,7 @@ _ROW_ACTIONS = '''
            :label="props.row.primary"
            @click="$parent.$emit(props.row.primary_event, props.row)">
     </q-btn>
-    <q-btn flat round dense icon="more_vert" color="grey-7">
+    <q-btn flat round dense icon="more_vert" color="grey-7" :aria-label="'More for ' + props.row.name">
         <q-menu auto-close>
             <q-list style="min-width: 190px">
                 <q-item v-if="props.row.state !== 'complete' && props.row.state !== 'cancelled'"
@@ -95,19 +95,19 @@ _ROW_ACTIONS = '''
                     <q-item-section avatar><q-icon name="edit"/></q-item-section>
                     <q-item-section>Edit stage</q-item-section>
                 </q-item>
-                <q-item v-if="props.row.state === 'active'" clickable
+                <q-separator v-if="props.row.state !== 'complete'"/>
+                <q-item v-if="props.row.state === 'active'" clickable class="text-negative"
                         @click="$parent.$emit('cancel', props.row)">
-                    <q-item-section avatar><q-icon name="block" color="negative"/></q-item-section>
+                    <q-item-section avatar><q-icon name="block"/></q-item-section>
                     <q-item-section>Cancel stage</q-item-section>
                 </q-item>
                 <q-item v-if="props.row.state === 'draft' || props.row.state === 'cancelled'"
-                        clickable @click="$parent.$emit('remove', props.row)">
-                    <q-item-section avatar><q-icon name="delete" color="negative"/></q-item-section>
+                        clickable class="text-negative" @click="$parent.$emit('remove', props.row)">
+                    <q-item-section avatar><q-icon name="delete"/></q-item-section>
                     <q-item-section>Delete stage</q-item-section>
                 </q-item>
             </q-list>
         </q-menu>
-        <q-tooltip>More actions</q-tooltip>
     </q-btn>
 '''
 
