@@ -23,7 +23,7 @@ from application.services.match.match_status import tone as status_tone
 from application.tenant_context import tenant_scope
 from application.utils.timezone import format_local_display
 from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
-from theme.dialog._helpers import dialog_actions, dialog_close_button, mobile_sheet
+from theme.dialog._helpers import dialog_close_button, mobile_sheet
 from theme.notify import notify_error
 
 
@@ -285,9 +285,6 @@ def build_match_dialog(
         return slot_display_name(match, slot, entry_name)
 
     with ui.dialog() as dialog, ui.card().classes('dialog-card'):  # style-guide: exempt — its header carries the match's status badge
-        # House chrome: a full-screen sheet on a phone, sticky title, and the
-        # sticky action bar below — so the report buttons stay reachable on a
-        # long series rather than sitting under the games list.
         mobile_sheet(dialog)
         with ui.row().classes('dialog-header items-center q-pa-sm'):
             heading = ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn like dialog_header
@@ -347,13 +344,13 @@ def build_match_dialog(
                 'Report result' if match.state == BracketMatchState.OPEN
                 else 'Override result'
             ).classes('section-title')
-            with ui.row().classes('items-center gap-2 w-full'):
+            with ui.row().classes('form-pair items-center gap-2'):
                 s1 = ui.number(
                     label=name_of(match.entry1_id), value=match.entry1_score, min=0,
-                ).props('dense inputmode=numeric').classes('w-32')
+                ).props('dense inputmode=numeric')
                 s2 = ui.number(
                     label=name_of(match.entry2_id), value=match.entry2_score, min=0,
-                ).props('dense inputmode=numeric').classes('w-32')
+                ).props('dense inputmode=numeric')
             ff = ui.switch('Forfeit', value=match.forfeit)
 
             async def save(winner_id: int) -> None:
@@ -388,6 +385,4 @@ def build_match_dialog(
                     on_click=lambda _=None, w=match.entry2_id: save(w),
                 ).props('dense color=primary').classes('col min-w-0 ellipsis')
 
-        with dialog_actions().classes('justify-end'):
-            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()

@@ -8,7 +8,7 @@ editor assigns them here; the assignment survives every re-sync.
 from nicegui import app, ui
 
 from application.services import ChallongeService, UserService, get_user_from_discord_id
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.notify import notify_error
 
 _STATUS = {
@@ -75,7 +75,7 @@ class ChallongeParticipantsDialog:
                             picker = ui.select(
                                 options=options, label='Wizzrobe user', with_input=True,
                                 value=row['user'].id if row['user'] is not None else None,
-                            ).props('dense outlined').classes('grow').style('min-width: 14rem')
+                            ).props('dense outlined').classes('grow min-w-56')
                             ui.button(
                                 'Assign', icon='person_add',
                                 on_click=lambda _=None, r=row, p=picker: assign(r, p.value),
@@ -118,6 +118,4 @@ class ChallongeParticipantsDialog:
 
                 await roster()
 
-            with dialog_actions().classes('justify-end'):
-                ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()

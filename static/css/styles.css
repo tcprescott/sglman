@@ -164,6 +164,7 @@
     --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.05);
     --shadow-2: 0 4px 12px rgba(28, 27, 25, 0.08);
     --shadow-3: 0 12px 32px rgba(28, 27, 25, 0.14);
+    --scrim: rgba(28, 27, 25, 0.4);
 
     /* Motion */
     --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -213,6 +214,7 @@ body.wiz-has-bottom-nav {
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
     --shadow-3: 0 12px 36px rgba(0, 0, 0, 0.55);
+    --scrim: rgba(0, 0, 0, 0.6);
 }
 
 /* Base typography — wins over Quasar's Roboto default because this sheet loads
@@ -2346,6 +2348,45 @@ main.q-page:focus {
     max-width: 120px; /* reasonable default, table can expand as needed */
 }
 
+/* A member's role chips wrap inside a capped cell. Quasar cells are nowrap, so
+   someone holding four roles otherwise set the Roles column to one long line
+   and pushed Joined and Via off the end of the table. */
+.user-table .user-table__roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    white-space: normal;
+    min-width: 9rem;
+    max-width: 20rem;
+}
+
+/* Discord handles run to 30-odd characters with no break point, and the
+   display name falls back to the handle, so one long name was two wide
+   columns. Break it inside a capped cell instead. */
+.user-table td .user-table__name {
+    display: inline-block;
+    min-width: 7rem;
+    max-width: 12rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Members filters on a phone: Roles across the top, the two checkboxes
+   side by side under it. */
+@media (max-width: 1023.98px) {
+    .user-filters .match-filter-row > .match-filter-field {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Nine columns share a laptop-width page, so the cells give up some of
+   Quasar's 16px side padding rather than push Via and Remove off the end. */
+.user-table .q-table th,
+.user-table .q-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
 /* Ensure links inside the wrapper also wrap */
 .match-table td .wrap a {
     white-space: normal !important;
@@ -3708,25 +3749,86 @@ ol.wiz-help-list { list-style-type: decimal; }
     }
 }
 
-.wiz-help-menu-title {
-    font-weight: 700;
-    margin-bottom: 0.4rem;
+/* The popover: a fixed reading width on desktop. Without one the menu shrank
+   to its narrowest word and wrapped a snippet a word or two per line. */
+.q-menu.wiz-help-menu {
+    width: min(24rem, calc(100vw - 2rem));
+    max-width: none !important;
+    max-height: min(32rem, 75vh) !important;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-3);
+    background: var(--surface);
+    color: var(--fg);
 }
 
-/* Several topics: a list of names, full width, that each open in place. */
-.wiz-help-menu-body > .wiz-help-topic {
-    align-self: stretch;
-    border-top: 1px solid var(--border-subtle);
+.wiz-help-view { gap: 0; width: 100%; }
+
+.wiz-help-menu-head {
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.5rem 1rem;
+    background: var(--surface);
 }
-.wiz-help-menu-body:has(> .wiz-help-topic) { gap: 0; }
-.wiz-help-topic .q-item { padding: 0; min-height: 44px; }
-.wiz-help-topic .q-expansion-item__content { padding: 0 0 0.6rem; }
+
+.wiz-help-menu-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: var(--text-lg);
+}
+
+.q-btn.wiz-help-back {
+    color: var(--wiz-link);
+    font-weight: 700;
+    margin-left: -0.5rem;
+    padding: 0 0.5rem 0 0.25rem;
+    min-height: 36px;
+}
 
 .wiz-help-menu-body {
-    padding: 0.85rem 1rem;
-    max-height: 60vh;
-    overflow-y: auto;
-    font-size: 0.9rem;
+    width: 100%;
+    padding: 0 1rem 1rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+/* Several topics: a list of names that each open in place, with Back. */
+.wiz-help-topic-list { gap: 0; padding: 0 0.5rem 0.5rem; }
+.q-btn.wiz-help-topic {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0;
+    color: var(--fg);
+    font-weight: 400;
+    font-size: 0.95rem;
+    text-align: left;
+}
+.q-btn.wiz-help-topic .q-icon { color: var(--fg-muted); }
+
+/* On a phone the same menu rises as a bottom sheet, like the app's dialogs:
+   full width, Close in thumb reach, the page dimmed behind it. Quasar
+   positions a menu with inline top/left, hence the !important. */
+@media (max-width: 599.98px) {
+    .q-menu.wiz-help-menu {
+        position: fixed !important;
+        top: auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        max-height: 85vh !important;
+        border-width: 1px 0 0;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 0 0 100vmax var(--scrim);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .wiz-help-menu-head { padding-top: 1rem; }
 }
 
 /* The popup's last paragraph should not push the Read more link off its baseline
@@ -4618,6 +4720,38 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--status-pending);
     font-weight: 600;
 }
+/* One crew role: its count, then (on the player board) the viewer's own
+   button, then the names. */
+.run-sheet__role {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    font-size: var(--text-sm);
+}
+.run-sheet__people {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+.run-sheet__person {
+    color: var(--fg);
+    font-weight: 600;
+}
+.run-sheet__person > .q-icon {
+    margin-right: 0.25rem;
+    vertical-align: -2px;
+}
+.run-sheet__person-name {
+    white-space: nowrap;
+}
+.run-sheet__person.st-pending {
+    color: var(--status-pending);
+}
+.run-sheet__person-note {
+    color: var(--fg-secondary);
+    font-weight: 400;
+}
 
 /* Phone: each line is a button. */
 .run-sheet__item {
@@ -4737,37 +4871,18 @@ ol.wiz-help-list { list-style-type: decimal; }
 .player-sheet__row > td:first-child {
     white-space: nowrap;
 }
-.player-sheet__roles {
-    display: grid;
-    grid-template-columns: max-content auto;
-    align-items: center;
-    gap: 0.25rem 0.75rem;
-    font-size: var(--text-sm);
-}
-/* Desktop: label and control are the grid's two columns, so every role's
-   button starts at the same x. */
-.player-sheet__roles > .player-sheet__role {
-    display: contents;
+.player-sheet__row > td.player-sheet__crew-cell {
+    vertical-align: top;
 }
 .player-sheet__role {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem 0.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
     font-size: var(--text-sm);
 }
-.player-sheet__act {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem 0.5rem;
-}
-.player-sheet__act .q-btn {
+.player-sheet__role .wiz-crew-action .q-btn {
     padding: 0 0.625rem;
-}
-.player-sheet__mine {
-    color: var(--fg-secondary);
-    white-space: nowrap;
 }
 .player-sheet__status {
     display: flex;
@@ -4821,12 +4936,22 @@ ol.wiz-help-list { list-style-type: decimal; }
 .player-sheet__acts {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.375rem;
-    padding: 0 0.75rem 0.625rem 4.75rem;
+    align-items: stretch;
+    gap: 0.625rem;
+    padding: 0 0.75rem 0.75rem;
+}
+.player-sheet__acts > .q-btn {
+    align-self: flex-start;
 }
 .player-sheet__acts .q-btn {
     min-height: 2.25rem;
+}
+/* The phone tray spans the card, so the button sits in the same spot on
+   every card. */
+.player-sheet__acts .wiz-crew-action {
+    flex-basis: auto;
+    align-self: stretch;
+    flex-wrap: wrap;
 }
 
 /* The match sheet: a full-height side sheet on a desktop, a bottom sheet on a phone. */
@@ -4891,7 +5016,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 .match-sheet__select {
     min-width: 0;
-    max-width: 16rem;
+    max-width: 20rem;
 }
 .match-sheet__seed {
     overflow-wrap: anywhere;

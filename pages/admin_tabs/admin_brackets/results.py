@@ -23,7 +23,7 @@ from theme.brackets import (
     render_elimination_mobile,
 )
 from theme.brackets.tables import render_standings
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor
@@ -70,7 +70,7 @@ async def open_results(row, client, *, service, tenant_id, tournament_id, on_cha
     tid = tournament_id
     with client:
         actor = await current_actor()
-        with form_dialog(f"Results — {row['name']}") as dialog:
+        with form_dialog(f"Results — {row['name']}", card_classes='dialog-card dialog-card--lg') as dialog:
 
             @ui.refreshable
             async def body() -> None:
@@ -147,9 +147,6 @@ async def open_results(row, client, *, service, tenant_id, tournament_id, on_cha
                     ui.separator()
 
                 _render_match_lists(matches, names, round_names, embedded, open_match)
-
-                with dialog_actions().classes('justify-end'):
-                    ui.button('Close', on_click=dialog.close).props('flat')
 
             await body()
         dialog.open()
