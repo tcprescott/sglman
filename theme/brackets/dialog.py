@@ -23,7 +23,7 @@ from application.services.match.match_status import tone as status_tone
 from application.tenant_context import tenant_scope
 from application.utils.timezone import format_local_display
 from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
-from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.dialog._helpers import dialog_actions, dialog_close_button, mobile_sheet
 from theme.notify import notify_error
 
 
@@ -303,8 +303,7 @@ def build_match_dialog(
                     match.state.value.title(),
                     color=_STATE_BADGE.get(match.state, 'grey'),
                 )
-            ui.button(icon='close', on_click=dialog.close) \
-                .props('flat round dense').tooltip('Close')
+            dialog_close_button(dialog)
 
         for slot, entry_id in ((1, match.entry1_id), (2, match.entry2_id)):
             is_winner = (
