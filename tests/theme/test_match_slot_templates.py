@@ -397,9 +397,9 @@ def test_the_read_only_cells_have_callers():
     divergent copies of one cell, in a layer with no render coverage."""
     from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 
-    # The home schedule was the third, until it became a run sheet whose seed
-    # and state live in the match details sheet.
-    for path in ('pages/home_tabs/player.py', 'pages/room_seeds.py'):
+    # The home schedule and the player dashboard were the other two, until each
+    # became a run sheet whose seed and state live in the match details sheet.
+    for path in ('pages/room_seeds.py',):
         src = pathlib.Path(path).read_text()
         assert 'state_readonly_slot(' in src, path
         assert 'SEED_SLOT_READONLY' in src, path
@@ -665,13 +665,6 @@ class TestYourActionsCell:
         cell = self._cell()
         for label in ('Ask to change', 'Offer for stream', 'Harder settings', "'Watch'"):
             assert label in cell, label
-
-    def test_the_player_board_uses_it_beside_players(self):
-        src = pathlib.Path('pages/home_tabs/player.py').read_text()
-        names = re.findall(r"\{'name': (MY_ACTIONS_COLUMN|'[a-z_]+')", src)
-        assert names.index('MY_ACTIONS_COLUMN') == names.index("'players'") + 1
-        for retired in ("'stream_volunteer'", "'reschedule'", "'hard_preset'", "'watch'"):
-            assert retired not in names, retired
 
     def test_the_board_still_fetches_the_state_its_controls_read(self):
         """The bulk reschedule and hard-preset fetches were gated on their own

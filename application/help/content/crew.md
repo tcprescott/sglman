@@ -83,7 +83,7 @@ and the slot shows up on My Schedule ready to confirm.
 They can **withdraw an approval** they already gave, up to and including the day
 of the match, if the shape of the stream changes or someone better suited
 becomes free. You get a DM when that happens, your confirmation is cleared, and
-the slot goes back to {chip:pending:Awaiting approval}. If they take you off the
+you're back to waiting for approval. If they take you off the
 match altogether, it disappears from your list. Neither is a judgement on you.
 :::
 
@@ -95,32 +95,32 @@ Until you do, staff can't tell whether you've seen the approval.
 
 You can confirm from three places, and they all do the same thing:
 
-- **Confirm I can cover this**, on your slot in My Schedule
-- **Confirm**, next to **Withdraw** in the role's column on the schedule board
+- **Confirm**, next to **Withdraw** in your role's column, on My Schedule or
+  the schedule board
 - **Acknowledge**, on the DM you were sent
 :::
 
 ## My Schedule
 
-**Crew you signed up for**, on Home's **My Schedule** tab, lists every slot
-you've signed up for, soonest first. If you aren't playing in any tournament it's
-the first thing on the tab; if you are, it comes after your own matches. A match
-stays on the list while it's running, even once its start time has passed. Each
-slot shows whether you're commentating or tracking, the match, its stage once it
-has one, and a status chip:
+**Crew you signed up for**, on Home's **My Schedule** tab, is the schedule
+board narrowed to the matches you crew. If you aren't playing in any tournament
+it's the first thing on the tab; if you are, it comes after your own matches.
+Each line reads the way it does on the schedule, with your own **Withdraw**
+(and **Confirm**, once you're approved) in your role's column, so you can tell
+where you stand from the names:
 
 :::snippet crew-status
-| Chip | What it means |
+| Beside your name | What it means |
 |---|---|
-| {chip:pending:Awaiting approval} | You've signed up. Staff haven't decided yet. |
-| {chip:candidate:Approved — please confirm} | You have the slot. Confirm that you can still cover it. |
-| {chip:ok:Confirmed} | You have the slot and you've confirmed. Nothing left to do. |
-| {chip:neutral:Played} | The match is over. |
+| A clock, *waiting for approval* | You've signed up. Staff haven't decided yet. |
+| A tick, with **Confirm** in your tray | You have the slot. Confirm that you can still cover it. |
+| A tick, and no **Confirm** | You have the slot and you've confirmed. Nothing left to do. |
 
-Turn on **Include past** to see the ones you've already worked.
+Finished matches drop off. Add *Finished* and *Confirmed* to the **State**
+filter to see the ones you've already worked.
 :::
 
-![Crew you signed up for on a phone, with two slots awaiting approval and one approved slot showing a Confirm I can cover this button](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
+![Crew you signed up for on a phone: a match where you're tracking, with Withdraw and Confirm in your tray](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
 
 ## Reading the crew columns
 
@@ -156,11 +156,11 @@ as early as you can.
 
 ## If nobody approves you
 
-Signups sit in {chip:pending:Awaiting approval} until staff work through them,
-which at a busy event may not be until shortly before the match. If a match you
-signed up for has started and you never heard back, the slot went to someone
-else. You can withdraw the stale signup or leave it; either way it becomes
-{chip:neutral:Played} once the match ends.
+Signups wait for approval until staff work through them, which at a busy event
+may not be until shortly before the match. If a match you signed up for has
+started and you never heard back, the slot went to someone else. You can
+withdraw the stale signup or leave it; either way it drops off your list once
+the match ends.
 
 ## On the day
 

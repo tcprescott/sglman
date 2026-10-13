@@ -39,10 +39,12 @@ The **Your matches** panel puts things in the order you need to deal with them:
    tournaments take requests.
 5. **Your change requests**, when you've asked staff to move something.
 
-Each row's **Your actions** cell holds everything you can do to that match:
-**Ask to change**, **Harder settings** where the tournament offers them,
-**Offer for stream** and **Watch**. The **Generated Seed** column fills in once
-your seed is rolled.
+Your matches are laid out like the schedule board, one line each, grouped
+into *Live now* and *Up next*. **Acknowledge** sits under the status and the
+bell watches the match. Everything else you can do to a match is in its **⋮**
+menu: **Ask to change**, **Harder settings** where the tournament offers them,
+and **Offer for stream**. Tap the match's name for its details: your seed once
+it's rolled, your station, and who's on crew.
 
 A link from a Discord DM can narrow the list to one match. The chip at the top
 says *Showing one match only*, and **Show all my matches** puts the rest back.
@@ -50,7 +52,7 @@ says *Showing one match only*, and **Show all my matches** puts the rest back.
 ## Acknowledging a match
 
 When you're scheduled into a match, the bot DMs you with an **Acknowledge**
-button. You can also tap **Acknowledge** beside your own name on My Schedule.
+button. You can also tap **Acknowledge** on the match's line on My Schedule.
 Either way it tells staff you've seen the time and intend to be there, and a
 green tick appears beside your name for everyone to see.
 
@@ -162,7 +164,7 @@ names, so check you've got that one before you paste.
 
 :::snippet harder-settings
 Some tournaments offer a harder preset beside the standard one. **Harder
-settings** in *Your actions* lets you opt in for one match, and the match only
+settings** in a match's **⋮** menu lets you opt in for one match, and the match only
 plays harder if **every** player opts in.
 
 Your answer is private. Nobody is told you opted in unless all of you did, and
@@ -186,9 +188,9 @@ means your results are credited to you.
 ## Offering your match for stream
 
 :::snippet stream-volunteer
-**Offer for stream**, under *Your actions* on My Schedule, is where you say you'd
-be happy for your match to go out on stream. Tap it once to offer, tap it again
-to take the offer back.
+**Offer for stream**, in a match's **⋮** menu on My Schedule, is where you say
+you'd be happy for your match to go out on stream. Pick it once to offer, and
+**Withdraw stream offer** in the same place takes it back.
 
 It's a hint to staff, nothing more. They build the stream schedule around
 stages, crew and what the bracket needs, and they won't read your offer as a
@@ -205,7 +207,7 @@ You can't move or cancel your own match, but you can ask, and you don't have to
 find a staff member to do it.
 
 :::snippet reschedule-request
-**Ask to change**, under *Your actions* on My Schedule, asks staff to move your
+**Ask to change**, in a match's **⋮** menu on My Schedule, asks staff to move your
 match or call it off. It's a request, not a booking: nothing changes until staff
 answer, so keep playing to the current time until you hear back.
 

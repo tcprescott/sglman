@@ -20,7 +20,7 @@ Each side has a surface of its own for the work it owns:
 | Who | Where | What it carries |
 |---|---|---|
 | Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
-| The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw. It leads the tab for anyone entered in no tournament, and a match that has started but not finished stays on it (for up to 12 hours past its start) |
+| The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | The player run sheet (`layout='player_run_sheet'`) narrowed to the matches they crew (`MatchTableView(crew_discord_id=...)`, approved or waiting), so their Withdraw and Confirm sit in their own role's tray as on Event › Schedule. A line they withdraw from leaves the board (`_still_crews`), and `?match=` narrows it to that match with a *Showing one match only* chip. It leads the tab for anyone entered in no tournament |
 
 The crew list is on Home rather than the Volunteer hub deliberately: crew signup
 is behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up

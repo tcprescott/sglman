@@ -7,93 +7,47 @@ board — 17 rows and ~5,900 px of scroll on a phone — and their only reminder
 the approval DM, if approval ever happened. The Player tab ("Your Schedule") is
 players-only and mentions crew nowhere.
 
-Modelled on **My Shifts** (``pages/volunteer_tabs/my_shifts.py``), deliberately: the
-same people do both kinds of work, and shifts have had this page all along.
-Lives on Home rather than the Volunteer hub because crew signup is neither
-role-gated nor behind ``FeatureFlag.VOLUNTEERS`` — anyone in the community can
-sign up from the Schedule board, so anyone must be able to see what they signed
-up for.
+It's the player run sheet Event > Schedule uses, narrowed to the matches the
+viewer crews, so their Withdraw and Confirm sit in their own role's tray exactly
+where that board puts them. Lives on Home rather than the Volunteer hub because
+crew signup is neither role-gated nor behind ``FeatureFlag.VOLUNTEERS`` —
+anyone in the community can sign up from the Schedule board, so anyone must be
+able to see what they signed up for.
 """
 
-from typing import Any, Optional
+from typing import Optional
 
-from nicegui import app, background_tasks, context, ui
+from nicegui import app, ui
 
 from application.services import CrewService, get_user_from_discord_id
-from application.utils.match_labels import match_label
-from application.utils.timezone import format_local_display
-from theme.dialog.confirmation_dialog import ConfirmationDialog
-from theme.empty_state import empty_panel
-from theme.notify import notify_error
+from application.utils.app_links import HOME_MY_CREW, home_url
+from theme.dialog.match_sheet import MatchSheet
 from theme.section import section_panel
+from theme.tables.match import MatchTableView
+from theme.tables.match_access import MatchBoardAccess
+from theme.tables.match_player_run_sheet import PLAYER_RUN_SHEET_COLUMNS, decorate_player_row
+from theme.tables.preferences import TableKeys
 
-
-def commitment_status(row: dict) -> tuple[str, str]:
-    """``(chip class, label)`` for one commitment — the four states it can be in.
-
-    Pure so the vocabulary is testable without a browser, and so the page and
-    any future Discord/report mirror cannot describe the same row differently.
-    """
-    if row.get('finished'):
-        return 'wiz-chip--neutral', 'Played'
-    if not row.get('approved'):
-        return 'wiz-chip--pending', 'Awaiting approval'
-    if not row.get('acknowledged'):
-        return 'wiz-chip--candidate', 'Approved — please confirm'
-    return 'wiz-chip--ok', 'Confirmed'
-
-
-def commitment_title(row: dict) -> str:
-    """The match, named the way the person looking at it would name it.
-
-    Reads through ``match_labels`` for the reason that module exists: an id in a
-    sentence is a defect wherever a user can read it.
-    """
-    return match_label(
-        player_names=row.get('players') or [],
-        tournament=row.get('tournament') or '',
-        scheduled_at=format_local_display(row.get('scheduled_at')),
-    )
-
-
-def crew_card_id(match_id: int, role: str) -> str:
-    """The DOM id of a commitment card, so a crew DM's link can scroll to it.
-
-    Role included because one person can both commentate and track a match,
-    which is two cards.
-    """
-    return f'crew-{role}-{match_id}'
+#: The section's DOM id, so a crew DM's link can scroll to it.
+CREW_SECTION_ID = 'my-crew'
 
 
 async def my_crew_tab(focus_match: Optional[int] = None) -> None:
     """``focus_match`` comes from a crew DM's button (``/home/my-crew?match=``):
-    that match's card is outlined and scrolled into view. A match whose start
-    has passed is not in the default upcoming list, so the list widens to
-    include past slots and says why. A match the viewer does not crew is left
-    to the player section's notice.
+    the board narrows to that match, says so, and the page scrolls to it. A
+    match the viewer does not crew leaves the board whole and is left to the
+    player section's notice.
     """
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    discord_id = app.storage.user.get('discord_id')
+    user = await get_user_from_discord_id(discord_id)
     if user is None:
         ui.label('You must be logged in to see your crew commitments.').classes('text-error')
         return
 
-    service = CrewService()
-    state = {'upcoming_only': True}
-    focus: dict[str, Optional[int]] = {'match_id': int(focus_match) if focus_match else None}
-    if focus['match_id'] is not None:
-        def holds(rows: list[dict]) -> bool:
-            return any(r['match_id'] == focus['match_id'] for r in rows)
-
-        if not holds(await service.list_my_commitments(user, upcoming_only=True)):
-            if holds(await service.list_my_commitments(user, upcoming_only=False)):
-                state['upcoming_only'] = False
-                ui.notify(
-                    "That match's start time has passed, so your past crew slots "
-                    'are showing too.',
-                    color='info',
-                )
-            else:
-                focus['match_id'] = None
+    commitments = await CrewService().list_my_commitments(user, upcoming_only=False)
+    match_ids = None
+    if focus_match is not None and any(r['match_id'] == int(focus_match) for r in commitments):
+        match_ids = [int(focus_match)]
 
     panel = await section_panel(
         'Crew you signed up for',
@@ -106,128 +60,43 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
         ],
         user=user,
     )
-    page = panel.body
-    with page:
-        # ``client`` arrives from the call site, never read in here: both of
-        # these run as detached background tasks, where the slot stack is empty
-        # and ``context.client`` *raises* rather than returning None. Reading it
-        # on the first line meant both buttons died before doing anything —
-        # the volunteer's Confirm and Withdraw were dead controls.
-        async def withdraw(row: dict, client) -> None:
-            dialog: Any = None  # bound below; ConfirmationDialog.dialog exists after open()
+    panel.body.props(f'id={CREW_SECTION_ID}')
+    with panel.body:
+        if not commitments:
+            ui.label(
+                'Nothing yet. Sign up to commentate or track a match from the '
+                'Schedule tab.'
+            ).classes('text-muted')
+            return
 
-            async def perform() -> None:
-                # The confirm handler is itself a detached task, so it needs the
-                # same client the opener was handed.
-                with client:
-                    try:
-                        await service.undo_crew_signup(row['match_id'], user, row['role'])
-                        ui.notify(
-                            f'You have been removed as a {row["role"]}.', color='positive')
-                    except (ValueError, PermissionError) as e:
-                        notify_error(e)
-                    await commitments.refresh()
+        if match_ids:
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                    ui.icon('filter_alt', size='14px')
+                    ui.label('Showing one match only')
+                ui.button(
+                    'Show all your crew slots', icon='clear',
+                    on_click=lambda: ui.navigate.to(home_url(HOME_MY_CREW)),
+                ).props('flat dense color=primary')
 
-            # The two withdrawals are not the same act: dropping a slot staff
-            # approved and announced costs them cover, and the service tells
-            # them so. Same split the board's Withdraw makes.
-            if row['approved']:
-                message = (
-                    f'Withdraw as {row["role"]} for {commitment_title(row)}?\n\n'
-                    'Staff approved you for this slot — they will be told you have '
-                    'withdrawn so they can find cover.'
-                )
-                tone = 'negative'
-            else:
-                message = f'Withdraw as {row["role"]} for {commitment_title(row)}?'
-                tone = 'primary'
+        sheet = MatchSheet(None, access=MatchBoardAccess(),
+                           decorate=lambda row: decorate_player_row(row, discord_id))
+        view = MatchTableView(
+            columns=PLAYER_RUN_SHEET_COLUMNS,
+            get_query=None,
+            admin_controls=False,
+            table_key=TableKeys.HOME_MY_CREW,
+            storage_key='my_crew',
+            crew_discord_id=discord_id,
+            match_ids=match_ids,
+            on_rows_changed=sheet.sync,
+            layout='player_run_sheet',
+            on_open_match=sheet.open,
+        )
+        sheet.view = view
 
-            with page:
-                dialog = ConfirmationDialog(
-                    message,
-                    title=f'Withdraw as {row["role"]}',
-                    confirm_text='Withdraw',
-                    tone=tone,
-                    on_confirm=lambda: background_tasks.create(perform()),
-                )
-                dialog.open()
-
-        async def acknowledge(row: dict, client) -> None:
-            # Everything inside the client, not just the notify: the service
-            # call and the refresh are both tenant-scoped reads, and the stash
-            # the tenant fallback reads only exists within this block.
-            with client:
-                try:
-                    await service.acknowledge_crew_assignment(row['id'], row['role'], user)
-                    ui.notify('Thanks — your slot is confirmed.', color='positive')
-                except (ValueError, PermissionError) as e:
-                    notify_error(e)
-                await commitments.refresh()
-
-        @ui.refreshable
-        async def commitments() -> None:
-            rows = await service.list_my_commitments(
-                user, upcoming_only=state['upcoming_only'])
-            if not rows:
-                empty_panel(
-                    'Nothing yet. Sign up to commentate or track a match from the '
-                    'Schedule tab.', icon='headset_mic')
-                return
-            focused_id: Optional[str] = None
-            with ui.element('div').classes('wiz-tile-grid'):
-                for row in rows:
-                    chip_class, status = commitment_status(row)
-                    card_id = crew_card_id(row['match_id'], row['role'])
-                    card = ui.card().props(f'id={card_id}')
-                    if row['match_id'] == focus['match_id']:
-                        card.classes('wiz-deep-link-target')
-                        focused_id = focused_id or card_id
-                    with card:
-                        with ui.row().classes('items-center gap-2 flex-wrap full-width'):
-                            with ui.element('span').classes(f'wiz-chip {chip_class}'):
-                                ui.label(status)
-                            ui.label(row['role'].capitalize()).classes('text-weight-medium')
-                            ui.space()
-                            if row['stage']:
-                                with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
-                                    ui.icon('tv', size='14px')
-                                    ui.label(row['stage'])
-                        ui.label(commitment_title(row)).classes('text-body2')
-                        with ui.row().classes('items-center gap-2'):
-                            # Acknowledging from here is the same act the approval
-                            # DM's button performs; a volunteer who missed the DM
-                            # had no other way to do it.
-                            if not row['finished']:
-                                ui.button(
-                                    'Withdraw', icon='undo',
-                                    on_click=lambda _e, r=row: background_tasks.create(
-                                        withdraw(r, context.client)),
-                                ).props('flat color=negative dense no-caps')
-                            if row['approved'] and not row['acknowledged'] and not row['finished']:
-                                ui.button(
-                                    'Confirm I can cover this', icon='check',
-                                    on_click=lambda _e, r=row: background_tasks.create(
-                                        acknowledge(r, context.client)),
-                                ).props('color=primary dense no-caps')
-            if focused_id:
-                # Scrolling is the one thing here the Python API cannot do. Once
-                # only: a later refresh (Confirm, Withdraw) must not yank the
-                # page back up under the reader.
-                ui.run_javascript(
-                    f"setTimeout(() => document.getElementById('{focused_id}')"
-                    f"?.scrollIntoView({{behavior: 'smooth', block: 'center'}}), 400)"
-                )
-                focus['match_id'] = None
-
-        async def toggle_scope(event) -> None:
-            state['upcoming_only'] = not bool(event.value)
-            await commitments.refresh()
-
-        # In the header rather than above the list: a scope switch floating over
-        # the cards it filters reads as a stray control on a stacked page.
-        with panel.aside:
-            ui.switch('Include past', value=not state['upcoming_only'], on_change=toggle_scope) \
-                .props('dense').classes('wiz-panel__switch') \
-                .tooltip('Show matches that have already been played')
-
-        await commitments()
+    if match_ids:
+        ui.run_javascript(
+            f"setTimeout(() => document.getElementById('{CREW_SECTION_ID}')"
+            "?.scrollIntoView({behavior: 'smooth', block: 'start'}), 400)"
+        )

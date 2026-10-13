@@ -26,14 +26,16 @@ from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_dialog import UserMatchDialog
+from theme.dialog.match_sheet import MatchSheet
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.tables.match import MatchTableView
-from theme.tables.match_slots import (
-    MY_ACTIONS_COLUMN,
-    SEED_SLOT_READONLY,
-    state_readonly_slot,
+from theme.tables.match_access import MatchBoardAccess
+from theme.tables.match_player_run_sheet import (
+    PLAYER_MENU_COLUMN,
+    PLAYER_RUN_SHEET_COLUMNS,
+    decorate_player_row,
 )
 from theme.tables.preferences import TableKeys
 
@@ -437,29 +439,12 @@ async def render_player_dashboard(
                 else:
                     _notify_stale_schedule_link()
 
-        columns = [
-            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament',
-             'sortable': True},
-            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at',
-             'sortable': True},
-            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
-            # Not sortable: a joined roster of names.
-            {'name': 'players', 'label': 'Players', 'field': 'players'},
-            # Beside Players, because these are the only things on the row this
-            # viewer can act on: Ask to change, the harder-settings choice, the
-            # stream offer and Watch, labelled, in one cell. As four icon columns
-            # after Stage and Seed they started at the table's right edge at 1440
-            # (match_slots.MY_ACTIONS_SLOT).
-            {'name': MY_ACTIONS_COLUMN, 'label': 'Your actions', 'field': MY_ACTIONS_COLUMN},
-            {'name': 'stage', 'label': 'Stage', 'field': 'stage',
-             'sortable': True},
-            {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-        ]
-
-        extra_slots = {
-            'body-cell-state': state_readonly_slot(scheduled_detailed=False),
-            'body-cell-generated_seed': SEED_SLOT_READONLY,
-        }
+        # The player run sheet Event > Schedule uses, plus a ⋮ per line for
+        # what only a player of that match can do. The details sheet a tapped
+        # line opens holds the rest (seed, stations, who's confirmed).
+        columns = [*PLAYER_RUN_SHEET_COLUMNS, PLAYER_MENU_COLUMN]
+        sheet = MatchSheet(None, access=MatchBoardAccess(),
+                           decorate=lambda row: decorate_player_row(row, discord_id))
 
         async def submit_match():
             dialog = UserMatchDialog(discord_id=discord_id)
@@ -554,11 +539,14 @@ async def render_player_dashboard(
             admin_controls=False,
             table_key=TableKeys.HOME_PLAYER_MATCHES,
             submit_match_callback=submit_match if can_request else None,
-            extra_slots=extra_slots,
             player_discord_id=discord_id,
             storage_key='player_dashboard',
             match_ids=board_match_ids,
+            on_rows_changed=sheet.sync,
+            layout='player_run_sheet',
+            on_open_match=sheet.open,
         )
+        sheet.view = table_view
 
         await requests_section()
         if reschedule is not None:

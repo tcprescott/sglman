@@ -1,7 +1,6 @@
 ### Improved
 - Lists of cards now sit side by side on a computer instead of stretching
-  across the whole window: Triforce Texts, Crew you signed up for, the
-  qualifier pools, live races, review queue and reviewers, the qualifiers
+  across the whole window: Triforce Texts, the qualifier pools, live races, review queue and reviewers, the qualifiers
   list, a tournament's brackets, the Watch page, Help and Event information,
   Challonge's linked tournaments, the setup checklist and the community
   picker. On a phone they're still one column.

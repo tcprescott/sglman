@@ -134,6 +134,7 @@ class MatchRepository:
         stage_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
+        crew_discord_id: Optional[str] = None,
         exclude_racetime: bool = False,
         match_ids: Optional[List[int]] = None,
         prefetch_relations: bool = True
@@ -146,6 +147,8 @@ class MatchRepository:
             stage_ids: Filter by stage IDs
             only_upcoming: Only return matches that haven't finished
             user_discord_id: Filter matches where user is a player
+            crew_discord_id: Filter matches where user signed up to commentate
+                or track, approved or not
             exclude_racetime: Drop matches whose tournament runs on racetime.gg
             match_ids: Restrict to these IDs. Still tenant-scoped, so an ID from
                 another community narrows the result to nothing rather than
@@ -176,7 +179,13 @@ class MatchRepository:
         
         if user_discord_id:
             query = query.filter(players__user__discord_id=user_discord_id)
-        
+
+        if crew_discord_id:
+            query = query.filter(
+                Q(commentators__user__discord_id=crew_discord_id)
+                | Q(trackers__user__discord_id=crew_discord_id)
+            ).distinct()
+
         if prefetch_relations:
             query = query.prefetch_related(
                 'tournament',
