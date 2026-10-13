@@ -24,6 +24,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     RUNS_TAB,
     enum_value,
     live_race_color,
+    live_race_label,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -90,7 +91,7 @@ def build_live_tab(
                 with ui.card():
                     with ui.row().classes('items-center full-width'):
                         ui.label(lr.match_title).classes('text-subtitle1')
-                        ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
+                        ui.badge(live_race_label(lr.status), color=live_race_color(lr.status))
                         ui.badge(f'pool: {lr.pool.name}', color='grey')
                         ui.space()
                         cancelled = enum_value(lr.status) == 'cancelled'

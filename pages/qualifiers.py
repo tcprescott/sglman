@@ -94,9 +94,15 @@ def _review_cell(run) -> str:
 
 
 def _score_cell(run, exact: bool):
-    """The exact score once results are public; the band while they are not."""
+    """The exact score once results are public; the band while they are not.
+
+    A run that never finished has no side of par, so it says what happened to it
+    rather than borrowing a band.
+    """
     if exact:
         return '' if run.score is None else round(run.score, 1)
+    if run.status.value in ('forfeit', 'disqualified'):
+        return STATUS_LABELS[run.status.value]
     if run.score_band is None:
         return ''
     return BAND_LABELS.get(run.score_band.value, run.score_band.value)

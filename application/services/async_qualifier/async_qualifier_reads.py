@@ -244,7 +244,11 @@ class PlayerReadsMixin:
             reattempt_was_granted=run.reattempt_granted_by_id is not None,  # type: ignore[attr-defined]
             expired_at=run.expired_at,
             score=run.score if exact_scores else None,
-            score_band=score_band(run.score),
+            # A forfeit or disqualification is written as 0, which bands as
+            # "above par" — a claim about a pace the runner never set. Only a
+            # finished run has a side of par to be on.
+            score_band=(score_band(run.score)
+                        if run.status == AsyncQualifierRunStatus.FINISHED else None),
             notes=[
                 n.note for n in sorted(
                     (n for n in getattr(run, 'review_notes', []) or [] if n.note),

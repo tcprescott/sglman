@@ -11,7 +11,7 @@ from application.services.async_qualifier import async_qualifier_rules as rules
 from application.utils.duration import format_hms
 from application.utils.timezone import format_local_display
 from models import AsyncQualifierReviewStatus, AsyncQualifierRunStatus
-from theme.qualifier_copy import REVIEW_LABELS, STATUS_LABELS
+from theme.qualifier_copy import LIVE_RACE_STATUS_LABELS, REVIEW_LABELS, STATUS_LABELS
 
 __all__ = [
     'BOARD_COLUMNS',
@@ -242,3 +242,9 @@ def live_race_color(status) -> str:
         'finished': 'green',
         'cancelled': 'negative',
     }.get(enum_value(status), 'grey')
+
+
+def live_race_label(status) -> str:
+    """A live race's status in words, not the enum value (``in_progress``)."""
+    value = enum_value(status)
+    return LIVE_RACE_STATUS_LABELS.get(value, value.replace('_', ' ').capitalize())
