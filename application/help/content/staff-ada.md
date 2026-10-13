@@ -26,7 +26,7 @@ You get a Discord DM when a request opens, with a button that opens it here. The
 DM names the attendee and never what they asked for.
 
 On the Members tab, the **ADA** column shows each person's request status, and
-the **Needs ADA accommodation** filter narrows the table to people with one open.
+ticking **Needs ADA** under **Filters** narrows the table to people with one open.
 
 ![The ADA requests tab listing four requests with their status, the attendee's details and staff notes, one marked Changed since arranged](/static/help/staff-ada/queue.webp "The ADA queue, oldest first.")
 
@@ -47,10 +47,12 @@ them when you change it.
 
 ## What proctors see
 
-Once a request is **Arranged**, the attendee gets an accessibility icon beside their
-name on the Schedule and on the Proctor Station board. Staff who tap it see the
+Once a request is **Arranged**, each of the attendee's matches on Admin →
+Schedule and the Proctor Station board carries an accessibility icon and "ADA:"
+with their name. Open the match and its **Ready to play?** checklist has a
+*name: ADA accommodation* button under the players. Staff who tap it see the
 staff notes. Proctors see only that something has been arranged and to check with
-staff. Tournament admins and crew coordinators don't get the icon.
+staff. Tournament admins and crew coordinators don't see any of it.
 
 So write the notes for whoever is on the floor: what's been set up and where, in a
 line or two.

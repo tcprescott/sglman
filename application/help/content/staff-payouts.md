@@ -25,8 +25,8 @@ paid, how much of the pool is allocated, and a status:
 
 ## The pool
 
-The **Prize pool** button on a row (the payments icon) sets the advertised pool
-and any bonus on top. Shares come out of the two added together. Leave a field
+The **Prize pool** button on each row sets the advertised pool and any bonus on
+top. Shares come out of the two added together. Leave a field
 blank while nobody has decided it; blank and zero aren't the same thing.
 
 Change the pool whenever it moves. Every share is worked out from it each time
@@ -34,8 +34,9 @@ it's read, so nothing else needs editing.
 
 ## The split
 
-**Edit split** (the leaderboard icon) lists one row per paid place: the place,
-its share as a percentage, and the winner. **Add place** adds a row.
+**Edit split**, in the row's ⋮ menu, lists one row per paid place: the place,
+its share as a percentage, and the winner. **Add place** adds a row, and the red
+bin on a row removes that place.
 
 Shares can add up to less than 100%. Whatever's left over is unallocated, and the
 Allocated column shows it. They can't add up to more.
@@ -52,8 +53,8 @@ named.
 
 ## Copying the payout block
 
-**Copy for Matcherino** (the copy icon) puts the block on your clipboard, ready to
-paste wherever your payouts get sent from. It opens with the total pool and the
+**Copy for Matcherino**, in the row's ⋮ menu, puts the block on your clipboard,
+ready to paste wherever your payouts get sent from. It opens with the total pool and the
 bonus, then one line per place:
 
 | Line | Example |

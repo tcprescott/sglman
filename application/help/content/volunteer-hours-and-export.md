@@ -28,7 +28,7 @@ check their roles on the Users tab or the Discord role that grants it.
 
 The manage button at the end of a row opens their availability in full and a
 checkbox per active position. Tick the positions they're qualified for and
-save.
+press **Save qualifications**.
 :::
 
 ![Vol. Roster: each volunteer's hours with the reward tier reached, qualifications and availability windows](/static/help/volunteer-hours-and-export/roster-desktop.webp)
@@ -74,7 +74,7 @@ Two things a coordinator will want changed live where only staff can reach them:
 | Setting | Where |
 |---|---|
 | How long before a shift the reminder DM goes out, and the reward tiers | Admin → Settings → Volunteers |
-| Which app role each position grants | Admin → Settings → Discord, Volunteer positions section |
+| Which app role each position grants | Admin → Settings → Discord, the Volunteer positions section of Role Mappings |
 
 ## Exporting the data
 
@@ -102,3 +102,5 @@ know that each export is recorded in the audit log.
 
 For a view across several days, **Admin → Reports → Volunteer Coverage** lists
 every understaffed shift in a date range and how many people each still needs.
+Reports opens for staff, tournament admins and crew coordinators, not for the
+Volunteer Coordinator role on its own.

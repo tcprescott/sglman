@@ -3,7 +3,10 @@
     "name": "board-desktop",
     "user": "staff_user",
     "path": "/admin/schedule",
-    "viewport": "desktop",
+    "viewport": {
+      "width": 1680,
+      "height": 1000
+    },
     "setup": [
       {
         "wait": 1500

@@ -40,6 +40,7 @@ from theme.dialog.community_event_dialog import CommunityEventDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_state
 from theme.error_page import render_not_found
+from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -167,7 +168,8 @@ def create() -> None:
         needs_review = await SystemConfigService.community_events_require_approval()
 
         with ui.column().classes('wiz-community-events page-container-narrow w-full gap-3'):
-            page_header('Community Events', 'Meetups, panels and side events attendees are running.')
+            with page_header('Community Events', 'Meetups, panels and side events attendees are running.'):
+                await help_icon('community-events-attend', 'community-events-submit', user=user)
             disclaimer()
 
             @ui.refreshable

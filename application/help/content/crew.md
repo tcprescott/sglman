@@ -22,9 +22,10 @@ role.
 :::snippet crew-signup
 Open **Event**, stay on the **Schedule** view, and turn on **Needs crew**. That
 hides every match that's already covered or already under way, which on a busy
-day is most of the board. Then tap **Sign up** beside **Commentary** or
-**Tracking** in the match's **Crew** cell. On a phone the same buttons sit
-under the match's name.
+day is most of the board. Then tap **Sign up** in the match's
+**Commentators** or **Trackers** column. On a phone each role sits under the
+match's name with its own button, **Sign up as commentator** or **Sign up as
+tracker**.
 
 There's no confirmation step. If you tapped the wrong one, **Withdraw** is in
 the same place.
@@ -39,14 +40,16 @@ and that's deliberate rather than a fault.
 
 ![A match on the board on a phone: Player Four vs Player One with no time yet, Commentary 0/1 and Tracking 0/1 both marked needs crew, each with a Sign up button](/static/help/crew/signup-phone.webp "A match that still needs crew, on a phone.")
 
-A few things stop the **Sign up** button appearing:
+When you can't sign up, the **Sign up** button is greyed out and says why
+beside it:
 
-- **You're playing in the match.** You can't crew your own game.
-- **The match has started.** Signup closes once a proctor starts it. A match
-  that's only checked in is still open, because that's exactly when a stream
-  finds out it's short a commentator.
-- **You're already signed up** for that role on that match. You'll see
-  **Withdraw** instead.
+- **You're playing** means it's your own match. You can't crew your own game.
+- **Signups closed** means the match has started. Signup closes once a proctor
+  starts it. A match that's only checked in is still open, because that's
+  exactly when a stream finds out it's short a commentator.
+
+If you're already signed up for that role on that match, you'll see
+**Withdraw** in its place.
 
 ## Signing up from Discord
 
@@ -95,8 +98,8 @@ Until you do, staff can't tell whether you've seen the approval.
 
 You can confirm from three places, and they all do the same thing:
 
-- **Confirm**, next to **Withdraw** in your role's column, on My Schedule or
-  the schedule board
+- **Confirm**, next to **Withdraw** in your role's column on My Schedule
+- the same **Confirm** on the schedule board
 - **Acknowledge**, on the DM you were sent
 :::
 

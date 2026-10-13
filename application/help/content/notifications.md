@@ -18,6 +18,7 @@ on under **Profile → Notifications**. There is no email and no SMS.
 | Crew | Your signup being approved, and approval being withdrawn |
 | A volunteer | Being assigned a shift, and a reminder before it starts |
 | Watching a match | Every state change on it |
+| Someone who tapped **Remind me** or **RSVP** on a community event | A reminder shortly before it starts, and word if it moves or is cancelled |
 
 ## The buttons on a DM
 
@@ -29,23 +30,27 @@ DMs carry buttons so you can answer without opening the site.
 | **Acknowledge** | On a match DM: tells staff you have seen the time. On a crew approval DM: confirms you can cover the slot. |
 | **Unwatch** | Stops the updates for that match. |
 | **Agree** | On a reschedule-request DM: tells staff the change works for you too. It is a signal, not a decision — staff still answer the request. |
+| A link button, such as **Pick a time**, **Open your seed** or **View your match** | Opens the site at the exact place to act on it: the time picker, your seed, your match. |
 
 Pressing a button in Discord does exactly what the equivalent control on the site
 does, same record, same result. Use whichever is in front of you.
 :::
 
-You can start watching a match only from the site. Discord can stop it, not start
-it.
+You can start watching a match only from the site, with the bell at the end of
+its line on the schedule. Discord can stop it, not start it.
 
 ## When DMs do not arrive
 
-Almost always one of three things:
+Almost always one of four things:
 
-1. **Your Discord privacy settings block DMs from server members.** Open the
+1. **Discord DMs is switched off** under *Where it goes* on your Profile. The
+   page warns you when nothing at all can reach you, but not when only Discord
+   is off.
+2. **Your Discord privacy settings block DMs from server members.** Open the
    community's server settings in Discord and allow direct messages.
-2. **You have blocked the bot**, or it shares no server with you. Rejoin the
+3. **You have blocked the bot**, or it shares no server with you. Rejoin the
    community's server.
-3. **You are not the person the app thinks you are.** Check that the Discord
+4. **You are not the person the app thinks you are.** Check that the Discord
    account you are signed in with is the one you actually use.
 
 If you fix your settings, DMs resume from the next event, but the ones you
@@ -60,7 +65,7 @@ Everything is on the **Profile** tab, under *Notifications*.
 **Where it goes** has a switch for each way Wizzrobe can reach you.
 
 - **Discord DMs** turns the Discord copy on or off.
-- **This phone** or **This browser** turns on pop-up notifications on the device
+- **This phone**, **This tablet** or **This browser** turns on pop-up notifications on the device
   you're holding. Other devices you've turned on are listed below it, each with
   **Remove**.
 
@@ -68,8 +73,9 @@ They're independent: you can turn Discord DMs off and keep getting
 notifications on your phone. If everything is off, the page warns you, because
 nothing can reach you.
 
-**What you hear about** lists what always comes to you: your own matches, crew
-slots and volunteer shifts, and answers to requests you sent. Below that,
+**What you hear about** lists what always comes to you, under *About you*: your
+own matches, crew slots and volunteer shifts, answers to requests you sent, and
+matches you watch. Below that,
 **Tournaments you follow** adds other people's matches. Pick a level per
 tournament:
 

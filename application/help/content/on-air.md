@@ -9,7 +9,9 @@ summary: The daily stage timeline, the public Watch page for spectators, and how
 ## The On Air view
 
 **On Air** is the second view on the **Event** tab. It lays one day out by
-stage: a card per stage, with that stage's matches in time order. It answers
+stage: a card per stage, with that stage's matches in time order. On a wide
+screen the stage cards sit side by side as columns; on a phone they run one
+after another. It answers
 "what's on stage 2 at four o'clock" in a way the Schedule list doesn't.
 
 :::snippet on-air
@@ -42,9 +44,10 @@ card. The view updates by itself as matches change.
 
 Where a stage streams on Twitch, **Watch** on its On Air card plays the stream
 right on the page, above the stage cards, with the match that's on now beside
-it. It starts muted, since browsers won't autoplay with sound, so unmute it in
-the player. Pressing **Watch** on another stage switches the player over, and
-**Close player** stops it. On a phone the player stays pinned to the top while
+it. That stage's button reads **Watching** while it plays. It starts muted,
+since browsers won't autoplay with sound, so unmute it in the player. Pressing
+**Watch** on another stage switches the player over, and **Close player** stops
+it. On a phone the player stays pinned to the top while
 you scroll the stages. **Open on Twitch** takes you to the channel, or to the
 Twitch app on a phone.
 

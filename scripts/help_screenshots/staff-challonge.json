@@ -13,7 +13,10 @@
     "path": "/admin/challonge",
     "setup": [
       {
-        "click": "button:has-text(\"Entrants\")"
+        "click": "[aria-label=\"More for Wizzrobe Dev Tournament\"]"
+      },
+      {
+        "click": ".q-menu .q-item:has-text(\"Entrants\")"
       },
       {
         "waitFor": ".q-dialog"

@@ -19,8 +19,8 @@ There are three ways to add one:
 - **Import → Built-in presets** adds the presets that ship with Wizzrobe. Running
   it again only adds ones you don't have yet.
 - **Import → From a randomizer** fetches the presets a randomizer publishes on its own
-  site. Pick the randomizer, fetch its catalogue, type to filter, and tick the
-  ones you want. An imported preset is your copy: later changes on the
+  site. Pick the randomizer, press **Fetch Presets**, then type in
+  **Presets to import** to filter and pick the ones you want. An imported preset is your copy: later changes on the
   randomizer's site don't follow it.
 - **Add Preset** takes a name, a randomizer, a description, and the settings as
   JSON. Use it when you have the exact settings from a randomizer's own tools.
@@ -70,8 +70,8 @@ settings are right.
 
 Open the tournament on **Admin → Tournaments** and choose it under **Seeds &
 randomizer → Seed Preset**. The preset decides which randomizer the tournament
-rolls with, so there is nothing else to set. Choose **None** and the tournament
-rolls no seeds.
+rolls with, so there is nothing else to set. Choose **None (no seeds)** and the
+tournament rolls no seeds.
 
 A tournament set up before presets existed may say it's still rolling with an
 older generator and no preset. Pick a preset to replace it. Saving with None turns
@@ -88,7 +88,8 @@ Both presets have to use the same randomizer. Test roll the harder one as well.
 
 ## Rolling a match's seed
 
-Once a tournament has a preset, the Seed column on the Schedule and on the Proctor
-Station board offers **Generate** for any match that has players and no seed yet,
-unless it runs in a racetime.gg room. Rolling DMs the seed to the players. Staff, proctors and the tournament's admins
+Once a tournament has a preset, open a match on Admin → Schedule or the Proctor
+Station: the **Seed** line of its checklist offers **Generate** for any match that
+has players, no seed yet and isn't finished, unless it runs in a racetime.gg room.
+Rolling DMs the seed to the players. Staff, proctors and the tournament's admins
 can roll.

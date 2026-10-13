@@ -52,8 +52,8 @@ the Tournaments tab. Leave both blank and signups stay open until you make the
 tournament inactive. The close has to be after the open.
 
 The **Signups** column on the table tells you where each tournament stands and
-when that changes, for example {chip:neutral:Not open yet — 20 Oct 09:00} or
-{chip:ok:Open — 22 Oct 18:00}.
+when that changes, for example "Not open yet — 2026-10-20 09:00 EDT" or
+"Open — 2026-10-22 18:00 EDT".
 
 The window only limits players. You can add or remove an entrant at any time.
 
@@ -73,10 +73,11 @@ Leave the dates blank to use the community-wide hours under **Settings → Event
 
 ## Entrants
 
-Click the player count to open the tournament's entrant list. **Enrol a member**
-adds someone, and **Remove** beside a name takes them out. Only staff can change
-entrants. The person has to be a member of the community already, so add them on
-the Users tab first if they aren't.
+Click the player count to open the tournament's entrant list. Pick someone in
+**Enrol a member** and press **Enrol** to add them. **Remove** beside a name
+takes them out, after asking first. Only staff can change entrants. The person
+has to be a member of the community already, so add them on **Admin → Users**
+first if they aren't.
 
 A match can only be scheduled between entrants, so a missing entrant is the usual
 reason a match won't save.
@@ -87,8 +88,8 @@ A tournament linked to Challonge takes its entrants from the bracket instead. Se
 ## Who can run it
 
 Two per-tournament jobs are set on a person, not on the tournament. On
-**Admin → Users**, edit the person and pick tournaments under **Tournament Admin
-of** or **Crew Coordinator of**. A Discord role mapping under **Settings →
+**Admin → Users**, open the person's **⋮** menu, choose **Edit member**, and pick
+tournaments under **Tournament Admin of** or **Crew Coordinator of**. A Discord role mapping under **Settings →
 Discord** can grant either one as well.
 
 | Job | What they get for their tournaments |
@@ -99,14 +100,15 @@ Discord** can grant either one as well.
 Neither can create or delete a tournament or change its entrants. Those stay with
 staff.
 
-The Users table's role filter has a **Tournament Admin** option for finding
-everyone who holds the job.
+The **Roles** filter on Admin → Users has **Tournament Admin** and **Crew
+Coordinator** options for finding everyone who holds either job.
 
 ## Deleting a tournament
 
 Deleting removes the tournament and everything attached to it: matches, entrants,
 brackets and triforce texts. There is no undo. Only an inactive tournament can be
 deleted, so untick **Active**, save, then reopen the editor and use the **Danger
-zone**. The confirmation lists what will go.
+zone**. The confirmation lists what will go, and **Delete forever** stays greyed
+out until you type `permanently delete`.
 
 Deactivating is almost always what you want. It keeps the results.

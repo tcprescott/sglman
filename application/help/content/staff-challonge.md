@@ -26,8 +26,10 @@ If the brackets belong to a Challonge community (a page like
 **Connect Challonge**, and sign in as one of that community's admins. Without it,
 Challonge refuses to show Wizzrobe the community's tournaments.
 
-If the stage buttons below are greyed out, press **Reconnect**. Older connections
-weren't given permission to change a tournament's stage.
+If the stage changes in a linked tournament's ⋮ menu are greyed out, press
+**Reconnect**. Older connections weren't given permission to change a
+tournament's stage. **Disconnect** stops every linked tournament syncing until
+someone reconnects, so it asks first.
 
 ## Linking a bracket
 
@@ -60,10 +62,11 @@ the bracket on Challonge's own site and nothing here moves until one of those
 happens.
 :::
 
-Each linked tournament on the Challonge tab shows its stage and when it last
-synced. Press **Sync** after any change you make on Challonge.
+Each linked tournament on the Challonge tab is a card with its stage, when it
+last synced, a **Sync** button and a ⋮ menu for everything else. Press **Sync**
+after any change you make on Challonge.
 
-![The Challonge tab: the connected account and request count, then a linked tournament with its stage, last sync time, and its Sync, stage, Entrants and Unlink buttons](/static/help/staff-challonge/linked.webp "The Challonge tab with one linked tournament in its group stage.")
+![The Challonge tab: the connected account and request count, then a linked tournament with its stage, last sync time, a Sync button, and a ⋮ menu holding the stage, Entrants and Unlink actions](/static/help/staff-challonge/linked.webp "The Challonge tab with one linked tournament in its group stage.")
 
 ## Matching entrants to members
 
@@ -71,8 +74,8 @@ A player whose Challonge account is linked on their Profile is matched to their
 entrant automatically. Anyone added to the bracket by name has no account to
 match, and none of their matches can be booked until someone is assigned.
 
-**Entrants** on the Challonge tab lists the bracket's entrants, unmatched ones
-first:
+**Entrants**, in the tournament's ⋮ menu on the Challonge tab, lists the
+bracket's entrants, unmatched ones first:
 
 | Chip | Means |
 |---|---|
@@ -92,10 +95,10 @@ their Profile, then press **Sync**.
 
 ## Moving through stages
 
-The Challonge tab offers the next stage change the bracket is ready for, and only
-that one:
+The tournament's ⋮ menu on the Challonge tab offers the next stage change the
+bracket is ready for, and only that one. Each asks you to confirm first:
 
-| The bracket is | The button |
+| The bracket is | The menu item |
 |---|---|
 | Not started | **Start tournament**, or **Start group stage** if it has groups |
 | Group stage underway | **Finalize groups and start bracket**. Every group match has to be finished first |
@@ -114,7 +117,8 @@ on Challonge and press **Sync**.
 
 ## Unlinking
 
-**Unlink** removes the mirrored entrants and bracket matches from Wizzrobe. The
+**Unlink from Challonge**, at the bottom of the tournament's ⋮ menu, asks first,
+then removes the mirrored entrants and bracket matches from Wizzrobe. The
 bracket on Challonge isn't touched, and linking again re-imports it. Matches
 already scheduled stay exactly as they are. Unlinking is also how a tournament
 moves from Challonge to a native bracket.

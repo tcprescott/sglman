@@ -31,6 +31,11 @@ window you add carries one of three answers:
 | **Available** | You can work it. Taken after everyone's preferred windows. |
 | **Unavailable** | You cannot work it. The auto-scheduler will not place you here at all. |
 
+Your windows are grouped into one card per day. **Add a day** starts a new card,
+**Add window** on a card adds another window that day, and nothing is kept until
+you press **Save availability**. Where two windows overlap, Unavailable beats
+Preferred beats Available.
+
 **A blank schedule is "no preference stated", not "unavailable."** You are not
 refusing anything. But by default the auto-scheduler only places people who
 stated a window, so leaving it empty usually means it passes you over. A
@@ -89,14 +94,16 @@ past and upcoming, with overlapping shifts counted once. Where your community
 comps volunteers by hours worked, it also says which level you have cleared and
 how many more hours reach the next one.
 
-**Acknowledge** on a card does the same as the button in the DM. An
-**Acknowledged** badge means you have; a **Checked in** badge means a coordinator marked you as arrived for that shift.
+Each card has **Can't make it** on the left and **Acknowledge** on the right.
+**Acknowledge** does the same as the button in the DM; once you've pressed it,
+an **Acknowledged** marker takes its place. A **Checked in** marker means a
+coordinator marked you as arrived for that shift.
 
 Shifts that have finished drop off the list. Turn on **Show all shifts** to see
 them again.
 :::
 
-![My Shifts on a phone: the hours line, then a Broadcast Tech shift card with its notes, Acknowledge and Can't make it](/static/help/volunteering/my-shifts-phone.webp "My Shifts, with one upcoming shift.")
+![My Shifts on a phone: the hours line, then a Broadcast Tech shift card with its notes, Can't make it and Acknowledge](/static/help/volunteering/my-shifts-phone.webp "My Shifts, with one upcoming shift.")
 
 ## Giving a shift back
 

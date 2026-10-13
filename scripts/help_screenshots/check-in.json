@@ -26,10 +26,8 @@
         "wait": 800
       }
     ],
-    "viewport": {
-      "width": 390,
-      "height": 490
-    }
+    "selector": ".q-dialog .q-card",
+    "padding": 0
   },
   {
     "name": "dm-blocked-phone",

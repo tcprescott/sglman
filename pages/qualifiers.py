@@ -27,6 +27,7 @@ from theme.base import BaseLayout
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header, page_title
 from theme.qualifier_copy import (
@@ -135,7 +136,8 @@ def create() -> None:
         await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.column().classes('page-container'):
-            page_header('Async Qualifiers')
+            with page_header('Async Qualifiers'):
+                await help_icon('qualifiers-start', 'qualifiers-submit', 'qualifiers-scoring', user=user)
             qualifiers = await service.list_open_qualifiers()
             if not qualifiers:
                 empty_panel('No qualifiers are open right now. Check back soon.', icon='timer')

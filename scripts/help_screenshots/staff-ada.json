@@ -2,7 +2,10 @@
   {
     "name": "queue",
     "user": "staff_user",
-    "viewport": "desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
     "path": "/admin/users",
     "setup": [
       {
@@ -12,7 +15,7 @@
         "wait": 800
       },
       {
-        "click": "text=Members who asked for ADA accommodation"
+        "click": "text=Attendees who asked for ADA accommodation"
       },
       {
         "wait": 600

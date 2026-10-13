@@ -35,17 +35,19 @@ ask in each.
 
 ## What the status means
 
-Once you've asked, the card shows where staff are with it:
+Once you've asked, the card shows where staff are with it, beside *Staff status*:
 
 | Status | Meaning |
 |---|---|
 | {chip:pending:New} | Staff haven't looked at it yet. |
 | {chip:live:Acknowledged} | Staff have read it and are working on it. |
 | {chip:ok:Arranged} | It's in place. Proctors see the accessibility icon. |
-| {chip:neutral:Withdrawn} | You took the request back. |
+| {chip:neutral:Withdrawn} | You took the request back. Staff see this one; your own card just shows the box unticked. |
 
 If you edit your details after a request is arranged, staff are told about the
-change. What they arranged stays in place while they check it.
+change. What they arranged stays in place while they check it. Editing a request
+that's only {chip:live:Acknowledged} puts it back to {chip:pending:New}, so staff
+read it again.
 
 ## Changing your mind
 

@@ -3,7 +3,7 @@
     "name": "signup-phone",
     "user": "player_three",
     "path": "/home/schedule",
-    "selector": ".player-sheet__card:has-text(\"Sign up\")",
+    "selector": ".player-sheet__card:has-text(\"Player Four vs Player One\")",
     "hide": [
       ".q-footer"
     ]

@@ -40,7 +40,8 @@ in, since they can add you at any point.
 
 ## Backing out
 
-**Withdraw** on the same card, while signups are still open. After they close,
+**Withdraw** on the same card, while signups are still open. It asks first:
+**Stay in** keeps your place and **Withdraw** takes you out. After they close,
 the card says *Signups have closed — ask staff if you need to drop out*.
 Withdrawing is staff's call by then, because a bracket may already have been
 seeded from the roster.

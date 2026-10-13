@@ -8,7 +8,10 @@
     "name": "bracket-schedule-phone",
     "user": "player_one",
     "path": "/home/my-schedule",
-    "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\")"
+    "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\")",
+    "hide": [
+      ".q-footer"
+    ]
   },
   {
     "name": "ask-to-change-phone",

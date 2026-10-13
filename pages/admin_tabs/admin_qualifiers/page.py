@@ -49,6 +49,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
+from theme.help import help_icon
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -604,12 +605,13 @@ async def admin_qualifiers_page(
     # ------------------------------------------------------------------ shell
 
     with ui.column().classes('page-container'):
-        page_header(
+        with page_header(
             'Async Qualifiers',
             'Self-paced permalink-pool qualifiers — a peer of Tournaments. Create a '
             'qualifier, author permalink pools, then review submitted runs. The '
             'leaderboard and pools stay hidden from players until the qualifier closes.',
-        )
+        ):
+            await help_icon('qualifiers-pools', 'qualifiers-review-queue')
         list_view()
         detail_view()
 

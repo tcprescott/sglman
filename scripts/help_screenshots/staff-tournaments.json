@@ -18,7 +18,7 @@
         "wait": 600
       },
       {
-        "click": ".q-dialog >> text=Player signups"
+        "click": ".q-dialog >> text=Tournament Days"
       },
       {
         "wait": 400

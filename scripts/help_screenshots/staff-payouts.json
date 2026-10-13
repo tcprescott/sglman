@@ -6,7 +6,10 @@
     "path": "/admin/payouts",
     "setup": [
       {
-        "click": "tr:has-text(\"Last Season\") [aria-label=\"Edit split\"]"
+        "click": "[aria-label=\"More for Wizzrobe Cup — Last Season\"]"
+      },
+      {
+        "click": ".q-menu .q-item:has-text(\"Edit split\")"
       },
       {
         "waitFor": ".q-dialog"

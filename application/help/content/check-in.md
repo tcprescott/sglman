@@ -41,17 +41,20 @@ members, or turn Discord DMs back on under
 The desk is **Check-in** in the menu. It shows there while an event is open, for
 anyone with the Check In Desk role and for staff. It's built for a phone.
 
-Four things stay pinned to the top as you scroll. The search box takes a name or
-a badge code. The progress bar reads "212 of 340 checked in" and leaves refunded
-people out. The filter switch (All, Not yet, Checked in, Comped, Walk-ups) shows
-a count on each and scrolls sideways on a narrow phone. The sync line says when
-the roster last came from Matcherino, which matters when it
+The top of the desk stays pinned as you scroll: the event name with its sync
+button, then the search box, which takes a name or a badge code. The progress bar
+reads "212 of 340 checked in" and leaves refunded people out. The filter switch
+(All, Not yet, Checked in, Comped, Walk-ups) shows a count on each and wraps onto
+a second line on a narrow phone. The sync line says when the roster last came
+from Matcherino, which matters when it
 [goes amber](/help/check-in#when-the-roster-may-be-out-of-date).
 
 Below that, each person is a card: their name, the account they're linked to and
-how, their lanyard, and a big **Check in** button. Everything else (linking,
-undo, the DM retry, removing a walk-up) is in the card's ⋮ menu, so it's never a
-stray tap away from the button you use all day.
+how, their lanyard, and a big **Check in** button. Someone with no account shows
+a **Not linked** button that opens the link dialog. Everything else (changing or
+removing a link, undo, the DM retry, removing a walk-up) is in the card's ⋮ menu,
+so it's never a stray tap away from the button you use all day. On a screen
+1200px wide or more, the desk is a table with the same buttons on each row.
 :::
 
 ![The check-in desk on a phone: the search box, the progress bar, the filter switch and the sync line, above cards for a Base buyer, a volunteer and someone with no badge](/static/help/check-in/desk-phone.webp "The desk on a phone.")
@@ -155,7 +158,7 @@ them in now**. The desk doesn't sell badges, so anyone who needs one buys it on
 Matcherino.
 
 Walk-ups are the only rows that can be removed (⋮ → **Remove walk-up**, staff
-only). Everyone else comes from Matcherino and would come back on the next sync.
+only, and it asks first). Everyone else comes from Matcherino and would come back on the next sync.
 
 ## Comped staff and volunteers
 

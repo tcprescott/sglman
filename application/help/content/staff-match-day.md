@@ -17,7 +17,7 @@ editing matches is in [Running the schedule](/help/staff-schedule).
 :::snippet staff-queues
 **Needs you** sits beside the board on a computer and above it on a phone. Each
 item carries its own buttons, so most of it clears without opening anything.
-Each group shows three items; **Show more** lists the rest.
+Each group shows three items; **Show 2 more** (or however many are left) lists the rest. Results and Running late are read off the board, so they only count matches the board's filters are showing.
 
 **Reschedule requests** come first, because a player is waiting on an answer.
 Each names who asked, the match, and the time it moves from and to.
@@ -36,7 +36,7 @@ in it, has **Review** instead, which opens the request in full.
 **Running late** lists matches past their start that nobody has checked in.
 **Check in** does it from there.
 
-**Open** on any item opens the match.
+**Open** on a result or a late match opens the match.
 :::
 
 ![Needs you: reschedule requests with Approve and Decline, results to confirm, and matches running late](/static/help/staff-match-day/queues-desktop.webp)
@@ -92,7 +92,8 @@ match with no winner shows **Record winner** instead. Either way, correcting the
 result doesn't re-finish the match or DM anyone again.
 
 If the result has already advanced a bracket, the change is refused. Correct it
-from the bracket instead (**Results → Override**), so the bracket moves with it.
+from the bracket instead: on **Admin → Brackets**, open the stage's **Results**,
+pick the match and use **Override result**, so the bracket moves with it.
 :::
 
 ### Disputes
@@ -110,9 +111,9 @@ flag.
 ## Seeds
 
 :::snippet staff-seeds
-Open a match to see its seed. **Generate seed** rolls it and DMs it to the
-players. Proctors roll seeds from **Generate** in the Proctor Station's Seed
-column.
+Open a match to see its seed on the **Seed** line of the checklist. **Generate**
+rolls it and DMs it to the players. Proctors do the same from the match they
+open on the Proctor Station.
 
 The button only appears where a roll can help: the tournament has a randomizer
 set up, the match has players, it isn't finished, and it isn't a racetime.gg
@@ -123,12 +124,12 @@ are DMed as soon as the seed lands, so you can leave the page.
 
 | You see | Means |
 |---|---|
-| "Rolling…" with a timer (a spinner on the Proctor Station) | The seed is still being generated |
-| The reason in red (an error icon on the Proctor Station) | The last roll failed. Fix the cause, then roll again. |
-| "Couldn't DM" and a name (a bell with a line through it on the Proctor Station) | That person can't receive DMs from the bot. Hand them the seed in person. |
+| "Rolling…" with a timer | The seed is still being generated |
+| The reason in red | The last roll failed. Fix the cause, then roll again. |
+| "Couldn't DM" and a name | That person can't receive DMs from the bot. Hand them the seed in person. |
 
 To roll a new seed, open the match, press **Edit match**, then **Clear Seed** and
-**Save**, then **Generate seed** again.
+**Save**, then **Generate** again.
 :::
 
 ### Room screens
@@ -149,7 +150,8 @@ Proctor Station.
 ## Race rooms
 
 Where racetime.gg rooms are switched on and a tournament has a racetime bot, the
-match dialog has a **Racetime Room** section. Staff and sync admins can press
+**Edit Match** dialog (open the match, then **Edit match**) has a **Racetime
+Room** section. Staff and sync admins can press
 **Create racetime room** to open one by hand, whether or not the tournament opens
 rooms automatically.
 

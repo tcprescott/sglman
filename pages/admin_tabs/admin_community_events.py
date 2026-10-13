@@ -17,6 +17,7 @@ from theme.community_events import DISCLAIMER, STATUS_CHIPS, meta_row, status_ch
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.community_event_dialog import CommunityEventDialog
 from theme.empty_state import no_data_slot
+from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -63,6 +64,7 @@ async def admin_community_events_page(open_event: Optional[int] = None) -> None:
             'Events attendees want to run during the event. Approve them to list them, '
             'or reject them with a reason the host will see.',
         ):
+            await help_icon('community-events-review', user=actor)
             ui.space()
             refresh_button(lambda: _render_table.refresh(), tooltip='Refresh')
 
