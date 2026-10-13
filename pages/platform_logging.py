@@ -12,6 +12,7 @@ from application.utils.log_levels import LEVELS
 from application.utils.timezone import format_local_display
 from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -134,10 +135,17 @@ def _open_level_dialog(actor, table, row) -> None:
 
 
 async def _reset(actor, table, row) -> None:
-    try:
-        await LogLevelService().clear(actor, row['name'])
-    except (ValueError, PermissionError) as e:
-        notify_error(e)
-        return
-    ui.notify(f"{row['logger']} is back to inheriting its level", color='positive')
-    await _refresh(table)
+    async def do_reset() -> None:
+        try:
+            await LogLevelService().clear(actor, row['name'])
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify(f"{row['logger']} is back to inheriting its level", color='positive')
+        await _refresh(table)
+
+    ConfirmationDialog(
+        message=f"Drop the level override on {row['logger']}? It goes back to inheriting "
+                'its parent’s level.',
+        on_confirm=do_reset, confirm_text='Reset', title='Reset log level?', tone='primary',
+    ).open()

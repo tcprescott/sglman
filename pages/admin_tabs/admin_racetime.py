@@ -9,6 +9,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
@@ -88,7 +89,7 @@ async def admin_racetime_page() -> None:
             table.update()
 
         async def delete_profile(row, client):
-            with client:
+            async def do_delete() -> None:
                 try:
                     await service.delete_profile(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -96,6 +97,12 @@ async def admin_racetime_page() -> None:
                     return
                 ui.notify('Profile deleted', color='positive')
                 await refresh_table()
+
+            with client:
+                ConfirmationDialog(
+                    message=f"Delete the {row['name']} race room profile?",
+                    on_confirm=do_delete, confirm_text='Delete', title='Delete profile?',
+                ).open()
 
         async def edit_profile(row, client):
             with client:

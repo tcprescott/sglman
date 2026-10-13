@@ -104,7 +104,7 @@ class ChallongeParticipantsDialog:
 
                 async def clear(row: dict) -> None:
                     try:
-                        await service.clear_participant_user(row['id'], actor)
+                        await service.clear_participant_user(row['id'], actor)  # style-guide: exempt — clears a mapping, reassigned in place
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
                         return

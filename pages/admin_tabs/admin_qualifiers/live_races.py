@@ -26,6 +26,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     live_race_color,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 # The three outcomes a human may assert, worded as a person would say them rather
 # than as the enum spells them.
@@ -113,7 +114,7 @@ def build_live_tab(
                                       on_click=lambda race=lr: _open_record_dialog(race)
                                       ).props('flat color=primary')
                     ui.button(icon='delete',
-                              on_click=lambda lid=lr.id: _cancel_live_race(lid)
+                              on_click=lambda race=lr: _cancel_live_race(race)
                               ).props('flat round color=negative').tooltip('Cancel')
                 if lr.racetime_slug:
                     ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
@@ -303,13 +304,20 @@ def build_live_tab(
         ui.notify('Room opened', color='positive')
         await reload_tabs(LIVE_TAB)
 
-    async def _cancel_live_race(live_race_id: int) -> None:
-        try:
-            await service.cancel_live_race(await current(), live_race_id)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
-            return
-        ui.notify('Live race cancelled', color='positive')
-        await reload_tabs(LIVE_TAB)
+    def _cancel_live_race(race) -> None:
+        async def do_cancel() -> None:
+            try:
+                await service.cancel_live_race(await current(), race.id)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            ui.notify('Live race cancelled', color='positive')
+            await reload_tabs(LIVE_TAB)
+
+        ConfirmationDialog(
+            message=f'Cancel {race.match_title}?',
+            on_confirm=do_cancel, confirm_text='Cancel race', cancel_text='Keep it',
+            title='Cancel live race?',
+        ).open()
 
     return live_view

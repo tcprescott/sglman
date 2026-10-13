@@ -7,6 +7,7 @@ from application.services.system_config_service import KEY_STATION_FORMAT
 from models import StationFormat, StationSide
 from pages.admin_tabs.room_tokens_section import render_room_tokens_section
 from pages.admin_tabs.settings._common import current_actor
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
 from theme.section import section_panel
@@ -126,12 +127,19 @@ async def _stations_card(can_edit: bool) -> None:
                         notify_error(e)
                     station_list.refresh()
 
-                async def remove(_e, s=station) -> None:
+                async def do_remove(s) -> None:
                     try:
                         await service.delete_station(s.id, await current_actor())
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
                     station_list.refresh()
+
+                def remove(_e, s=station) -> None:
+                    ConfirmationDialog(
+                        f'Delete {s.name}? Turning it off keeps it for later instead.',
+                        on_confirm=lambda: do_remove(s), confirm_text='Delete',
+                        title='Delete station?',
+                    ).open()
 
                 ui.switch(
                     'Active', value=station.is_active, on_change=toggle,

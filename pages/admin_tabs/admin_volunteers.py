@@ -178,7 +178,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                               on_click=lambda: confirm_publish(pending)) \
                         .props('color=positive')
                     ui.button('Clear draft', icon='clear_all',
-                              on_click=lambda: clear_draft()).props('flat color=negative')
+                              on_click=lambda: confirm_clear_draft(pending)).props('flat color=negative')
 
         # --- Last auto-fill result ---------------------------------------
         panel_container = ui.column().classes('full-width')
@@ -230,7 +230,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                             ).classes('text-caption')
                             ui.space()
                             ui.button('Remove',
-                                      on_click=lambda r=row: remove_from_panel(r)) \
+                                      on_click=lambda r=row: confirm_remove_from_panel(r)) \
                                 .props('flat dense color=negative')
 
                 if run.get('heavy_loads'):
@@ -252,6 +252,13 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                 ui.notify('That shift no longer exists.', color='warning')
                 return
             await open_assign_dialog(shift)
+
+        def confirm_remove_from_panel(row) -> None:
+            ConfirmationDialog(
+                message=f"Take {row['name']} off {_slot_title(row).strip()}?",
+                on_confirm=lambda: remove_from_panel(row), confirm_text='Remove',
+                title='Remove from shift?',
+            ).open()
 
         async def remove_from_panel(row) -> None:
             assignment = await schedule_service.find_assignment(
@@ -410,10 +417,25 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
                     finally:
-                        # The chip already removed itself client-side; refresh to
-                        # re-sync regardless of whether the service call succeeded.
                         refresh_all()
-                chip.on('remove', lambda a=assignment: remove(a))
+
+                def ask_remove(e, a=assignment, chip=chip) -> None:
+                    if e.value:
+                        return
+                    # Quasar hides a removable chip the moment its ✕ is tapped, so
+                    # put it back until the confirm is answered.
+                    chip.value = True
+                    told = '' if a.auto_generated else (
+                        '\n\nThey’ve already been told about this shift, so they’ll get a DM '
+                        'saying it’s off.'
+                    )
+                    ConfirmationDialog(
+                        message=f'Take {name} off the {format_local_time_range(shift.starts_at, shift.ends_at)} '
+                                f'shift?{told}',
+                        on_confirm=lambda: remove(a), confirm_text='Remove',
+                        title='Remove from shift?',
+                    ).open()
+                chip.on_value_change(ask_remove)
 
                 if assignment.checked_in_at:
                     ui.icon('how_to_reg', color='teal', size='sm').tooltip('Checked in')
@@ -588,15 +610,23 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             )
             refresh_all()
 
-        async def clear_draft() -> None:
-            win_start, win_end = _day_window(state['day'])
-            try:
-                removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
-            except (ValueError, PermissionError) as e:
-                notify_error(e)
-                return
-            ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
-            refresh_all()
+        def confirm_clear_draft(pending: int) -> None:
+            async def clear_draft() -> None:
+                win_start, win_end = _day_window(state['day'])
+                try:
+                    removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
+                refresh_all()
+
+            ConfirmationDialog(
+                message=f'Clear all {pending} draft assignment(s) on this day? '
+                        'Nobody has been told about them, but you’ll have to run auto-fill '
+                        'or assign by hand again.',
+                on_confirm=clear_draft, confirm_text='Clear draft', title='Clear draft?',
+            ).open()
 
         async def confirm_publish(pending: int) -> None:
             async def on_confirm() -> None:
@@ -629,33 +659,22 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             confirm.open()
 
         def open_reset_dialog() -> None:
-            CONFIRM_PHRASE = 'yes please delete all shifts'
-            with form_dialog('Reset all volunteer data') as dialog:
-                with ui.column().classes('q-pa-md gap-3'):
-                    ui.label(
-                        'This will permanently delete ALL shifts and assignments across every day. '
-                        'This cannot be undone.'
-                    ).classes('text-body2')
-                    ui.label(f'Type "{CONFIRM_PHRASE}" to confirm:').classes('text-caption')
-                    confirm_input = ui.input().classes('full-width')
+            async def do_reset() -> None:
+                try:
+                    deleted = await schedule_service.reset_all_shifts(actor)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
+                refresh_all()
 
-                    async def do_reset() -> None:
-                        if confirm_input.value.strip().lower() != CONFIRM_PHRASE:
-                            ui.notify("That doesn't match. Type the phrase exactly to confirm.", color='warning')
-                            return
-                        dialog.close()
-                        try:
-                            deleted = await schedule_service.reset_all_shifts(actor)
-                        except (ValueError, PermissionError) as e:
-                            notify_error(e)
-                            return
-                        ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
-                        refresh_all()
-
-                with dialog_actions().classes('justify-end'):
-                    ui.button('Cancel', on_click=dialog.close).props('flat')
-                    ui.button('Delete everything', on_click=do_reset).props('color=negative')
-            dialog.open()
+            ConfirmationDialog(
+                'This permanently deletes every shift and assignment across every day. '
+                'There is no undo.',
+                on_confirm=do_reset, confirm_text='Delete everything',
+                title='Reset all volunteer data?',
+                require_phrase='yes please delete all shifts',
+            ).open()
 
         # --- Positions manager ------------------------------------------
         async def open_positions_dialog() -> None:

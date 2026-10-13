@@ -8,6 +8,7 @@ from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.secret_dialog import show_secret_dialog
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -187,7 +188,7 @@ async def admin_webhooks_page() -> None:
             return await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
         async def delete_webhook(row, client):
-            with client:
+            async def do_delete() -> None:
                 try:
                     await service.delete_webhook(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -196,14 +197,29 @@ async def admin_webhooks_page() -> None:
                 ui.notify('Webhook deleted', color='positive')
                 await refresh_table()
 
-        async def regenerate_secret(row, client):
             with client:
+                ConfirmationDialog(
+                    message=f"Delete the {row['name']} webhook? Its receiver stops getting events.",
+                    on_confirm=do_delete, confirm_text='Delete', title='Delete webhook?',
+                ).open()
+
+        async def regenerate_secret(row, client):
+            async def do_regenerate() -> None:
                 try:
                     secret = await service.regenerate_secret(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
                 show_secret_dialog('New signing secret', secret, noun='signing secret')
+
+            with client:
+                ConfirmationDialog(
+                    message=f"Make a new signing secret for {row['name']}? The old one stops "
+                            'working straight away, so the receiver rejects every delivery '
+                            'until you give it the new one.',
+                    on_confirm=do_regenerate, confirm_text='Regenerate',
+                    title='Regenerate secret?',
+                ).open()
 
         async def view_deliveries(row, client):
             with client:

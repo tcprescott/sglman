@@ -96,7 +96,7 @@ def _rsvp_button(service: CommunityEventService, user: User, event: CommunityEve
     async def toggle() -> None:
         try:
             if going:
-                await service.cancel_rsvp(user, event.id)
+                await service.cancel_rsvp(user, event.id)  # style-guide: exempt — an RSVP toggle, re-tapped to undo
                 ui.notify("RSVP cancelled. You won't get a reminder.", color='positive')
             else:
                 await service.rsvp(user, event.id)
