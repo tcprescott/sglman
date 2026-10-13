@@ -224,6 +224,111 @@ def test_clipboard_writes_go_through_the_shared_helper():
                 bad.append(f'{rel}:{node.lineno}')
     assert not bad, 'Inline clipboard writes (use copy_to_clipboard):\n  ' + '\n  '.join(bad)
 
+_DISMISS_LABELS = {'Cancel', 'Close', 'Back', 'Not now', 'Keep editing'}
+
+
+def _base_name(call: ast.AST) -> str | None:
+    """`dialog_actions().classes(...)` → 'dialog_actions'."""
+    while isinstance(call, ast.Call):
+        if isinstance(call.func, ast.Name):
+            return call.func.id
+        call = call.func.value if isinstance(call.func, ast.Attribute) else None
+    return None
+
+
+def _ui_buttons(stmts: list[ast.stmt]) -> list[ast.Call]:
+    """Each `ui.button(...)` chain (props and classes included), in source order."""
+    chains = [n for st in stmts for n in ast.walk(st) if isinstance(n, ast.Call) and _ui_call(n) == 'button']
+    inner = {id(n.func.value) for n in chains if isinstance(n.func, ast.Attribute)}
+    return sorted((c for c in chains if id(c) not in inner), key=lambda c: (c.lineno, c.col_offset))
+
+
+def _button_label(chain: ast.Call) -> str | None:
+    while isinstance(chain.func, ast.Attribute) and isinstance(chain.func.value, ast.Call):
+        chain = chain.func.value
+    first = chain.args[0] if chain.args else None
+    return first.value if isinstance(first, ast.Constant) else None
+
+
+def test_dialog_footer_puts_the_primary_action_last():
+    """Negative on the left, positive on the right: Cancel sits just left of the
+    primary button, never after it. A destructive action (Delete) goes at the far
+    left, before the dismiss button."""
+    bad = []
+    for rel, source, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not (isinstance(node, (ast.With, ast.AsyncWith))
+                    and any(_base_name(i.context_expr) == 'dialog_actions' for i in node.items)):
+                continue
+            seen_primary = False
+            for button in _ui_buttons(node.body):
+                label = _button_label(button)
+                if seen_primary and label in _DISMISS_LABELS and not _exempt(lines, button.lineno):
+                    bad.append(f'{rel}:{button.lineno}: {label!r} after the primary button')
+                text = ast.get_source_segment(source, button) or ''
+                if re.search(r"color=primary|color='primary'", text):
+                    seen_primary = True
+    assert not bad, 'Dialog footers out of order:\n  ' + '\n  '.join(bad)
+
+
+def test_overflow_menus_use_the_vertical_dots():
+    """⋮ (`more_vert`) is the one overflow icon on rows, cards and sheets; a ⋯ beside it reads as a different control."""
+    bad = [
+        f'{rel}:{i}'
+        for rel, source, _tree, lines in _python_sources()
+        for i, line in enumerate(lines, 1)
+        if 'more_horiz' in line and EXEMPT not in line
+    ]
+    assert not bad, 'more_horiz overflow buttons (use more_vert):\n  ' + '\n  '.join(bad)
+
+
+def _menu_item_kind(stmt: ast.stmt, source: str) -> str | None:
+    """'negative', 'item' or None for one statement directly inside a `ui.menu()`."""
+    if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+        call = stmt.value
+    elif isinstance(stmt, (ast.With, ast.AsyncWith)) and isinstance(stmt.items[0].context_expr, ast.Call):
+        call = stmt.items[0].context_expr
+    else:
+        return None
+    name = _ui_call(call) or _base_name(call)
+    if name not in ('menu_item', 'menu_action'):
+        return None
+    text = ast.get_source_segment(source, call) or ''
+    negative = 'text-negative' in text or 'color=negative' in text or any(
+        k.arg == 'negative' and isinstance(k.value, ast.Constant) and k.value.value is True
+        for k in call.keywords
+    )
+    return 'negative' if negative else 'item'
+
+
+def test_destructive_menu_items_come_last():
+    """In an Actions or ⋮ menu the red item (Delete, Reset) is the last one, set
+    apart, so the item people reach for most isn't next to it."""
+    bad = []
+    for rel, source, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not (isinstance(node, (ast.With, ast.AsyncWith))
+                    and any(_ui_call(i.context_expr) == 'menu' for i in node.items)):
+                continue
+            kinds = [(st, _menu_item_kind(st, source)) for st in node.body]
+            kinds = [(st, k) for st, k in kinds if k]
+            seen_negative = None
+            for st, kind in kinds:
+                if kind == 'negative':
+                    seen_negative = st
+                elif seen_negative is not None and not _exempt(lines, seen_negative.lineno):
+                    bad.append(f'{rel}:{seen_negative.lineno}: destructive item before {st.lineno}')
+                    break
+    assert not bad, 'Destructive menu items not last:\n  ' + '\n  '.join(bad)
+
+
+def test_side_menu_is_224px():
+    """The drawer's longest label needs about 175px; Quasar's 300px default left a
+    wide empty strip beside the nav on desktop."""
+    base = (ROOT / 'theme' / 'base.py').read_text()
+    assert re.search(r"bordered width=224\b", base), 'The side menu drawer should be width=224'
+
+
 # --- styles.css ---------------------------------------------------------------
 
 def _strip_comments(css: str) -> str:
