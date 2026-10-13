@@ -530,3 +530,22 @@ def test_theme_editor_contrast_checks_match_the_stylesheet():
     assert 'body:not(.body--dark) .text-primary { color: color-mix(in srgb, var(--q-primary) 85%, #000)' in STYLES.read_text()
     assert '.body--dark .text-secondary { color: color-mix(in srgb, var(--wiz-ember) 70%, #fff)' in STYLES.read_text()
     assert DARK_TOKENS['--wiz-link'].strip() == 'var(--wiz-gold)'
+
+
+def test_collapsible_filter_cards_have_a_toggle():
+    """Below 1024px ``.match-filters-card`` is hidden until a Filters toggle opens it.
+
+    A page that uses the card without a toggle strands phone users on its
+    default filter (Triforce Texts did, 2026-10).
+    """
+    offenders = [
+        str(rel)
+        for rel, source, _tree, _lines in _python_sources()
+        if "'match-filters-card" in source
+        and 'wiz-filter-toggle' not in source
+        and EXEMPT not in source
+    ]
+    assert not offenders, (
+        'These use .match-filters-card, which CSS hides below 1024px, but render no '
+        f'.wiz-filter-toggle / .wiz-filter-toggle--inline button to open it: {offenders}'
+    )
