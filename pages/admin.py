@@ -34,7 +34,7 @@ from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
 from pages.admin_tabs.admin_volunteers import admin_volunteers_page
-from pages.admin_tabs.reports import reports_page
+from pages.admin_tabs.reports import VOLUNTEER_REPORTS, reports_page
 from pages.admin_tabs.settings import (
     LEGACY_TAB_PANES,
     SETTINGS_TAB_LABEL,
@@ -191,6 +191,11 @@ def build_admin_tabs(
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
     if is_staff or is_ta_any or is_cc_any:
         tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System', 'content': (reports_page, (), reports_kwargs)})
+    elif access.is_volunteer_coordinator and FeatureFlag.VOLUNTEERS in live:
+        # A coordinator reads Volunteer Coverage and nothing else here: the
+        # other reports cover matches, crew and stages they have no say over.
+        tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System',
+                     'content': (reports_page, (), {**reports_kwargs, 'only': VOLUNTEER_REPORTS})})
     if is_staff:
         tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'group': 'System', 'content': admin_service_health_page})
     # Every setting lives under one entry with its own menu; the panes keep
@@ -280,16 +285,6 @@ def create() -> None:
         live = await FeatureFlagService().enabled_flags()
         setup_steps = await TenantSetupService().status()
 
-        if not access.any():
-            from theme.error_page import prepared_layout, render_error_page
-            render_error_page(
-                status_code=403, headline='Forbidden',
-                message="You don't have access to the admin area. If you think that's wrong, ask a staff member to check your role.",
-                user=user,
-                layout=await prepared_layout(user),
-            )
-            return
-
         reports_kwargs = {
             'report': report,
             'start': start,
@@ -315,6 +310,18 @@ def create() -> None:
             # A retired tab slug (/admin/appearance) names the pane that took it in.
             settings_pane=pane or LEGACY_TAB_PANES.get(section or ''),
         )
+
+        # No tabs is a refusal too: a coordinator or equipment manager whose
+        # feature is off holds a role but has nothing here to open.
+        if not access.any() or not tabs:
+            from theme.error_page import prepared_layout, render_error_page
+            render_error_page(
+                status_code=403, headline='Forbidden',
+                message="You don't have access to the admin area. If you think that's wrong, ask a staff member to check your role.",
+                user=user,
+                layout=await prepared_layout(user),
+            )
+            return
 
         base_layout = BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='admin', user=user,

@@ -271,6 +271,7 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | Method | True when |
 |---|---|
 | `can_view_admin(user)` | Global `SUPER_ADMIN` (checked first), an admin role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of at least one tournament **in this tenant** (the reverse relations hang off the global `User`, so they are tenant-filtered). Excludes `PROCTOR`/`VOLUNTEER` |
+| `can_open_admin(user)` | The nav's Admin link: `/admin` has at least one tab for this viewer. Mirrors `build_admin_tabs` flags included: super-admin, `STAFF`/`STREAM_MANAGER`, TA/CC, `PRESET_MANAGER`, `SYNC_ADMIN`; `VOLUNTEER_COORDINATOR` with `VOLUNTEERS`, `EQUIPMENT_MANAGER` with `EQUIPMENT`, `QUALIFIER_ADMIN` or a per-qualifier admin with `ASYNC_QUALIFIERS`. Deliberately separate from `can_view_admin`, which also gates the admin API, MCP admin scope, reports and staff help |
 | `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_manage_payouts(user, tournament)` | Same people as `can_edit_tournament` — read **and** edit one tournament's prize split (an unannounced split is admin data, so reads are gated too) |

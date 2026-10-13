@@ -47,7 +47,7 @@ class VolunteerExportDialog:
             dialog_header('Export volunteer data', dialog)
             with ui.column().classes('q-pa-md gap-3 full-width'):
                 ui.label(
-                    'Downloads a ZIP of CSVs — the roster and its opt-in notes, declared '
+                    'Downloads a ZIP of CSVs — the roster and who is qualified for what, declared '
                     'availability, positions, shifts, assignments, and a slot-by-slot '
                     'schedule grid — for building a schedule in a spreadsheet.'
                 ).classes('text-body2')

@@ -35,6 +35,7 @@ from .shared import (
 async def volunteers_page(
     start: Optional[str] = None,
     end: Optional[str] = None,
+    all_reports_link: bool = True,
     **_unused,
 ) -> None:
     start_d, end_d = await default_date_range(start, end)
@@ -50,6 +51,7 @@ async def volunteers_page(
     with report_page_shell(
         'Volunteer Coverage',
         'How many volunteers each shift has against how many it needs.',
+        all_reports_link=all_reports_link,
     ):
         with report_filter_bar(int(await is_custom_range(start_d, end_d))):
             date_range_filter(start_d, end_d, on_change=nav)
