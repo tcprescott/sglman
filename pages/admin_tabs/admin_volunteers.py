@@ -20,7 +20,7 @@ from application.utils.timezone import (
     timezone_label,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
-from theme.dialog._helpers import form_dialog
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
