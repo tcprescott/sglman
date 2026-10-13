@@ -14,14 +14,12 @@ runs are scored against each other on a leaderboard.
 
 ## Finding a qualifier
 
-The **Async Qualifiers** page lists every qualifier your community is running,
-newest first, with its window (when it opens and when it closes) and a
-description. **Open** takes you into one.
+Open **Qualifiers** in the side menu. The **Async Qualifiers** page lists every
+qualifier your community is running, newest first, with its window (when it
+opens and when it closes) and a description. **Open** takes you into one.
 
-There's no menu item for qualifiers yet, so you'll usually arrive from a link:
-organisers post one, and every Discord message about a run you've started has a
-button straight back to the qualifier. The list itself is at `/qualifiers` on
-your community's site.
+Every Discord message about a run you've started also has a button straight
+back to the qualifier.
 
 ## Pools and runs
 
@@ -41,9 +39,11 @@ once the clock is running, so be ready to play before you press it.
 ![A qualifier page on a phone before any runs: its window, Start a run with a Start: Bonus Pool button marked 1 and its 0 of 2 runs used count marked 2, a Start: Standard Pool button, an empty My runs, and a hidden leaderboard](/static/help/qualifiers/start-phone.webp "Each pool's **Start:** button (1) and how many of its runs you've used (2).")
 
 You can have one run going at a time in a qualifier. You're never handed a seed
-you already have a counting run on. The draw is random, except that once some
-seeds in a pool have been played noticeably more than others, it hands out one
-of the least-played, so every seed ends up with enough runs to set a fair par.
+you already have a counting run on, and after a reattempt you get a seed you
+haven't played in that pool unless it has none left. The draw is random, except
+that once some seeds in a pool have been played noticeably more than others, it
+hands out one of the least-played, so every seed ends up with enough runs to set
+a fair par.
 
 When there's no button, the page says why:
 
@@ -68,7 +68,8 @@ countdown underneath. It's 12 hours after you started unless your organisers set
 a different limit. Shortly before it (an hour, unless they changed that too)
 you'll get a Discord DM with a **Submit or forfeit** button. If the deadline
 passes, the run is forfeited for you: it scores zero, the slot is spent, and My
-runs shows it as *Forfeited (ran out of time)*.
+runs shows it as *Forfeited (ran out of time)*. A DM tells you, and its **See
+your runs** button opens My runs.
 
 If that happened when it shouldn't have, ask an organiser. They can grant you
 another attempt, and it doesn't come out of your own reattempts.
@@ -92,7 +93,8 @@ so submit it. If you dropped a digit, choose **Let me fix it**. Reviewers see
 both your time and the app's clock.
 
 Once submitted, the run shows *Awaiting review* and you can start your next one
-straight away. You don't have to wait for the verdict.
+straight away. A run waiting for review only holds its own pool slot, so you
+don't have to wait for the verdict.
 
 ## Forfeiting
 
@@ -103,7 +105,7 @@ left, the confirmation says so.
 ## Reviews
 
 A reviewer approves or rejects each submitted run, and you get a Discord DM
-either way. A rejection always carries the reviewer's reason, which also appears
+either way, with a **See your runs** button that opens My runs. A rejection always carries the reviewer's reason, which also appears
 in the **Reviewer note** column of My runs. A rejected run counts as zero and
 still uses its slot.
 
@@ -118,17 +120,17 @@ you can quote it if you disagree with a verdict.
 
 | Column | What it shows |
 |---|---|
-| Status | *Running*, *Finished*, *Forfeited*, *Forfeited (ran out of time)*, or *Disqualified* (only from a live race) |
-| Review | *Awaiting review*, *Approved*, *Rejected*, or *Voided* for a run that no longer counts |
-| Against par | While the window is open: *Under par*, *Near par* or *Above par* |
+| Status | *Running*, *Finished*, *Forfeited*, *Forfeited (ran out of time)*, *Disqualified* (only from a live race), or *Waiting for the race* for a live race that hasn't started |
+| Review | *Awaiting review*, *Approved*, *Rejected*, or *Voided* for a run that no longer counts. Blank while a run is going or waiting for its race |
+| Against par | While the window is open: *Under par*, *Near par* or *Above par*, or *Forfeited* or *Disqualified* for a run that didn't finish |
 | Score | Replaces Against par once the qualifier closes |
 | Reviewer note | The reason behind a verdict, or why a run was voided |
 
 You see a band instead of a number while the qualifier is open because the exact
 score, together with your own time, would tell you the seed's par, and par stays
 hidden while other people are still running. *Under par* means at least 5%
-faster than par, *Above par* more than 5% slower. A forfeit has no time, so it
-shows *Above par*.
+faster than par, *Above par* more than 5% slower. A forfeit has no time and no
+side of par, so that column says *Forfeited* (or *Disqualified*) instead.
 
 ![My runs on a phone, one card per run: a pending live-race result, a Running run, a Rejected run with its Reviewer note marked 1 and its Reattempt button marked 2, and an Approved run marked Near par](/static/help/qualifiers/my-runs-phone.webp "A rejected run's **Reviewer note** (1), and **Reattempt** (2) to replace it.")
 
@@ -138,7 +140,8 @@ shows *Above par*.
 When a qualifier allows reattempts, My runs says how many you have left, and a
 **Reattempt** button sits on each finished or forfeited run. Using one voids
 that run (its score is thrown away and it stops counting) and frees its pool
-slot for a fresh draw. You have to give a reason. It doesn't bring back the run
+slot for a fresh draw, which gives you a seed you haven't played unless the pool
+has none left. You have to give a reason. It doesn't bring back the run
 you voided, so only spend one on a run you'd rather replace.
 :::
 
@@ -176,13 +179,16 @@ your own line.
 
 Organisers can also run a pool's seed as a live race on racetime.gg, where
 everyone plays it at once in one room. Your result comes straight from the room
-and counts as approved, with no review. It uses one of your runs in that pool. If
+and counts as approved, with no review. It uses one of your runs in that pool.
+Until the race starts, My runs lists it as *Waiting for the race*, and that
+doesn't stop you starting a run of your own in the meantime. If
 you'd already used them all, the result is kept in your history but doesn't
 count.
 
 The room only knows your racetime.gg account, so link it under **Connected
 accounts** on your Profile before you race, or your result can't be matched to
-you. Some seeds are set aside for live races and are never drawn when you start
+you. If your result goes missing anyway, tell an organiser. They can type it in
+by hand, as long as you've joined the community. Some seeds are set aside for live races and are never drawn when you start
 a run yourself.
 
 ## What happens next

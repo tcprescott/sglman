@@ -135,7 +135,8 @@ linked Challonge account. Its button takes you to the field.
 you get a DM and a **Join the room** button at the top of My Schedule.
 
 **Reattempt**: voiding one of your async qualifier runs to free its slot for a
-fresh draw. See [Reattempts](/help/qualifiers#reattempts).
+fresh draw, which hands you a seed you haven't played in that pool unless it has
+none left. See [Reattempts](/help/qualifiers#reattempts).
 
 **Request Match**: the button on My Schedule that books a match yourself, in a
 tournament that allows it.

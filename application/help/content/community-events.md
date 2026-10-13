@@ -26,13 +26,17 @@ Tap an event's title for its own page, with the full description.
 ## Getting a reminder or RSVPing
 
 :::snippet community-events-attend
-Each event has one button, and which one depends on the host.
+Each event has a button, and which one depends on the host.
 
 | You see | What it does |
 |---|---|
 | **Remind me** | Sends you a Discord DM shortly before it starts. The button turns into **Subscribed**; tap that to stop the reminder. |
 | **RSVP** | Tells the host you're coming, and gets you the same reminder. The button turns into **Going**; tap that to cancel your RSVP, which cancels the reminder too. |
 | **Full** | The host set a cap and every place is taken. If someone cancels, the button comes back. |
+
+If you tapped **Remind me** before the host switched RSVPs on, you keep your
+reminder: the card shows **Subscribed** beside **RSVP** so you can still turn it
+off.
 
 The card counts how many people are going (and the cap, if there is one) or how
 many have subscribed.
@@ -93,8 +97,9 @@ Open the event's page and tap **Edit** or **Cancel event**.
 
 An edit to a listed event goes live straight away, without another review. If
 you move the start time, everyone subscribed or going gets a DM with the new
-time and their reminder is reset to match. Lowering the cap doesn't remove
-anyone who's already going.
+time and their reminder is reset to match. You can lower the cap, but not below
+the number of people already going; if you try, the app tells you how many
+that is.
 
 If staff turned your event down, fix whatever their reason asked for and save
 it. That sends it back to {chip:pending:Waiting for review} and lets staff know.
@@ -116,9 +121,9 @@ submits one, and its button opens the event's review dialog directly. The
 
 | Button | Does |
 |---|---|
-| **Approve** | Lists it. The host gets a DM. Also puts back an event you took down. |
+| **Approve** | Lists it. The host gets a DM. Also puts back an event you took down, though its old subscribers and RSVPs don't come back with it. |
 | **Reject** | Turns it down. Write a reason first; the host gets it in a DM and can edit and resubmit. |
-| **Take down** | The same as Reject, for an event that's already listed. Anyone subscribed or going is told it's cancelled. |
+| **Take down** | The same as Reject, for an event that's already listed. Anyone subscribed or going is told it's cancelled, and their subscriptions and RSVPs are cleared. |
 | **Edit** | Changes the event yourself. It keeps its status. |
 
 Events staff submit are listed straight away, and staff can edit or cancel any

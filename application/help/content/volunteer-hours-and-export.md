@@ -102,5 +102,6 @@ know that each export is recorded in the audit log.
 
 For a view across several days, **Admin → Reports → Volunteer Coverage** lists
 every understaffed shift in a date range and how many people each still needs.
-Reports opens for staff, tournament admins and crew coordinators, not for the
-Volunteer Coordinator role on its own.
+A volunteer coordinator who isn't staff gets the Reports tab with just this
+report in it; the match, crew and stage reports stay with staff, tournament
+admins and crew coordinators.

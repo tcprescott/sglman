@@ -19,7 +19,8 @@ that still need you.
 The queue lists open requests, oldest first, with the attendee's own details and
 your staff notes side by side. Tick **Show withdrawn** to see requests attendees
 have taken back. Press **Update** on a row to set its status and write notes
-only staff can read. Proctors see an icon once it's Arranged, never the notes.
+only staff can read. Proctors see an "ADA:" line on the match once it's
+Arranged, never the notes.
 :::
 
 You get a Discord DM when a request opens, with a button that opens it here. The
@@ -47,9 +48,9 @@ them when you change it.
 
 ## What proctors see
 
-Once a request is **Arranged**, each of the attendee's matches on Admin →
-Schedule and the Proctor Station board carries an accessibility icon and "ADA:"
-with their name. Open the match and its **Ready to play?** checklist has a
+Once a request is **Arranged**, each of the attendee's matches on the Admin →
+Schedule and Proctor Station run sheets carries an "ADA:" line with their name.
+Open the match and its **Ready to play?** checklist has a
 *name: ADA accommodation* button under the players. Staff who tap it see the
 staff notes. Proctors see only that something has been arranged and to check with
 staff. Tournament admins and crew coordinators don't see any of it.
@@ -60,7 +61,7 @@ line or two.
 ## When an attendee changes an arranged request
 
 If the attendee edits their details after you've arranged it, the request stays
-Arranged so the proctors don't lose the icon, and it gets a
+Arranged so the proctors don't lose the "ADA:" line, and it gets a
 {chip:pending:Changed since arranged} chip. You get one DM about it.
 
 Open it and you'll see what was arranged next to what they're asking for now.

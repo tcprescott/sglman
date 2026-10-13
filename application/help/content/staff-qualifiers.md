@@ -10,7 +10,10 @@ summary: Setting up a qualifier and its seed pools, working the review queue, fi
 
 Async qualifiers live on **Admin → Qualifiers**, under Online play. Staff and
 anyone with the Qualifier Admin role can create them, fill their pools and
-review runs. The player's side is in [Async qualifiers](/help/qualifiers).
+review runs. A qualifier's own reviewers (see [Leaderboard and
+reviewers](#leaderboard-and-reviewers)) get the same tab, listing only the
+qualifiers they review. The player's side is in [Async
+qualifiers](/help/qualifiers).
 
 ## Creating a qualifier
 
@@ -23,14 +26,12 @@ review runs. The player's side is in [Async qualifiers](/help/qualifiers).
   clock. Leave a date blank for no limit on that side.
 - **Runs per pool**, the same for every pool, and **Allowed reattempts**, the
   number of runs each player may void and replay themselves.
+- **Active**. Leave it off if players shouldn't see the qualifier yet, and
+  switch it on later with **Edit qualifier**.
 
 Set a close date. Results, pars and the leaderboard stay hidden from players
 until the qualifier closes, and one with no close date only closes when you
 switch **Active** off with **Edit qualifier** in its ⋮ menu.
-
-A new qualifier is created active even if you turn the Active switch off in
-the New Qualifier dialog, so if it shouldn't appear yet, edit it afterwards and
-switch it off there.
 
 A run has 12 hours before it's forfeited automatically, and the runner is warned
 an hour ahead. Those two, how many times make up a par (five) and how uneven a
@@ -118,12 +119,18 @@ When the race finishes, each entrant's result is recorded as an approved run wit
 no review, and the seed's par is recomputed. A racer who has already used all
 their runs in that pool keeps the result in their history, but it doesn't count.
 
+Each race card shows its status in words: *Scheduled*, *Room open*, *Racing*,
+*Finished* or *Cancelled*.
+
 Two things stop a result landing. A race with no permalink can't be scored, so
 the card offers **Set permalink** until it has one. And a racer whose racetime.gg
-account isn't linked to anyone here is listed on the card as not recorded. Staff
-link the account on Admin → Users, then **Record results** enters the race
-again. Record results is also the fix when the room's result never arrived at
-all.
+account isn't linked to anyone here is listed on the card as not recorded. Only
+the racer can link it, under **Connected accounts** on their own Profile, so ask
+them to before the next race. For this one, use **Record results** to type their
+outcome and time in. Its
+**Racer** picker lists members of your community, so a racer who hasn't signed
+in and joined yet won't be in it. Record results is also the fix when racetime
+finished someone without a time, or the room's result never arrived at all.
 
 ## Leaderboard and reviewers
 
@@ -131,13 +138,14 @@ The **Leaderboard** tab shows the board while the qualifier is still open, which
 players can't see. It uses the same Score, Estimate and Slots columns they get
 once it closes.
 
-The **Reviewers** tab is the qualifier's own reviewer list. Reviewers are who the backlog DM goes to, and a reviewer marked *no
-Discord* won't get it. Staff and Qualifier Admins can review every qualifier
-whether they're listed or not.
+The **Reviewers** tab is the qualifier's own reviewer list. Reviewers are who
+the backlog DM goes to, and a reviewer marked *no Discord* won't get it. Staff
+and Qualifier Admins can review every qualifier whether they're listed or not.
 
-Someone listed here without the Qualifier Admin role can open Admin → Qualifiers,
-but the qualifier list refuses them, so they can't reach the queue from the page.
-Give working reviewers the role.
+Someone listed here without the Qualifier Admin role gets the Admin link and
+**Admin → Qualifiers**, showing just the qualifiers they review, so the backlog
+DM's button lands on their queue. They can't create a qualifier: **New
+Qualifier** isn't shown to them.
 
 ## Deleting a qualifier
 
