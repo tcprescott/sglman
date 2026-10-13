@@ -47,6 +47,8 @@ from application.utils.app_links import (
     player_match_url,
     player_reschedule_url,
     player_schedule_url,
+    qualifier_runs_url,
+    qualifier_url,
     volunteer_release_url,
 )
 from application.utils.discord_messages import DMLink
@@ -111,6 +113,25 @@ async def player_schedule(
     the DM that tells them to book it.
     """
     return await link_for(label, player_schedule_url(bracket_match_id))
+
+
+def player_qualifier(tenant: Any, qualifier_id: int, *, label: str) -> Optional[DMLink]:
+    """One qualifier's player page, where a run is started, submitted or forfeited.
+
+    Takes the tenant row because the qualifier DMs hold it already (see
+    :func:`link_for_tenant`).
+    """
+    return link_for_tenant(tenant, label, qualifier_url(qualifier_id))
+
+
+def player_qualifier_runs(
+    tenant: Any, qualifier_id: int, *, label: str = 'See your runs',
+) -> Optional[DMLink]:
+    """The qualifier page scrolled to My runs — the verdict, the note, the status.
+
+    Not the leaderboard: players cannot see it until the qualifier closes.
+    """
+    return link_for_tenant(tenant, label, qualifier_runs_url(qualifier_id))
 
 
 async def player_reschedule(

@@ -238,6 +238,8 @@ class MyQualifierRunResponse(BaseModel):
     expired_at: Optional[datetime] = None
     # Null while the qualifier is open — read ``score_band`` then.
     score: Optional[float] = None
+    # Null for a run that did not finish (a forfeit or disqualification): it has
+    # no pace to compare with par.
     score_band: Optional[str] = None
     notes: List[str] = []
 

@@ -113,9 +113,10 @@ async def test_spent_slots_and_played_seeds_come_back_per_pool(db):
     assert spent == {pool_a.id: 1}, 'a pool with no runs is absent, not zero-keyed'
 
     played = await repo.played_permalink_ids_for_user_by_pool([pool_a.id, pool_b.id], player.id)
-    assert played[pool_a.id] == {run.permalink_id}
+    assert played[pool_a.id].valid == {run.permalink_id}
+    assert played[pool_a.id].voided == set()
     # Present and empty, because the no-repeat filter asks about every pool.
-    assert played[pool_b.id] == set()
+    assert played[pool_b.id].valid == set() and played[pool_b.id].voided == set()
     assert await repo.valid_run_counts_for_user_by_pool([], player.id) == {}
     assert await repo.played_permalink_ids_for_user_by_pool([], player.id) == {}
 

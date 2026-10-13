@@ -12,6 +12,7 @@ __all__ = [
     'BAND_EXPLAINER',
     'BAND_LABELS',
     'BOARD_EXPLAINER',
+    'LIVE_RACE_STATUS_LABELS',
     'REVIEW_LABELS',
     'SCORE_EXPLAINER',
     'STATUS_LABELS',
@@ -60,4 +61,14 @@ REVIEW_LABELS = {
     'pending': 'Awaiting review',
     'approved': 'Approved',
     'rejected': 'Rejected',
+}
+
+# A live race's lifecycle, for the staff cards. ``pending`` means a racetime room
+# exists and the race has not started, which is what the reader needs to know.
+LIVE_RACE_STATUS_LABELS = {
+    'scheduled': 'Scheduled',
+    'pending': 'Room open',
+    'in_progress': 'Racing',
+    'finished': 'Finished',
+    'cancelled': 'Cancelled',
 }

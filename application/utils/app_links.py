@@ -66,6 +66,22 @@ def admin_qualifier_queue_url(qualifier_id: int) -> str:
     return admin_url(QUALIFIERS, qualifier=qualifier_id, tab='queue')
 
 
+def qualifier_url(qualifier_id: int) -> str:
+    """A player's own page for one async qualifier: start, submit or forfeit a run."""
+    return f'/qualifiers/{qualifier_id}'
+
+
+def qualifier_runs_url(qualifier_id: int) -> str:
+    """The same page scrolled to My runs, where a verdict or a forfeit shows up.
+
+    The run-reviewed and run-expired DMs land here. Their button used to say
+    "View the leaderboard", which is hidden from players until the qualifier
+    closes, so the one thing the reader came to check was the thing they
+    could not see.
+    """
+    return f'{qualifier_url(qualifier_id)}{_query({"focus": "runs"})}'
+
+
 def home_url(section: Optional[str] = None, **params) -> str:
     """Build ``/home[/<section>][?…]``, dropping empty params."""
     return f"{'/home/' + section if section else '/home'}{_query(params)}"
