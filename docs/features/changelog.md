@@ -1,7 +1,8 @@
 # In-App Changelog
 
 A public `/changelog` page, titled **What's new**, listing the bigger changes to
-Wizzrobe a week or more at a time, newest first. It is written for the people
+Wizzrobe a week or more at a time, newest first, each week grouped into New,
+Improved, Fixed, Security and Behind the scenes. It is written for the people
 who use the app (players, crew, volunteers, community staff), not for
 developers, so entries describe what changed for a reader rather than which
 module moved.
@@ -20,7 +21,13 @@ a title, and runs to the next heading:
 ```markdown
 ## 2026-10-05/2026-10-11 Event check-in, race rooms and a Challonge overhaul
 
+### New
+
 - One bullet per change a reader would notice.
+
+### Fixed
+
+- Grouped by kind of change.
 ```
 
 The interval is plain calendar dates, so no timezone is applied. The page shows
@@ -30,11 +37,32 @@ start date (`/changelog#2026-10-05`).
 ### Per-PR change files
 
 A PR doesn't edit `changelog.md`. It adds
-`application/changelog/changes/YYYY-MM-DD-<topic>.md` holding only bullets:
+`application/changelog/changes/YYYY-MM-DD-<topic>.md` holding only bullets,
+each under a category heading:
 
 ```markdown
+### New
 - Help has a new article on borrowing equipment.
+
+### Fixed
+- The equipment desk no longer double-books a loaner.
 ```
+
+### Categories
+
+Every bullet sits under one of five `### ` headings, and the page shows each
+week's lines grouped in this order, with a coloured dot and a count beside each
+group: **New** (something you couldn't do before), **Improved** (something that
+works better, looks different or moved), **Fixed** (a bug someone hit),
+**Security** (a hole closed or private data kept private), and **Behind the
+scenes** (work a reader only notices indirectly, like error reporting or
+dependency updates). A bullet that does more than one thing goes under its
+biggest part.
+
+The categories are the `CATEGORIES` tuple in `catalog.py`. A bullet before any
+heading, or under a heading that isn't one of them, is logged and shown last
+under **More changes**, so an old-style change file from a branch opened before
+categories existed still reaches the page; the test below fails it first.
 
 Every PR merged in a week used to append to the same few lines of that week's
 entry, so any two of them conflicted. A file of its own can't. At load,
@@ -60,7 +88,8 @@ rather than vanishing from the page:
 
 - every `## ` line is a well-formed entry heading, and nothing precedes the first;
 - every `changes/` file is named `YYYY-MM-DD-<lowercase-topic>.md` and holds
-  only bullets;
+  only bullets under category headings;
+- every line on the page, from either source, has a category;
 - entries are newest first and do not overlap;
 - every entry starts on a Monday and ends on a Sunday, which is what keeps the
   page at a week or coarser. Quiet weeks fold into one entry spanning several.

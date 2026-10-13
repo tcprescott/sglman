@@ -3012,6 +3012,46 @@ body.wiz-offline .wiz-requires-socket {
     margin-bottom: 0.6rem;
 }
 
+/* Each week's lines grouped by kind of change: a small heading per group with
+   a status-coloured dot and a muted count. The dot is decoration; the name says
+   it. Tighter than an article h3, since a group sits directly under the date,
+   and it sets its own line-height for the same Quasar reason as the h2 above. */
+.wiz-changelog-category {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-lg);
+    line-height: 1.3;
+    margin: 1rem 0 0.35rem;
+}
+
+.wiz-changelog-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex: none;
+    background: var(--status-neutral);
+}
+
+.wiz-changelog-dot--info { background: var(--status-info); }
+.wiz-changelog-dot--ok { background: var(--status-ok); }
+.wiz-changelog-dot--pending { background: var(--status-pending); }
+.wiz-changelog-dot--cancelled { background: var(--status-cancelled); }
+
+.wiz-changelog-period + .wiz-changelog-category {
+    margin-top: 0.5rem;
+}
+
+.wiz-changelog-category + * {
+    margin-top: 0;
+}
+
+.wiz-changelog-count {
+    font-size: var(--text-sm);
+    font-weight: 400;
+    color: var(--fg-muted);
+}
+
 .wiz-help-h3 {
     font-size: 1.05rem;
     font-weight: 700;

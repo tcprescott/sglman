@@ -20,15 +20,17 @@ import pages.help as help_page
 import theme.base as base
 from application.changelog import parse_changelog, reload_entries
 from application.changelog.catalog import (
+    CATEGORIES,
     CHANGELOG_PATH,
     CHANGES_DIR,
     ENTRY_HEADING_RE,
+    UNSORTED,
     UNTITLED_WEEK,
     all_entries,
     apply_changes,
     change_file_date,
+    split_categories,
 )
-from application.content import parse_blocks
 from middleware.auth import protected_routes
 
 
@@ -69,6 +71,14 @@ class TestShippedChangelog:
         for entry in all_entries():
             assert entry.blocks, f'{entry.title} has no content'
 
+    def test_every_line_has_a_category(self):
+        for entry in all_entries():
+            stray = [s.category for s in entry.sections if s.category not in CATEGORIES]
+            assert not stray, (
+                f'{entry.title}: put every bullet under one of '
+                f'{", ".join("### " + c for c in CATEGORIES)}'
+            )
+
 
 def _change_files():
     return [p for p in CHANGES_DIR.iterdir() if not p.name.startswith('.')]
@@ -81,12 +91,18 @@ class TestShippedChangeFiles:
                 f'changes/{path.name}: name it YYYY-MM-DD-short-topic.md (lowercase, hyphens)'
             )
 
-    def test_every_change_file_is_only_bullets(self):
-        """A heading would start a second entry inside another week's; prose breaks the list."""
+    def test_every_change_file_is_categorized_bullets(self):
+        """A ``## `` heading would start a second entry inside another week's;
+        prose breaks the list; a bullet outside a category lands in "More changes"."""
         for path in _change_files():
-            blocks = parse_blocks(path.read_text(encoding='utf-8'))
-            assert blocks, f'changes/{path.name} is empty'
-            assert {b.kind for b in blocks} == {'bullets'}, f'changes/{path.name}: bullets only'
+            runs = split_categories(path.read_text(encoding='utf-8'), path.name)
+            assert runs, f'changes/{path.name} is empty'
+            for name, blocks in runs:
+                assert name in CATEGORIES, (
+                    f'changes/{path.name}: start with a category heading, one of '
+                    f'{", ".join("### " + c for c in CATEGORIES)}'
+                )
+                assert {b.kind for b in blocks} == {'bullets'}, f'changes/{path.name}: bullets only'
 
 
 class TestChangeFiles:
@@ -94,8 +110,8 @@ class TestChangeFiles:
         return parse_changelog(text)
 
     def test_a_change_joins_the_entry_covering_its_date(self):
-        entries = self._entries('## 2026-10-05/2026-10-11 Check-in\n\n- One\n')
-        [entry] = apply_changes(entries, [(date(2026, 10, 9), '- Two\n')])
+        entries = self._entries('## 2026-10-05/2026-10-11 Check-in\n\n### New\n\n- One\n')
+        [entry] = apply_changes(entries, [(date(2026, 10, 9), '### New\n- Two\n')])
         assert entry.title == 'Check-in'
         [bullets] = entry.blocks
         assert [item[0].text for item in bullets.items] == ['One', 'Two']
@@ -135,6 +151,32 @@ class TestChangeFiles:
     ])
     def test_rejects_a_malformed_name(self, name):
         assert change_file_date(name) is None
+
+
+class TestCategories:
+    def test_groups_lines_in_page_order_across_files(self):
+        entries = parse_changelog(
+            '## 2026-10-05/2026-10-11 Week\n\n### Fixed\n\n- F1\n\n### New\n\n- N1\n'
+        )
+        [entry] = apply_changes(entries, [
+            (date(2026, 10, 6), '### Security\n- S1\n\n### New\n- N2\n'),
+            (date(2026, 10, 7), '### Fixed\n- F2\n'),
+        ])
+        assert [(s.category, s.count) for s in entry.sections] == [
+            ('New', 2), ('Fixed', 2), ('Security', 1),
+        ]
+        [new] = entry.sections[0].blocks
+        assert [item[0].text for item in new.items] == ['N1', 'N2']
+
+    def test_an_uncategorized_line_shows_last_instead_of_vanishing(self):
+        [entry] = apply_changes([], [
+            (date(2026, 10, 6), '- Old style\n'),
+            (date(2026, 10, 7), '### Typo\n- Misfiled\n\n### Improved\n- Fine\n'),
+        ])
+        assert [(s.category, s.count) for s in entry.sections] == [('Improved', 1), (UNSORTED, 2)]
+
+    def test_split_ignores_an_empty_run(self):
+        assert [name for name, _ in split_categories('### New\n\n### Fixed\n- X\n', 't')] == ['Fixed']
 
 
 class TestParser:
