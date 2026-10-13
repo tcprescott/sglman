@@ -10,10 +10,14 @@ Ungated by an environment switch, like the async-qualifier worker: it only ever
 touches events staff have opened, and a deployment with none has nothing for it
 to find. A failing sync (Matcherino down, its shape changed) is recorded on the
 event by the service and retried next tick; it never stops the other events.
+Only a new failure is logged at ERROR: the same failure on the next tick (a
+refused login doesn't heal until someone replaces it) drops to WARNING, since
+the desk already shows it and staff were alerted the first time.
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from application.utils.background_loop import for_each_tenant_scoped, run_worker_loop
 
@@ -30,6 +34,11 @@ def _due(event, now: datetime) -> bool:
         # from the failure instead so a dead endpoint isn't hit every tick.
         last = max(last, event.updated_at) if last else event.updated_at
     return last is None or now - last >= interval
+
+
+def _is_repeat(error: ValueError, previous_error: Optional[str]) -> bool:
+    cause = error.__cause__
+    return cause is not None and previous_error is not None and str(cause)[:1000] == previous_error
 
 
 async def _tick() -> None:
@@ -52,10 +61,12 @@ async def _tick() -> None:
             return
         if not await FeatureFlagService().is_enabled(FeatureFlag.EVENT_CHECK_IN):
             return
+        previous_error = event.last_sync_error
         try:
             result = await service.sync_event(system_user, event.id, audit=False)
         except ValueError as e:
-            logger.error('Check-in sync for event %s failed: %s', event.id, e)
+            level = logging.WARNING if _is_repeat(e, previous_error) else logging.ERROR
+            logger.log(level, 'Check-in sync for event %s failed: %s', event.id, e)
             return
         logger.info('Check-in sync for event %s: %s', event.id, result.as_dict())
 
