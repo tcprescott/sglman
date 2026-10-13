@@ -72,7 +72,7 @@ async def list_feedback(
     limit: int = Query(50, ge=1, le=MAX_ROWS, description="Maximum rows to return."),
     actor: User = Depends(require_staff),
 ):
-    rows = await FeedbackService().list_recent(limit=limit)
+    rows = await FeedbackService().list_recent(actor, limit=limit)
     return [_serialize(row, row.user) for row in rows]
 
 

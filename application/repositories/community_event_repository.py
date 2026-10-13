@@ -117,6 +117,10 @@ class CommunityEventSubscriptionRepository(TenantScopedRepository[CommunityEvent
         ).prefetch_related('user')
 
     @staticmethod
+    async def delete_for_event(event_id: int) -> None:
+        await scoped(CommunityEventSubscription.filter(event_id=event_id)).delete()
+
+    @staticmethod
     async def clear_reminders(event_id: int) -> None:
         await scoped(
             CommunityEventSubscription.filter(event_id=event_id)

@@ -122,7 +122,7 @@ def build_settings_panes(access, live: set) -> list[SettingsPane]:
         if FeatureFlag.COMMUNITY_EVENTS in live:
             panes.append(SettingsPane(
                 'community-events', 'Community Events', 'groups',
-                'When subscribers hear about an event starting.',
+                'Whether staff approve events first, and how early subscribers get a reminder.',
                 native=community_events_settings_pane,
             ))
     discord: list[EmbeddedPage] = []

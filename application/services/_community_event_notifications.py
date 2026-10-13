@@ -84,7 +84,7 @@ async def notify_host_of_decision(event: CommunityEvent, host: User, *, approved
 
         community = await TenantService.current_community_name()
         if approved:
-            message = approved_dm(community, event.title)
+            message = approved_dm(community, event.title, event.rsvp_enabled)
             title, color = '✅ Community event approved', COLOR_CONFIRMED
             link = await notification_links.community_event(event.id)
         else:
