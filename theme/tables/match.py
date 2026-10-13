@@ -72,11 +72,12 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
     on_open_match = None
     run_sheet_group = None
     proctor_run_sheet = False
+    crew_discord_id = None
 
     def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_result=None, on_set_stage=None, on_assign_stations=None,
-                 player_discord_id=None, grid_breakpoint='lt.md',
+                 player_discord_id=None, crew_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, row_filter=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
                  scope_tournament_ids=None, table_key=None, searchable=False,
@@ -121,6 +122,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # every capability-gated control is also behind ``admin_controls``.
         self.access = access or MatchBoardAccess()
         self.player_discord_id = player_discord_id
+        # The board of matches this viewer signed up to crew (My Schedule's crew
+        # section), where ``player_discord_id`` is the board of matches they play.
+        self.crew_discord_id = crew_discord_id
         # Every board gets its own filter namespace and its own default state
         # set — see _skey. Pass a distinct storage_key from each construction
         # site; the fallback exists only so a bare view still works.
@@ -286,7 +290,10 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                     can_run=self.proctor_run_sheet and self.admin_controls and self.access.run,
                 )
             else:
-                register_player_run_sheet_slots(self.table)
+                register_player_run_sheet_slots(
+                    self.table,
+                    menu=any(c.get('name') == MY_ACTIONS_COLUMN for c in self.columns),
+                )
             if self.on_open_match is not None:
                 self.table.on('open_match', lambda event: self._bg(self.on_open_match(event.args)))
         else:
@@ -464,6 +471,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             stage_ids=stage_ids,
             only_upcoming=only_upcoming,
             user_discord_id=self.player_discord_id,
+            crew_discord_id=self.crew_discord_id,
             exclude_racetime=self.exclude_racetime,
             match_ids=self.match_ids,
         )
@@ -672,7 +680,8 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
 
         match_data = await self.display_service.get_match_for_display(match_id)
 
-        if not match_data or (self.row_filter is not None and not self.row_filter(match_data)):
+        if not match_data or (self.row_filter is not None and not self.row_filter(match_data)) \
+                or not self._still_crews(match_data):
             # Gone, or no longer this board's business (a room-view seed whose
             # match just started) — either way the row goes.
             del self.table.rows[idx]
@@ -696,6 +705,21 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         self._notify_rows_changed()
         if flash:
             self._schedule_flash_clear(match_id)
+
+    def _still_crews(self, row) -> bool:
+        """On a crew board, whether the viewer still holds a slot on ``row``.
+
+        Withdrawing updates the one row in place, and a row they left would
+        otherwise stay on their own list offering Sign up.
+        """
+        if not self.crew_discord_id:
+            return True
+        return any(
+            str(person.get('discord_id')) == str(self.crew_discord_id)
+            for key in ('commentators', 'trackers')
+            for person in row.get(key) or []
+            if isinstance(person, dict)
+        )
 
     async def _restamp_shared_state(self, row) -> None:
         """Recompute the per-viewer fields other people's actions change.

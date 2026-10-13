@@ -5,8 +5,9 @@ mention of commentator, tracker or crew; there was no My Commitments anywhere;
 and after signing up, the volunteer's only handle on the commitment was a
 Withdraw button in one row of a 17-row board — 5,874 px of scroll on a phone.
 
-The service half is exercised against the real schema; the copy half is pure
-and tested directly, because the NiceGUI layer has no render coverage.
+The service half is exercised against the real schema. The page itself is the
+player run sheet narrowed to the viewer's crew slots, so its copy and buttons
+are covered by ``tests/theme/test_match_player_run_sheet.py``.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -15,52 +16,6 @@ import pytest
 
 from application.services.crew_service import CrewService
 from models import Commentator, Match, Tournament, Tracker, User
-from pages.home_tabs.my_crew import commitment_status, commitment_title
-
-
-class TestCommitmentStatus:
-    """The four states one commitment can be in, and what each is called."""
-
-    def test_an_unapproved_signup_is_awaiting_approval(self):
-        assert commitment_status({'approved': False})[1] == 'Awaiting approval'
-
-    def test_an_approved_signup_asks_for_a_confirmation(self):
-        """The DM asks for it too; a volunteer who missed the DM had no other
-        way to give it."""
-        _chip, label = commitment_status({'approved': True, 'acknowledged': False})
-        assert label == 'Approved — please confirm'
-
-    def test_an_acknowledged_signup_is_settled(self):
-        assert commitment_status(
-            {'approved': True, 'acknowledged': True})[1] == 'Confirmed'
-
-    def test_a_played_match_reads_as_history_not_as_a_duty(self):
-        """Even unapproved: nothing is owed on a match that already happened."""
-        assert commitment_status({'approved': False, 'finished': True})[1] == 'Played'
-
-    def test_each_state_gets_its_own_chip(self):
-        chips = {
-            commitment_status(row)[0] for row in (
-                {'approved': False},
-                {'approved': True, 'acknowledged': False},
-                {'approved': True, 'acknowledged': True},
-                {'finished': True},
-            )
-        }
-        assert len(chips) == 4, 'two states rendering the same colour say the same thing'
-
-
-class TestCommitmentTitle:
-    def test_it_names_the_match_not_its_id(self):
-        title = commitment_title({
-            'players': ['Alice', 'Bob'], 'tournament': 'Cup', 'scheduled_at': None,
-            'match_id': 17,
-        })
-        assert 'Alice vs Bob' in title
-        assert '17' not in title
-
-    def test_a_match_with_no_roster_still_says_something(self):
-        assert commitment_title({'players': [], 'tournament': 'Cup'}) == 'Cup'
 
 
 @pytest.fixture
@@ -154,8 +109,24 @@ class TestListMyCommitments:
         assert row['finished'] is False
 
 
-def test_a_card_id_is_unique_per_role():
-    """Commentating and tracking one match is two cards; the deep link needs one target."""
-    from pages.home_tabs.my_crew import crew_card_id
 
-    assert crew_card_id(7, 'commentator') != crew_card_id(7, 'tracker')
+class TestTheCrewBoard:
+    """My Schedule's crew section is the run sheet narrowed by ``crew_discord_id``."""
+
+    async def test_it_holds_every_match_you_crew_once_and_nothing_else(self, person, tournament, db):
+        from application.services.match.match_display_service import MatchDisplayService
+
+        other = await User.create(discord_id=9103, username='someone else')
+        both = await Match.create(tournament=tournament, scheduled_at=_at(2))
+        tracked = await Match.create(tournament=tournament, scheduled_at=_at(3))
+        waiting = await Match.create(tournament=tournament, scheduled_at=_at(4))
+        theirs = await Match.create(tournament=tournament, scheduled_at=_at(5))
+        await Commentator.create(match=both, user=person, approved=True)
+        await Tracker.create(match=both, user=person, approved=True)
+        await Tracker.create(match=tracked, user=person, approved=True)
+        # Waiting on approval is still yours to withdraw from.
+        await Commentator.create(match=waiting, user=person, approved=False)
+        await Commentator.create(match=theirs, user=other, approved=True)
+
+        rows = await MatchDisplayService().get_matches_for_display(crew_discord_id='9100')
+        assert sorted(r['id'] for r in rows) == sorted([both.id, tracked.id, waiting.id])

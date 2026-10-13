@@ -14,6 +14,7 @@ re-fetches after every change.
 """
 
 from theme.tables.match_run_sheet import CREW_NAMES, crew_people, decorate_run_sheet_row
+from theme.tables.match_slots import MY_ACTIONS_COLUMN, STREAM_VOLUNTEER_ACTIONABLE
 
 PLAYER_RUN_SHEET_COLUMNS = [
     {'name': 'scheduled_at', 'label': 'Time', 'field': 'scheduled_at', 'align': 'left'},
@@ -24,6 +25,13 @@ PLAYER_RUN_SHEET_COLUMNS = [
     {'name': 'status', 'label': 'Status', 'field': 'state', 'align': 'left'},
     {'name': 'watch', 'label': 'Watch', 'field': 'watch', 'align': 'center'},
 ]
+
+# My Schedule's own matches add a ⋮ per line holding what only a player of that
+# match can do: Ask to change, the harder-settings choice, the stream offer.
+# Named MY_ACTIONS_COLUMN so the board still fetches the reschedule and
+# harder-settings state those items read (``MatchTableView._shows_column``).
+PLAYER_MENU_COLUMN = {'name': MY_ACTIONS_COLUMN, 'label': 'More', 'field': MY_ACTIONS_COLUMN,
+                      'align': 'center'}
 
 # (order, header) per group. What's happening now leads; results trail, newest
 # first, for whoever brought them back with the State filter.
@@ -231,6 +239,64 @@ _BELL = r'''<q-btn :icon="props.row._watching ? 'notifications' : 'notifications
     <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
 </q-btn>'''
 
+_ASK = "props.row._can_reschedule && props.row.state === 'Scheduled'"
+
+_HAS_MENU = ("props.row._mine && ((" + _ASK + ") || props.row._reschedule_pending"
+             " || props.row._hard_offered || (" + STREAM_VOLUNTEER_ACTIONABLE + "))")
+
+# The viewer's own match only. A state that can't be changed from here (a
+# request waiting on staff, settings staff fixed) is a disabled item rather than
+# a missing one, so the menu still says where things stand.
+_MENU = r'''<q-btn v-if="__HAS__" flat round dense icon="more_vert" color="grey-8"
+       :aria-label="'More for ' + (__TITLE__)" @click.stop>
+    <q-menu auto-close anchor="bottom right" self="top right">
+        <q-list style="min-width: 240px">
+            <q-item v-if="__ASK__" clickable @click.stop="$parent.$emit('request_reschedule', props.row)">
+                <q-item-section avatar><q-icon name="edit_calendar" /></q-item-section>
+                <q-item-section><q-item-label>Ask to change</q-item-label>
+                    <q-item-label caption>Ask staff to move it or call it off</q-item-label></q-item-section>
+            </q-item>
+            <q-item v-else-if="props.row._reschedule_pending" disable>
+                <q-item-section avatar><q-icon name="edit_calendar" /></q-item-section>
+                <q-item-section><q-item-label>Change requested</q-item-label>
+                    <q-item-label caption>Waiting on staff</q-item-label></q-item-section>
+            </q-item>
+            <template v-if="props.row._hard_offered">
+                <q-item v-if="props.row._hard_override" disable>
+                    <q-item-section avatar><q-icon name="gavel" /></q-item-section>
+                    <q-item-section><q-item-label>{{ props.row._hard_override_name }}</q-item-label>
+                        <q-item-label caption>Staff set these settings</q-item-label></q-item-section>
+                </q-item>
+                <q-item v-else-if="props.row._hard_agreed && props.row._hard_locked" disable>
+                    <q-item-section avatar><q-icon name="bolt" /></q-item-section>
+                    <q-item-section><q-item-label>Playing {{ props.row._hard_name }}</q-item-label>
+                        <q-item-label caption>This match rolled it</q-item-label></q-item-section>
+                </q-item>
+                <q-item v-else-if="!props.row._hard_locked" clickable
+                        @click.stop="$parent.$emit('open_hard_preset', props.row)">
+                    <q-item-section avatar><q-icon name="bolt" /></q-item-section>
+                    <q-item-section>
+                        <q-item-label>{{ props.row._hard_agreed ? 'Playing ' + props.row._hard_name
+                            : (props.row._hard_opted_in ? 'Opted in, waiting' : 'Harder settings') }}</q-item-label>
+                        <q-item-label caption>{{ props.row._hard_opted_in && !props.row._hard_agreed
+                            ? 'Nobody is told unless everyone opts in'
+                            : 'Play on ' + props.row._hard_name + ' if everyone agrees' }}</q-item-label>
+                    </q-item-section>
+                </q-item>
+            </template>
+            <q-item v-if="__STREAM__" clickable @click.stop="$parent.$emit('toggle_stream_volunteer', props.row)">
+                <q-item-section avatar><q-icon :name="props.row._stream_volunteer ? 'videocam_off' : 'videocam'" /></q-item-section>
+                <q-item-section>
+                    <q-item-label>{{ props.row._stream_volunteer ? 'Withdraw stream offer' : 'Offer for stream' }}</q-item-label>
+                    <q-item-label caption>{{ props.row._stream_volunteer ? 'You offered this match for stream'
+                        : "Tell staff you're happy to be on stream" }}</q-item-label>
+                </q-item-section>
+            </q-item>
+        </q-list>
+    </q-menu>
+</q-btn>'''.replace('__HAS__', _HAS_MENU).replace('__ASK__', _ASK).replace(
+    '__STREAM__', STREAM_VOLUNTEER_ACTIONABLE).replace('__TITLE__', _TITLE)
+
 _STAGE = r'''<a v-if="props.row._stage && props.row.stage_url" :href="props.row.stage_url" target="_blank" rel="noopener noreferrer"
    class="table-link" @click.stop>{{ props.row._stage }}</a>
 <span v-else-if="props.row._stage">{{ props.row._stage }}</span>
@@ -261,6 +327,7 @@ _BODY_SLOT = r'''
             </div>
         </template>
         <template v-else-if="col.name === 'watch'">''' + _BELL + '''</template>
+        <template v-else-if="col.name === 'my_actions'">''' + _MENU + '''</template>
         <template v-else>{{ col.value }}</template>
     </q-td>
 </q-tr>
@@ -280,7 +347,7 @@ _ITEM_SLOT = r'''
                     <span class="run-sheet__meta">''' + _YOU + '''{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
                 </span>
                 <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
-            </button>''' + _BELL + '''
+            </button>''' + _BELL + '''__MENU__
         </div>
         <div v-if="props.row._ack || props.row._roles.length" class="player-sheet__acts">''' + _ACK + '''
             <div v-for="c in props.row._roles" :key="c.key" class="player-sheet__role">''' + _ROLE_CARD + '''</div>
@@ -290,7 +357,11 @@ _ITEM_SLOT = r'''
 '''
 
 
-def register_player_run_sheet_slots(table) -> None:
-    """The player run sheet's desktop ``body`` and phone ``item`` slots."""
+def register_player_run_sheet_slots(table, *, menu: bool = False) -> None:
+    """The player run sheet's desktop ``body`` and phone ``item`` slots.
+
+    ``menu`` puts the ⋮ on the phone card as well; it's set when the board has
+    the ``PLAYER_MENU_COLUMN`` that draws it on desktop.
+    """
     table.add_slot('body', _BODY_SLOT)
-    table.add_slot('item', _ITEM_SLOT)
+    table.add_slot('item', _ITEM_SLOT.replace('__MENU__', _MENU if menu else ''))

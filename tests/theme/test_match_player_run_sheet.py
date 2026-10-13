@@ -156,3 +156,57 @@ class TestTemplates:
         src = pathlib.Path('pages/home_tabs/schedule.py').read_text()
         assert "layout='player_run_sheet'" in src
         assert 'on_open_match=sheet.open' in src
+
+
+class TestMyScheduleMenu:
+    """My Schedule's own matches: one ⋮ per line for what only a player can do."""
+
+    def _slots(self, menu):
+        from theme.tables.match_player_run_sheet import register_player_run_sheet_slots
+
+        class Table:
+            def __init__(self):
+                self.slots = {}
+
+            def add_slot(self, name, template):
+                self.slots[name] = template
+
+        table = Table()
+        register_player_run_sheet_slots(table, menu=menu)
+        return table.slots
+
+    def test_the_phone_card_carries_the_menu_only_where_the_board_has_the_column(self):
+        assert 'more_vert' in self._slots(True)['item']
+        assert 'more_vert' not in self._slots(False)['item']
+        assert '__MENU__' not in self._slots(False)['item']
+
+    def test_the_menu_is_named_for_its_match_and_only_on_the_viewers_own(self):
+        from theme.tables.match_player_run_sheet import _MENU
+
+        assert ":aria-label=\"'More for ' + (" in _MENU
+        assert 'v-if="props.row._mine && ' in _MENU
+
+    def test_each_item_keeps_its_own_gate(self):
+        from theme.tables.match_player_run_sheet import _MENU
+        from theme.tables.match_slots import STREAM_VOLUNTEER_ACTIONABLE
+
+        assert "props.row._can_reschedule && props.row.state === 'Scheduled'" in _MENU
+        assert 'v-else-if="props.row._reschedule_pending" disable' in _MENU
+        assert f'v-if="{STREAM_VOLUNTEER_ACTIONABLE}"' in _MENU
+        for event in ('request_reschedule', 'open_hard_preset', 'toggle_stream_volunteer'):
+            assert f"$parent.$emit('{event}'" in _MENU
+
+    def test_my_schedule_uses_the_run_sheet_with_the_menu(self):
+        from theme.tables.match_player_run_sheet import PLAYER_MENU_COLUMN
+        from theme.tables.match_slots import MY_ACTIONS_COLUMN
+
+        # The column name is what keeps the reschedule and settings state fetched.
+        assert PLAYER_MENU_COLUMN['name'] == MY_ACTIONS_COLUMN
+        src = pathlib.Path('pages/home_tabs/player.py').read_text()
+        assert "layout='player_run_sheet'" in src
+        assert '[*PLAYER_RUN_SHEET_COLUMNS, PLAYER_MENU_COLUMN]' in src
+
+    def test_the_crew_section_is_the_run_sheet_narrowed_to_your_slots(self):
+        src = pathlib.Path('pages/home_tabs/my_crew.py').read_text()
+        assert "layout='player_run_sheet'" in src
+        assert 'crew_discord_id=discord_id' in src
