@@ -79,7 +79,7 @@ This is `scripts/help_screenshots/volunteering.json`:
     "name": "release-phone",
     "user": "sm_user",
     "path": "/volunteer/my-shifts",
-    "setup": [{ "click": "text=Can't make this" }, { "waitFor": ".q-dialog" }, { "wait": 500 }],
+    "setup": [{ "click": "text=Can't make it" }, { "waitFor": ".q-dialog" }, { "wait": 500 }],
     "selector": ".q-dialog .q-card"
   }
 ]

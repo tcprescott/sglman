@@ -341,7 +341,7 @@ On **My Shifts**, above the list, sits one line of hours: `VolunteerHoursService
 
 - **What am I down for** — position/label, the local start→end, and a provenance caption ("Scheduled by …", when, and the acknowledgment time once given).
 - **What does it involve** — the position's `description` as the standing brief, `shift.notes` in a bordered **For this shift** block (the per-shift instruction must not merge visually with the standing one), and a "With: …" line naming the others on the slot, drafts excluded.
-- **How do I get out of it** — a **Can't make this** button beside **Acknowledge**, offered whether or not the shift is acknowledged, opening a dialog that restates the shift, takes an optional reason the coordinator sees, and warns when the shift falls inside the reminder lead or 24 hours (whichever is longer). Its copy is the module-level pure `release_warning(starts_at, lead_minutes)`, so the decision is unit-testable. Confirming calls `service.release`.
+- **How do I get out of it** — a **Can't make it** button beside **Acknowledge**, offered whether or not the shift is acknowledged, opening a dialog that restates the shift, takes an optional reason the coordinator sees, and warns when the shift falls inside the reminder lead or 24 hours (whichever is longer). Its copy is the module-level pure `release_warning(starts_at, lead_minutes)`, so the decision is unit-testable. Confirming calls `service.release`.
 
 The actions sit in their own wrapping row rather than the header row: two buttons plus the badge stack does not fit at 390px.
 
