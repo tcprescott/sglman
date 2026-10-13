@@ -2933,6 +2933,65 @@ body.wiz-offline .wiz-requires-socket {
 }
 
 /* ---------------------------------------------------------------------------
+   My Shifts card actions — "Can't make it" on the left, Acknowledge (or the
+   status that replaces it) on the right, in every state. A wide card packs the
+   pair right at a fixed width; a narrow one (a phone, or a desktop card in a
+   multi-column list) splits the row into equal halves so the pair never wraps
+   onto two lines. Keyed to the row's own width, not the viewport, for that
+   second case.
+--------------------------------------------------------------------------- */
+.wiz-shift-actions {
+    container-type: inline-size;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.wiz-shift-actions > * {
+    flex: 0 0 auto;
+    min-width: 168px;
+}
+
+.wiz-shift-status {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.wiz-shift-status .q-icon {
+    font-size: 18px;
+}
+
+@container (max-width: 479.98px) {
+    .wiz-shift-actions > * {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .wiz-shift-actions .q-btn__content {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 599.98px) {
+    .wiz-shift-status {
+        min-height: 44px;
+    }
+}
+
+/* ---------------------------------------------------------------------------
    In-app help (/help, and the tappable help icons scattered through the app).
 
    Articles are parsed into a closed block/span vocabulary and rendered with

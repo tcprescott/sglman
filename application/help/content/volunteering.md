@@ -96,14 +96,13 @@ Shifts that have finished drop off the list. Turn on **Show all shifts** to see
 them again.
 :::
 
-![My Shifts on a phone: the hours line, then a Broadcast Tech shift card with its notes, Acknowledge and Can't make this](/static/help/volunteering/my-shifts-phone.webp "My Shifts, with one upcoming shift.")
+![My Shifts on a phone: the hours line, then a Broadcast Tech shift card with its notes, Acknowledge and Can't make it](/static/help/volunteering/my-shifts-phone.webp "My Shifts, with one upcoming shift.")
 
 ## Giving a shift back
 
 :::snippet shift-release
 If you cannot work a shift, give it back rather than not turning up. Press
-**Can't make this** on its card, or the **Can't make it** button in the reminder
-DM. Your coordinator is told immediately and can look for cover.
+**Can't make it** on its card or in the reminder DM. Your coordinator is told immediately and can look for cover.
 
 You can add a reason. It is optional, and your coordinator sees it.
 
