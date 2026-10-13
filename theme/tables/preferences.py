@@ -90,7 +90,6 @@ class TableKeys:
     ADMIN_FEEDBACK = 'admin.feedback'
     ADMIN_COMMUNITY_EVENTS = 'admin.community_events'
     ADMIN_PAYOUTS = 'admin.payouts'
-    ADMIN_PRESETS = 'admin.presets'
     ADMIN_QUALIFIERS = 'admin.qualifiers'
     ADMIN_QUALIFIER_LEADERBOARD = 'admin.qualifier_leaderboard'
     ADMIN_RACETIME = 'admin.racetime'

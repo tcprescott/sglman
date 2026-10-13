@@ -1,6 +1,7 @@
 """Admin Presets Page — tenant-authored seed-rolling presets (PRESET_MANAGER/STAFF)."""
 
 import json
+from itertools import groupby
 
 from nicegui import app, background_tasks, context, ui
 
@@ -13,28 +14,14 @@ from application.services import (
 from application.utils.discord_messages import is_seed_link
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_state
 from theme.help import help_icon
+from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
-from theme.tables.preferences import TableKeys
 from theme.waiting import waiting_panel
-
-_ROW_ACTIONS = '''
-    <q-btn flat round dense icon="science" color="primary"
-           @click="$parent.$emit('test', props.row)" aria-label="Test roll">
-        <q-tooltip>Test roll</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
-        <q-tooltip>Edit</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
-        <q-tooltip>Delete</q-tooltip>
-    </q-btn>
-'''
 
 
 async def admin_presets_page() -> None:
@@ -48,22 +35,12 @@ async def admin_presets_page() -> None:
     with ui.column().classes('page-container-narrow'):
         with page_header(
             'Seed Presets',
-            'Named randomizer settings that seed generation resolves for a tournament. '
-            "A tournament's Seed Preset (set on the tournament) overrides its Seed Generator. "
-            'Import the built-in presets to get started, or pull a randomizer\'s '
-            'own published presets over its API.',
+            'Named randomizer settings a tournament rolls its seeds from. '
+            "Set one on a tournament and it wins over the tournament's Seed Generator.",
         ):
             await help_icon('admin-preset-test-roll', user=await current_actor())
 
-        columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
-            {'name': 'randomizer', 'label': 'Randomizer', 'field': 'randomizer', 'sortable': True},
-            {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
-            {'name': 'description', 'label': 'Description', 'field': 'description'},
-            {'name': 'actions', 'label': '', 'field': 'actions'},
-        ]
-
-        table_container = ui.column().classes('w-full')
+        state: dict = {'rows': None, 'usage': {}}
 
         async def _current():
             return await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -78,8 +55,10 @@ async def admin_presets_page() -> None:
             available_randomizers = SeedGenerationService.available_randomizers(
                 await RandomizerCredentialService().configured_randomizers()
             )
-            presets = await service.list_presets(await _current())
-            table.rows = [
+            actor = await _current()
+            presets = await service.list_presets(actor)
+            state['usage'] = await service.usage(actor)
+            state['rows'] = [
                 {
                     'id': p.id,
                     'randomizer': p.randomizer,
@@ -89,7 +68,73 @@ async def admin_presets_page() -> None:
                 }
                 for p in presets
             ]
-            table.update()
+            preset_list.refresh()
+
+        def used_by(row) -> str:
+            count = len(state['usage'].get(row['id'], []))
+            if not count:
+                return 'Not used'
+            return f"{count} tournament{'s' if count != 1 else ''}"
+
+        @ui.refreshable
+        def preset_list() -> None:
+            """One line per preset, grouped under its randomizer.
+
+            The rows arrive ordered by randomizer then name, so ``groupby`` is
+            the grouping. Every action sits behind one menu per line: three icon
+            buttons wrapped onto a second line and doubled every row's height.
+            """
+            if state['rows'] is None:
+                return
+            if not state['rows']:
+                empty_state('No presets yet. Import the built-ins to start from a working set.')
+                return
+            with ui.element('div').classes('preset-list'):
+                for randomizer, group in groupby(state['rows'], key=lambda r: r['randomizer']):
+                    rows = list(group)
+                    with ui.element('section').classes('preset-list__group'):
+                        with ui.element('div').classes('preset-list__head'):
+                            ui.label(SeedGenerationService.randomizer_name(randomizer)) \
+                                .classes('preset-list__title')
+                            ui.label(
+                                f"{randomizer} · {len(rows)} preset{'s' if len(rows) != 1 else ''}"
+                            ).classes('preset-list__count')
+                        for row in rows:
+                            preset_line(row)
+
+        def preset_line(row) -> None:
+            with ui.element('div').classes('preset-list__line'):
+                ui.button(row['name'], on_click=lambda r=row: open_preset_dialog(r), color=None) \
+                    .props('flat no-caps dense align=left') \
+                    .classes('preset-list__name')
+                desc = ui.label(row['description']).classes('preset-list__desc')
+                if row['description']:
+                    desc.props['title'] = row['description']
+                ui.label(used_by(row)).classes('preset-list__used')
+                # No tooltip: it opened over the menu's first item.
+                menu_button = ui.button(icon='more_vert', color=None).props('flat round dense') \
+                    .classes('preset-list__menu')
+                menu_button.props['aria-label'] = f"Actions for {row['name']}"
+                with menu_button:
+                    with ui.menu().props('anchor="bottom right" self="top right"'):
+                        menu_action('science', 'Test roll', lambda r=row: open_test_roll_dialog(r))
+                        menu_action('edit', 'Edit', lambda r=row: open_preset_dialog(r))
+                        ui.separator()
+                        menu_action('delete', 'Delete…', lambda r=row: confirm_delete(r), negative=True)
+
+        def confirm_delete(row) -> None:
+            names = state['usage'].get(row['id'], [])
+            message = f"Delete {row['name']}?"
+            if names:
+                listed = '\n'.join(f'• {n}' for n in names)
+                message += (
+                    f"\n\n{'These tournaments roll' if len(names) > 1 else 'This tournament rolls'} "
+                    f"from it and will need another preset picked:\n{listed}"
+                )
+            ConfirmationDialog(
+                message=message, title='Delete preset', confirm_text='Delete',
+                on_confirm=lambda: background_tasks.create(delete_preset(row, context.client)),
+            ).open()
 
         async def delete_preset(row, client):
             with client:
@@ -115,7 +160,7 @@ async def admin_presets_page() -> None:
                 await refresh_table()
 
         def open_test_roll_dialog(row) -> None:
-            with table_container:
+            with list_container:
                 with form_dialog(f"Test roll: {row['name']}", card_classes='dialog-card dialog-card--sm') as dialog:
                     ui.label(
                         "Rolls one seed the way a match would, so you can check the "
@@ -186,11 +231,11 @@ async def admin_presets_page() -> None:
                 )
                 return
 
-            existing_names = {(r['randomizer'], r['name']) for r in table.rows}
+            existing_names = {(r['randomizer'], r['name']) for r in state['rows'] or []}
             selected: set[str] = set()
             catalogue_state: dict = {}
 
-            with table_container:
+            with list_container:
                 with form_dialog('Import from Randomizer', card_classes='dialog-card dialog-card--md') as dialog:
                     ui.label(
                         "Fetches the randomizer's published presets. Importing one "
@@ -332,7 +377,7 @@ async def admin_presets_page() -> None:
 
         def open_preset_dialog(existing=None) -> None:
             is_edit = existing is not None
-            with table_container:
+            with list_container:
                 with form_dialog('Edit Preset' if is_edit else 'Add Preset', card_classes='dialog-card dialog-card--md') as dialog:
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',
@@ -438,32 +483,22 @@ async def admin_presets_page() -> None:
                         ).props('color=primary')
             dialog.open()
 
-        with table_container:
-            with ui.row().classes('full-width'):
-                ui.button('Add Preset', icon='add', on_click=lambda: open_preset_dialog()).props('color=primary')
-                ui.button(
-                    'Import Built-ins', icon='download',
-                    on_click=lambda: background_tasks.create(import_builtins(context.client)),
-                ).props('flat color=primary')
-                ui.button(
-                    'Import from Randomizer', icon='cloud_download',
-                    on_click=open_remote_dialog,
-                ).props('flat color=primary')
-                ui.space()
-                refresh_button(refresh_table)
+        with ui.row().classes('w-full items-center'):
+            ui.button('Add Preset', icon='add', on_click=lambda: open_preset_dialog()).props('color=primary')
+            with ui.button('Import').props('outline color=primary icon-right=expand_more'):
+                with ui.menu():
+                    menu_action(
+                        'download', 'Built-in presets',
+                        lambda: background_tasks.create(import_builtins(context.client)),
+                    )
+                    menu_action('cloud_download', 'From a randomizer…', open_remote_dialog)
+            ui.space()
+            refresh_button(refresh_table)
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
-
-            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
-            # Descriptions are a sentence or two — DK64R's run to a paragraph —
-            # so this table ships wrapping on rather than pushing the column off
-            # the right edge behind a scrollbar.
-            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
-                               table_key=TableKeys.ADMIN_PRESETS, wrap=True)
-
-            table.on('test', lambda e: open_test_roll_dialog(e.args))
-            table.on('edit', lambda e: open_preset_dialog(e.args))
-            table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))
+        list_container = ui.column().classes('w-full')
+        with list_container:
+            preset_list()
 
         wire_tab_refresh('Presets', refresh_table)
         background_tasks.create(refresh_table())
+

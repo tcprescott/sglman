@@ -13,7 +13,7 @@ import re
 import secrets
 import urllib.parse
 from pathlib import Path
-from typing import ClassVar, List, Optional, Set
+from typing import ClassVar, Dict, List, Optional, Set
 
 import aiohttp
 import yaml
@@ -86,6 +86,19 @@ class SeedGenerationService(DK64RBackend):
         'wwr',
         'test',
     ]
+
+    # What a person calls each one; the slug above is what the data stores.
+    RANDOMIZER_NAMES: ClassVar[Dict[str, str]] = {
+        'alttpr': 'A Link to the Past',
+        'ff1r': 'Final Fantasy',
+        'z1r': 'Zelda 1',
+        'smmap': 'Super Metroid Map Rando',
+        'ootr': 'Ocarina of Time',
+        'smdash': 'Super Metroid DASH',
+        'dk64r': 'Donkey Kong 64',
+        'wwr': 'Wind Waker',
+        'test': 'Test randomizer',
+    }
 
     # Randomizers registered for selection but whose generator is not yet
     # wired to an upstream API — rolling one raises ``ValueError``.
@@ -189,6 +202,10 @@ class SeedGenerationService(DK64RBackend):
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
+
+    @classmethod
+    def randomizer_name(cls, randomizer: str) -> str:
+        return cls.RANDOMIZER_NAMES.get(randomizer, randomizer)
 
     @classmethod
     def offers_remote_presets(cls, randomizer: Optional[str]) -> bool:
