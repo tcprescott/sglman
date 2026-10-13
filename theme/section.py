@@ -14,18 +14,14 @@ rule. ``aside`` is the header's right-hand slot for the section's own controls
 content they belong to.
 """
 
-from typing import NamedTuple, Optional, Sequence, Union
+from typing import NamedTuple, Optional, Sequence
 
 from nicegui import ui
 
 from models import User
-from theme.help import help_icon
+from theme.help import HelpTopic, help_button, resolve_help
 
 __all__ = ['SectionPanel', 'section_panel']
-
-#: A help topic to hang off the header: a bare snippet name, or ``(name, label)``
-#: where the section carries more than one and they need telling apart.
-HelpTopic = Union[str, tuple[str, str]]
 
 
 class SectionPanel(NamedTuple):
@@ -48,15 +44,14 @@ async def section_panel(
 ) -> SectionPanel:
     """Render one section's chrome and hand back its slots.
 
-    ``help_topics`` render as a wrapped group at the right of the header rather
-    than glued to the title. Six of them beside "Your matches" was the single
-    most cluttered thing on the tab: the title and the topics were one run of
-    text, and each topic was small enough to be unreadable.
+    ``help_topics`` become the header's one help button, at the far end of the
+    title row. Six labelled chips beside "Your matches" wrapped to two rows on a
+    phone; one "?" opening a list of the six does not.
 
-    Pass ``user`` where the caller already has one — ``help_icon`` only needs it
-    for a role-gated handbook snippet, and without it every topic looks the
-    viewer up again.
+    Pass ``user`` where the caller already has one: role-gated topics need it,
+    and without it each one looks the viewer up again.
     """
+    topics = await resolve_help(help_topics, user=user)
     panel = ui.element('section').classes('wiz-panel')
     with panel:
         with ui.element('div').classes('wiz-panel__head'):
@@ -64,14 +59,8 @@ async def section_panel(
                 ui.icon(icon).classes('wiz-panel__icon')
                 ui.label(title).classes('wiz-panel__title')
                 aside = ui.row().classes('wiz-panel__aside items-center')
+                help_button(topics)
             if subtitle:
                 ui.label(subtitle).classes('wiz-panel__sub')
-            # After the subtitle, so the topics do not come between a title and
-            # the line explaining it.
-            if help_topics:
-                with ui.row().classes('wiz-panel__help items-center'):
-                    for topic in help_topics:
-                        name, label = topic if isinstance(topic, tuple) else (topic, '')
-                        await help_icon(name, label=label, size='sm', user=user)
         body = ui.column().classes('wiz-panel__body')
     return SectionPanel(panel=panel, aside=aside, body=body)

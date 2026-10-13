@@ -106,14 +106,11 @@ also show in a popup. Put the icon on the surface:
 
 ```python
 from theme.help import help_icon
-await help_icon('equipment-borrow', user=user)                  # the page's explainer
-await help_icon('equipment-return', label='Giving it back', user=user)
+await help_icon('equipment-borrow', 'equipment-return', user=user)  # one "?" listing both
 ```
 
-- One **bare** icon per surface (the page's own explainer), then **labelled**
-  icons for specific topics. Two bare icons side by side are indistinguishable.
 - Pass `user=` when the page already has one; gated snippets need it.
-- Section panels take `help_topics=`, the availability editor `help_snippet=`.
+- One button per heading or dialog title, never beside a control. Section panels take `help_topics=`, dialogs `dialog_header(..., help=await resolve_help([...]))`, the availability editor `help_snippet=`.
 - Snippet names are global. Prefix with the article's topic (`crew-…`,
   `proctor-…`, `staff-…`).
 - `TestPagesAndArticlesAgree` fails if an icon names a snippet that doesn't

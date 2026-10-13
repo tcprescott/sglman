@@ -23,7 +23,7 @@ from theme.dialog.match_dialog_base import (
     acknowledgment_empty_state,
     enrolment_preview,
 )
-from theme.help import help_icon
+from theme.help import resolve_help
 
 # The empty-Tournament hints differ by audience: an admin can go and make one, a
 # player requesting a match cannot.
@@ -551,10 +551,14 @@ class UserMatchDialog(BaseMatchDialog):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             mobile_sheet(dialog)
-            dialog_header(title, dialog)
+            # Suggest a time is only on the player's dialog: what it is built
+            # from (both players' availability windows) is the player's own
+            # data, and the help that explains it is written for them.
+            dialog_header(
+                title, dialog,
+                help=await resolve_help([('match-request', 'Requesting a match'), 'suggest-time']),
+            )
             with ui.column().classes('q-pa-md gap-2'):
-                with ui.row().classes('items-center gap-1 no-wrap'):
-                    await help_icon('match-request', label='What is this?')
                 if not tournaments:
                     ui.label(_no_requestable_message(
                         enrolled=bool(enrolments), enrolled_running=enrolled_running,
@@ -613,18 +617,13 @@ class UserMatchDialog(BaseMatchDialog):
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
 
-                with ui.row().classes('items-center gap-1 no-wrap'):
-                    self._render_suggest_time_button(
-                        get_tournament_id=lambda: selected_tournament.value,
-                        get_player_ids=lambda: [user.id, selected_opponent.value] if selected_opponent.value else [],
-                        date=date,
-                        time=time,
-                        missing_message='Select a tournament and opponent first.',
-                    )
-                    # Only on the player's dialog: what the suggestion is built
-                    # from (both players' availability windows) is the player's
-                    # own data, and the help that explains it is written for them.
-                    await help_icon('suggest-time')
+                self._render_suggest_time_button(
+                    get_tournament_id=lambda: selected_tournament.value,
+                    get_player_ids=lambda: [user.id, selected_opponent.value] if selected_opponent.value else [],
+                    date=date,
+                    time=time,
+                    missing_message='Select a tournament and opponent first.',
+                )
 
                 comment_input = ui.textarea(
                     label='Comment (optional)',

@@ -68,7 +68,7 @@ async def render_accommodation_section(user: User) -> None:
             await save()
 
     with ui.card().classes('card-full-width'):
-        with ui.row().classes('items-center gap-1 no-wrap'):
+        with ui.row().classes('items-center gap-1 no-wrap wiz-help-row'):
             ui.label('ADA accommodation').classes('section-title')
             await help_icon('ada-request', user=user)
         ui.label(

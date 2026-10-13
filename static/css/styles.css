@@ -3039,10 +3039,37 @@ ol.wiz-help-list { list-style-type: decimal; }
 /* --- the tappable help icon --------------------------------------------- */
 
 /* Tap, not hover: a tooltip is unreachable on a touch screen, and this help is
-   read on phones. Muted until touched so it never competes with the control it
-   is explaining. */
-.wiz-help-icon { opacity: 0.6; }
-.wiz-help-icon:hover, .wiz-help-icon:focus-visible { opacity: 1; }
+   read on phones. One per heading or dialog title, the same size everywhere. */
+.wiz-help-icon.q-btn {
+    color: var(--wiz-link);
+    flex-shrink: 0;
+    min-width: 32px;
+    min-height: 32px;
+}
+
+/* Always the last thing on its heading row, whatever the caller built after
+   it, so the "?" sits in the same spot on every page. A ui.space() before the
+   row's actions still takes the free space first; the margin only matters on
+   a row with nothing pushing right. */
+.wiz-page-header__row > .wiz-help-icon,
+.wiz-help-row > .wiz-help-icon {
+    order: 99;
+    margin-left: auto;
+}
+
+.wiz-help-menu-title {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+/* Several topics: a list of names, full width, that each open in place. */
+.wiz-help-menu-body > .wiz-help-topic {
+    align-self: stretch;
+    border-top: 1px solid var(--border-subtle);
+}
+.wiz-help-menu-body:has(> .wiz-help-topic) { gap: 0; }
+.wiz-help-topic .q-item { padding: 0; min-height: 44px; }
+.wiz-help-topic .q-expansion-item__content { padding: 0 0 0.6rem; }
 
 .wiz-help-menu-body {
     padding: 0.85rem 1rem;
@@ -3176,23 +3203,6 @@ ol.wiz-help-list { list-style-type: decimal; }
     margin-left: auto;
     gap: var(--space-2);
     flex-wrap: nowrap;
-}
-
-/* Help topics sit on their own line, right-aligned, as a set of chips — beside
-   the title six of them read as one unbroken run of tiny text. */
-.wiz-panel__help {
-    justify-content: flex-end;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-    row-gap: var(--space-1);
-}
-
-.wiz-panel__help .wiz-help-icon {
-    opacity: 0.85;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-pill);
-    background: var(--surface);
-    font-size: 0.75rem;
 }
 
 .wiz-panel__sub {
@@ -3562,20 +3572,6 @@ ol.wiz-help-list { list-style-type: decimal; }
     .text-muted {
         font-size: 1rem;
         margin-bottom: var(--space-2);
-    }
-
-    /* Labelled help chips ("Approval", "Queues") inherit size=xs, which Quasar
-       turns into an 8px inline font. Hold them at a caption size that can be read
-       without zooming, and at a touch height that does not stand a row of them
-       a thumb tall. */
-    .wiz-help-icon.q-btn:not(.q-btn--round) {
-        font-size: 0.75rem !important;
-        min-height: 32px;
-    }
-
-    .wiz-panel__help .wiz-help-icon.q-btn--round {
-        min-height: 32px;
-        min-width: 32px;
     }
 
     /* A seed string and its copy button stay on one line; the string gives way

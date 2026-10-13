@@ -214,7 +214,7 @@ Schedule — builds each one with `section_panel(...)` rather than a
 panel = await section_panel(
     'Crew you signed up for', icon='headset_mic',
     subtitle='Commentary and tracking slots you volunteered for.',
-    help_topics=['crew-status', ('crew-approval', 'Approval')],
+    help_topics=[('crew-status', 'Your crew slots'), 'crew-approval'],
     user=viewer,
 )
 with panel.aside:
@@ -229,8 +229,9 @@ with panel.body:
 | `aside` | the header's right-hand control strip — a scope switch, a column-preferences gear |
 | `body` | the content (`.wiz-panel__body`, one padding rule) |
 
-`help_topics` takes a bare snippet name or `(name, label)`; they render as a
-wrapped, right-aligned chip group **below** the subtitle, not glued to the title.
+`help_topics` takes a bare snippet name or `(name, label)`; they become the
+panel's one "?" at the end of the title row, which lists them
+([help icons](../features/help.md#help-icons)).
 The stack itself is `ui.column().classes('page-container wiz-section-stack')` —
 one gap between panels, no separators, since a panel already has an edge.
 
@@ -252,7 +253,7 @@ Two rules the classes exist to keep:
 
 The public event schedule with crew signup.
 
-- No page title (the Event tab's view switcher already names the view): one `.wiz-view-note` line — "Every match, and where you can sign up as crew." — with the `schedule-columns` and `match-states` help icons. Every viewer is signed in, since home's membership gate runs first. Per-tournament notification preferences are managed on the Profile tab — see [../features/discord.md](../features/discord.md#tournament-notification-preferences).
+- No page title (the Event tab's view switcher already names the view): one `.wiz-view-note` line — "Every match, and where you can sign up as crew." — with one help button for `schedule-columns` and `match-states`. Every viewer is signed in, since home's membership gate runs first. Per-tournament notification preferences are managed on the Profile tab — see [../features/discord.md](../features/discord.md#tournament-notification-preferences).
 - A `MatchTableView` with `admin_controls=False`, `table_key=TableKeys.HOME_SCHEDULE`, `storage_key='home_schedule'` and `grid_breakpoint='lt.lg'`. Columns: Tournament, Scheduled At, State, Players, Stage, Generated Seed, Commentators, Trackers, Watch.
 - A match scheduled by a bracket shows a "<stage> · Game 2 of 3 · 1-0" link under the tournament name (`MatchDisplayService._bracket_ref`, rendered by `match_slots.py` / `match_grid.py`, handled by `_handle_open_bracket`). The series context comes off games the repository already prefetched, so it costs no extra query per row; the round *name* is deliberately absent, since naming a round needs the stage's whole graph. It emits `open_bracket` rather than carrying an `href`, so `ui.navigate.to` prepends the tenant `root_path`. Shared by every `MatchTableView`.
 - `MatchTableView(show_accommodations=True)` (admin Schedule, Proctor Station only) marks players with an **Arranged** ADA accommodation: `_apply_accommodations` adds `ada`/`ada_note` to the player dicts via `AccommodationService.arranged_notes_for` (empty for any viewer but STAFF/PROCTOR), and the players cell's icon emits `show_accommodation` to open a staff-notes popup — see [../features/ada-accommodations.md](../features/ada-accommodations.md).
@@ -906,7 +907,7 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 | [`assets.py`](../../theme/assets.py) | `asset_url(path)` and `cache_control(...)` — see [Static assets](#static-assets--styling-static) |
 | [`markdown_editor/`](../../theme/markdown_editor/__init__.py) | `MarkdownEditor(label, value=..., placeholder=...)` — a WYSIWYG markdown editor (vendored Tiptap bundle in `dist/`) whose toolbar is limited to what `render_blocks` can show; value is markdown. Rebuild with `npm ci && npm run build` in that directory. See [community-events.md](../features/community-events.md#descriptions-and-the-editor) |
 | [`community_events.py`](../../theme/community_events.py) | The community-events disclaimer banner, status chips and time lines shared by the page and the admin tab |
-| [`help/`](../../theme/help/__init__.py) | `help_icon(...)`, `render_blocks` / `render_spans` — the safe-markdown renderer shared by `/help`, `/event-info` and tournament descriptions. See [../features/help.md](../features/help.md) |
+| [`help/`](../../theme/help/__init__.py) | `help_icon(...)` / `resolve_help` + `help_button` (one "?" per heading or dialog title), `render_blocks` / `render_spans` — the safe-markdown renderer shared by `/help`, `/event-info` and tournament descriptions. See [../features/help.md](../features/help.md) |
 
 ## Table views (`theme/tables/`)
 

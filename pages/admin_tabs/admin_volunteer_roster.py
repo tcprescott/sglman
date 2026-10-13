@@ -64,8 +64,7 @@ async def admin_volunteer_roster_page() -> None:
             'The pool of opted-in volunteers, their qualifications, and declared '
             'availability. Manage a volunteer to edit which positions they can fill.',
         ):
-            await help_icon('vol-roster', user=actor)
-            await help_icon('vol-hours', label='Hours', user=actor)
+            await help_icon('vol-roster', 'vol-hours', user=actor)
             ui.space()
             # Filled once the table exists; the header is drawn first.
             gear_slot = ui.row().classes('items-center')

@@ -8,7 +8,7 @@ from application.services import MatchService, get_user_from_discord_id
 from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog._helpers import dialog_actions, form_dialog
-from theme.help import help_icon
+from theme.help import resolve_help
 from theme.notify import notify_error
 
 
@@ -129,7 +129,9 @@ class MatchResultDialog:
         # matchup.
         label = match_model_label(self.match, with_context=False)
         title = f'Change result — {label}' if self.is_edit else f'Enter match results — {label}'
-        with form_dialog(title, card_classes='dialog-card dialog-card--sm') as self.dialog:
+        # Record mode only, like the review flag the topic explains.
+        help = await resolve_help([] if self.is_edit else ['proctor-result'])
+        with form_dialog(title, card_classes='dialog-card dialog-card--sm', help=help) as self.dialog:
             with ui.column().classes('q-pa-md'):
                 if self.match.tournament:
                     ui.label(f'Tournament: {self.match.tournament.name}').classes('text-subtitle1')
@@ -188,9 +190,7 @@ class MatchResultDialog:
                         # raise a dispute with themselves. Clearing it is the
                         # admin's own action (confirming, or the REST route).
                         ui.separator()
-                        with ui.row().classes('items-center gap-1 no-wrap'):
-                            self.review_flag = ui.checkbox('Flag for admin review')
-                            await help_icon('proctor-result')
+                        self.review_flag = ui.checkbox('Flag for admin review')
 
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')

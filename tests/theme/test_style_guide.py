@@ -158,6 +158,43 @@ def test_dialogs_use_the_shared_header():
                 bad.append(f'{rel}:{node.lineno}')
     assert not bad, 'Dialogs without dialog_header (use form_dialog):\n  ' + '\n  '.join(bad)
 
+def _is_help_icon(stmt: ast.stmt) -> bool:
+    call = stmt.value.value if (
+        isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Await)
+    ) else None
+    return isinstance(call, ast.Call) and getattr(call.func, 'id', '') == 'help_icon'
+
+
+def test_one_help_button_per_heading():
+    """Help lives in one "?" per heading or dialog title, listing every topic.
+
+    Two calls side by side were the scattered icons this replaced; pass the
+    topics to one call. In a dialog the button goes in the title bar
+    (``dialog_header(..., help=)`` / ``form_dialog(..., help=)``), never in
+    the body beside a control.
+    """
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        if rel.as_posix().startswith('theme/help/'):
+            continue
+        for node in ast.walk(tree):
+            for field in ('body', 'orelse'):
+                stmts = getattr(node, field, None)
+                if isinstance(stmts, list) and sum(_is_help_icon(st) for st in stmts) > 1:
+                    first = next(st for st in stmts if _is_help_icon(st))
+                    if not _exempt(lines, first.lineno):
+                        bad.append(f'{rel}:{first.lineno}: two help_icon calls; pass both topics to one')
+            if isinstance(node, (ast.With, ast.AsyncWith)) and any(
+                _ui_call(i.context_expr) == 'dialog'
+                or getattr(getattr(i.context_expr, 'func', None), 'id', '') == 'form_dialog'
+                for i in node.items
+            ):
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.stmt) and _is_help_icon(inner) and not _exempt(lines, inner.lineno):
+                        bad.append(f'{rel}:{inner.lineno}: help_icon in a dialog body; use dialog_header(help=)')
+    assert not bad, 'Help buttons out of place:\n  ' + '\n  '.join(bad)
+
+
 def test_toggles_use_the_segmented_control():
     """A bare `ui.toggle` is Quasar's gold button row; the app's switch is `.wiz-segmented`."""
     bad = []
