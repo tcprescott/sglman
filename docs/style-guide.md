@@ -66,7 +66,7 @@ in both modes. `tests/theme/test_style_guide.py` computes this from `styles.css`
 | Title row you build yourself | `page_title(text)` |
 | A tab that opens on controls, not a title | wrap it in `heading_fallback(title)` so screen readers still get an `<h1>` |
 | A titled block on a page with several | `section_panel(title, icon=…)` (`theme/section.py`) |
-| Dialog title | `dialog_header(title, dialog)`, or `form_dialog(title)` which includes it |
+| Dialog title | `dialog_header(title, dialog)`, or `form_dialog(title)` which includes it. Its close button is `dialog_close_button(dialog)`: a "Close" pill on desktop, an X disc below 600px |
 | Times, match IDs | `--font-mono` / `.cell-timestamp` |
 
 Don't put a lede in a caption label after the header (it floated 40px below the

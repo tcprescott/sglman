@@ -1170,6 +1170,54 @@ main.q-page:focus {
 
 .dialog-header > .q-btn { flex-shrink: 0; }
 
+/* The labelled "Close" pill at the end of every dialog header
+   (dialog_close_button). Neutral rather than accent, so the one gold thing in
+   a dialog stays its primary action. */
+.q-btn.dialog-close {
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    min-height: 34px;
+    padding: 0 0.75rem 0 0.625rem;
+}
+
+.q-btn.dialog-close .q-icon {
+    font-size: 1.15rem;
+    margin-right: 0.25rem;
+}
+
+.q-btn.dialog-close:hover {
+    background: var(--border-strong);
+    color: var(--fg);
+}
+
+/* On a phone the pill shrinks to a 36px disc with just the X; the word stays
+   in the accessibility tree (visually hidden) so the button keeps its name. */
+@media (max-width: 599.98px) {
+    .q-btn.dialog-close {
+        width: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .q-btn.dialog-close .q-icon {
+        margin-right: 0;
+    }
+
+    .q-btn.dialog-close .block {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
 /* Error Pages (40x / 50x) */
 .error-page-container {
     width: 100%;

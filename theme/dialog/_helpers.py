@@ -78,7 +78,17 @@ def dialog_header(title: str, dialog) -> None:
     with ui.row().classes('dialog-header items-center q-pa-sm'):
         heading = ui.label(title).classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn by dialog_header
         heading.tag = 'h2'
-        ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+        dialog_close_button(dialog)
+
+
+def dialog_close_button(dialog):
+    """The close button that ends every dialog header.
+
+    A "Close" pill on desktop; on a phone, a grey disc holding just the X (the
+    word stays as its accessible name). Both styles live in ``.dialog-close``.
+    """
+    return ui.button('Close', icon='close', on_click=dialog.close, color=None) \
+        .props('flat dense no-caps').classes('dialog-close')
 
 
 def dialog_actions():
