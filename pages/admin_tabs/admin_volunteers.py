@@ -51,6 +51,13 @@ def stored_or_default_day(
     return stored if stored in day_options else fallback
 
 
+def _menu_action(icon: str, label: str, on_click, negative: bool = False) -> None:
+    with ui.menu_item(on_click=on_click).classes('text-negative' if negative else ''):
+        with ui.item_section().props('avatar'):
+            ui.icon(icon)
+        ui.item_section(label)
+
+
 async def admin_volunteers_page(day: str | None = None) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
@@ -147,15 +154,14 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     refresh_all()
                 day_select.on_value_change(on_day_change)
 
-                ui.button('Auto-fill from availability', icon='smart_toy',
-                          on_click=lambda: auto_fill()).props('flat color=primary')
-                ui.button('Manage positions', icon='badge',
-                          on_click=lambda: open_positions_dialog()).props('flat')
-                ui.button('Export data', icon='download',
-                          on_click=lambda: VolunteerExportDialog().open()) \
-                    .props('flat').tooltip('Download the roster, availability and schedule as CSVs')
-                ui.button('Reset all volunteer data', icon='delete_forever',
-                          on_click=lambda: open_reset_dialog()).props('flat color=negative')
+                with ui.button('Actions').props('flat color=primary icon-right=expand_more'):
+                    with ui.menu():
+                        _menu_action('smart_toy', 'Auto-fill from availability', lambda: auto_fill())
+                        _menu_action('badge', 'Manage positions', lambda: open_positions_dialog())
+                        _menu_action('download', 'Export data', lambda: VolunteerExportDialog().open())
+                        ui.separator()
+                        _menu_action('delete_forever', 'Reset all volunteer data',
+                                     lambda: open_reset_dialog(), negative=True)
 
         # --- Draft banner ------------------------------------------------
         banner_container = ui.column().classes('full-width')

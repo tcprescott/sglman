@@ -79,7 +79,7 @@ Two things a coordinator will want changed live where only staff can reach them:
 
 ## Exporting the data
 
-**Export data** is on both Vol. Roster and Vol. Schedule. Pick a date range (it
+**Export data** is on Vol. Roster, and in the **Actions** menu on Vol. Schedule. Pick a date range (it
 starts as the event dates) and you get a ZIP with a README and six CSV files:
 
 | File | One row per |
