@@ -143,10 +143,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         # --- Controls ----------------------------------------------------
         with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
+            with ui.row().classes('full-width items-center no-wrap gap-3'):
+                # Shrinks below 12rem so the menu stays on the same line at 360px.
                 day_select = ui.select(
                     day_options, value=state['day'], label='Event day',
-                ).classes('w-48')
+                ).classes('col').style('max-width: 12rem; min-width: 0')
 
                 def on_day_change(e):
                     state['day'] = e.value
@@ -154,6 +155,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     refresh_all()
                 day_select.on_value_change(on_day_change)
 
+                ui.space()
                 with ui.button('Actions').props('flat color=primary icon-right=expand_more'):
                     with ui.menu():
                         _menu_action('smart_toy', 'Auto-fill from availability', lambda: auto_fill())
