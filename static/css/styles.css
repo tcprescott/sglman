@@ -463,6 +463,24 @@ main.q-page:focus {
 /* Availability window editor: one card per day, one divided row per window.
    On a phone a window takes two lines (times, then status and delete), so the
    two time fields get the full width a 12-hour "09:00 AM" needs. */
+.avail-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.avail-split__chart > * {
+    margin-top: 0;
+}
+
+@media (min-width: 1024px) {
+    .avail-split {
+        grid-template-columns: minmax(0, 34rem) minmax(0, 1fr);
+        align-items: start;
+    }
+}
+
 .avail-day {
     width: 100%;
     background: var(--surface);
@@ -789,6 +807,47 @@ main.q-page:focus {
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
+}
+
+/* Cards side by side on a wide screen, one column on a phone. A list page that
+   stacks full-width cards in a 1200-1400px container leaves each card's name on
+   the far left and its button 1100px away; tiles keep the two close and use the
+   width instead. The `min()` lets one tile shrink below the minimum on a phone
+   rather than overflow. --sm for short cards (brackets, events, shifts), --md
+   for cards that carry prose (tournaments, the changelog). */
+.wiz-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: var(--space-3);
+    align-items: start;
+    width: 100%;
+}
+
+.wiz-tile-grid--md {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
+}
+
+.wiz-tile-grid > * {
+    min-width: 0;
+    margin: 0;
+}
+
+/* A list that has nothing to show yet, as a panel the width of the list it
+   stands in for, so the page keeps its shape instead of ending in one grey
+   caption under the toolbar. */
+.wiz-empty-panel {
+    width: 100%;
+    padding: var(--space-5) var(--space-3);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--fg-muted);
+    text-align: center;
+}
+
+/* An empty list's message spans the grid rather than sitting in one tile. */
+.wiz-tile-grid > .empty-state,
+.wiz-tile-grid > .italic-note {
+    grid-column: 1 / -1;
 }
 
 .full-width {
@@ -1729,8 +1788,75 @@ main.q-page:focus {
 }
 
 /* Timeline/Schedule Specific Styles */
+/* On Air: one column per stage, side by side, like the board the crew runs
+   from. auto-fit, not auto-fill, so two stages share the width instead of
+   leaving two empty tracks; five or more wrap to a second row. On a phone the
+   minimum exceeds the width and the stages stack one after another. */
 .timeline-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: var(--space-3);
+    align-items: start;
     width: 100%;
+}
+
+.timeline-container > .empty-state {
+    grid-column: 1 / -1;
+}
+
+/* Page, stage card and match card each padded the one before, so a match got
+   two-thirds of its column. Pull the stage card in, let the player line sit
+   beside its icon instead of wrapping under it, and put the tournament on its
+   own unindented line. A stage column is phone-narrow at every width, so these
+   hold on desktop too. */
+.timeline-container > .card-full-width {
+    padding: var(--space-3);
+    margin: 0;
+}
+
+.timeline-container .column-spacing {
+    padding: var(--space-2) 0 0;
+    gap: var(--space-2);
+}
+
+.timeline-container .match-card {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+    margin: 0;
+}
+
+.timeline-container .match-details {
+    margin-top: 0;
+}
+
+.match-card .match-tournament {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
+.match-card > .row > .q-space {
+    display: none;
+}
+
+.match-details,
+.match-details-nested {
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+}
+
+.match-details-nested {
+    flex-wrap: nowrap;
+}
+
+.match-details > .match-players,
+.match-details-nested > .q-icon + * {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.match-details .icon-spacing {
+    margin-right: 0;
 }
 
 .timeline-header {
@@ -3031,17 +3157,22 @@ body.wiz-offline .wiz-requires-socket {
     scroll-margin-top: 5rem;
 }
 
-/* /changelog: one help-prose block per entry. The title sits directly above its
+/* /changelog: one card per entry. The title sits directly above its
    date, so it drops the article heading's bottom margin, and it sets its own
    line-height because Quasar's h2 default (3.75rem) spaces a wrapped title a
    full line apart on a phone. */
 .wiz-changelog-entry {
-    max-width: 64ch;
     font-size: 0.95rem;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+    padding: var(--space-3) var(--space-4);
 }
 
 .wiz-changelog-entry .wiz-help-h2 {
     line-height: 1.3;
+    margin-top: 0;
     margin-bottom: 0.2rem;
 }
 
@@ -3891,48 +4022,6 @@ ol.wiz-help-list { list-style-type: decimal; }
         font-weight: 600;
     }
 
-    /* On Air: page, stage card and match card each padded the one before, so
-       a match got two-thirds of the screen. Pull the stage card in, let the
-       player line sit beside its icon instead of wrapping under it, and put the
-       tournament on its own unindented line. */
-    .timeline-container > .card-full-width {
-        padding: var(--space-3);
-        margin-bottom: var(--space-3);
-    }
-
-    .timeline-container .column-spacing {
-        padding: var(--space-2) 0 0;
-    }
-
-    .match-card .match-tournament {
-        flex-basis: 100%;
-        margin-left: 0;
-    }
-
-    .match-card > .row > .q-space {
-        display: none;
-    }
-
-    .match-details,
-    .match-details-nested {
-        gap: var(--space-1) var(--space-2);
-        align-items: center;
-    }
-
-    .match-details-nested {
-        flex-wrap: nowrap;
-    }
-
-    .match-details > .match-players,
-    .match-details-nested > .q-icon + * {
-        flex: 1 1 0;
-        min-width: 0;
-        overflow-wrap: anywhere;
-    }
-
-    .match-details .icon-spacing {
-        margin-right: 0;
-    }
 }
 
 /* Quasar's palette classes, re-pointed at the theme. Quasar declares them
