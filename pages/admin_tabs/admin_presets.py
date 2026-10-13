@@ -114,7 +114,7 @@ async def admin_presets_page() -> None:
                 # No tooltip: it opened over the menu's first item.
                 menu_button = ui.button(icon='more_vert', color=None).props('flat round dense') \
                     .classes('preset-list__menu')
-                menu_button.props['aria-label'] = f"Actions for {row['name']}"
+                menu_button.props['aria-label'] = f"More for {row['name']}"
                 with menu_button:
                     with ui.menu().props('anchor="bottom right" self="top right"'):
                         menu_action('science', 'Test roll', lambda r=row: open_test_roll_dialog(r))

@@ -282,6 +282,31 @@ def test_overflow_menus_use_the_vertical_dots():
     assert not bad, 'more_horiz overflow buttons (use more_vert):\n  ' + '\n  '.join(bad)
 
 
+_ROW_SCOPE = re.compile(r'props\.row|\brow\[|\{row')
+
+
+def test_overflow_buttons_are_named_for_their_row():
+    """A ⋮ button says what it's for. On a row or card it's "More for <name>",
+    so a screen reader lists thirty different buttons rather than thirty
+    "More actions"; a page toolbar's single ⋮ may say "More actions"."""
+    bad = []
+    for rel, _source, _tree, lines in _python_sources():
+        for i, line in enumerate(lines):
+            if 'more_vert' not in line or EXEMPT in line:
+                continue
+            # The button's own tag or call: up to the closing `>` of a <q-btn>,
+            # or the next few chained lines of a ui.button.
+            chunk = '\n'.join(lines[i:i + 4])
+            chunk = chunk.split('<q-menu', 1)[0].split('ui.menu(', 1)[0]
+            named = re.search(r"""aria-label[^\n]*?['"]\s*More|tooltip\(\s*['"]More""", chunk)
+            per_row = _ROW_SCOPE.search(chunk) or '<q-btn' in line
+            if not named:
+                bad.append(f'{rel}:{i + 1}: ⋮ button with no "More …" name')
+            elif per_row and 'More for' not in chunk:
+                bad.append(f'{rel}:{i + 1}: row ⋮ should be named "More for <name>"')
+    assert not bad, 'Overflow buttons:\n  ' + '\n  '.join(bad)
+
+
 def _menu_item_kind(stmt: ast.stmt, source: str) -> str | None:
     """'negative', 'item' or None for one statement directly inside a `ui.menu()`."""
     if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):

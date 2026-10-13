@@ -144,7 +144,8 @@ _STATUS_BADGES = '''
 '''
 
 _MENU = f'''
-    <q-btn flat round dense icon="more_vert" class="{REQUIRES_SOCKET_CLASS}" aria-label="More actions">
+    <q-btn flat round dense icon="more_vert" class="{REQUIRES_SOCKET_CLASS}"
+           :aria-label="'More for ' + props.row.name">
         <q-menu auto-close>
             <q-list style="min-width: 200px">
                 <q-item v-if="!props.row.comp_only" clickable @click="$parent.$emit('link', props.row)">

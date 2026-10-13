@@ -62,7 +62,7 @@ _ROW_ACTIONS = '''
            :label="props.row.primary"
            @click="$parent.$emit(props.row.primary_event, props.row)">
     </q-btn>
-    <q-btn flat round dense icon="more_vert" color="grey-7">
+    <q-btn flat round dense icon="more_vert" color="grey-7" :aria-label="'More for ' + props.row.name">
         <q-menu auto-close>
             <q-list style="min-width: 190px">
                 <q-item v-if="props.row.state !== 'complete' && props.row.state !== 'cancelled'"
