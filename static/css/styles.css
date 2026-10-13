@@ -4199,7 +4199,10 @@ ol.wiz-help-list { list-style-type: decimal; }
     overflow-wrap: anywhere;
 }
 
-/* The match sheet: a side sheet on a desktop, full screen on a phone. */
+/* The match sheet: a full-height side sheet on a desktop, a bottom sheet on a phone. */
+.q-dialog__inner--right:has(> .match-sheet) {
+    padding: 0;
+}
 .q-dialog__inner--right > .match-sheet {
     width: 26rem;
     max-width: 100vw;
@@ -4250,6 +4253,20 @@ ol.wiz-help-list { list-style-type: decimal; }
 .match-sheet__seed {
     overflow-wrap: anywhere;
     min-width: 0;
+}
+/* A phone has no room for a third column: the action drops under its value. */
+@media (max-width: 599.98px) {
+    .match-sheet__fields {
+        grid-template-columns: 5.5rem minmax(0, 1fr);
+    }
+    .match-sheet__fields > .match-sheet__act {
+        grid-column: 2;
+        justify-self: start;
+        margin-top: -0.375rem;
+    }
+    .match-sheet__fields > span:empty {
+        display: none;
+    }
 }
 .match-inbox > .match-inbox__item {
     width: 100%;

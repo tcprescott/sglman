@@ -18,7 +18,7 @@ from typing import Any, Optional
 from nicegui import ui
 
 from theme.clipboard import copy_to_clipboard
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.dialog._helpers import dialog_actions, dialog_header
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_run_sheet import decorate_run_sheet_row
 from theme.tables.match_slots import CANDIDATE_STAGE
@@ -57,9 +57,10 @@ class MatchSheet:
         self.access = access
         self.view: Any = None
         self.row: Optional[dict] = None
-        with ui.dialog().props('position=right') as self.dialog, \
+        # mobile_sheet's own breakpoint, but a side sheet rather than a centred
+        # card above it: the board stays readable beside the open match.
+        with ui.dialog().props(''':position="Quasar.Screen.lt.sm ? 'bottom' : 'right'"''') as self.dialog, \
                 ui.card().classes('dialog-card match-sheet'):
-            mobile_sheet(self.dialog)
             dialog_header('Match details', self.dialog)
             self._content = ui.refreshable(self._render)
             self._content()
