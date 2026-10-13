@@ -64,9 +64,12 @@ class TableKeys:
     # a proctor's column choices must not follow them onto the admin board.
     # _v2 since the board became a run sheet (Time, Match, Stage, Status): v1
     # layouts name the old per-control columns, which no longer exist.
-    ADMIN_SCHEDULE = 'admin.schedule_v2'
-    # _v2 for the same reason, when the Event > Schedule board followed it.
-    HOME_SCHEDULE = 'home.schedule_v2'
+    # _v3 since the one Crew column became Commentators and Trackers: rule 3
+    # would have appended both past Status on every saved v2 layout.
+    ADMIN_SCHEDULE = 'admin.schedule_v3'
+    # _v2 for the same reason, when the Event > Schedule board followed it; _v3
+    # for the same crew split.
+    HOME_SCHEDULE = 'home.schedule_v3'
     # _v2 since the player's four action columns became one "Your actions"
     # beside Players: rule 3 appends a new default at the far right, so every
     # saved v1 layout would have put the player's own controls back past the
