@@ -87,3 +87,35 @@ class TestCrew:
         row = _row(1, 'Started', crew_wanted={'commentators': True},
                    crew_required={'commentators': 2})
         assert arrange_run_sheet([row])[0]['_crew'][0]['short'] is False
+
+
+class TestReadiness:
+    def _items(self, **extra):
+        from theme.dialog.match_sheet import readiness
+        base = _row(1, 'Scheduled', acknowledgments=[
+            {'name': 'Player One', 'acknowledged': True},
+            {'name': 'Player Two', 'acknowledged': False},
+        ])
+        return {i['key']: i for i in readiness(dict(base, **extra))}
+
+    def test_names_who_hasnt_confirmed(self):
+        item = self._items()['players']
+        assert item['ready'] is False
+        assert item['detail'] == "Player Two hasn't confirmed"
+
+    def test_stations_ready_only_when_everyone_has_one(self):
+        players = [{'name': 'Player One', 'station': 4}, {'name': 'Player Two'}]
+        item = self._items(players=players)['stations']
+        assert item['ready'] is False
+        assert item['detail'] == 'Player One 4 · Player Two has none'
+
+    def test_no_stage_is_information_not_a_gap(self):
+        assert self._items()['stage']['ready'] is None
+
+    def test_seed_and_crew_only_where_the_tournament_uses_them(self):
+        items = self._items()
+        assert 'seed' not in items and 'crew' not in items
+        items = self._items(tournament_seed_generator='alttpr', crew_wanted={'commentators': True},
+                            crew_required={'commentators': 2}, commentators=[{'approved': False}])
+        assert items['seed']['detail'] == 'Not rolled'
+        assert items['crew']['detail'] == '2 more needed, 1 waiting for approval below'
