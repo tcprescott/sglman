@@ -2011,6 +2011,7 @@ Shared primitives and clients used across the service layer; each is a thin, foc
 | `config_validation.py` | `validate_config_blob(...)` — validate/normalize a JSON config blob against a Pydantic model. |
 | `hashing.py` | `stable_content_hash(obj)` — deterministic sha256 for cheap unchanged-since-last-run checks (used by the reconcilers). |
 | `hostname.py` | Hostname normalization + effective-request-host resolution for host-based tenant routing. |
+| `twitch_embed.py` | Stage stream link → Twitch channel (`twitch_channel`), port-free `parent_hostname`, and the muted `player.twitch.tv` iframe URL (`player_url`) for the On Air theater (`theme/twitch_theater.py`). |
 | `ssrf.py` | `ensure_public_host(hostname, *, subject=...)` — SSRF guard for outbound requests to user-supplied URLs (webhook targets, web-push subscription endpoints). |
 | `speedgaming_client.py` | `SpeedGamingClient.fetch_schedule(event_slug, start, end, content_type=None)` — SpeedGaming schedule-API transport (consumed by the SG ETL); `get_speedgaming_client()` picks it or `MockSpeedGamingClient`; `SpeedGamingAPIError`. |
 | `oauth_identity_client.py` | Shared OAuth identity-link transport (base for the Twitch/racetime clients + `IdentityLinkService`). |

@@ -8,12 +8,14 @@ from nicegui import app, ui
 from application.services import AuthService, MatchService, get_user_from_discord_id
 from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_time, today_local
+from application.utils.twitch_embed import twitch_channel
 from models import Match, User
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.a11y import make_activatable
 from theme.empty_state import empty_state
 from theme.help import help_icon
 from theme.realtime import register_view
+from theme.twitch_theater import NowPlaying, TwitchTheater
 
 
 async def stage_timeline_tab():
@@ -65,11 +67,36 @@ async def stage_timeline_tab():
 
         refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button').tooltip('Refresh')
 
+        theater = TwitchTheater(on_change=lambda: paint_watch_buttons())
         timeline_container = ui.column().classes('timeline-container')
+        watch_buttons: dict[int, ui.button] = {}
+
+        def now_playing(stage, stage_matches, channel: str) -> NowPlaying:
+            current = next((m for m in stage_matches if m.is_seated and not m.is_finished), None)
+            return NowPlaying(
+                stage_id=stage.id,
+                stage_name=stage.name,
+                channel=channel,
+                stream_url=http_url_or_empty(stage.stream_url),
+                time=format_local_time(current.scheduled_at) if current and current.scheduled_at else '',
+                players=' vs '.join(p.user.preferred_name for p in current.players) if current else '',
+                tournament=current.tournament.name if current and current.tournament else '',
+            )
+
+        def paint_watch_buttons():
+            for stage_id, button in watch_buttons.items():
+                on = theater.is_watching(stage_id)
+                button.text = 'Watching' if on else 'Watch'
+                button.props(f'aria-pressed={"true" if on else "false"}')
+                if on:
+                    button.props(remove='outline', add='unelevated')
+                else:
+                    button.props(remove='unelevated', add='outline')
 
         async def load_timeline():
             """Load and render the timeline for the selected date."""
             timeline_container.clear()
+            watch_buttons.clear()
 
             date_label.text = current_date['value'].strftime('%A, %B %d, %Y')
             date_input.value = current_date['value'].strftime('%Y-%m-%d')
@@ -89,18 +116,30 @@ async def stage_timeline_tab():
 
             sorted_stages = sorted(matches_by_stage.items(), key=lambda x: x[1][0].name)
 
+            watched = None
             with timeline_container:
                 for _stage_id, (stage, stage_matches) in sorted_stages:
+                    channel = twitch_channel(stage.stream_url)
+                    if channel and theater.is_watching(stage.id):
+                        watched = now_playing(stage, stage_matches, channel)
                     with ui.card().classes('card-full-width'):
                         with ui.row().classes('stage-header'):
                             ui.label(stage.name).classes('stage-name')
-                            if http_url_or_empty(stage.stream_url):
+                            if channel and theater.available:
+                                watch_buttons[stage.id] = ui.button(
+                                    'Watch', icon='play_arrow',
+                                    on_click=lambda s=stage, m=stage_matches, c=channel: theater.watch(now_playing(s, m, c)),
+                                ).props('outline dense no-caps').classes('stage-watch')
+                            elif http_url_or_empty(stage.stream_url):
                                 ui.link('Watch Stream', http_url_or_empty(stage.stream_url), new_tab=True).classes('stage-link')
                             ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
 
                         with ui.column().classes('column-spacing'):
                             for match in stage_matches:
                                 render_match_card(match, user)
+            if watched:
+                theater.refresh(watched)
+            paint_watch_buttons()
 
         def render_match_card(match: Match, user: User = None):
             """Render a single match card in the timeline."""

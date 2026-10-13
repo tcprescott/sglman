@@ -1,0 +1,1 @@
+- On Air now plays a stage's Twitch stream right on the page. Press **Watch** on a stage to open the player above the stage cards, with the match that's on now beside it. On a phone the player stays pinned to the top while you scroll.
