@@ -39,7 +39,7 @@ in it, has **Review** instead, which opens the request in full.
 **Open** on a result or a late match opens the match.
 :::
 
-![Needs you: reschedule requests with Approve and Decline, results to confirm, and matches running late](/static/help/staff-match-day/queues-desktop.webp)
+![Needs you: reschedule requests with Approve and Decline, the first Approve marked 1; results to confirm, the Flagged chip marked 2 and a Confirm button marked 3; and matches running late](/static/help/staff-match-day/queues-desktop.webp "**Approve** (1) a request, **Review** anything **Flagged** (2), and **Confirm** (3) an undisputed result.")
 
 You'll also get a Discord DM for each new reschedule request. Its button opens
 the request on this page directly. If someone else has already answered it, the
@@ -71,7 +71,7 @@ You don't need the opponent's agreement to decide. It just saves you asking.
 A note on an approval is optional, and they see that too.
 :::
 
-![A reschedule request: the current and proposed times, the player's reason, the opponent's agreement, and the approve and decline buttons](/static/help/staff-match-day/reschedule-request.webp)
+![A reschedule request: the current and proposed times, the player's reason, the opponent's agreement, the new date and time, the Note to the player box marked 1, Decline marked 2 and Approve and move it marked 3](/static/help/staff-match-day/reschedule-request.webp "Write a note (1) before you **Decline** (2); it's optional for **Approve and move it** (3).")
 
 Players can only ask before the match is checked in. Once they're in the room,
 it's a conversation with the proctor rather than a request.

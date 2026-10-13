@@ -30,7 +30,7 @@ shift's badge reads filled/needed and turns amber while it's short. On a phone,
 a position whose shifts are all filled folds away behind **Show N shift(s)**.
 :::
 
-![Vol. Schedule for one event day: the coverage chips, the day picker and Actions menu, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp)
+![Vol. Schedule for one event day: the coverage chips, the day picker and the Actions menu, marked 1, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp "The **Actions** menu (1) holds auto-fill, positions, the export and the reset.")
 
 ## Positions
 
@@ -100,7 +100,7 @@ about that time:
 | {chip:cancelled:Unavailable} | They ruled this time out. |
 | {chip:neutral:Not stated} | None of their availability windows cover this shift. |
 
-![The Assign picker for a Race Proctor shift with Show unqualified volunteers ticked, each name carrying its availability badge and one marked Qualified](/static/help/coordinating-volunteers/assign-picker-desktop.webp)
+![The Assign picker for a Race Proctor shift with Show unqualified volunteers ticked and marked 1, each name carrying its availability badge, and Player Two's Qualified badge marked 2](/static/help/coordinating-volunteers/assign-picker-desktop.webp "**Show unqualified volunteers** (1) widens the list past the people marked **Qualified** (2).")
 
 If anyone is qualified for the position, the picker shows only them until you
 tick **Show unqualified volunteers**. Qualifications are set per person on the

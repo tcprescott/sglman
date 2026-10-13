@@ -57,7 +57,7 @@ so it's never a stray tap away from the button you use all day. On a screen
 1200px wide or more, the desk is a table with the same buttons on each row.
 :::
 
-![The check-in desk on a phone: the search box, the progress bar, the filter switch and the sync line, above cards for a Base buyer, a volunteer and someone with no badge](/static/help/check-in/desk-phone.webp "The desk on a phone.")
+![The check-in desk on a phone: the search box, the progress bar, the filter switch and the sync line, above cards for a Base buyer, a volunteer and someone with no badge; on the first card the Not linked button is marked 1, Check in 2 and the ⋮ menu 3](/static/help/check-in/desk-phone.webp "The desk on a phone: **Not linked** (1), **Check in** (2) and the card's ⋮ menu (3).")
 
 ## Finding someone
 
@@ -125,7 +125,7 @@ they have no account here. Someone unlinked on purpose isn't asked again at
 check-in.
 :::
 
-![The Check in dialog for a buyer with no linked account, with Suggestions, Search members and the Skip, just check in button](/static/help/check-in/link-dialog-phone.webp "Checking in someone whose badge isn't linked yet.")
+![The Check in dialog for a buyer with no linked account: no Suggestions for this one, the Search members box marked 1, and the Skip, just check in button marked 2](/static/help/check-in/link-dialog-phone.webp "Checking in someone whose badge isn't linked yet: search for their account (1), or **Skip, just check in** (2).")
 
 ## The Discord DM check
 

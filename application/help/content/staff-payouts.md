@@ -35,8 +35,8 @@ it's read, so nothing else needs editing.
 ## The split
 
 **Edit split**, in the row's ⋮ menu, lists one row per paid place: the place,
-its share as a percentage, and the winner. **Add place** adds a row, and the red
-bin on a row removes that place.
+its share as a percentage, and the winner. **Add place** (1) adds a row, and the red
+bin (2) on a row removes that place.
 
 Shares can add up to less than 100%. Whatever's left over is unallocated, and the
 Allocated column shows it. They can't add up to more.
@@ -45,7 +45,7 @@ For a joint placing, add two rows with the same place and give each its own
 share. Two players tied for third at 10% each are two 10% rows, not one 20% row
 split later.
 
-![The split dialog for a finished tournament: first at 50%, second at 30%, and two third places at 10% each, each with a winner picked](/static/help/staff-payouts/split.webp "Two third places, each paid their own share.")
+![The split dialog for a finished tournament: first at 50%, second at 30%, and two third places at 10% each, each with a winner picked, with Add place marked 1 and the first row's red bin marked 2](/static/help/staff-payouts/split.webp "Two third places, each paid their own share.")
 
 You can save the split before the tournament finishes and fill in the winners
 afterwards. The winner list holds the tournament's entrants, plus anyone already

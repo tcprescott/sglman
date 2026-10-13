@@ -28,7 +28,7 @@ DM names the attendee and never what they asked for.
 On the Members tab, the **ADA** column shows each person's request status, and
 ticking **Needs ADA** under **Filters** narrows the table to people with one open.
 
-![The ADA requests tab listing four requests with their status, the attendee's details and staff notes, one marked Changed since arranged](/static/help/staff-ada/queue.webp "The ADA queue, oldest first.")
+![The ADA requests tab listing four requests with their status, the attendee's details and staff notes, one marked Changed since arranged, with Show withdrawn marked 1 and the first row's Update button marked 2](/static/help/staff-ada/queue.webp "The ADA queue, oldest first: **Show withdrawn** (1), and **Update** (2) on each row.")
 
 ## Working a request
 

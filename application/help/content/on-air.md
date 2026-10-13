@@ -78,7 +78,7 @@ match** (which asks you to sign in and lands on the schedule board), Event
 Information where the community publishes it, and this help.
 :::
 
-![The Watch page on a phone: three stage cards, each with a Watch stream button, a LIVE match under On now, and the next match under Up next, then a list of brackets](/static/help/on-air/watch-page-phone.webp "The Watch page, signed out.")
+![The Watch page on a phone: three stage cards, each with a Watch stream button and a LIVE match under On now, two of them with the next match under Up next, then a list of brackets](/static/help/on-air/watch-page-phone.webp "The Watch page, signed out.")
 
 A few things are deliberately different from the app:
 

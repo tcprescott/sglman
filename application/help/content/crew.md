@@ -38,7 +38,7 @@ don't use. Where that's the case the **Trackers** column is left empty,
 and that's deliberate rather than a fault.
 :::
 
-![A match on the board on a phone: Player Four vs Player One with no time yet, Commentary 0/1 and Tracking 0/1 both marked needs crew, each with a Sign up button](/static/help/crew/signup-phone.webp "A match that still needs crew, on a phone.")
+![A match on the board on a phone: Player Four vs Player One with no time yet, Commentary 0/1 and Tracking 0/1 both marked needs crew, with Sign up as commentator marked 1 and Sign up as tracker marked 2](/static/help/crew/signup-phone.webp "A match that still needs crew: tap **Sign up as commentator** (1) or **Sign up as tracker** (2).")
 
 When you can't sign up, the **Sign up** button is greyed out and says why
 beside it:
@@ -123,7 +123,7 @@ Finished matches drop off. Add *Finished* and *Confirmed* to the **State**
 filter to see the ones you've already worked.
 :::
 
-![Crew you signed up for on a phone: a match where you're tracking, with Withdraw and Confirm in your tray](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
+![Crew you signed up for on a phone: a live match where your tracking signup is waiting for approval, a match where you have the commentary slot with Withdraw as commentator and Confirm, and tomorrow's match where your commentary signup is waiting](/static/help/crew/my-crew-phone.webp "Crew you signed up for, on My Schedule.")
 
 ## Reading the crew columns
 

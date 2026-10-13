@@ -38,6 +38,8 @@ it draws a seed and starts your timer in the same moment. You only see the seed
 once the clock is running, so be ready to play before you press it.
 :::
 
+![A qualifier page on a phone before any runs: its window, Start a run with a Start: Bonus Pool button marked 1 and its 0 of 2 runs used count marked 2, a Start: Standard Pool button, an empty My runs, and a hidden leaderboard](/static/help/qualifiers/start-phone.webp "Each pool's **Start:** button (1) and how many of its runs you've used (2).")
+
 You can have one run going at a time in a qualifier. You're never handed a seed
 you already have a counting run on. The draw is random, except that once some
 seeds in a pool have been played noticeably more than others, it hands out one
@@ -79,6 +81,8 @@ Type your time into **Finish time (H:MM:SS)** with all three parts, so a
 it understood, in words, so you can catch a slip before it counts. Paste a link
 into **VoD URL (optional)** if you recorded the run, then press **Submit**.
 :::
+
+![The Your run is in progress card on a phone: the pool, Your permalink (open the seed), the Elapsed clock, the auto-forfeit time and countdown, then the Finish time (H:MM:SS) box marked 1, the VoD URL box, Forfeit marked 2 and Submit marked 3](/static/help/qualifiers/run-phone.webp "Type your **Finish time** (1), then **Submit** (3). **Forfeit** (2) gives the run up.")
 
 The app keeps its own clock from the moment you pressed Start. It won't accept a
 time longer than that clock (it allows two minutes for lag). If your time is 15
@@ -125,6 +129,8 @@ score, together with your own time, would tell you the seed's par, and par stays
 hidden while other people are still running. *Under par* means at least 5%
 faster than par, *Above par* more than 5% slower. A forfeit has no time, so it
 shows *Above par*.
+
+![My runs on a phone, one card per run: a pending live-race result, a Running run, a Rejected run with its Reviewer note marked 1 and its Reattempt button marked 2, and an Approved run marked Near par](/static/help/qualifiers/my-runs-phone.webp "A rejected run's **Reviewer note** (1), and **Reattempt** (2) to replace it.")
 
 ## Reattempts
 

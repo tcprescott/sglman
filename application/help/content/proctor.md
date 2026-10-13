@@ -55,7 +55,7 @@ player's name.
 
 ### Reading a line
 
-![A line on the Proctor Station board on a phone: the time in orange, two players, No stations yet, an ADA note, and a Check in button](/static/help/proctor/board-phone.webp "A match waiting to be checked in.")
+![A line on the Proctor Station board on a phone: the time in orange, two players, No stations yet, an ADA note, and the Check in button marked 1](/static/help/proctor/board-phone.webp "A match waiting to be checked in: **Check in** (1) is the first step of running it.")
 
 | You see | Means |
 |---|---|
@@ -100,7 +100,7 @@ makes the result official; your job ends at recording it. Until they do, the mat
 {chip:pending:To confirm} under **Done**.
 :::
 
-![The Check in dialog: a station picker for each player, the Randomize button, and Check in & seat](/static/help/proctor/check-in-phone.webp "Step 1: checking a match in.")
+![The Check in dialog: a station picker for each player, the first marked 1, the Randomize button marked 2, and Check in & seat marked 3](/static/help/proctor/check-in-phone.webp "Step 1: pick a station for each player (1) or press **Randomize** (2), then **Check in & seat** (3).")
 
 ### When the seed is not straightforward
 
@@ -149,7 +149,7 @@ Flagging does not hold the match up or change its state. It marks it
 {chip:cancelled:Flagged} so it does not get confirmed on autopilot.
 :::
 
-![The Enter match results dialog: one button per player with their station, and the Flag for admin review checkbox](/static/help/proctor/result-phone.webp "Step 4: who won?")
+![The Enter match results dialog: one button per player with their station, the first marked 1, and the Flag for admin review checkbox marked 2](/static/help/proctor/result-phone.webp "Step 4: tap the winner (1). If the players disagree, tick **Flag for admin review** (2) first.")
 
 ### If you recorded the wrong winner
 

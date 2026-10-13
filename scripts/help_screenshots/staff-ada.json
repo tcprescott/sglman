@@ -21,6 +21,16 @@
         "wait": 600
       }
     ],
-    "selector": ".q-tab-panels"
+    "selector": ".q-tab-panels",
+    "annotate": [
+      {
+        "selector": ".q-tab-panels .q-checkbox:has-text('Show withdrawn')",
+        "n": 1
+      },
+      {
+        "selector": ".q-tab-panels button:has-text('Update')",
+        "n": 2
+      }
+    ]
   }
 ]

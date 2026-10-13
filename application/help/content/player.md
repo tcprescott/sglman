@@ -111,7 +111,7 @@ their Challonge account to Wizzrobe. Hover or long-press it to see why; staff ca
 also link them by hand.
 :::
 
-![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time.")
+![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button, the first one marked 1](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time: tap **Schedule** (1) to pick one.")
 
 ### Suggest a time
 

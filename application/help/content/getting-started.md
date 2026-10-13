@@ -87,7 +87,7 @@ More on windows, withdrawing and Challonge rosters:
 [Signing up for a tournament](/help/tournament-signup).
 :::
 
-![The Tournaments tab on a phone, with a tournament open for signup and its Sign up button](/static/help/getting-started/tournaments-phone.webp "The Tournaments tab on a phone.")
+![The Tournaments tab on a phone, listing tournaments under Open for signup, with the first one's Sign up button marked 1](/static/help/getting-started/tournaments-phone.webp "The Tournaments tab on a phone: one tap on **Sign up** (1).")
 
 ## Then, depending on why you're here
 

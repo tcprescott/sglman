@@ -6,6 +6,16 @@
     "selector": ".player-sheet__card:has-text(\"Player Four vs Player One\")",
     "hide": [
       ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": ".player-sheet__card:has-text(\"Player Four vs Player One\") >> button:has-text(\"Sign up as commentator\")",
+        "n": 1
+      },
+      {
+        "selector": ".player-sheet__card:has-text(\"Player Four vs Player One\") >> button:has-text(\"Sign up as tracker\")",
+        "n": 2
+      }
     ]
   },
   {

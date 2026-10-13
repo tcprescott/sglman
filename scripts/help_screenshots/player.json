@@ -2,7 +2,10 @@
   {
     "name": "my-schedule-phone",
     "user": "player_one",
-    "path": "/home/my-schedule"
+    "path": "/home/my-schedule",
+    "hide": [
+      ".q-footer"
+    ]
   },
   {
     "name": "bracket-schedule-phone",
@@ -11,6 +14,12 @@
     "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\")",
     "hide": [
       ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": ".wiz-subcard:has-text(\"Waiting on you to pick a time\") >> button:has-text(\"Schedule\")",
+        "n": 1
+      }
     ]
   },
   {
@@ -28,6 +37,7 @@
         "waitFor": ".q-dialog"
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0
   }
 ]

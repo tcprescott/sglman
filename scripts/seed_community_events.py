@@ -1,4 +1,4 @@
-"""Dev-seed community events: one in each status, plus subscriptions.
+"""Dev-seed community events: one in each status, plus subscriptions and a full RSVP list.
 
 Times are relative to the run, and ``update_or_create`` keeps them so: a dev
 database reseeded next week still has events coming up rather than a listing of
@@ -43,6 +43,8 @@ async def seed_community_events_for_tenant(
          'The tournament room is closed overnight. Could you pick another room?'),
         ('Cosplay photo walk', 'player_four', CommunityEventStatus.CANCELLED, timedelta(days=2), 60,
          'Main entrance', 'Meet at the main entrance with your costume.', None),
+        ('Speedrun trivia', 'sm_user', CommunityEventStatus.APPROVED, timedelta(hours=5), 60,
+         'Panel room B', 'Teams of two. Questions on routes, glitches and world records.', None),
     ]
     events: dict[str, CommunityEvent] = {}
     for title, host, status, offset, minutes, location, description, note in specs:
@@ -77,4 +79,12 @@ async def seed_community_events_for_tenant(
         event_id=events['Board game night'].id,
         user_id__in=[users['player_two'].id, users['player_three'].id],
     ).update(going=True)
+    # Speedrun trivia is capped at two and both places are taken, so everyone
+    # else sees the Full button.
+    for username in ('player_two', 'player_three'):
+        await CommunityEventSubscription.get_or_create(
+            tenant=tenant, event=events['Speedrun trivia'], user=users[username],
+        )
+    await CommunityEvent.filter(id=events['Speedrun trivia'].id).update(rsvp_enabled=True, rsvp_capacity=2)
+    await CommunityEventSubscription.filter(event_id=events['Speedrun trivia'].id).update(going=True)
     print(f"    [{tenant.slug}] community events ok (one per status, with subscriptions and RSVPs)")

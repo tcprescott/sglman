@@ -53,7 +53,7 @@ seed the way a match would and shows you the link, or the randomizer's error if
 the roll failed. The seed isn't attached to any match and nobody is sent it.
 :::
 
-![The Test roll dialog after a successful roll, showing the seed link](/static/help/staff-presets/test-roll.webp "A test roll that worked.")
+![The Test roll dialog after a successful roll, with the seed link marked 1](/static/help/staff-presets/test-roll.webp "A test roll that worked, with its seed link (1).")
 
 Test every preset your tournaments will use before the doors open, and again if
 you change its settings. A failure here is one you would otherwise find with two

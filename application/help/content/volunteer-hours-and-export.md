@@ -31,7 +31,7 @@ checkbox per active position. Tick the positions they're qualified for and
 press **Save qualifications**.
 :::
 
-![Vol. Roster: each volunteer's hours with the reward tier reached, qualifications and availability windows](/static/help/volunteer-hours-and-export/roster-desktop.webp)
+![Vol. Roster: each volunteer's hours with the reward tier reached, qualifications and availability windows, with the manage button on Player One's row marked 1](/static/help/volunteer-hours-and-export/roster-desktop.webp "The manage button (1) on a row opens that volunteer's availability and qualifications.")
 
 Qualifications change who the auto-scheduler will place. Someone with at least
 one qualification is only placed in those positions, and goes ahead of

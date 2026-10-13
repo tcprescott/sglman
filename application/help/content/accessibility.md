@@ -28,7 +28,7 @@ We can't promise notes stay private, so leave out anything sensitive and tell
 staff directly instead.
 :::
 
-![The ADA accommodation card on Profile, ticked, with details filled in and an Arranged status](/static/help/accessibility/ada-card-phone.webp "An arranged request.")
+![The ADA accommodation card on Profile with the I'd like to request an ADA accommodation box ticked and marked 1, the Details box filled in and marked 2, and an Arranged status](/static/help/accessibility/ada-card-phone.webp "An arranged request: the box you tick (1) and your details (2).")
 
 A request belongs to the community you made it in. If you play in more than one,
 ask in each.

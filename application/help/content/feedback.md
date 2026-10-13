@@ -21,6 +21,8 @@ The app notes which page you were on when you sent it, so staff can find the
 thing you're talking about. You don't need to describe where you were.
 :::
 
+![The Send Feedback dialog on a phone, with Category set to Bug and marked 1, a message about the bracket page typed into Message, marked 2, and the Send button marked 3](/static/help/feedback/send-phone.webp "Pick a **Category** (1), write your **Message** (2), and tap **Send** (3).")
+
 If you land on an error page that shows an error reference, its
 **Report this error** button opens the same
 form with *Bug* already picked and the error's reference filled in. Add what you
@@ -40,6 +42,8 @@ you've sent, newest first. It only appears once you've sent something.
 Staff don't reply through the app. If you asked a question and need an answer,
 ask in the community's usual channel too, or catch staff in person.
 :::
+
+![The Your feedback card on Profile on a phone, listing a suggestion marked Read by staff, its chip marked 2, and a bug marked Not read yet, its chip marked 1](/static/help/feedback/yours-phone.webp "**Not read yet** (1) and **Read by staff** (2).")
 
 ## Reading feedback (staff)
 

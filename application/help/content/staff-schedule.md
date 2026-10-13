@@ -50,9 +50,9 @@ the work that's waiting on you rather than on the clock. See
 [Match day queues](/help/staff-match-day).
 :::
 
-![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next](/static/help/staff-schedule/board-desktop.webp)
+![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next, with a Flagged chip marked 1, a commentary count reading needs crew marked 2, and a tracker signup reading to approve marked 3](/static/help/staff-schedule/board-desktop.webp "A result to decide (1), a role that **needs crew** (2), and a signup **to approve** (3).")
 
-![A match opened from the board: its next step, then the Ready to play? checklist of players, stations, stage, seed and crew, each ticked or flagged with its fix](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match.")
+![A match opened from the board: its next step, Check in, marked 1, then the Ready to play? checklist of players, stations, stage, seed and crew, each ticked or flagged, with the stations' Assign fix marked 2 and Edit match at the bottom marked 3](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match: its next step (1), a fix on the checklist (2), and **Edit match** (3).")
 
 ### Who sees what
 
@@ -94,7 +94,7 @@ Saving DMs the players and asks each of them to acknowledge the match.
 Open the match and press **Edit match**. The top of the dialog says where the match is now (its state,
 the winner, and whether it's flagged), then everything below edits it.
 
-![The Edit Match dialog for a finished match, showing its winner and a Needs review flag above the fields](/static/help/staff-schedule/match-dialog.webp)
+![The Edit Match dialog for a finished match, showing its Finished state, its winner and a Needs review flag, marked 1, above the fields](/static/help/staff-schedule/match-dialog.webp "A flagged result (1) shows at the top of the dialog.")
 
 Moving the date or time tells everyone on the match and asks the players to
 acknowledge again. Changing the players asks the new line-up to acknowledge;

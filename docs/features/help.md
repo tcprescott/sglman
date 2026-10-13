@@ -235,7 +235,10 @@ tenant-relative (`tenant` defaults to `default`); `viewport` is `phone`
 (390×844 at 2×, the default) or `desktop` (1280×800) or `{width, height}`;
 `selector` crops to the first match with `padding` px around it (default 8;
 omit it for the viewport, or set `fullPage`); `hide` lists extra selectors to
-hide; `setup` steps are `click`, `fill` + `value`, `press`, `waitFor` and `wait`.
+hide; `setup` steps are `click`, `fill` + `value`, `press`, `waitFor` and `wait`;
+`annotate` lists numbered call-outs, `{ "selector", "n", "tab"? }`, drawn as a
+red outline with a number tab over each control (see the `help-screenshots`
+skill for when to use them and how the article refers to the numbers).
 Shots are light theme, reduced motion, `America/New_York`.
 
 House rules: **phone** for player, crew, volunteer, proctor and check-in desk

@@ -48,6 +48,8 @@ notification names each one, and the dialog keeps just those lines so you can fi
 them.
 :::
 
+![Admin → Qualifiers with Dev Async Qualifier's Manage button marked 1, and below it the Pools tab, marked 2, open: Add Pool, then a card per pool with its permalink count, preset, Add permalinks or Roll (the Standard Pool's Roll marked 3), and each seed with its async or live badge and ⋮ menu](/static/help/staff-qualifiers/pools.webp "**Manage** (1), the **Pools** tab (2), and **Roll** (3) on a pool with a preset.")
+
 Check every seed before the window opens. A player's slot is spent the moment
 they draw a seed, so a broken link costs them a run, and the only remedy is
 granting them a reattempt.
@@ -73,6 +75,8 @@ before you watch the VoD, so nobody else picks it up, then **Approve** or
 **Reject**. A rejection needs a reason, and the runner is sent exactly what you
 type.
 :::
+
+![The Review Queue tab, marked 1 and labelled with its count of 2, showing two runs from Player Four, each with the claimed time, pool, Claimed and Timed times, the seed played and the runner's other runs; the first card's Claim button is marked 2 and its orange drift badge 3](/static/help/staff-qualifiers/review-queue.webp "**Review Queue** (1): **Claim** a run (2) before you watch it. A *drift* badge (3) flags a time well under the app's clock.")
 
 A card someone else has claimed shows their name and offers only **Release**.
 Any reviewer can release any claim, and a claim left alone for two hours is

@@ -4,7 +4,33 @@
     "user": "staff_user",
     "viewport": "desktop",
     "path": "/admin/challonge",
-    "selector": ".page-container-narrow"
+    "selector": ".q-page",
+    "setup": [
+      {
+        "click": "[aria-label=\"More for Wizzrobe Dev Tournament\"]"
+      },
+      {
+        "waitFor": ".q-menu"
+      },
+      {
+        "wait": 400
+      }
+    ],
+    "annotate": [
+      {
+        "selector": ".page-container-narrow button:has-text('Sync')",
+        "n": 1
+      },
+      {
+        "selector": "[aria-label=\"More for Wizzrobe Dev Tournament\"]",
+        "n": 2
+      },
+      {
+        "selector": ".q-menu .q-item:has-text('Entrants')",
+        "n": 3
+      }
+    ],
+    "padding": 0
   },
   {
     "name": "entrants",
@@ -25,6 +51,21 @@
         "wait": 600
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-select >> nth=0",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog button:has-text('Assign') >> nth=0",
+        "n": 2
+      },
+      {
+        "selector": ".q-dialog button:has-text('Clear') >> nth=0",
+        "n": 3
+      }
+    ]
   }
 ]

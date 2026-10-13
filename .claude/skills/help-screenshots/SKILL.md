@@ -91,6 +91,31 @@ Only `name` and `path` are required; the file name is the slug. Defaults:
 `hide` (extra selectors to hide), `timezone`, and `setup` steps (`click`,
 `fill` + `value`, `press`, `waitFor`, `wait`).
 
+### Numbered call-outs
+
+When the paragraph tells the reader to press or look at a specific control, mark
+it with `annotate`: a list of `{ "selector": "…", "n": 1 }`, in the order the
+text mentions them. Each one is drawn at capture time as a 3px `#D92D20`
+outline, padded 4px clear of the control, with its number in a red tab on the
+outline's top-left edge. The tab moves to the bottom edge when there's no room
+above (the control is at the top of the crop); force it with `"tab": "bottom"`
+when a tab would sit on another mark or on text the reader needs. The crop
+widens just enough to show a mark on a control at its edge. The selectors are
+Playwright selectors, like `setup`'s.
+
+```json
+"annotate": [
+  { "selector": "button:has-text('Sign up as commentator')", "n": 1 },
+  { "selector": ".q-dialog .q-checkbox:has-text('Flag for admin review')", "n": 2, "tab": "bottom" }
+]
+```
+
+Usually one to three marks. Leave overview shots unmarked. Refer to each number
+next to the image: in the prose (`press **Assign** (2)`) when the paragraph sits
+outside a `:::snippet`, otherwise in the image's caption, since a snippet also
+shows in a help popup that has no picture. Say what each number marks in the
+alt text too ("the Send button marked 3").
+
 House rules:
 
 - **Phone** (`390×844` at 2×, the default) for players, crew, volunteers,
@@ -98,6 +123,11 @@ House rules:
   staff/Admin shots.
 - Name files `<what>-phone` / `<what>` so the viewport is obvious.
 - Crop. A whole page is rarely what the paragraph is about.
+- Crop a dialog with `"padding": 0`, or the dimmed page behind it shows round the
+  edges.
+- Hide the bottom nav (`"hide": [".q-footer"]`) on a phone shot whose content
+  reaches the bottom of the screen, and the header (`.q-header`) on a crop taller
+  than the screen, or they land on top of the content.
 - Alt text says what the shot shows for someone who can't see it; the caption
   (optional) says what to notice.
 

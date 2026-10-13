@@ -42,6 +42,8 @@ these are DMs, so they only reach you while Discord DMs are on in your
 [notification settings](/help/notifications#where-your-settings-live).
 :::
 
+![Community Events on a phone: the not-official notice and Submit an event, then events grouped by day. Morning coffee run is Happening now with a Remind me button marked 1, Board game night shows 2 of 6 going with an RSVP button marked 2, and Speedrun trivia shows 2 of 2 going with a greyed-out Full button marked 3. Your events at the bottom lists a cancelled event](/static/help/community-events/listing-phone.webp "**Remind me** (1), **RSVP** (2) and **Full** (3), depending on the event.")
+
 The reminder goes out 30 minutes before the start unless staff have set a
 different lead time for the community.
 
@@ -66,6 +68,8 @@ What happens after **Submit** depends on the community:
 
 The form tells you which applies before you submit.
 :::
+
+![The Submit a community event form on a phone, scrolled to Length, Where and Description, with the Take RSVPs switch turned on and its Cap (optional) box marked 1, and the Submit button marked 2](/static/help/community-events/submit-phone.webp "Switch on **Take RSVPs** to set a cap (1), then **Submit** (2).")
 
 Your submissions appear under **Your events** at the bottom of the page, each
 with its status:

@@ -2,7 +2,22 @@
   {
     "name": "desk-phone",
     "user": "checkin_desk",
-    "path": "/checkin/1"
+    "path": "/checkin/1",
+    "annotate": [
+      {
+        "selector": ".checkin-grid-card:has-text('Base Buyer') .checkin-link-btn",
+        "n": 1,
+        "tab": "bottom"
+      },
+      {
+        "selector": ".checkin-grid-card:has-text('Base Buyer') .checkin-btn",
+        "n": 2
+      },
+      {
+        "selector": "[aria-label='More for Base Buyer']",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "link-dialog-phone",
@@ -27,7 +42,17 @@
       }
     ],
     "selector": ".q-dialog .q-card",
-    "padding": 0
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-card .q-field:has(input)",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-card button:has-text('Skip, just check in')",
+        "n": 2
+      }
+    ]
   },
   {
     "name": "dm-blocked-phone",

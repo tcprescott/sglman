@@ -47,7 +47,7 @@ a cable that's still sitting under a setup. If you open the page of something
 you're holding, it says so and tells you who to give it to.
 :::
 
-![An item's page on a phone, checked out to you, saying returns are recorded by staff or an equipment manager](/static/help/equipment/held-phone.webp "What an item you're holding looks like.")
+![An item's page on a phone, checked out to you, saying returns are recorded by staff or an equipment manager, with its loan history](/static/help/equipment/held-phone.webp "What an item you're holding looks like.")
 
 Until it's checked in, the item stays against your name. If you've returned
 something and it still shows as yours, tell the desk.
@@ -62,7 +62,7 @@ It's empty once everything you borrowed has been checked back in, which is the
 quickest way to check you've returned it all before you leave.
 :::
 
-![The Equipment you have out section on My Schedule, with one item and its View button](/static/help/equipment/yours-phone.webp "Equipment you have out, on My Schedule.")
+![The Equipment you have out section on My Schedule, with one item and its View button marked 1](/static/help/equipment/yours-phone.webp "Equipment you have out, on My Schedule. **View** (1) opens the item.")
 
 ## Running the equipment desk
 
@@ -93,17 +93,17 @@ desk. You get **Check out…** (with the borrower picker) instead of *Check out 
 me*, and **Check in** on anything that's out.
 :::
 
-![The Admin → Equipment register, listing each item with its owner, status, holder and action buttons](/static/help/equipment/desk-desktop.webp "The equipment register.")
+![The Admin → Equipment register, listing each item with its owner, status and holder; the first row's Check in button is marked 1, the second row's Check out button 2, and the first row's ⋮ menu 3](/static/help/equipment/desk-desktop.webp "The equipment register: **Check in** (1) or **Check out** (2), and everything else in the ⋮ menu (3).")
 
 ### Lending to someone
 
-The borrower picker starts on you and lists the people in this community. Type
+The borrower picker (1) starts on you and lists the people in this community. Type
 to search. If the person isn't there, they probably haven't joined the community
-in the app yet; tick **Include people outside this community** to search
+in the app yet; tick **Include people outside this community** (2) to search
 every account in the app. A borrower still needs an account, so someone who has
 never signed in has to do that first.
 
-![The Check out equipment dialog, with the borrower picker and the Include people outside this community box](/static/help/equipment/checkout-desktop.webp "Lending an item to someone.")
+![The Check out equipment dialog, with the Borrower picker marked 1 and the Include people outside this community box marked 2](/static/help/equipment/checkout-desktop.webp "Lending an item to someone.")
 
 ### Adding gear
 
