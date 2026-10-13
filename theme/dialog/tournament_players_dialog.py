@@ -11,6 +11,7 @@ from nicegui import app, ui
 
 from application.services import TournamentService, UserService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
 class TournamentPlayersDialog:
@@ -46,8 +47,16 @@ class TournamentPlayersDialog:
                                      f'(Discord: {user.discord_id})')
                             ui.button(
                                 'Remove', icon='person_remove',
-                                on_click=lambda _=None, u=user: remove(u),
+                                on_click=lambda _=None, u=user: confirm_remove(u),
                             ).props('flat dense color=negative')
+
+                def confirm_remove(user) -> None:
+                    ConfirmationDialog(
+                        message=f'Remove {user.display_name or user.username} from '
+                                f'{self.tournament.name}?',
+                        on_confirm=lambda: remove(user), confirm_text='Remove',
+                        title='Remove player?',
+                    ).open()
 
                 async def remove(user) -> None:
                     try:

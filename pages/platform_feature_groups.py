@@ -18,6 +18,7 @@ from application.services import FeatureFlagService, TenantService
 from models import FeatureFlag
 from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, preferences_button
@@ -232,10 +233,17 @@ async def _open_group_edit_dialog(actor, table, row) -> None:
 
 
 async def _delete_group(actor, table, row) -> None:
-    try:
-        await FeatureFlagService().delete_group(actor, row['id'])
-    except (ValueError, PermissionError) as e:
-        notify_error(e)
-        return
-    ui.notify('Group deleted; its tenants fell back to the default', color='positive')
-    await _refresh_groups(table)
+    async def do_delete() -> None:
+        try:
+            await FeatureFlagService().delete_group(actor, row['id'])
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify('Group deleted; its tenants fell back to the default', color='positive')
+        await _refresh_groups(table)
+
+    ConfirmationDialog(
+        message=f"Delete the {row['name']} group? Its {row['tenants']} tenant(s) fall back "
+                'to the default group straight away, which can switch features off for them.',
+        on_confirm=do_delete, confirm_text='Delete', title='Delete feature group?',
+    ).open()

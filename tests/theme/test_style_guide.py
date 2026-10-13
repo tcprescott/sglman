@@ -322,6 +322,61 @@ def test_destructive_menu_items_come_last():
     assert not bad, 'Destructive menu items not last:\n  ' + '\n  '.join(bad)
 
 
+_DESTRUCTIVE_CALL = re.compile(
+    r'^(delete|remove|unenroll|drop|retire|disconnect|cancel|clear|reset|unassign|deny|revoke|unlink)(_|$)'
+)
+
+
+def _confirmed_functions(tree: ast.AST) -> set[str]:
+    """Names of the functions that only run once a ConfirmationDialog is answered:
+    whatever its ``on_confirm`` names, plus whatever those call, to a fixpoint."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _base_name(node) == 'ConfirmationDialog':
+            for expr in [k.value for k in node.keywords if k.arg == 'on_confirm'] + node.args[1:2]:
+                names |= {n.id for n in ast.walk(expr) if isinstance(n, ast.Name)}
+                names |= {n.attr for n in ast.walk(expr) if isinstance(n, ast.Attribute)}
+    bodies: dict[str, list[ast.AST]] = {}
+    for f in ast.walk(tree):
+        if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bodies.setdefault(f.name, []).append(f)
+    while True:
+        called = {
+            (c.func.id if isinstance(c.func, ast.Name) else c.func.attr)
+            for name in names for body in bodies.get(name, [])
+            for c in ast.walk(body)
+            if isinstance(c, ast.Call) and isinstance(c.func, (ast.Name, ast.Attribute))
+        }
+        if called <= names:
+            return names
+        names |= called
+
+
+def test_destructive_calls_go_through_a_confirmation():
+    """A delete, removal, cancel or disconnect asks first, through ConfirmationDialog.
+    Checked by name: an awaited ``<service>.delete_*/remove_*/cancel_*/...`` call has
+    to sit in a function that only runs from a ConfirmationDialog's ``on_confirm``."""
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        confirmed = _confirmed_functions(tree)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Await) and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Attribute)
+                    and _DESTRUCTIVE_CALL.match(node.value.func.attr)):
+                continue
+            fn = parents.get(node)
+            while fn is not None and not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn = parents.get(fn)
+            if fn is not None and fn.name in confirmed:
+                continue
+            if not _exempt(lines, node.lineno):
+                bad.append(f'{rel}:{node.lineno}: {node.value.func.attr}')
+    assert not bad, (
+        'Destructive calls with no ConfirmationDialog in front of them:\n  ' + '\n  '.join(bad)
+    )
+
+
 def test_side_menu_is_224px():
     """The drawer's longest label needs about 175px; Quasar's 300px default left a
     wide empty strip beside the nav on desktop."""

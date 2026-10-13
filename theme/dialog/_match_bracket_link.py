@@ -204,6 +204,6 @@ async def apply_link(
 
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if previous_id is not None:
-        await bracket_service.unlink_match(actor, match_id)
+        await bracket_service.unlink_match(actor, match_id)  # style-guide: exempt — relinking, the picker is the confirm
     if chosen is not None:
         await bracket_service.link_match_to_bracket_match(actor, chosen, match_id)

@@ -90,13 +90,20 @@ async def admin_challonge_page() -> None:
 
                 ui.button(label, icon='link', on_click=go).props('color=primary')
 
-        async def disconnect() -> None:
-            try:
-                await service.disconnect(actor)
-                ui.notify('Challonge disconnected.', color='positive')
-            except (ValueError, PermissionError) as e:
-                notify_error(e)
-            await connection_card.refresh()
+        def disconnect() -> None:
+            async def do_disconnect() -> None:
+                try:
+                    await service.disconnect(actor)
+                    ui.notify('Challonge disconnected.', color='positive')
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                await connection_card.refresh()
+
+            ConfirmationDialog(
+                message='Disconnect Challonge? Every linked tournament stops syncing '
+                        'until someone reconnects.',
+                on_confirm=do_disconnect, confirm_text='Disconnect', title='Disconnect Challonge?',
+            ).open()
 
         await connection_card()
 

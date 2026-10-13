@@ -18,6 +18,7 @@ from application.services import AuthService, TenantLogoService, TenantThemeServ
 from application.services.tenant_logo_service import ACCEPT, MAX_UPLOAD_BYTES
 from application.services.tenant_theme_service import DEFAULT_THEME, THEME_PRESETS
 from application.tenant_context import get_current_tenant_id, tenant_scope
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -100,7 +101,14 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
             on_click=lambda: uploader.run_method('pickFiles'),
         ).props('outline color=primary')
         if logo:
-            ui.button('Remove logo', icon='delete', on_click=remove).props('flat color=negative')
+            ui.button(
+                'Remove logo', icon='delete',
+                on_click=lambda: ConfirmationDialog(
+                    'Remove the community logo? The coloured brand mark shows in its place '
+                    'until someone uploads a new one.',
+                    on_confirm=remove, confirm_text='Remove', title='Remove logo?',
+                ).open(),
+            ).props('flat color=negative')
 
 
 async def admin_theme_page() -> None:
@@ -189,6 +197,12 @@ async def admin_theme_page() -> None:
                 ui.notify('Theme colours saved', color='positive')
             ui.navigate.reload()
 
+        def confirm_reset():
+            ConfirmationDialog(
+                'Put every theme colour back to the default? Your custom colours are lost.',
+                on_confirm=reset, confirm_text='Reset', title='Reset colours?',
+            ).open()
+
         async def reset():
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             try:
@@ -202,4 +216,4 @@ async def admin_theme_page() -> None:
         if can_edit:
             with ui.row().classes('gap-2 mt-2'):
                 ui.button('Save', icon='save', on_click=save).props('color=primary')
-                ui.button('Reset to defaults', icon='restart_alt', on_click=reset).props('flat color=primary')
+                ui.button('Reset to defaults', icon='restart_alt', on_click=confirm_reset).props('flat color=primary')

@@ -14,6 +14,7 @@ from nicegui import ui
 from application.services import RacetimeBotService, TenantService
 from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -142,13 +143,21 @@ async def _refresh_bots(table) -> None:
 
 async def _restart_bot(actor, table, row) -> None:
     from racetimebot import get_racetime_manager
-    try:
-        await get_racetime_manager().restart(actor, row['id'])
-    except (ValueError, PermissionError) as e:
-        notify_error(e)
-        return
-    ui.notify('Bot connection restarting', color='positive')
-    await _refresh_bots(table)
+
+    async def do_restart() -> None:
+        try:
+            await get_racetime_manager().restart(actor, row['id'])
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify('Bot connection restarting', color='positive')
+        await _refresh_bots(table)
+
+    ConfirmationDialog(
+        message=f"Restart the {row['category']} bot? Its racetime connection drops and "
+                'reconnects for every community using it.',
+        on_confirm=do_restart, confirm_text='Restart', title='Restart bot?', tone='warning',
+    ).open()
 
 
 
@@ -215,7 +224,7 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
             dialog.close()
             await _refresh_bots(table)
 
-        async def delete_bot():
+        async def do_delete_bot():
             try:
                 await _bot_service.delete_bot(actor, bot.id)
             except (ValueError, PermissionError) as e:
@@ -224,6 +233,13 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
             ui.notify('Bot deleted', color='positive')
             dialog.close()
             await _refresh_bots(table)
+
+        def delete_bot():
+            ConfirmationDialog(
+                message=f'Delete the {bot.category} bot? Every community it’s granted to '
+                        'loses it.',
+                on_confirm=do_delete_bot, confirm_text='Delete', title='Delete bot?',
+            ).open()
 
         with dialog_actions().classes('justify-between'):
             ui.button('Delete', on_click=delete_bot, color='negative').props('flat')
@@ -245,7 +261,7 @@ async def _open_bot_tenants_dialog(actor, row) -> None:
                 if enabled:
                     await _bot_service.grant_tenant(actor, bot_id, tenant_id)
                 else:
-                    await _bot_service.revoke_tenant(actor, bot_id, tenant_id)
+                    await _bot_service.revoke_tenant(actor, bot_id, tenant_id)  # style-guide: exempt — a grant switch, flipped back to undo
             except (ValueError, PermissionError) as e:
                 notify_error(e)
                 return

@@ -167,6 +167,15 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
             ui.notify('Discord server disconnected.', color='positive')
             ui.navigate.to(admin_path)
 
+    def confirm_disconnect(server_label: str) -> None:
+        client = context.client
+        ConfirmationDialog(
+            message=f'Disconnect {server_label}? Role sync stops until someone connects a '
+                    'server again. The bot stays in the server.',
+            on_confirm=lambda: background_tasks.create(disconnect_server(client)),
+            confirm_text='Disconnect', title='Disconnect Discord server?',
+        ).open()
+
     with ui.column().classes('page-container-narrow'):
         page_header('Role Mappings')
 
@@ -186,7 +195,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                 if can_manage:
                     ui.button(
                         'Disconnect', icon='link_off',
-                        on_click=lambda: background_tasks.create(disconnect_server(context.client)),
+                        on_click=lambda: confirm_disconnect(label),
                     ).props('outline color=negative')
             else:
                 ui.label('No Discord server is connected to this community.').classes('text-bold')
@@ -245,7 +254,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                 _sync_remove_button()
 
             async def delete_mapping(row, client):
-                with client:
+                async def do_remove() -> None:
                     try:
                         current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                         await service.remove_mapping(row['id'], current)
@@ -254,6 +263,13 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                         return
                     ui.notify('Mapping removed', color='positive')
                     await refresh_table()
+
+                with client:
+                    ConfirmationDialog(
+                        f"Remove the mapping for {row['discord_role_name']}? Members lose what it "
+                        'granted at their next sign-in or the next Sync All Users.',
+                        on_confirm=do_remove, confirm_text='Remove', title='Remove mapping?',
+                    ).open()
 
             async def remove_selected():
                 ids = [row['id'] for row in table.selected]
