@@ -3535,10 +3535,15 @@ ol.wiz-help-list { list-style-type: decimal; }
     }
 
     .row:has(> .wiz-table-search) {
-        flex: 1 1 12rem;
         min-width: 0;
         flex-wrap: nowrap;
         gap: var(--space-1);
+    }
+
+    /* Only beside other controls in a row. In a column the basis is a height,
+       which left a 192px gap under the check-in desk's search box. */
+    .row > .row:has(> .wiz-table-search) {
+        flex: 1 1 12rem;
     }
 
     /* Ledes: 1.2em grey with a 1em bottom margin reads as a paragraph of body
