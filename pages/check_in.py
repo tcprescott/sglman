@@ -469,7 +469,7 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             with ui.row().classes('w-full items-center no-wrap gap-2'):
                 title = ui.label(event.name).classes('page-title col q-ma-none')
                 title.tag = 'h1'
-                with ui.row().classes('no-wrap items-center gap-0'):
+                with ui.row().classes('no-wrap items-center gap-0 wiz-help-row'):
                     await help_icon('check-in-desk', user=user)
                     sync_btn = ui.button(icon='sync').props('flat round color=primary') \
                         .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')

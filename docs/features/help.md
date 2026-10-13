@@ -295,39 +295,64 @@ page it sits on; the community picker links each community's help instead.
 
 ### Help icons
 
-```python
-from theme.help import help_icon
+**One "?" per heading or dialog title, never beside a control.** Every surface
+gets at most one help button, the same round `help_outline` everywhere, at the
+far end of its heading row (in a dialog, beside the close button). With one
+topic it opens that snippet; with several it lists them by name and each opens
+in place, with "Read more" into the article. This replaced up to six icons and
+labelled chips per section in three different looks, which wrapped to two rows
+on a phone.
 
-await help_icon('crew-status')                         # bare — "explain this page"
-await help_icon('crew-withdraw', label='Withdrawing')  # labelled — a named topic
-await help_icon('player-room', user=viewer)            # pass a user you already have
+```python
+from theme.help import help_icon, resolve_help
+
+await help_icon('my-shifts')                                  # one topic
+await help_icon('vol-roster', 'vol-hours', user=actor)        # one button, two topics
+await help_icon(('schedule-columns', 'Reading the board'), 'match-states')  # relabel one
+
+# Sync headers take resolved topics:
+dialog_header(title, dialog, help=await resolve_help(['suggest-time']))
+with form_dialog(title, help=await resolve_help(['proctor-result'])) as dialog: ...
+await section_panel('Your matches', icon=..., help_topics=['player-schedule', ...])
 ```
 
-**An icon names a snippet, not a section.** It resolves against help first and
+Where it goes:
+
+- **Page or tab header**: call `help_icon` inside `with page_header(...):`. It
+  moves itself to the end of the row (CSS `order`), after any actions.
+- **Section panel**: `help_topics=`; the button ends the title row.
+- **Dialog**: `dialog_header(..., help=)` or `form_dialog(..., help=)`.
+- **A heading row you built yourself**: give the row `wiz-help-row` and call
+  `help_icon` in it.
+
+Topic help that used to sit beside a control (Suggest a time, the review flag,
+a shift's Give back) is a topic in the enclosing dialog or page instead.
+
+A topic's menu name is its snippet's heading, falling back to the article
+title; pass `(name, label)` where that heading reads badly out of context
+("The board", "My Schedule").
+
+**A topic names a snippet, not a section.** It resolves against help first and
 then the community's [event handbook](event-information.md), so the room
-procedure that moved out of the player and proctor articles kept every icon it
-had — the popup now links to `/event-info/…`. Pass `user=` where the surface
-already resolved one: handbook articles can be role-gated, and without it the
-helper looks the viewer up once per icon.
+procedure that moved out of the player and proctor articles kept every topic it
+had and the popup links to `/event-info/…`. Pass `user=` where the surface
+already resolved one: handbook articles can be role-gated, and without it each
+topic looks the viewer up itself. A topic the reader can't open is dropped; a
+button with no topics left renders nothing.
 
 A tappable button with a `q-menu`, not a hover tooltip: a tooltip is unreachable
-on a touch screen, and this help is read on phones in loud rooms. The convention
-is **one bare icon per surface** (the page's own explainer, first) plus labelled
-icons for specific topics — two bare `help_outline`s side by side are
-indistinguishable, and the reader has to open both to find which one answers
-their question.
+on a touch screen, and this help is read on phones in loud rooms.
 
 The shared availability editor takes `help_snippet=` because its two callers
 render identical UI over different data (only the Volunteer tab passes one;
 Home's copy sits inside a section panel that already carries
-`player-availability`). Section panels take theirs through `help_topics=`
-([section panels](../reference/frontend.md#section-panels-themesectionpy)).
+`player-availability`).
 
 There is no list here of where icons are wired; it went stale with every help
 PR and conflicted between them. Ask the code instead:
 
 ```bash
-grep -rnE "help_icon\(|help_snippet=|help_topics=" pages theme
+grep -rnE "help_icon\(|resolve_help\(|help_snippet=|help_topics=" pages theme
 ```
 
 ## Tests
@@ -335,8 +360,9 @@ grep -rnE "help_icon\(|help_snippet=|help_topics=" pages theme
 `tests/test_help_content.py`, `tests/test_help_service.py` and
 `tests/test_help_images_and_staff.py`.
 
-The one worth knowing about: **`TestPagesAndArticlesAgree`** greps `pages/` and
-`theme/` for every `help_icon('x')` and `help_snippet='x'` and asserts the
+The one worth knowing about: **`TestPagesAndArticlesAgree`** parses `pages/` and
+`theme/` for every topic passed to `help_icon`, `resolve_help`, `help_topics=`
+and `help_snippet=` and asserts the
 snippet exists **in either section**, plus that the `default` dev handbook
 carries every one help does not own — otherwise the dev loop and the browser
 sweep quietly lose icons. A renamed article silently turns its icons into nothing —

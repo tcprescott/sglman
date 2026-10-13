@@ -53,7 +53,7 @@ async def admin_presets_page() -> None:
             'Import the built-in presets to get started, or pull a randomizer\'s '
             'own published presets over its API.',
         ):
-            await help_icon('admin-preset-test-roll', label='Test roll', user=await current_actor())
+            await help_icon('admin-preset-test-roll', user=await current_actor())
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},

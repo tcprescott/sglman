@@ -22,8 +22,8 @@ from application.services.volunteer.volunteer_hours import (
     VolunteerHoursService,
     merged_hours,
 )
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import (
     VolunteerQualificationService,
 )
@@ -40,8 +40,8 @@ __all__ = [
     'VolunteerAvailabilityService',
     'VolunteerExportService',
     'VolunteerHoursService',
+    'VolunteerPoolService',
     'VolunteerPositionService',
-    'VolunteerProfileService',
     'VolunteerQualificationService',
     'VolunteerRoleMappingService',
     'VolunteerScheduleService',

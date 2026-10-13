@@ -971,8 +971,15 @@ main.q-page:focus {
     gap: var(--space-2);
 }
 
+/* A banner with no actions would otherwise keep an empty row (and, on a
+   phone, a full-width line of it) under the message. */
+.wiz-banner__actions:empty { display: none; }
+
 @media (max-width: 599px) {
     .wiz-banner { flex-wrap: wrap; }
+    /* A zero basis keeps the message beside its icon: with `auto` the long
+       text claimed the whole line and wrapped under an icon left alone on top. */
+    .wiz-banner__body { flex-basis: 0; }
     .wiz-banner__actions { width: 100%; justify-content: flex-end; }
 }
 
@@ -1055,6 +1062,20 @@ main.q-page:focus {
     }
 }
 
+/* Quasar lays a field's hint out absolutely in a fixed 20px strip, so a hint
+   that wraps to two lines spills into the gap and runs into the next field's
+   label: on a phone the Profile's display-name hint read as the pronouns
+   field's. In flow, each hint stays with its own field. */
+.form-grid .q-field--with-bottom { padding-bottom: 0; }
+.form-grid .q-field__bottom {
+    position: static;
+    transform: none;
+    padding-top: var(--space-1);
+}
+@media (max-width: 600px) {
+    .form-grid { row-gap: var(--space-4); }
+}
+
 /* Stacked form column: full width up to a readable cap so a 10-char date field
    doesn't stretch a third of the screen (System Configuration, Profile). */
 .wiz-form-column {
@@ -1101,23 +1122,15 @@ main.q-page:focus {
     background: rgba(28, 27, 25, 0.45);
 }
 
-/* Full-screen dialog sheets on mobile. mobile_sheet() opens the dialog with
-   :maximized="Quasar.Screen.lt.sm", so below 600px the centered card becomes an
-   edge-to-edge sheet. Overrides the .dialog-card sizing and the .q-dialog
-   .q-card brand border above (equal specificity, wins on source order). */
-.q-dialog__inner--maximized > .dialog-card {
-    width: 100%;
+/* Bottom sheets on mobile. mobile_sheet() opens the dialog with
+   position=bottom below 600px, so the card slides up from the bottom edge as
+   tall as its content and no taller than the screen. The full-screen sheet it
+   replaced left short forms (pick a time, seat two players) floating over a
+   screen of blank card. Quasar already forces width:100% and the max-height;
+   these undo the .dialog-card width cap and round only the top corners. */
+.q-dialog__inner--bottom > .dialog-card {
     max-width: 100%;
-    height: 100%;
-    max-height: 100dvh;
-    border-radius: 0;
-    border-top: none;
-}
-
-/* On a phone sheet a short form left the action bar halfway down a blank
-   screen; keep it at the bottom, in thumb reach. */
-.q-dialog__inner--maximized > .dialog-card > .dialog-actions {
-    margin-top: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 /* The card is align-items:flex-start, so children size to content and the sticky
@@ -1126,7 +1139,7 @@ main.q-page:focus {
    across the card. Stretch ONLY those two bars (not arbitrary dialog content) so
    they fill the card and their negative margins bleed to the edges. Applies at
    every width: the centered desktop card has the same flex-start parent as the
-   maximized mobile sheet, so scoping this to --maximized left every desktop
+   mobile sheet, so scoping this to the sheet alone left every desktop
    dialog with a stubbed rule and a footer that masked only its own width. */
 .dialog-card > .dialog-header,
 .dialog-card > .dialog-actions {
@@ -1163,7 +1176,6 @@ main.q-page:focus {
     margin-left: calc(-1 * var(--nicegui-default-padding));
     margin-right: calc(-1 * var(--nicegui-default-padding));
     padding: 0.5rem var(--nicegui-default-padding);
-    padding-top: calc(0.5rem + env(safe-area-inset-top));
     background: var(--surface);
     border-bottom: 1px solid var(--border-subtle);
     /* ui.row wraps by default, so a long title pushed the close button onto a
@@ -1178,6 +1190,54 @@ main.q-page:focus {
 }
 
 .dialog-header > .q-btn { flex-shrink: 0; }
+
+/* The labelled "Close" pill at the end of every dialog header
+   (dialog_close_button). Neutral rather than accent, so the one gold thing in
+   a dialog stays its primary action. */
+.q-btn.dialog-close {
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    min-height: 34px;
+    padding: 0 0.75rem 0 0.625rem;
+}
+
+.q-btn.dialog-close .q-icon {
+    font-size: 1.15rem;
+    margin-right: 0.25rem;
+}
+
+.q-btn.dialog-close:hover {
+    background: var(--border-strong);
+    color: var(--fg);
+}
+
+/* On a phone the pill shrinks to a 36px disc with just the X; the word stays
+   in the accessibility tree (visually hidden) so the button keeps its name. */
+@media (max-width: 599.98px) {
+    .q-btn.dialog-close {
+        width: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .q-btn.dialog-close .q-icon {
+        margin-right: 0;
+    }
+
+    .q-btn.dialog-close .block {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
 
 /* Error Pages (40x / 50x) */
 .error-page-container {
@@ -1450,6 +1510,23 @@ main.q-page:focus {
 }
 
 /* Separator Styles */
+/* The column's gap already spaces the header from the banner under it. */
+.wiz-community-events > .wiz-page-header { margin-bottom: 0; }
+
+/* Home → Tournaments cards: one tournament per card, kept short enough that a
+   phone shows more than one. NiceGUI's card gap and the full-size list item
+   behind "N signed up" took most of the height. */
+.wiz-tournament-card { gap: var(--space-2); }
+.wiz-tournament-card .q-expansion-item > .q-expansion-item__container > .q-item {
+    padding: 0;
+    min-height: 32px;
+}
+.wiz-tournament-card .q-expansion-item .q-item__section--avatar {
+    min-width: 0;
+    padding-right: var(--space-2);
+}
+.wiz-tournament-card .wiz-help-prose > :last-child { margin-bottom: 0; }
+
 .separator-spacing {
     margin-bottom: 1.5em;
 }
@@ -1697,14 +1774,28 @@ main.q-page:focus {
     padding: 2em;
 }
 
+/* theme/empty_state.cat_fact: an aside, not part of the message above it.
+   Space and a dashed rule part it from the empty-state text, and the kicker
+   names it, so nobody mistakes the fact for something the app is reporting. */
 .empty-state-fact {
-    margin-top: 0.5em;
-    gap: 0.4em;
-    font-size: 0.85em;
+    margin-top: var(--space-5);
+    padding-top: var(--space-3);
+    border-top: 1px dashed var(--border-subtle);
+    max-width: 32rem;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
     /* Muted by colour, not opacity: 0.65 opacity left it at 2.7:1. */
     color: var(--fg-muted);
-    flex-wrap: wrap;
-    justify-content: center;
+    text-align: center;
+}
+
+.empty-state-fact__kicker {
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 /* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
@@ -2099,6 +2190,32 @@ main.q-page:focus {
     gap: 2px;
 }
 
+/* The viewer's own Sign up / Withdraw for one crew role (crew_signup_section),
+   on the phone card and the desktop crew cell alike. A sunken tray of its own
+   above the names, so the button keeps one spot whether the list is empty, long,
+   or has the viewer in it, and reads as "your control", not one more name. */
+.wiz-crew-action {
+    display: flex;
+    align-items: center;
+    flex-basis: 100%;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    margin-bottom: var(--space-1);
+    background: var(--surface-sunken);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+}
+
+.wiz-crew-empty {
+    flex-basis: 100%;
+    white-space: nowrap;
+}
+
+/* In a desktop table cell the tray hugs its button rather than the column. */
+td .wiz-crew-action {
+    display: inline-flex;
+}
+
 /* An approver's crew member on the phone card: the name is the approval
    toggle. The chips wrap like the plain name list does, and the name is
    clipped rather than letting one long handle widen the card. */
@@ -2465,6 +2582,48 @@ main.q-page:focus {
     font-weight: 500;
     color: var(--status-neutral);
     margin-bottom: 0.3em;
+}
+
+/* The match board's filter card: each field labels itself, so desktop is one
+   row and a phone is a 2x2 grid with search and the gear on a line below. */
+.match-filter-field {
+    flex: 1 1 9rem;
+    min-width: 8rem;
+    max-width: 15rem;
+}
+
+.match-filter-field .q-field__native > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.match-filter-tools {
+    margin-left: auto;
+    gap: var(--space-1);
+}
+
+@media (max-width: 1023.98px) {
+    .match-filters-card--compact {
+        padding: var(--space-2);
+    }
+
+    .match-filters-card--compact .match-filter-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
+    }
+
+    .match-filters-card--compact .match-filter-field {
+        min-width: 0;
+        max-width: none;
+    }
+
+    .match-filters-card--compact .match-filter-tools {
+        grid-column: 1 / -1;
+        margin-left: 0;
+        justify-content: flex-end;
+    }
 }
 
 .match-table-container {
@@ -3039,10 +3198,81 @@ ol.wiz-help-list { list-style-type: decimal; }
 /* --- the tappable help icon --------------------------------------------- */
 
 /* Tap, not hover: a tooltip is unreachable on a touch screen, and this help is
-   read on phones. Muted until touched so it never competes with the control it
-   is explaining. */
-.wiz-help-icon { opacity: 0.6; }
-.wiz-help-icon:hover, .wiz-help-icon:focus-visible { opacity: 1; }
+   read on phones. One per heading or dialog title, the same size everywhere. */
+.wiz-help-icon.q-btn {
+    color: var(--wiz-link);
+    flex-shrink: 0;
+    min-width: 32px;
+    min-height: 32px;
+}
+
+/* Always the last thing on its heading row, whatever the caller built after
+   it, so the "?" sits in the same spot on every page. A ui.space() before the
+   row's actions still takes the free space first; the margin only matters on
+   a row with nothing pushing right. */
+.wiz-page-header__row > .wiz-help-icon,
+.wiz-help-row > .wiz-help-icon {
+    order: 99;
+    margin-left: auto;
+}
+
+/* In a dialog header it is a pill matching the Close pill beside it: neutral
+   on desktop with its label, a 36px disc on a phone with the word kept as its
+   accessible name. */
+.q-btn.wiz-help-icon.dialog-help {
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    min-height: 34px;
+    padding: 0 0.75rem 0 0.625rem;
+}
+
+.q-btn.dialog-help .q-icon {
+    font-size: 1.15rem;
+    margin-right: 0.25rem;
+}
+
+.q-btn.dialog-help:hover {
+    background: var(--border-strong);
+    color: var(--fg);
+}
+
+@media (max-width: 599.98px) {
+    .q-btn.wiz-help-icon.dialog-help {
+        width: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .q-btn.dialog-help .q-icon { margin-right: 0; }
+
+    .q-btn.dialog-help .block {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
+.wiz-help-menu-title {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+/* Several topics: a list of names, full width, that each open in place. */
+.wiz-help-menu-body > .wiz-help-topic {
+    align-self: stretch;
+    border-top: 1px solid var(--border-subtle);
+}
+.wiz-help-menu-body:has(> .wiz-help-topic) { gap: 0; }
+.wiz-help-topic .q-item { padding: 0; min-height: 44px; }
+.wiz-help-topic .q-expansion-item__content { padding: 0 0 0.6rem; }
 
 .wiz-help-menu-body {
     padding: 0.85rem 1rem;
@@ -3178,23 +3408,6 @@ ol.wiz-help-list { list-style-type: decimal; }
     flex-wrap: nowrap;
 }
 
-/* Help topics sit on their own line, right-aligned, as a set of chips — beside
-   the title six of them read as one unbroken run of tiny text. */
-.wiz-panel__help {
-    justify-content: flex-end;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-    row-gap: var(--space-1);
-}
-
-.wiz-panel__help .wiz-help-icon {
-    opacity: 0.85;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-pill);
-    background: var(--surface);
-    font-size: 0.75rem;
-}
-
 .wiz-panel__sub {
     font-size: 0.85rem;
     color: var(--status-neutral);
@@ -3231,6 +3444,19 @@ ol.wiz-help-list { list-style-type: decimal; }
     border: 1px solid var(--border-subtle);
     box-shadow: none;
 }
+
+/* One matchup in a "Waiting on you to pick a time" card. Each is its own tile
+   on the card's tinted ground: as bare rows, two bracket matchups against the
+   same opponent ran together into one block of text. */
+.wiz-pick-row {
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    row-gap: 0;
+}
+
+.wiz-pick-row__title { flex: 1 1 100%; min-width: 0; }
 
 .wiz-subcard__title {
     font-family: var(--font-body);
@@ -3562,20 +3788,6 @@ ol.wiz-help-list { list-style-type: decimal; }
     .text-muted {
         font-size: 1rem;
         margin-bottom: var(--space-2);
-    }
-
-    /* Labelled help chips ("Approval", "Queues") inherit size=xs, which Quasar
-       turns into an 8px inline font. Hold them at a caption size that can be read
-       without zooming, and at a touch height that does not stand a row of them
-       a thumb tall. */
-    .wiz-help-icon.q-btn:not(.q-btn--round) {
-        font-size: 0.75rem !important;
-        min-height: 32px;
-    }
-
-    .wiz-panel__help .wiz-help-icon.q-btn--round {
-        min-height: 32px;
-        min-width: 32px;
     }
 
     /* A seed string and its copy button stay on one line; the string gives way

@@ -65,8 +65,7 @@ async def admin_schedule_page(
     access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
         with page_header('Schedule Management'):
-            await help_icon('staff-schedule-board')
-            await help_icon('staff-queues', label='Queues')
+            await help_icon(('staff-schedule-board', 'The schedule board'))
             if access.edit:
                 ui.space()
                 ui.button('New match', icon='add', on_click=lambda: submit_admin_match()) \

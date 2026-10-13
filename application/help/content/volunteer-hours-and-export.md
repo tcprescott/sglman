@@ -22,7 +22,6 @@ check their roles on the Users tab or the Discord role that grants it.
 
 | Column | Shows |
 |---|---|
-| Opted In | Whether they've opted in to volunteering. It doesn't affect whether you can schedule them. |
 | Hours | Their scheduled hours for the event, with the highest reward tier they've reached. |
 | Qualifications | The positions they're qualified for. A dash means none recorded. |
 | Availability | Every window they entered, marked Preferred, Available or Unavailable. |
@@ -32,7 +31,7 @@ checkbox per active position. Tick the positions they're qualified for and
 save.
 :::
 
-![Vol. Roster: each volunteer's opt-in, hours with the reward tier reached, qualifications and availability windows](/static/help/volunteer-hours-and-export/roster-desktop.webp)
+![Vol. Roster: each volunteer's hours with the reward tier reached, qualifications and availability windows](/static/help/volunteer-hours-and-export/roster-desktop.webp)
 
 Qualifications change who the auto-scheduler will place. Someone with at least
 one qualification is only placed in those positions, and goes ahead of
@@ -79,12 +78,12 @@ Two things a coordinator will want changed live where only staff can reach them:
 
 ## Exporting the data
 
-**Export data** is on both Vol. Roster and Vol. Schedule. Pick a date range (it
+**Export data** is on Vol. Roster, and in the **Actions** menu on Vol. Schedule. Pick a date range (it
 starts as the event dates) and you get a ZIP with a README and six CSV files:
 
 | File | One row per |
 |---|---|
-| volunteers.csv | Person in the pool or opted in, with their note, qualifications, available hours and assigned hours. Always the full roster, whatever the dates. |
+| volunteers.csv | Everyone in the pool or on a shift, with their qualifications, available hours and assigned hours. Always the full roster, whatever the dates. |
 | availability.csv | Availability window someone entered, including the times they ruled out. |
 | positions.csv | Position, with its shift and slot counts. |
 | shifts.csv | Shift in the date range. |

@@ -11,7 +11,6 @@ from api.schemas.volunteers import (
     AssignRequest,
     AssignResponse,
     CoverageRow,
-    OptInRequest,
     ReleaseAssignmentRequest,
     SetAvailabilityRequest,
     VolunteerAssignmentResponse,
@@ -20,7 +19,6 @@ from api.schemas.volunteers import (
     VolunteerPositionCreate,
     VolunteerPositionResponse,
     VolunteerPositionUpdate,
-    VolunteerProfileResponse,
     VolunteerShiftCreate,
     VolunteerShiftResponse,
 )
@@ -29,7 +27,6 @@ from application.services.auth_service import AuthService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import User, VolunteerShift
 
@@ -221,34 +218,7 @@ async def my_hours(
     return _hours_resp(await VolunteerHoursService().for_user(actor, start=start, end=end))
 
 
-# --- Self-service: profile, availability, assignments ---------------------
-
-def _profile_resp(actor: User, profile) -> VolunteerProfileResponse:
-    return VolunteerProfileResponse(
-        user_id=actor.id,
-        opted_in=profile.opted_in_at is not None,
-        opted_in_at=profile.opted_in_at,
-        note=profile.note,
-    )
-
-
-@router.get("/me/profile", response_model=VolunteerProfileResponse, summary="Get your volunteer profile")
-async def my_profile(actor: User = Depends(require_api_actor)):
-    profile = await VolunteerProfileService().get_or_create(actor)
-    return _profile_resp(actor, profile)
-
-
-@router.post("/me/opt-in", response_model=VolunteerProfileResponse, summary="Opt in to volunteering")
-async def opt_in(payload: OptInRequest, actor: User = Depends(require_write_actor)):
-    profile = await VolunteerProfileService().opt_in(actor, note=payload.note)
-    return _profile_resp(actor, profile)
-
-
-@router.post("/me/opt-out", response_model=VolunteerProfileResponse, summary="Opt out of volunteering")
-async def opt_out(actor: User = Depends(require_write_actor)):
-    profile = await VolunteerProfileService().opt_out(actor)
-    return _profile_resp(actor, profile)
-
+# --- Self-service: availability, assignments ---------------------
 
 @router.get("/me/availability", response_model=List[VolunteerAvailabilityResponse], summary="List your availability windows")
 async def my_availability(actor: User = Depends(require_api_actor)):

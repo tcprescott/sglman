@@ -46,11 +46,14 @@ depend on — do not change):
 
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_slots import (
+    CREW_CAN_SIGN_UP_JS,
+    CREW_EMPTY_JS,
     MY_ACTIONS_COLUMN,
     SEED_ROLLABLE,
     STAGE_VALUE_JS,
     STREAM_VOLUNTEER_ACTIONABLE,
     _bool_js,
+    crew_signup_section,
     crew_wanted_js,
     seed_value_template,
 )
@@ -129,14 +132,21 @@ _REVIEW_DETAIL = '''
 
 # --- Detail rows (each v-if-gated: empty -> renders nothing) ----------------
 
-# Commentators / trackers. Row shows when the list is non-empty, or (non-admin
-# only) when a signup is still possible — so an empty admin crew line collapses
-# but a volunteer can still sign up. Emits props.row for signup/undo and
-# { row, idx } for view/toggle/acknowledge.
-_CREW_DETAIL = '''
-        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && props.row.crew_signup_open && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
+# Commentators / trackers. Row shows when the list is non-empty, or while a
+# signup can still fill it (CREW_EMPTY_JS: "No signups yet", every viewer), or
+# when this viewer could sign up. The viewer's own Sign up / Withdraw sits in its
+# own tray above the names (crew_signup_section, shared with the desktop cell),
+# so the button doesn't move as names come and go. Emits props.row for
+# signup/undo and { row, idx } for view/toggle/acknowledge.
+_CREW_DETAIL = (
+    '''
+        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || '''
+    + CREW_EMPTY_JS.replace('__LIST__', 'props.row.__KEY__')
+    + ' || (!__IA__ && ' + CREW_CAN_SIGN_UP_JS.replace('__LIST__', 'props.row.__KEY__') + ''')">
             <span class="mgc-label">__LABEL__</span>
-            <span class="mgc-detail-value">
+            <span class="mgc-detail-value">'''
+    + crew_signup_section('props.row.__KEY__', name_the_role=True).replace('\n', '\n        ')
+    + '''
                 <template v-for="(item, idx) in props.row.__KEY__">
                     <!-- For an approver the name itself is the approval toggle:
                          one full-size chip per person, outlined in the accent
@@ -171,24 +181,9 @@ _CREW_DETAIL = '''
                         </q-btn>
                     </span>
                 </template>
-                <template v-if="!__IA__">
-                    <!-- Labelled for the same reason Acknowledge is: this is the
-                         phone layout, where a tooltip is the one explanation that
-                         never opens, and a bare `undo` circle beside a name does
-                         not read as "drop this commitment". -->
-                    <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
-                           icon="undo" color="negative" size="sm" dense flat no-caps label="Withdraw"
-                           @click="$parent.$emit('undo___SING__', props.row)">
-                        <q-tooltip>Remove yourself as __SING__</q-tooltip>
-                    </q-btn>
-                    <q-btn v-if="__WANTED__ && props.row.crew_signup_open && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
-                           icon="assignment" color="primary" size="sm" dense outline
-                           @click="$parent.$emit('signup___SING__', props.row)">
-                        Sign Up
-                    </q-btn>
-                </template>
             </span>
         </div>'''
+)
 
 # Stage / stage. Shows when assigned, a candidate, or an admin who can
 # assign; otherwise nothing. The admin's copy is the desktop cell's select —

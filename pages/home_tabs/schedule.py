@@ -47,13 +47,10 @@ async def schedule():
         # `separator-spacing` stack: that put ~3em of empty band between a
         # one-sentence note and the board it introduces, and on a phone the
         # help icons dropped to their own line stranded in the middle of it.
-        with ui.row().classes('wiz-view-note items-center'):
+        with ui.row().classes('wiz-view-note items-center wiz-help-row'):
             ui.label('Every match, and where you can sign up as crew.') \
                 .classes('text-muted')
-            # Bare icon = "explain this page"; labelled icons = a named topic.
-            # Two bare help_outlines side by side are indistinguishable.
-            await help_icon('schedule-columns')
-            await help_icon('match-states', label='States')
+            await help_icon(('schedule-columns', 'Reading the board'), 'match-states')
             needs_crew_switch = ui.switch(
                 'Needs crew', value=bool(tenant_session_get(NEEDS_CREW_KEY, False)),
             ).props('dense').tooltip('Only matches still short of commentators or trackers')

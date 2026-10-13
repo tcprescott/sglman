@@ -4,28 +4,6 @@ from tortoise.models import Model
 from .enums import Role, VolunteerAvailabilityStatus
 
 
-class VolunteerProfile(Model):
-    """Per-user opt-in record for onsite volunteering.
-
-    Any logged-in user can opt in; only users with ``opted_in_at`` set are
-    assignable / appear in the coordinator's pool.
-    """
-
-    id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_profiles', on_delete=fields.CASCADE)
-    # Per-tenant opt-in: a user opts in independently for each tenant, so this is
-    # a tenant-scoped FK (not a global OneToOne) unique per (tenant, user).
-    user = fields.ForeignKeyField('models.User', related_name='volunteer_profiles', on_delete=fields.CASCADE)
-    opted_in_at = fields.DatetimeField(null=True)
-    note = fields.TextField(null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
-    class Meta:
-        table = 'volunteerprofile'
-        unique_together = (('tenant', 'user'),)
-
-
 class VolunteerPosition(Model):
     """A coordinator-defined volunteer job (e.g. Check-in Desk, Race Proctor)."""
 

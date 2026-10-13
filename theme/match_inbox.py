@@ -19,6 +19,7 @@ from application.services import MatchRescheduleService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_time, to_local, today_local
 from models import Match, RescheduleRequestKind
+from theme.help import help_icon
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor
 from theme.tables.match_access import MatchBoardAccess
@@ -106,6 +107,7 @@ class MatchInbox:
                 if total:
                     with ui.element('span').classes('wiz-chip wiz-chip--pending'):
                         ui.label(str(total))
+                await help_icon('staff-queues')
             if not total:
                 ui.label('Nothing is waiting on you.').classes('text-muted')
                 return

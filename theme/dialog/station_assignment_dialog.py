@@ -9,7 +9,7 @@ from application.services.system_config_service import SystemConfigService
 from application.utils.match_labels import match_model_label
 from models import STATION_REGEXES, Match
 from theme.dialog._helpers import dialog_actions, form_dialog
-from theme.help import help_icon
+from theme.help import resolve_help
 from theme.notify import notify_error
 
 # Copy for the dialog's two jobs. 'checkin' is the proctor's combined
@@ -69,7 +69,8 @@ class StationAssignmentDialog:
         occupied = await self.match_service.occupied_stations_for_dialog(self.match.id)
 
         title = copy['title'].format(match=match_model_label(self.match, with_context=False))
-        with form_dialog(title, card_classes='dialog-card dialog-card--md') as self.dialog:
+        help = await resolve_help(['proctor-stations'])
+        with form_dialog(title, card_classes='dialog-card dialog-card--md', help=help) as self.dialog:
             with ui.column().classes('full-width gap-3'):
                 context = []
                 if self.match.tournament:
@@ -85,7 +86,6 @@ class StationAssignmentDialog:
                 else:
                     with ui.row().classes('items-center no-wrap full-width gap-1'):
                         ui.label(copy['lead']).classes('text-body2 col')
-                        await help_icon('proctor-stations')
                         # Only offered for a head-to-head: the draw's whole job
                         # is putting two players on opposite sides, and it
                         # refuses any other player count.

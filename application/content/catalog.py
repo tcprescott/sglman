@@ -63,6 +63,8 @@ class ContentSnippet:
     anchor: str
     blocks: tuple[Block, ...]
     base_path: str = '/help'
+    #: The text of the heading ``anchor`` slugs: what a help menu calls the topic.
+    heading: str = ''
 
     @property
     def href(self) -> str:
@@ -189,12 +191,12 @@ def _split_snippets(body: str) -> tuple[str, dict[str, tuple[int, int]]]:
     return '\n'.join(kept), ranges
 
 
-def _anchor_before(lines: list[str], start: int) -> str:
-    """The slug of the nearest heading at or above ``start``."""
+def _heading_before(lines: list[str], start: int) -> str:
+    """The text of the nearest heading at or above ``start``."""
     for index in range(min(start, len(lines)) - 1, -1, -1):
         heading = re.match(r'^#{2,4}\s+(.*)$', lines[index].strip())
         if heading:
-            return slugify(re.sub(r'[*`]', '', heading.group(1).strip()))
+            return re.sub(r'[*`]', '', heading.group(1).strip())
     return ''
 
 
@@ -217,7 +219,8 @@ def _load_article(path: Path, base_path: str) -> ContentArticle | None:
             name=name,
             article_slug=slug,
             article_title=title,
-            anchor=_anchor_before(lines, start),
+            anchor=slugify(_heading_before(lines, start)),
+            heading=_heading_before(lines, start),
             blocks=tuple(parse_blocks('\n'.join(lines[start:end]))),
             base_path=base_path,
         )

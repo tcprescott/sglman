@@ -10,7 +10,7 @@ from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
-from theme.help import help_icon
+from theme.help import help_icon, resolve_help
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -90,7 +90,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
 
     with ui.column().classes('page-container'):
         with page_header('My Shifts'):
-            await help_icon('my-shifts')
+            await help_icon(('my-shifts', 'Your shifts'), 'shift-release')
             ui.space()
 
 
@@ -107,13 +107,12 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
         async def confirm_release(assignment) -> None:
             shift = assignment.shift
             position = shift.position.name if shift.position else 'Volunteer'
-            with form_dialog('Give this shift back?') as dialog:
+            help = await resolve_help(['shift-release'])
+            with form_dialog('Give this shift back?', help=help) as dialog:
                 with ui.column().classes('q-pa-md gap-2 full-width'):
-                    with ui.row().classes('items-center no-wrap gap-1'):
-                        ui.label(
-                            position + (f' — {shift.label}' if shift.label else '')
-                        ).classes('text-body2 text-weight-medium')
-                        await help_icon('shift-release')
+                    ui.label(
+                        position + (f' — {shift.label}' if shift.label else '')
+                    ).classes('text-body2 text-weight-medium')
                     ui.label(
                         f'{format_local_display(shift.starts_at)} → '
                         f'{format_local_display(shift.ends_at)}'

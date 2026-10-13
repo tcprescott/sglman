@@ -1,9 +1,16 @@
-"""The tappable icon that opens a help or event-information snippet.
+"""The one help button a heading or dialog title carries.
+
+Every surface gets at most one, always the same round "?", always at the end of
+its heading row (in a dialog, beside the close button). It used to be up to six
+icons and labelled chips per section, in three different looks, scattered
+beside individual controls; on a phone the chips wrapped to two rows above the
+content they explained.
 
 A hover tooltip is unreachable on a touch screen, and most of the people this
 help is for are reading it on a phone in a loud room. So this is a real button
 with a ``q-menu``: it opens on tap and on click alike, stays open until
-dismissed, and its content is selectable.
+dismissed, and its content is selectable. With one topic the menu shows that
+snippet; with several it lists them by name and each opens in place.
 
 The snippet it shows is a region of an article, not a second copy of the words —
 the popup and the article cannot drift apart, and "Read more" deep-links to the
@@ -16,12 +23,13 @@ region from one to the other keeps every icon working — the popup simply start
 linking to ``/event-info/…`` instead of ``/help/…``.
 """
 
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Sequence, Union
 
 from nicegui import app, ui
 
 from application.content import article_sections
-from application.help import all_articles, get_article, get_snippet
+from application.help import HelpSnippet, all_articles, get_article, get_snippet
 from application.services import (
     EventInfoService,
     FeatureFlagService,
@@ -31,7 +39,10 @@ from application.services import (
 from models import FeatureFlag, User
 from theme.help.render import render_blocks
 
-__all__ = ['help_icon']
+__all__ = ['HelpTopic', 'ResolvedHelp', 'help_button', 'help_icon', 'resolve_help']
+
+#: A snippet name, or ``(name, label)`` where its heading reads badly as a menu item.
+HelpTopic = Union[str, tuple[str, str]]
 
 
 async def _event_info_snippet(snippet_name: str, user: Optional[User], user_given: bool):
@@ -73,29 +84,15 @@ def _depends_on_the_reader(snippet_name: str) -> bool:
     return '/help' in sections and any(_gated(article) for article in all_articles())
 
 
-async def help_icon(
-    snippet_name: str,
-    *,
-    label: str = '',
-    size: str = 'xs',
-    user: Optional[User] = None,
-) -> None:
-    """Render a help icon for ``snippet_name``, or nothing if it is unavailable.
+@dataclass(frozen=True)
+class ResolvedHelp:
+    """A topic this viewer can read, with the name the menu shows for it."""
 
-    Pass ``label`` where a surface carries **two** of these: two bare
-    ``help_outline`` icons side by side are indistinguishable, and the reader has
-    to open both to find out which one answers their question.
+    label: str
+    snippet: HelpSnippet
 
-    Pass ``user`` from any surface that already has one. It only matters for a
-    role-gated event-information snippet, and without it this has to resolve the
-    viewer itself — which is a query a page that already knows who it is drawing
-    for should not pay.
 
-    Renders nothing when the snippet does not exist, its article is gated off for
-    this community, or the reader holds none of its roles — an icon that opens an
-    empty popup is worse than no icon, and a missing snippet is an authoring slip
-    that should not break a page.
-    """
+async def _resolve_one(snippet_name: str, user: Optional[User]) -> Optional[HelpSnippet]:
     viewer = user
     if viewer is None and _depends_on_the_reader(snippet_name):
         # Judged as signed out, a staff snippet would vanish for staff and links
@@ -105,22 +102,78 @@ async def help_icon(
     snippet = await HelpService.get_snippet(snippet_name, viewer)
     if snippet is None:
         snippet = await _event_info_snippet(snippet_name, viewer, viewer is not None)
-    if snippet is None:
-        return
+    return snippet
 
+
+async def resolve_help(
+    topics: Sequence[HelpTopic], *, user: Optional[User] = None,
+) -> list[ResolvedHelp]:
+    """The topics in ``topics`` this viewer can read, in order.
+
+    For a sync header (``dialog_header``, ``form_dialog``) that takes the
+    result as ``help=``. Drops a topic whose snippet does not exist, whose
+    article is gated off for this community, or whose roles the reader lacks:
+    a menu entry that opens nothing is worse than no entry, and a missing
+    snippet is an authoring slip that should not break a page.
+
+    Pass ``user`` from any surface that already has one. It only matters for a
+    role-gated snippet, and without it each one looks the viewer up itself.
+    """
+    resolved: list[ResolvedHelp] = []
+    for topic in topics:
+        name, label = topic if isinstance(topic, tuple) else (topic, '')
+        snippet = await _resolve_one(name, user)
+        if snippet is not None:
+            resolved.append(ResolvedHelp(label or snippet.heading or snippet.article_title, snippet))
+    return resolved
+
+
+def _snippet_body(snippet: HelpSnippet) -> None:
+    # Block flow, not the enclosing flex column: a height-capped flex parent
+    # shrinks its children, which crushed a snippet's table to half its rows
+    # instead of letting the popup scroll.
+    with ui.element('div').classes('wiz-help-prose'):
+        # Demoted so a snippet that opens on its own heading does not render it
+        # at article-title scale inside a small popup.
+        render_blocks(snippet.blocks, heading_offset=2)
+    ui.link('Read more', snippet.href).classes('wiz-help-more')
+
+
+def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
+    """Render the "?" for already-resolved ``topics``, or nothing if there are none.
+
+    Rendered inside a heading row it moves itself to the row's far end (CSS
+    ``order``), so a caller can add actions after it without reordering.
+
+    ``pill`` is the dialog-header form: a labelled "Help" pill on desktop and a
+    disc on a phone, the same shape as the Close button beside it.
+    """
+    if not topics:
+        return
     button = (
-        ui.button(label, icon='help_outline').props(f'flat dense no-caps size={size}')
-        if label else
-        ui.button(icon='help_outline').props(f'flat round dense size={size} aria-label=Help')
+        ui.button('Help', icon='help_outline', color=None)
+        .props('flat dense no-caps').classes('wiz-help-icon dialog-help')
+        if pill else
+        ui.button(icon='help_outline').props('flat round dense aria-label=Help')
+        .classes('wiz-help-icon')
     )
-    with button.classes('wiz-help-icon'):
+    with button:
         with ui.menu().props('max-width=26rem').classes('wiz-help-menu'):
             with ui.column().classes('wiz-help-menu-body'):
-                # Block flow, not the enclosing flex column: a height-capped flex
-                # parent shrinks its children, which crushed a snippet's table to
-                # half its rows instead of letting the popup scroll.
-                with ui.element('div').classes('wiz-help-prose'):
-                    # Demoted so a snippet that opens on its own heading does not
-                    # render it at article-title scale inside a small popup.
-                    render_blocks(snippet.blocks, heading_offset=2)
-                ui.link('Read more', snippet.href).classes('wiz-help-more')
+                if len(topics) == 1:
+                    ui.label(topics[0].label).classes('wiz-help-menu-title')
+                    _snippet_body(topics[0].snippet)
+                else:
+                    ui.label('Help').classes('wiz-help-menu-title')
+                    for topic in topics:
+                        with ui.expansion(topic.label).props('dense').classes('wiz-help-topic'):
+                            _snippet_body(topic.snippet)
+
+
+async def help_icon(*topics: HelpTopic, user: Optional[User] = None) -> None:
+    """Resolve ``topics`` and render one "?" for them: the async shorthand.
+
+    One call per heading. Several topics go in the same call and become one menu;
+    two buttons on one heading is the clutter this replaced.
+    """
+    help_button(await resolve_help(topics, user=user))

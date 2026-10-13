@@ -27,7 +27,6 @@ from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.hard_preset_dialog import HardPresetDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.dialog.reschedule_request_dialog import RescheduleRequestDialog
-from theme.help import help_icon
 from theme.notify import notify_error
 from theme.section import section_panel
 from theme.tables.match import MatchTableView
@@ -269,12 +268,13 @@ async def render_player_dashboard(
         icon='sports_esports',
         subtitle='What you are playing, and anything still waiting on a time.',
         help_topics=[
-            'player-schedule',
-            ('stream-volunteer', 'Stream'),
-            ('reschedule-request', 'Change'),
-            ('check-in', 'Check-in'),
-            ('player-room', 'In the room'),
-            ('player-stage', 'On a stage'),
+            ('player-schedule', 'Your matches'),
+            ('bracket-schedule', 'Picking a time for a bracket match'),
+            'stream-volunteer',
+            'reschedule-request',
+            ('check-in', 'Checking in'),
+            ('player-room', 'In the race room'),
+            ('player-stage', 'Playing on a stage'),
         ],
         user=viewer,
     )
@@ -306,9 +306,7 @@ async def render_player_dashboard(
             # The refreshable renders into its own container, so create elements
             # directly (there is no separate challonge_container to enter).
             with ui.card().classes('wiz-subcard'):
-                with ui.row().classes('items-center gap-1 no-wrap'):
-                    ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                    await help_icon('bracket-schedule', user=viewer)
+                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
                 ui.label(_booking_caption(
                     'From your Challonge bracket.', [cm.tournament for cm in matches],
                 )).classes('text-caption text-grey-7')
@@ -317,7 +315,7 @@ async def render_player_dashboard(
                     opponent = cm.participant2 if me_is_p1 else cm.participant1
                     opponent_name = opponent.name if opponent else 'TBD'
                     opponent_linked = opponent is not None and opponent.user_id is not None
-                    with ui.row().classes('items-center full-width q-my-xs'):
+                    with ui.row().classes('wiz-pick-row items-center full-width'):
                         ui.label(cm.tournament.name).classes('text-bold')
                         ui.label(f'vs {opponent_name}')
                         if cm.round is not None:
@@ -366,9 +364,7 @@ async def render_player_dashboard(
                 return
             openers: dict = {}
             with ui.card().classes('wiz-subcard'):
-                with ui.row().classes('items-center gap-1 no-wrap'):
-                    ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
-                    await help_icon('bracket-schedule', user=viewer)
+                ui.label('Waiting on you to pick a time').classes('wiz-subcard__title')
                 ui.label(_booking_caption(
                     'From your bracket.', [bm.bracket.tournament for bm in matchups],
                 )).classes('text-caption text-grey-7')
@@ -382,14 +378,15 @@ async def render_player_dashboard(
                     # row: on a phone the flat row wrapped into a ragged three
                     # lines with the ui.space() stranded mid-block.
                     with ui.row().classes(
-                        'items-center justify-between full-width q-my-xs gap-2'
+                        'wiz-pick-row items-center justify-between full-width gap-2'
                     ):
-                        with ui.column().classes('col min-w-0 gap-0'):
-                            # `ellipsis` on each line: a long tournament name
-                            # otherwise wraps to three lines on a phone once the
-                            # action button has taken its width.
-                            ui.label(bm.bracket.tournament.name) \
-                                .classes('text-bold ellipsis')
+                        # The tournament name takes its own line across the
+                        # tile: beside the button it was cut to "Bracket De…"
+                        # on a 360px phone, and it is what tells two matchups
+                        # against the same opponent apart.
+                        ui.label(bm.bracket.tournament.name) \
+                            .classes('wiz-pick-row__title text-bold')
+                        with ui.column().classes('col min-w-0 gap-0 items-stretch'):
                             ui.label(f'vs {opponent_name}').classes('ellipsis')
                             ui.label(_round_label(bm, best_of, number)) \
                                 .classes('text-caption text-grey-7 ellipsis')

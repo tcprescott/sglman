@@ -82,10 +82,10 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
             source=MembershipSource.OPEN, created_at=now - timedelta(hours=1),
         )
 
-    # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
-    # qualified + available pool seeded further down so the Vol. Roster tab and
+    # Roles (per tenant). The VOLUNTEER grants below mirror the qualified +
+    # available pool seeded further down so the Vol. Roster tab and
     # the auto-scheduler actually have an assignable pool to show
-    # (VolunteerProfileService.assignable_volunteers filters on Role.VOLUNTEER).
+    # (VolunteerPoolService.assignable_volunteers filters on Role.VOLUNTEER).
     role_grants = [
         ("staff_user", Role.STAFF),
         ("proctor_user", Role.PROCTOR),

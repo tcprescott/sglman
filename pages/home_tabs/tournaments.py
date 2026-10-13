@@ -123,15 +123,13 @@ async def tournaments_tab() -> None:
         triforce_ids = await supporting_tournament_ids()
 
     with ui.column().classes('page-container'):
-        with page_header('Tournaments'):
+        with page_header(
+            'Tournaments',
+            "Sign up to join a tournament's player pool so staff can schedule your "
+            'matches. Match alerts are set on your Profile.',
+        ):
             await help_icon('tournament-signup')
             ui.space()
-        ui.label(
-            'Sign up to enter a tournament\'s player pool so staff can schedule you '
-            'into its matches. Following a tournament for match alerts is separate — '
-            'that lives on your Profile.'
-        ).classes('text-muted')
-        ui.separator().classes('separator-spacing')
 
         # Both handlers run as detached background tasks, where the slot stack is
         # empty, so the client comes from the call site rather than being read in
@@ -177,7 +175,8 @@ async def tournaments_tab() -> None:
         def render_card(card: TournamentSignupCard) -> None:
             t = card.tournament
             chip_class, status = signup_status(card)
-            with ui.card().classes('full-width q-mb-sm').props(f'id={_card_dom_id(t.id)}'):
+            with ui.card().classes('wiz-tournament-card full-width q-mb-sm') \
+                    .props(f'id={_card_dom_id(t.id)}'):
                 with ui.row().classes('items-center gap-2 flex-wrap full-width'):
                     ui.label(t.name).classes('text-subtitle1 text-weight-medium')
                     with ui.element('span').classes(f'wiz-chip {chip_class}'):
@@ -265,8 +264,8 @@ async def tournaments_tab() -> None:
                 section = [c for c in all_cards if predicate(c)]
                 if not section:
                     continue
-                with ui.row().classes('items-center gap-2 q-mt-md'):
-                    ui.icon(icon, size='sm').classes('icon-primary')
+                with ui.row().classes('items-center gap-2 q-mt-sm'):
+                    ui.icon(icon, size='xs').classes('icon-primary')
                     ui.label(title).classes('subsection-title')
                 for card in section:
                     render_card(card)

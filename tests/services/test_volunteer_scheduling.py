@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import (
     Role,
@@ -43,7 +43,7 @@ async def _coordinator():
     return await _user('coordinator', roles=[Role.VOLUNTEER_COORDINATOR])
 
 
-async def _opted_in_volunteer(name):
+async def _volunteer(name):
     return await _user(name, roles=[Role.VOLUNTEER])
 
 
@@ -153,7 +153,7 @@ async def test_assign_then_duplicate_and_overlap_rejected(db):
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     other = await VolunteerShift.create(position=pos, starts_at=_at(10), ends_at=_at(14))
-    vol = await _opted_in_volunteer('alice')
+    vol = await _volunteer('alice')
     svc = VolunteerScheduleService()
 
     assignment, warnings = await svc.assign(staff, shift, vol)
@@ -171,8 +171,8 @@ async def test_assign_overfill_warns_but_allows(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Board Game Room')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=1)
-    a = await _opted_in_volunteer('a')
-    b = await _opted_in_volunteer('b')
+    a = await _volunteer('a')
+    b = await _volunteer('b')
     svc = VolunteerScheduleService()
 
     await svc.assign(staff, shift, a)
@@ -185,7 +185,7 @@ async def test_assign_unavailable_warns(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Photography')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    vol = await _opted_in_volunteer('grumpy')
+    vol = await _volunteer('grumpy')
     await VolunteerAvailability.create(
         user=vol, starts_at=_at(7), ends_at=_at(13),
         status=VolunteerAvailabilityStatus.UNAVAILABLE,
@@ -200,8 +200,8 @@ async def test_acknowledge_sets_timestamp_and_guards_owner(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    vol = await _opted_in_volunteer('owner')
-    intruder = await _opted_in_volunteer('intruder')
+    vol = await _volunteer('owner')
+    intruder = await _volunteer('intruder')
     svc = VolunteerScheduleService()
     assignment, _ = await svc.assign(staff, shift, vol)
 
@@ -218,7 +218,7 @@ async def test_draft_is_hidden_from_the_volunteers_own_list(db):
     await _staff()
     pos = await VolunteerPosition.create(name='Check-in')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    vol = await _opted_in_volunteer('drafted')
+    vol = await _volunteer('drafted')
     await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
     svc = VolunteerScheduleService()
 
@@ -232,8 +232,8 @@ async def test_draft_is_never_the_first_dm(db):
     shift = await VolunteerShift.create(
         position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4),
     )
-    drafted = await _opted_in_volunteer('drafted')
-    published = await _opted_in_volunteer('published')
+    drafted = await _volunteer('drafted')
+    published = await _volunteer('published')
     await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
     await VolunteerAssignment.create(shift=shift, user=published, auto_generated=False)
 
@@ -247,7 +247,7 @@ async def test_draft_is_never_the_first_dm(db):
 async def test_acknowledging_a_draft_is_refused(db):
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    vol = await _opted_in_volunteer('drafted')
+    vol = await _volunteer('drafted')
     assignment = await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
 
     with pytest.raises(ValueError, match='still a draft'):
@@ -261,9 +261,9 @@ async def test_count_drafts_counts_only_drafts_in_the_window(db):
     tomorrow = await VolunteerShift.create(
         position=pos, starts_at=_at(8, day=5), ends_at=_at(12, day=5),
     )
-    a = await _opted_in_volunteer('a')
-    b = await _opted_in_volunteer('b')
-    c = await _opted_in_volunteer('c')
+    a = await _volunteer('a')
+    b = await _volunteer('b')
+    c = await _volunteer('c')
     await VolunteerAssignment.create(shift=today, user=a, auto_generated=True)
     await VolunteerAssignment.create(shift=today, user=b, auto_generated=False)
     await VolunteerAssignment.create(shift=tomorrow, user=c, auto_generated=True)
@@ -276,8 +276,8 @@ async def test_publish_draft_commits_and_survives_clear_draft(db):
     pos = await VolunteerPosition.create(name='Check-in')
     morning = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     afternoon = await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
-    a = await _opted_in_volunteer('aa')
-    b = await _opted_in_volunteer('bb')
+    a = await _volunteer('aa')
+    b = await _volunteer('bb')
     await VolunteerAssignment.create(shift=morning, user=a, auto_generated=True)
     await VolunteerAssignment.create(shift=afternoon, user=a, auto_generated=True)
     await VolunteerAssignment.create(shift=morning, user=b, auto_generated=True)
@@ -299,7 +299,7 @@ async def test_assignments_for_user_prefetches_assigned_by(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    vol = await _opted_in_volunteer('assignee')
+    vol = await _volunteer('assignee')
     await VolunteerScheduleService().assign(staff, shift, vol)
 
     rows = await VolunteerScheduleService().assignments_for_user(vol)
@@ -315,7 +315,7 @@ async def test_release_frees_the_slot(db):
     shift = await VolunteerShift.create(
         position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4), slots_needed=1,
     )
-    vol = await _opted_in_volunteer('quitter')
+    vol = await _volunteer('quitter')
     svc = VolunteerScheduleService()
     assignment, _ = await svc.assign(staff, shift, vol)
 
@@ -332,8 +332,8 @@ async def test_shiftmates_are_only_loaded_when_asked_for(db):
     shift = await VolunteerShift.create(
         position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3,
     )
-    me = await _opted_in_volunteer('me')
-    them = await _opted_in_volunteer('them')
+    me = await _volunteer('me')
+    them = await _volunteer('them')
     svc = VolunteerScheduleService()
     await svc.assign(staff, shift, me)
     await svc.assign(staff, shift, them)
@@ -357,8 +357,8 @@ async def test_day_summary_counts_the_states(db):
     shift = await VolunteerShift.create(
         position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2,
     )
-    committed = await _opted_in_volunteer('committed')
-    drafted = await _opted_in_volunteer('drafted')
+    committed = await _volunteer('committed')
+    drafted = await _volunteer('drafted')
     svc = VolunteerScheduleService()
     assignment, _ = await svc.assign(staff, shift, committed)
     await svc.acknowledge(assignment.id, committed)
@@ -378,7 +378,7 @@ async def test_coverage_reports_understaffing(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Race Proctor')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2)
-    vol = await _opted_in_volunteer('one')
+    vol = await _volunteer('one')
     svc = VolunteerScheduleService()
     await svc.assign(staff, shift, vol)
 
@@ -396,14 +396,14 @@ async def test_autoschedule_respects_qualification_and_availability(db):
     tech = await VolunteerPosition.create(name='Broadcast Tech')
     shift = await VolunteerShift.create(position=proctor, starts_at=_at(8), ends_at=_at(12))
 
-    qualified = await _opted_in_volunteer('qualified')
+    qualified = await _volunteer('qualified')
     await VolunteerQualification.create(user=qualified, position=proctor)
     await VolunteerAvailability.create(
         user=qualified, starts_at=_at(8), ends_at=_at(12),
         status=VolunteerAvailabilityStatus.AVAILABLE,
     )
     # Qualified only for a different position -> ineligible for this shift.
-    wrong = await _opted_in_volunteer('wrongskill')
+    wrong = await _volunteer('wrongskill')
     await VolunteerQualification.create(user=wrong, position=tech)
 
     result = await VolunteerAutoscheduleService().generate_draft(staff, _at(0), _at(23))
@@ -418,8 +418,8 @@ async def test_autoschedule_load_balances(db):
     pos = await VolunteerPosition.create(name='Check-in')
     await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
-    a = await _opted_in_volunteer('aa')
-    b = await _opted_in_volunteer('bb')
+    a = await _volunteer('aa')
+    b = await _volunteer('bb')
     for vol in (a, b):
         await _available(vol, _at(8), _at(16))
 
@@ -434,7 +434,7 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
     staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3)
-    solo = await _opted_in_volunteer('solo')
+    solo = await _volunteer('solo')
     await _available(solo, _at(8), _at(12))
 
     auto = VolunteerAutoscheduleService()
@@ -444,7 +444,7 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
     assert result['unfilled'][0]['reason'] == 'No qualified volunteer in the pool.'
 
     # A manual assignment must survive clear_draft; drafts must not.
-    manual = await _opted_in_volunteer('manual')
+    manual = await _volunteer('manual')
     await VolunteerScheduleService().assign(staff, shift, manual)
     removed = await auto.clear_draft(staff, _at(0), _at(23))
     assert removed == 1
@@ -460,7 +460,7 @@ async def test_does_not_repeat_the_sixteen_hour_draft(db):
         await VolunteerShift.create(
             position=pos, starts_at=_at(hour), ends_at=_at(hour) + timedelta(hours=4),
         )
-    hero = await _opted_in_volunteer('hero')
+    hero = await _volunteer('hero')
     await _available(hero, _at(8), _at(8) + timedelta(hours=16))
 
     result = await VolunteerAutoscheduleService().generate_draft(staff, _at(0), _at(23) + timedelta(hours=6))
@@ -473,11 +473,11 @@ async def test_does_not_repeat_the_sixteen_hour_draft(db):
     assert [r['name'] for r in result['heavy_loads']] == ['hero']
 
 
-async def test_undeclared_volunteer_is_skipped_unless_opted_into(db):
+async def test_undeclared_volunteer_is_skipped_unless_the_policy_allows(db):
     staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Check-in')
     await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    await _opted_in_volunteer('undeclared')
+    await _volunteer('undeclared')
 
     auto = VolunteerAutoscheduleService()
     default_run = await auto.generate_draft(staff, _at(0), _at(23))
@@ -488,11 +488,11 @@ async def test_undeclared_volunteer_is_skipped_unless_opted_into(db):
     assert default_run['outside_availability'] == []
 
     from application.services.volunteer.volunteer_autoschedule_service import DraftPolicy
-    opted_in = await auto.generate_draft(
+    outside_run = await auto.generate_draft(
         staff, _at(0), _at(23), policy=DraftPolicy(fill_outside_availability=True),
     )
-    assert opted_in['created'] == 1
-    assert [r['name'] for r in opted_in['outside_availability']] == ['undeclared']
+    assert outside_run['created'] == 1
+    assert [r['name'] for r in outside_run['outside_availability']] == ['undeclared']
 
 
 async def test_draft_audit_records_the_policy(db):
@@ -501,7 +501,7 @@ async def test_draft_audit_records_the_policy(db):
     staff = await _coordinator()
     pos = await VolunteerPosition.create(name='Check-in')
     await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2)
-    await _opted_in_volunteer('undeclared')
+    await _volunteer('undeclared')
 
     from application.services.volunteer.volunteer_autoschedule_service import DraftPolicy
     await VolunteerAutoscheduleService().generate_draft(
@@ -577,13 +577,13 @@ async def test_reminder_skips_far_future_shift(db, monkeypatch):
 
 async def test_assignable_pool_is_volunteer_or_staff_role_users(db):
     staff = await _staff()
-    with_role = await _opted_in_volunteer('withvolunteer')
+    with_role = await _volunteer('withvolunteer')
     both = await _user('both', roles=[Role.VOLUNTEER, Role.STAFF])
     # A role that is neither VOLUNTEER nor STAFF -> excluded.
     proctor = await _user('proctor', roles=[Role.PROCTOR])
     no_role = await _user('norole')
 
-    pool = await VolunteerProfileService().assignable_volunteers()
+    pool = await VolunteerPoolService().assignable_volunteers()
     ids = [u.id for u in pool]
     assert with_role.id in ids
     assert staff.id in ids

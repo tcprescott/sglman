@@ -17,6 +17,7 @@ tone the board does not use is worse than no help, so both are checked against
 their real sources rather than against a copy.
 """
 
+import ast
 import re
 from pathlib import Path
 
@@ -292,16 +293,45 @@ class TestPagesAndArticlesAgree:
 
     @staticmethod
     def _referenced_snippets() -> set[str]:
+        """Every snippet name a page wires, however it is passed.
+
+        ``help_icon('a', ('b', 'Label'))``, ``resolve_help(['a', ...])``,
+        ``section_panel(help_topics=[...])`` and the availability editor's
+        ``help_snippet='a'`` all name snippets; a regex on the first argument
+        missed the rest of a multi-topic call.
+        """
+        def names_in(node: ast.AST) -> set[str]:
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                return {node.value}
+            if isinstance(node, ast.Tuple) and node.elts:
+                return names_in(node.elts[0])
+            if isinstance(node, (ast.List, ast.Tuple)):
+                return set().union(*(names_in(e) for e in node.elts)) if node.elts else set()
+            if isinstance(node, ast.IfExp):
+                return names_in(node.body) | names_in(node.orelse)
+            return set()
+
         names: set[str] = set()
         for directory in ('pages', 'theme'):
             for path in (REPO_ROOT / directory).rglob('*.py'):
-                names.update(re.findall(
-                    r"help_icon\(\s*['\"]([a-z0-9-]+)['\"]", path.read_text(encoding='utf-8')
-                ))
-                names.update(re.findall(
-                    r"help_snippet=['\"]([a-z0-9-]+)['\"]", path.read_text(encoding='utf-8')
-                ))
-        return names
+                for call in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+                    if not isinstance(call, ast.Call):
+                        continue
+                    func = call.func
+                    called = func.attr if isinstance(func, ast.Attribute) else getattr(func, 'id', '')
+                    if called in ('help_icon', 'resolve_help'):
+                        for arg in call.args:
+                            names |= (
+                                set().union(*(names_in(e) for e in arg.elts))
+                                if isinstance(arg, ast.List) else names_in(arg)
+                            )
+                    for keyword in call.keywords:
+                        if keyword.arg == 'help_topics' and isinstance(keyword.value, ast.List):
+                            for element in keyword.value.elts:
+                                names |= names_in(element)
+                        elif keyword.arg == 'help_snippet':
+                            names |= names_in(keyword.value)
+        return {name for name in names if re.fullmatch(r'[a-z0-9-]+', name)}
 
     def test_every_help_icon_in_the_app_names_a_snippet_that_exists(self):
         """A renamed article silently turns its icons into nothing — the icon

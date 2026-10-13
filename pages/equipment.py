@@ -100,7 +100,7 @@ def create() -> None:
             )
 
             with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
-                with ui.row().classes('header-row items-center'):
+                with ui.row().classes('header-row items-center wiz-help-row'):
                     page_title(f'#{asset.asset_number} · {asset.name}')
                     ui.badge(
                         _STATUS_LABELS.get(asset.status.value, asset.status.value),
@@ -110,8 +110,7 @@ def create() -> None:
                     if can_manage:
                         await help_icon('equipment-desk', user=user)
                     else:
-                        await help_icon('equipment-borrow', user=user)
-                        await help_icon('equipment-return', label='Giving it back', user=user)
+                        await help_icon('equipment-borrow', 'equipment-return', user=user)
                 ui.separator().classes('separator-spacing')
 
                 with ui.row().classes('w-full gap-6 items-start'):

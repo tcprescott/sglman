@@ -99,9 +99,9 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
         icon='headset_mic',
         subtitle='Commentary and tracking slots you volunteered for.',
         help_topics=[
-            'crew-status',
-            ('crew-approval', 'Approval'),
-            ('crew-withdraw', 'Withdrawing'),
+            ('crew-status', 'Your crew slots'),
+            'crew-approval',
+            'crew-withdraw',
         ],
         user=user,
     )

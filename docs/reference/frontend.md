@@ -214,7 +214,7 @@ Schedule — builds each one with `section_panel(...)` rather than a
 panel = await section_panel(
     'Crew you signed up for', icon='headset_mic',
     subtitle='Commentary and tracking slots you volunteered for.',
-    help_topics=['crew-status', ('crew-approval', 'Approval')],
+    help_topics=[('crew-status', 'Your crew slots'), 'crew-approval'],
     user=viewer,
 )
 with panel.aside:
@@ -229,8 +229,9 @@ with panel.body:
 | `aside` | the header's right-hand control strip — a scope switch, a column-preferences gear |
 | `body` | the content (`.wiz-panel__body`, one padding rule) |
 
-`help_topics` takes a bare snippet name or `(name, label)`; they render as a
-wrapped, right-aligned chip group **below** the subtitle, not glued to the title.
+`help_topics` takes a bare snippet name or `(name, label)`; they become the
+panel's one "?" at the end of the title row, which lists them
+([help icons](../features/help.md#help-icons)).
 The stack itself is `ui.column().classes('page-container wiz-section-stack')` —
 one gap between panels, no separators, since a panel already has an edge.
 
@@ -252,7 +253,7 @@ Two rules the classes exist to keep:
 
 The public event schedule with crew signup.
 
-- No page title (the Event tab's view switcher already names the view): one `.wiz-view-note` line — "Every match, and where you can sign up as crew." — with the `schedule-columns` and `match-states` help icons. Every viewer is signed in, since home's membership gate runs first. Per-tournament notification preferences are managed on the Profile tab — see [../features/discord.md](../features/discord.md#tournament-notification-preferences).
+- No page title (the Event tab's view switcher already names the view): one `.wiz-view-note` line — "Every match, and where you can sign up as crew." — with one help button for `schedule-columns` and `match-states`. Every viewer is signed in, since home's membership gate runs first. Per-tournament notification preferences are managed on the Profile tab — see [../features/discord.md](../features/discord.md#tournament-notification-preferences).
 - A `MatchTableView` with `admin_controls=False`, `table_key=TableKeys.HOME_SCHEDULE`, `storage_key='home_schedule'` and `grid_breakpoint='lt.lg'`. Columns: Tournament, Scheduled At, State, Players, Stage, Generated Seed, Commentators, Trackers, Watch.
 - A match scheduled by a bracket shows a "<stage> · Game 2 of 3 · 1-0" link under the tournament name (`MatchDisplayService._bracket_ref`, rendered by `match_slots.py` / `match_grid.py`, handled by `_handle_open_bracket`). The series context comes off games the repository already prefetched, so it costs no extra query per row; the round *name* is deliberately absent, since naming a round needs the stage's whole graph. It emits `open_bracket` rather than carrying an `href`, so `ui.navigate.to` prepends the tenant `root_path`. Shared by every `MatchTableView`.
 - `MatchTableView(show_accommodations=True)` (admin Schedule, Proctor Station only) marks players with an **Arranged** ADA accommodation: `_apply_accommodations` adds `ada`/`ada_note` to the player dicts via `AccommodationService.arranged_notes_for` (empty for any viewer but STAFF/PROCTOR), and the players cell's icon emits `show_accommodation` to open a staff-notes popup — see [../features/ada-accommodations.md](../features/ada-accommodations.md).
@@ -330,7 +331,7 @@ No longer a tab. `open_triforce_dialog(tournament, user)` is a dialog opened fro
 | My Shifts | volunteer or staff | `volunteer_tabs/my_shifts.py:my_shifts_tab` | Upcoming assigned shifts, with acknowledgment |
 | Proctor Station | proctor or staff | `volunteer_tabs/proctor_station.py:proctor_station_tab(user)` | The on-site room board — check in, seat, roll the seed, start, record the winner. Always `MatchBoardAccess(run=True)`: exactly what `can_run_match` admits them to |
 
-The two self-service tabs read the *signed-in* user's own data, so they are safe (and empty) for someone who volunteers for nothing; saving availability still requires a volunteer opt-in, which the service enforces.
+The two self-service tabs read the *signed-in* user's own data, so they are safe (and empty) for someone who volunteers for nothing; only the tab's role gate decides who can save availability.
 
 `proctor_station_tab()` is a purpose-built board, **deliberately diverged** from the admin Schedule tab it used to render: same `MatchTableView` and the same lifecycle dialogs (both build their callbacks from `theme/tables/match_lifecycle.py:MatchLifecycleHandlers`, so the two cannot drift), but six columns instead of nine — Time, Next step, Players & stations, Seed, Tournament, `#` — with no Commentators/Trackers/Stage and no create/edit/confirm controls. It also passes three board-shaping options the admin table does not: `exclude_racetime=True` (a racetime.gg match has no on-site proctor), `row_sort=proctor_row_order` (overdue → checked in → started → scheduled → finished, earliest first within a bucket) and `actions_first=True` (the mobile card's lifecycle button sits under the player names). A `@ui.refreshable` chip strip above the table — driven by the view's `on_rows_changed` — counts to-check-in / to-start / in-play / overdue. The tab slug stays `proctor-station`, so existing deep links keep working.
 
@@ -494,7 +495,7 @@ Two tab functions live in this module.
 
 `admin_volunteer_roster_page()` — the "Vol. Roster" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
-- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In, **Hours**, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
+- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerPoolService.assignable_volunteers`): Name, **Hours**, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
 - **Hours** comes from `VolunteerHoursService.roster()`, keyed by user id, with a positive chip naming the highest comp tier cleared (`8h`, `12h`, …). The column sorts on the raw number, never the rendered string, so 10 does not fall between 1 and 2.
 - The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
 - An **Export data** button opens `VolunteerExportDialog`; the same button sits on the Vol. Schedule tab, since the coordinator may start from either.
@@ -511,12 +512,12 @@ Two tab functions live in this module.
 - **Auto-fill** opens [`VolunteerAutofillDialog`](../../theme/dialog/volunteer_autofill_dialog.py) rather than running immediately: the hour ceiling and the "also use volunteers who have not marked this time" opt-in are the coordinator's call, and the dialog hands back a `DraftPolicy` for the page to run. Its module-level `build_policy` is where the defaults live, so they are unit-testable without a slot context.
 - The run's output lands in a dismissible `@ui.refreshable` **result panel** (held in the page's `state['last_run']`, never a module global) listing each open slot with the sentence explaining why plus an **Assign** button into the existing picker, everyone placed outside their stated availability with a **Remove**, and any heavy loads. The shift card's `filled/needed` badge carries the same sentence as its tooltip, so the grid and the panel agree. The panel does not survive a reload — the audit row is the durable record.
 - A `@ui.refreshable` `grid()` renders one card per active position, each with **Generate standard shifts** and **Add shift** (→ `VolunteerShiftDialog`) and a shift card per shift (filled/needed badge, edit/delete, and an **Assign** picker dialog). The position header carries its own aggregate `filled/needed` badge and open count, and on phones a **fully-staffed** position's shift cards are folded away behind a `lt-md` *Show N shift(s)* toggle — so folding hides finished work and never hidden work, and the header still states the position's state. The fold is the `.wiz-position-folded` class, whose `display: none` lives only inside the `max-width: 1023.98px` media query in `static/css/styles.css`: the cards render **once** and the desktop grid is untouched by construction. A per-width `ui.expansion` would double the DOM and register every row action twice. Measured at 390×844: a day with open slots is ~4,970 px (the audit's 4,891 plus the strip and the position briefs, which is what makes the first screenful answer the day), a fully-staffed day folds to ~2,120 px.
-- The assign picker pulls the assignable pool (every VOLUNTEER or STAFF role holder in the tenant, `VolunteerProfileService.assignable_volunteers`) with a name search box and per-volunteer availability badges (`VolunteerAvailabilityService.availability_map` / `covers`; a person with no window covering the shift shows a grey **Not stated** badge, the same label the availability editor gives an undeclared span); assigning goes through `VolunteerScheduleService.assign` (surfacing returned warnings); assignment chips remove via `unassign`.
+- The assign picker pulls the assignable pool (every VOLUNTEER or STAFF role holder in the tenant, `VolunteerPoolService.assignable_volunteers`) with a name search box and per-volunteer availability badges (`VolunteerAvailabilityService.availability_map` / `covers`; a person with no window covering the shift shows a grey **Not stated** badge, the same label the availability editor gives an undeclared span); assigning goes through `VolunteerScheduleService.assign` (surfacing returned warnings); assignment chips remove via `unassign`.
 - The two write-only text fields are now readable from the grid: a position's `description` renders as a caption under its name, and a shift with `notes` carries a `sticky_note_2` icon whose tooltip is the notes text — so a coordinator can check what the volunteer will read.
 
 ### Volunteer data export (`theme/dialog/volunteer_export_dialog.py`)
 
-`VolunteerExportDialog` — a start/end date pair (defaulting to `SystemConfigService.get_event_window()`, end inclusive) drives `VolunteerExportService.build`, and `bundle_to_zip_bytes` renders the bundle as `README.txt` plus one CSV per sheet (`volunteers`, `availability`, `positions`, `shifts`, `assignments`, `schedule`), downloaded as one ZIP via `ui.download`. The point is to hand the coordinator every input needed to draft a schedule in a spreadsheet — including each volunteer's opt-in note and the *open* slots, which the normalized assignment table cannot show. `ValueError`/`PermissionError` surface through `notify_error`.
+`VolunteerExportDialog` — a start/end date pair (defaulting to `SystemConfigService.get_event_window()`, end inclusive) drives `VolunteerExportService.build`, and `bundle_to_zip_bytes` renders the bundle as `README.txt` plus one CSV per sheet (`volunteers`, `availability`, `positions`, `shifts`, `assignments`, `schedule`), downloaded as one ZIP via `ui.download`. The point is to hand the coordinator every input needed to draft a schedule in a spreadsheet — including each volunteer's qualifications and the *open* slots, which the normalized assignment table cannot show. `ValueError`/`PermissionError` surface through `notify_error`.
 
 ### Admin Challonge (`pages/admin_tabs/admin_challonge.py`)
 
@@ -909,7 +910,7 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 | [`assets.py`](../../theme/assets.py) | `asset_url(path)` and `cache_control(...)` — see [Static assets](#static-assets--styling-static) |
 | [`markdown_editor/`](../../theme/markdown_editor/__init__.py) | `MarkdownEditor(label, value=..., placeholder=...)` — a WYSIWYG markdown editor (vendored Tiptap bundle in `dist/`) whose toolbar is limited to what `render_blocks` can show; value is markdown. Rebuild with `npm ci && npm run build` in that directory. See [community-events.md](../features/community-events.md#descriptions-and-the-editor) |
 | [`community_events.py`](../../theme/community_events.py) | The community-events disclaimer banner, status chips and time lines shared by the page and the admin tab |
-| [`help/`](../../theme/help/__init__.py) | `help_icon(...)`, `render_blocks` / `render_spans` — the safe-markdown renderer shared by `/help`, `/event-info` and tournament descriptions. See [../features/help.md](../features/help.md) |
+| [`help/`](../../theme/help/__init__.py) | `help_icon(...)` / `resolve_help` + `help_button` (one "?" per heading or dialog title), `render_blocks` / `render_spans` — the safe-markdown renderer shared by `/help`, `/event-info` and tournament descriptions. See [../features/help.md](../features/help.md) |
 
 ## Table views (`theme/tables/`)
 
