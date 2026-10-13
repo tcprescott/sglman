@@ -17,7 +17,6 @@ the failure this guards against.
 """
 
 import asyncio
-import difflib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -56,6 +55,8 @@ from application.services.check_in_rules import (
     norm_name,
     refuse_comp_row,
     resolve_link,
+    suggested_users,
+    suggestion_candidates,
     summarize,
 )
 from application.services.check_in_sales import apply_badges, apply_tiers, buyer_fields, buyers_of
@@ -86,47 +87,10 @@ from models import (
 MIN_SYNC_INTERVAL_MINUTES = 1
 MAX_SYNC_INTERVAL_MINUTES = 120
 SUGGESTION_LIMIT = 3
-SUGGESTION_THRESHOLD = 0.6
 
 _DESK_DENIED = 'Only staff and check-in desk volunteers can do that.'
 _STAFF_DENIED = 'Only staff can do that.'
 _WITHDRAWN_DENIED = 'Only staff can check them in anyway.'
-
-
-def _suggestion_candidates(people: Sequence[User], taken: set[int]) -> List[Tuple[User, frozenset[str]]]:
-    candidates = []
-    for user in people:
-        if user.id in taken:
-            continue
-        names = frozenset({
-            norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
-            norm_name((user.matcherino_username or '').split('#')[0]),
-        } - {''})
-        if names:
-            candidates.append((user, names))
-    return candidates
-
-
-def _suggested(target: str, candidates: Sequence[Tuple[User, frozenset[str]]], limit: int) -> List[User]:
-    """The best-scoring candidates at or above the threshold, as ``difflib.get_close_matches`` prunes.
-
-    The two cheap upper bounds skip the full ratio for names that can't reach
-    the threshold, which roughly triples the speed of scoring a whole roster.
-    """
-    matcher = difflib.SequenceMatcher()
-    matcher.set_seq1(target)
-    scored: List[Tuple[float, User]] = []
-    for user, names in candidates:
-        best = 0.0
-        for name in names:
-            matcher.set_seq2(name)
-            if (matcher.real_quick_ratio() >= SUGGESTION_THRESHOLD
-                    and matcher.quick_ratio() >= SUGGESTION_THRESHOLD):
-                best = max(best, matcher.ratio())
-        if best >= SUGGESTION_THRESHOLD:
-            scored.append((best, user))
-    scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
-    return [user for _, user in scored[:limit]]
 
 
 @dataclass(frozen=True)
@@ -587,8 +551,8 @@ class CheckInService:
         if not target:
             return []
         taken = await self._taken_user_ids(entrant.event, for_link=True)
-        candidates = _suggestion_candidates(await UserRepository.get_community_people(), taken)
-        return _suggested(target, candidates, limit)
+        candidates = suggestion_candidates(await UserRepository.get_community_people(), taken)
+        return suggested_users(target, candidates, limit)
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def suggestion_counts(
@@ -609,12 +573,12 @@ class CheckInService:
         if not rows:
             return {}
         taken = await self._taken_user_ids(event, for_link=True)
-        candidates = _suggestion_candidates(await UserRepository.get_community_people(), taken)
+        candidates = suggestion_candidates(await UserRepository.get_community_people(), taken)
         targets = [(e.id, norm_name(e.display_name)) for e in rows]
         # Scoring a roster against a community is a fraction of a second of pure
         # CPU, so it runs off the event loop every desk shares.
         return await asyncio.to_thread(
-            lambda: {entrant_id: len(_suggested(target, candidates, limit)) for entrant_id, target in targets}
+            lambda: {entrant_id: len(suggested_users(target, candidates, limit)) for entrant_id, target in targets}
         )
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
