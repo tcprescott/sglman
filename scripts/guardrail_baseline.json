@@ -56,7 +56,6 @@
     "tests/services/test_twitch_service.py": 1,
     "tests/services/test_user_service.py": 1,
     "tests/services/test_volunteer_autoschedule_service.py": 1,
-    "tests/services/test_volunteer_profile_service.py": 1,
     "tests/services/test_volunteer_scheduling.py": 1,
     "tests/services/test_volunteer_services_coverage.py": 1,
     "tests/tenancy/test_tenant_middleware.py": 1,

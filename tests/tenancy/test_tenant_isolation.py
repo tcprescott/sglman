@@ -29,7 +29,6 @@ from application.repositories.reschedule_request_repository import (
 from application.repositories.stage_repository import StageRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.volunteer_position_repository import VolunteerPositionRepository
-from application.repositories.volunteer_profile_repository import VolunteerProfileRepository
 from application.tenant_context import tenant_scope
 from models import (
     Equipment,
@@ -46,7 +45,6 @@ from models import (
     TournamentPlayers,
     User,
     VolunteerPosition,
-    VolunteerProfile,
 )
 
 
@@ -326,23 +324,20 @@ async def test_challonge_api_usage_is_per_tenant(tenants):
         assert await ChallongeRepository.get_monthly_usage() == 0
 
 
-async def test_volunteer_profile_opt_in_is_per_tenant(tenants):
-    """VolunteerProfile changed from OneToOne(user) to a tenant-scoped FK — a
-    user can opt in per tenant, and each tenant sees only its own profiles."""
+async def test_volunteer_pool_is_per_tenant(tenants):
+    """The pool is role-derived and roles are per tenant: a VOLUNTEER in one
+    community is not assignable in another."""
+    from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
+    from models import Role, UserRole
+
     a, b = tenants
     user = await User.create(discord_id=904, username='vol')
-    with tenant_scope(a.id):
-        pa = await VolunteerProfile.create(user=user, opted_in_at=None)
-    with tenant_scope(b.id):
-        pb = await VolunteerProfile.create(user=user, opted_in_at=None)
-    assert pa.id != pb.id
+    await UserRole.create(user=user, role=Role.VOLUNTEER, tenant_id=a.id)
 
     with tenant_scope(a.id):
-        got = await VolunteerProfileRepository.get_for_user(user)
-        assert got is not None and got.id == pa.id
+        assert await VolunteerPoolService().assignable_user_ids() == {user.id}
     with tenant_scope(b.id):
-        got = await VolunteerProfileRepository.get_for_user(user)
-        assert got is not None and got.id == pb.id
+        assert await VolunteerPoolService().assignable_user_ids() == set()
 
 
 async def test_match_cannot_reference_another_tenants_stage(tenants):

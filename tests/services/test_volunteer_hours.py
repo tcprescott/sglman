@@ -15,13 +15,14 @@ from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.tenant_context import tenant_scope
 from models import (
     FeatureFlag,
+    Role,
     SystemConfiguration,
     Tenant,
     TenantFeatureFlag,
     User,
+    UserRole,
     VolunteerAssignment,
     VolunteerPosition,
-    VolunteerProfile,
     VolunteerShift,
 )
 
@@ -104,10 +105,7 @@ async def fixtures(volunteer_tenant):
             name='Check-in Desk', tenant_id=volunteer_tenant.id,
         )
         user = await User.create(discord_id=91001, username='vol')
-        await VolunteerProfile.create(
-            user=user, tenant_id=volunteer_tenant.id,
-            opted_in_at=datetime.now(UTC),
-        )
+        await UserRole.create(user=user, role=Role.VOLUNTEER, tenant_id=volunteer_tenant.id)
         yield {'tenant': volunteer_tenant, 'position': position, 'user': user}
 
 
@@ -211,7 +209,7 @@ class TestForUser:
 
 
 class TestRoster:
-    async def test_lists_opted_in_volunteers_with_no_hours(self, fixtures):
+    async def test_lists_role_holders_with_no_hours(self, fixtures):
         with tenant_scope(fixtures['tenant'].id):
             summaries = await VolunteerHoursService().roster()
         assert [s.user_id for s in summaries] == [fixtures['user'].id]
@@ -220,10 +218,7 @@ class TestRoster:
     async def test_orders_by_hours_descending(self, fixtures):
         other = await User.create(discord_id=91002, username='vol2')
         with tenant_scope(fixtures['tenant'].id):
-            await VolunteerProfile.create(
-                user=other, tenant_id=fixtures['tenant'].id,
-                opted_in_at=datetime.now(UTC),
-            )
+            await UserRole.create(user=other, role=Role.VOLUNTEER, tenant_id=fixtures['tenant'].id)
         await _assign(fixtures, _dt(8), _dt(12), user=other)
         with tenant_scope(fixtures['tenant'].id):
             summaries = await VolunteerHoursService().roster()

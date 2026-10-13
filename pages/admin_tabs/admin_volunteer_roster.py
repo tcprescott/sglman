@@ -7,8 +7,8 @@ from nicegui import app, ui
 from application.services import AuthService, get_user_from_discord_id
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_local_date, format_local_time_range
 from models import VolunteerAvailabilityStatus
@@ -26,7 +26,6 @@ _STATUS_ABBR = {
 
 _COLUMNS: list[dict] = [
     {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True, 'align': 'left'},
-    {'name': 'opted_in', 'label': 'Opted In', 'field': 'opted_in', 'sortable': True, 'align': 'center'},
     # Sorts on the raw number, never the rendered string — "10" must not fall
     # between "1" and "2".
     {'name': 'hours', 'label': 'Hours', 'field': 'hours', 'sortable': True, 'align': 'right'},
@@ -50,7 +49,7 @@ async def admin_volunteer_roster_page() -> None:
         ui.label('You do not have permission to manage volunteers.').classes('text-error')
         return
 
-    profile_service = VolunteerProfileService()
+    pool_service = VolunteerPoolService()
     position_service = VolunteerPositionService()
     availability_service = VolunteerAvailabilityService()
     hours_service = VolunteerHoursService()
@@ -61,8 +60,8 @@ async def admin_volunteer_roster_page() -> None:
     with ui.column().classes('page-container-wide'):
         with page_header(
             'Volunteer Roster',
-            'The pool of opted-in volunteers, their qualifications, and declared '
-            'availability. Manage a volunteer to edit which positions they can fill.',
+            'Everyone with the Volunteer or Staff role, their qualifications, and '
+            'declared availability. Manage a volunteer to edit which positions they can fill.',
         ):
             await help_icon('vol-roster', user=actor)
             await help_icon('vol-hours', label='Hours', user=actor)
@@ -84,13 +83,6 @@ async def admin_volunteer_roster_page() -> None:
         ).classes('full-width wiz-table').props(':grid="Quasar.Screen.lt.md"')
 
         # --- Desktop cell slots ---
-
-        table.add_slot('body-cell-opted_in', '''
-            <q-td :props="props">
-                <q-icon :name="props.value ? 'check_circle' : 'cancel'"
-                        :color="props.value ? 'positive' : 'negative'" size="sm" />
-            </q-td>
-        ''')
 
         table.add_slot('body-cell-hours', '''
             <q-td :props="props">
@@ -135,13 +127,6 @@ async def admin_volunteer_roster_page() -> None:
                     <div class="row items-center q-mb-xs">
                         <div class="col-5 text-grey-7 text-caption">Name</div>
                         <div class="col-7 text-weight-medium">{{ props.row.name }}</div>
-                    </div>
-                    <div class="row items-center q-mb-xs">
-                        <div class="col-5 text-grey-7 text-caption">Opted In</div>
-                        <div class="col-7">
-                            <q-icon :name="props.row.opted_in ? 'check_circle' : 'cancel'"
-                                    :color="props.row.opted_in ? 'positive' : 'negative'" size="sm" />
-                        </div>
                     </div>
                     <div class="row items-center q-mb-xs">
                         <div class="col-5 text-grey-7 text-caption">Hours</div>
@@ -192,13 +177,11 @@ async def admin_volunteer_roster_page() -> None:
             win_start = now - timedelta(days=365)
             win_end = now + timedelta(days=365)
 
-            volunteers = await profile_service.assignable_volunteers()
+            volunteers = await pool_service.assignable_volunteers()
             volunteers_by_id = {u.id: u for u in volunteers}
 
             positions = await position_service.list_all()
             position_by_id = {p.id: p for p in positions}
-
-            opted_in_ids = set(await profile_service.opted_in_user_ids())
 
             hours_by_user = {s.user_id: s for s in await hours_service.roster()}
 
@@ -226,7 +209,6 @@ async def admin_volunteer_roster_page() -> None:
                 rows.append({
                     'id': volunteer.id,
                     'name': volunteer.preferred_name,
-                    'opted_in': volunteer.id in opted_in_ids,
                     'hours': summary.hours if summary else 0,
                     'tier': _tier_label(summary),
                     'qualifications': ', '.join(sorted(qual_map.get(volunteer.id, []))),

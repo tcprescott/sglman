@@ -7,9 +7,9 @@ caller's ``tenant_scope``. Idempotent (``get_or_create`` / existence-guarded)
 and tenant-stamped like every other seeded row.
 
 The seeded pool is deliberately assignable: the VOLUNTEER role grants in
-``seed_dev.py`` mirror the opted-in + qualified + available users created here,
+``seed_dev.py`` mirror the qualified + available users created here,
 so the Vol. Roster tab and the auto-scheduler have something real to show
-(``VolunteerProfileService.assignable_volunteers`` admits ``Role.VOLUNTEER`` and
+(``VolunteerPoolService.assignable_volunteers`` admits ``Role.VOLUNTEER`` and
 ``Role.STAFF``).
 """
 
@@ -27,7 +27,6 @@ from models import (
     VolunteerAvailability,
     VolunteerAvailabilityStatus,
     VolunteerPosition,
-    VolunteerProfile,
     VolunteerQualification,
     VolunteerRoleMapping,
     VolunteerShift,
@@ -77,33 +76,6 @@ async def seed_volunteers_for_tenant(
         broadcast_tech.shift_length_minutes = 240
         broadcast_tech.stagger_minutes = 120
         await broadcast_tech.save()
-
-    # Notes are the free-text preferences the volunteer data export carries;
-    # a few non-empty ones keep that column meaningful in dev.
-    opted_in = {
-        "proctor_user": "Happy to proctor all weekend. Please no Saturday morning.",
-        "sm_user": "Can lift/carry gear; prefer to pair with someone on setup.",
-        "player_one": "Available around my matches — check the schedule first.",
-        "player_two": None,
-        "player_three": "First time volunteering, would like a shadow shift.",
-        # Deliberately absent from avail_specs below: the auto-scheduler's default
-        # policy skips a volunteer who has not declared this time, and that skip
-        # needs someone to skip.
-        "player_four": "Can help wherever, ask me on the day.",
-        # The two play-in racers given the full participant treatment
-        # (seed_support.FULL_RACERS): the assignable pool has to contain people
-        # who are not also the four named players, or every coverage and
-        # auto-scheduler screen in dev is drawn from the same four rows.
-        FULL_RACERS[0]: "Racing the play-in, free either side of it.",
-        FULL_RACERS[1]: None,
-    }
-    for uname, note in opted_in.items():
-        profile, _ = await VolunteerProfile.get_or_create(user=users[uname], tenant=tenant)
-        if profile.opted_in_at is None:
-            profile.opted_in_at = now_utc
-        if note and not profile.note:
-            profile.note = note
-        await profile.save()
 
     qual_specs = [
         ("proctor_user", "Race Proctor"),

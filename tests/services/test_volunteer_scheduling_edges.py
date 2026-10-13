@@ -17,8 +17,8 @@ from tests.services.test_volunteer_scheduling import (
     _at,
     _available,
     _coordinator,
-    _opted_in_volunteer,
     _user,
+    _volunteer,
 )
 
 UTC = timezone.utc
@@ -36,7 +36,7 @@ async def test_autofill_sees_a_clash_outside_the_day_window(db):
     await VolunteerShift.create(
         position=pos, starts_at=sat - timedelta(hours=2), ends_at=sat + timedelta(hours=2),
     )
-    vol = await _opted_in_volunteer('night owl')
+    vol = await _volunteer('night owl')
     await VolunteerAssignment.create(shift=friday_evening, user=vol, auto_generated=False)
     await _available(vol, sat - timedelta(hours=6), sat + timedelta(hours=6))
 
@@ -53,7 +53,7 @@ async def test_publish_refuses_a_draft_that_clashes_with_a_published_shift(db):
     pos = await VolunteerPosition.create(name='Desk')
     morning = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     overlap = await VolunteerShift.create(position=pos, starts_at=_at(10), ends_at=_at(14))
-    vol = await _opted_in_volunteer('busy')
+    vol = await _volunteer('busy')
     await VolunteerAssignment.create(shift=morning, user=vol, auto_generated=False)
     draft = await VolunteerAssignment.create(shift=overlap, user=vol, auto_generated=True)
 
@@ -75,7 +75,7 @@ async def test_autofill_for_some_positions_keeps_other_positions_drafts(db):
     crew = await VolunteerPosition.create(name='Stage Crew')
     desk_shift = await VolunteerShift.create(position=desk, starts_at=_at(8), ends_at=_at(12))
     await VolunteerShift.create(position=crew, starts_at=_at(13), ends_at=_at(17))
-    reviewed = await _opted_in_volunteer('reviewed')
+    reviewed = await _volunteer('reviewed')
     kept = await VolunteerAssignment.create(shift=desk_shift, user=reviewed, auto_generated=True)
 
     await VolunteerAutoscheduleService().generate_draft(
@@ -92,8 +92,8 @@ async def test_deleting_a_shift_tells_its_published_volunteers(db, monkeypatch):
     shift = await VolunteerShift.create(
         position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4), slots_needed=2,
     )
-    told = await _opted_in_volunteer('told')
-    drafted = await _opted_in_volunteer('drafted')
+    told = await _volunteer('told')
+    drafted = await _volunteer('drafted')
     await VolunteerAssignment.create(shift=shift, user=told, auto_generated=False)
     await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
 
@@ -119,8 +119,8 @@ async def test_reset_tells_only_volunteers_on_shifts_still_to_come(db, monkeypat
     upcoming = await VolunteerShift.create(
         position=pos, starts_at=now + timedelta(days=1), ends_at=now + timedelta(days=1, hours=4),
     )
-    old = await _opted_in_volunteer('old')
-    new = await _opted_in_volunteer('new')
+    old = await _volunteer('old')
+    new = await _volunteer('new')
     await VolunteerAssignment.create(shift=past, user=old)
     await VolunteerAssignment.create(shift=upcoming, user=new)
 
@@ -218,7 +218,7 @@ async def test_moving_a_shift_rearms_its_reminder(db, monkeypatch):
     pos = await VolunteerPosition.create(name='Desk')
     soon = datetime.now(UTC) + timedelta(minutes=30)
     shift = await VolunteerShift.create(position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4))
-    vol = await _opted_in_volunteer('moved')
+    vol = await _volunteer('moved')
     assignment = await VolunteerAssignment.create(
         shift=shift, user=vol, reminder_sent_at=datetime.now(UTC),
         acknowledged_at=datetime.now(UTC),

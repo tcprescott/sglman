@@ -8,8 +8,8 @@ from nicegui import app, ui
 from application.services import AuthService, SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
@@ -68,7 +68,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
     schedule_service = VolunteerScheduleService()
     autoschedule_service = VolunteerAutoscheduleService()
     availability_service = VolunteerAvailabilityService()
-    profile_service = VolunteerProfileService()
+    pool_service = VolunteerPoolService()
     qualification_service = VolunteerQualificationService()
 
     event_start, event_end = await SystemConfigService.get_event_window()
@@ -438,7 +438,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         # --- Assignment picker ------------------------------------------
         async def open_assign_dialog(shift) -> None:
-            pool = await profile_service.assignable_volunteers()
+            pool = await pool_service.assignable_volunteers()
             avail_map = await availability_service.availability_map(
                 [u.id for u in pool], shift.starts_at, shift.ends_at,
             )

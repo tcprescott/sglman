@@ -102,7 +102,6 @@ class User(Model):
     equipment_loans = fields.ReverseRelation["EquipmentLoan"]
     equipment_checkouts_performed = fields.ReverseRelation["EquipmentLoan"]
     equipment_checkins_performed = fields.ReverseRelation["EquipmentLoan"]
-    volunteer_profiles = fields.ReverseRelation["VolunteerProfile"]
     volunteer_assignments = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_qualifications = fields.ReverseRelation["VolunteerQualification"]
