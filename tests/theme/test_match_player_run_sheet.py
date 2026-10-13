@@ -81,6 +81,13 @@ class TestCrew:
     def test_closed_signup_offers_nothing_and_needs_nobody(self):
         role = _role(_row(crew_signup_open=False), 'commentators')
         assert not role['can_sign_up'] and not role['short']
+        assert role['unavailable'] == 'Signups closed'
+
+    def test_the_disabled_button_says_why(self):
+        assert _role(_row(), 'commentators', discord_id='900')['unavailable'] == "You're playing"
+        assert _role(_row(), 'commentators')['unavailable'] == ''
+        row = _row(state='Started', crew_signup_open=False, commentators=[{'discord_id': ME, 'approved': True}])
+        assert _role(row, 'commentators')['unavailable'] == ''
 
     def test_withdraw_stays_once_the_match_is_under_way(self):
         # The crew help promises it: a stale signup can be cleared at any time.
@@ -127,11 +134,13 @@ class TestTemplates:
         opener = _ITEM_SLOT.split('<button type="button" class="player-sheet__open"')[1].split('</button>')[0]
         assert '<q-btn' not in opener
 
-    def test_the_button_comes_first_in_each_role(self):
-        # Thomas, 2026-10-13: names back, and the button in a fixed place,
-        # ahead of the count and the names.
+    def test_every_role_draws_its_button_between_count_and_names(self):
+        # Thomas, 2026-10-13: the button in a fixed place on every line, a
+        # disabled one when there's nothing to press, under the count.
         for slot in (_BODY_SLOT, _ITEM_SLOT):
-            assert slot.index('wiz-crew-action') < slot.index('run-sheet__crew') < slot.index('run-sheet__people')
+            assert slot.index('run-sheet__crew') < slot.index('wiz-crew-action') < slot.index('run-sheet__people')
+            assert '<div class="wiz-crew-action">' in slot
+            assert ' disable ' in slot
         assert 'player-sheet__crew-cell' in _BODY_SLOT
 
     def test_withdraw_sits_left_of_confirm(self):
