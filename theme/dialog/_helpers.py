@@ -82,7 +82,7 @@ def dialog_header(title: str, dialog, *, help: Sequence[ResolvedHelp] = ()) -> N
     with ui.row().classes('dialog-header items-center q-pa-sm'):
         heading = ui.label(title).classes('text-h6 q-ma-none')  # style-guide: exempt — a dialog title, drawn by dialog_header
         heading.tag = 'h2'
-        help_button(help)
+        help_button(help, pill=True)
         ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
 
 

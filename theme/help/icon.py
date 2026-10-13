@@ -139,16 +139,25 @@ def _snippet_body(snippet: HelpSnippet) -> None:
     ui.link('Read more', snippet.href).classes('wiz-help-more')
 
 
-def help_button(topics: Sequence[ResolvedHelp]) -> None:
+def help_button(topics: Sequence[ResolvedHelp], *, pill: bool = False) -> None:
     """Render the "?" for already-resolved ``topics``, or nothing if there are none.
 
     Rendered inside a heading row it moves itself to the row's far end (CSS
     ``order``), so a caller can add actions after it without reordering.
+
+    ``pill`` is the dialog-header form: a labelled "Help" pill on desktop and a
+    disc on a phone, the same shape as the Close button beside it.
     """
     if not topics:
         return
-    with ui.button(icon='help_outline').props('flat round dense aria-label=Help') \
-            .classes('wiz-help-icon'):
+    button = (
+        ui.button('Help', icon='help_outline', color=None)
+        .props('flat dense no-caps').classes('wiz-help-icon dialog-help')
+        if pill else
+        ui.button(icon='help_outline').props('flat round dense aria-label=Help')
+        .classes('wiz-help-icon')
+    )
+    with button:
         with ui.menu().props('max-width=26rem').classes('wiz-help-menu'):
             with ui.column().classes('wiz-help-menu-body'):
                 if len(topics) == 1:

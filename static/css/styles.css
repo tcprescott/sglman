@@ -3057,6 +3057,50 @@ ol.wiz-help-list { list-style-type: decimal; }
     margin-left: auto;
 }
 
+/* In a dialog header it is a pill matching the Close pill beside it: neutral
+   on desktop with its label, a 36px disc on a phone with the word kept as its
+   accessible name. */
+.q-btn.wiz-help-icon.dialog-help {
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    min-height: 34px;
+    padding: 0 0.75rem 0 0.625rem;
+}
+
+.q-btn.dialog-help .q-icon {
+    font-size: 1.15rem;
+    margin-right: 0.25rem;
+}
+
+.q-btn.dialog-help:hover {
+    background: var(--border-strong);
+    color: var(--fg);
+}
+
+@media (max-width: 599.98px) {
+    .q-btn.wiz-help-icon.dialog-help {
+        width: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .q-btn.dialog-help .q-icon { margin-right: 0; }
+
+    .q-btn.dialog-help .block {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
 .wiz-help-menu-title {
     font-weight: 700;
     margin-bottom: 0.4rem;
