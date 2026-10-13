@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Iterable, Optional
 
 from application.services import notification_links
-from application.utils.app_links import admin_qualifier_queue_url
+from application.utils.app_links import admin_qualifier_queue_url, qualifier_runs_url, qualifier_url
 from application.utils.discord_embeds import time_field
 from application.utils.discord_messages import DMLink
 from application.utils.discord_messages_qualifier import (
@@ -46,9 +46,9 @@ async def notify_run_reviewed(
             int(discord_id),
             qualifier_run_reviewed_dm(
                 run.qualifier.name, approved=approved, reason=reason,
-                qualifier_url=_qualifier_url(run), overridden=overridden,
+                qualifier_url=_qualifier_url(run, runs=True), overridden=overridden,
             ),
-            link=_qualifier_link(run, 'View the leaderboard'),
+            link=notification_links.player_qualifier_runs(run.tenant, run.qualifier_id),  # type: ignore[attr-defined]
         )
     except Exception:
         logger.warning("Failed to DM run-reviewed notification", exc_info=True)
@@ -108,18 +108,23 @@ async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
         await DiscordService().send_dm(
             int(discord_id),
             qualifier_run_expired_dm(
-                run.qualifier.name, hours=limit_hours, qualifier_url=_qualifier_url(run),
+                run.qualifier.name, hours=limit_hours,
+                qualifier_url=_qualifier_url(run, runs=True),
             ),
-            link=_qualifier_link(run, 'View the leaderboard'),
+            link=notification_links.player_qualifier_runs(run.tenant, run.qualifier_id),  # type: ignore[attr-defined]
         )
     except Exception:
         logger.warning("Failed to DM run-expired notification", exc_info=True)
 
 
-def _qualifier_url(run: AsyncQualifierRun) -> str:
+def _qualifier_url(run: AsyncQualifierRun, *, runs: bool = False) -> str:
     # Always a string: ``tenant_url`` returns one, and a run with no tenant gets
     # '' so the message builders simply omit the link.
-    return tenant_url(run.tenant, f'/qualifiers/{run.qualifier_id}') if run.tenant else ''  # type: ignore[attr-defined]
+    if not run.tenant:
+        return ''
+    qualifier_id = run.qualifier_id  # type: ignore[attr-defined]
+    path = qualifier_runs_url(qualifier_id) if runs else qualifier_url(qualifier_id)
+    return tenant_url(run.tenant, path)
 
 
 async def notify_review_queue_waiting(
@@ -166,6 +171,6 @@ def _qualifier_link(run: AsyncQualifierRun, label: str) -> Optional[DMLink]:
     fire from the expiry worker as well as from a review, and the worker holds
     the row already.
     """
-    return notification_links.link_for_tenant(
-        run.tenant, label, f'/qualifiers/{run.qualifier_id}',  # type: ignore[attr-defined]
+    return notification_links.player_qualifier(
+        run.tenant, run.qualifier_id, label=label,  # type: ignore[attr-defined]
     )
