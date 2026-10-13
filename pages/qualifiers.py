@@ -26,6 +26,7 @@ from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.notify import notify_error
 from theme.page_header import page_header, page_title
 from theme.qualifier_copy import (
@@ -137,20 +138,21 @@ def create() -> None:
             page_header('Async Qualifiers')
             qualifiers = await service.list_open_qualifiers()
             if not qualifiers:
-                ui.label('No qualifiers are open right now. Check back soon.').classes('text-grey')
+                empty_panel('No qualifiers are open right now. Check back soon.', icon='timer')
                 return
-            for q in qualifiers:
-                with ui.card().classes('w-full'):
-                    with ui.row().classes('items-center full-width'):
-                        ui.label(q.name).classes('section-title')
-                        ui.space()
-                        ui.button('Open', icon='arrow_forward',
-                                  on_click=lambda qid=q.id: ui.navigate.to(f'/qualifiers/{qid}')
-                                  ).props('flat color=primary')
-                    ui.label(f'Window: {_fmt(q.opens_at)} → {_fmt(q.closes_at)}').classes(
-                        'text-caption text-grey')
-                    if q.description:
-                        ui.label(q.description).classes('text-caption wiz-free-text')
+            with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+                for q in qualifiers:
+                    with ui.card():
+                        with ui.row().classes('items-center full-width'):
+                            ui.label(q.name).classes('section-title')
+                            ui.space()
+                            ui.button('Open', icon='arrow_forward',
+                                      on_click=lambda qid=q.id: ui.navigate.to(f'/qualifiers/{qid}')
+                                      ).props('flat color=primary')
+                        ui.label(f'Window: {_fmt(q.opens_at)} → {_fmt(q.closes_at)}').classes(
+                            'text-caption text-grey')
+                        if q.description:
+                            ui.label(q.description).classes('text-caption wiz-free-text')
 
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int) -> None:

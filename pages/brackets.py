@@ -73,6 +73,7 @@ from theme.brackets import (
 )
 from theme.brackets.render import booked_times, viewer_entries
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
+from theme.empty_state import empty_panel
 from theme.error_page import render_not_found
 from theme.page_header import page_title
 
@@ -371,38 +372,39 @@ def create() -> None:
         )
         await BaseLayout(user=user, show_admin=show_admin).render()
 
-        with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
+        with ui.column().classes('page-container-narrow q-mt-md'):
             page_title(f'{tournament.name} — Brackets')
             _static_view_link(
                 f'/live/tournament/{tid}/brackets', public=bool(public_stages),
             )
             ui.separator().classes('separator-spacing')
             if not brackets:
-                ui.label('No brackets have been published for this tournament.').classes('italic-note')
+                empty_panel('No brackets have been published for this tournament.', icon='account_tree')
                 return
-            for bracket in brackets:
-                with ui.card().classes('w-full q-pa-md q-mb-sm'):
-                    with ui.row().classes('items-center justify-between w-full'):
-                        with ui.column().classes('gap-0'):
-                            ui.label(bracket.name).classes('text-subtitle1 text-bold')
-                            ui.label(
-                                f'{stage_label(bracket.stage_order)} · '
-                                f'{format_label(bracket.format)}'
-                            ).classes('text-caption')
-                            setup = config_summary(bracket) if is_staff else []
-                            if setup:
-                                ui.label(' · '.join(setup)).classes('text-caption text-grey')
-                        with ui.row().classes('items-center gap-2'):
-                            ui.badge(
-                                state_label(bracket.state),
-                                color=state_color(bracket.state),
-                            )
-                            ui.button(
-                                'View', icon='visibility',
-                                on_click=lambda bid=bracket.id: ui.navigate.to(
-                                    f'/brackets/{bid}'
-                                ),
-                            ).props('flat dense')
+            with ui.element('div').classes('wiz-tile-grid'):
+                for bracket in brackets:
+                    with ui.card().classes('q-pa-md'):
+                        with ui.row().classes('items-center justify-between w-full'):
+                            with ui.column().classes('gap-0'):
+                                ui.label(bracket.name).classes('text-subtitle1 text-bold')
+                                ui.label(
+                                    f'{stage_label(bracket.stage_order)} · '
+                                    f'{format_label(bracket.format)}'
+                                ).classes('text-caption')
+                                setup = config_summary(bracket) if is_staff else []
+                                if setup:
+                                    ui.label(' · '.join(setup)).classes('text-caption text-grey')
+                            with ui.row().classes('items-center gap-2'):
+                                ui.badge(
+                                    state_label(bracket.state),
+                                    color=state_color(bracket.state),
+                                )
+                                ui.button(
+                                    'View', icon='visibility',
+                                    on_click=lambda bid=bracket.id: ui.navigate.to(
+                                        f'/brackets/{bid}'
+                                    ),
+                                ).props('flat dense')
 
     @public_page('/brackets/{bracket_id}', feature=FeatureFlag.BRACKETS)
     async def bracket_detail(bracket_id: str) -> None:

@@ -101,12 +101,16 @@ def create() -> None:
                         f'Nothing matches "{state["query"]}". Try fewer words.'
                     ).classes('text-muted q-mt-md')
                     return
-                staff_heading_shown = False
-                for article in matches:
-                    if HelpService.for_staff(article) and not staff_heading_shown:
-                        staff_heading_shown = True
-                        ui.label('For staff').classes('wiz-help-group-label')
-                    _article_card(article)
+                general = [a for a in matches if not HelpService.for_staff(a)]
+                staff = [a for a in matches if HelpService.for_staff(a)]
+                for heading, group in ((None, general), ('For staff', staff)):
+                    if not group:
+                        continue
+                    if heading:
+                        ui.label(heading).classes('wiz-help-group-label')
+                    with ui.element('div').classes('wiz-tile-grid'):
+                        for article in group:
+                            _article_card(article)
 
             async def on_search(event) -> None:
                 # `clearable` sets the value to None, not ''.

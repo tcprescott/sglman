@@ -60,6 +60,9 @@ class WatchView:
 
 _WATCH_CSS = """
 <style>
+.wizw-stages { display: grid; gap: 16px; align-items: start; margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.wizw-stages > .wizs-card { margin: 0; min-width: 0; }
 .wizw-stage-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
   justify-content: space-between; margin-bottom: 8px; }
 .wizw-stage-name { font-size: 1.15rem; font-weight: 700; }
@@ -115,7 +118,7 @@ def render_watch_document(view: WatchView) -> str:
     parts: List[str] = []
 
     if view.stages:
-        parts.extend(_stage_card(s) for s in view.stages)
+        parts.append(_tag('div', 'wizw-stages', ''.join(_stage_card(s) for s in view.stages)))
     else:
         parts.append(_tag(
             'div', 'wizs-card',

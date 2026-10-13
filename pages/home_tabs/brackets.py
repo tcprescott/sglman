@@ -22,6 +22,7 @@ from theme.brackets import (
     state_color,
     state_label,
 )
+from theme.empty_state import empty_panel
 
 
 def group_by_tournament(
@@ -69,7 +70,7 @@ async def brackets_tab() -> None:
         # No page title: the Event tab's view switcher above already says
         # Brackets.
         if not brackets:
-            ui.label('No brackets have been published yet.').classes('italic-note')
+            empty_panel('No brackets have been published yet.', icon='account_tree')
             return
 
         # Same compact intro line the Schedule view uses, for the same reason.

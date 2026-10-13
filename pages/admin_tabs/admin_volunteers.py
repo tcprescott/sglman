@@ -26,6 +26,7 @@ from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
+from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.menu import menu_action
 from theme.notify import notify_error
@@ -280,8 +281,8 @@ async def admin_volunteers_page(day: str | None = None) -> None:
             win_start, win_end = _day_window(state['day'])
             positions = await position_service.list_active()
             if not positions:
-                ui.label('No active positions yet. Use "Manage positions" to add one.') \
-                    .classes('italic-note')
+                empty_panel('No active positions yet. Use "Manage positions" to add one.',
+                            icon='badge')
                 return
 
             shifts = await schedule_service.list_shifts_for_window(win_start, win_end)

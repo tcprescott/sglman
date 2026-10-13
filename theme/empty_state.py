@@ -27,6 +27,15 @@ def empty_state(message: str) -> None:
         cat_fact()
 
 
+def empty_panel(message: str, icon: str = 'inbox') -> None:
+    """Render a list with nothing in it yet: a dashed panel the width of the list,
+    holding an icon, the message and a cat fact."""
+    with ui.column().classes('wiz-empty-panel items-center'):
+        ui.icon(icon, size='md').classes('wiz-empty-panel__icon')
+        ui.label(message)
+        cat_fact()
+
+
 def no_data_slot(message: str = 'Nothing here yet.', icon: str = 'inbox') -> str:
     """Vue template for a Quasar table ``no-data`` slot: the branded empty state
     (icon + message + a cat fact) instead of Quasar's bare "No data available".

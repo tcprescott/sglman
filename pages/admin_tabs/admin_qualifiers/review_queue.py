@@ -34,6 +34,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     short_url,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.empty_state import empty_panel
 
 
 def build_queue_tab(
@@ -55,70 +56,71 @@ def build_queue_tab(
             return
         queue = state['queue']
         if not queue:
-            ui.label('No runs awaiting review.').classes('text-grey')
+            empty_panel('No runs awaiting review.', icon='fact_check')
             return
         shown = min(state['queue_shown'], len(queue))
         with ui.row().classes('items-center w-full'):
             ui.label(f'{len(queue)} awaiting review').classes('text-caption text-grey-7')
         me = state.get('viewer_id')
-        for run in queue[:shown]:
-            runner = run.user.display_name or run.user.username
-            pool_name = run.permalink.pool.name if run.permalink and run.permalink.pool else '—'
-            holder = claim_holder(run)
-            mine = run.review_claimed_by_id == me
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(runner).classes('text-subtitle1')
-                    ui.badge(format_hms(run.elapsed_seconds), color='blue')
-                    ui.badge(pool_name, color='grey')
-                    if holder:
-                        ui.badge('you have this' if mine else f'{holder} has this',
-                                 color='orange' if mine else 'negative')
-                    ui.space()
-                    # A claim is a real lock since F5, so the card offers the way in
-                    # and the way out — a lock nobody can release is a stuck run.
-                    if holder and not mine:
-                        # No verdict buttons at all, rather than disabled ones. A
-                        # `disable()`d Quasar flat button keeps its colour at 0.7
-                        # opacity, which reads as live: the reviewer clicks Approve,
-                        # nothing happens, and the reason is hidden in a tooltip.
-                        # Release is the only thing they can actually do here.
-                        ui.button('Release', icon='lock_open',
-                                  on_click=lambda r=run: _release_claim(r)
-                                  ).props('flat color=warning').tooltip(
-                            f'{holder} is reviewing this run. Release it if they are done.')
-                    else:
-                        if not holder:
-                            ui.button('Claim', icon='lock',
-                                      on_click=lambda r=run: _claim_run(r)
-                                      ).props('flat color=primary')
-                        ui.button('Approve', icon='check',
-                                  on_click=lambda r=run: _open_review_dialog(r, True)
-                                  ).props('flat color=positive')
-                        ui.button('Reject', icon='close',
-                                  on_click=lambda r=run: _open_review_dialog(r, False)
-                                  ).props('flat color=negative')
-                with ui.row().classes('items-center gap-2'):
-                    ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
-                             f'Timed {format_hms(run.measured_seconds)}').classes(
+        with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+            for run in queue[:shown]:
+                runner = run.user.display_name or run.user.username
+                pool_name = run.permalink.pool.name if run.permalink and run.permalink.pool else '—'
+                holder = claim_holder(run)
+                mine = run.review_claimed_by_id == me
+                with ui.card():
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(runner).classes('text-subtitle1')
+                        ui.badge(format_hms(run.elapsed_seconds), color='blue')
+                        ui.badge(pool_name, color='grey')
+                        if holder:
+                            ui.badge('you have this' if mine else f'{holder} has this',
+                                     color='orange' if mine else 'negative')
+                        ui.space()
+                        # A claim is a real lock since F5, so the card offers the way in
+                        # and the way out — a lock nobody can release is a stuck run.
+                        if holder and not mine:
+                            # No verdict buttons at all, rather than disabled ones. A
+                            # `disable()`d Quasar flat button keeps its colour at 0.7
+                            # opacity, which reads as live: the reviewer clicks Approve,
+                            # nothing happens, and the reason is hidden in a tooltip.
+                            # Release is the only thing they can actually do here.
+                            ui.button('Release', icon='lock_open',
+                                      on_click=lambda r=run: _release_claim(r)
+                                      ).props('flat color=warning').tooltip(
+                                f'{holder} is reviewing this run. Release it if they are done.')
+                        else:
+                            if not holder:
+                                ui.button('Claim', icon='lock',
+                                          on_click=lambda r=run: _claim_run(r)
+                                          ).props('flat color=primary')
+                            ui.button('Approve', icon='check',
+                                      on_click=lambda r=run: _open_review_dialog(r, True)
+                                      ).props('flat color=positive')
+                            ui.button('Reject', icon='close',
+                                      on_click=lambda r=run: _open_review_dialog(r, False)
+                                      ).props('flat color=negative')
+                    with ui.row().classes('items-center gap-2'):
+                        ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
+                                 f'Timed {format_hms(run.measured_seconds)}').classes(
+                            'text-caption text-grey')
+                        if classify_claim(run.elapsed_seconds or 0,
+                                          run.measured_seconds) is ClaimVerdict.IMPLAUSIBLE:
+                            drift = run.measured_seconds - (run.elapsed_seconds or 0)
+                            ui.badge(f'drift {format_hms(drift)}', color='orange').tooltip(
+                                'The runner confirmed this time against their own timer.')
+                    ui.label(f'Started {fmt(run.started_at)} · Finished {fmt(run.finished_at)}').classes(
                         'text-caption text-grey')
-                    if classify_claim(run.elapsed_seconds or 0,
-                                      run.measured_seconds) is ClaimVerdict.IMPLAUSIBLE:
-                        drift = run.measured_seconds - (run.elapsed_seconds or 0)
-                        ui.badge(f'drift {format_hms(drift)}', color='orange').tooltip(
-                            'The runner confirmed this time against their own timer.')
-                ui.label(f'Started {fmt(run.started_at)} · Finished {fmt(run.finished_at)}').classes(
-                    'text-caption text-grey')
-                if run.permalink:
-                    ui.link(f'Permalink played: {short_url(run.permalink.url)}',
-                            run.permalink.url, new_tab=True).classes('text-caption')
-                if http_url_or_empty(run.runner_vod_url):
-                    ui.link('VoD', http_url_or_empty(run.runner_vod_url), new_tab=True).classes('text-caption')
-                others = other_runs_summary(state['queue_context'], run)
-                if others:
-                    ui.label(others).classes('text-caption text-grey')
-                for note in existing_notes(run):
-                    ui.label(f'Note — {note}').classes('text-caption text-italic')
+                    if run.permalink:
+                        ui.link(f'Permalink played: {short_url(run.permalink.url)}',
+                                run.permalink.url, new_tab=True).classes('text-caption')
+                    if http_url_or_empty(run.runner_vod_url):
+                        ui.link('VoD', http_url_or_empty(run.runner_vod_url), new_tab=True).classes('text-caption')
+                    others = other_runs_summary(state['queue_context'], run)
+                    if others:
+                        ui.label(others).classes('text-caption text-grey')
+                    for note in existing_notes(run):
+                        ui.label(f'Note — {note}').classes('text-caption text-italic')
         if shown < len(queue):
             ui.button(f'Show {min(QUEUE_PAGE_SIZE, len(queue) - shown)} more',
                       icon='expand_more', on_click=_show_more_queue).props('flat color=primary')

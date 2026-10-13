@@ -92,7 +92,8 @@ A list of cards on a desktop page goes in `wiz-tile-grid` (short cards) or
 full-width cards: in a 1200-1400px container a full-width card puts its name
 and its button 1100px apart. The grid drops to one column on a phone by itself.
 An empty list inside one spans the grid; a list with nothing to show yet that
-stands alone is a `wiz-empty-panel`.
+stands alone is `empty_panel(message, icon=…)`: a dashed `wiz-empty-panel` with
+an icon, the message and a cat fact.
 
 Don't put a lede in a caption label after the header (it floated 40px below the
 title on 20 pages), and don't size a title or a section heading with `text-h1`…`text-h6` (a section heading inside a card is `section-title`).
@@ -104,7 +105,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Status / count | `ui.badge(text, color='positive')`: the colour only picks the tone, CSS draws the chip. Or `.wiz-chip .wiz-chip--ok\|pending\|live\|neutral\|cancelled` in a template | `text-color=` on a solid chip, a hand-built pill |
 | A notice across the page | `banner(message, title=, tone=)` (`theme/banner.py`; `info`/`ok`/`warning`/`danger`) | A hand-coloured row |
 | Flash a message across a redirect | `stash_notice` / `drain_notice` (`theme/notice.py`) | |
-| Empty list | `empty_state(message)`, `no_data_slot()` in a table | |
+| Empty list | `empty_panel(message, icon=…)` for a list that stands alone, `empty_state(message)` inside a board or column, `no_data_slot()` in a table | A bare grey caption where the list would be |
 | Help for a page, section or dialog | One `help_icon(...)` / `help_topics=` / `dialog_header(..., help=)` per heading, listing every topic ([help.md](features/help.md#help-icons)) | A second "?" on the same heading, or one beside an individual control |
 | A form in a dialog | `form_dialog(title)` + `dialog_actions()` + `submit_on_enter()` (`theme/dialog/_helpers.py`) | Hand-rolled `ui.dialog()` + `ui.card()` + title row (`test_dialogs_use_the_shared_header` fails on one) |
 | Dialog width | `dialog-card dialog-card--sm` (520px: a short form, a confirmation), `dialog-card` (640px, the default: a long form such as Add Tournament or Create Match), `dialog-card--lg` (960px: a table or two columns). See [Dialogs](#dialogs) | `w-96`, `w-full`, `.style('max-width: …')` |
@@ -184,6 +185,10 @@ Desktop pages use the width rather than stretching one column across it:
 - A page with a list and the thing you picked from it shows them side by side:
   the run sheet and its match sheet, My Availability's windows beside the chart,
   On Air's stage columns (stacked one after another on a phone).
+- A page of short forms (Profile) puts them in two columns
+  (`wiz-profile-sections`) rather than capping the page at a narrow column.
+- A page around a wide table (Admin → Users, `/platform`) uses
+  `page-container-wide` (1600px).
 - The side menu is 224px. Don't widen it for one long label; shorten the label.
 
 ## Match boards

@@ -120,7 +120,7 @@ def create() -> None:
         prefs = await TablePreferenceService().prime(user)
         current = tab if tab in _SECTION_KEYS else _SECTIONS[0][0]
         with table_prefs_scope(prefs), \
-                ui.column().classes('w-full max-w-5xl mx-auto py-2 md:p-6 gap-4'):
+                ui.column().classes('page-container-wide py-2 md:p-6 gap-4'):
             page_title('Platform administration')
             with ui.tabs(value=current).props(
                 'dense inline-label align=left no-caps outside-arrows mobile-arrows',

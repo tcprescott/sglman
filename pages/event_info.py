@@ -96,7 +96,7 @@ def create() -> None:
                 _nothing_published()
                 return
 
-            with ui.column().classes('full-width gap-2 q-mt-md'):
+            with ui.element('div').classes('wiz-tile-grid q-mt-md'):
                 for article in articles:
                     _article_card(article)
 

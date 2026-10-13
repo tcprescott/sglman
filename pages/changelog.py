@@ -14,6 +14,7 @@ from application.changelog import ChangelogEntry, ChangelogSection, all_entries
 from application.services import AuthService, TenantService, get_user_from_discord_id
 from middleware.auth import public_page
 from theme.base import BaseLayout
+from theme.empty_state import empty_panel
 from theme.help.render import render_blocks
 from theme.page_header import page_header
 
@@ -68,7 +69,7 @@ def create() -> None:
 
             entries = all_entries()
             if not entries:
-                ui.label('Nothing to show yet.').classes('text-muted q-mt-md')
+                empty_panel('Nothing to show yet.', icon='new_releases')
             # Weeks as cards, two across on a wide screen: one column of prose
             # capped at a readable measure left most of a 1200px page empty.
             with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):

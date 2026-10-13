@@ -15,6 +15,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
 from theme.base import BaseLayout
+from theme.empty_state import empty_panel
 from theme.page_header import page_title
 from theme.timer_teardown import PageTimer
 
@@ -66,13 +67,13 @@ async def _render_platform_landing() -> None:
                 ui.label('Login with Discord').classes('login-button-text')
             login_btn.tooltip('Login with Discord')
 
-    with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4 items-stretch'):
+    with ui.column().classes('page-container-narrow p-6 gap-4 items-stretch'):
         page_title('Choose a community')
         ui.label('Pick the community you want to manage or take part in.') \
             .classes('text-muted')
         if not tenants:
-            ui.label('No communities are available yet.').classes('text-muted')
-        with ui.column().classes('w-full gap-3'):
+            empty_panel('No communities are available yet.', icon='groups')
+        with ui.element('div').classes('wiz-tile-grid'):
             for tenant in tenants:
                 with ui.link(target=f'/t/{tenant.slug}/').classes('no-underline w-full'):
                     with ui.card().classes('wiz-tenant-card w-full'):

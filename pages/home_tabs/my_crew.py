@@ -23,6 +23,7 @@ from application.services import CrewService, get_user_from_discord_id
 from application.utils.match_labels import match_label
 from application.utils.timezone import format_local_display
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.empty_state import empty_panel
 from theme.notify import notify_error
 from theme.section import section_panel
 
@@ -168,46 +169,46 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
             rows = await service.list_my_commitments(
                 user, upcoming_only=state['upcoming_only'])
             if not rows:
-                ui.label(
+                empty_panel(
                     'Nothing yet. Sign up to commentate or track a match from the '
-                    'Schedule tab.'
-                ).classes('text-muted')
+                    'Schedule tab.', icon='headset_mic')
                 return
             focused_id: Optional[str] = None
-            for row in rows:
-                chip_class, status = commitment_status(row)
-                card_id = crew_card_id(row['match_id'], row['role'])
-                card = ui.card().classes('full-width q-mb-sm').props(f'id={card_id}')
-                if row['match_id'] == focus['match_id']:
-                    card.classes('wiz-deep-link-target')
-                    focused_id = focused_id or card_id
-                with card:
-                    with ui.row().classes('items-center gap-2 flex-wrap full-width'):
-                        with ui.element('span').classes(f'wiz-chip {chip_class}'):
-                            ui.label(status)
-                        ui.label(row['role'].capitalize()).classes('text-weight-medium')
-                        ui.space()
-                        if row['stage']:
-                            with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
-                                ui.icon('tv', size='14px')
-                                ui.label(row['stage'])
-                    ui.label(commitment_title(row)).classes('text-body2')
-                    with ui.row().classes('items-center gap-2'):
-                        # Acknowledging from here is the same act the approval
-                        # DM's button performs; a volunteer who missed the DM
-                        # had no other way to do it.
-                        if row['approved'] and not row['acknowledged'] and not row['finished']:
-                            ui.button(
-                                'Confirm I can cover this', icon='check',
-                                on_click=lambda _e, r=row: background_tasks.create(
-                                    acknowledge(r, context.client)),
-                            ).props('color=primary dense no-caps')
-                        if not row['finished']:
-                            ui.button(
-                                'Withdraw', icon='undo',
-                                on_click=lambda _e, r=row: background_tasks.create(
-                                    withdraw(r, context.client)),
-                            ).props('flat color=negative dense no-caps')
+            with ui.element('div').classes('wiz-tile-grid'):
+                for row in rows:
+                    chip_class, status = commitment_status(row)
+                    card_id = crew_card_id(row['match_id'], row['role'])
+                    card = ui.card().props(f'id={card_id}')
+                    if row['match_id'] == focus['match_id']:
+                        card.classes('wiz-deep-link-target')
+                        focused_id = focused_id or card_id
+                    with card:
+                        with ui.row().classes('items-center gap-2 flex-wrap full-width'):
+                            with ui.element('span').classes(f'wiz-chip {chip_class}'):
+                                ui.label(status)
+                            ui.label(row['role'].capitalize()).classes('text-weight-medium')
+                            ui.space()
+                            if row['stage']:
+                                with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
+                                    ui.icon('tv', size='14px')
+                                    ui.label(row['stage'])
+                        ui.label(commitment_title(row)).classes('text-body2')
+                        with ui.row().classes('items-center gap-2'):
+                            # Acknowledging from here is the same act the approval
+                            # DM's button performs; a volunteer who missed the DM
+                            # had no other way to do it.
+                            if row['approved'] and not row['acknowledged'] and not row['finished']:
+                                ui.button(
+                                    'Confirm I can cover this', icon='check',
+                                    on_click=lambda _e, r=row: background_tasks.create(
+                                        acknowledge(r, context.client)),
+                                ).props('color=primary dense no-caps')
+                            if not row['finished']:
+                                ui.button(
+                                    'Withdraw', icon='undo',
+                                    on_click=lambda _e, r=row: background_tasks.create(
+                                        withdraw(r, context.client)),
+                                ).props('flat color=negative dense no-caps')
             if focused_id:
                 # Scrolling is the one thing here the Python API cannot do. Once
                 # only: a later refresh (Confirm, Withdraw) must not yank the

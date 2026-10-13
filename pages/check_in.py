@@ -60,6 +60,7 @@ from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog
 from theme.dialog.check_in_dialogs import open_link_dialog, open_walk_up_dialog
+from theme.empty_state import empty_panel
 from theme.help import help_icon
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -436,7 +437,7 @@ def create() -> None:
         with ui.column().classes('page-container-narrow w-full q-pa-md gap-3'):
             page_header('Check-in')
             if not open_events:
-                ui.label('No event is open for check-in right now.').classes('text-body1')
+                empty_panel('No event is open for check-in right now.', icon='how_to_reg')
                 if await AuthService.can_manage_check_in(user):
                     ui.label('Open one from Admin → Check-in.').classes('text-caption text-grey-7')
                 return

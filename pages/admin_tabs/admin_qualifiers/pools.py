@@ -34,6 +34,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
     RUNS_TAB,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.empty_state import empty_panel
 
 
 def build_pools_tab(
@@ -57,45 +58,46 @@ def build_pools_tab(
             ui.button('Add Pool', icon='add',
                       on_click=lambda: _open_pool_dialog(qid, preset_options)).props('color=primary')
         if not state['pools']:
-            ui.label('No pools yet — add one, then paste or roll permalinks.').classes('text-grey')
-        for pool in state['pools']:
-            permalinks = list(pool.permalinks)
-            with ui.card().classes('w-full'):
-                with ui.row().classes('items-center full-width'):
-                    ui.label(pool.name).classes('text-subtitle1')
-                    ui.badge(f'{len(permalinks)} permalink(s)', color='blue')
-                    if pool.preset:
-                        ui.badge(f'preset: {pool.preset.randomizer}/{pool.preset.name}', color='grey')
-                    ui.space()
-                    ui.button('Add permalinks', icon='playlist_add',
-                              on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
-                              ).props('flat color=primary')
-                    refusal = roll_refusal(pool.preset) if pool.preset else None
-                    if pool.preset and refusal is None:
-                        ui.button('Roll', icon='casino',
-                                  on_click=lambda pid=pool.id: _open_roll_dialog(pid)
+            empty_panel('No pools yet. Add one, then paste or roll permalinks.', icon='inventory_2')
+        with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+            for pool in state['pools']:
+                permalinks = list(pool.permalinks)
+                with ui.card():
+                    with ui.row().classes('items-center full-width'):
+                        ui.label(pool.name).classes('text-subtitle1')
+                        ui.badge(f'{len(permalinks)} permalink(s)', color='blue')
+                        if pool.preset:
+                            ui.badge(f'preset: {pool.preset.randomizer}/{pool.preset.name}', color='grey')
+                        ui.space()
+                        ui.button('Add permalinks', icon='playlist_add',
+                                  on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
                                   ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda pid=pool.id: _delete_pool(pid)
-                              ).props('flat round color=negative').tooltip('Delete pool')
-                # Said here rather than in the dialog the button used to open: that
-                # dialog held a count field and nothing that could change the preset,
-                # so the only exit was Cancel. A disabled flat button would not do
-                # either — Quasar keeps its colour at 0.7 opacity, which reads as live.
-                if refusal is not None:
-                    with ui.row().classes('items-center text-caption text-orange'):
-                        ui.icon('info')
-                        ui.label(f'Cannot roll: {refusal}')
-                for pl in permalinks[:POOL_PERMALINK_PREVIEW]:
-                    _permalink_row(pl)
-                # A pool holds as many seeds as the organiser rolled, and every one
-                # of them is a row of widgets. The tail is there when it is wanted.
-                rest = permalinks[POOL_PERMALINK_PREVIEW:]
-                if rest:
-                    with ui.expansion(f'Show {len(rest)} more permalink(s)'
-                                      ).classes('w-full text-caption'):
-                        for pl in rest:
-                            _permalink_row(pl)
+                        refusal = roll_refusal(pool.preset) if pool.preset else None
+                        if pool.preset and refusal is None:
+                            ui.button('Roll', icon='casino',
+                                      on_click=lambda pid=pool.id: _open_roll_dialog(pid)
+                                      ).props('flat color=primary')
+                        ui.button(icon='delete',
+                                  on_click=lambda pid=pool.id: _delete_pool(pid)
+                                  ).props('flat round color=negative').tooltip('Delete pool')
+                    # Said here rather than in the dialog the button used to open: that
+                    # dialog held a count field and nothing that could change the preset,
+                    # so the only exit was Cancel. A disabled flat button would not do
+                    # either — Quasar keeps its colour at 0.7 opacity, which reads as live.
+                    if refusal is not None:
+                        with ui.row().classes('items-center text-caption text-orange'):
+                            ui.icon('info')
+                            ui.label(f'Cannot roll: {refusal}')
+                    for pl in permalinks[:POOL_PERMALINK_PREVIEW]:
+                        _permalink_row(pl)
+                    # A pool holds as many seeds as the organiser rolled, and every one
+                    # of them is a row of widgets. The tail is there when it is wanted.
+                    rest = permalinks[POOL_PERMALINK_PREVIEW:]
+                    if rest:
+                        with ui.expansion(f'Show {len(rest)} more permalink(s)'
+                                          ).classes('w-full text-caption'):
+                            for pl in rest:
+                                _permalink_row(pl)
 
     def _permalink_row(pl) -> None:
         with ui.row().classes('items-center'):

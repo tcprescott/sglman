@@ -794,13 +794,18 @@ main.q-page:focus {
     margin: 0 auto;
 }
 
-/* Settings-style forms (Profile). Capped far below page-container-narrow so a
-   single-column form of labels/inputs reads at a comfortable line length on
-   desktop instead of stretching ~1200px wide. */
-.page-container-form {
+/* Profile's sections: two columns of short forms on a desktop, one on a
+   phone. Each column stays near the 760px the page used to be capped at, so
+   the forms keep a readable line length without leaving half the page empty. */
+.wiz-profile-sections {
     width: 100%;
-    max-width: 760px;
-    margin: 0 auto;
+    columns: 2 28rem;
+    column-gap: var(--space-3);
+}
+
+.wiz-profile-sections > * {
+    break-inside: avoid;
+    margin-bottom: var(--space-3);
 }
 
 .page-container-wide {
@@ -844,8 +849,14 @@ main.q-page:focus {
     text-align: center;
 }
 
+/* theme/empty_state.empty_panel: icon, message and cat fact in the panel. */
+.wiz-empty-panel.nicegui-column { gap: var(--space-2); }
+.wiz-empty-panel__icon { color: var(--fg-muted); }
+.wiz-empty-panel .empty-state-fact { margin-top: var(--space-2); }
+
 /* An empty list's message spans the grid rather than sitting in one tile. */
 .wiz-tile-grid > .empty-state,
+.wiz-tile-grid > .wiz-empty-panel,
 .wiz-tile-grid > .italic-note {
     grid-column: 1 / -1;
 }
