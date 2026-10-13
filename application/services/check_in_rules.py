@@ -242,3 +242,14 @@ def suggested_users(target: str, candidates: Sequence[Tuple[User, frozenset[str]
             scored.append((best, user))
     scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
     return [user for _, user in scored[:limit]]
+
+
+def count_suggestions(
+    entrants: Sequence[CheckInEntrant], candidates: Sequence[Tuple[User, frozenset[str]]], limit: int,
+) -> Dict[int, int]:
+    """How many of ``candidates`` each unlinked row would be offered. Comps can't be linked, so they're skipped."""
+    return {
+        e.id: len(suggested_users(target, candidates, limit))
+        for e in entrants
+        if e.user_id is None and e.source != CheckInEntrantSource.COMP and (target := norm_name(e.display_name))
+    }

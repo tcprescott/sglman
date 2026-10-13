@@ -50,6 +50,7 @@ from application.services.check_in_dm import start_dm_check
 from application.services.check_in_rules import (
     CheckInOutcome,
     SyncResult,
+    count_suggestions,
     entrant_details,
     is_active_badge,
     norm_name,
@@ -558,28 +559,13 @@ class CheckInService:
     async def suggestion_counts(
         self, event: CheckInEvent, entrants: Sequence[CheckInEntrant], limit: int = SUGGESTION_LIMIT,
     ) -> Dict[int, int]:
-        """How many suggestions :meth:`suggest_users` would offer each unlinked row.
-
-        One read of the community and the roster for the whole batch, so the
-        desk can label every "Not linked" row without a query per row. Rows
-        that are linked, or are comps (which can't be linked), are left out.
-        Scoring is still a fraction of a second at event scale, so the desk
-        reuses the answer until the roster's links change.
-        """
-        rows = [
-            e for e in entrants
-            if e.user_id is None and e.source != CheckInEntrantSource.COMP and norm_name(e.display_name)
-        ]
-        if not rows:
+        """How many suggestions :meth:`suggest_users` would offer each unlinked row: one
+        community read for the whole roster, scored off the event loop every desk shares."""
+        if all(e.user_id is not None for e in entrants):
             return {}
         taken = await self._taken_user_ids(event, for_link=True)
         candidates = suggestion_candidates(await UserRepository.get_community_people(), taken)
-        targets = [(e.id, norm_name(e.display_name)) for e in rows]
-        # Scoring a roster against a community is a fraction of a second of pure
-        # CPU, so it runs off the event loop every desk shares.
-        return await asyncio.to_thread(
-            lambda: {entrant_id: len(suggested_users(target, candidates, limit)) for entrant_id, target in targets}
-        )
+        return await asyncio.to_thread(count_suggestions, entrants, candidates, limit)
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def search_members(
