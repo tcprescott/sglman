@@ -24,58 +24,62 @@ shift usually gives it to you.
 ## The board
 
 :::snippet proctor-station
-**Proctor Station** is every on-site match, ordered by what needs you next:
-overdue first, then checked in, then in play, then not due yet. Work from the
-top. Matches run from a racetime.gg room are left off, since the room drives
-those, not you.
+**Proctor Station** is every on-site match, grouped by what it needs from you
+next: **Late, check in now**, then **Ready to start**, **In play** and **Up
+next**. Each heading says how many matches are under it. Work from the top.
+Matches run from a racetime.gg room are left off, since the room drives those,
+not you.
 
-It is deliberately not the admin Schedule tab. There is no scheduling here and no
-crew or stage columns: this board is for *running* matches, not booking them.
+Each line is one match: its time (orange when it's late), the players with the
+station each is sitting at, the stage, and a button for the next step: **Check
+in**, **Start** or **Finish**. Press it and the step's dialog opens, the same as
+it does from anywhere else. The time and the stage are what to call out across
+the room.
 
-The counts above the table say how many matches are waiting to be checked in,
-waiting to start, in play, and **Overdue** (past their time with nobody checked
-in). A non-zero overdue count is highlighted.
+Tap anywhere else on a line to open the match's details. They start with a
+**Ready to play?** checklist (players confirmed, stations, stage and seed),
+each ticked or flagged, with the fix on the same line: **Change** for the
+stations, **Generate** or **Copy** for the seed, and the player's ADA
+accommodation if they have one.
 
-**Next step** holds the button for whatever comes next, and **Players &
-stations** tells you who and where. Each match carries its number (`#`) so you
-can call it out across a room.
+It is deliberately not the admin Schedule tab. There is no scheduling here and
+no crew: this board is for *running* matches, not booking them.
 
 By default the board shows matches that are still to be played or in play. Use
 **Filters** to narrow it to the day and the tournaments your room is running, or
-add **Finished** to the State filter to see what you have already recorded. The
-search box filters the rows by any text in their visible columns, such as a
+add **Finished** to the State filter to see what you have already recorded, under
+**Done**. The search box filters the lines by any text in them, such as a
 player's name.
 :::
 
-### Reading the players column
+### Reading a line
 
-![A match card on the Proctor Station board on a phone: two players, one with an accessibility icon, then Check In, Assign Stations and a Generate seed button](/static/help/proctor/board-phone.webp "A match waiting to be checked in.")
-
-Beside each name:
+![A line on the Proctor Station board on a phone: the time in orange, two players, No stations yet, an ADA note, and a Check in button](/static/help/proctor/board-phone.webp "A match waiting to be checked in.")
 
 | You see | Means |
 |---|---|
-| A tick on a person | They have acknowledged the match, so they know about it. It is not a check-in. |
-| An outlined person | They have not acknowledged it yet. |
-| A chair chip with a number | The station they are seated at. |
-| An accessibility icon | Staff have arranged an accommodation for them. Tap it. |
-| A trophy chip | They won. |
+| **Station 4** beside a name | The station they are seated at. |
+| **No station** beside a name | They aren't seated yet. Check-in seats them. |
+| **ADA:** and a name | Staff have arranged an accommodation for them. Open the match and tap the accommodation to see it. |
+| **Live** | The match is in play. |
 
-The accessibility popup tells you an accommodation is arranged and to check with
-staff for what it involves. It does not show you the details; those are written
-for staff only. Find out before the match starts.
+The accommodation popup tells you an accommodation is arranged and to check
+with staff for what it involves. It does not show you the details; those are
+written for staff only. Find out before the match starts.
 
 ## Running a match
 
 :::snippet proctor-run-match
-Four steps, in order, all of them from the match's row.
+Four steps, in order. Each one is the button on the match's line, and also
+sits at the top of the match's details.
 
 1. **Check the match in** once both players are there. Press **Check In**,
    pick a station for each player (or press **Randomize**), and press **Check in
    & seat**. That stamps the match as {state:Checked In} and records where each
    player is sitting.
-2. **Roll the seed** if the row does not already have one. Usually it is there
-   already. If not, press **Generate** in the Seed column. A seed can only be
+2. **Roll the seed** if the match does not already have one. Usually it is
+   there already. If not, open the match and press **Generate** on its Seed
+   line. A seed can only be
    rolled once per match, and the players get it by DM.
 3. **Press Start** when the players actually start, not when you seat them, and
    confirm. From that moment the match reads as {state:Started} to everyone
@@ -91,23 +95,22 @@ keeping the room workable) is the event's to define, not the app's. The app
 records what you did; it does not tell you how to run the room.
 
 You do **not** confirm the result. A staff member does that, and it is what
-makes the result official; your job ends at recording it. Until they do, the row
-shows {chip:pending:Awaiting confirmation}.
+makes the result official; your job ends at recording it. Until they do, the match shows
+{chip:pending:To confirm} under **Done**.
 :::
 
 ![The Check in dialog: a station picker for each player, the Randomize button, and Check in & seat](/static/help/proctor/check-in-phone.webp "Step 1: checking a match in.")
 
 ### When the seed is not straightforward
 
-Some randomizers take a few minutes to produce a seed. The cell shows a spinner
-while it works; you can leave the page, and the players are DMed when it lands.
+Some randomizers take a few minutes to produce a seed. The Seed line says
+**Rolling…** with a clock while it works; you can leave the page, and the
+players are DMed when it lands.
 
-A warning icon beside **Generate** means the last roll failed. Hover or tap
-it for the reason, then press **Generate** again.
+If the last roll failed, the Seed line says why. Press **Generate** again.
 
-A bell with a line through it beside a seed means at least one player cannot
-receive Discord DMs. The icon names them. Read the seed out or show it to them,
-because the DM will not reach them.
+"Couldn't DM" under a seed names any player who cannot receive Discord DMs.
+Read the seed out or show it to them, because the DM will not reach them.
 
 ### Which stations to use
 
@@ -123,8 +126,8 @@ saved until you press the button to confirm, so you can change either seat or
 draw again. If the room is too full to honour all of that, it says which part it
 could not manage and seats them anyway.
 
-Seated someone in the wrong place? The **Stations** button in the players column
-(**Assign Stations** on a phone) changes the seats of a match that is already checked in.
+Seated someone in the wrong place? Open the match and press **Change** on its
+Stations line to move the seats of a match that is already checked in.
 
 You do **not** need to release a station afterwards. A station frees itself the
 moment its match is recorded as finished.

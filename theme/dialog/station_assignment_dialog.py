@@ -146,7 +146,7 @@ class StationAssignmentDialog:
 
                         self.station_inputs[player.id] = station_input
 
-            with dialog_actions():
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 ui.button(copy['submit'], on_click=self._handle_submit).props('color=primary')
         

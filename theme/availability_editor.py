@@ -410,8 +410,14 @@ async def render_availability_editor(
                 return
             ui.notify('Availability saved.', color='positive')
 
-        window_rows()
-        with ui.row().classes('gap-2'):
-            ui.button(mode.add_button_text, icon='add', on_click=lambda: _add()).props('flat color=primary')
-            ui.button(mode.save_button_text, icon='save', on_click=save).props('color=primary')
-        effective_graph()
+        # Windows beside the chart on a wide screen: stacked, a form about
+        # 30rem wide and a chart that only needs a few rows both ran the full
+        # 1400px. Below 1024px the chart drops under the form as before.
+        with ui.element('div').classes('avail-split'):
+            with ui.element('div').classes('avail-split__form'):
+                window_rows()
+                with ui.row().classes('gap-2'):
+                    ui.button(mode.add_button_text, icon='add', on_click=lambda: _add()).props('flat color=primary')
+                    ui.button(mode.save_button_text, icon='save', on_click=save).props('color=primary')
+            with ui.element('div').classes('avail-split__chart'):
+                effective_graph()

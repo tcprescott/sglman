@@ -416,10 +416,14 @@ async def admin_brackets_page() -> None:
             )
             state['tournament_id'] = initial
 
-            selector = ui.select(
-                options, label='Tournament', with_input=True, value=initial,
-                on_change=on_tournament_change,
-            ).classes('w-full max-w-md').props('outlined')
+            # Picker, Create stage and refresh on one toolbar row: stacked, the
+            # refresh button sat alone 1100px from the button it belongs with.
+            toolbar = ui.row().classes('wiz-toolbar full-width items-center')
+            with toolbar:
+                selector = ui.select(
+                    options, label='Tournament', with_input=True, value=initial,
+                    on_change=on_tournament_change,
+                ).classes('wiz-toolbar__grow').props('outlined dense')
             selector.add_slot('no-option', '''
                 <q-item><q-item-section class="text-grey">
                     No tournament matches
@@ -433,7 +437,7 @@ async def admin_brackets_page() -> None:
                     'Challonge tab to move it across.'
                 ).classes('text-caption text-warning')
 
-            with ui.row().classes('full-width q-mt-sm'):
+            with toolbar:
                 ui.button(
                     'Create stage', icon='add',
                     on_click=lambda: background_tasks.create(create_stage(context.client))
@@ -457,7 +461,7 @@ async def admin_brackets_page() -> None:
                     ),
                 },
             )
-            empty_hint = ui.label('').classes('text-caption text-grey q-pa-sm')
+            empty_hint = ui.label('').classes('wiz-empty-panel')
             empty_hint.set_visibility(False)
 
             def _open_public(row) -> None:

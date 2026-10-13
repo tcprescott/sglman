@@ -1,3 +1,4 @@
+### Improved
 - The last 40-odd dialogs that were built by hand (presets, qualifiers,
   volunteers, webhooks, racetime, SpeedGaming, Discord events and roles, member
   add, triforce texts, shift release, match results, station assignment and the

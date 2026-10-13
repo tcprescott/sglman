@@ -171,7 +171,7 @@ class BaseMatchDialog:
         return select
 
     def _render_date_time_inputs(self, default_date, default_time):
-        with ui.row().classes('items-center gap-2'):
+        with ui.row().classes('form-pair items-center gap-2'):
             date = native_date_input('Date', default_date, required=True)
             time = native_time_input('Time', default_time, required=True)
 

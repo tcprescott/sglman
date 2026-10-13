@@ -27,7 +27,7 @@ class StageEditDialog:
             default_is_active = True
             title = 'Add Stage'
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(title, dialog)

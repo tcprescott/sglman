@@ -69,7 +69,8 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 
 **Every PR that changes what a player, crew member, volunteer or staff member
 sees or can do adds its own file, `application/changelog/changes/YYYY-MM-DD-<topic>.md`
-holding only bullets, in the same PR.** Don't edit the current week's entry in
+holding only bullets under a category heading (`### New`, `### Improved`,
+`### Fixed`, `### Security` or `### Behind the scenes`), in the same PR.** Don't edit the current week's entry in
 `changelog.md`: parallel PRs all appended to it and conflicted. The in-app "What's
 new" page (`/changelog`) folds each file into the Monday-to-Sunday week its date
 falls in. New features, changed workflows or permissions, user-visible bug fixes

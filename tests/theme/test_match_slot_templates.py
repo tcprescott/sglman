@@ -397,7 +397,9 @@ def test_the_read_only_cells_have_callers():
     divergent copies of one cell, in a layer with no render coverage."""
     from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 
-    for path in ('pages/home_tabs/schedule.py', 'pages/home_tabs/player.py'):
+    # The home schedule was the third, until it became a run sheet whose seed
+    # and state live in the match details sheet.
+    for path in ('pages/home_tabs/player.py', 'pages/room_seeds.py'):
         src = pathlib.Path(path).read_text()
         assert 'state_readonly_slot(' in src, path
         assert 'SEED_SLOT_READONLY' in src, path

@@ -174,10 +174,10 @@ _MENU = f'''
 '''
 
 _CHECK_IN_BUTTON = f'''
-    <q-btn v-if="!props.row.checked_in && !props.row.withdrawn" unelevated no-caps color="primary"
+    <q-btn v-if="!props.row.checked_in && !props.row.withdrawn" unelevated no-caps no-wrap color="primary"
            icon="how_to_reg" label="Check in" class="{REQUIRES_SOCKET_CLASS} checkin-btn"
            @click="$parent.$emit('checkin', props.row)" />
-    <q-btn v-if="props.row.can_check_in_anyway" outline no-caps color="negative" icon="how_to_reg"
+    <q-btn v-if="props.row.can_check_in_anyway" outline no-caps no-wrap color="negative" icon="how_to_reg"
            label="Check in anyway" class="{REQUIRES_SOCKET_CLASS}"
            @click="$parent.$emit('checkin_anyway', props.row)" />
 '''
@@ -207,17 +207,19 @@ _DM_NOTE = '''
         Couldn't test their DMs: Discord didn't answer. Send it again from ⋮.</div>
 '''
 
-_STATUS_CELL = f'''<q-td :props="props">
+_STATUS_CELL = f'''<q-td :props="props" class="checkin-status">
     <span v-if="!props.row.checked_in && !props.row.withdrawn" class="text-grey-7">Not yet</span>
     {_STATUS_BADGES}
     {_DM_NOTE}
 </q-td>'''
 
-_ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
+_ACTIONS_CELL = f'''<q-td :props="props" class="checkin-actions">
+<div class="row no-wrap items-center justify-end gap-1">
     <span v-if="props.row.withdrawn && !props.row.checked_in && !props.row.can_check_in_anyway"
           class="text-caption text-negative">Send to staff</span>
     {_CHECK_IN_BUTTON}
     {_MENU}
+</div>
 </q-td>'''
 
 # The lanyard is what the desk hands over, so it is the one loud thing on the
@@ -226,8 +228,8 @@ _ACTIONS_CELL = f'''<q-td :props="props" class="q-gutter-xs">
 _LANYARD_CHIP = '''
     <q-chip v-if="props.row.lanyard" square :color="props.row.lanyard_color" :text-color="props.row.lanyard_text"
             icon="badge" class="q-ml-none text-weight-bold checkin-lanyard">{{ props.row.lanyard_label }}</q-chip>
-    <span v-if="props.row.extra_badges" class="text-caption text-weight-medium text-warning">
-        + {{ props.row.extra_badges }}</span>
+    <div v-if="props.row.extra_badges" class="text-caption text-weight-medium text-warning">
+        + {{ props.row.extra_badges }}</div>
 '''
 
 _LANYARD_CELL = f'''<q-td :props="props">
@@ -493,8 +495,11 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
                 .classes('wiz-segmented checkin-filters')
             sync_label = ui.label().classes('text-caption')
 
+        # The five columns need about 920px beside the nav drawer, which a 1024px
+        # laptop doesn't have: below 1200px the desk gets the phone cards, so the
+        # Check in button is never scrolled off the side.
         table = ui.table(columns=_COLUMNS, rows=[], row_key='id', pagination=0) \
-            .classes('w-full checkin-table').props(':grid="Quasar.Screen.lt.md" flat hide-pagination')
+            .classes('w-full checkin-table').props(':grid="Quasar.Screen.width < 1200" flat hide-pagination')
         table._props[':filter-method'] = _FILTER_METHOD
         table.add_slot('body-cell-status', _STATUS_CELL)
         table.add_slot('body-cell-lanyard', _LANYARD_CELL)

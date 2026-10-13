@@ -1,0 +1,127 @@
+"""The Event > Schedule run sheet: its groups, and the buttons each line offers the viewer."""
+
+import pathlib
+
+from theme.tables.match_player_run_sheet import (
+    _BODY_SLOT,
+    _ITEM_SLOT,
+    PLAYER_RUN_SHEET_COLUMNS,
+    arrange_player_run_sheet,
+    player_crew,
+    player_status,
+)
+
+ME = '111'
+PLAYERS = [{'name': 'Player One', 'discord_id': '900'}, {'name': 'Player Two', 'discord_id': '901'}]
+
+
+def _row(id_=1, state='Scheduled', ts=None, **extra):
+    row = {
+        'id': id_, 'state': state, 'players': PLAYERS, 'scheduled_ts': ts, 'scheduled_at': '',
+        'crew_signup_open': True,
+        'crew_wanted': {'commentators': True, 'trackers': True},
+        'crew_required': {'commentators': 2, 'trackers': 1},
+        'commentators': [], 'trackers': [],
+    }
+    row.update(extra)
+    return row
+
+
+def _role(row, key, discord_id=ME):
+    return next(r for r in player_crew(row, discord_id) if r['key'] == key)
+
+
+class TestStatus:
+    def test_a_recorded_result_is_not_staffs_to_do_list(self):
+        assert player_status(_row(state='Finished', has_result=False)) == ('Finished', 'neutral')
+        assert player_status(_row(state='Confirmed')) == ('Confirmed', 'ok')
+
+    def test_live_and_late(self):
+        assert player_status(_row(state='Started')) == ('Live', 'live')
+        assert player_status(_row(is_overdue=True)) == ('Late', 'pending')
+
+
+class TestArrange:
+    def test_live_then_next_then_waiting_then_finished(self):
+        rows = [
+            _row(1, 'Finished', 100),
+            _row(2, 'Scheduled', 300),
+            _row(3, 'Started', 200),
+            _row(4, 'Scheduled', 400, players=[]),
+            _row(5, 'Confirmed', 200),
+        ]
+        arranged = arrange_player_run_sheet(rows, ME)
+        assert [r['id'] for r in arranged] == [3, 2, 4, 5, 1]
+        assert [r['_group'] for r in arranged if r['_group_start']] == [
+            'Live now', 'Up next', 'Waiting for players', 'Finished']
+
+
+class TestCrew:
+    def test_an_open_role_offers_sign_up_and_says_it_needs_crew(self):
+        role = _role(_row(), 'commentators')
+        assert role['can_sign_up'] and not role['can_withdraw']
+        assert role['short'] and role['count'] == '0/2'
+
+    def test_a_waiting_signup_is_not_cover_but_can_be_withdrawn(self):
+        row = _row(trackers=[{'discord_id': ME, 'approved': False}])
+        role = _role(row, 'trackers')
+        assert role['mine'] == 'waiting' and role['can_withdraw'] and not role['can_sign_up']
+        assert role['short'] and role['count'] == '0/1'
+
+    def test_approved_but_unconfirmed_crew_get_confirm(self):
+        row = _row(commentators=[{'discord_id': '5', 'approved': True},
+                                 {'discord_id': ME, 'approved': True, 'acknowledged': False}])
+        assert _role(row, 'commentators')['ack_idx'] == 1
+        row['commentators'][1]['acknowledged'] = True
+        assert _role(row, 'commentators')['ack_idx'] is None
+
+    def test_a_player_cannot_crew_their_own_match(self):
+        assert not _role(_row(), 'commentators', discord_id='900')['can_sign_up']
+
+    def test_closed_signup_offers_nothing_and_needs_nobody(self):
+        role = _role(_row(crew_signup_open=False), 'commentators')
+        assert not role['can_sign_up'] and not role['short']
+
+    def test_withdraw_stays_once_the_match_is_under_way(self):
+        # The crew help promises it: a stale signup can be cleared at any time.
+        row = _row(state='Started', crew_signup_open=False,
+                   commentators=[{'discord_id': ME, 'approved': True}])
+        role = _role(row, 'commentators')
+        assert role['can_withdraw'] and not role['can_sign_up']
+
+    def test_a_role_the_tournament_does_not_use_is_left_off(self):
+        row = _row(crew_wanted={'commentators': True, 'trackers': False})
+        assert [r['key'] for r in player_crew(row, ME)] == ['commentators']
+
+
+class TestAcknowledge:
+    def test_only_the_player_who_has_not_acknowledged_gets_the_button(self):
+        row = _row(acknowledgments=[{'discord_id': '900', 'acknowledged': False},
+                                    {'discord_id': '901', 'acknowledged': True}])
+        assert arrange_player_run_sheet([dict(row)], '900')[0]['_ack']
+        assert not arrange_player_run_sheet([dict(row)], '901')[0]['_ack']
+        assert not arrange_player_run_sheet([dict(row)], ME)[0]['_ack']
+
+
+class TestTemplates:
+    def test_every_button_on_a_line_stops_the_click_opening_the_sheet(self):
+        for slot in (_BODY_SLOT, _ITEM_SLOT):
+            emits = slot.count('$parent.$emit(')
+            opens = slot.count("$parent.$emit('open_match'")
+            assert slot.count('@click.stop="$parent.$emit(') >= emits - opens
+
+    def test_the_phone_card_does_not_nest_buttons(self):
+        # A <button> holding the bell or Sign up would be invalid markup and
+        # swallow their clicks; they sit beside the open button instead.
+        opener = _ITEM_SLOT.split('<button type="button" class="player-sheet__open"')[1].split('</button>')[0]
+        assert '<q-btn' not in opener
+
+    def test_the_columns_fit_without_sorting(self):
+        assert [c['name'] for c in PLAYER_RUN_SHEET_COLUMNS] == [
+            'scheduled_at', 'match', 'stage', 'crew', 'status', 'watch']
+        assert not any(c.get('sortable') for c in PLAYER_RUN_SHEET_COLUMNS)
+
+    def test_the_schedule_page_uses_it(self):
+        src = pathlib.Path('pages/home_tabs/schedule.py').read_text()
+        assert "layout='player_run_sheet'" in src
+        assert 'on_open_match=sheet.open' in src

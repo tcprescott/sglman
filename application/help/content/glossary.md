@@ -69,8 +69,8 @@ and checking it back in. Staff can do the same. See [Running the equipment desk]
 **Event check-in**: arriving at the event and picking up your lanyard at the
 check-in desk. Separate from a match's check-in. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
-**Generated Seed**: the column on the schedule that holds a match's seed once
-it has been rolled: a link, or for randomizers you paste into (Wind Waker, Zelda 1)
+**Generated Seed**: the column on My Schedule (and the Seed line in a match's
+details on the schedule board) that holds a match's seed once it has been rolled: a link, or for randomizers you paste into (Wind Waker, Zelda 1)
 the seed itself with a copy button.
 
 **Harder settings**: a tougher preset some tournaments offer beside their
@@ -141,7 +141,7 @@ techs rather than by a proctor. The board's *Stage* column and the admin
 *Stages* list are the same set of places.
 
 **Station**: the numbered physical seat you play at. It is assigned to you at
-check-in, and it then shows next to your name on the schedule board.
+check-in, and it then shows in the match's details on the schedule board.
 
 **Stream candidate**: a match staff may stream but haven't put on a stage yet.
 It carries a *candidate* chip on phone cards, and the *Streamed, plus possible streams*

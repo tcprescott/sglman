@@ -10,6 +10,7 @@ from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.empty_state import empty_state
 from theme.help import help_icon, resolve_help
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -108,7 +109,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             shift = assignment.shift
             position = shift.position.name if shift.position else 'Volunteer'
             help = await resolve_help(['shift-release'])
-            with form_dialog('Give this shift back?', help=help) as dialog:
+            with form_dialog('Give this shift back?', card_classes='dialog-card dialog-card--sm', help=help) as dialog:
                 with ui.column().classes('q-pa-md gap-2 full-width'):
                     ui.label(
                         position + (f' — {shift.label}' if shift.label else '')
@@ -171,7 +172,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             )
             if not assignments:
                 msg = 'You have no upcoming shifts.' if state['upcoming_only'] else 'You have no assigned shifts.'
-                ui.label(msg).classes('italic-note')
+                empty_state(msg)
                 return
             for assignment in assignments:
                 shift = assignment.shift
@@ -199,16 +200,25 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                             )
                         ui.label(provenance).classes('text-caption text-grey')
                         _render_brief(assignment)
-                    # Actions wrap in their own row: the header row could not hold
-                    # two buttons plus the badge stack at 390px.
-                    with ui.row().classes('items-center gap-2 full-width q-mt-sm') \
-                            .style('flex-wrap: wrap;'):
+                    # Negative left, positive right in every state: a status that
+                    # replaces Acknowledge takes its slot rather than shifting
+                    # "Can't make it" across.
+                    with ui.element('div').classes('wiz-shift-actions'):
+                        # Offered whether or not it is acknowledged — agreeing to a
+                        # shift is not a commitment you cannot revise.
+                        if can_release:
+                            ui.button("Can't make it", icon='event_busy',
+                                      on_click=lambda a=assignment: confirm_release(a)) \
+                                .props('outline color=negative')
                         if checked_in:
-                            ui.badge('Checked in', color='teal')
+                            with ui.element('div').classes('wiz-shift-status st-live'):
+                                ui.icon('how_to_reg')
+                                ui.label('Checked in')
                         if acked:
-                            ui.badge('Acknowledged', color='positive')
-                        ui.space()
-                        if can_ack:
+                            with ui.element('div').classes('wiz-shift-status st-ok'):
+                                ui.icon('check')
+                                ui.label('Acknowledged')
+                        elif can_ack:
                             async def ack(a_id=assignment.id) -> None:
                                 try:
                                     await service.acknowledge(a_id, user)
@@ -216,20 +226,16 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                                 except (ValueError, PermissionError) as e:
                                     notify_error(e)
                                 shift_list.refresh()
-                            ui.button('Acknowledge', icon='check', on_click=ack).props('color=primary')
-                        # Offered whether or not it is acknowledged — agreeing to a
-                        # shift is not a commitment you cannot revise.
-                        if can_release:
-                            ui.button("Can't make this", icon='event_busy',
-                                      on_click=lambda a=assignment: confirm_release(a)) \
-                                .props('flat color=negative')
+                            ui.button('Acknowledge', icon='check', on_click=ack) \
+                                .props('color=primary')
 
         def on_toggle(e) -> None:
             state['upcoming_only'] = not e.value
             shift_list.refresh()
 
         ui.switch('Show all shifts', on_change=on_toggle)
-        await shift_list()
+        with ui.element('div').classes('wiz-tile-grid'):
+            await shift_list()
 
         release_id, malformed = release_link_target(release)
         if malformed:
