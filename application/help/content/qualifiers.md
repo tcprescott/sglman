@@ -132,7 +132,7 @@ hidden while other people are still running. *Under par* means at least 5%
 faster than par, *Above par* more than 5% slower. A forfeit has no time and no
 side of par, so that column says *Forfeited* (or *Disqualified*) instead.
 
-![My runs on a phone, one card per run: a pending live-race result, a Running run, a Rejected run with its Reviewer note marked 1 and its Reattempt button marked 2, and an Approved run marked Near par](/static/help/qualifiers/my-runs-phone.webp "A rejected run's **Reviewer note** (1), and **Reattempt** (2) to replace it.")
+![My runs on a phone, one card per run: a live-race run Waiting for the race, a Running run, a Rejected run with its Reviewer note marked 1 and its Reattempt button marked 2, and an Approved run marked Near par](/static/help/qualifiers/my-runs-phone.webp "A rejected run's **Reviewer note** (1), and **Reattempt** (2) to replace it.")
 
 ## Reattempts
 
