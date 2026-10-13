@@ -72,6 +72,10 @@ class AsyncQualifierRepository(TenantScopedRepository[AsyncQualifier]):
     async def list_all(self) -> List[AsyncQualifier]:
         return await scoped(AsyncQualifier.all()).order_by('-created_at')
 
+    async def list_administered_by(self, user_id: int) -> List[AsyncQualifier]:
+        """The qualifiers that name this user on their ``admins`` (reviewers) list."""
+        return await scoped(AsyncQualifier.filter(admins__id=user_id)).order_by('-created_at')
+
     async def list_active(self) -> List[AsyncQualifier]:
         return await scoped(AsyncQualifier.filter(is_active=True)).order_by('-created_at')
 
