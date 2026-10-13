@@ -21,7 +21,12 @@ SDK once, before the FastAPI app is built, and only when `SENTRY_DSN` is set.
 Every event carries `environment`, `release` (`SENTRY_RELEASE`, else
 `wizzrobe@<GIT_SHA[:12]>`; `publish.yml` bakes `GIT_SHA` into the image), and
 `send_default_pii=False`; `before_send` scrubs auth headers and cookies and drops
-the NiceGUI timer-teardown race.
+the NiceGUI timer-teardown race and uvicorn's graceful-shutdown cancellations
+(`Cancel N running task(s)` and the `CancelledError` per request still open at
+the 10s deadline, mostly socket.io long-polls on every deploy). Each cancelled
+request is still named at WARNING on `wizzrobe.shutdown` in Sentry Logs, and the
+lifespan shutdown calls `flush_sentry()` so those last log lines leave the
+process before it exits.
 
 ## Context on every event
 
