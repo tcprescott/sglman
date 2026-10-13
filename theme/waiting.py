@@ -18,9 +18,9 @@ import time
 
 from nicegui import app, ui
 
-from application.utils.easter_eggs import random_cat_fact
 from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, install_timezone_detection
+from theme.empty_state import cat_fact
 
 __all__ = ['MIN_WAIT_SECONDS', 'WaitingScreen', 'waiting_panel', 'waiting_screen']
 
@@ -43,9 +43,7 @@ def waiting_panel(message: str = 'Loading…', *, size: str = 'lg') -> ui.elemen
     with ui.column().classes('wiz-waiting items-center') as panel:
         ui.spinner(size=size)
         ui.label(message).classes('wiz-waiting-message')
-        with ui.row().classes('empty-state-fact items-center'):
-            ui.icon('pets').props('size=xs')
-            ui.label(random_cat_fact())
+        cat_fact()
     return panel
 
 

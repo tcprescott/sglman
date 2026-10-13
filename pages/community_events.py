@@ -166,7 +166,7 @@ def create() -> None:
         is_staff = await AuthService.is_staff(user)
         needs_review = await SystemConfigService.community_events_require_approval()
 
-        with ui.column().classes('page-container-narrow w-full gap-3'):
+        with ui.column().classes('wiz-community-events page-container-narrow w-full gap-3'):
             page_header('Community Events', 'Meetups, panels and side events attendees are running.')
             disclaimer()
 

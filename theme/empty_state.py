@@ -4,14 +4,27 @@ from nicegui import ui
 
 from application.utils.easter_eggs import random_cat_fact
 
+# The fact sat right under the empty-state message in the same muted italic,
+# so it read as part of what the app was telling you. The kicker and the rule
+# above it mark it as an aside.
+FACT_KICKER = 'Cat fact, just for fun'
+
+
+def cat_fact() -> None:
+    """Render a cat fact set apart from whatever it sits under."""
+    with ui.column().classes('empty-state-fact items-center') as aside:
+        aside.props('role=note')
+        with ui.row().classes('empty-state-fact__kicker items-center no-wrap'):
+            ui.icon('pets').props('size=xs')
+            ui.label(FACT_KICKER)
+        ui.label(random_cat_fact()).classes('empty-state-fact__text')
+
 
 def empty_state(message: str) -> None:
     """Render a centered empty-state message with a cat fact beneath it."""
     with ui.column().classes('empty-state items-center'):
         ui.label(message)
-        with ui.row().classes('empty-state-fact items-center'):
-            ui.icon('pets').props('size=xs')
-            ui.label(random_cat_fact())
+        cat_fact()
 
 
 def no_data_slot(message: str = 'Nothing here yet.', icon: str = 'inbox') -> str:
@@ -29,8 +42,9 @@ def no_data_slot(message: str = 'Nothing here yet.', icon: str = 'inbox') -> str
         '<div class="column items-center text-center">'
         f'<q-icon name="{safe_icon}" size="md" class="q-mb-sm wiz-empty-icon"></q-icon>'
         f'<div>{safe_message}</div>'
-        '<div class="empty-state-fact row items-center q-mt-sm">'
-        '<q-icon name="pets" size="xs" class="q-mr-xs"></q-icon>'
-        f'<span>{safe_fact}</span>'
+        '<div class="empty-state-fact column items-center" role="note">'
+        '<div class="empty-state-fact__kicker row items-center no-wrap">'
+        f'<q-icon name="pets" size="xs"></q-icon><span>{FACT_KICKER}</span></div>'
+        f'<div class="empty-state-fact__text">{safe_fact}</div>'
         '</div></div></div>'
     )

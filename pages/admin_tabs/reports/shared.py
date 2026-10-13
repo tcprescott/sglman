@@ -12,10 +12,10 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from nicegui import context, ui
 
 from application.services import SystemConfigService, TournamentService
-from application.utils.easter_eggs import random_cat_fact
 from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
 from theme.a11y import make_activatable
+from theme.empty_state import cat_fact
 from theme.page_header import page_title
 from theme.tables.export import csv_export_button
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -223,9 +223,7 @@ def show_navigating() -> None:
                 with ui.row().classes('items-center no-wrap gap-3'):
                     ui.spinner(size='sm')
                     ui.label('Updating report…')
-                with ui.row().classes('empty-state-fact items-center'):
-                    ui.icon('pets').props('size=xs')
-                    ui.label(random_cat_fact())
+                cat_fact()
 
 
 # Set per client (never module state — one module serves every operator in every

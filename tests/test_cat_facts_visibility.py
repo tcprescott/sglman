@@ -12,6 +12,7 @@ import re
 
 import pages.cat_facts as cat_facts_page
 import theme.base as base
+import theme.empty_state as empty_state
 import theme.waiting as waiting
 from middleware.auth import protected_routes
 from pages.admin_tabs.reports import shared as report_shared
@@ -56,14 +57,30 @@ class TestCatFactDialog:
 
 class TestWaitingPanel:
     def test_panel_carries_a_cat_fact(self):
-        assert 'random_cat_fact' in inspect.getsource(waiting.waiting_panel)
+        assert 'cat_fact()' in inspect.getsource(waiting.waiting_panel)
 
     def test_deferred_tab_build_uses_the_panel(self):
         """The bare ui.spinner it replaced showed nothing to read."""
         assert 'waiting_panel' in inspect.getsource(base.BaseLayout._build_tab)
 
     def test_report_busy_overlay_carries_a_fact(self):
-        assert 'random_cat_fact' in inspect.getsource(report_shared.show_navigating)
+        assert 'cat_fact()' in inspect.getsource(report_shared.show_navigating)
+
+
+class TestFactReadsAsAnAside:
+    """The fact sat under the empty-state message in the same muted italic, so
+    it read as something the app was reporting. Both renderers label it."""
+
+    def test_helper_labels_the_fact(self):
+        source = inspect.getsource(empty_state.cat_fact)
+        assert 'FACT_KICKER' in source
+        assert 'random_cat_fact()' in source
+
+    def test_empty_state_uses_the_helper(self):
+        assert 'cat_fact()' in inspect.getsource(empty_state.empty_state)
+
+    def test_table_no_data_slot_labels_the_fact(self):
+        assert empty_state.FACT_KICKER in empty_state.no_data_slot()
 
 
 class TestAuthWaitScreens:

@@ -971,8 +971,15 @@ main.q-page:focus {
     gap: var(--space-2);
 }
 
+/* A banner with no actions would otherwise keep an empty row (and, on a
+   phone, a full-width line of it) under the message. */
+.wiz-banner__actions:empty { display: none; }
+
 @media (max-width: 599px) {
     .wiz-banner { flex-wrap: wrap; }
+    /* A zero basis keeps the message beside its icon: with `auto` the long
+       text claimed the whole line and wrapped under an icon left alone on top. */
+    .wiz-banner__body { flex-basis: 0; }
     .wiz-banner__actions { width: 100%; justify-content: flex-end; }
 }
 
@@ -1053,6 +1060,20 @@ main.q-page:focus {
     .form-grid {
         grid-template-columns: 1fr !important;
     }
+}
+
+/* Quasar lays a field's hint out absolutely in a fixed 20px strip, so a hint
+   that wraps to two lines spills into the gap and runs into the next field's
+   label: on a phone the Profile's display-name hint read as the pronouns
+   field's. In flow, each hint stays with its own field. */
+.form-grid .q-field--with-bottom { padding-bottom: 0; }
+.form-grid .q-field__bottom {
+    position: static;
+    transform: none;
+    padding-top: var(--space-1);
+}
+@media (max-width: 600px) {
+    .form-grid { row-gap: var(--space-4); }
 }
 
 /* Stacked form column: full width up to a readable cap so a 10-char date field
@@ -1489,6 +1510,23 @@ main.q-page:focus {
 }
 
 /* Separator Styles */
+/* The column's gap already spaces the header from the banner under it. */
+.wiz-community-events > .wiz-page-header { margin-bottom: 0; }
+
+/* Home → Tournaments cards: one tournament per card, kept short enough that a
+   phone shows more than one. NiceGUI's card gap and the full-size list item
+   behind "N signed up" took most of the height. */
+.wiz-tournament-card { gap: var(--space-2); }
+.wiz-tournament-card .q-expansion-item > .q-expansion-item__container > .q-item {
+    padding: 0;
+    min-height: 32px;
+}
+.wiz-tournament-card .q-expansion-item .q-item__section--avatar {
+    min-width: 0;
+    padding-right: var(--space-2);
+}
+.wiz-tournament-card .wiz-help-prose > :last-child { margin-bottom: 0; }
+
 .separator-spacing {
     margin-bottom: 1.5em;
 }
@@ -1736,14 +1774,28 @@ main.q-page:focus {
     padding: 2em;
 }
 
+/* theme/empty_state.cat_fact: an aside, not part of the message above it.
+   Space and a dashed rule part it from the empty-state text, and the kicker
+   names it, so nobody mistakes the fact for something the app is reporting. */
 .empty-state-fact {
-    margin-top: 0.5em;
-    gap: 0.4em;
-    font-size: 0.85em;
+    margin-top: var(--space-5);
+    padding-top: var(--space-3);
+    border-top: 1px dashed var(--border-subtle);
+    max-width: 32rem;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
     /* Muted by colour, not opacity: 0.65 opacity left it at 2.7:1. */
     color: var(--fg-muted);
-    flex-wrap: wrap;
-    justify-content: center;
+    text-align: center;
+}
+
+.empty-state-fact__kicker {
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 /* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
@@ -3270,6 +3322,19 @@ ol.wiz-help-list { list-style-type: decimal; }
     border: 1px solid var(--border-subtle);
     box-shadow: none;
 }
+
+/* One matchup in a "Waiting on you to pick a time" card. Each is its own tile
+   on the card's tinted ground: as bare rows, two bracket matchups against the
+   same opponent ran together into one block of text. */
+.wiz-pick-row {
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    row-gap: 0;
+}
+
+.wiz-pick-row__title { flex: 1 1 100%; min-width: 0; }
 
 .wiz-subcard__title {
     font-family: var(--font-body);
