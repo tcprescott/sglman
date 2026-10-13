@@ -454,11 +454,18 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             with ui.row().classes('w-full items-center no-wrap gap-2'):
                 title = ui.label(event.name).classes('page-title col q-ma-none')
                 title.tag = 'h1'
-                await help_icon('check-in-desk', user=user)
-                sync_btn = ui.button(icon='sync').props('flat round color=primary') \
-                    .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')
-                if not _can_sync(event):
-                    sync_btn.set_visibility(False)
+                with ui.row().classes('no-wrap items-center gap-0'):
+                    await help_icon('check-in-desk', user=user)
+                    sync_btn = ui.button(icon='sync').props('flat round color=primary') \
+                        .classes(REQUIRES_SOCKET_CLASS).tooltip('Sync badges and comps now')
+                    if not _can_sync(event):
+                        sync_btn.set_visibility(False)
+                    # In the sticky toolbar, not a floating button: a FAB sat on top of
+                    # the Check in button of whichever card scrolled under it.
+                    if can_manage:
+                        ui.button(icon='person_add', on_click=lambda: background_tasks.create(add_walk_up())) \
+                            .props('flat round color=primary').classes(REQUIRES_SOCKET_CLASS) \
+                            .tooltip('Add walk-up')
             closed_notice = ui.label('This event is closed. You can still record late check-ins.') \
                 .classes('text-caption text-warning')
             box_slot = ui.row().classes('w-full')
@@ -487,14 +494,9 @@ async def _render_desk(service: CheckInService, user, event: CheckInEvent) -> No
             box = search_input(table, placeholder='Search by name or badge code', width='w-full')
             box.props('autofocus outlined').classes('col')
 
-        # Bottom padding so the last card scrolls clear of the walk-up button.
+        # Bottom padding so the last card scrolls clear of the undo bar.
         with ui.row().classes('w-full items-center gap-2 q-mt-sm checkin-footer'):
             csv_export_button('check-in', lambda: _EXPORT_COLUMNS, lambda: state['rows'], label='Export CSV')
-
-        if can_manage:
-            ui.button(icon='person_add', on_click=lambda: background_tasks.create(add_walk_up())) \
-                .props('fab color=primary').classes(f'checkin-fab {REQUIRES_SOCKET_CLASS}') \
-                .tooltip('Add walk-up')
 
         undo_bar = ui.row().classes('checkin-undo items-center no-wrap gap-2 q-pa-sm')
         undo_bar.set_visibility(False)
