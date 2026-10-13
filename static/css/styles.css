@@ -705,11 +705,20 @@ main.q-page:focus {
     border-right: 1px solid var(--border-subtle);
 }
 
+/* NiceGUI pads the drawer body 1rem all round and shrinks each list to its
+   widest label. Halve the side padding and stretch the lists so every item's
+   hover/active fill runs the drawer's full width. */
+.q-drawer .nicegui-drawer {
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
 .q-drawer .q-item {
     min-height: 36px;
     padding: 4px 10px;
     border-radius: var(--radius-md);
-    margin: 1px var(--space-2);
+    margin: 1px var(--space-1);
     font-size: var(--text-md);
     color: var(--fg-secondary);
     transition: background var(--dur-fast) var(--ease-out);
@@ -746,7 +755,7 @@ main.q-page:focus {
 /* Drawer section headers (grouped admin nav): a quiet grey label between
    destination clusters, not a clickable item. */
 .q-drawer .wiz-drawer-group {
-    padding: var(--space-3) 18px var(--space-1);
+    padding: var(--space-3) 14px var(--space-1);
     font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;

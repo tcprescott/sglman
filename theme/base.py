@@ -461,7 +461,11 @@ class BaseLayout:
         # NiceGUI renders the drawer body (.q-drawer__content) as a flex column,
         # so a trailing ui.space() pushes the copyright to the foot of the drawer
         # when the nav fits, and it falls to the scroll-end when the nav is long.
-        with ui.left_drawer(value=False).props('breakpoint=1023 show-if-above bordered') as self._drawer:
+        # 224px fits the longest label ("Community Events") with room to spare;
+        # Quasar's 300px default left a wide empty strip beside the nav.
+        with ui.left_drawer(value=False).props(
+            'breakpoint=1023 show-if-above bordered width=224'
+        ) as self._drawer:
             with ui.list().props('padding'):
                 for item in self.top_menu:
                     with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
