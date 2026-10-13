@@ -101,7 +101,7 @@ class MatchInbox:
         if not (self.access.edit or self.access.confirm or self.access.run):
             return
         with ui.column().classes('match-inbox full-width'):
-            with ui.row().classes('items-center gap-2'):
+            with ui.row().classes('items-center gap-2 full-width wiz-help-row'):
                 heading = ui.label('Needs you').classes('section-title')
                 heading.tag = 'h2'
                 if total:
