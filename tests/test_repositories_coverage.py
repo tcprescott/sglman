@@ -180,9 +180,9 @@ class TestTournamentNotificationRepository:
         )
         subs = await self.repo.get_match_notification_subscribers(t.id, has_stage=True)
         ids = {u.id for u in subs}
-        # ALL/STREAMED/CANDIDATES qualify when there's a stage; NONE and
-        # dm_notifications=False are excluded.
-        assert ids == {u_all.id, u_streamed.id, u_candidates.id}
+        # ALL/STREAMED/CANDIDATES qualify when there's a stage; NONE is excluded.
+        # Discord off still qualifies: send_dm drops only the Discord copy.
+        assert ids == {u_all.id, u_streamed.id, u_candidates.id, u_no_dm.id}
 
     async def test_match_subscribers_without_stage(self, db):
         t = await Tournament.create(name="T")
@@ -213,7 +213,7 @@ class TestTournamentNotificationRepository:
             user=u_no_dm, tournament=t, match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES
         )
         subs = await self.repo.get_stream_candidate_subscribers(t.id)
-        assert {u.id for u in subs} == {u_candidate.id}
+        assert {u.id for u in subs} == {u_candidate.id, u_no_dm.id}
 
 
 # ---------------------------------------------------------------------------

@@ -283,12 +283,12 @@ checks the player pool — so the picker spans every active tournament and merel
 badges the ones the user is enrolled in.
 
 Stored as `TournamentNotificationPreference` (user × tournament × level), set inline
-under Profile → Notifications → **Match alerts by tournament**
+under Profile → Notifications → **Tournaments you follow**
 (`pages/home_tabs/player_edit_info.py`) via
-`TournamentNotificationService.upsert_preference`. The card's **Delivery**
-checkbox (`User.dm_notifications`) is the master switch above it: the subscriber
-queries filter on it, so with delivery off no level sends anything — on Discord or
-on a mirrored device. Fan-out reads subscribers
+`TournamentNotificationService.upsert_preference`. The card's **Discord DMs**
+switch (`User.dm_notifications`) only decides whether the Discord copy goes out:
+`send_dm` checks it after mirroring to devices, so the subscriber queries don't
+filter on it. Fan-out reads subscribers
 directly from `TournamentNotificationRepository` —
 `get_match_notification_subscribers` and `get_stream_candidate_subscribers`; there
 is no service-level `get_subscribers()` abstraction.

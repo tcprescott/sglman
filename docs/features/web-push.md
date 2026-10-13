@@ -1,15 +1,18 @@
 # Device Notifications (Web Push)
 
-Users enable native push notifications per device from **Profile → Notifications →
-Your devices**. Every Discord DM the app sends — match scheduled/rescheduled,
+Users turn native push notifications on per device from **Profile → Notifications →
+Where it goes**: one switch for the browser the page is open in, and a row with
+Remove for every other subscribed device. Every Discord DM the app sends — match scheduled/rescheduled,
 acknowledgment requests, crew signups, seed URLs, watcher updates, volunteer
 reminders — is mirrored to that user's subscribed devices, so iOS and Android users
 get notified without the Discord app installed.
 
-Because it is a mirror of the DM path, a device is **not** an independent channel:
-the same **Delivery** checkbox (`User.dm_notifications`) that silences DMs silences
-mirrored pushes, since every notification call site gates on it before reaching
-`send_dm`. The profile UI states this and warns while delivery is off.
+Devices and Discord are **independent channels**. `User.dm_notifications` is the
+**Discord DMs** switch only, and `send_dm` enforces it itself, *after* mirroring:
+a user with Discord off still gets every notification on their subscribed devices.
+Senders no longer check the flag (a sender that skipped opted-out users would
+silence their devices too); they only need a `discord_id`. With Discord off and no
+devices the profile shows a warning that nothing can reach them.
 
 The feature is **off until VAPID keys are configured** (see Setup); without them
 the settings section hides itself and every send is a silent no-op.
@@ -63,10 +66,11 @@ DiscordService.send_dm  ──(mirror, never raises)──▶  WebPushService.mi
   serial `discord_queue` nor a UI handler awaiting `send_dm` inline ever waits on
   push-service round-trips. It fires *before* the bot-readiness checks (pushes
   still go out when the bot is down), never raises, and creates no coroutine at
-  all while VAPID is unconfigured. Two corollaries: recipients are filtered
-  upstream by `User.dm_notifications`, so **pushes follow the DM opt-in**; and a
-  `(False, ...)` return from `send_dm` means the *Discord* send failed — devices
-  may already have been notified, so re-sending can double-notify them.
+  all while VAPID is unconfigured. Two corollaries: the Discord switch
+  (`User.dm_notifications`) is checked inside `send_dm` after the mirror, so a
+  user with Discord off gets `(True, DM_DISCORD_OFF)` and their devices still
+  fire; and a `(False, ...)` return means the *Discord* send failed — devices may
+  already have been notified, so re-sending can double-notify them.
 - **Mock mode sends nothing.** `MockDiscordService.send_dm` deliberately skips the
   mirror so [`MOCK_DISCORD`](discord.md#mock-mode) keeps its
   no-external-side-effects guarantee: a dev with a prod DB snapshot and prod VAPID

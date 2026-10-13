@@ -404,13 +404,10 @@ class TestReleaseFanOut:
         })
         assert enqueue.call_count == 2
 
-    async def test_skips_coordinators_who_cannot_or_will_not_be_dmed(self, service):
+    async def test_skips_coordinators_who_cannot_be_dmed(self, service):
         from models import Role
         enqueue = await self._run(service, {
-            Role.VOLUNTEER_COORDINATOR: [
-                _coordinator(1, discord_id=None),
-                _coordinator(2, dm_notifications=False),
-            ],
+            Role.VOLUNTEER_COORDINATOR: [_coordinator(1, discord_id=None)],
         })
         enqueue.assert_not_called()
 

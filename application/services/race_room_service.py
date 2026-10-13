@@ -207,7 +207,7 @@ class RaceRoomService:
             service = DiscordService()
             for player in players:
                 user = player.user
-                if user.discord_id and user.dm_notifications:
+                if user.discord_id:
                     discord_queue.enqueue(service.send_dm(
                         int(user.discord_id), body, embed=embed, link=link,
                     ))

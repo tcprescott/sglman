@@ -86,12 +86,13 @@ async def test_skips_events_that_are_not_listed(stub_discord_queue):
     assert not await _stamped(subscription)
 
 
-async def test_stamps_but_does_not_dm_someone_with_dms_off(stub_discord_queue):
+async def test_someone_with_discord_off_still_reaches_send_dm(stub_discord_queue):
     subscription = await _subscription(minutes_ahead=10, dm_notifications=False)
 
     await worker._tick()
 
-    assert stub_discord_queue == []
+    # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+    assert len(stub_discord_queue) == 1
     assert await _stamped(subscription)
 
 

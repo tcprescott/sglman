@@ -104,14 +104,15 @@ class TestNotifyMatchCrew:
 
         service.discord_service.send_dm.assert_not_awaited()
 
-    async def test_opted_out_crew_skipped(self, service, db):
+    async def test_crew_with_discord_off_still_reaches_send_dm(self, service, db):
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t)
         await Commentator.create(match=m, user=await make_dm_user(555, name="mute", dm=False), approved=True)
 
         await service.notify_match_crew(m, "hi")
 
-        service.discord_service.send_dm.assert_not_awaited()
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+        service.discord_service.send_dm.assert_awaited_once()
 
     async def test_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
@@ -174,7 +175,7 @@ class TestNotifyAcknowledgmentRequest:
 
         service.discord_service.send_dm_with_acknowledgment_button.assert_not_awaited()
 
-    async def test_opted_out_player_is_skipped(self, service, db):
+    async def test_player_with_discord_off_still_reaches_send_dm(self, service, db):
         m = await self._setup_match()
         player = await make_dm_user(114, name="dave", dm=False)
         await MatchPlayers.create(match=m, user=player)
@@ -182,7 +183,8 @@ class TestNotifyAcknowledgmentRequest:
 
         await service.notify_acknowledgment_request(m, rescheduled=False)
 
-        service.discord_service.send_dm_with_acknowledgment_button.assert_not_awaited()
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+        service.discord_service.send_dm_with_acknowledgment_button.assert_awaited_once()
 
     async def test_dm_failure_is_swallowed(self, service, db):
         m = await self._setup_match()

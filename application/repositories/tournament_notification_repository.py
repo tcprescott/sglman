@@ -52,7 +52,7 @@ class TournamentNotificationRepository:
 
         return [
             p.user for p in prefs
-            if p.user.discord_id and p.user.dm_notifications
+            if p.user.discord_id
         ]
 
     async def get_stream_candidate_subscribers(self, tournament_id: int) -> List[User]:
@@ -64,5 +64,5 @@ class TournamentNotificationRepository:
 
         return [
             p.user for p in prefs
-            if p.user.discord_id and p.user.dm_notifications
+            if p.user.discord_id
         ]

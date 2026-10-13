@@ -84,7 +84,7 @@ async def _tick() -> None:
         await VolunteerAssignmentRepository.save(assignment, update_fields=['reminder_sent_at'])
 
         discord_id = getattr(user, 'discord_id', None)
-        if not discord_id or not getattr(user, 'dm_notifications', True):
+        if not discord_id:
             return
         acknowledged = assignment.acknowledged_at is not None
         position_name = shift.position.name if shift.position else ''

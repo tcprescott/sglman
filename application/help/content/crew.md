@@ -56,9 +56,9 @@ what **Sign up** on the board does. The DM's **View the schedule** button opens
 the board if you want to see who's playing first.
 
 You choose which tournaments DM you, and how much, under **Profile** →
-*Notifications* → **Match alerts by tournament**.
+*Notifications* → **Tournaments you follow**.
 [Notifications and Discord DMs](/help/notifications#where-your-settings-live)
-explains the levels. **Streamed & Candidates** is the one most crew want: it
+explains the levels. **Streamed, plus possible streams** is the one most crew want: it
 covers matches with a stage and the ones staff are still thinking about
 streaming.
 

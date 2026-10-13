@@ -67,7 +67,7 @@ async def notify_hard_preset_invite(
         link = await notification_links.player_hard_preset(match_id)
         already_in = set(opted_in_ids)
         for user in recipients:
-            if not user.dm_notifications or not user.discord_id:
+            if not user.discord_id:
                 continue
             success, err = await discord_service.send_dm_with_hard_preset_buttons(
                 user.discord_id, message, match_id, user.id in already_in,
@@ -123,7 +123,7 @@ async def notify_hard_preset_agreement(
         )
         link = await notification_links.player_match(match_id)
         for user in recipients:
-            if not user.dm_notifications or not user.discord_id:
+            if not user.discord_id:
                 continue
             success, err = await discord_service.send_dm(
                 user.discord_id, message, embed=embed, link=link,
@@ -172,7 +172,7 @@ async def notify_hard_preset_override(
             else await notification_links.player_hard_preset(match_id)
         )
         for user in recipients:
-            if not user.dm_notifications or not user.discord_id:
+            if not user.discord_id:
                 continue
             success, err = await discord_service.send_dm(
                 user.discord_id, message, embed=embed, link=link,

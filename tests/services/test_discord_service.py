@@ -17,7 +17,7 @@ END = START + timedelta(hours=1)
 
 
 @pytest.fixture
-def mock_svc():
+def mock_svc(db):
     """Directly instantiate MockDiscordService (no Discord bot needed)."""
     from application.services.discord.discord_service import MockDiscordService
     return MockDiscordService()
@@ -419,3 +419,64 @@ class TestScheduledEventKwargs:
         assert ok is False
         # DiscordEventReconcilerService keys its re-create branch off this text.
         assert 'not found' in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# The Discord on/off switch is enforced at the DM chokepoint
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_svc_ready(monkeypatch):
+    """DiscordService with a ready stub bot; records the push mirror calls."""
+    from application.services.discord import discord_service as ds
+
+    discord_user = MagicMock()
+    discord_user.send = AsyncMock()
+    stub_bot = MagicMock()
+    stub_bot.is_ready.return_value = True
+    stub_bot.fetch_user = AsyncMock(return_value=discord_user)
+
+    mirrored: list[int] = []
+    monkeypatch.setattr(
+        ds, '_mirror_dm_to_web_push',
+        lambda user_id, message, navigate=None: mirrored.append(user_id),
+    )
+    svc = object.__new__(ds._RealDiscordService)
+    svc._bot = stub_bot
+    return svc, stub_bot, discord_user, mirrored
+
+
+class TestDiscordSwitch:
+    async def test_discord_off_skips_discord_but_still_mirrors_to_devices(self, db, real_svc_ready):
+        from application.services.discord.discord_service import DM_DISCORD_OFF
+        from models import User
+
+        svc, bot, _, mirrored = real_svc_ready
+        await User.create(username='quiet', discord_id='555', dm_notifications=False)
+
+        ok, msg = await svc.send_dm(555, 'Your match moved')
+
+        assert (ok, msg) == (True, DM_DISCORD_OFF)
+        bot.fetch_user.assert_not_awaited()
+        assert mirrored == [555]
+
+    async def test_discord_on_sends(self, db, real_svc_ready):
+        from models import User
+
+        svc, bot, discord_user, mirrored = real_svc_ready
+        await User.create(username='loud', discord_id='556', dm_notifications=True)
+
+        ok, _ = await svc.send_dm(556, 'Your match moved')
+
+        assert ok is True
+        discord_user.send.assert_awaited_once()
+        assert mirrored == [556]
+
+    async def test_unknown_discord_id_still_gets_the_dm(self, db, real_svc_ready):
+        svc, _, discord_user, _ = real_svc_ready
+
+        ok, _ = await svc.send_dm(999, 'hello')
+
+        assert ok is True
+        discord_user.send.assert_awaited_once()

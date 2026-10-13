@@ -35,6 +35,24 @@ logger = logging.getLogger(__name__)
 DM_USER_NOT_FOUND = "User not found"
 DM_REFUSED = "Cannot send DM to this user (DMs may be disabled)"
 DM_UNREACHABLE = frozenset({DM_USER_NOT_FOUND, DM_REFUSED})
+# Not a failure: the recipient turned Discord DMs off on their profile. Any
+# device notifications still went out through the mirror.
+DM_DISCORD_OFF = "Discord DMs are turned off for this user"
+
+
+async def discord_dms_enabled(discord_id: int) -> bool:
+    """Whether the user behind ``discord_id`` still wants the Discord copy.
+
+    ``User.dm_notifications`` is the *Discord* channel switch only: device
+    notifications are governed by whether the device is subscribed. Enforcing it
+    here, rather than at each sender, keeps the two channels independent: a
+    sender that skipped opted-out users would silence their devices too. An
+    unknown id gets the DM, as it always has.
+    """
+    from application.repositories import UserRepository
+
+    user = await UserRepository.get_by_discord_id(str(discord_id))
+    return user is None or user.dm_notifications
 
 
 def _mirror_dm_to_web_push(
@@ -274,6 +292,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
                 logger.error('Discord DM to %s not sent: bot is not connected', user_id)
                 return False, "Discord bot is not connected. Please try again in a moment."
 
+            if not await discord_dms_enabled(user_id):
+                return True, DM_DISCORD_OFF
+
             user = await self._bot.fetch_user(user_id)
             kwargs: dict = {}
             view = _with_link_button(
@@ -403,6 +424,9 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         # Deliberately no web-push mirror: mock mode must have no external side
         # effects (a dev with a prod DB snapshot + prod VAPID keys would push
         # to real users' phones). Real delivery requires the real service.
+        if not await discord_dms_enabled(user_id):
+            print(f"[MOCK Discord DM] -> {user_id}: skipped, Discord DMs off")
+            return True, DM_DISCORD_OFF
         suffix = f" [embed: {embed.title}]" if embed is not None else ""
         # The link is printed because it is the half of the DM mock mode can
         # actually verify — button interactions need a live bot, but whether the

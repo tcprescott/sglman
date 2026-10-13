@@ -64,7 +64,7 @@ async def _tick() -> None:
         await CommunityEventSubscriptionRepository.mark_reminded(subscription, now)
 
         user = subscription.user
-        if not user.discord_id or not getattr(user, 'dm_notifications', True):
+        if not user.discord_id:
             return
         message = reminder_dm(event.title, time_field(event.starts_at), event.location)
         embed = event_embed(

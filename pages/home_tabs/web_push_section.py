@@ -1,17 +1,18 @@
-"""Device notification (Web Push) management UI for the player profile page.
+"""Device notification (Web Push) rows for the profile's "Where it goes" group.
 
-Lets a user enable native push notifications on the current device and manage
-the devices already subscribed. Subscribing must happen inside the click
-gesture (Safari refuses permission prompts outside one), so the enable/disable
-buttons run ``static/js/web-push.js`` client-side via ``js_handler`` and report
-back through ``emitEvent``; the server side then persists via
-:class:`WebPushService`. The section renders nothing when VAPID keys are not
+One switch turns notifications on or off for the browser the page is open in,
+and every other subscribed device gets a row with Remove. Subscribing must
+happen inside the click gesture (Safari refuses permission prompts outside
+one), so the switch runs ``static/js/web-push.js`` client-side via
+``js_handler`` and reports back through ``emitEvent``; the server side then
+persists via :class:`WebPushService`. Renders nothing when VAPID keys are not
 configured.
 """
 
 import json
+from typing import Callable, Optional
 
-from nicegui import ui
+from nicegui import context, ui
 
 from application.services import WebPushService
 from application.utils.timezone import format_local_date
@@ -49,33 +50,91 @@ def _device_label(user_agent: str | None) -> str:
     return f'{device} · {browser}' if browser else device
 
 
-async def render_web_push_section(user: User) -> None:
+def _this_device_name(user_agent: str | None) -> str:
+    ua = user_agent or ''
+    if 'iPhone' in ua or ('Android' in ua and 'Mobile' in ua):
+        return 'This phone'
+    if 'iPad' in ua or 'Android' in ua:
+        return 'This tablet'
+    return 'This browser'
+
+
+def _device_caption(sub) -> str:
+    added = f'Added {format_local_date(sub.created_at)}'
+    if sub.last_used_at:
+        added += f' · last notified {format_local_date(sub.last_used_at)}'
+    return added
+
+
+async def render_device_rows(
+    user: User, on_count_change: Optional[Callable[[int], None]] = None,
+) -> bool:
+    """Render the device rows; returns False (and renders nothing) without VAPID.
+
+    ``on_count_change`` hears the number of subscribed devices whenever it
+    changes, so the caller can say when every channel is off.
+    """
     service = WebPushService()
     if not service.is_configured():
-        return
+        return False
 
     # Order matters: web-push.js uses the helpers this defines, and both are
     # plain (non-deferred) head scripts, so they execute in source order.
     ui.add_head_html(f'<script src="{asset_url("js/web-push-common.js")}"></script>')
     ui.add_head_html(f'<script src="{asset_url("js/web-push.js")}"></script>')
 
+    request = context.client.request
+    user_agent = request.headers.get('user-agent') if request else None
+    public_key = service.get_public_key()
+    state: dict = {'endpoint': None}
+
+    with ui.row().classes('wiz-notify-item no-wrap'):
+        ui.icon('devices', size='sm').classes('wiz-notify-item__icon')
+        with ui.column().classes('gap-0 col min-w-0'):
+            ui.label(_this_device_name(user_agent)).classes('wiz-notify-item__name')
+            this_caption = ui.label(_device_label(user_agent)).classes('text-muted text-caption')
+        # Disabled until the browser reports whether it is already subscribed,
+        # so the switch never shows a state it hasn't checked.
+        this_switch = ui.switch(value=False).props(
+            f'disable aria-label="Notifications on {_this_device_name(user_agent).lower()}"'
+        )
+        this_switch.on(
+            'update:model-value',
+            js_handler=(
+                'async (on) => {'
+                'if (on) {'
+                f'const result = await window.wizWebPush.subscribe({json.dumps(public_key)});'
+                "emitEvent('wiz_web_push_subscribed', result);"
+                '} else {'
+                'const result = await window.wizWebPush.unsubscribe();'
+                "emitEvent('wiz_web_push_unsubscribed', result);"
+                '}'
+                '}'
+            ),
+        )
+
     @ui.refreshable
-    async def device_list() -> None:
+    async def other_devices() -> None:
         subscriptions = await service.list_subscriptions(user)
-        if not subscriptions:
-            ui.label('No devices subscribed yet.').classes('text-muted')
-            return
-        with ui.column().classes('input-full-width'):
-            for sub in subscriptions:
-                with ui.row().classes('row-centered').style('justify-content: space-between; width: 100%;'):
-                    with ui.column().classes('gap-0'):
-                        ui.label(_device_label(sub.user_agent)).classes('text-weight-medium')
-                        added = f'Added {format_local_date(sub.created_at)}'
-                        if sub.last_used_at:
-                            added += f' · Last notified {format_local_date(sub.last_used_at)}'
-                        ui.label(added).classes('text-muted text-caption')
-                    ui.button(icon='delete', on_click=lambda _, sid=sub.id: remove(sid)) \
-                        .props('flat dense color=negative')
+        if on_count_change is not None:
+            on_count_change(len(subscriptions))
+        for sub in subscriptions:
+            if sub.endpoint == state['endpoint']:
+                continue
+            with ui.row().classes('wiz-notify-item no-wrap'):
+                phone = any(k in (sub.user_agent or '') for k in ('iPhone', 'iPad', 'Android'))
+                ui.icon('smartphone' if phone else 'computer', size='sm').classes('wiz-notify-item__icon')
+                with ui.column().classes('gap-0 col min-w-0'):
+                    ui.label(_device_label(sub.user_agent)).classes('wiz-notify-item__name')
+                    ui.label(_device_caption(sub)).classes('text-muted text-caption')
+                ui.button('Remove', on_click=lambda _, sid=sub.id: remove(sid)) \
+                    .props('flat dense no-caps color=negative')
+
+    def set_this_switch(on: bool) -> None:
+        this_switch.set_value(on)
+        this_caption.set_text(
+            _device_label(user_agent) if on else f'{_device_label(user_agent)} · off'
+        )
 
     def remove(subscription_id: int) -> None:
         async def do_remove() -> None:
@@ -84,35 +143,48 @@ async def render_web_push_section(user: User) -> None:
                 ui.notify('Device removed.', color='positive', icon='check_circle')
             except ValueError as e:
                 ui.notify(str(e), color='warning')
-            device_list.refresh()
+            other_devices.refresh()
 
-        confirm = ConfirmationDialog(
-            message='Remove this device? It will stop receiving push notifications.',
+        ConfirmationDialog(
+            message='Remove this device? It will stop getting notifications.',
             on_confirm=do_remove, confirm_text='Remove',
-        )
-        confirm.open()
+        ).open()
+
+    async def on_status(e) -> None:
+        args = e.args or {}
+        this_switch.props(remove='disable')
+        if not args.get('supported'):
+            this_switch.props('disable')
+            this_caption.set_text(
+                'Add Wizzrobe to your Home Screen first, then turn this on from there.'
+                if args.get('ios') else "This browser can't show notifications."
+            )
+            return
+        endpoint = args.get('endpoint')
+        subscribed = {s.endpoint for s in await service.list_subscriptions(user)}
+        state['endpoint'] = endpoint if endpoint in subscribed else None
+        set_this_switch(state['endpoint'] is not None)
+        other_devices.refresh()
 
     async def on_subscribed(e) -> None:
         args = e.args or {}
         error = args.get('error')
-        if error == 'ios_needs_install':
-            ui.notify(
-                'On iPhone/iPad, first add Wizzrobe to your Home Screen '
-                '(Share → Add to Home Screen), then enable notifications from the installed app.',
-                color='warning', multi_line=True,
-            )
-            return
-        if error == 'permission_denied':
-            ui.notify('Notifications are blocked for this site in your browser settings.', color='warning')
-            return
-        if error == 'permission_dismissed':
-            ui.notify('Notification permission was not granted — click Enable again and choose Allow.', color='warning')
-            return
-        if error == 'unsupported':
-            ui.notify('This browser does not support push notifications.', color='warning')
-            return
         if error:
-            ui.notify(f'Could not enable notifications: {error}', color='warning')
+            set_this_switch(False)
+            if error == 'ios_needs_install':
+                ui.notify(
+                    'On iPhone or iPad, add Wizzrobe to your Home Screen first '
+                    '(Share, then Add to Home Screen), then turn this on from the installed app.',
+                    color='warning', multi_line=True,
+                )
+            elif error == 'permission_denied':
+                ui.notify('Notifications are blocked for this site in your browser settings.', color='warning')
+            elif error == 'permission_dismissed':
+                ui.notify('Notifications weren\'t allowed. Turn it on again and choose Allow.', color='warning')
+            elif error == 'unsupported':
+                ui.notify("This browser can't show notifications.", color='warning')
+            else:
+                ui.notify(f'Could not turn on notifications: {error}', color='warning')
             return
         subscription = args.get('subscription') or {}
         keys = subscription.get('keys') or {}
@@ -125,59 +197,41 @@ async def render_web_push_section(user: User) -> None:
                 user_agent=args.get('userAgent'),
             )
         except ValueError as err:
+            set_this_switch(False)
             ui.notify(str(err), color='warning')
             return
-        ui.notify('Notifications enabled on this device.', color='positive', icon='notifications_active')
-        device_list.refresh()
+        state['endpoint'] = subscription.get('endpoint')
+        set_this_switch(True)
+        ui.notify('Notifications on for this device.', color='positive', icon='notifications_active')
+        other_devices.refresh()
 
     async def on_unsubscribed(e) -> None:
         args = e.args or {}
         if args.get('error'):
-            # The browser-side unsubscribe failed — the device would keep
-            # receiving pushes, so a success toast here would be a lie.
-            ui.notify(f"Could not disable notifications: {args['error']}", color='warning')
+            # The browser-side unsubscribe failed, so the device would keep
+            # getting pushes: put the switch back rather than show it off.
+            set_this_switch(True)
+            ui.notify(f"Could not turn off notifications: {args['error']}", color='warning')
             return
         endpoint = args.get('endpoint')
-        if not endpoint:
-            ui.notify("This device wasn't subscribed to begin with.", color='info')
-            return
-        removed = await service.unsubscribe(user, endpoint)
-        ui.notify('Notifications disabled on this device.', color='positive', icon='notifications_off')
-        if removed:
-            device_list.refresh()
+        if endpoint:
+            await service.unsubscribe(user, endpoint)
+        state['endpoint'] = None
+        set_this_switch(False)
+        ui.notify('Notifications off for this device.', color='positive', icon='notifications_off')
+        other_devices.refresh()
 
+    ui.on('wiz_web_push_status', on_status)
     ui.on('wiz_web_push_subscribed', on_subscribed)
     ui.on('wiz_web_push_unsubscribed', on_unsubscribed)
 
-    public_key = service.get_public_key()
+    await other_devices()
 
-    # Rendered inline as a subsection of the unified Notifications card (no card
-    # of its own); self-hides above when VAPID keys aren't configured.
-    with ui.column().classes('w-full gap-2'):
-        ui.label('Your devices').classes('subsection-title')
-        ui.label(
-            'Add a device to get match and crew notifications on it directly — no Discord '
-            'app needed. Works on iPhone/iPad (iOS 16.4+, added to the Home Screen), '
-            'Android, and desktop browsers. Devices mirror the notifications you already '
-            'receive, so they go quiet too if you turn notifications off above.'
-        ).classes('text-muted text-caption')
-        with ui.row().classes('items-center gap-2 q-mt-sm'):
-            ui.button('Enable on this device', icon='notifications_active').props('color=primary dense').on(
-                'click',
-                js_handler=(
-                    'async () => {'
-                    f'const result = await window.wizWebPush.subscribe({json.dumps(public_key)});'
-                    "emitEvent('wiz_web_push_subscribed', result);"
-                    '}'
-                ),
-            )
-            ui.button('Disable on this device', icon='notifications_off').props('flat dense').on(
-                'click',
-                js_handler=(
-                    'async () => {'
-                    'const result = await window.wizWebPush.unsubscribe();'
-                    "emitEvent('wiz_web_push_unsubscribed', result);"
-                    '}'
-                ),
-            )
-        await device_list()
+    async def ask_status() -> None:
+        await context.client.connected()
+        ui.run_javascript(
+            'window.wizWebPush.status().then((s) => emitEvent("wiz_web_push_status", s));'
+        )
+
+    ui.timer(0, ask_status, once=True)
+    return True

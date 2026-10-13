@@ -405,7 +405,8 @@ async def test_opening_a_room_dms_each_player_a_button_into_it(db, stub_discord_
     for coro in list(stub_discord_queue):
         await coro
 
-    assert {user_id for user_id, _, _ in sent} == {a.discord_id, b.discord_id}
+    # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
+    assert {user_id for user_id, _, _ in sent} == {a.discord_id, b.discord_id, muted.discord_id}
     for _, message, kwargs in sent:
         assert message.startswith('Your race room for **T** is open.')
         assert kwargs['link'].url == room.url == f'https://racetime.gg/{room.slug}'

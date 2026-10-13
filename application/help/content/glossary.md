@@ -144,7 +144,7 @@ techs rather than by a proctor. The board's *Stage* column and the admin
 check-in, and it then shows in the match's details on the schedule board.
 
 **Stream candidate**: a match staff may stream but haven't put on a stage yet.
-It carries a *candidate* chip on phone cards, and the *Streamed & Candidates*
+It carries a *candidate* chip on phone cards, and the *Streamed, plus possible streams*
 match alert DMs you about these.
 
 **Suggest a time**: the button in the scheduling dialogs that picks a slot

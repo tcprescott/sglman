@@ -53,7 +53,7 @@ The admin Tournaments tab lists each tournament's `seed_generator` read-only.
    | `created_at` / `updated_at` | automatic timestamps |
 
    `Match.generated_seed` is a nullable FK to `GeneratedSeeds` (`related_name='matches'`). Persistence, DMs and audit all live in `MatchScheduleService.complete_seed_roll`, the one completion path shared by synchronous rolls and the [task-queue worker](#asynchronous-rolls).
-4. Players are DM'd the seed URL in the background via the Discord queue (respecting each user's `dm_notifications` opt-out), and an audit entry `match.seed_rolled` (`AuditActions.MATCH_SEED_ROLLED`) is written with `match_id`, `randomizer`, `preset` (the preset name, or `None` when rolled from the legacy `seed_generator`), and `seed_url`.
+4. Players are DM'd the seed URL in the background via the Discord queue (`send_dm` honours each user's Discord switch, `dm_notifications`), and an audit entry `match.seed_rolled` (`AuditActions.MATCH_SEED_ROLLED`) is written with `match_id`, `randomizer`, `preset` (the preset name, or `None` when rolled from the legacy `seed_generator`), and `seed_url`.
 
 The seed is displayed on the home Schedule and Player tabs and in the admin match table — values matching `^https?://` render as truncated hyperlinks, anything else as plain text. The REST API exposes it as `MatchResponse.generated_seed` (`GeneratedSeedBase`: `id`, `seed_url`, `seed_info`, `randomizer`, `settings_snapshot`, `provider_meta`, `created_at`) in the [`api/`](../../api/) package ([rest-api.md](rest-api.md)). The admin match dialog's **Clear Seed** button ([`match_dialog.py`](../../theme/dialog/match_dialog.py)) sets the FK back to `NULL` via `MatchService.update_match(clear_seed=True)`; the `GeneratedSeeds` row itself is not deleted.
 

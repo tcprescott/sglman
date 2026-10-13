@@ -579,7 +579,7 @@ class TestConfirmIsAdminOnly:
 class TestSeedDmDispatch:
     """Drive the ``_send_seed_dms`` coroutine that generate_seed fire-and-forgets."""
 
-    async def test_sends_seed_dm_to_opted_in_players_and_logs_failures(self, service, db, monkeypatch):
+    async def test_sends_seed_dm_to_every_player_and_logs_failures(self, service, db, monkeypatch):
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
@@ -590,7 +590,7 @@ class TestSeedDmDispatch:
             return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
         )
         # First recipient succeeds, second fails (exercises the warning branch).
-        service.discord_service.send_dm = AsyncMock(side_effect=[(True, "ok"), (False, "blocked")])
+        service.discord_service.send_dm = AsyncMock(side_effect=[(True, "ok"), (False, "blocked"), (True, "ok")])
 
         captured = []
         monkeypatch.setattr("application.services.discord.discord_queue.enqueue", captured.append)
@@ -599,9 +599,9 @@ class TestSeedDmDispatch:
         for coro in captured:
             await coro
 
-        # The opted-out player (id 2) is skipped; ids 1 and 3 each get one DM.
+        # Discord off only drops the Discord copy, inside send_dm; devices still need the call.
         sent_ids = sorted(call.args[0] for call in service.discord_service.send_dm.call_args_list)
-        assert sent_ids == [1, 3]
+        assert sent_ids == [1, 2, 3]
 
 
 

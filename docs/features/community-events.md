@@ -48,8 +48,8 @@ either way, so the switch can't be used to dodge a take-down.
 | Approved event cancelled or taken down | subscribers | the event page |
 | `lead` minutes before start (worker) | subscribers | the event page |
 
-All DMs go through `discord_queue`, skip anyone with `dm_notifications` off, and
-are mirrored to web push. Senders live in
+All DMs go through `discord_queue` and are mirrored to web push; `send_dm` drops
+the Discord copy for anyone with `dm_notifications` off. Senders live in
 `application/services/_community_event_notifications.py`, copy in
 `application/utils/discord_messages_community_events.py`.
 

@@ -510,7 +510,7 @@ class MatchScheduleService(MatchNotificationMixin):
         # players in meanwhile, so write the seed and nothing else.
         await match.save(update_fields=['generated_seed_id'])
 
-        # Send DMs to players in the background (respects dm_notifications opt-out)
+        # Send DMs to players in the background
         descriptor = _match_descriptor(match, await bracket_line_for(match.id))
         community = await _community_name()
         if is_seed_link(seed_url):
@@ -546,7 +546,7 @@ class MatchScheduleService(MatchNotificationMixin):
 
         async def _send_seed_dms() -> None:
             for player in match.players:
-                if player.user.discord_id and player.user.dm_notifications:
+                if player.user.discord_id:
                     dm_message = seed_dm(
                         player.user.preferred_name,
                         match.tournament.name,
