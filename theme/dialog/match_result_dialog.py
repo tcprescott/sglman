@@ -192,7 +192,7 @@ class MatchResultDialog:
                         ui.separator()
                         self.review_flag = ui.checkbox('Flag for admin review')
 
-            with dialog_actions():
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 # The two-player path submits from its own step-two button, which
                 # is where the winner it is about to record is named; a footer
