@@ -308,7 +308,7 @@ class TestAssignAvailabilityWarning:
 
 
 class TestSetWindows:
-    async def test_creates_windows_without_an_opt_in(self, db):
+    async def test_creates_windows_for_any_volunteer(self, db):
         vol = await _volunteer('setter')
         svc = VolunteerAvailabilityService()
         windows = [

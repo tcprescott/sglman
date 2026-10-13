@@ -138,7 +138,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
         FeatureFlagSpec(
             FeatureFlag.VOLUNTEERS,
             'Volunteer Scheduling',
-            'Volunteer opt-in, positions, shifts, availability, the '
+            'Volunteer positions, shifts, availability, the '
             'auto-scheduler, and reminders.',
             'Community',
             established=True,

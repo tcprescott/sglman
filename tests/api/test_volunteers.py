@@ -1,7 +1,7 @@
 """REST API tests for the volunteer scheduling endpoints (api/routers/volunteers.py).
 
 Covers positions, shifts, assignments, coverage, and the self-service
-profile / availability / assignments endpoints. Each mutating route is checked
+availability / assignments endpoints. Each mutating route is checked
 for a success path (with the right role), a 403 for the wrong role or a
 read-only token, and 400/404 where the service or router rejects input.
 """
@@ -13,7 +13,6 @@ from models import (
     User,
     VolunteerAssignment,
     VolunteerPosition,
-    VolunteerProfile,
     VolunteerShift,
 )
 from tests.api_helpers import client_for, create_community_member, create_user_token
@@ -437,10 +436,9 @@ class TestHours:
             resp = await c.get('/api/volunteers/hours')
             assert resp.status_code == 403
 
-    async def test_roster_lists_opted_in_volunteers(self, db, app):
+    async def test_roster_lists_volunteer_role_holders(self, db, app):
         _, raw = await _coordinator_token(username='coord-hours')
-        vol = await User.create(discord_id=7101, username='rostered')
-        await VolunteerProfile.create(user=vol, opted_in_at=utc(2025, 10, 1))
+        vol, _ = await create_user_token(username='rostered', roles=[Role.VOLUNTEER])
         async with client_for(app, raw) as c:
             resp = await c.get('/api/volunteers/hours')
             assert resp.status_code == 200
@@ -450,34 +448,6 @@ class TestHours:
 # --- Self-service ---------------------------------------------------------
 
 class TestSelfService:
-    async def test_get_profile_creates_opted_out_profile(self, db, app):
-        actor, raw = await create_user_token(username='vol')
-        async with client_for(app, raw) as c:
-            resp = await c.get('/api/volunteers/me/profile')
-            assert resp.status_code == 200
-            body = resp.json()
-            assert body['user_id'] == actor.id
-            assert body['opted_in'] is False
-
-    async def test_opt_in_then_opt_out(self, db, app):
-        _, raw = await create_user_token(username='vol')
-        async with client_for(app, raw) as c:
-            in_resp = await c.post('/api/volunteers/me/opt-in', json={'note': 'ready to help'})
-            assert in_resp.status_code == 200
-            in_body = in_resp.json()
-            assert in_body['opted_in'] is True
-            assert in_body['note'] == 'ready to help'
-
-            out_resp = await c.post('/api/volunteers/me/opt-out')
-            assert out_resp.status_code == 200
-            assert out_resp.json()['opted_in'] is False
-
-    async def test_opt_in_read_only_token_forbidden(self, db, app):
-        _, raw = await create_user_token(username='vol', read_only=True)
-        async with client_for(app, raw) as c:
-            resp = await c.post('/api/volunteers/me/opt-in', json={})
-            assert resp.status_code == 403
-
     async def test_get_availability_empty(self, db, app):
         _, raw = await create_user_token(username='vol')
         async with client_for(app, raw) as c:
@@ -506,7 +476,7 @@ class TestSelfService:
             listed = await c.get('/api/volunteers/me/availability')
             assert len(listed.json()) == 1
 
-    async def test_set_availability_without_opt_in_allowed(self, db, app):
+    async def test_set_availability_without_a_role_allowed(self, db, app):
         _, raw = await create_user_token(username='vol')
         async with client_for(app, raw) as c:
             put = await c.put(

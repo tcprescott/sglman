@@ -8,8 +8,8 @@ from nicegui import app, ui
 from application.services import AuthService, SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
@@ -51,6 +51,13 @@ def stored_or_default_day(
     return stored if stored in day_options else fallback
 
 
+def _menu_action(icon: str, label: str, on_click, negative: bool = False) -> None:
+    with ui.menu_item(on_click=on_click).classes('text-negative' if negative else ''):
+        with ui.item_section().props('avatar'):
+            ui.icon(icon)
+        ui.item_section(label)
+
+
 async def admin_volunteers_page(day: str | None = None) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
@@ -61,7 +68,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
     schedule_service = VolunteerScheduleService()
     autoschedule_service = VolunteerAutoscheduleService()
     availability_service = VolunteerAvailabilityService()
-    profile_service = VolunteerProfileService()
+    pool_service = VolunteerPoolService()
     qualification_service = VolunteerQualificationService()
 
     event_start, event_end = await SystemConfigService.get_event_window()
@@ -134,10 +141,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         # --- Controls ----------------------------------------------------
         with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
+            with ui.row().classes('full-width items-center no-wrap gap-3'):
+                # Shrinks below 12rem so the menu stays on the same line at 360px.
                 day_select = ui.select(
                     day_options, value=state['day'], label='Event day',
-                ).classes('w-48')
+                ).classes('col').style('max-width: 12rem; min-width: 0')
 
                 def on_day_change(e):
                     state['day'] = e.value
@@ -145,15 +153,15 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     refresh_all()
                 day_select.on_value_change(on_day_change)
 
-                ui.button('Auto-fill from availability', icon='smart_toy',
-                          on_click=lambda: auto_fill()).props('flat color=primary')
-                ui.button('Manage positions', icon='badge',
-                          on_click=lambda: open_positions_dialog()).props('flat')
-                ui.button('Export data', icon='download',
-                          on_click=lambda: VolunteerExportDialog().open()) \
-                    .props('flat').tooltip('Download the roster, availability and schedule as CSVs')
-                ui.button('Reset all volunteer data', icon='delete_forever',
-                          on_click=lambda: open_reset_dialog()).props('flat color=negative')
+                ui.space()
+                with ui.button('Actions').props('flat color=primary icon-right=expand_more'):
+                    with ui.menu():
+                        _menu_action('smart_toy', 'Auto-fill from availability', lambda: auto_fill())
+                        _menu_action('badge', 'Manage positions', lambda: open_positions_dialog())
+                        _menu_action('download', 'Export data', lambda: VolunteerExportDialog().open())
+                        ui.separator()
+                        _menu_action('delete_forever', 'Reset all volunteer data',
+                                     lambda: open_reset_dialog(), negative=True)
 
         # --- Draft banner ------------------------------------------------
         banner_container = ui.column().classes('full-width')
@@ -428,7 +436,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         # --- Assignment picker ------------------------------------------
         async def open_assign_dialog(shift) -> None:
-            pool = await profile_service.assignable_volunteers()
+            pool = await pool_service.assignable_volunteers()
             avail_map = await availability_service.availability_map(
                 [u.id for u in pool], shift.starts_at, shift.ends_at,
             )

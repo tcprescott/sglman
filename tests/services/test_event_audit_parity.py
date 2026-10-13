@@ -165,9 +165,6 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ACCOMMODATION_STATUS_CHANGED,
     AuditActions.ACCOMMODATION_NOTES_UPDATED,
     AuditActions.ACCOMMODATION_CHANGE_REVIEWED,
-    # A coordinator's free-text note on a volunteer profile: tenant-internal
-    # staffing detail, and potentially personal — not for arbitrary receivers.
-    AuditActions.VOLUNTEER_NOTE_UPDATED,
     # Bulk copy of volunteer availability and notes out of the app. Audited so
     # the tenant can see who took a copy; deliberately not webhooked, since
     # announcing a PII export to arbitrary receivers is the wrong direction.
@@ -242,9 +239,7 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.SG_EPISODE_SKIPPED,
     AuditActions.SG_PLACEHOLDER_CREATED,
     AuditActions.SG_PLACEHOLDER_UPGRADED,
-    # Volunteer opt-in state, scheduling config, and bulk draft churn.
-    AuditActions.VOLUNTEER_OPTED_IN,
-    AuditActions.VOLUNTEER_OPTED_OUT,
+    # Volunteer scheduling config and bulk draft churn.
     AuditActions.VOLUNTEER_POSITION_CREATED,
     AuditActions.VOLUNTEER_POSITION_UPDATED,
     AuditActions.VOLUNTEER_POSITION_DELETED,

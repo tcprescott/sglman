@@ -315,7 +315,7 @@ async def render_player_dashboard(
                     opponent = cm.participant2 if me_is_p1 else cm.participant1
                     opponent_name = opponent.name if opponent else 'TBD'
                     opponent_linked = opponent is not None and opponent.user_id is not None
-                    with ui.row().classes('items-center full-width q-my-xs'):
+                    with ui.row().classes('wiz-pick-row items-center full-width'):
                         ui.label(cm.tournament.name).classes('text-bold')
                         ui.label(f'vs {opponent_name}')
                         if cm.round is not None:
@@ -378,14 +378,15 @@ async def render_player_dashboard(
                     # row: on a phone the flat row wrapped into a ragged three
                     # lines with the ui.space() stranded mid-block.
                     with ui.row().classes(
-                        'items-center justify-between full-width q-my-xs gap-2'
+                        'wiz-pick-row items-center justify-between full-width gap-2'
                     ):
-                        with ui.column().classes('col min-w-0 gap-0'):
-                            # `ellipsis` on each line: a long tournament name
-                            # otherwise wraps to three lines on a phone once the
-                            # action button has taken its width.
-                            ui.label(bm.bracket.tournament.name) \
-                                .classes('text-bold ellipsis')
+                        # The tournament name takes its own line across the
+                        # tile: beside the button it was cut to "Bracket De…"
+                        # on a 360px phone, and it is what tells two matchups
+                        # against the same opponent apart.
+                        ui.label(bm.bracket.tournament.name) \
+                            .classes('wiz-pick-row__title text-bold')
+                        with ui.column().classes('col min-w-0 gap-0 items-stretch'):
                             ui.label(f'vs {opponent_name}').classes('ellipsis')
                             ui.label(_round_label(bm, best_of, number)) \
                                 .classes('text-caption text-grey-7 ellipsis')

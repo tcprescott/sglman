@@ -33,7 +33,10 @@
     "path": "/admin/vol-schedule",
     "setup": [
       {
-        "click": "button:has-text('Auto-fill from availability')"
+        "click": "button:has-text('Actions')"
+      },
+      {
+        "click": ".q-menu .q-item:has-text('Auto-fill from availability')"
       },
       {
         "waitFor": ".q-dialog .q-card"

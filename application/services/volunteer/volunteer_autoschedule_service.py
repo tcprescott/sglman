@@ -23,7 +23,7 @@ from application.repositories import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import (
     User,
@@ -67,7 +67,7 @@ class VolunteerAutoscheduleService:
         self.shift_repository = VolunteerShiftRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
         self.qualification_repository = VolunteerQualificationRepository()
-        self.profile_service = VolunteerProfileService()
+        self.pool_service = VolunteerPoolService()
         self.availability_service = VolunteerAvailabilityService()
         self.schedule_service = VolunteerScheduleService()
         self.audit_service = AuditService()
@@ -101,7 +101,7 @@ class VolunteerAutoscheduleService:
             shifts = [s for s in shifts if s.position_id in allowed]
         shifts.sort(key=lambda s: (s.starts_at, s.id))
 
-        pool = await self.profile_service.assignable_volunteers()
+        pool = await self.pool_service.assignable_volunteers()
         if not pool:
             empty = {s.id: len(s.assignments) for s in shifts}
             return {

@@ -16,7 +16,8 @@ role can open. The roster, hour totals and the export are in
 
 :::snippet vol-schedule
 **Vol. Schedule** shows one event day at a time. Pick the day at the top; the
-list comes from the event dates in Settings → Event. A day runs from midnight to
+list comes from the event dates in Settings → Event. The **Actions** menu beside
+it holds auto-fill, positions, the export and the reset. A day runs from midnight to
 6am the next morning, so a shift that ends after midnight still shows on the day
 it started.
 
@@ -28,11 +29,11 @@ Below that, every active position gets a card with its shifts for the day. A
 shift's badge reads filled/needed and turns amber while it's short.
 :::
 
-![Vol. Schedule for one event day: the coverage chips, the day picker and buttons, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp)
+![Vol. Schedule for one event day: the coverage chips, the day picker and Actions menu, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp)
 
 ## Positions
 
-A position is a job, like Registration or Stage Crew. **Manage positions** lists
+A position is a job, like Registration or Stage Crew. **Actions → Manage positions** lists
 them all and opens each one for editing.
 
 | Field | What it does |
@@ -128,7 +129,7 @@ and talk to you.
 ## The auto-scheduler
 
 :::snippet vol-autofill
-**Auto-fill from availability** drafts assignments for the open slots on the day
+**Actions → Auto-fill from availability** drafts assignments for the open slots on the day
 you're looking at. It asks three things first:
 
 - **Maximum hours per volunteer**, across this day. It starts at 8. Leave it blank
@@ -208,7 +209,7 @@ the day of the shift.
 
 ## Starting over
 
-**Reset all volunteer data** deletes every shift and every assignment on every
+**Actions → Reset all volunteer data** deletes every shift and every assignment on every
 day. Positions, availability and qualifications stay. Anyone with a shift still
 to come gets a DM that they're off it. You have to type a confirmation phrase,
 and there's no undo, so export first if you might want the old schedule back.

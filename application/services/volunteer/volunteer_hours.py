@@ -17,10 +17,10 @@ from application.feature_flags import requires_feature
 from application.repositories import (
     UserRepository,
     VolunteerAssignmentRepository,
-    VolunteerProfileRepository,
 )
 from application.services.system_config_service import SystemConfigService
 from application.services.timezone_service import TimezoneService
+from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.utils.timezone import local_day_bounds
 from models import FeatureFlag, User
 
@@ -80,7 +80,7 @@ class VolunteerHoursService:
 
     def __init__(self) -> None:
         self.assignment_repository = VolunteerAssignmentRepository()
-        self.profile_repository = VolunteerProfileRepository()
+        self.pool_service = VolunteerPoolService()
         self.user_repository = UserRepository()
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
@@ -100,11 +100,11 @@ class VolunteerHoursService:
     async def roster(
         self, *, start: Optional[date] = None, end: Optional[date] = None,
     ) -> List[HoursSummary]:
-        """Every opted-in volunteer's total, for the coordinator.
+        """Every volunteer's total, for the coordinator.
 
-        Anyone who served published hours in the window is included even if they
-        have since opted out — the hours were still served, and the comp is for
-        the hours.
+        Anyone who served published hours in the window is included even if
+        they no longer hold a volunteer role — the hours were still served, and
+        the comp is for the hours.
         """
         window = await self._window(start, end)
         tiers = await SystemConfigService.get_volunteer_comp_tiers()
@@ -122,7 +122,7 @@ class VolunteerHoursService:
             if assignment.user is not None:
                 names[assignment.user_id] = assignment.user.preferred_name  # type: ignore[attr-defined]
 
-        user_ids = set(by_user) | set(await self.profile_repository.opted_in_user_ids())
+        user_ids = set(by_user) | await self.pool_service.assignable_user_ids()
         missing = [uid for uid in user_ids if uid not in names]
         if missing:
             for uid, user in (await self.user_repository.get_by_ids(missing)).items():

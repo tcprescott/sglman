@@ -122,7 +122,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
 | `VolunteerRoleMappingService` | [volunteer_role_mapping_service.py](../../application/services/volunteer/volunteer_role_mapping_service.py) | Volunteer-position→app-role mappings and the assignment-driven role sync | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
-| `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
+| `VolunteerPoolService` | [volunteer_pool_service.py](../../application/services/volunteer/volunteer_pool_service.py) | The assignable pool: VOLUNTEER or STAFF role holders | — |
 | `stage_reminder` (module) | [stage_reminder.py](../../application/services/match/stage_reminder.py) | Background loop DMing a stage match's players and crew shortly before it starts | — |
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
@@ -1531,7 +1531,7 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `TournamentRepository`, `
 
 ## Volunteering
 
-The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: a community role (VOLUNTEER or STAFF) puts someone in the pool (`VolunteerPoolService`), and they declare availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
 A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
 
@@ -1543,7 +1543,7 @@ Totals the time a volunteer actually served, against the per-tenant comp tiers f
 |---|---|---|
 | `merged_hours(windows)` (module fn) | `float` | Hours covered by `[(start, end), …]`, counting overlap once. Touching windows (`a.end == b.start`) merge into one block; zero-length and inverted windows are dropped rather than subtracting. |
 | `for_user(user, *, start=None, end=None)` | `HoursSummary` | One volunteer's own total, the highest tier cleared, and the next one. |
-| `roster(*, start=None, end=None)` | `list[HoursSummary]` | Every opted-in volunteer plus anyone with counted hours, ordered by hours descending. |
+| `roster(*, start=None, end=None)` | `list[HoursSummary]` | Everyone in the pool (`VolunteerPoolService.assignable_user_ids`) plus anyone with counted hours, ordered by hours descending. |
 
 `HoursSummary` carries `user_id`, `user_name`, `hours`, `tier_cleared`, `next_tier` and the derived `hours_to_next`.
 
@@ -1555,27 +1555,22 @@ Three rules decide what counts:
 
 The window defaults to the tenant's event window (`get_event_window()`) rather than all time, so last year's shifts do not comp this year's badge, and its bounds are taken on the community's own clock. Shifts that straddle an edge are clipped to it. Both methods are `@requires_feature(FeatureFlag.VOLUNTEERS)`.
 
-Collaborators: `VolunteerAssignmentRepository.published_for_window`, `VolunteerProfileRepository`, `UserRepository`, `SystemConfigService`, `TimezoneService`.
+Collaborators: `VolunteerAssignmentRepository.published_for_window`, `VolunteerPoolService`, `UserRepository`, `SystemConfigService`, `TimezoneService`.
 
-### volunteer_profile_service.py — VolunteerProfileService
+### volunteer_pool_service.py — VolunteerPoolService
 
-Opt-in lifecycle (self-service for any logged-in user) plus the assignable-volunteer pool the coordinator UI and auto-scheduler read.
+The assignable-volunteer pool the coordinator UI, auto-scheduler, hours and export read. Membership is role-derived: there is no opt-in step.
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_or_create(user)` | `VolunteerProfile` | The user's profile, creating an empty one if needed. |
-| `is_opted_in(user)` | `bool` | Whether the user has an `opted_in_at` timestamp. |
-| `opted_in_user_ids()` | `list[int]` | Every opted-in user id in the tenant (the pool). |
-| `opt_in(user, note=None)` | `VolunteerProfile` | Stamp `opted_in_at` (idempotent) and optionally set the note; audits `volunteer.opted_in`. |
-| `opt_out(user)` | `VolunteerProfile` | Clear `opted_in_at`; audits `volunteer.opted_out` only when it was set. |
-| `update_note(user, note)` | `VolunteerProfile` | Set the free-text note (no audit). |
-| `assignable_volunteers()` | `list[User]` | All users holding the VOLUNTEER or STAFF role in the current tenant, ordered by preferred name. |
+| `assignable_user_ids()` | `set[int]` | Ids of every user holding the VOLUNTEER or STAFF role in the current tenant. |
+| `assignable_volunteers()` | `list[User]` | The same people as users, ordered by preferred name. |
 
-Collaborators: `VolunteerProfileRepository`, `AuditService`.
+Collaborators: `UserRole` (read directly).
 
 ### volunteer_availability_service.py — VolunteerAvailabilityService
 
-Self-service availability for anyone reaching the volunteer hub, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. It reads **opt-in**: no `default` is passed, so an undeclared stretch is `None` and the shift picker treats it as no availability at all. `set_windows` has no opt-in gate — the `VOLUNTEER`/`PROCTOR`/`STAFF` role on `/volunteer` is the guard, and stray rows from a user who is not in the pool are inert because the coordinator picker reads the opted-in roster. One further difference: writes are audited `volunteer.availability_updated` (not `player_availability.updated`).
+Self-service availability for anyone reaching the volunteer hub, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. It reads **opt-in**: no `default` is passed, so an undeclared stretch is `None` and the shift picker treats it as no availability at all. `set_windows` has no gate of its own — the `VOLUNTEER`/`PROCTOR`/`STAFF` role on `/volunteer` is the guard, and stray rows from a user who is not in the pool are inert because the coordinator picker reads the role-derived pool. One further difference: writes are audited `volunteer.availability_updated` (not `player_availability.updated`).
 
 Collaborators: `VolunteerAvailabilityRepository`, `AuditService`, `availability_windows`.
 
@@ -1655,7 +1650,7 @@ Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `Vol
 
 ### volunteer_autoschedule_service.py — VolunteerAutoscheduleService
 
-Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and an hour ceiling, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+Greedy/heuristic draft generator. Fills open shift slots from the assignable pool using qualifications, availability, no-overlap, and an hour ceiling, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
 
 What the filler may do is a **`DraftPolicy`** (frozen dataclass, exported from `application.services`), built by the coordinator's auto-fill dialog and defaulting to the conservative reading of a volunteer's declared availability:
 
@@ -1672,7 +1667,7 @@ Both are **hard skips inside `_pick`**, not tiebreakers — that distinction is 
 | `publish_draft(actor, start, end)` | `dict` | Coordinator-only; the inverse of `clear_draft`. Confirms every draft in the window through `VolunteerScheduleService.confirm_assignment` — so each volunteer gets the same DM and event a manual assign produces — and returns `{published, volunteers}`. Deliberately **not** transactional: a rollback cannot un-send a DM, and `confirm_assignment` is idempotent so a re-click finishes a partial run. Audits `volunteer.draft_published`. |
 | `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. Silent by design — a draft was never announced. |
 
-Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly.
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPoolService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly.
 
 ### volunteer_qualification_service.py — VolunteerQualificationService
 
@@ -1694,9 +1689,9 @@ Read-only. Flattens the coordinator's volunteer data into plain tables so an ini
 |---|---|---|
 | `build(actor, start, end)` | `VolunteerExportBundle` | Coordinator-only. Every sheet covering `[start, end]`; raises `ValueError` when the window is inverted. |
 
-`VolunteerExportBundle` carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()`. Six sheets: **`volunteers`** (the roster — pool/opt-in state, opt-in note, qualified positions, declared and assigned hours; **never windowed**, since a volunteer with no availability is exactly the gap to fill), **`availability`** (every window overlapping the range, `unavailable` ones included, in both display-local and ISO-8601 UTC), **`positions`**, **`shifts`** (filled/open counts + assigned names), **`assignments`** (one row per placement, its source `Auto-draft`/`Coordinator`, and whether it matches stated availability), and **`schedule`** (one row per **slot**, open slots included — the grid to draft on, which `assignments` cannot express because an unfilled slot has no record; states `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`).
+`VolunteerExportBundle` carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()`. Six sheets: **`volunteers`** (the roster — pool membership, qualified positions, declared and assigned hours; **never windowed**, since a volunteer with no availability is exactly the gap to fill), **`availability`** (every window overlapping the range, `unavailable` ones included, in both display-local and ISO-8601 UTC), **`positions`**, **`shifts`** (filled/open counts + assigned names), **`assignments`** (one row per placement, its source `Auto-draft`/`Coordinator`, and whether it matches stated availability), and **`schedule`** (one row per **slot**, open slots included — the grid to draft on, which `assignments` cannot express because an unfilled slot has no record; states `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`).
 
-`VolunteerExportDialog` renders the bundle as `README.txt` + one CSV per sheet in a single ZIP (`files_to_zip_bytes`). Collaborators: the volunteer repositories, `UserRepository`, `VolunteerProfileService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`.
+`VolunteerExportDialog` renders the bundle as `README.txt` + one CSV per sheet in a single ZIP (`files_to_zip_bytes`). Collaborators: the volunteer repositories, `UserRepository`, `VolunteerPoolService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`.
 
 ### volunteer_reminder.py — module functions
 

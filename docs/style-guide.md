@@ -66,7 +66,7 @@ in both modes. `tests/theme/test_style_guide.py` computes this from `styles.css`
 | Title row you build yourself | `page_title(text)` |
 | A tab that opens on controls, not a title | wrap it in `heading_fallback(title)` so screen readers still get an `<h1>` |
 | A titled block on a page with several | `section_panel(title, icon=…)` (`theme/section.py`) |
-| Dialog title | `dialog_header(title, dialog)`, or `form_dialog(title)` which includes it |
+| Dialog title | `dialog_header(title, dialog)`, or `form_dialog(title)` which includes it. Its close button is `dialog_close_button(dialog)`: a "Close" pill on desktop, an X disc below 600px |
 | Times, match IDs | `--font-mono` / `.cell-timestamp` |
 
 Don't put a lede in a caption label after the header (it floated 40px below the
@@ -83,7 +83,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Help for a page, section or dialog | One `help_icon(...)` / `help_topics=` / `dialog_header(..., help=)` per heading, listing every topic ([help.md](features/help.md#help-icons)) | A second "?" on the same heading, or one beside an individual control |
 | A form in a dialog | `form_dialog(title)` + `dialog_actions()` + `submit_on_enter()` (`theme/dialog/_helpers.py`) | Hand-rolled `ui.dialog()` + `ui.card()` + title row (`test_dialogs_use_the_shared_header` fails on one) |
 | Dialog width | `dialog-card` (medium, the default), `dialog-card dialog-card--sm` (a few fields, a confirmation), `dialog-card--lg` (a table or two columns) | `w-96`, `w-full`, `.style('max-width: …')` |
-| Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it) | |
+| Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it): a bottom sheet as tall as its content | `maximized` (a short form floats over a screen of blank card) |
 | A table | `enable_mobile_grid(table, columns, table_key=TableKeys.X, …)` | A bare `ui.table` (the `check_table_grid` and `check_table_prefs` hooks enforce this) |
 | Text input / select | `.props('outlined dense')` | `filled`, `standout` |
 | Two-to-four way toggle | `ui.toggle(...).props('no-caps dense unelevated').classes('wiz-segmented')` | A row of separate buttons, a bare `ui.toggle` |

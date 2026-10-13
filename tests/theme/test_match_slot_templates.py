@@ -732,3 +732,55 @@ def test_the_ada_marker_is_at_least_a_24px_target():
         ada = ada[:ada.index('>')]
         assert 'wiz-tap-24' in ada
         assert 'size="xs"' not in ada
+
+
+class TestCrewSignupSection:
+    """The viewer's own Sign up / Withdraw sits in a tray of its own above the
+    crew names, on both layouts, so it keeps one spot however many names there
+    are; an empty role says so while a signup can still fill it."""
+
+    @staticmethod
+    def _crew_templates():
+        table = FakeTable()
+        register_body_slots(
+            table, admin_controls=False, access=MatchBoardAccess(), discord_id='7',
+        )
+        grid = FakeTable()
+        render_grid_slot(
+            grid, ADMIN_COLUMNS, admin_controls=False, access=MatchBoardAccess(),
+            discord_id='7', has_edit=False,
+        )
+        card = grid.slots['item']
+        card_crew = card[card.index('props.row.commentators'):card.index('props.row.trackers')]
+        return table.slots['body-cell-commentators'], card_crew
+
+    def test_the_button_comes_before_the_names_on_both_layouts(self):
+        for tpl in self._crew_templates():
+            tray = tpl.index('class="wiz-crew-action"')
+            assert tray < tpl.index('v-for="(item, idx)')
+            assert tray < tpl.index("$parent.$emit('signup_commentator'")
+            assert tray < tpl.index("$parent.$emit('undo_commentator'")
+
+    def test_both_layouts_share_one_gate(self):
+        from theme.tables.match_slots import CREW_CAN_SIGN_UP_JS, CREW_MINE_JS
+
+        cell, card = self._crew_templates()
+        for tpl, list_expr in ((cell, 'props.value'), (card, 'props.row.commentators')):
+            for js in (CREW_MINE_JS, CREW_CAN_SIGN_UP_JS):
+                expected = (js.replace('__LIST__', list_expr)
+                            .replace('__DID__', "'7'")
+                            .replace('__WANTED__', '((props.row.crew_wanted || {}).commentators !== false)'))
+                assert expected in tpl
+
+    def test_the_empty_line_shows_only_while_a_signup_can_fill_it(self):
+        for tpl in self._crew_templates():
+            guard = _guard_on(tpl, 'No signups yet')
+            assert 'props.row.crew_signup_open' in guard
+            assert '.length' in guard
+            assert 'italic-note' in tpl[tpl.index('No signups yet') - 120:]
+
+    def test_an_admin_board_shows_the_empty_line_but_no_tray(self):
+        cells, card = _players_and_crew(STAFF)
+        for tpl in (cells['body-cell-commentators'], card):
+            assert _guard_on(tpl, 'class="wiz-crew-action"').startswith('!true && ')
+            assert '!true' not in _guard_on(tpl, 'No signups yet')

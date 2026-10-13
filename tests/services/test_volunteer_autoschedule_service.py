@@ -61,7 +61,7 @@ def service():
     svc = object.__new__(VolunteerAutoscheduleService)
     svc.shift_repository = MagicMock()
     svc.assignment_repository = MagicMock()
-    svc.profile_service = MagicMock()
+    svc.pool_service = MagicMock()
     svc.availability_service = MagicMock()
     svc.schedule_service = MagicMock()
     svc.audit_service = make_audit_double()
