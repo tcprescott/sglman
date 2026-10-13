@@ -702,9 +702,8 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         refresh_all()
                     await VolunteerPositionDialog(on_submit=after).open()
 
-                with ui.row().classes('justify-end q-pa-sm gap-2'):
-                    ui.button('Add position', icon='add', on_click=add_position).props('flat color=primary')
-                    ui.button('Close', on_click=dialog.close).props('flat')
+                with dialog_actions().classes('justify-end'):
+                    ui.button('Add position', icon='add', on_click=add_position).props('color=primary')
                 dialog.open()
 
         with strip_container:

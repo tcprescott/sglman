@@ -271,6 +271,60 @@ def test_dialog_footer_puts_the_primary_action_last():
     assert not bad, 'Dialog footers out of order:\n  ' + '\n  '.join(bad)
 
 
+_NEGATIVE_LABEL = re.compile(
+    r"^(Cancel|Close|Back|Not now|Keep editing|Decline|Reject|Deny|Remove|Delete|Clear"
+    r"|Withdraw|Change|Can't make it|Disconnect|Unlink)\b"
+)
+_POSITIVE_LABEL = re.compile(
+    r"^(Approve|Accept|Agree|Confirm|Save|Submit|Assign|Start|Grant|Publish|Yes|Acknowledge"
+    r"|Sign up|Create)\b"
+)
+
+
+def _button_runs(stmts: list[ast.stmt]) -> list[list[ast.Call]]:
+    """Every order the buttons directly inside a block can render in.
+
+    Each branch of an `if` is its own run, so `Sign up` / `elif` `Withdraw` is
+    two runs of one button, not a pair. A nested `with` is a container of its
+    own and is checked on its own.
+    """
+    runs: list[list[ast.Call]] = [[]]
+    for st in stmts:
+        if isinstance(st, (ast.With, ast.AsyncWith, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(st, ast.If):
+            options = _button_runs(st.body) + _button_runs(st.orelse)
+        elif isinstance(st, (ast.For, ast.AsyncFor, ast.While, ast.Try)):
+            options = _button_runs(st.body)
+        else:
+            options = [_ui_buttons([st])]
+        runs = [r + o for r in runs for o in options][:64]
+    return runs
+
+
+def test_negative_action_sits_left_of_the_positive_one():
+    """Negative on the left, positive on the right, in every pair on every
+    surface: inbox cards, review rows, inline forms and footers alike. Approve
+    then Decline in one place and Decline then Approve in another is how people
+    tap the wrong one."""
+    bad = set()
+    for rel, _source, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            for run in _button_runs(node.body):
+                positive = None
+                for button in run:
+                    label = _button_label(button)
+                    if not isinstance(label, str):
+                        continue
+                    if positive and _NEGATIVE_LABEL.match(label) and not _exempt(lines, button.lineno):
+                        bad.add(f'{rel}:{button.lineno}: {label!r} right of {positive!r}')
+                    if _POSITIVE_LABEL.match(label):
+                        positive = label
+    assert not bad, 'Negative action right of the positive one:\n  ' + '\n  '.join(sorted(bad))
+
+
 def _dialog_blocks():
     """Every `with ui.dialog()` / `with form_dialog(...)` block, with its source."""
     for rel, source, tree, lines in _python_sources():
