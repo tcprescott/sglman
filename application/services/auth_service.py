@@ -155,6 +155,50 @@ class AuthService:
         return await cc_q.exists()
 
     @staticmethod
+    async def can_open_admin(user: Optional[User]) -> bool:
+        """Whether ``/admin`` has at least one tab for ``user`` here: the nav's gate.
+
+        Deliberately not ``can_view_admin``. That one also admits callers to the
+        admin REST API, the MCP admin scope, the reports and ``audience: staff``
+        help, none of which the online-play roles should gain. Those roles each
+        own one or two Admin surfaces, and this mirrors the tab gates in
+        ``pages/admin.py`` (``build_admin_tabs`` / ``build_settings_panes``),
+        flags included, so the link is offered exactly when the page would show
+        something rather than an empty drawer.
+        """
+        if user is None:
+            return False
+        if await AuthService.is_super_admin(user):
+            return True
+        roles = await AuthService.get_roles(user)
+        # Schedule has no flag: staff, a stream manager, a TA and a CC always land on it.
+        if roles & {Role.STAFF, Role.STREAM_MANAGER}:
+            return True
+        admin_q, cc_q = AuthService._tournament_relations(user)
+        if await admin_q.exists() or await cc_q.exists():
+            return True
+        # Presets and Settings → Integrations/Discord carry no flag either.
+        if roles & {Role.PRESET_MANAGER, Role.SYNC_ADMIN}:
+            return True
+        from application.services.feature_flag_service import FeatureFlagService
+        from models import FeatureFlag
+
+        live = await FeatureFlagService().enabled_flags()
+        if Role.VOLUNTEER_COORDINATOR in roles and FeatureFlag.VOLUNTEERS in live:
+            return True
+        if Role.EQUIPMENT_MANAGER in roles and FeatureFlag.EQUIPMENT in live:
+            return True
+        if FeatureFlag.ASYNC_QUALIFIERS not in live:
+            return False
+        if Role.QUALIFIER_ADMIN in roles:
+            return True
+        query = user.admin_async_qualifiers.all()
+        tid = get_current_tenant_id()
+        if tid is not None:
+            query = query.filter(tenant_id=tid)
+        return await query.exists()
+
+    @staticmethod
     def _tournament_relations(user: User) -> tuple[Any, Any]:
         """This tenant's slice of ``user``'s TA and CC tournament relations.
 

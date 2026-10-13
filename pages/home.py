@@ -224,11 +224,9 @@ def create() -> None:
                 "Open it again from the message you were sent.",
                 color='warning', multi_line=True,
             )
-        show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/home" if request else '/home'
         await BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='home', user=user,
-            show_admin=show_admin,
         ).render()
 
     # Home is the tenant landing (`/`) and its sections hang off `/home/<slug>`,

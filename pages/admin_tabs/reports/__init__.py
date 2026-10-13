@@ -43,6 +43,10 @@ _REPORT_FEATURES = {
     'volunteers': FeatureFlag.VOLUNTEERS,
 }
 
+# The one report a volunteer coordinator without staff, TA or CC standing may
+# open; ``build_admin_tabs`` passes it as ``only``.
+VOLUNTEER_REPORTS: frozenset[str] = frozenset({'volunteers'})
+
 
 def _track_report_view(report: str) -> None:
     """Fire-and-forget an interaction row when a specific report is opened.
@@ -65,12 +69,27 @@ def _track_report_view(report: str) -> None:
         pass
 
 
-async def _render_report(report: Optional[str], params: dict, live: set) -> None:
-    """Dispatch to one report body. Re-runs on every filter change."""
+async def _render_report(
+    report: Optional[str], params: dict, live: set,
+    only: Optional[frozenset[str]] = None,
+) -> None:
+    """Dispatch to one report body. Re-runs on every filter change.
+
+    ``only`` narrows a viewer to those reports. The dashboard is not among them
+    (its KPIs read every report's data), so anything else, the landing
+    included, opens the first allowed report, which then has no "All reports"
+    link to go back to.
+    """
+    if only is not None:
+        if report not in only:
+            report = min(only)
+        params = {**params, 'all_reports_link': len(only) > 1}
     feature = _REPORT_FEATURES.get(report)
     if feature is not None and feature not in live:
         report = None
     handler = _REPORT_HANDLERS.get(report)
+    if handler is None and only is not None:
+        return
     if handler is None:
         # The dashboard takes a window like every other report now; the rest of
         # the filter params belong to reports it is not rendering.
@@ -84,9 +103,13 @@ async def _render_report(report: Optional[str], params: dict, live: set) -> None
 
 async def reports_page(
     report: Optional[str] = None,
+    only: Optional[frozenset[str]] = None,
     **params,
 ) -> None:
-    """Top-level entry called from the admin tabs config."""
+    """Top-level entry called from the admin tabs config.
+
+    ``only`` limits the viewer to those report keys (see ``_render_report``).
+    """
     # Keeps the operator's scroll position across a filter change and
     # acknowledges a drill-out click while they wait. Installed once here rather
     # than per report so the dashboard gets it too; the script keys off the
@@ -107,10 +130,10 @@ async def reports_page(
     # and its handlers close over the new values rather than the stale ones.
     @ui.refreshable
     async def report_body(report: Optional[str], params: dict) -> None:
-        await _render_report(report, params, live)
+        await _render_report(report, params, live, only)
 
     bind_report_refresh(lambda r, p: report_body.refresh(r, p))
     await report_body(report, params)
 
 
-__all__ = ['reports_page']
+__all__ = ['VOLUNTEER_REPORTS', 'reports_page']

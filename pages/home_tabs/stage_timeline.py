@@ -22,7 +22,7 @@ async def stage_timeline_tab():
     """Display a daily calendar view of matches organized by stage."""
     discord_id = app.storage.user.get('discord_id', None)
     user = await get_user_from_discord_id(discord_id) if discord_id else None
-    show_admin_link = await AuthService.can_view_admin(user)
+    show_admin_link = await AuthService.can_view_schedule_board(user)
 
     match_service = MatchService()
 

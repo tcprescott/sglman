@@ -423,7 +423,7 @@ async def _desk_page_frame(title_suffix: str):
     community = await TenantService.current_community_name() or 'Wizzrobe'
     ui.page_title(f'{community} — {title_suffix}')
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-    await BaseLayout(user=user, show_admin=await AuthService.can_view_admin(user)).render()
+    await BaseLayout(user=user).render()
     return user
 
 

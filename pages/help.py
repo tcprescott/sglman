@@ -14,7 +14,6 @@ from nicegui import app, ui
 
 from application.help import HelpArticle
 from application.services import (
-    AuthService,
     HelpService,
     TenantService,
     get_user_from_discord_id,
@@ -57,9 +56,7 @@ async def _viewer():
 
 
 async def _render_chrome(user) -> None:
-    await BaseLayout(
-        user=user, show_admin=await AuthService.can_view_admin(user),
-    ).render()
+    await BaseLayout(user=user).render()
 
 
 async def _title(*parts: str) -> str:
