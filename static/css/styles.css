@@ -3556,49 +3556,88 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 /* ---------------------------------------------------------------------------
-   Admin → Settings: a menu of panes beside the open pane, the way most SaaS
-   settings read. Below md the menu becomes a scrolling row of tabs above the
-   pane, so a phone keeps the full width for the form.
+   Admin → Settings: a home page of tiles, one per pane, and each pane with a
+   link back to them. It used to be a second menu column beside the drawer,
+   which squeezed the forms on desktop and became a sideways tab strip on a
+   phone; the tiles are the same on both.
    ------------------------------------------------------------------------- */
 .wiz-settings {
-    display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
-    gap: var(--space-5);
     width: 100%;
-    max-width: 1120px;
+    max-width: 1040px;
     margin: 0 auto;
-    align-items: start;
+    flex-wrap: nowrap;
 }
 
-.wiz-settings__nav {
-    position: sticky;
-    top: var(--space-4);
+.wiz-settings__home { width: 100%; flex-wrap: nowrap; }
+
+.wiz-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
 }
 
-.wiz-settings__menu { padding: 0; }
-
-.wiz-settings__item {
-    border-radius: var(--radius-sm);
-    min-height: 36px;
-    padding: 0 var(--space-2);
-    color: var(--fg-secondary);
-    font-size: var(--text-md);
-}
-
-.wiz-settings__item .q-item__section--avatar {
-    min-width: 32px;
-    color: var(--fg-muted);
-}
-
-.wiz-settings__item.q-item--active {
-    background: var(--surface-sunken);
+.wiz-settings-tile {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 112px;
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
     color: var(--fg);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.wiz-settings-tile:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-alt);
+}
+
+.wiz-settings-tile__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-size: 22px;
+}
+
+.wiz-settings-tile__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.wiz-settings-tile__name {
+    font-size: 1rem;
     font-weight: 700;
 }
 
-.wiz-settings__item.q-item--active .q-item__section--avatar { color: var(--fg); }
+.wiz-settings-tile__sub {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+}
 
-.wiz-settings__content { min-width: 0; }
+.wiz-settings-tile__chevron {
+    color: var(--fg-muted);
+    font-size: 20px;
+    align-self: center;
+}
+
+.wiz-settings-back { align-self: flex-start; margin-left: calc(-1 * var(--space-2)); }
 
 .wiz-settings__pane {
     width: 100%;
@@ -3645,23 +3684,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 @media (max-width: 1023px) {
-    .wiz-settings {
-        grid-template-columns: minmax(0, 1fr);
-        gap: var(--space-3);
-    }
-    .wiz-settings__nav {
-        position: static;
-        overflow-x: auto;
-        margin: 0 calc(-1 * var(--space-2));
-        scrollbar-width: none;
-    }
-    .wiz-settings__menu {
-        display: flex;
-        gap: var(--space-1);
-        padding: 0 var(--space-2);
-        width: max-content;
-    }
-    .wiz-settings__item { white-space: nowrap; }
+    .wiz-settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .wiz-settings-embed { padding: var(--space-3); }
 }
 
@@ -3686,6 +3709,8 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 @media (max-width: 599px) {
     .wiz-settings-day { width: 4.5rem; flex-shrink: 0; }
+    .wiz-settings-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+    .wiz-settings-tile { min-height: 0; padding: var(--space-3); }
     .wiz-settings-time { width: auto; flex: 1 1 0; min-width: 0; }
     /* A station's name, section and switches on one line, its side and seat
        on the next,

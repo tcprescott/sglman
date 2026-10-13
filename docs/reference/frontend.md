@@ -745,7 +745,7 @@ Both routes are `@protected_page(roles=[STAFF, CHECK_IN_DESK], feature=FeatureFl
 
 ### Admin settings (`pages/admin_tabs/settings/`)
 
-One **Settings** entry in the admin drawer opens a settings area: a menu of panes on the left (a scrolling row of tabs below `md`) and the open pane on the right. Each pane is a `page_header` plus a stack of `section_panel` cards.
+One **Settings** entry in the admin drawer opens a settings area. `/admin/settings` is a home page of tiles (`.wiz-settings-grid`: three columns, two below `md`, one on a phone), one per pane with its icon and one-line description; a tile opens its pane in place, and each pane starts with an **All settings** link back. A viewer with only one pane (a sync admin, a preset manager) skips the home and gets no back link. Each pane is a `page_header` plus a stack of `section_panel` cards. The page used to put a menu of panes in a second column beside the drawer; the project owner picked the tiles over top tabs, a nested drawer group and a title picker on 2026-10-13.
 
 | Pane | Slug | Holds | Visible to |
 |---|---|---|---|
@@ -758,10 +758,10 @@ One **Settings** entry in the admin drawer opens a settings area: a menu of pane
 | Integrations | `integrations` | Webhooks (Staff), Randomizer Keys (Staff, Preset Manager) | either |
 | Features | `features` | `admin_features_page` | Staff |
 
-- **Routing.** A pane is a path segment: `/admin/settings/<pane>`, registered in `pages/admin.py` as its own `protected_page` that renders the admin page with `section='settings'`. The retired tab slugs (`LEGACY_TAB_PANES`: `appearance`, `timezone`, `features`, `role-mappings`, `discord-events`, `webhooks`, `randomizer-keys`) are `aliases` on the Settings tab and resolve to the pane that holds them; an unknown pane falls back to the first. Switching panes rewrites the URL with `history.replace`.
+- **Routing.** A pane is a path segment: `/admin/settings/<pane>`, registered in `pages/admin.py` as its own `protected_page` that renders the admin page with `section='settings'`. The retired tab slugs (`LEGACY_TAB_PANES`: `appearance`, `timezone`, `features`, `role-mappings`, `discord-events`, `webhooks`, `randomizer-keys`) are `aliases` on the Settings tab and resolve to the pane that holds them. No pane, or one that no longer exists (with a warning notify), opens the home. Opening a pane or going back rewrites the URL with `history.replace`.
 - **Who sees what.** `build_settings_panes(access, live)` is pure, like `build_admin_tabs`, and keeps each former tab's role gate per card; the Settings tab is offered only when it returns at least one pane.
 - **Embedded pages.** A former tab renders inside `.wiz-settings-embed` under `nested_page_headers()`, which turns its `page_header` into the card's header band. Panes are built on first open, with the tenant, display zone and table layouts rebound (the build runs in a click handler). Reopening a pane, or returning to the Settings tab, re-emits `selected_tab` with each embedded page's old tab label, so its `wire_tab_refresh` still fires.
-- **Saving.** Native cards own their values: each has a `SaveFooter` (`theme/save_footer.py`) that stays hidden until a watched field changes, then shows **Unsaved changes** and Save. A refused save keeps the bar up. Saving new event dates refreshes the daily-hours rows. Station rows and room tokens save as you edit them, as before.
+- **Saving.** Native cards own their values: each has a `SaveFooter` (`theme/save_footer.py`) that stays hidden until a watched field changes, then shows **Unsaved changes**, Discard and Save. Discard puts every watched field back to its last saved value. A refused save keeps the bar up. The page collects its footers in an `UnsavedChanges` group: **All settings** with a dirty card asks *Leave without saving?* (Keep editing, Discard changes, Save and leave), and while any card is dirty the browser's own leave-page prompt is armed. Embedded former tabs (Appearance, Timezone, the Discord and Integrations cards) keep their own Save buttons and aren't covered. Saving new event dates refreshes the daily-hours rows. Station rows and room tokens save as you edit them, as before.
 
 ## Reports subsystem (`pages/admin_tabs/reports/`)
 

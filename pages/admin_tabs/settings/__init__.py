@@ -4,8 +4,8 @@ Settings used to be nine drawer tabs (Settings, Features, Appearance, Timezone,
 Role Mappings, Discord Events, Webhooks, Randomizer Keys, Profile Reminders) interleaved with the
 day-to-day tools, and the one called Settings was a 2,000px column with two
 Save buttons that each wrote a different half of it. Now the drawer has one
-Settings entry and this page has a short menu of panes, each a stack of cards
-that save on their own.
+Settings entry, which opens on a home page of tiles, one per pane; each pane
+is a stack of cards that save on their own, with a link back to the tiles.
 
 Panes are addressed as ``/admin/settings/<pane>``. The retired tab slugs
 (``/admin/appearance`` and the rest) resolve to the pane that now holds them,
@@ -36,7 +36,9 @@ from pages.admin_tabs.settings.event import event_settings_pane
 from pages.admin_tabs.settings.members import members_settings_pane
 from pages.admin_tabs.settings.venue import venue_settings_pane
 from pages.admin_tabs.settings.volunteers import volunteers_settings_pane
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.page_header import nested_page_headers, page_header
+from theme.save_footer import UnsavedChanges
 
 #: The admin drawer label, and so the ``selected_tab`` value this page hears.
 SETTINGS_TAB_LABEL = 'Settings'
@@ -158,12 +160,28 @@ def build_settings_panes(access, live: set) -> list[SettingsPane]:
 
 
 def resolve_pane(panes: list[SettingsPane], requested: Optional[str]) -> Optional[SettingsPane]:
-    """The pane a URL asks for, else the first one; a stale name is not an error."""
-    if not panes:
-        return None
+    """The pane a URL asks for, or None for the Settings home.
+
+    A viewer with a single pane (a sync admin, a preset manager) has no home to
+    go back to, so every address opens that pane.
+    """
+    if len(panes) == 1:
+        return panes[0]
     by_slug = {p.slug: p for p in panes}
     slug = LEGACY_TAB_PANES.get(requested or '', requested)
-    return by_slug.get(slug or '') or panes[0]
+    return by_slug.get(slug or '')
+
+
+#: Arms the browser's own leave-page prompt while any card has unsaved edits.
+_BEFOREUNLOAD_JS = """
+if (!window.__wizUnsavedHook) {
+    window.__wizUnsavedHook = true;
+    window.addEventListener('beforeunload', (e) => {
+        if (window.wizUnsaved) { e.preventDefault(); e.returnValue = ''; }
+    });
+}
+window.wizUnsaved = %d;
+"""
 
 
 async def admin_settings_page(
@@ -171,9 +189,13 @@ async def admin_settings_page(
     pane: Optional[str] = None,
     base_path: str = '/admin',
 ) -> None:
-    current = resolve_pane(panes, pane)
-    if current is None:
+    if not panes:
         return
+    current = resolve_pane(panes, pane)
+    if pane and current is None:
+        # A DM button or bookmark can outlive the pane it named.
+        ui.notify('That settings page doesn’t exist any more. Pick one below.', color='warning')
+    has_home = len(panes) > 1
     can_edit = await AuthService.is_staff(
         await get_user_from_discord_id(app.storage.user.get('discord_id')))
     # Captured now: a pane built later is built inside a click handler, which
@@ -184,12 +206,19 @@ async def admin_settings_page(
 
     containers: dict[str, ui.element] = {}
     built: set[str] = set()
-    nav_items: dict[str, ui.item] = {}
-    state = {'slug': current.slug}
+    state: dict[str, Optional[str]] = {'slug': current.slug if current else None}
+
+    def unsaved_changed() -> None:
+        ui.run_javascript(_BEFOREUNLOAD_JS % len(unsaved.dirty()))
+
+    unsaved = UnsavedChanges(on_change=unsaved_changed)
 
     async def build(p: SettingsPane) -> None:
         built.add(p.slug)
-        with containers[p.slug], tenant_scope(tenant_id), tz_scope(tz), table_prefs_scope(prefs):
+        with containers[p.slug], tenant_scope(tenant_id), tz_scope(tz), table_prefs_scope(prefs), unsaved.collect():
+            if has_home:
+                ui.button('All settings', icon='chevron_left', on_click=leave_pane) \
+                    .props('flat dense no-caps color=primary').classes('wiz-settings-back')
             page_header(p.label, p.subtitle)
             if p.native is not None:
                 await p.native(can_edit)
@@ -198,41 +227,80 @@ async def admin_settings_page(
                     await page.render(**page.kwargs)
 
     def sync_url() -> None:
-        ui.navigate.history.replace(f'{base_path}/settings/{state["slug"]}')
+        tail = f'/{state["slug"]}' if state['slug'] else ''
+        ui.navigate.history.replace(f'{base_path}/settings{tail}')
+
+    def reveal(slug: Optional[str]) -> None:
+        state['slug'] = slug
+        home.set_visibility(slug is None)
+        for key, container in containers.items():
+            container.set_visibility(key == slug)
+        sync_url()
+        ui.run_javascript('window.scrollTo(0, 0)')
 
     async def show(p: SettingsPane) -> None:
-        state['slug'] = p.slug
-        for slug, item in nav_items.items():
-            item.props(add='active') if slug == p.slug else item.props(remove='active')
-        for slug, container in containers.items():
-            container.set_visibility(slug == p.slug)
-        sync_url()
+        reveal(p.slug)
         if p.slug not in built:
             await build(p)
             return
         for label in p.refresh_labels:
             ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
 
-    with ui.element('div').classes('wiz-settings'):
-        with ui.element('nav').classes('wiz-settings__nav').props('aria-label="Settings"'):
-            with ui.list().props('dense').classes('wiz-settings__menu'):
-                for p in panes:
-                    with ui.item(on_click=lambda _e=None, p=p: show(p)).classes(
-                        'wiz-settings__item'
-                    ) as item:
-                        if p is current:
-                            item.props('active')
-                        with ui.item_section().props('avatar'):
-                            ui.icon(p.icon)
-                        with ui.item_section():
-                            ui.label(p.label)
-                    nav_items[p.slug] = item
-        with ui.element('div').classes('wiz-settings__content'):
-            for p in panes:
-                containers[p.slug] = ui.column().classes('wiz-settings__pane wiz-section-stack')
-                containers[p.slug].set_visibility(p is current)
+    async def leave_pane() -> None:
+        dirty = unsaved.dirty()
+        if not dirty:
+            reveal(None)
+            return
+        label = next(p.label for p in panes if p.slug == state['slug'])
 
-    await build(current)
+        async def save_and_leave() -> None:
+            dialog.close()
+            for footer in dirty:
+                if not await footer.save():
+                    return
+            reveal(None)
+
+        def discard_and_leave() -> None:
+            dialog.close()
+            for footer in dirty:
+                footer.discard()
+            reveal(None)
+
+        with form_dialog('Leave without saving?', card_classes='dialog-card dialog-card--sm') as dialog:
+            with ui.column().classes('q-pa-md'):
+                ui.label(f'Your changes on {label} haven’t been saved.')
+            with dialog_actions().classes('justify-end'):
+                ui.button('Keep editing', on_click=dialog.close).props('flat no-caps')
+                ui.button('Discard changes', on_click=discard_and_leave).props('outline no-caps color=primary')
+                ui.button('Save and leave', on_click=save_and_leave).props('unelevated no-caps color=primary')
+        dialog.open()
+
+    with ui.column().classes('wiz-settings'):
+        home = ui.column().classes('wiz-settings__home wiz-section-stack')
+        home.set_visibility(current is None)
+        if has_home:
+            with home:
+                page_header('Settings', 'Everything about how this community runs. Pick an area to change it.')
+                with ui.element('div').classes('wiz-settings-grid'):
+                    for p in panes:
+                        tile = ui.element('button').classes('wiz-settings-tile').props(
+                            f'type=button data-pane={p.slug}')
+                        tile.on('click', lambda _e=None, p=p: show(p))
+                        with tile:
+                            with ui.element('span').classes('wiz-settings-tile__icon'):
+                                ui.icon(p.icon)
+                            with ui.element('span').classes('wiz-settings-tile__text'):
+                                name = ui.label(p.label).classes('wiz-settings-tile__name')
+                                name.tag = 'span'
+                                blurb = ui.label(p.subtitle).classes('wiz-settings-tile__sub')
+                                blurb.tag = 'span'
+                            ui.icon('chevron_right').classes('wiz-settings-tile__chevron')
+        for p in panes:
+            containers[p.slug] = ui.column().classes('wiz-settings__pane wiz-section-stack')
+            containers[p.slug].set_visibility(p is current)
+
+    if current is not None:
+        await build(current)
 
     def on_admin_tab(e) -> None:
         # Coming back to Settings from another admin tab: the layout has just
@@ -241,6 +309,8 @@ async def admin_settings_page(
         if e.args != SETTINGS_TAB_LABEL:
             return
         sync_url()
+        if state['slug'] is None:
+            return
         for label in next(p for p in panes if p.slug == state['slug']).refresh_labels:
             ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
 
