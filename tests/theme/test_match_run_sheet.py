@@ -66,3 +66,24 @@ class TestSeedRollable:
         assert not seed_rollable(dict(base, players=[]))
         assert not seed_rollable(dict(base, state='Finished'))
         assert not seed_rollable(dict(base, tournament_seed_generator=None))
+
+
+class TestCrew:
+    def _crew(self, **extra):
+        row = _row(1, 'Scheduled', crew_wanted={'commentators': True, 'trackers': False},
+                   crew_required={'commentators': 2, 'trackers': 0}, **extra)
+        return arrange_run_sheet([row])[0]['_crew']
+
+    def test_counts_signups_against_need_and_skips_unused_roles(self):
+        crew = self._crew(commentators=[{'approved': True}])
+        assert [(c['label'], c['count'], c['short']) for c in crew] == [('Commentary', '1/2', True)]
+
+    def test_full_but_unapproved_says_so(self):
+        crew = self._crew(commentators=[{'approved': True}, {'approved': False}])
+        assert crew[0]['short'] is False
+        assert crew[0]['unapproved'] is True
+
+    def test_a_started_match_is_not_short(self):
+        row = _row(1, 'Started', crew_wanted={'commentators': True},
+                   crew_required={'commentators': 2})
+        assert arrange_run_sheet([row])[0]['_crew'][0]['short'] is False

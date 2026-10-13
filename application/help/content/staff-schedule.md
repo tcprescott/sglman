@@ -20,7 +20,7 @@ disputes, seeds and race rooms) have their own page:
 
 :::snippet staff-schedule-board
 **Admin → Schedule** lists every match in the community, one line each: the
-time, who's playing, the stage and where the match stands. Out of the box it
+time, who's playing, the stage, the crew and where the match stands. Out of the box it
 hides {state:Confirmed} matches, because a confirmed match needs nothing more
 from you. Change that with the **State** filter, and narrow by day, tournament or
 a search the same way as [the public board](/help/schedule-board).
@@ -30,6 +30,11 @@ confirmed), **Live now**, **Up next**, **Waiting for players** (bracket matches
 whose players aren't decided) and **Confirmed**. A time in orange with a
 {chip:pending:Late} chip means the match is past its start and nobody has
 checked it in.
+
+The crew column counts signups against what the tournament needs, per role:
+"Commentary 1/2" is one signup for two places. Until the match starts, a role
+that's short says **needs crew** in orange, and one with enough signups that
+you haven't approved yet says **to approve**.
 
 Tap a line to open the match. Everything you can do to it is there: **Check
 in**, **Start match**, **Finish** and **Confirm result**, the stage, the seed,

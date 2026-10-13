@@ -4126,7 +4126,7 @@ ol.wiz-help-list { list-style-type: decimal; }
     cursor: pointer;
 }
 .run-sheet__row:hover > td {
-    background: var(--accent-soft);
+    background: var(--surface-alt);
 }
 .run-sheet__time {
     font-weight: 700;
@@ -4160,6 +4160,20 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 .run-sheet__none {
     color: var(--fg-secondary);
+}
+.run-sheet__crew-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.125rem 0.75rem;
+    font-size: var(--text-sm);
+}
+.run-sheet__crew {
+    color: var(--fg-secondary);
+    white-space: nowrap;
+}
+.run-sheet__crew.st-pending {
+    color: var(--status-pending);
+    font-weight: 600;
 }
 
 /* Phone: each line is a button. */

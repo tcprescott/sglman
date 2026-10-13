@@ -22,6 +22,7 @@ RUN_SHEET_COLUMNS = [
     {'name': 'scheduled_at', 'label': 'Time', 'field': 'scheduled_at', 'align': 'left'},
     {'name': 'match', 'label': 'Match', 'field': 'title', 'align': 'left'},
     {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'align': 'left'},
+    {'name': 'crew', 'label': 'Crew', 'field': 'commentators', 'align': 'left'},
     {'name': 'status', 'label': 'Status', 'field': 'state', 'align': 'left'},
 ]
 
@@ -92,6 +93,34 @@ def _day_label(ts) -> str:
     return f'{local:%a} {local.day} {local:%b}'
 
 
+_CREW_ROLES = (('commentators', 'Commentary'), ('trackers', 'Tracking'))
+
+
+def run_sheet_crew(row: dict) -> list[dict]:
+    """Signups against need, per crew role the tournament uses.
+
+    ``short`` marks a role with fewer signups than it needs, while that can
+    still be fixed: once a match has started, a gap is history, not a task.
+    """
+    wanted = row.get('crew_wanted') or {}
+    required = row.get('crew_required') or {}
+    open_ = row.get('state') in ('Scheduled', 'Checked In')
+    crew = []
+    for key, label in _CREW_ROLES:
+        people = row.get(key) or []
+        if not (wanted.get(key) or people):
+            continue
+        need = required.get(key) or 0
+        approved = sum(1 for p in people if p.get('approved'))
+        count = f'{len(people)}/{need}' if need else str(len(people))
+        crew.append({
+            'label': label, 'count': count,
+            'short': open_ and len(people) < need,
+            'unapproved': open_ and len(people) >= need > approved,
+        })
+    return crew
+
+
 def decorate_run_sheet_row(row: dict) -> dict:
     """Stamp the display fields the run-sheet templates read. Mutates ``row``."""
     label, tone = run_sheet_status(row)
@@ -108,6 +137,7 @@ def decorate_run_sheet_row(row: dict) -> dict:
         row['_stage'] = 'Candidate'
     else:
         row['_stage'] = ''
+    row['_crew'] = run_sheet_crew(row)
     return row
 
 
@@ -137,6 +167,10 @@ def arrange_run_sheet(rows: list) -> list:
 
 _STATUS_CHIP = '''<span class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>'''
 
+# Signups over need, per role. "needs crew" is spelled out rather than left to
+# the amber, which no screen reader and not every eye can read.
+_CREW = r'''<span v-for="c in props.row._crew" :key="c.label" class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">{{ c.label }} <b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template><template v-else-if="c.unapproved"> · to approve</template></span>'''
+
 # Desktop: one row per match, a group header row above the first of each group.
 # The Match cell's names are the row's button, so the row is reachable and
 # operable from the keyboard; the rest of the row is a mouse convenience.
@@ -162,6 +196,9 @@ _BODY_SLOT = r'''
             <span v-if="props.row._stage">{{ props.row._stage }}</span>
             <span v-else class="run-sheet__none">None</span>
         </template>
+        <template v-else-if="col.name === 'crew'">
+            <span class="run-sheet__crew-list">''' + _CREW + '''</span>
+        </template>
         <template v-else-if="col.name === 'status'">''' + _STATUS_CHIP + '''</template>
         <template v-else>{{ col.value }}</template>
     </q-td>
@@ -183,6 +220,7 @@ _ITEM_SLOT = r'''
         <span class="run-sheet__main">
             <span class="run-sheet__who">{{ props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title) }}</span>
             <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
+            <span v-if="props.row._crew.length" class="run-sheet__crew-list">''' + _CREW + '''</span>
         </span>
         <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
     </button>
