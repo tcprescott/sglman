@@ -115,7 +115,7 @@ account they bought with. The card says how:
 | **seen before** | Linked at an earlier event |
 | **via profile handle** | Their profile's Matcherino handle matches the buyer |
 | **linked by staff** | Someone at the desk picked the account by hand |
-| **Not linked to an account** | Nobody has matched them yet |
+| **Not linked** | Nobody has matched them yet. Tap it to link them; **· 3 suggestions** means the link dialog has accounts with similar names ready to pick |
 
 If a link is wrong, use ⋮ → **Change linked account**, or **Unlink account** if
 they have no account here. Someone unlinked on purpose isn't asked again at

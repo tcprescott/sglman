@@ -93,6 +93,42 @@ _STAFF_DENIED = 'Only staff can do that.'
 _WITHDRAWN_DENIED = 'Only staff can check them in anyway.'
 
 
+def _suggestion_candidates(people: Sequence[User], taken: set[int]) -> List[Tuple[User, frozenset[str]]]:
+    candidates = []
+    for user in people:
+        if user.id in taken:
+            continue
+        names = frozenset({
+            norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
+            norm_name((user.matcherino_username or '').split('#')[0]),
+        } - {''})
+        if names:
+            candidates.append((user, names))
+    return candidates
+
+
+def _suggested(target: str, candidates: Sequence[Tuple[User, frozenset[str]]], limit: int) -> List[User]:
+    """The best-scoring candidates at or above the threshold, as ``difflib.get_close_matches`` prunes.
+
+    The two cheap upper bounds skip the full ratio for names that can't reach
+    the threshold, which roughly triples the speed of scoring a whole roster.
+    """
+    matcher = difflib.SequenceMatcher()
+    matcher.set_seq1(target)
+    scored: List[Tuple[float, User]] = []
+    for user, names in candidates:
+        best = 0.0
+        for name in names:
+            matcher.set_seq2(name)
+            if (matcher.real_quick_ratio() >= SUGGESTION_THRESHOLD
+                    and matcher.quick_ratio() >= SUGGESTION_THRESHOLD):
+                best = max(best, matcher.ratio())
+        if best >= SUGGESTION_THRESHOLD:
+            scored.append((best, user))
+    scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
+    return [user for _, user in scored[:limit]]
+
+
 @dataclass(frozen=True)
 class VenuePreview:
     """What the admin dialog's Look up shows before staff save a venue id."""
@@ -547,26 +583,39 @@ class CheckInService:
         already linked to someone else on this roster are left out, except a
         comp, whose row a link folds into this one (:meth:`link`).
         """
-        targets = {norm_name(entrant.display_name)} - {''}
-        if not targets:
+        target = norm_name(entrant.display_name)
+        if not target:
             return []
         taken = await self._taken_user_ids(entrant.event, for_link=True)
-        scored: List[Tuple[float, User]] = []
-        for user in await UserRepository.get_community_people():
-            if user.id in taken:
-                continue
-            names = {
-                norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
-                norm_name((user.matcherino_username or '').split('#')[0]),
-            } - {''}
-            score = max(
-                (difflib.SequenceMatcher(None, t, n).ratio() for t in targets for n in names),
-                default=0.0,
-            )
-            if score >= SUGGESTION_THRESHOLD:
-                scored.append((score, user))
-        scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
-        return [user for _, user in scored[:limit]]
+        candidates = _suggestion_candidates(await UserRepository.get_community_people(), taken)
+        return _suggested(target, candidates, limit)
+
+    @requires_feature(FeatureFlag.EVENT_CHECK_IN)
+    async def suggestion_counts(
+        self, event: CheckInEvent, entrants: Sequence[CheckInEntrant], limit: int = SUGGESTION_LIMIT,
+    ) -> Dict[int, int]:
+        """How many suggestions :meth:`suggest_users` would offer each unlinked row.
+
+        One read of the community and the roster for the whole batch, so the
+        desk can label every "Not linked" row without a query per row. Rows
+        that are linked, or are comps (which can't be linked), are left out.
+        Scoring is still a fraction of a second at event scale, so the desk
+        reuses the answer until the roster's links change.
+        """
+        rows = [
+            e for e in entrants
+            if e.user_id is None and e.source != CheckInEntrantSource.COMP and norm_name(e.display_name)
+        ]
+        if not rows:
+            return {}
+        taken = await self._taken_user_ids(event, for_link=True)
+        candidates = _suggestion_candidates(await UserRepository.get_community_people(), taken)
+        targets = [(e.id, norm_name(e.display_name)) for e in rows]
+        # Scoring a roster against a community is a fraction of a second of pure
+        # CPU, so it runs off the event loop every desk shares.
+        return await asyncio.to_thread(
+            lambda: {entrant_id: len(_suggested(target, candidates, limit)) for entrant_id, target in targets}
+        )
 
     @requires_feature(FeatureFlag.EVENT_CHECK_IN)
     async def search_members(
