@@ -458,6 +458,24 @@ class TestDesk:
 
         assert [u.id for u in suggestions] == [close.id]
 
+    async def test_suggestion_counts_match_what_the_link_dialog_offers(self, service, client, staff, event):
+        for discord_id, username in ((91, 'patexample'), (92, 'pat_exampl'), (95, 'linked')):
+            user = await make_user(discord_id=discord_id, username=username)
+            await TenantMembership.create(user=user, tenant_id=DEFAULT_TEST_TENANT_ID)
+        client.set([
+            mock_purchase(100, 'Pat_Example'), mock_purchase(101, 'Nobody Like Them'),
+            mock_purchase(102, 'linked', auth_provider='discord', auth_id='95'),
+        ])
+        await service.sync_event(staff, event.id)
+        rows = await _rows(event)
+
+        counts = await service.suggestion_counts(event, await service.roster(event))
+
+        pat = await service.get_entrant(rows['100'].id)
+        assert counts[pat.id] == len(await service.suggest_users(pat)) == 2
+        assert counts[rows['101'].id] == 0
+        assert rows['102'].id not in counts
+
     async def test_member_search_skips_people_already_on_the_roster(self, service, client, staff, event):
         linked = await make_user(discord_id=94, username='needle_linked')
         await TenantMembership.create(user=linked, tenant_id=DEFAULT_TEST_TENANT_ID)

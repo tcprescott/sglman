@@ -6,9 +6,10 @@ registrant to an account. :class:`~application.services.CheckInService` does
 the reads and writes around these.
 """
 
+import difflib
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from models import CheckInEntrant, CheckInEntrantSource, CheckInLinkMethod, CheckInPass, CheckInTierLanyard, User
 
@@ -201,3 +202,54 @@ def refuse_comp_row(entrant: CheckInEntrant) -> None:
         raise ValueError(
             "A comp is tied to the account it was given to. Change the event's comp rules instead."
         )
+
+
+#: How alike two names must be (difflib ratio) for the link dialog to suggest the account.
+SUGGESTION_THRESHOLD = 0.6
+
+
+def suggestion_candidates(people: Sequence[User], taken: set[int]) -> List[Tuple[User, frozenset[str]]]:
+    candidates = []
+    for user in people:
+        if user.id in taken:
+            continue
+        names = frozenset({
+            norm_name(user.username), norm_name(user.display_name), norm_name(user.twitch_username),
+            norm_name((user.matcherino_username or '').split('#')[0]),
+        } - {''})
+        if names:
+            candidates.append((user, names))
+    return candidates
+
+
+def suggested_users(target: str, candidates: Sequence[Tuple[User, frozenset[str]]], limit: int) -> List[User]:
+    """The best-scoring candidates at or above the threshold, as ``difflib.get_close_matches`` prunes.
+
+    The two cheap upper bounds skip the full ratio for names that can't reach
+    the threshold, which roughly triples the speed of scoring a whole roster.
+    """
+    matcher = difflib.SequenceMatcher()
+    matcher.set_seq1(target)
+    scored: List[Tuple[float, User]] = []
+    for user, names in candidates:
+        best = 0.0
+        for name in names:
+            matcher.set_seq2(name)
+            if (matcher.real_quick_ratio() >= SUGGESTION_THRESHOLD
+                    and matcher.quick_ratio() >= SUGGESTION_THRESHOLD):
+                best = max(best, matcher.ratio())
+        if best >= SUGGESTION_THRESHOLD:
+            scored.append((best, user))
+    scored.sort(key=lambda pair: (-pair[0], pair[1].username.lower()))
+    return [user for _, user in scored[:limit]]
+
+
+def count_suggestions(
+    entrants: Sequence[CheckInEntrant], candidates: Sequence[Tuple[User, frozenset[str]]], limit: int,
+) -> Dict[int, int]:
+    """How many of ``candidates`` each unlinked row would be offered. Comps can't be linked, so they're skipped."""
+    return {
+        e.id: len(suggested_users(target, candidates, limit))
+        for e in entrants
+        if e.user_id is None and e.source != CheckInEntrantSource.COMP and (target := norm_name(e.display_name))
+    }
