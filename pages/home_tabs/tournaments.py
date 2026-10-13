@@ -175,7 +175,7 @@ async def tournaments_tab() -> None:
         def render_card(card: TournamentSignupCard) -> None:
             t = card.tournament
             chip_class, status = signup_status(card)
-            with ui.card().classes('wiz-tournament-card full-width q-mb-sm') \
+            with ui.card().classes('wiz-tournament-card full-width') \
                     .props(f'id={_card_dom_id(t.id)}'):
                 with ui.row().classes('items-center gap-2 flex-wrap full-width'):
                     ui.label(t.name).classes('text-subtitle1 text-weight-medium')
@@ -267,7 +267,8 @@ async def tournaments_tab() -> None:
                 with ui.row().classes('items-center gap-2 q-mt-sm'):
                     ui.icon(icon, size='xs').classes('icon-primary')
                     ui.label(title).classes('subsection-title')
-                for card in section:
-                    render_card(card)
+                with ui.element('div').classes('wiz-tile-grid wiz-tile-grid--md'):
+                    for card in section:
+                        render_card(card)
 
         await cards()

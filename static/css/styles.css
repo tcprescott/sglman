@@ -463,6 +463,24 @@ main.q-page:focus {
 /* Availability window editor: one card per day, one divided row per window.
    On a phone a window takes two lines (times, then status and delete), so the
    two time fields get the full width a 12-hour "09:00 AM" needs. */
+.avail-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.avail-split__chart > * {
+    margin-top: 0;
+}
+
+@media (min-width: 1024px) {
+    .avail-split {
+        grid-template-columns: minmax(0, 34rem) minmax(0, 1fr);
+        align-items: start;
+    }
+}
+
 .avail-day {
     width: 100%;
     background: var(--surface);
@@ -789,6 +807,47 @@ main.q-page:focus {
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
+}
+
+/* Cards side by side on a wide screen, one column on a phone. A list page that
+   stacks full-width cards in a 1200-1400px container leaves each card's name on
+   the far left and its button 1100px away; tiles keep the two close and use the
+   width instead. The `min()` lets one tile shrink below the minimum on a phone
+   rather than overflow. --sm for short cards (brackets, events, shifts), --md
+   for cards that carry prose (tournaments, the changelog). */
+.wiz-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+    gap: var(--space-3);
+    align-items: start;
+    width: 100%;
+}
+
+.wiz-tile-grid--md {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
+}
+
+.wiz-tile-grid > * {
+    min-width: 0;
+    margin: 0;
+}
+
+/* A list that has nothing to show yet, as a panel the width of the list it
+   stands in for, so the page keeps its shape instead of ending in one grey
+   caption under the toolbar. */
+.wiz-empty-panel {
+    width: 100%;
+    padding: var(--space-5) var(--space-3);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--fg-muted);
+    text-align: center;
+}
+
+/* An empty list's message spans the grid rather than sitting in one tile. */
+.wiz-tile-grid > .empty-state,
+.wiz-tile-grid > .italic-note {
+    grid-column: 1 / -1;
 }
 
 .full-width {
@@ -1164,6 +1223,33 @@ main.q-page:focus {
 .dialog-card > .nicegui-column:not(.dialog-header):not(.dialog-actions) {
     align-self: stretch;
 }
+
+/* The card's own padding is the dialog's one inset. Most bodies also carried
+   q-pa-md, which set their fields 32px in while form_dialog bodies sat 16px in,
+   and stacked 40px of blank above the first field. Fields fill the body, so a
+   form's right edge lines up with the header and footer instead of stopping at
+   whatever width its label needed (Pick a time, Edit Stage). */
+.dialog-card > .nicegui-column:not(.dialog-header):not(.dialog-actions).q-pa-md {
+    padding: 0;
+}
+.dialog-card > .nicegui-column > .q-field {
+    align-self: stretch;
+}
+
+/* Fields that share a row and split it evenly (a date and a time, Commentators
+   and Trackers). A checkbox beside them keeps its own width. They stay side by
+   side down to a phone and only stack when each would drop under 9rem. */
+.form-pair {
+    align-self: stretch;
+    flex-wrap: wrap;
+}
+.form-pair > .q-field {
+    flex: 1 1 9rem;
+    min-width: 0;
+}
+/* Multi-selects with longer labels (Commentators) stack on a phone rather than
+   truncate. */
+.form-pair--wide > .q-field { flex-basis: 12rem; }
 
 /* Sticky action bar pinned to the bottom of the scrolling .dialog-card so the
    primary Submit/Cancel row stays reachable without scrolling (fixes footers
@@ -1702,8 +1788,75 @@ main.q-page:focus {
 }
 
 /* Timeline/Schedule Specific Styles */
+/* On Air: one column per stage, side by side, like the board the crew runs
+   from. auto-fit, not auto-fill, so two stages share the width instead of
+   leaving two empty tracks; five or more wrap to a second row. On a phone the
+   minimum exceeds the width and the stages stack one after another. */
 .timeline-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: var(--space-3);
+    align-items: start;
     width: 100%;
+}
+
+.timeline-container > .empty-state {
+    grid-column: 1 / -1;
+}
+
+/* Page, stage card and match card each padded the one before, so a match got
+   two-thirds of its column. Pull the stage card in, let the player line sit
+   beside its icon instead of wrapping under it, and put the tournament on its
+   own unindented line. A stage column is phone-narrow at every width, so these
+   hold on desktop too. */
+.timeline-container > .card-full-width {
+    padding: var(--space-3);
+    margin: 0;
+}
+
+.timeline-container .column-spacing {
+    padding: var(--space-2) 0 0;
+    gap: var(--space-2);
+}
+
+.timeline-container .match-card {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-1);
+    margin: 0;
+}
+
+.timeline-container .match-details {
+    margin-top: 0;
+}
+
+.match-card .match-tournament {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
+.match-card > .row > .q-space {
+    display: none;
+}
+
+.match-details,
+.match-details-nested {
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+}
+
+.match-details-nested {
+    flex-wrap: nowrap;
+}
+
+.match-details > .match-players,
+.match-details-nested > .q-icon + * {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.match-details .icon-spacing {
+    margin-right: 0;
 }
 
 .timeline-header {
@@ -3004,17 +3157,22 @@ body.wiz-offline .wiz-requires-socket {
     scroll-margin-top: 5rem;
 }
 
-/* /changelog: one help-prose block per entry. The title sits directly above its
+/* /changelog: one card per entry. The title sits directly above its
    date, so it drops the article heading's bottom margin, and it sets its own
    line-height because Quasar's h2 default (3.75rem) spaces a wrapped title a
    full line apart on a phone. */
 .wiz-changelog-entry {
-    max-width: 64ch;
     font-size: 0.95rem;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+    padding: var(--space-3) var(--space-4);
 }
 
 .wiz-changelog-entry .wiz-help-h2 {
     line-height: 1.3;
+    margin-top: 0;
     margin-bottom: 0.2rem;
 }
 
@@ -3562,6 +3720,18 @@ ol.wiz-help-list { list-style-type: decimal; }
     .wiz-segmented.checkin-filters .q-btn { flex: 1 1 auto; padding: 4px 12px; }
 }
 
+/* Quasar cells never wrap, so a long test-DM note stretched Status until the
+   Check in button and ⋮ ran off the card. The note wraps; the actions don't. */
+.checkin-table td.checkin-status {
+    white-space: normal;
+    min-width: 220px;
+}
+
+.checkin-table td.checkin-actions {
+    white-space: nowrap;
+    width: 1%;
+}
+
 .checkin-lanyard {
     font-size: 0.95rem;
     letter-spacing: 0.02em;
@@ -3606,49 +3776,88 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 /* ---------------------------------------------------------------------------
-   Admin → Settings: a menu of panes beside the open pane, the way most SaaS
-   settings read. Below md the menu becomes a scrolling row of tabs above the
-   pane, so a phone keeps the full width for the form.
+   Admin → Settings: a home page of tiles, one per pane, and each pane with a
+   link back to them. It used to be a second menu column beside the drawer,
+   which squeezed the forms on desktop and became a sideways tab strip on a
+   phone; the tiles are the same on both.
    ------------------------------------------------------------------------- */
 .wiz-settings {
-    display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
-    gap: var(--space-5);
     width: 100%;
-    max-width: 1120px;
+    max-width: 1040px;
     margin: 0 auto;
-    align-items: start;
+    flex-wrap: nowrap;
 }
 
-.wiz-settings__nav {
-    position: sticky;
-    top: var(--space-4);
+.wiz-settings__home { width: 100%; flex-wrap: nowrap; }
+
+.wiz-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    width: 100%;
 }
 
-.wiz-settings__menu { padding: 0; }
-
-.wiz-settings__item {
-    border-radius: var(--radius-sm);
-    min-height: 36px;
-    padding: 0 var(--space-2);
-    color: var(--fg-secondary);
-    font-size: var(--text-md);
-}
-
-.wiz-settings__item .q-item__section--avatar {
-    min-width: 32px;
-    color: var(--fg-muted);
-}
-
-.wiz-settings__item.q-item--active {
-    background: var(--surface-sunken);
+.wiz-settings-tile {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 112px;
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
     color: var(--fg);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.wiz-settings-tile:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-alt);
+}
+
+.wiz-settings-tile__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    color: var(--fg-secondary);
+    font-size: 22px;
+}
+
+.wiz-settings-tile__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.wiz-settings-tile__name {
+    font-size: 1rem;
     font-weight: 700;
 }
 
-.wiz-settings__item.q-item--active .q-item__section--avatar { color: var(--fg); }
+.wiz-settings-tile__sub {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+}
 
-.wiz-settings__content { min-width: 0; }
+.wiz-settings-tile__chevron {
+    color: var(--fg-muted);
+    font-size: 20px;
+    align-self: center;
+}
+
+.wiz-settings-back { align-self: flex-start; margin-left: calc(-1 * var(--space-2)); }
 
 .wiz-settings__pane {
     width: 100%;
@@ -3695,23 +3904,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 @media (max-width: 1023px) {
-    .wiz-settings {
-        grid-template-columns: minmax(0, 1fr);
-        gap: var(--space-3);
-    }
-    .wiz-settings__nav {
-        position: static;
-        overflow-x: auto;
-        margin: 0 calc(-1 * var(--space-2));
-        scrollbar-width: none;
-    }
-    .wiz-settings__menu {
-        display: flex;
-        gap: var(--space-1);
-        padding: 0 var(--space-2);
-        width: max-content;
-    }
-    .wiz-settings__item { white-space: nowrap; }
+    .wiz-settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .wiz-settings-embed { padding: var(--space-3); }
 }
 
@@ -3736,6 +3929,8 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 @media (max-width: 599px) {
     .wiz-settings-day { width: 4.5rem; flex-shrink: 0; }
+    .wiz-settings-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+    .wiz-settings-tile { min-height: 0; padding: var(--space-3); }
     .wiz-settings-time { width: auto; flex: 1 1 0; min-width: 0; }
     /* A station's name, section and switches on one line, its side and seat
        on the next,
@@ -3879,48 +4074,6 @@ ol.wiz-help-list { list-style-type: decimal; }
         font-weight: 600;
     }
 
-    /* On Air: page, stage card and match card each padded the one before, so
-       a match got two-thirds of the screen. Pull the stage card in, let the
-       player line sit beside its icon instead of wrapping under it, and put the
-       tournament on its own unindented line. */
-    .timeline-container > .card-full-width {
-        padding: var(--space-3);
-        margin-bottom: var(--space-3);
-    }
-
-    .timeline-container .column-spacing {
-        padding: var(--space-2) 0 0;
-    }
-
-    .match-card .match-tournament {
-        flex-basis: 100%;
-        margin-left: 0;
-    }
-
-    .match-card > .row > .q-space {
-        display: none;
-    }
-
-    .match-details,
-    .match-details-nested {
-        gap: var(--space-1) var(--space-2);
-        align-items: center;
-    }
-
-    .match-details-nested {
-        flex-wrap: nowrap;
-    }
-
-    .match-details > .match-players,
-    .match-details-nested > .q-icon + * {
-        flex: 1 1 0;
-        min-width: 0;
-        overflow-wrap: anywhere;
-    }
-
-    .match-details .icon-spacing {
-        margin-right: 0;
-    }
 }
 
 /* Quasar's palette classes, re-pointed at the theme. Quasar declares them
@@ -4272,6 +4425,77 @@ ol.wiz-help-list { list-style-type: decimal; }
     overflow-wrap: anywhere;
 }
 
+/* The proctor's line: stations on the names, the next step on the line. */
+.run-sheet__row .run-sheet__open {
+    white-space: normal;
+}
+.run-sheet__player {
+    white-space: nowrap;
+}
+.run-sheet__seat {
+    display: inline-block;
+    margin: 0 0.25rem 0 0.375rem;
+    padding: 0 0.375rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-secondary);
+    white-space: nowrap;
+}
+.run-sheet__seat--none {
+    border-style: dashed;
+}
+.run-sheet__vs {
+    font-weight: 400;
+    color: var(--fg-secondary);
+}
+.run-sheet__ada {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--fg-secondary);
+}
+.run-sheet__next {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+.run-sheet__step.q-btn {
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    font-weight: 700;
+}
+.run-sheet__card--split {
+    padding: 0.5rem 0.75rem 0.5rem 0;
+    cursor: default;
+}
+.run-sheet__card-open {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    min-height: 3rem;
+    padding: 0.125rem 0 0.125rem 0.75rem;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.run-sheet__card--split > .run-sheet__next {
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+}
+
 /* The match sheet: a full-height side sheet on a desktop, a bottom sheet on a phone. */
 .q-dialog__inner--right:has(> .match-sheet) {
     padding: 0;
@@ -4416,4 +4640,113 @@ ol.wiz-help-list { list-style-type: decimal; }
 .run-sheet__card > .wiz-chip {
     flex: none;
     white-space: nowrap;
+}
+
+/* Seed Presets (pages/admin_tabs/admin_presets.py): one line per preset under
+   its randomizer's heading; every action sits in the line's menu. */
+.preset-list {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.preset-list__group + .preset-list__group > .preset-list__head {
+    border-top: 1px solid var(--border-subtle);
+}
+.preset-list__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 0.625rem;
+    padding: 0.625rem 1rem;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border-subtle);
+}
+.preset-list__title {
+    font-weight: 700;
+}
+.preset-list__count {
+    font-size: var(--text-sm);
+    color: var(--fg-secondary);
+}
+.preset-list__line {
+    display: grid;
+    grid-template-columns: minmax(10rem, 15rem) minmax(0, 1fr) 8rem 2.5rem;
+    grid-template-areas: "name desc used menu";
+    column-gap: 1.25rem;
+    align-items: center;
+    min-height: 3.25rem;
+    padding: 0.25rem 0.5rem 0.25rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.preset-list__group:last-child > .preset-list__line:last-child {
+    border-bottom: 0;
+}
+.preset-list__name.q-btn {
+    grid-area: name;
+    justify-self: start;
+    max-width: 100%;
+    min-height: 0;
+    padding: 0.25rem 0;
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--fg);
+}
+.preset-list__name .q-btn__content {
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.preset-list__name:hover .q-btn__content {
+    color: var(--wiz-link);
+    text-decoration: underline;
+}
+.preset-list__desc {
+    grid-area: desc;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--text-md);
+    color: var(--fg-secondary);
+}
+.preset-list__used {
+    grid-area: used;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    color: var(--fg-secondary);
+}
+.preset-list__menu.q-btn {
+    grid-area: menu;
+    justify-self: end;
+    color: var(--fg-secondary);
+}
+
+@media (max-width: 599px) {
+    .preset-list__head {
+        padding: 0.625rem 0.875rem;
+    }
+    .preset-list__line {
+        grid-template-columns: minmax(0, 1fr) auto 2.75rem;
+        grid-template-areas:
+            "name used menu"
+            "desc desc menu";
+        column-gap: 0.5rem;
+        row-gap: 0.125rem;
+        padding: 0.5rem 0.25rem 0.5rem 0.875rem;
+    }
+    .preset-list__desc {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+        font-size: var(--text-sm);
+    }
+    .preset-list__used {
+        font-size: var(--text-xs);
+    }
+    .preset-list__menu.q-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
 }

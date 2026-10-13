@@ -4,11 +4,13 @@ Preset Repository - Data Access Layer
 Handles database operations for tenant-scoped seed-rolling presets.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+from tortoise.expressions import Q
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Preset
+from models import Preset, Tournament
 
 
 class PresetRepository(TenantScopedRepository[Preset]):
@@ -27,3 +29,9 @@ class PresetRepository(TenantScopedRepository[Preset]):
 
     async def list_by_randomizer(self, randomizer: str) -> List[Preset]:
         return await scoped(Preset.filter(randomizer=randomizer)).order_by('name')
+
+    async def tournaments_using_presets(self) -> List[Dict[str, Any]]:
+        """Every tournament that names a preset, as its main or its hard-mode one."""
+        return await scoped(
+            Tournament.filter(Q(preset_id__isnull=False) | Q(hard_preset_id__isnull=False))
+        ).order_by('name').values('name', 'preset_id', 'hard_preset_id')

@@ -72,7 +72,9 @@ class TableKeys:
     # table's edge. A fresh key starts everyone on the shipped order; v1 rows
     # name columns that no longer exist, so there is little in them to keep.
     HOME_PLAYER_MATCHES = 'home.player_matches_v2'
-    PROCTOR_STATION = 'volunteer.proctor_station'
+    # _v2 since the proctor board became a run sheet too (Time, Match, Stage,
+    # Next step); v1 layouts name the old Seed, Tournament and # columns.
+    PROCTOR_STATION = 'volunteer.proctor_station_v2'
 
     # Admin
     ADMIN_USERS = 'admin.users'
@@ -88,7 +90,6 @@ class TableKeys:
     ADMIN_FEEDBACK = 'admin.feedback'
     ADMIN_COMMUNITY_EVENTS = 'admin.community_events'
     ADMIN_PAYOUTS = 'admin.payouts'
-    ADMIN_PRESETS = 'admin.presets'
     ADMIN_QUALIFIERS = 'admin.qualifiers'
     ADMIN_QUALIFIER_LEADERBOARD = 'admin.qualifier_leaderboard'
     ADMIN_RACETIME = 'admin.racetime'

@@ -52,12 +52,13 @@ def _names(names: list) -> str:
     return names[0] if len(names) == 1 else ', '.join(names[:-1]) + ' and ' + names[-1]
 
 
-def readiness(row: dict) -> list[dict]:
+def readiness(row: dict, *, crew: bool = True) -> list[dict]:
     """The match sheet's checklist, one item per thing a match needs.
 
     ``ready`` is True or False for what a match can't start well without, and
     None for what's only information (no stage just means off stream). Seed and
-    crew appear only where the tournament uses them.
+    crew appear only where the tournament uses them, and crew only when the
+    viewer looks after crew (``crew``).
     """
     players = row.get('players') or []
     acks = row.get('acknowledgments') or []
@@ -116,7 +117,7 @@ def readiness(row: dict) -> list[dict]:
         need += max((required.get(key) or 0) - got, 0)
         approved += got
         waiting += sum(1 for p in people if not p.get('approved'))
-    if any(required.get(k) for k, _r, _l in _ROLES if wanted.get(k)):
+    if crew and any(required.get(k) for k, _r, _l in _ROLES if wanted.get(k)):
         if need:
             detail = f'{need} more needed'
             if waiting:
@@ -131,9 +132,12 @@ class MatchSheet:
     """The match sheet. Two-phase like the lifecycle handlers: set ``view`` after
     the board exists, since the board needs ``open`` as its callback."""
 
-    def __init__(self, handlers, *, access: MatchBoardAccess):
+    def __init__(self, handlers, *, access: MatchBoardAccess, show_crew: bool = True):
         self.handlers = handlers
         self.access = access
+        # Off on the proctor's board: crew is not theirs to fix, so a crew gap
+        # must not hold their checklist below "ready".
+        self.show_crew = show_crew
         self.view: Any = None
         self.row: Optional[dict] = None
         # mobile_sheet's own breakpoint, but a side sheet rather than a centred
@@ -181,7 +185,8 @@ class MatchSheet:
             self._headline(row)
             self._status(row)
             self._setup(row)
-            self._crew(row)
+            if self.show_crew:
+                self._crew(row)
         self._footer(row)
 
     def _headline(self, row: dict) -> None:
@@ -244,7 +249,7 @@ class MatchSheet:
     def _setup(self, row: dict) -> None:
         """The setup as a checklist: what's ready, what's missing, and the fix
         on the same line. Before the match starts it counts what's ready."""
-        items = readiness(row)
+        items = readiness(row, crew=self.show_crew)
         counted = [i for i in items if i['ready'] is not None]
         before = row.get('state') in ('Scheduled', 'Checked In')
         title = (f"Ready to play? {sum(1 for i in counted if i['ready'])} of {len(counted)}"

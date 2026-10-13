@@ -115,7 +115,7 @@ class BracketScheduleDialog:
         default_date, default_time = self._defaults()
         can_suggest = bool(self.opponent_name and self.tournament_id and len(self.player_ids) == 2)
 
-        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(
@@ -131,7 +131,7 @@ class BracketScheduleDialog:
                 elif self.matchup_label:
                     ui.label(self.matchup_label).classes('text-muted')
 
-                with ui.row().classes('items-center gap-2'):
+                with ui.row().classes('form-pair items-center gap-2'):
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
 

@@ -56,6 +56,21 @@ class PresetService:
         )
         return await self.repository.list_all()
 
+    async def usage(self, actor: Optional[User]) -> Dict[int, List[str]]:
+        """Names of the tournaments rolling from each preset, keyed by preset id.
+
+        Deleting a preset detaches those tournaments (SET_NULL), so the page
+        names them before anyone confirms a delete.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(actor), "Cannot manage presets"
+        )
+        usage: Dict[int, List[str]] = {}
+        for row in await self.repository.tournaments_using_presets():
+            for preset_id in {row['preset_id'], row['hard_preset_id']} - {None}:
+                usage.setdefault(preset_id, []).append(row['name'])
+        return usage
+
     async def list_by_randomizer(self, randomizer: str) -> List[Preset]:
         """Presets for one randomizer — used to populate the tournament select
         (read-only; no management gate)."""
