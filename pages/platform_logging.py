@@ -13,6 +13,7 @@ from application.utils.timezone import format_local_display
 from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_row_button
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
@@ -30,12 +31,13 @@ _LOGGER_NAME = '''
     <span><template v-for="(part, i) in props.row.logger.split('.')" :key="i"><wbr v-if="i">{{ i ? '.' : '' }}{{ part }}</template></span>
 '''
 
-_ROW_ACTIONS = '''
-    <q-btn dense flat color="primary" label="Set level"
-           @click="$parent.$emit('set_level', props.row)" />
-    <q-btn v-if="props.row.override" dense flat color="secondary" label="Reset"
-           @click="$parent.$emit('reset_level', props.row)" />
-'''
+_ROW_ACTIONS = slot_row_button('Set level', 'tune', 'set_level') + (
+    '<template v-if="props.row.override">'
+    + slot_more_menu('props.row.logger', [
+        SlotItem('restart_alt', 'Reset to default', 'reset_level', negative=True),
+    ])
+    + '</template>'
+)
 
 
 async def render_logging_section(user) -> None:

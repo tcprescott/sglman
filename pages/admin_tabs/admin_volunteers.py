@@ -27,7 +27,7 @@ from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 from theme.help import help_icon
-from theme.menu import menu_action
+from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -174,11 +174,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         'The volunteers have not been told yet.'
                     ).classes('text-body2')
                     ui.space()
+                    ui.button('Clear draft', icon='clear_all',
+                              on_click=lambda: confirm_clear_draft(pending)).props('flat color=negative')
                     ui.button('Publish draft', icon='send',
                               on_click=lambda: confirm_publish(pending)) \
                         .props('color=positive')
-                    ui.button('Clear draft', icon='clear_all',
-                              on_click=lambda: confirm_clear_draft(pending)).props('flat color=negative')
 
         # --- Last auto-fill result ---------------------------------------
         panel_container = ui.column().classes('full-width')
@@ -323,12 +323,12 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                             if position.description:
                                 ui.label(position.description).classes('text-caption text-grey wiz-free-text')
                         with ui.row().classes('gap-1'):
-                            ui.button('Generate standard shifts', icon='auto_awesome_motion',
-                                      on_click=lambda p=position: generate_shifts(p)) \
-                                .props('flat dense color=primary')
                             ui.button('Add shift', icon='add',
                                       on_click=lambda p=position: open_shift_dialog(position=p)) \
                                 .props('flat dense color=primary')
+                            with more_menu(position.name):
+                                menu_action('auto_awesome_motion', 'Generate standard shifts',
+                                            lambda p=position: generate_shifts(p))
                     if not pos_shifts:
                         ui.label('No shifts for this day yet.').classes('italic-note q-pa-sm')
                         continue
@@ -391,12 +391,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                     ui.button('Assign', icon='person_add',
                               on_click=lambda s=shift: open_assign_dialog(s)).props('flat dense color=primary')
                     ui.space()
-                    ui.button(icon='edit',
-                              on_click=lambda s=shift: open_shift_dialog(shift=s)) \
-                        .props('flat dense').tooltip('Edit shift')
-                    ui.button(icon='delete', color='negative',
-                              on_click=lambda s=shift: confirm_delete_shift(s)) \
-                        .props('flat dense').tooltip('Delete shift')
+                    with more_menu(header):
+                        menu_action('edit', 'Edit shift', lambda s=shift: open_shift_dialog(shift=s))
+                        ui.separator()
+                        menu_action('delete', 'Delete shift', lambda s=shift: confirm_delete_shift(s),
+                                    negative=True)
 
         def _render_assignment_chip(shift, assignment: VolunteerAssignment) -> None:
             name = assignment.user.preferred_name if assignment.user else 'Unknown'

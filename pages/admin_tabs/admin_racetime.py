@@ -10,22 +10,18 @@ from nicegui import app, background_tasks, context, ui
 from application.services import RaceRoomProfileService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
-_ROW_ACTIONS = '''
-    <q-btn flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)" aria-label="Edit">
-        <q-tooltip>Edit</q-tooltip>
-    </q-btn>
-    <q-btn flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('delete', props.row)" aria-label="Delete">
-        <q-tooltip>Delete</q-tooltip>
-    </q-btn>
-'''
+_ROW_ACTIONS = slot_more_menu('props.row.name', [
+    SlotItem('edit', 'Edit profile', 'edit'),
+    SlotItem('delete', 'Delete profile', 'delete', negative=True),
+])
+_NAME = slot_name_link('name', 'edit')
 _AUTO_START_ICON = '''
     <q-icon :name="props.row.auto_start_bool ? 'check_circle' : 'cancel'"
             :color="props.row.auto_start_bool ? 'positive' : 'negative'" size="sm" />
@@ -165,11 +161,12 @@ async def admin_racetime_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
+            table.add_slot('body-cell-name', f'<q-td :props="props">{_NAME}</q-td>')
             table.add_slot('body-cell-auto_start', f'<q-td :props="props">{_AUTO_START_ICON}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
                                table_key=TableKeys.ADMIN_RACETIME,
-                               field_slots={'auto_start': _AUTO_START_ICON})
+                               field_slots={'name': _NAME, 'auto_start': _AUTO_START_ICON})
 
             table.on('edit', lambda e: background_tasks.create(edit_profile(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_profile(e.args, context.client)))

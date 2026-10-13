@@ -27,6 +27,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 
 # The three outcomes a human may assert, worded as a person would say them rather
 # than as the enum spells them.
@@ -90,32 +91,24 @@ def build_live_tab(
                     ui.badge(enum_value(lr.status), color=live_race_color(lr.status))
                     ui.badge(f'pool: {lr.pool.name}', color='grey')
                     ui.space()
+                    cancelled = enum_value(lr.status) == 'cancelled'
+                    can_open = not lr.racetime_slug and not cancelled
+                    # The next step is the one button; the step after it waits in ⋮.
                     # A cancelled race is over: offering to open a room for it invites
                     # a click that only produces a refusal.
-                    if not lr.racetime_slug and enum_value(lr.status) != 'cancelled':
+                    if can_open:
                         ui.button('Open room', icon='meeting_room',
                                   on_click=lambda lid=lr.id: _open_room(lid)
                                   ).props('flat color=primary')
-                    if enum_value(lr.status) != 'cancelled':
-                        if lr.permalink_id is None:
-                            # The capture refuses outright without a permalink, and
-                            # "(assign later)" makes that a normal state — so offer
-                            # the control that fixes it instead of a Record button
-                            # that can only end in a refusal.
-                            ui.button('Set permalink', icon='link',
-                                      on_click=lambda race=lr: _open_permalink_dialog(race)
-                                      ).props('flat color=primary')
-                        else:
-                            # Offered on a finished race too: re-recording is
-                            # idempotent, and a race whose results came in with
-                            # someone unmatched is exactly the case that needs
-                            # recording again.
-                            ui.button('Record results', icon='edit_note',
-                                      on_click=lambda race=lr: _open_record_dialog(race)
-                                      ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda race=lr: _cancel_live_race(race)
-                              ).props('flat round color=negative').tooltip('Cancel')
+                    elif not cancelled:
+                        _result_action(lr, as_button=True)
+                    if not cancelled:
+                        with more_menu(lr.match_title):
+                            if can_open:
+                                _result_action(lr, as_button=False)
+                                ui.separator()
+                            menu_action('cancel', 'Cancel race',
+                                        lambda race=lr: _cancel_live_race(race), negative=True)
                 if lr.racetime_slug:
                     ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
                 if lr.permalink_id is None:
@@ -303,6 +296,22 @@ def build_live_tab(
             return
         ui.notify('Room opened', color='positive')
         await reload_tabs(LIVE_TAB)
+
+    def _result_action(lr, *, as_button: bool) -> None:
+        # The capture refuses outright without a permalink, and "(assign later)"
+        # makes that a normal state, so offer the control that fixes it instead
+        # of a Record action that can only end in a refusal. Recording is offered
+        # on a finished race too: it's idempotent, and a race whose results came
+        # in with someone unmatched is exactly the case that needs it again.
+        if lr.permalink_id is None:
+            icon, label, handler = 'link', 'Set permalink', lambda race=lr: _open_permalink_dialog(race)
+        else:
+            icon, label, handler = 'edit_note', 'Record results', lambda race=lr: _open_record_dialog(race)
+        if as_button:
+            ui.button(label, icon=icon, on_click=handler).props('flat color=primary')
+        else:
+            menu_action(icon, label, handler)
+
 
     def _cancel_live_race(race) -> None:
         async def do_cancel() -> None:

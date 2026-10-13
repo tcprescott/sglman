@@ -15,6 +15,7 @@ from application.services import RacetimeBotService, TenantService
 from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -33,16 +34,11 @@ _BOT_STATUS_CHIP = '''
          style="white-space:normal;overflow-wrap:anywhere;max-width:22rem">{{ props.row.status_message }}</div>
 '''
 
-# Icons on the desktop row, words on the card: three labelled buttons beside the
-# health message pushed the table past the page edge.
-_ROW_ICON_ACTIONS = '''
-    <q-btn dense flat round icon="edit" color="primary" aria-label="Edit"
-           @click="$parent.$emit('edit_bot', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
-    <q-btn dense flat round icon="groups" color="secondary" aria-label="Tenants"
-           @click="$parent.$emit('grant_bot', props.row)"><q-tooltip>Tenants</q-tooltip></q-btn>
-    <q-btn dense flat round icon="restart_alt" color="warning" aria-label="Restart"
-           @click="$parent.$emit('restart_bot', props.row)"><q-tooltip>Restart</q-tooltip></q-btn>
-'''
+_NAME = slot_name_link('category', 'edit_bot')
+_ROW_ACTIONS = slot_row_button('Tenants', 'groups', 'grant_bot') + slot_more_menu('props.row.category', [
+    SlotItem('edit', 'Edit bot', 'edit_bot'),
+    SlotItem('restart_alt', 'Restart connection', 'restart_bot', negative=True),
+])
 
 
 async def render_bots_section(user) -> None:
@@ -67,15 +63,16 @@ async def render_bots_section(user) -> None:
     ]
     bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes(
         'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
+    bot_table.add_slot('body-cell-category', f'<q-td :props="props">{_NAME}</q-td>')
     bot_table.add_slot('body-cell-active', ACTIVE_ICON_SLOT)
     bot_table.add_slot('body-cell-status', f'<q-td :props="props">{_BOT_STATUS_CHIP}</q-td>')
     bot_table.add_slot('body-cell-actions',
-                       f'<q-td :props="props" style="white-space:nowrap">{_ROW_ICON_ACTIONS}</q-td>')
+                       f'<q-td :props="props" style="white-space:nowrap">{_ROW_ACTIONS}</q-td>')
     bot_table.add_slot('item', '''
         <div class="q-pa-xs col-xs-12 col-sm-6">
             <q-card bordered flat class="q-pa-sm wiz-grid-card">
                 <div class="row items-center justify-between no-wrap q-mb-xs">
-                    <div class="text-weight-bold">{{ props.row.category }}</div>
+                    <div class="text-weight-bold">''' + _NAME + '''</div>
                     <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
                             :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
                         <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
@@ -90,14 +87,7 @@ async def render_bots_section(user) -> None:
                     <div class="col-4 text-grey-7 text-caption">Health</div>
                     <div class="col-8">''' + _BOT_STATUS_CHIP + '''</div>
                 </div>
-                <div class="row justify-end q-gutter-x-sm q-mt-xs">
-                    <q-btn dense flat color="primary" label="Edit"
-                           @click="$parent.$emit('edit_bot', props.row)" />
-                    <q-btn dense flat color="secondary" label="Tenants"
-                           @click="$parent.$emit('grant_bot', props.row)" />
-                    <q-btn dense flat color="warning" label="Restart"
-                           @click="$parent.$emit('restart_bot', props.row)" />
-                </div>
+                <div class="row justify-end items-center q-gutter-x-xs q-mt-xs">''' + _ROW_ACTIONS + '''</div>
             </q-card>
         </div>
     ''')

@@ -138,7 +138,9 @@ Test roll). Open, Edit and Delete go in a ⋮ menu at the end of the row: a flat
 round `more_vert` button named for its row ("More for Ana"), holding
 `menu_action` items, Delete last. Tapping the item's
 name opens or edits it. Desktop rows and phone cards carry the same button and
-the same menu. ⋮ is the only overflow icon; `more_horiz` (⋯) isn't used.
+the same menu. `more_menu(name)` (`theme/menu.py`) builds it for Python-built
+rows; `slot_more_menu`, `slot_row_button` and `slot_name_link` do the same in a
+`ui.table` slot. ⋮ is the only overflow icon; `more_horiz` (⋯) isn't used.
 
 **Destructive actions confirm first.** Delete, reset and remove never fire on
 one click. They sit behind a menu and open a `dialog-card--sm` confirmation that

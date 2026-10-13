@@ -48,6 +48,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.qualifier_copy import BOARD_EXPLAINER
@@ -269,12 +270,12 @@ async def admin_qualifiers_page(
                         with ui.row().classes('wiz-card-actions items-center no-wrap gap-1'):
                             ui.button('Manage', icon='tune',
                                       on_click=lambda qid=q.id: _manage(qid)).props('flat color=primary')
-                            ui.button(icon='edit',
-                                      on_click=lambda row=q: open_qualifier_dialog(row)
-                                      ).props('flat round color=primary').tooltip('Edit')
-                            ui.button(icon='delete',
-                                      on_click=lambda row=q: _delete_qualifier(row)
-                                      ).props('flat round color=negative').tooltip('Delete')
+                            with more_menu(q.name):
+                                menu_action('edit', 'Edit qualifier',
+                                            lambda row=q: open_qualifier_dialog(row))
+                                ui.separator()
+                                menu_action('delete', 'Delete qualifier',
+                                            lambda row=q: _delete_qualifier(row), negative=True)
                     ui.label(
                         f'Window: {fmt(q.opens_at)} → {fmt(q.closes_at)}  ·  '
                         f'Runs/pool: {q.runs_per_pool}  ·  Reattempts: {q.allowed_reattempts}'

@@ -333,7 +333,8 @@ def test_destructive_menu_items_come_last():
     for rel, source, tree, lines in _python_sources():
         for node in ast.walk(tree):
             if not (isinstance(node, (ast.With, ast.AsyncWith))
-                    and any(_ui_call(i.context_expr) == 'menu' for i in node.items)):
+                    and any(_ui_call(i.context_expr) == 'menu' or _base_name(i.context_expr) == 'more_menu'
+                            for i in node.items)):
                 continue
             kinds = [(st, _menu_item_kind(st, source)) for st in node.body]
             kinds = [(st, k) for st, k in kinds if k]

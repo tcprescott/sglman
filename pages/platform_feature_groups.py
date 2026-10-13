@@ -19,6 +19,7 @@ from models import FeatureFlag
 from pages.platform_shared import current_actor, section_intro
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import SlotItem, slot_more_menu, slot_name_link
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys, preferences_button
@@ -36,12 +37,11 @@ _DEFAULT_CHIP = '''
     <span v-if="props.row.default" class="wiz-chip wiz-chip--ok">Default</span>
 '''
 
-_ROW_ACTIONS = '''
-    <q-btn dense flat color="primary" label="Edit"
-           @click="$parent.$emit('edit_group', props.row)" />
-    <q-btn dense flat color="negative" label="Delete"
-           @click="$parent.$emit('delete_group', props.row)" />
-'''
+_NAME = slot_name_link('name', 'edit_group')
+_ROW_ACTIONS = slot_more_menu('props.row.name', [
+    SlotItem('edit', 'Edit group', 'edit_group'),
+    SlotItem('delete', 'Delete group', 'delete_group', negative=True),
+])
 
 
 async def render_feature_groups_section(user) -> None:
@@ -63,6 +63,7 @@ async def render_feature_groups_section(user) -> None:
         {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
     ]
     group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full wiz-table')
+    group_table.add_slot('body-cell-name', f'<q-td :props="props">{_NAME}</q-td>')
     group_table.add_slot('body-cell-flags', f'<q-td :props="props">{_FLAG_CHIPS}</q-td>')
     group_table.add_slot('body-cell-default', f'<q-td :props="props">{_DEFAULT_CHIP}</q-td>')
     group_table.add_slot('body-cell-actions',
@@ -70,7 +71,7 @@ async def render_feature_groups_section(user) -> None:
     enable_mobile_grid(
         group_table, group_columns, actions=_ROW_ACTIONS,
         table_key=TableKeys.PLATFORM_FEATURE_GROUPS,
-        field_slots={'flags': _FLAG_CHIPS, 'default': _DEFAULT_CHIP},
+        field_slots={'name': _NAME, 'flags': _FLAG_CHIPS, 'default': _DEFAULT_CHIP},
     )
     with group_header_row:
         preferences_button(group_table)

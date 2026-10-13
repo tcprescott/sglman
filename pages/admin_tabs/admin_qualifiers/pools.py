@@ -35,6 +35,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 
 
 def build_pools_tab(
@@ -68,17 +69,22 @@ def build_pools_tab(
                     if pool.preset:
                         ui.badge(f'preset: {pool.preset.randomizer}/{pool.preset.name}', color='grey')
                     ui.space()
-                    ui.button('Add permalinks', icon='playlist_add',
-                              on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
-                              ).props('flat color=primary')
                     refusal = roll_refusal(pool.preset) if pool.preset else None
-                    if pool.preset and refusal is None:
+                    rollable = pool.preset is not None and refusal is None
+                    if rollable:
                         ui.button('Roll', icon='casino',
                                   on_click=lambda pid=pool.id: _open_roll_dialog(pid)
                                   ).props('flat color=primary')
-                    ui.button(icon='delete',
-                              on_click=lambda p=pool: _delete_pool(p)
-                              ).props('flat round color=negative').tooltip('Delete pool')
+                    else:
+                        ui.button('Add permalinks', icon='playlist_add',
+                                  on_click=lambda pid=pool.id: _open_permalinks_dialog(pid)
+                                  ).props('flat color=primary')
+                    with more_menu(pool.name):
+                        if rollable:
+                            menu_action('playlist_add', 'Add permalinks',
+                                        lambda pid=pool.id: _open_permalinks_dialog(pid))
+                            ui.separator()
+                        menu_action('delete', 'Delete pool', lambda p=pool: _delete_pool(p), negative=True)
                 # Said here rather than in the dialog the button used to open: that
                 # dialog held a count field and nothing that could change the preset,
                 # so the only exit was Cancel. A disabled flat button would not do
@@ -106,10 +112,10 @@ def build_pools_tab(
             if pl.par_time:
                 ui.badge(f'par {format_hms(pl.par_time)}', color='green')
             ui.space()
-            ui.button(icon='edit', on_click=lambda p=pl: _open_permalink_dialog(p)
-                      ).props('flat round dense color=primary').tooltip('Edit this permalink')
-            ui.button(icon='delete', on_click=lambda p=pl: _delete_permalink(p)
-                      ).props('flat round dense color=negative').tooltip('Remove this permalink')
+            with more_menu(pl.url):
+                menu_action('edit', 'Edit permalink', lambda p=pl: _open_permalink_dialog(p))
+                ui.separator()
+                menu_action('delete', 'Remove permalink', lambda p=pl: _delete_permalink(p), negative=True)
 
     def _open_permalink_dialog(pl) -> None:
         with form_dialog('Edit Permalink', card_classes='dialog-card dialog-card--sm') as dialog:

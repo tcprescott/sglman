@@ -20,6 +20,7 @@ from application.services.async_qualifier.async_qualifier_rules import display_n
 from pages.admin_tabs.admin_qualifiers.shared import REVIEWERS_TAB
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 
 
 def build_reviewers_tab(
@@ -62,9 +63,9 @@ def build_reviewers_tab(
                         ui.badge('no Discord', color='grey').tooltip(
                             'This reviewer will not receive queue notifications.')
                     ui.space()
-                    ui.button('Remove', icon='person_remove',
-                              on_click=lambda p=person: _remove(p)
-                              ).props('flat color=negative')
+                    with more_menu(display_name(person)):
+                        menu_action('person_remove', 'Remove reviewer',
+                                    lambda p=person: _remove(p), negative=True)
 
     def _open_add_dialog() -> None:
         with form_dialog('Add a reviewer', card_classes='dialog-card dialog-card--sm') as dialog:

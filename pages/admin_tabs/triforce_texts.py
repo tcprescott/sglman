@@ -6,6 +6,7 @@ from application.services import AuthService, TriforceTextService, get_user_from
 from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action, more_menu
 from theme.page_header import page_header
 
 _STATUS_OPTIONS = {
@@ -103,25 +104,28 @@ async def admin_triforce_texts_page() -> None:
                                         else 'negative'
                                     )
                                     ui.badge(status, color=status_color)
-                                    with ui.row().classes('q-gutter-xs'):
-                                        ui.button(
-                                            'Approve',
-                                            icon='check',
-                                            on_click=lambda _, eid=entry.id: _moderate(eid, True),
-                                        ).props('color=positive dense').props(
-                                            'disable' if entry.approved is True else ''
-                                        )
-                                        ui.button(
-                                            'Reject',
-                                            icon='close',
-                                            on_click=lambda _, eid=entry.id: _moderate(eid, False),
-                                        ).props('color=negative dense').props(
-                                            'disable' if entry.approved is False else ''
-                                        )
-                                        ui.button(
-                                            icon='delete',
-                                            on_click=lambda _, eid=entry.id: _confirm_delete(eid),
-                                        ).props('flat dense color=grey').tooltip('Delete')
+                                    with ui.row().classes('items-center no-wrap gap-1'):
+                                        if entry.approved is None:
+                                            ui.button(
+                                                'Reject', icon='close',
+                                                on_click=lambda _, eid=entry.id: _moderate(eid, False),
+                                            ).props('flat dense no-caps color=negative')
+                                            ui.button(
+                                                'Approve', icon='check',
+                                                on_click=lambda _, eid=entry.id: _moderate(eid, True),
+                                            ).props('flat dense no-caps color=primary')
+                                        with more_menu(f'text by {author}'):
+                                            if entry.approved is True:
+                                                menu_action('close', 'Reject',
+                                                            lambda _, eid=entry.id: _moderate(eid, False))
+                                                ui.separator()
+                                            elif entry.approved is False:
+                                                menu_action('check', 'Approve',
+                                                            lambda _, eid=entry.id: _moderate(eid, True))
+                                                ui.separator()
+                                            menu_action('delete', 'Delete',
+                                                        lambda _, eid=entry.id: _confirm_delete(eid),
+                                                        negative=True)
             background_tasks.create(render())
 
         async def _moderate(text_id: int, approved: bool) -> None:
