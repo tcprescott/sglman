@@ -215,7 +215,7 @@ def _register_discord_connect_callback() -> None:
             stash_notice("That Discord authorization didn't go through. Try again when you're ready.", color='warning')
             ui.navigate.to(return_path)
             return
-        returned_state = (params.get('state') or [None])[0]
+        returned_state = next(iter(params.get('state', [])), None)
         if not expected_state or returned_state != expected_state or not tenant_id:
             stash_notice('That connection link expired. Try again.', color='warning')
             ui.navigate.to(return_path)
@@ -237,7 +237,7 @@ def _register_discord_connect_callback() -> None:
                     guild_raw = (params.get('guild_id') or ['1'])[0]
                     await DiscordLinkService.link_guild(actor, tenant, int(guild_raw))
                 else:
-                    code = (params.get('code') or [None])[0]
+                    code = next(iter(params.get('code', [])), None)
                     if not code:
                         stash_notice('The Discord authorization was cancelled.', color='warning')
                         ui.navigate.to(return_path)
@@ -381,14 +381,14 @@ def create() -> None:
                 await wait.navigate_to('/login')
                 return
 
-            returned_state = (params.get('state') or [None])[0]
+            returned_state = next(iter(params.get('state', [])), None)
             if not expected_state or returned_state != expected_state:
                 logger.warning('OAuth state mismatch on callback.')
                 stash_notice('That login link expired. Log in again to continue.', color='warning')
                 await wait.navigate_to('/login')
                 return
 
-            code = (params.get('code') or [None])[0]
+            code = next(iter(params.get('code', [])), None)
             if not code:
                 logger.warning('OAuth callback missing authorization code.')
                 stash_notice("That login didn't go through. Try again.", color='warning')
@@ -520,7 +520,7 @@ def create() -> None:
         if url is None:
             return
         parsed = urlparse(url)
-        token = (parse_qs(parsed.query).get('token') or [None])[0]
+        token = next(iter(parse_qs(parsed.query).get('token', [])), None)
         request_host = normalize_hostname(parsed.netloc)
         # Consume the browser-binding secret this domain's /login stashed.
         bind = app.storage.user.pop('handoff_bind', None)
