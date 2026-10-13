@@ -2099,27 +2099,23 @@ main.q-page:focus {
     gap: 2px;
 }
 
-/* An approver's crew line on the phone card: name on the left, the labelled
-   Approve / Approved toggle pushed to the right edge so every row's button
-   lines up in one column. */
-.mgc-crew-row {
-    display: flex;
-    align-items: center;
+/* An approver's crew member on the phone card: the name is the approval
+   toggle. The chips wrap like the plain name list does, and the name is
+   clipped rather than letting one long handle widen the card. */
+.mgc-crew-toggle .q-btn__content {
     gap: var(--space-1);
-    width: 100%;
+    flex-wrap: nowrap;
     min-width: 0;
 }
 
-.mgc-crew-name {
+.mgc-crew-toggle {
+    max-width: 100%;
+}
+
+.mgc-crew-toggle-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mgc-crew-approve {
-    margin-left: auto;
-    flex-shrink: 0;
 }
 
 .mgc-id-link {

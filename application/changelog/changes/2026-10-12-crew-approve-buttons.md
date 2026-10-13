@@ -1,4 +1,4 @@
-- On a phone, approving a commentator or tracker on a match card is now a
-  full-size Approve button beside each name instead of a small circle. An
-  approved name shows Approved, and tapping it again asks before removing the
-  approval.
+- On a phone, staff now approve a commentator or tracker on a match card by
+  tapping their name. Each name is a full-size button with an empty circle
+  while it's waiting and a green check once approved. Tapping it again asks
+  before removing the approval.

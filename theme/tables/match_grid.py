@@ -138,34 +138,24 @@ _CREW_DETAIL = '''
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <template v-for="(item, idx) in props.row.__KEY__">
-                    <!-- An approver gets one row per person: the name (opens
-                         their profile) and a labelled Approve / Approved button
-                         at full tap size. A bare status circle beside a name was
-                         too small to hit and didn't say what tapping it did. -->
-                    <span v-if="__CREW__" class="mgc-crew-row">
-                        <a href="#" @click.prevent="$parent.$emit('view___SING__', { row: props.row, idx })"
-                           class="table-link mgc-crew-name">{{ item.name }}</a>
-                        <q-icon v-if="item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs"
-                                aria-label="Acknowledged">
-                            <q-tooltip>Acknowledged{{ item.ack_ts ? ' ' + item.ack_ts : '' }}</q-tooltip>
-                        </q-icon>
-                        <q-icon v-else-if="item.approved" name="schedule" class="st-pending" size="xs"
-                                aria-label="Awaiting acknowledgment">
-                            <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
-                        </q-icon>
+                    <!-- For an approver the name itself is the approval toggle:
+                         one full-size chip per person, outlined in the accent
+                         while pending and green once approved. Tapping it opens
+                         the usual approve / un-approve confirmation. -->
+                    <template v-if="__CREW__">
+                        <q-btn class="mgc-crew-toggle" dense no-caps no-wrap outline
+                               :color="item.approved ? 'positive' : 'primary'"
+                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name"
+                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })">
+                            <q-icon :name="item.approved ? 'check_circle' : 'radio_button_unchecked'" size="18px" />
+                            <span class="mgc-crew-toggle-name">{{ item.name }}</span>
+                            <q-icon v-if="item.approved && item.acknowledged" name="how_to_reg" size="16px" />
+                            <q-icon v-else-if="item.approved" name="schedule" size="16px" class="st-pending" />
+                        </q-btn>
                         <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
                                icon="check" color="primary" dense flat no-caps no-wrap label="Acknowledge"
-                               @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
-                            <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
-                        </q-btn>
-                        <q-btn v-if="__CREW__" class="mgc-crew-approve" dense no-caps no-wrap size="sm"
-                               :outline="!item.approved" :flat="item.approved"
-                               :color="item.approved ? 'positive' : 'primary'"
-                               :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
-                               :label="item.approved ? 'Approved' : 'Approve'"
-                               :aria-label="(item.approved ? 'Un-approve ' : 'Approve ') + item.name"
-                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })" />
-                    </span>
+                               @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })" />
+                    </template>
                     <span v-else class="mgc-crew-item">
                         <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
                             <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
