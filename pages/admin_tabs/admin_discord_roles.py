@@ -255,8 +255,10 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
 
             async def delete_mapping(row, client):
                 async def do_remove() -> None:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    if current is None:
+                        return
                     try:
-                        current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                         await service.remove_mapping(row['id'], current)
                     except (ValueError, PermissionError) as e:
                         notify_error(e)
