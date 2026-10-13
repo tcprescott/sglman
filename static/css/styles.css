@@ -2190,6 +2190,32 @@ main.q-page:focus {
     gap: 2px;
 }
 
+/* The viewer's own Sign up / Withdraw for one crew role (crew_signup_section),
+   on the phone card and the desktop crew cell alike. A sunken tray of its own
+   above the names, so the button keeps one spot whether the list is empty, long,
+   or has the viewer in it, and reads as "your control", not one more name. */
+.wiz-crew-action {
+    display: flex;
+    align-items: center;
+    flex-basis: 100%;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    margin-bottom: var(--space-1);
+    background: var(--surface-sunken);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+}
+
+.wiz-crew-empty {
+    flex-basis: 100%;
+    white-space: nowrap;
+}
+
+/* In a desktop table cell the tray hugs its button rather than the column. */
+td .wiz-crew-action {
+    display: inline-flex;
+}
+
 /* An approver's crew member on the phone card: the name is the approval
    toggle. The chips wrap like the plain name list does, and the name is
    clipped rather than letting one long handle widen the card. */
