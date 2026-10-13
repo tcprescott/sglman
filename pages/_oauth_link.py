@@ -51,6 +51,7 @@ from application.utils.environment import (
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.tenant_urls import safe_next
 from models import User
+from pages._browser_url import browser_url
 from theme.notice import stash_notice
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ def returned_state(url: str) -> Optional[str]:
         params = parse_qs(urlparse(url).query)
     except ValueError:
         return None
-    return (params.get('state') or [None])[0]
+    return next(iter(params.get('state', [])), None)
 
 
 def read_callback_code(
@@ -113,11 +114,11 @@ def read_callback_code(
     if 'error' in params:
         logger.warning('%s OAuth callback returned error: %s', provider_label, params.get('error'))
         return None
-    state = (params.get('state') or [None])[0]
+    state = next(iter(params.get('state', [])), None)
     if not expected_state or state != expected_state:
         logger.warning('%s OAuth state mismatch on callback.', provider_label)
         return None
-    return (params.get('code') or [None])[0]
+    return next(iter(params.get('code', [])), None)
 
 
 # ---------------------------------------------------------------------------
@@ -414,20 +415,21 @@ def register_link_handoff_pages() -> None:
         # redirected to an unprefixed path that resolves to the community picker.
         if not host_oauth_handoff_enabled():
             return RedirectResponse('/')
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return None
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
-        token = (params.get('token') or [None])[0]
+        token = next(iter(params.get('token', [])), None)
         request_host = normalize_hostname(parsed.netloc)
         # The platform host's hand-back carries its own return path, across a host
         # boundary as a bare query parameter — as untrusted as any other.
-        handed_back = safe_next((params.get('next') or [None])[0] or _default_link_return())
+        handed_back = safe_next(next(iter(params.get('next', [])), None) or _default_link_return())
         # Consume the browser-binding secret this domain's /<provider>/link stashed.
         bind = app.storage.user.pop('oauth_link_bind', None)
         if not token:
             stash_notice(_handback_message(
-                (params.get('r') or [None])[0], (params.get('p') or [None])[0],
+                next(iter(params.get('r', [])), None), next(iter(params.get('p', [])), None),
             ), color='warning')
             ui.navigate.to(handed_back)
             return None
@@ -567,8 +569,9 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
 
     @ui.page(flow.callback_route)
     async def callback(client: Client) -> None:
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         # Cross-host handoff leg (platform host): exchange + mint + hand back.
         if await handle_link_handoff_callback(url):
             return

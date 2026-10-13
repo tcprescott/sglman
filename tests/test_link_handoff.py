@@ -269,7 +269,7 @@ def test_claim_route_is_disabled_in_path_mode(link, monkeypatch):
     src = inspect.getsource(link.register_link_handoff_pages)
     claim = src.index("@ui.page('/oauth/link/claim')")
     guard = src.index('if not host_oauth_handoff_enabled():', claim)
-    connected = src.index('await client.connected()', claim)
+    connected = src.index('await browser_url(client)', claim)
     assert guard < connected, 'the mode guard must run before the page does any work'
     assert "RedirectResponse('/')" in src[guard:connected]
 
