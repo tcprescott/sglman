@@ -3,7 +3,7 @@
     "name": "signup-phone",
     "user": "player_three",
     "path": "/home/schedule",
-    "selector": ".match-grid-card:has-text(\"Player Four\"):has-text(\"Player Two\"):has-text(\"Scheduled\")",
+    "selector": ".player-sheet__card:has-text(\"Sign up\")",
     "hide": [
       ".q-footer"
     ]

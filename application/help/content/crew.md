@@ -22,9 +22,9 @@ role.
 :::snippet crew-signup
 Open **Event**, stay on the **Schedule** view, and turn on **Needs crew**. That
 hides every match that's already covered or already under way, which on a busy
-day is most of the board. Then tap **Sign up** in the match's **Commentators**
-or **Trackers** cell. On a phone each match is a card, and the button sits on
-the card's Commentators or Trackers line.
+day is most of the board. Then tap **Sign up** beside **Commentary** or
+**Tracking** in the match's **Crew** cell. On a phone the same buttons sit
+under the match's name.
 
 There's no confirmation step. If you tapped the wrong one, **Withdraw** is in
 the same place.
@@ -33,11 +33,11 @@ Signing up is a request, not a booking. It tells staff you're available for that
 slot; a staff member decides who actually gets it.
 
 **Every streamed match has commentary.** Trackers are the role some tournaments
-don't use. Where that's the case there's no **Sign up** in the Trackers cell,
+don't use. Where that's the case there's no **Tracking** line in the Crew cell,
 and that's deliberate rather than a fault.
 :::
 
-![A match card on a phone. SM User is an approved commentator, Proctor User is still waiting for approval, Player One is an approved tracker who has not confirmed yet, and both crew rows offer Sign Up](/static/help/crew/signup-phone.webp "A match on the board, on a phone, with the crew lines filled in.")
+![A match on the board on a phone: Player Four vs Player One with no time yet, Commentary 0/1 and Tracking 0/1 both marked needs crew, each with a Sign up button](/static/help/crew/signup-phone.webp "A match that still needs crew, on a phone.")
 
 A few things stop the **Sign up** button appearing:
 
@@ -96,7 +96,7 @@ Until you do, staff can't tell whether you've seen the approval.
 You can confirm from three places, and they all do the same thing:
 
 - **Confirm I can cover this**, on your slot in My Schedule
-- **Acknowledge**, beside your name in the crew cell on the schedule board
+- **Confirm**, beside the role in the match's Crew cell on the schedule board
 - **Acknowledge**, on the DM you were sent
 :::
 
@@ -124,18 +124,14 @@ Turn on **Include past** to see the ones you've already worked.
 
 ## Reading the crew cell
 
-The Commentators and Trackers cells on the board show everyone who's signed up,
-not only the people who got the slot. How a name is drawn tells you where it
-stands:
+The Crew cell on the board counts approved crew against what the match needs,
+one line per role: "Commentary 1/2" means one approved commentator out of two.
+Someone still waiting for approval doesn't count, so a match can have three
+signups and still say "needs crew". **Needs crew** uses the same rule when it
+decides whether a match is covered.
 
-| You see | It means |
-|---|---|
-| An orange name, no icon | Signed up, not approved |
-| An orange clock, then a bold green name | Approved, hasn't confirmed yet |
-| A green tick, then a bold green name | Approved and confirmed |
-
-So a cell with three names in it might still have nobody approved. **Needs
-crew** counts only approved people when it decides whether a match is covered.
+If you're signed up, the line says so: "You · waiting for approval" or "You ·
+approved". Tap the match for everyone's names and whether they've confirmed.
 
 ## Withdrawing
 

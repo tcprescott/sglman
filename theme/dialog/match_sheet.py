@@ -132,12 +132,16 @@ class MatchSheet:
     """The match sheet. Two-phase like the lifecycle handlers: set ``view`` after
     the board exists, since the board needs ``open`` as its callback."""
 
-    def __init__(self, handlers, *, access: MatchBoardAccess, show_crew: bool = True):
+    def __init__(self, handlers, *, access: MatchBoardAccess, show_crew: bool = True,
+                 decorate=decorate_run_sheet_row):
         self.handlers = handlers
         self.access = access
         # Off on the proctor's board: crew is not theirs to fix, so a crew gap
         # must not hold their checklist below "ready".
         self.show_crew = show_crew
+        # The board's own row decorator, so the sheet's status chip says what
+        # the line it opened from says.
+        self.decorate = decorate
         self.view: Any = None
         self.row: Optional[dict] = None
         # mobile_sheet's own breakpoint, but a side sheet rather than a centred
@@ -180,7 +184,7 @@ class MatchSheet:
         row = self.row
         if row is None:
             return
-        decorate_run_sheet_row(row)
+        self.decorate(row)
         with ui.column().classes('match-sheet__body full-width'):
             self._headline(row)
             self._status(row)
