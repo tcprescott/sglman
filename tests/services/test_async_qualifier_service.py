@@ -568,7 +568,7 @@ async def test_rejection_dm_includes_the_reason(db, captured_dms):
     assert f'/qualifiers/{run.qualifier_id}' in message
     # The button, not only the markdown link: an embed suppresses the DM's text
     # content entirely, so a link that lives only in `message` can go unseen.
-    assert link is not None and link.url.endswith(f'/qualifiers/{run.qualifier_id}')
+    assert link is not None and link.url.endswith(f'/qualifiers/{run.qualifier_id}?focus=runs')
 
 
 async def test_review_queue_carries_existing_notes(db):
