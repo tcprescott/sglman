@@ -49,6 +49,7 @@ from application.utils.tenant_urls import (
     tenant_home,
 )
 from models import Role, Tenant, User
+from pages._browser_url import browser_url
 from theme.notice import drain_notice, stash_notice
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.waiting import waiting_screen
@@ -200,8 +201,9 @@ def _register_discord_connect_callback() -> None:
     """
     @ui.page('/oauth/discord/connect/callback')
     async def discord_connect_callback(client: Client):
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         expected_state = app.storage.user.pop('discord_connect_state', None)
         tenant_id = app.storage.user.pop('discord_connect_tenant_id', None)
         return_path = app.storage.user.pop('discord_connect_return', None) or '/'
@@ -267,8 +269,9 @@ def _register_discord_login_claim() -> None:
     async def discord_login_claim(client: Client) -> None:
         tenant_id = get_current_tenant_id()
         wait = await waiting_screen('Signing you in…')
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         parsed = urlparse(url)
         token = (parse_qs(parsed.query).get('token') or [''])[0]
         payload = DiscordLoginService.claim(token, parsed.netloc, tenant_id)
@@ -364,8 +367,9 @@ def create() -> None:
         # happening — built before the socket connects so the spinner paints
         # while the work runs, and held on screen long enough to read the fact.
         wait = await waiting_screen('Signing you in…')
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         expected_state = app.storage.user.pop('oauth_state', None)
         try:
             parsed_url = urlparse(url)
@@ -512,8 +516,9 @@ def create() -> None:
     async def session_claim(client: Client) -> None:
         """Design B claim (custom domain): validate the handoff and set the session."""
         wait = await waiting_screen('Finishing your login…')
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         parsed = urlparse(url)
         token = (parse_qs(parsed.query).get('token') or [None])[0]
         request_host = normalize_hostname(parsed.netloc)

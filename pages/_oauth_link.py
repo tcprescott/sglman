@@ -51,6 +51,7 @@ from application.utils.environment import (
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.tenant_urls import safe_next
 from models import User
+from pages._browser_url import browser_url
 from theme.notice import stash_notice
 
 logger = logging.getLogger(__name__)
@@ -414,8 +415,9 @@ def register_link_handoff_pages() -> None:
         # redirected to an unprefixed path that resolves to the community picker.
         if not host_oauth_handoff_enabled():
             return RedirectResponse('/')
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return None
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         token = (params.get('token') or [None])[0]
@@ -567,8 +569,9 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
 
     @ui.page(flow.callback_route)
     async def callback(client: Client) -> None:
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
+        url = await browser_url(client)
+        if url is None:
+            return
         # Cross-host handoff leg (platform host): exchange + mint + hand back.
         if await handle_link_handoff_callback(url):
             return
