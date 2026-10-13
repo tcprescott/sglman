@@ -92,12 +92,12 @@ def build_queue_tab(
                             ui.button('Claim', icon='lock',
                                       on_click=lambda r=run: _claim_run(r)
                                       ).props('flat color=primary')
-                        ui.button('Approve', icon='check',
-                                  on_click=lambda r=run: _open_review_dialog(r, True)
-                                  ).props('flat color=positive')
                         ui.button('Reject', icon='close',
                                   on_click=lambda r=run: _open_review_dialog(r, False)
                                   ).props('flat color=negative')
+                        ui.button('Approve', icon='check',
+                                  on_click=lambda r=run: _open_review_dialog(r, True)
+                                  ).props('flat color=positive')
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
                              f'Timed {format_hms(run.measured_seconds)}').classes(

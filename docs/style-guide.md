@@ -155,6 +155,9 @@ state. When a status replaces a button ("Acknowledged" after you acknowledge),
 the status takes that button's slot and the other button stays put; swapping
 sides between states makes people mis-tap. On a phone a card's pair splits the
 row in equal halves; on desktop it's a right-aligned pair.
+`test_negative_action_sits_left_of_the_positive_one` checks every pair whose
+labels say which is which (Decline, Reject, Remove, Clear, Withdraw, Cancel
+against Approve, Confirm, Save, Assign, Publish).
 
 **Help is one "?" at the end of the heading row.** See the Help row above; in a
 dialog title it sits just before Close and matches it (a "Help" pill on desktop,

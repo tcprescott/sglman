@@ -202,14 +202,14 @@ async def _members_panel(
                                 ui.label(request.message).classes('text-caption text-grey wiz-free-text')
                         with ui.row().classes('no-wrap gap-1'):
                             ui.button(
-                                'Approve', icon='check',
-                                on_click=lambda _=None, r=request.id: decide(r, True),
-                            ).props('flat dense color=positive')
-                            ui.button(
                                 'Decline', icon='close',
                                 on_click=lambda _=None, r=request.id,
                                 n=person.display_name or person.username: confirm_decline(r, n),
                             ).props('flat dense color=negative')
+                            ui.button(
+                                'Approve', icon='check',
+                                on_click=lambda _=None, r=request.id: decide(r, True),
+                            ).props('flat dense color=positive')
 
         await join_queue()
 

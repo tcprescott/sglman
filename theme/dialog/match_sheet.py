@@ -174,6 +174,19 @@ class MatchSheet:
             self.row = fresh
         self._content.refresh()
 
+    def _run(self, handler, *args) -> None:
+        """Run a lifecycle callback the way the board runs its own row events.
+
+        Every control here lives inside ``_content``, and the write a callback
+        makes pushes ``match_live``, which repaints ``_content`` before the
+        callback has finished. Awaited from the control's own event, the
+        callback is left inside a slot whose element has just been deleted, so
+        the client stash the tenant and display zone fall back to is out of
+        reach and its closing row refresh raises "No tenant in context". The
+        board's ``_bg`` rebinds them from what it captured at page build.
+        """
+        self.view._bg(handler(*args))
+
     def _find(self, match_id) -> Optional[dict]:
         rows = self.view.table.rows if self.view else []
         return next((r for r in rows if r.get('id') == match_id), None)
@@ -227,25 +240,25 @@ class MatchSheet:
         if self.access.run and row.get('players') and not row.get('is_racetime'):
             if state == 'Scheduled':
                 ui.button('Check in', icon='event_seat',
-                          on_click=lambda: h.on_seat(match_id)).props('color=primary')
+                          on_click=lambda: self._run(h.on_seat, match_id)).props('color=primary')
             elif state == 'Checked In':
                 ui.button('Start match', icon='play_arrow',
-                          on_click=lambda: h.on_start(match_id)).props('color=primary')
+                          on_click=lambda: self._run(h.on_start, match_id)).props('color=primary')
             elif state == 'Started':
                 ui.button('Finish', icon='sports_score',
-                          on_click=lambda: h.on_finish(match_id)).props('color=primary')
+                          on_click=lambda: self._run(h.on_finish, match_id)).props('color=primary')
         if self.access.confirm and state == 'Finished':
             if not row.get('has_result'):
                 ui.button('Record winner', icon='emoji_events',
-                          on_click=lambda: h.on_edit_result(match_id)).props('color=primary')
+                          on_click=lambda: self._run(h.on_edit_result, match_id)).props('color=primary')
             else:
-                ui.button('Change result', on_click=lambda: h.on_edit_result(match_id)) \
+                ui.button('Change result', on_click=lambda: self._run(h.on_edit_result, match_id)) \
                     .props('flat color=primary')
                 ui.button('Review result' if row.get('needs_review') else 'Confirm result',
-                          icon='verified', on_click=lambda: h.on_confirm(match_id)) \
+                          icon='verified', on_click=lambda: self._run(h.on_confirm, match_id)) \
                     .props('color=primary')
         if self.access.confirm and state == 'Confirmed':
-            ui.button('Change result', on_click=lambda: h.on_edit_result(match_id)) \
+            ui.button('Change result', on_click=lambda: self._run(h.on_edit_result, match_id)) \
                 .props('flat color=primary')
         if row.get('is_racetime') and state not in ('Finished', 'Confirmed'):
             ui.label('Runs on racetime.gg').classes('match-sheet__note')
@@ -291,7 +304,7 @@ class MatchSheet:
             ui.label(item['detail']).classes('match-sheet__note col')
             if self.access.run and row.get('state') in ('Scheduled', 'Checked In', 'Started'):
                 ui.button('Assign' if item['ready'] is False else 'Change',
-                          on_click=lambda: self.handlers.on_assign_stations(row['id'])) \
+                          on_click=lambda: self._run(self.handlers.on_assign_stations, row['id'])) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
 
     def _check_stage(self, row: dict, item: dict) -> None:
@@ -304,9 +317,9 @@ class MatchSheet:
                         options[opt['value']] = opt['label']
                 current = row.get('stage_id') or (CANDIDATE_STAGE if row.get('is_stream_candidate') else _NO_STAGE)
 
-                async def set_stage(e, mid=match_id):
+                def set_stage(e, mid=match_id):
                     value = e.value if e.value != _NO_STAGE else None
-                    await self.handlers.on_set_stage(mid, value)
+                    self._run(self.handlers.on_set_stage, mid, value)
 
                 ui.select(options, value=current, on_change=set_stage) \
                     .props('dense outlined options-dense aria-label="Stage"').classes('match-sheet__select col')
@@ -329,7 +342,7 @@ class MatchSheet:
                 ui.button('Copy', on_click=lambda: copy_to_clipboard(seed, 'Seed')) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
             elif not row.get('seed_rolling_since') and self.access.run and seed_rollable(row):
-                ui.button('Generate', on_click=lambda: self.handlers.on_generate_seed(row['id'])) \
+                ui.button('Generate', on_click=lambda: self._run(self.handlers.on_generate_seed, row['id'])) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
         blocked = row.get('seed_dm_blocked') or []
         if seed and blocked:
@@ -411,5 +424,5 @@ class MatchSheet:
         if not self.access.edit:
             return
         with dialog_actions().classes('justify-end'):
-            ui.button('Edit match', icon='edit', on_click=lambda: self.handlers.on_edit(row['id'])) \
+            ui.button('Edit match', icon='edit', on_click=lambda: self._run(self.handlers.on_edit, row['id'])) \
                 .props('flat color=primary')

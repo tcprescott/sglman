@@ -264,14 +264,14 @@ def create() -> None:
                             ui.label(f"{state['counts'][current.id]} subscribed") \
                                 .classes('wiz-community-event__meta')
                     if can_manage and current.status is not CommunityEventStatus.CANCELLED:
+                        ui.button('Cancel event', icon='event_busy', on_click=lambda: _confirm_cancel(current)) \
+                            .props('flat color=negative')
                         ui.button(
                             'Edit', icon='edit',
                             on_click=lambda: CommunityEventDialog(
                                 user, current, is_staff=is_staff, on_saved=_after_save,
                             ).open(),
                         ).props('flat')
-                        ui.button('Cancel event', icon='event_busy', on_click=lambda: _confirm_cancel(current)) \
-                            .props('flat color=negative')
 
                 if current.description:
                     with ui.column().classes('wiz-community-event__body gap-0 full-width'):
