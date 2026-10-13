@@ -413,7 +413,7 @@ events staff have opened. Run one tick by hand with
   unlinked buyers have no one to DM, so nothing is sent.
 - After a check-in an Undo bar shows for eight seconds with "Hand over: VIP
   lanyard" (plus any extra badges).
-- Staff get a floating **Add walk-up** button.
+- Staff get an **Add walk-up** button (person icon) beside Sync in the sticky toolbar.
 - Export CSV downloads the whole roster, not just the filtered view.
 
 **Several phones at once.** Every roster change publishes on

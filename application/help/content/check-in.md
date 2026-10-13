@@ -146,8 +146,8 @@ notice before they miss a match call.
 ## Walk-ups
 
 A walk-up is someone checking in without a Matcherino badge. Only staff can add
-one, with the round **+** button in the corner of the desk. A desk volunteer
-sends them to staff.
+one, with the add-person button at the top of the desk, beside the sync button.
+A desk volunteer sends them to staff.
 
 The **Add walk-up** dialog takes either **A member** (search for their account)
 or **Just a name**, and checks them in straight away unless you untick **Check
