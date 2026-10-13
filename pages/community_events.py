@@ -120,13 +120,28 @@ def _rsvp_button(service: CommunityEventService, user: User, event: CommunityEve
             .props('flat color=primary').tooltip("Say you're coming and get a DM before it starts")
 
 
+def attendance_controls(event: CommunityEvent, state: dict) -> tuple[str, ...]:
+    """Which attendance buttons the viewer gets: ``'rsvp'``, ``'reminder'`` or both.
+
+    The RSVP button when the event takes RSVPs, else the reminder toggle. Someone
+    who asked for a reminder before the host turned RSVPs on still holds it, so
+    they keep the toggle beside the RSVP button to switch it off.
+    """
+    if not event.rsvp_enabled:
+        return ('reminder',)
+    if event.id in state['subscribed'] and event.id not in state['going']:
+        return ('rsvp', 'reminder')
+    return ('rsvp',)
+
+
 def _attendance(service, user, event: CommunityEvent, state: dict, on_change) -> None:
-    """The RSVP button when the event takes RSVPs, else the reminder toggle."""
-    if event.rsvp_enabled:
-        _rsvp_button(service, user, event, event.id in state['going'],
-                     state['going_counts'].get(event.id, 0), on_change)
-    else:
-        _subscribe_button(service, user, event, event.id in state['subscribed'], on_change)
+    controls = attendance_controls(event, state)
+    with ui.row().classes('items-center justify-end gap-1'):
+        if 'rsvp' in controls:
+            _rsvp_button(service, user, event, event.id in state['going'],
+                         state['going_counts'].get(event.id, 0), on_change)
+        if 'reminder' in controls:
+            _subscribe_button(service, user, event, event.id in state['subscribed'], on_change)
 
 
 async def _attendance_state(service: CommunityEventService, user: User, event_ids: list[int]) -> dict:

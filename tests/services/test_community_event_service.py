@@ -438,3 +438,80 @@ async def test_a_bad_rsvp_cap_is_refused(member, cap):
 async def test_a_cap_without_rsvps_is_dropped(member):
     event = await CommunityEventService().submit(member, _draft(rsvp_capacity=5))
     assert event.rsvp_enabled is False and event.rsvp_capacity is None
+
+
+# --- taking a listed event down, RSVP caps and the approval DM -------------
+
+
+async def test_a_taken_down_event_drops_its_subscribers_so_re_approval_does_not_remind_them(
+    member, other_member, staff, dms,
+):
+    from application.repositories.community_event_repository import CommunityEventSubscriptionRepository
+
+    service = CommunityEventService()
+    event = await service.submit(member, _draft(starts_at=_soon(0.25)))
+    await service.approve(staff, event.id)
+    await service.subscribe(other_member, event.id)
+    await dms()
+
+    await service.reject(staff, event.id, 'Venue said no')
+    assert 602 in [d['to'] for d in await dms()]
+    assert await CommunityEventSubscription.filter(event_id=event.id).count() == 0
+
+    await service.approve(staff, event.id)
+    now = datetime.now(timezone.utc)
+    assert await CommunityEventSubscriptionRepository.due_for_reminder(now, now + timedelta(hours=1)) == []
+
+
+async def test_rejecting_a_pending_event_leaves_nothing_to_drop(member, staff):
+    service = CommunityEventService()
+    event = await service.submit(member, _draft())
+
+    await service.reject(staff, event.id, 'Pick another room')
+
+    assert await CommunityEventSubscription.filter(event_id=event.id).count() == 0
+
+
+async def test_the_rsvp_cap_cannot_drop_below_who_is_already_going(member, other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(member, _draft(rsvp_enabled=True, rsvp_capacity=5))
+    await service.approve(staff, event.id)
+    await service.rsvp(other_member, event.id)
+    await service.rsvp(staff, event.id)
+
+    with pytest.raises(ValueError, match="2 people have already RSVP'd"):
+        await service.update(member, event.id, _draft(starts_at=event.starts_at, rsvp_enabled=True, rsvp_capacity=1))
+    await event.refresh_from_db()
+    assert event.rsvp_capacity == 5
+
+    await service.update(member, event.id, _draft(starts_at=event.starts_at, rsvp_enabled=True, rsvp_capacity=2))
+    await event.refresh_from_db()
+    assert event.rsvp_capacity == 2
+
+
+
+async def test_turning_rsvps_off_ignores_the_cap_check(member, other_member, staff):
+    service = CommunityEventService()
+    event = await service.submit(staff, _draft(rsvp_enabled=True, rsvp_capacity=5))
+    await service.rsvp(other_member, event.id)
+    await service.rsvp(member, event.id)
+
+    await service.update(staff, event.id, _draft(starts_at=event.starts_at))
+
+    await event.refresh_from_db()
+    assert event.rsvp_enabled is False and event.rsvp_capacity is None
+
+
+@pytest.mark.parametrize('rsvp_enabled, says', [
+    (False, 'subscribe to it for a reminder'),
+    (True, 'RSVP to it, which also gets them a reminder'),
+])
+async def test_the_approval_dm_matches_how_members_sign_up(member, staff, dms, rsvp_enabled, says):
+    service = CommunityEventService()
+    event = await service.submit(member, _draft(rsvp_enabled=rsvp_enabled))
+    await dms()
+
+    await service.approve(staff, event.id)
+
+    [sent] = await dms()
+    assert says in sent['text']
