@@ -160,13 +160,13 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
                     confirm.open()
 
                 actions.clear()
+                actions.set_visibility(bool(is_draft and entries))
                 with actions:
                     if is_draft and entries:
                         ui.button('Save seeds', icon='save', on_click=save_seeds) \
                             .props('flat color=primary')
                         ui.button('Start bracket', icon='play_arrow', on_click=start) \
                             .props('color=primary')
-                    ui.button('Close', on_click=dialog.close).props('flat')
 
             # Both containers exist before anything fills them, so the DOM order
             # is body-then-actions while the action bar still sits *outside* the

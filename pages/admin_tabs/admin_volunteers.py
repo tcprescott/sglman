@@ -174,11 +174,11 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         'The volunteers have not been told yet.'
                     ).classes('text-body2')
                     ui.space()
+                    ui.button('Clear draft', icon='clear_all',
+                              on_click=lambda: clear_draft()).props('flat color=negative')
                     ui.button('Publish draft', icon='send',
                               on_click=lambda: confirm_publish(pending)) \
                         .props('color=positive')
-                    ui.button('Clear draft', icon='clear_all',
-                              on_click=lambda: clear_draft()).props('flat color=negative')
 
         # --- Last auto-fill result ---------------------------------------
         panel_container = ui.column().classes('full-width')
@@ -684,9 +684,8 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                         refresh_all()
                     await VolunteerPositionDialog(on_submit=after).open()
 
-                with ui.row().classes('justify-end q-pa-sm gap-2'):
-                    ui.button('Add position', icon='add', on_click=add_position).props('flat color=primary')
-                    ui.button('Close', on_click=dialog.close).props('flat')
+                with dialog_actions().classes('justify-end'):
+                    ui.button('Add position', icon='add', on_click=add_position).props('color=primary')
                 dialog.open()
 
         with strip_container:

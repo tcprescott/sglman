@@ -72,12 +72,6 @@ async def admin_randomizer_keys_page() -> None:
                     ).classes('flex-grow')
                     if row['configured']:
                         value_input.props('hint="Entering a new value replaces the stored one"')
-                    ui.button(
-                        'Save', icon='save',
-                        on_click=lambda r=row, i=value_input: background_tasks.create(
-                            save(r['randomizer'], r['key'], i, context.client)
-                        ),
-                    ).props('color=primary dense')
                     if row['configured']:
                         ui.button(
                             'Clear', icon='delete',
@@ -85,6 +79,12 @@ async def admin_randomizer_keys_page() -> None:
                                 clear(r['randomizer'], r['key'], context.client)
                             ),
                         ).props('flat color=negative dense')
+                    ui.button(
+                        'Save', icon='save',
+                        on_click=lambda r=row, i=value_input: background_tasks.create(
+                            save(r['randomizer'], r['key'], i, context.client)
+                        ),
+                    ).props('color=primary dense')
 
     with ui.column().classes('page-container-narrow'):
         page_header(
