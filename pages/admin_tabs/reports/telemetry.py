@@ -14,6 +14,7 @@ from nicegui import app, ui
 from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_local_display, timezone_label
+from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
@@ -21,15 +22,23 @@ from .shared import (
     date_range_filter,
     default_date_range,
     display_bounds,
+    event_jump_options,
+    filter_field,
+    is_custom_range,
     kpi_card,
+    kpi_grid,
     navigate_with_params,
     paginated_event_log,
     parse_details,
     parse_int,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
 )
 
 PAGE_SIZE = 50
+
+SUBTITLE = 'How people use the app: page views, clicks and the things they change.'
 
 _CATEGORY_OPTIONS = {
     '': 'All categories',
@@ -51,7 +60,7 @@ async def telemetry_page(
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     service = TelemetryService()
     if not await _is_staff(actor):
-        with report_page_shell('Engagement Telemetry'):
+        with report_page_shell('Engagement Telemetry', SUBTITLE):
             ui.label('Only Staff can view engagement telemetry.').classes('text-error')
         return
 
@@ -75,54 +84,53 @@ async def telemetry_page(
         params.update(overrides)
         navigate_with_params(**params)
 
-    with report_page_shell('Engagement Telemetry'):
-        # ---- Filters
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
-                date_range_filter(
-                    start_d, end_d,
-                    on_change=lambda s, e: _nav(start=s, end=e, page=None),
-                )
-                category_select = ui.select(
-                    options=_CATEGORY_OPTIONS,
-                    value=category_filter,
-                    label='Category',
-                ).props('dense').classes('control-width')
-                category_select.on(
-                    'update:model-value',
-                    lambda _e: _nav(category=(category_select.value or None), page=None),
-                )
-                event_input = ui.input(
-                    'Event contains', value=event_filter,
-                ).props('dense').classes('control-width')
+    active = (
+        int(await is_custom_range(start_d, end_d)) + int(bool(category_filter))
+        + int(bool(event_filter)) + int(user_id_int is not None)
+    )
+    with report_page_shell('Engagement Telemetry', SUBTITLE):
+        with report_filter_bar(active):
+            date_range_filter(start_d, end_d, on_change=lambda s, e: _nav(start=s, end=e, page=None))
+            category_select = filter_field(ui.select(
+                options=_CATEGORY_OPTIONS,
+                value=category_filter,
+                label='Category',
+            ))
+            category_select.on(
+                'update:model-value',
+                lambda _e: _nav(category=(category_select.value or None), page=None),
+            )
+            event_input = filter_field(ui.input('Path contains', value=event_filter))
 
-                def _on_event(_e):
-                    _nav(action=(event_input.value or '').strip() or None, page=None)
-                event_input.on('blur', _on_event)
-                event_input.on('keydown.enter', _on_event)
+            def _on_event(_e):
+                _nav(action=(event_input.value or '').strip() or None, page=None)
+            event_input.on('blur', _on_event)
+            event_input.on('keydown.enter', _on_event)
 
-                if user_id_int is not None:
-                    ui.button(
-                        'Clear user filter', icon='close',
-                        on_click=lambda: _nav(user_id=None, page=None),
-                    ).props('flat dense')
+            if user_id_int is not None:
+                ui.button(
+                    'Clear person', icon='close',
+                    on_click=lambda: _nav(user_id=None, page=None),
+                ).props('flat dense no-caps color=primary')
+            report_jumps(await event_jump_options(), start_d, end_d,
+                         on_pick=lambda s, e: _nav(start=s, end=e, page=None))
 
         # ---- KPIs
         summary = await service.engagement_summary(actor, start=bounds_start, end=bounds_end)
-        with ui.row().classes('full-width gap-3 q-mt-md').style('flex-wrap: wrap;'):
-            kpi_card('Total events', f"{summary['total_events']:,}", 'captured in window', min_width=200)
-            kpi_card('Unique users', f"{summary['unique_users']:,}", 'identified actors', min_width=200)
-            kpi_card('Unique sessions', f"{summary['unique_sessions']:,}", 'browser sessions', min_width=200)
-            kpi_card('Page views', f"{summary['page_views']:,}", 'authenticated loads', min_width=200)
+        with kpi_grid():
+            kpi_card('Total events', f"{summary['total_events']:,}", 'captured in window')
+            kpi_card('Unique users', f"{summary['unique_users']:,}", 'identified actors')
+            kpi_card('Unique sessions', f"{summary['unique_sessions']:,}", 'browser sessions')
+            kpi_card('Page views', f"{summary['page_views']:,}", 'authenticated loads')
 
         # ---- Leaderboards (only meaningful without a single-user filter)
         top_paths = await service.top_paths(actor, start=bounds_start, end=bounds_end)
         top_events = await service.top_event_types(actor, start=bounds_start, end=bounds_end)
         top_users = await service.top_users(actor, start=bounds_start, end=bounds_end)
 
-        with ui.row().classes('full-width gap-3 q-mt-md').style('flex-wrap: wrap;'):
-            _leaderboard(
-                'Most viewed pages',
+        with ui.element('div').classes('wiz-tile-grid'):
+            await _leaderboard(
+                'Most viewed pages', 'visibility',
                 [
                     {'name': 'path', 'label': 'Path', 'field': 'path'},
                     {'name': 'views', 'label': 'Views', 'field': 'views'},
@@ -131,8 +139,8 @@ async def telemetry_page(
                 top_paths,
                 row_key='path',
             )
-            _leaderboard(
-                'Most frequent events',
+            await _leaderboard(
+                'Most frequent events', 'bolt',
                 [
                     {'name': 'event_type', 'label': 'Event', 'field': 'event_type'},
                     {'name': 'category', 'label': 'Category', 'field': 'category'},
@@ -141,8 +149,8 @@ async def telemetry_page(
                 top_events,
                 row_key='event_type',
             )
-            _leaderboard(
-                'Most active users',
+            await _leaderboard(
+                'Most active users', 'person',
                 [
                     {'name': 'user', 'label': 'User', 'field': 'user'},
                     {'name': 'events', 'label': 'Events', 'field': 'events'},
@@ -197,7 +205,9 @@ async def telemetry_page(
             {'name': 'details', 'label': 'Details', 'field': 'details', 'sortable': False},
         ]
 
-        paginated_event_log(
+        await paginated_event_log(
+            title='Events',
+            icon='list_alt',
             columns=columns,
             rows=rows,
             row_key='ev_id',
@@ -210,9 +220,8 @@ async def telemetry_page(
             count_noun='events',
             note=(
                 'Click a row to filter by that user. Category filters the log; '
-                'the "Event contains" box matches the path.'
+                'the "Path contains" box matches the path.'
             ),
-            card_classes='full-width q-pa-md q-mt-md',
         )
 
 
@@ -221,9 +230,12 @@ async def _is_staff(actor) -> bool:
     return await AuthService.is_staff(actor)
 
 
-def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
-    with ui.card().classes('q-pa-md').style('flex: 1 1 320px; min-width: 320px;'):
-        ui.label(title).classes('section-title q-mb-sm')
+async def _leaderboard(title, icon, columns, rows, *, row_key, on_row_click=None) -> None:
+    panel = await section_panel(
+        title, icon=icon,
+        subtitle='Pick a person to filter the log to them.' if on_row_click is not None and rows else '',
+    )
+    with panel.body:
         if not rows:
             ui.label('No data in window.').classes('italic-note')
             return
@@ -243,5 +255,3 @@ def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
             table.on('lb-click', _handle)
         enable_mobile_grid(table, columns, table_key=TableKeys.REPORTS_TELEMETRY_TOP,
                            row_click_event='lb-click' if on_row_click is not None else None)
-        if on_row_click is not None:
-            ui.label('Click a row to filter the log to that person.').classes('italic-note')

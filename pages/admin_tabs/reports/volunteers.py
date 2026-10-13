@@ -4,6 +4,7 @@ Per-shift filled/needed counts across a date range, highlighting understaffed
 shifts.
 """
 
+from datetime import date
 from typing import Optional
 
 from nicegui import app, ui
@@ -12,6 +13,7 @@ from application.services import AuthService, get_user_from_discord_id
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display, to_local
 from pages.admin_tabs.links import VOL_SCHEDULE, admin_url
+from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
@@ -21,7 +23,11 @@ from .shared import (
     default_date_range,
     display_bounds,
     enable_drill_link,
+    event_jump_options,
+    is_custom_range,
     navigate_with_params,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
 )
 
@@ -38,13 +44,16 @@ async def volunteers_page(
     viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_staff_shifts = await AuthService.can_manage_volunteers(viewer)
 
-    with report_page_shell('Volunteer Coverage'):
-        with ui.card().classes('full-width q-pa-md'):
-            date_range_filter(
-                start_d,
-                end_d,
-                on_change=lambda s, e: navigate_with_params(report='volunteers', start=s, end=e),
-            )
+    def nav(s: date, e: date) -> None:
+        navigate_with_params(report='volunteers', start=s, end=e)
+
+    with report_page_shell(
+        'Volunteer Coverage',
+        'How many volunteers each shift has against how many it needs.',
+    ):
+        with report_filter_bar(int(await is_custom_range(start_d, end_d))):
+            date_range_filter(start_d, end_d, on_change=nav)
+            report_jumps(await event_jump_options(), start_d, end_d, on_pick=nav)
 
         bounds_start, bounds_end = display_bounds(start_d, end_d)
         coverage = await VolunteerScheduleService().coverage(bounds_start, bounds_end)
@@ -52,23 +61,25 @@ async def volunteers_page(
         understaffed = [r for r in coverage if r['understaffed']]
         total_open = sum(r['needed'] - r['filled'] for r in understaffed)
 
-        with ui.card().classes('full-width q-pa-md q-mb-md'):
-            ui.label('Understaffed shifts').classes('section-title')
+        short_panel = await section_panel('Understaffed shifts', icon='person_off')
+        with short_panel.body:
             if not understaffed:
-                ui.label('Every shift in this window is fully staffed. 🎉').classes('italic-note')
+                ui.label('Every shift in this window is fully staffed.').classes('italic-note')
             else:
-                ui.label(f'{len(understaffed)} shift(s) need {total_open} more volunteer(s).') \
-                    .classes('text-body2')
-                if can_staff_shifts:
-                    # The headline sentence is the most actionable line in the
-                    # whole reports section; make it, not only the table, a route.
-                    first_day = _local_day(min(r['starts_at'] for r in understaffed))
-                    ui.button(
-                        f'Staff {first_day}', icon='open_in_new',
-                        on_click=lambda: ui.navigate.to(
-                            admin_url(VOL_SCHEDULE, day=first_day)
-                        ),
-                    ).props('flat dense color=primary')
+                with ui.row().classes('items-center full-width'):
+                    ui.label(f'{len(understaffed)} shift(s) need {total_open} more volunteer(s).') \
+                        .classes('text-body2')
+                    if can_staff_shifts:
+                        # The headline sentence is the most actionable line in the
+                        # whole reports section; make it, not only the table, a route.
+                        first_day = _local_day(min(r['starts_at'] for r in understaffed))
+                        ui.space()
+                        ui.button(
+                            f'Staff {first_day}', icon='open_in_new',
+                            on_click=lambda: ui.navigate.to(
+                                admin_url(VOL_SCHEDULE, day=first_day)
+                            ),
+                        ).props('flat dense no-caps color=primary')
 
         rows = [
             {
@@ -90,14 +101,14 @@ async def volunteers_page(
             {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
         ]
 
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center justify-between'):
-                ui.label('All shifts').classes('section-title')
-                csv_export_button(
-                    f'volunteer-coverage-{start_d}-to-{end_d}',
-                    lambda: columns,
-                    lambda: rows,
-                )
+        shifts_panel = await section_panel('All shifts', icon='event_note')
+        with shifts_panel.aside:
+            csv_export_button(
+                f'volunteer-coverage-{start_d}-to-{end_d}',
+                lambda: columns,
+                lambda: rows,
+            )
+        with shifts_panel.body:
             table = ui.table(columns=columns, rows=rows, pagination=25, row_key='starts_at') \
                 .classes('full-width')
             # Only the rows that name work get a route out of it: a fully

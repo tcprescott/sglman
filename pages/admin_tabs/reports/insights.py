@@ -13,20 +13,27 @@ from nicegui import ui
 
 from application.services import AnalyticsService
 from application.utils.timezone import now_local
+from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.tables.preferences import TableKeys
 
 from .shared import (
-    CHART_GOLD,
+    CHART_AMBER,
     CHART_NEUTRAL,
     CHART_RED,
     CHART_TEAL,
+    ChartPalette,
+    chart_palette,
     csv_export_button,
     date_range_filter,
     display_bounds,
+    filter_field,
     kpi_card,
+    kpi_grid,
     navigate_with_params,
     parse_date,
+    report_filter_bar,
+    report_jumps,
     report_page_shell,
     themed_chart_option,
     tournament_filter,
@@ -110,45 +117,40 @@ async def insights_page(
         params.update(overrides)
         navigate_with_params(**params)
 
-    with report_page_shell('Insights & Trends'):
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center gap-3'):
-                date_range_filter(
-                    start_d, end_d,
-                    on_change=lambda s, e: nav(start=s, end=e),
-                )
-                bucket_select = ui.select(
-                    options={'week': 'Weekly', 'month': 'Monthly'},
-                    value=bucket,
-                    label='Bucket',
-                ).classes('control-width').props('dense')
-                bucket_select.on(
-                    'update:model-value',
-                    lambda: nav(bucket=bucket_select.value),
-                )
-                await tournament_filter(
-                    tournament_id,
-                    on_change=lambda t_id: nav(tournament_id=t_id),
-                )
-            with ui.row().classes('q-mt-sm items-center gap-2'):
-                ui.label('Range:').classes('text-caption')
-                for days, label in ((30, 'Last 30d'), (90, 'Last 90d'), (365, 'Last year')):
-                    today = now_local().date()
-                    ui.button(
-                        label,
-                        on_click=lambda d=days, t=today: nav(start=t - timedelta(days=d), end=t),
-                    ).props('flat dense')
+    today = now_local().date()
+    ranges = [
+        (label, today - timedelta(days=days), today)
+        for days, label in ((30, 'Last 30 days'), (90, 'Last 90 days'), (365, 'Last year'))
+    ]
+    # Explicit dates are the only thing that counts as narrowed: the default
+    # window follows the data, so there is no fixed range to compare against.
+    active = int(bool(start or end)) + int(tournament_id is not None)
+    with report_page_shell(
+        'Insights & Trends',
+        'Crew, volunteer hours, tournament health and admin activity, week by week or month by month.',
+    ):
+        with report_filter_bar(active):
+            date_range_filter(start_d, end_d, on_change=lambda s, e: nav(start=s, end=e))
+            bucket_select = filter_field(ui.select(
+                options={'week': 'Weekly', 'month': 'Monthly'},
+                value=bucket,
+                label='Group by',
+            ))
+            bucket_select.on('update:model-value', lambda: nav(bucket=bucket_select.value))
+            await tournament_filter(tournament_id, on_change=lambda t_id: nav(tournament_id=t_id))
+            report_jumps(ranges, start_d, end_d, on_pick=lambda s, e: nav(start=s, end=e))
 
         crew, hours, health, activity = await _load(analytics, bounds_start, bounds_end, bucket, tournament_id)
+        palette = await chart_palette()
 
         # Volunteer shifts and audit logs are not tournament-scoped in the data
         # model, so the tournament filter only narrows the crew and health sections.
         scoped = tournament_id is not None
         _kpi_strip(crew, hours, health)
-        _crew_section(crew, start_d, end_d)
-        _volunteer_section(hours, start_d, end_d, scoped)
-        _health_section(health, start_d, end_d)
-        _activity_section(activity, scoped)
+        await _crew_section(crew, start_d, end_d, palette)
+        await _volunteer_section(hours, start_d, end_d, palette, scoped)
+        await _health_section(health, start_d, end_d)
+        await _activity_section(activity, palette, scoped)
 
 
 async def _load(analytics, start, end, bucket, tournament_id):
@@ -168,7 +170,7 @@ def _kpi_strip(crew: dict, hours: dict, health: dict) -> None:
     avg_health = sum(scored) / len(scored) if scored else None
     approved = crew['totals']['commentator_approved'] + crew['totals']['tracker_approved']
 
-    with ui.row().classes('full-width gap-3 q-mt-md items-stretch').style('flex-wrap: wrap;'):
+    with kpi_grid():
         kpi_card('Approved crew slots', f'{approved}',
                   f"{crew['totals']['unique_people']} unique people")
         kpi_card('Volunteer hours', f"{hours['totals']['scheduled_hours']:g}",
@@ -184,12 +186,13 @@ def _kpi_strip(crew: dict, hours: dict, health: dict) -> None:
 # --- Crew participation ---------------------------------------------------
 
 
-def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
+async def _crew_section(crew: dict, start_d: date, end_d: date, palette: ChartPalette) -> None:
     labels = crew['bucket_labels']
-    with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Crew participation over time').classes('section-title')
-        ui.label('Approved commentator & tracker slots per bucket, with unique people.') \
-            .classes('italic-note')
+    chart = await section_panel(
+        'Crew participation over time', icon='headset_mic',
+        subtitle='Approved commentator and tracker slots, with how many people filled them.',
+    )
+    with chart.body:
         if not _has_signal(crew['commentator_approved'] + crew['tracker_approved'] + crew['unique_people']):
             ui.label('No crew activity in the selected window.').classes('italic-note q-mt-md')
         else:
@@ -204,9 +207,9 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
                 ],
                 'series': [
                     {'name': 'Commentators', 'type': 'bar', 'stack': 'slots',
-                     'data': crew['commentator_approved'], 'itemStyle': {'color': CHART_GOLD}},
+                     'data': crew['commentator_approved'], 'itemStyle': {'color': palette.primary}},
                     {'name': 'Trackers', 'type': 'bar', 'stack': 'slots',
-                     'data': crew['tracker_approved'], 'itemStyle': {'color': CHART_TEAL}},
+                     'data': crew['tracker_approved'], 'itemStyle': {'color': palette.secondary}},
                     {'name': 'Unique people', 'type': 'line', 'yAxisIndex': 1, 'smooth': True,
                      'data': crew['unique_people'], 'itemStyle': {'color': CHART_NEUTRAL},
                      'lineStyle': {'width': 2, 'color': CHART_NEUTRAL}},
@@ -229,10 +232,10 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
         {'name': 'tracker_approved', 'label': 'Tracking', 'field': 'tracker_approved', 'sortable': True},
         {'name': 'total_approved', 'label': 'Total approved', 'field': 'total_approved', 'sortable': True},
     ]
-    with ui.card().classes('full-width q-pa-md'):
-        with ui.row().classes('items-center justify-between'):
-            ui.label('Top crew contributors').classes('section-title')
-            csv_export_button(f'crew-contributors-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
+    top = await section_panel('Top crew contributors', icon='groups')
+    with top.aside:
+        csv_export_button(f'crew-contributors-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
+    with top.body:
         if not rows:
             ui.label('No crew contributors in this window.').classes('italic-note')
         else:
@@ -243,15 +246,15 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
 # --- Volunteer hours ------------------------------------------------------
 
 
-def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = False) -> None:
+async def _volunteer_section(
+    hours: dict, start_d: date, end_d: date, palette: ChartPalette, scoped: bool = False,
+) -> None:
     labels = hours['bucket_labels']
-    with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Volunteer hours over time').classes('section-title')
-        ui.label('Scheduled vs checked-in volunteer-hours per bucket, with fill rate.') \
-            .classes('italic-note')
-        if scoped:
-            ui.label('Event-wide — volunteer shifts are not tied to a tournament.') \
-                .classes('italic-note')
+    subtitle = 'Scheduled against checked-in volunteer hours, with the fill rate.'
+    if scoped:
+        subtitle += ' Event-wide: volunteer shifts are not tied to a tournament.'
+    chart = await section_panel('Volunteer hours over time', icon='volunteer_activism', subtitle=subtitle)
+    with chart.body:
         if not _has_signal(hours['scheduled_hours'] + hours['checked_in_hours']):
             ui.label('No volunteer hours in the selected window.').classes('italic-note q-mt-md')
         else:
@@ -266,9 +269,9 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
                 ],
                 'series': [
                     {'name': 'Scheduled', 'type': 'bar',
-                     'data': hours['scheduled_hours'], 'itemStyle': {'color': CHART_GOLD}},
+                     'data': hours['scheduled_hours'], 'itemStyle': {'color': palette.primary}},
                     {'name': 'Checked in', 'type': 'bar',
-                     'data': hours['checked_in_hours'], 'itemStyle': {'color': CHART_TEAL}},
+                     'data': hours['checked_in_hours'], 'itemStyle': {'color': palette.secondary}},
                     {'name': 'Fill rate %', 'type': 'line', 'yAxisIndex': 1, 'smooth': True,
                      'data': hours['fill_rate'], 'itemStyle': {'color': CHART_NEUTRAL},
                      'lineStyle': {'width': 2, 'color': CHART_NEUTRAL}},
@@ -291,10 +294,10 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
         {'name': 'checked_in_hours', 'label': 'Checked-in h', 'field': 'checked_in_hours', 'sortable': True},
         {'name': 'shifts', 'label': 'Shifts', 'field': 'shifts', 'sortable': True},
     ]
-    with ui.card().classes('full-width q-pa-md'):
-        with ui.row().classes('items-center justify-between'):
-            ui.label('Top volunteers by hours').classes('section-title')
-            csv_export_button(f'volunteer-hours-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
+    top = await section_panel('Top volunteers by hours', icon='schedule')
+    with top.aside:
+        csv_export_button(f'volunteer-hours-{start_d}-to-{end_d}', lambda: columns, lambda: rows)
+    with top.body:
         if not rows:
             ui.label('No volunteer assignments in this window.').classes('italic-note')
         else:
@@ -305,14 +308,15 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
 # --- Tournament health ----------------------------------------------------
 
 
-def _health_section(health: dict, start_d: date, end_d: date) -> None:
+async def _health_section(health: dict, start_d: date, end_d: date) -> None:
     rows = health['rows']
     scored = [r for r in rows if r['health_score'] is not None]
 
-    with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Tournament health').classes('section-title')
-        ui.label('Composite 0–100 score from completion, on-time, crew coverage, and duration adherence.') \
-            .classes('italic-note')
+    chart = await section_panel(
+        'Tournament health', icon='monitor_heart',
+        subtitle='A 0–100 score from completion, starting on time, crew coverage and match length.',
+    )
+    with chart.body:
         if not scored:
             ui.label('No scoreable tournaments in the selected window.').classes('italic-note q-mt-md')
         else:
@@ -362,10 +366,10 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
         'matches_finished', 'completion_pct', 'on_time_pct', 'coverage_pct',
         'avg_start_delay_min', 'avg_duration_min', 'expected_avg_min',
     )]
-    with ui.card().classes('full-width q-pa-md'):
-        with ui.row().classes('items-center justify-between'):
-            ui.label('Health detail').classes('section-title')
-            csv_export_button(f'tournament-health-{start_d}-to-{end_d}', lambda: csv_columns, lambda: csv_rows)
+    detail = await section_panel('Health detail', icon='table_chart')
+    with detail.aside:
+        csv_export_button(f'tournament-health-{start_d}-to-{end_d}', lambda: csv_columns, lambda: csv_rows)
+    with detail.body:
         if not rows:
             ui.label('No tournaments with matches in this window.').classes('italic-note')
         else:
@@ -380,28 +384,27 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
 # --- Admin activity -------------------------------------------------------
 
 
-def _activity_section(activity: dict, scoped: bool = False) -> None:
+async def _activity_section(activity: dict, palette: ChartPalette, scoped: bool = False) -> None:
     labels = activity['bucket_labels']
     categories = activity['categories']
-    with ui.card().classes('chart-container q-pa-md'):
-        ui.label('Admin activity over time').classes('section-title')
-        ui.label('Audit-log actions per bucket, by top action category.').classes('italic-note')
-        if scoped:
-            ui.label('Event-wide — audit activity is not tied to a tournament.') \
-                .classes('italic-note')
+    subtitle = 'Audit-log actions, by the busiest kinds of action.'
+    if scoped:
+        subtitle += ' Event-wide: audit activity is not tied to a tournament.'
+    chart = await section_panel('Admin activity over time', icon='fact_check', subtitle=subtitle)
+    with chart.body:
         if activity['total'] == 0:
             ui.label('No audit activity in the selected window.').classes('italic-note q-mt-md')
         else:
             # Palette holds three distinct series hues; keep the top three
             # categories and fold the long tail into a neutral "Other" stack.
             top = categories[:3]
-            palette = [CHART_GOLD, CHART_TEAL, CHART_RED]
+            colours = [palette.primary, palette.secondary, CHART_RED]
             series = []
             legend = []
             for i, cat in enumerate(top):
                 series.append({
                     'name': cat['category'], 'type': 'bar', 'stack': 'actions',
-                    'data': cat['counts'], 'itemStyle': {'color': palette[i]},
+                    'data': cat['counts'], 'itemStyle': {'color': colours[i]},
                 })
                 legend.append(cat['category'])
             if len(categories) > 3:
@@ -493,7 +496,7 @@ def _health_hex(score: Optional[float]) -> str:
     if score >= 75:
         return CHART_TEAL
     if score >= 50:
-        return CHART_GOLD
+        return CHART_AMBER
     return CHART_RED
 
 

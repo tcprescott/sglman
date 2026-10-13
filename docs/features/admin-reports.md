@@ -87,8 +87,12 @@ prefixes a `'` to any cell whose first non-whitespace character is `=`, `+`, `-`
 (safe and expected in CSV). Covered by `tests/test_csv_export.py`.
 
 **Adding a report:** create `reports/my_report.py` rendering inside
-`shared.report_page_shell()`, put its aggregation in `ReportsService`, then
-register the handler in `_REPORT_HANDLERS` and link it from the dashboard.
+`shared.report_page_shell()`, with its filters in `shared.report_filter_bar()`
+(each through `filter_field`) and each block in a `section_panel` whose CSV
+button goes in the panel's `aside`. Paint the main chart series from
+`chart_palette()`, never a fixed colour. Put its aggregation in
+`ReportsService`, then register the handler in `_REPORT_HANDLERS` and link it
+from the dashboard.
 
 **See also:** [frontend.md](../reference/frontend.md#reports-subsystem-pagesadmin_tabsreports) —
 the reports subsystem's UI internals.
