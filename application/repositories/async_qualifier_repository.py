@@ -8,6 +8,7 @@ row-lock helper the draw transaction needs â€” which is data access (a SELECT â€
 FOR UPDATE), not business logic.
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 
@@ -27,6 +28,30 @@ from models import (
     AsyncQualifierRunStatus,
     User,
 )
+
+
+@dataclass
+class PlayedPermalinks:
+    """The permalinks one player has drawn in a pool, split by whether the run counts.
+
+    ``valid`` holds seeds behind a run that still counts; ``voided`` holds seeds the
+    player only ever played in a voided (reattempted) run. Both feed the no-repeat
+    rule, which prefers a seed in neither and falls back to a voided one.
+    """
+
+    valid: Set[int] = field(default_factory=set)
+    voided: Set[int] = field(default_factory=set)
+
+    def add(self, permalink_id: Optional[int], reattempted: bool) -> None:
+        if permalink_id is None:
+            return
+        if reattempted:
+            if permalink_id not in self.valid:
+                self.voided.add(permalink_id)
+        else:
+            self.valid.add(permalink_id)
+            self.voided.discard(permalink_id)
+
 
 # Runs that consumed a permalink slot: everything except a voided reattempt.
 # Used for draw fairness and the runs-per-pool cap.
@@ -327,14 +352,17 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
             )
         ).order_by('elapsed_seconds')
 
-    async def played_permalink_ids_for_user_in_pool(self, pool_id: int, user_id: int) -> Set[int]:
-        """Permalink ids this player has already consumed in a pool (no-repeat)."""
+    async def played_permalink_ids_for_user_in_pool(
+        self, pool_id: int, user_id: int
+    ) -> PlayedPermalinks:
+        """Permalinks this player has drawn in a pool, voided runs included (no-repeat)."""
         rows = await scoped(
-            AsyncQualifierRun.filter(
-                permalink__pool_id=pool_id, user_id=user_id, reattempted=False
-            )
-        ).values_list('permalink_id', flat=True)
-        return {pid for pid in rows if pid is not None}
+            AsyncQualifierRun.filter(permalink__pool_id=pool_id, user_id=user_id)
+        ).values('permalink_id', 'reattempted')
+        played = PlayedPermalinks()
+        for row in rows:
+            played.add(row['permalink_id'], row['reattempted'])
+        return played
 
     async def valid_run_counts_by_permalink_for_pool(self, pool_id: int) -> Dict[int, int]:
         """Play count per permalink in a pool (all players), for draw fairness.
@@ -383,8 +411,8 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
 
     async def played_permalink_ids_for_user_by_pool(
         self, pool_ids: Collection[int], user_id: int
-    ) -> Dict[int, Set[int]]:
-        """Permalinks this player has consumed, per pool, in one query.
+    ) -> Dict[int, PlayedPermalinks]:
+        """Permalinks this player has drawn, per pool, voided runs included, in one query.
 
         The no-repeat rule needs this for every pool the availability read reports
         on; asking pool by pool is what made that read cost five queries a pool.
@@ -392,14 +420,12 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
         if not pool_ids:
             return {}
         rows = await scoped(
-            AsyncQualifierRun.filter(
-                permalink__pool_id__in=list(pool_ids), user_id=user_id, reattempted=False,
-            )
-        ).values('permalink_id', 'permalink__pool_id')
-        played: Dict[int, Set[int]] = {pool_id: set() for pool_id in pool_ids}
+            AsyncQualifierRun.filter(permalink__pool_id__in=list(pool_ids), user_id=user_id)
+        ).values('permalink_id', 'permalink__pool_id', 'reattempted')
+        played: Dict[int, PlayedPermalinks] = {pool_id: PlayedPermalinks() for pool_id in pool_ids}
         for row in rows:
-            if row['permalink_id'] is not None:
-                played.setdefault(row['permalink__pool_id'], set()).add(row['permalink_id'])
+            played.setdefault(row['permalink__pool_id'], PlayedPermalinks()).add(
+                row['permalink_id'], row['reattempted'])
         return played
 
     async def count_self_spent_reattempts(self, qualifier_id: int, user_id: int) -> int:

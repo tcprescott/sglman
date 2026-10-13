@@ -398,8 +398,25 @@ async def test_reattempt_frees_the_pool_slot_for_a_new_draw(db):
     second = await service.start_run(player, q.id, pool.id)
     assert second.id != first.id
     assert second.status == AsyncQualifierRunStatus.IN_PROGRESS
-    # The voided run leaves the played set too, so its permalink is drawable
-    # again — a void says the attempt did not happen, not that the seed is spent.
+    # The pool still has a seed the player has never seen, so the reattempt
+    # draws that one rather than the voided run's permalink.
+    assert second.permalink_id != first.permalink_id
+
+
+async def test_reattempt_falls_back_to_a_voided_seed_when_the_pool_has_no_other(db):
+    """A one-seed pool must not dead-end a player who spent a reattempt on it."""
+    service = AsyncQualifierService()
+    staff = await make_staff()
+    q, pool = await open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['https://seed.test/only'])
+    player = await make_player(900054, 'p1')
+
+    first = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, first.id)
+    await service.reattempt_run(player, first.id, reason='the seed would not load')
+
+    second = await service.start_run(player, q.id, pool.id)
+    assert second.permalink_id == first.permalink_id
 
 
 async def test_grant_reattempt_requires_qualifier_admin(db):

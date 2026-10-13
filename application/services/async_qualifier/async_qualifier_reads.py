@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Awaitable, Callable, List, Optional
 
 from application.feature_flags import requires_feature
+from application.repositories import PlayedPermalinks
 from application.services.async_qualifier import async_qualifier_access as access
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_scoring import (
@@ -288,7 +289,8 @@ class PlayerReadsMixin:
         spent = await self.run_repository.valid_run_counts_for_user_by_pool(pool_ids, user.id)
         usage = {}
         for pool in pools:
-            candidates = self.draw.drawable(pool.permalinks, played.get(pool.id, set()))
+            candidates = self.draw.drawable(
+                pool.permalinks, played.get(pool.id) or PlayedPermalinks())
             usage[pool.id] = rules.PoolUsage(
                 pool_id=pool.id, name=pool.name, used=spent.get(pool.id, 0),
                 allowed=qualifier.runs_per_pool, has_candidates=bool(candidates),
