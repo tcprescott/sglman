@@ -109,7 +109,7 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
             shift = assignment.shift
             position = shift.position.name if shift.position else 'Volunteer'
             help = await resolve_help(['shift-release'])
-            with form_dialog('Give this shift back?', help=help) as dialog:
+            with form_dialog('Give this shift back?', card_classes='dialog-card dialog-card--sm', help=help) as dialog:
                 with ui.column().classes('q-pa-md gap-2 full-width'):
                     ui.label(
                         position + (f' — {shift.label}' if shift.label else '')

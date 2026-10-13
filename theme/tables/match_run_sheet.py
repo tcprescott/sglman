@@ -13,6 +13,7 @@ header rides on the first row of its group (``_group_start``).
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Callable, Optional
 
 from application.utils.timezone import to_local, today_local
 
@@ -24,6 +25,16 @@ RUN_SHEET_COLUMNS = [
     {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'align': 'left'},
     {'name': 'crew', 'label': 'Crew', 'field': 'commentators', 'align': 'left'},
     {'name': 'status', 'label': 'Status', 'field': 'state', 'align': 'left'},
+]
+
+#: The proctor's run sheet. No crew (not the proctor's job) and the next
+#: lifecycle step on the line itself: a proctor works down the list pressing
+#: one button per match, so making them open each one first is a tap per step.
+PROCTOR_RUN_SHEET_COLUMNS = [
+    {'name': 'scheduled_at', 'label': 'Time', 'field': 'scheduled_at', 'align': 'left'},
+    {'name': 'match', 'label': 'Match', 'field': 'title', 'align': 'left'},
+    {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'align': 'left'},
+    {'name': 'next', 'label': 'Next step', 'field': 'state', 'align': 'left'},
 ]
 
 # (order, header) per group. Decisions first: a finished match nobody has
@@ -62,7 +73,8 @@ def run_sheet_status(row: dict) -> tuple[str, str]:
     return 'Scheduled', 'neutral'
 
 
-def _group(row: dict) -> tuple[int, str]:
+def admin_group(row: dict) -> tuple[int, str]:
+    """The admin board's groups: what needs a decision, then the clock."""
     state = row.get('state')
     if state == 'Finished':
         return _DECIDE
@@ -73,6 +85,83 @@ def _group(row: dict) -> tuple[int, str]:
     if not row.get('players'):
         return _NO_PLAYERS
     return _NEXT
+
+
+_LATE = (0, 'Late, check in now')
+_READY = (1, 'Ready to start')
+_IN_PLAY = (2, 'In play')
+_COMING = (3, 'Up next')
+_NO_PLAYERS_YET = (4, 'Waiting for players')
+_FINISHED = (5, 'Done')
+
+
+def proctor_group(row: dict) -> tuple[int, str]:
+    """The proctor's groups, in the order the work arrives.
+
+    Late first: players past their time with nobody checked in are the one
+    thing in the room that gets worse by the minute.
+    """
+    state = row.get('state')
+    if state in ('Finished', 'Confirmed'):
+        return _FINISHED
+    if state == 'Started':
+        return _IN_PLAY
+    if state == 'Checked In':
+        return _READY
+    if not row.get('players'):
+        return _NO_PLAYERS_YET
+    if row.get('is_overdue'):
+        return _LATE
+    return _COMING
+
+
+#: Groups read newest first: the most recent result is the one anyone is still
+#: looking for.
+_NEWEST_FIRST = {_DONE[1], _FINISHED[1]}
+
+
+def next_step(row: dict) -> Optional[dict]:
+    """The lifecycle step a proctor takes next on ``row``, or None.
+
+    ``event`` is the board event the existing handlers already listen for, so
+    the line's button and the sheet's reach the same service call.
+    """
+    if row.get('is_racetime') or not row.get('players'):
+        return None
+    state = row.get('state')
+    if state == 'Scheduled':
+        return {'event': 'seat', 'label': 'Check in', 'primary': bool(row.get('is_overdue'))}
+    if state == 'Checked In':
+        return {'event': 'start', 'label': 'Start', 'primary': True}
+    if state == 'Started':
+        return {'event': 'finish', 'label': 'Finish', 'primary': False}
+    return None
+
+
+def _seats(row: dict) -> list[dict]:
+    return [
+        {'name': p.get('name') or '', 'station': p.get('station') or '',
+         'ada': bool(p.get('ada')), 'ada_note': p.get('ada_note')}
+        for p in row.get('players') or []
+    ]
+
+
+def seat_line(row: dict) -> str:
+    """Where the players sit, in a few words: the phone line's stand-in for
+    the desktop's station tag beside each name."""
+    players = row.get('players') or []
+    if not players or row.get('is_racetime'):
+        return ''
+    stations = [(p.get('name') or '', p.get('station')) for p in players]
+    seated = [str(s) for _n, s in stations if s]
+    missing = [n for n, s in stations if not s]
+    if not seated:
+        return 'No stations yet'
+    if not missing:
+        return f"Stations {', '.join(seated[:-1])} and {seated[-1]}" if len(seated) > 1 \
+            else f'Station {seated[0]}'
+    return ' · '.join(f'{n} at {s}' for n, s in stations if s) + \
+        f" · {', '.join(missing)} {'has' if len(missing) == 1 else 'have'} none"
 
 
 def _day_label(ts) -> str:
@@ -138,97 +227,174 @@ def decorate_run_sheet_row(row: dict) -> dict:
     else:
         row['_stage'] = ''
     row['_crew'] = run_sheet_crew(row)
+    row['_next'] = next_step(row)
+    row['_seats'] = _seats(row)
+    row['_seat_line'] = seat_line(row)
+    row['_ada'] = [p.get('name') or '' for p in row.get('players') or [] if p.get('ada')]
     return row
 
 
-def arrange_run_sheet(rows: list) -> list:
+def arrange_run_sheet(rows: list, group: Callable[[dict], tuple[int, str]] = admin_group) -> list:
     """Decorate, group and order ``rows``; mark the first row of each group.
 
-    Inside a group the order is the clock, earliest first, except Confirmed,
-    where the most recent result is the one anyone is still looking for.
+    ``group`` maps a row to ``(order, header)``: :func:`admin_group` for the
+    schedule board, :func:`proctor_group` for the proctor's. Inside a group the
+    order is the clock, earliest first, except the finished groups, where the
+    most recent result is the one anyone is still looking for.
     """
     for row in rows:
         decorate_run_sheet_row(row)
 
     def key(row):
-        order, _ = _group(row)
+        order, header = group(row)
         ts = row.get('scheduled_ts') or 0
-        return (order, -ts if order == _DONE[0] else ts)
+        return (order, -ts if header in _NEWEST_FIRST else ts)
 
     arranged = sorted(rows, key=key)
+    counts: dict[str, int] = {}
+    for row in arranged:
+        header = group(row)[1]
+        counts[header] = counts.get(header, 0) + 1
     previous = None
     for row in arranged:
-        _, header = _group(row)
+        _, header = group(row)
         row['_group'] = header
+        row['_group_count'] = counts[header]
         row['_group_start'] = header != previous
         previous = header
     return arranged
 
 
-_STATUS_CHIP = '''<span class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>'''
+_STATUS_CHIP = """<span class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>"""
 
 # Signups over need, per role. "needs crew" is spelled out rather than left to
 # the amber, which no screen reader and not every eye can read.
-_CREW = r'''<span v-for="c in props.row._crew" :key="c.label" class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">{{ c.label }} <b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template><template v-else-if="c.unapproved"> · to approve</template></span>'''
+_CREW = r"""<span v-for="c in props.row._crew" :key="c.label" class="run-sheet__crew" :class="c.short ? 'st-pending' : ''">{{ c.label }} <b>{{ c.count }}</b><template v-if="c.short"> · needs crew</template><template v-else-if="c.unapproved"> · to approve</template></span>"""
 
-# Desktop: one row per match, a group header row above the first of each group.
-# The Match cell's names are the row's button, so the row is reachable and
-# operable from the keyboard; the rest of the row is a mouse convenience.
-_BODY_SLOT = r'''
+_TIME = """<span v-if="props.row._time" class="run-sheet__time" :class="props.row._status === 'Late' ? 'st-pending' : ''">{{ props.row._time }}</span>
+            <span v-else class="run-sheet__day">No time</span>
+            <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>"""
+
+_WHO = "{{ props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title) }}"
+
+# The proctor's names carry their station, since "where do I send them" is half
+# of every step. ADA is text, not a control: the line's own button already
+# holds the names, and the sheet has the accommodation button.
+_SEATED_WHO = r"""<template v-if="props.row._seats.length"><template v-for="(s, i) in props.row._seats" :key="i"><span v-if="i" class="run-sheet__vs">{{ props.row._seats.length > 2 ? ', ' : ' vs ' }}</span><span class="run-sheet__player">{{ s.name }}<span class="run-sheet__seat" :class="s.station ? '' : 'run-sheet__seat--none'">{{ s.station ? 'Station ' + s.station : 'No station' }}</span></span></template></template><template v-else>""" + _WHO + """</template>"""
+
+_ADA = """<span v-if="props.row._ada.length" class="run-sheet__ada"><q-icon name="accessible" size="16px" aria-hidden="true" />ADA: {{ props.row._ada.join(', ') }}</span>"""
+
+# The next lifecycle step, on the line. Late and Ready are the primary buttons:
+# the room is waiting on them. The group already says Late or Checked in, so
+# the chip is left to the states a button does not explain.
+_NEXT_CHIP = """<span v-if="!['Scheduled', 'Checked in', 'Late'].includes(props.row._status)" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>"""
+
+_NEXT_BUTTON = """<q-btn v-if="props.row._next" no-caps unelevated color="primary" :outline="!props.row._next.primary"
+                   class="run-sheet__step" :label="props.row._next.label"
+                   :aria-label="props.row._next.label + ': ' + (props.row._who || props.row.title)"
+                   @click.stop="$parent.$emit(props.row._next.event, { key: props.row.id })" />"""
+
+
+def _next(can_run: bool) -> str:
+    return ('<span class="run-sheet__next">' + _NEXT_CHIP
+            + (_NEXT_BUTTON if can_run else '') + '</span>')
+
+
+def _group_header(proctor: bool) -> str:
+    count = ' · {{ props.row._group_count }}' if proctor else ''
+    return '{{ props.row._group }}' + count
+
+
+def _body_slot(proctor: bool, can_run: bool = False) -> str:
+    """Desktop: one row per match, a group header row above the first of each
+    group. The Match cell's names are the row's button, so the row is reachable
+    and operable from the keyboard; the rest of the row is a mouse convenience."""
+    if proctor:
+        match = """<button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
+                """ + _SEATED_WHO + """
+            </button>
+            <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
+            """ + _ADA
+    else:
+        match = """<button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
+                """ + _WHO + """
+            </button>
+            <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>"""
+    return """
 <q-tr v-if="props.row._group_start" class="run-sheet__group-row">
-    <q-td colspan="100%" class="run-sheet__group">{{ props.row._group }}</q-td>
+    <q-td colspan="100%" class="run-sheet__group">""" + _group_header(proctor) + """</q-td>
 </q-tr>
 <q-tr :props="props" class="run-sheet__row" :class="props.row._flash ? 'wiz-row-flash' : ''"
       @click="$parent.$emit('open_match', props.row.id)">
     <q-td v-for="col in props.cols" :key="col.name" :props="props">
         <template v-if="col.name === 'scheduled_at'">
-            <span v-if="props.row._time" class="run-sheet__time" :class="props.row._status === 'Late' ? 'st-pending' : ''">{{ props.row._time }}</span>
-            <span v-else class="run-sheet__day">No time</span>
-            <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>
+            """ + _TIME + """
         </template>
         <template v-else-if="col.name === 'match'">
-            <button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
-                {{ props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title) }}
-            </button>
-            <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
+            """ + match + """
         </template>
         <template v-else-if="col.name === 'stage'">
             <span v-if="props.row._stage">{{ props.row._stage }}</span>
             <span v-else class="run-sheet__none">None</span>
         </template>
         <template v-else-if="col.name === 'crew'">
-            <span class="run-sheet__crew-list">''' + _CREW + '''</span>
+            <span class="run-sheet__crew-list">""" + _CREW + """</span>
         </template>
-        <template v-else-if="col.name === 'status'">''' + _STATUS_CHIP + '''</template>
-        <template v-else>{{ col.value }}</template>
+        <template v-else-if="col.name === 'status'">""" + _STATUS_CHIP + """</template>
+""" + ("""        <template v-else-if="col.name === 'next'">""" + _next(can_run) + """</template>
+""" if proctor else '') + """        <template v-else>{{ col.value }}</template>
     </q-td>
 </q-tr>
-'''
+"""
 
-# Phone: the whole line is one button. A plain "Scheduled" is the default, so
-# the chip is left off it and the names get the width.
-_ITEM_SLOT = r'''
+
+def _item_slot(proctor: bool, can_run: bool = False) -> str:
+    """Phone: the whole line is one button. A plain "Scheduled" is the default,
+    so the chip is left off it and the names get the width. The proctor's line
+    is a card holding two buttons instead, since the step can't sit inside
+    the button that opens the match."""
+    when = """<span class="run-sheet__when">
+            """ + _TIME + """
+        </span>"""
+    if proctor:
+        return """
 <div class="run-sheet__item">
-    <div v-if="props.row._group_start" class="run-sheet__group">{{ props.row._group }}</div>
+    <div v-if="props.row._group_start" class="run-sheet__group">""" + _group_header(proctor) + """</div>
+    <div class="run-sheet__card run-sheet__card--split" :class="props.row._flash ? 'wiz-row-flash' : ''">
+        <button type="button" class="run-sheet__card-open" @click="$parent.$emit('open_match', props.row.id)">
+            """ + when + """
+            <span class="run-sheet__main">
+                <span class="run-sheet__who">""" + _WHO + """</span>
+                <span class="run-sheet__meta"><template v-if="props.row._stage">{{ props.row._stage }}</template><template v-if="props.row._stage && props.row._seat_line"> · </template>{{ props.row._seat_line }}</span>
+                """ + _ADA + """
+            </span>
+        </button>
+        """ + _next(can_run) + """
+    </div>
+</div>
+"""
+    return """
+<div class="run-sheet__item">
+    <div v-if="props.row._group_start" class="run-sheet__group">""" + _group_header(proctor) + """</div>
     <button type="button" class="run-sheet__card" :class="props.row._flash ? 'wiz-row-flash' : ''"
             @click="$parent.$emit('open_match', props.row.id)">
-        <span class="run-sheet__when">
-            <span v-if="props.row._time" class="run-sheet__time" :class="props.row._status === 'Late' ? 'st-pending' : ''">{{ props.row._time }}</span>
-            <span v-else class="run-sheet__day">No time</span>
-            <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>
-        </span>
+        """ + when + """
         <span class="run-sheet__main">
-            <span class="run-sheet__who">{{ props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title) }}</span>
+            <span class="run-sheet__who">""" + _WHO + """</span>
             <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
-            <span v-if="props.row._crew.length" class="run-sheet__crew-list">''' + _CREW + '''</span>
+            <span v-if="props.row._crew.length" class="run-sheet__crew-list">""" + _CREW + """</span>
         </span>
         <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
     </button>
 </div>
-'''
+"""
 
 
-def register_run_sheet_slots(table) -> None:
-    """The run sheet's desktop ``body`` and phone ``item`` slots on ``table``."""
-    table.add_slot('body', _BODY_SLOT)
-    table.add_slot('item', _ITEM_SLOT)
+def register_run_sheet_slots(table, *, proctor: bool = False, can_run: bool = False) -> None:
+    """The run sheet's desktop ``body`` and phone ``item`` slots on ``table``.
+
+    ``proctor`` draws the proctor's line: stations beside the names and a count
+    on each group, plus the next lifecycle step as a button when ``can_run``.
+    """
+    table.add_slot('body', _body_slot(proctor, can_run))
+    table.add_slot('item', _item_slot(proctor, can_run))
