@@ -2346,6 +2346,26 @@ main.q-page:focus {
     max-width: 120px; /* reasonable default, table can expand as needed */
 }
 
+/* A member's role chips wrap inside a capped cell. Quasar cells are nowrap, so
+   someone holding four roles otherwise set the Roles column to one long line
+   and pushed Joined and Via off the end of the table. */
+.user-table td .user-table__roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 0;
+    white-space: normal;
+    min-width: 9rem;
+    max-width: 20rem;
+}
+
+/* Nine columns share a laptop-width page, so the cells give up some of
+   Quasar's 16px side padding rather than push Via and Remove off the end. */
+.user-table .q-table th,
+.user-table .q-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
 /* Ensure links inside the wrapper also wrap */
 .match-table td .wrap a {
     white-space: normal !important;
@@ -4891,7 +4911,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 .match-sheet__select {
     min-width: 0;
-    max-width: 16rem;
+    max-width: 20rem;
 }
 .match-sheet__seed {
     overflow-wrap: anywhere;

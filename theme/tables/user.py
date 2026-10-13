@@ -88,9 +88,9 @@ class UserTableView:
         </q-td>''')
         # props.value is a comma-separated string.
         self.table.add_slot('body-cell-roles', '''<q-td :props="props">
-            <template v-if="props.value">
+            <div v-if="props.value" class="user-table__roles">
                 <q-chip v-for="r in props.value.split(',')" :key="r" color="primary" text-color="white" dense>{{ r.trim() }}</q-chip>
-            </template>
+            </div>
             <span v-else class="text-grey-7">-</span>
         </q-td>''')
         self.render_grid_slot()

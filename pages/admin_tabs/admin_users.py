@@ -70,7 +70,7 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
     ``ada_request`` is the staff DM's deep link: the ADA sub-tab opens on that
     request's dialog.
     """
-    with ui.column().classes('page-container-narrow w-full'):
+    with ui.column().classes('page-container-wide w-full'):
         page_header('User Management')
 
         if not accommodations:
