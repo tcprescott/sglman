@@ -82,7 +82,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Empty list | `empty_state(message)`, `no_data_slot()` in a table | |
 | A form in a dialog | `form_dialog(title)` + `dialog_actions()` + `submit_on_enter()` (`theme/dialog/_helpers.py`) | Hand-rolled `ui.dialog()` + `ui.card()` + title row (`test_dialogs_use_the_shared_header` fails on one) |
 | Dialog width | `dialog-card` (medium, the default), `dialog-card dialog-card--sm` (a few fields, a confirmation), `dialog-card--lg` (a table or two columns) | `w-96`, `w-full`, `.style('max-width: …')` |
-| Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it) | |
+| Phone-sized dialog | `mobile_sheet(dialog)` (form_dialog does it): a bottom sheet as tall as its content | `maximized` (a short form floats over a screen of blank card) |
 | A table | `enable_mobile_grid(table, columns, table_key=TableKeys.X, …)` | A bare `ui.table` (the `check_table_grid` and `check_table_prefs` hooks enforce this) |
 | Text input / select | `.props('outlined dense')` | `filled`, `standout` |
 | Two-to-four way toggle | `ui.toggle(...).props('no-caps dense unelevated').classes('wiz-segmented')` | A row of separate buttons, a bare `ui.toggle` |

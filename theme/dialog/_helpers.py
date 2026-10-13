@@ -232,12 +232,15 @@ def render_suggest_time_button(
 
 
 def mobile_sheet(dialog) -> None:
-    """Make a dialog fill the screen as a maximized sheet on phones (<600px).
+    """Make a dialog a bottom sheet on phones (<600px).
+
+    The sheet is as tall as its content, up to the full screen, so a two-field
+    form doesn't float over a screen of blank card.
 
     NiceGUI evaluates dynamic props against the global ``Quasar`` object, not
     Vue ``$q``, so the breakpoint must reference ``Quasar.Screen.lt.sm``.
     """
-    dialog.props(':maximized="Quasar.Screen.lt.sm"')
+    dialog.props(''':position="Quasar.Screen.lt.sm ? 'bottom' : 'standard'"''')
 
 
 def submit_on_enter(dialog, make_coro) -> None:

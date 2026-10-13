@@ -170,7 +170,7 @@ async def open_manage(row, client, *, service, tenant_id, tournament_id, on_chan
 
             # Both containers exist before anything fills them, so the DOM order
             # is body-then-actions while the action bar still sits *outside* the
-            # refreshable: the maximized-sheet CSS scopes the sticky footer to a
+            # refreshable: the sheet CSS scopes the sticky footer to a
             # direct child of the card, which a nested refresh container is not —
             # inside, the bar rendered as a floating strip on a phone.
             body_container = ui.column().classes('w-full gap-2')
