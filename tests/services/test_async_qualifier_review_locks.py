@@ -203,3 +203,20 @@ async def test_an_override_needs_a_reason(db):
         await service.review_run(staff, run.id, approved=True, override=True)
     run = await AsyncQualifierRun.get(id=run.id)
     assert run.review_status == AsyncQualifierReviewStatus.APPROVED
+
+
+async def test_the_verdict_dm_points_at_the_runners_own_runs(db, captured_dms):
+    """Not the leaderboard, which a player cannot see until the qualifier closes."""
+    service = AsyncQualifierService()
+    staff = await _staff(971011, 'reviewer_i')
+    player = await User.create(discord_id=971109, username='runner_i')
+    q, run = await _pending_run(service, staff, player)
+    captured_dms.clear()
+
+    await service.review_run(staff, run.id, approved=True)
+
+    _, body, link = captured_dms[-1]
+    assert link is not None
+    assert link.label == 'See your runs'
+    assert link.url.endswith(f'/qualifiers/{q.id}?focus=runs')
+    assert 'leaderboard' not in body.lower()

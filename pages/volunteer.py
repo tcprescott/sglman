@@ -47,9 +47,8 @@ def create() -> None:
             # looking.
             tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
                          'content': (proctor_station_tab, (user,))})
-        show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
         await BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='volunteer', user=user,
-            show_admin=show_admin, show_volunteer=True,
+            show_volunteer=True,
         ).render()

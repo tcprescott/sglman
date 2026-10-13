@@ -30,14 +30,16 @@ def privacy_disclaimer(community: str) -> str:
     """The warning shown wherever accommodation details are written or read.
 
     Names the one wider audience on purpose: proctors see that a request is
-    arranged (an icon on their match boards), never its text. A disclaimer
-    that left them out would be promising less exposure than there is.
+    arranged (an "ADA:" line on the run sheets, and a button in the match's
+    Ready to play? checklist that tells them to ask staff), never its text. A
+    disclaimer that left them out would be promising less exposure than there is.
     """
     staff = f'{community} staff' if community else 'community staff'
     return (
         f'Only {staff} can read these notes. Once a request is arranged, '
-        'proctors see an accessibility icon beside the player\'s name on the '
-        'match boards, but not what it says. We can\'t guarantee notes stay '
+        'proctors see an "ADA:" line with the player\'s name on their match '
+        'run sheets, and a button in the match\'s Ready to play? checklist, '
+        'but not what the notes say. We can\'t guarantee notes stay '
         'private, so please don\'t put anything sensitive or personal here. If '
         f'it is sensitive, contact {staff} directly instead.'
     )

@@ -87,6 +87,20 @@ async def test_an_open_qualifier_withholds_the_exact_score(db):
     )
 
 
+async def test_a_forfeit_has_no_band_rather_than_above_par(db):
+    """A forfeit is written as 0, which would band as "above par" for a pace never set."""
+    service = AsyncQualifierService()
+    staff = await _staff(900398, 'ownstaff_ff')
+    q, pool = await _qualifier(service, staff, closed=False)
+    player = await User.create(discord_id=900399, username='own_forfeiter')
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+
+    runs = await service.list_user_runs(player, q.id)
+    assert runs[0].status == AsyncQualifierRunStatus.FORFEIT
+    assert runs[0].score_band is None
+
+
 async def test_a_closed_qualifier_gives_the_exact_score(db):
     """The lockdown ends when the window does — that is the whole point of it."""
     service = AsyncQualifierService()

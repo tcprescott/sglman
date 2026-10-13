@@ -227,10 +227,8 @@ async def prepared_layout(user: Optional[User]) -> BaseLayout:
     Never raises: an error page whose chrome lookup fails still renders, on
     the shipped defaults.
     """
-    from application.services import AuthService
-
     try:
-        layout = BaseLayout(user=user, show_admin=await AuthService.can_view_admin(user))
+        layout = BaseLayout(user=user)
         return await layout.prepare()
     except Exception:
         logger.exception('Failed to resolve error-page chrome')

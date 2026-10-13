@@ -340,15 +340,15 @@ def _share_meta(title: str, description: str) -> None:
 
 
 async def _viewer():
-    """The signed-in viewer (or None), whether they hold staff here, and the admin link."""
+    """The signed-in viewer (or None) and whether they hold staff here."""
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-    return user, await AuthService.is_staff(user), await AuthService.can_view_admin(user)
+    return user, await AuthService.is_staff(user)
 
 
 def create() -> None:
     @public_page('/tournament/{tournament_id}/brackets', feature=FeatureFlag.BRACKETS)
     async def bracket_index(tournament_id: str) -> None:
-        user, is_staff, show_admin = await _viewer()
+        user, is_staff = await _viewer()
         tid = parse_route_id(tournament_id)
 
         service = BracketService()
@@ -370,7 +370,7 @@ def create() -> None:
             f'{tournament.name} — Brackets',
             f'{community} · {len(public_stages)} stage(s) · live bracket',
         )
-        await BaseLayout(user=user, show_admin=show_admin).render()
+        await BaseLayout(user=user).render()
 
         with ui.column().classes('page-container-narrow q-mt-md'):
             page_title(f'{tournament.name} — Brackets')
@@ -408,7 +408,7 @@ def create() -> None:
 
     @public_page('/brackets/{bracket_id}', feature=FeatureFlag.BRACKETS)
     async def bracket_detail(bracket_id: str) -> None:
-        user, is_staff, show_admin = await _viewer()
+        user, is_staff = await _viewer()
         parsed_id = parse_route_id(bracket_id)
         service = BracketService()
         # An unpublished (DRAFT) or withdrawn stage reads as absent to everyone
@@ -431,7 +431,7 @@ def create() -> None:
             f'{community} · {stage_label(first.stage_order)} · '
             f'{format_label(first.format)} · {state_label(first.state)}',
         )
-        await BaseLayout(user=user, show_admin=show_admin).render()
+        await BaseLayout(user=user).render()
         ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/brackets.css")}">')
         _install_hover_run()
 

@@ -213,7 +213,9 @@ async def list_feedback(
 
     Requires staff access.
     """
-    rows = await FeedbackService().list_recent(limit=clamp(limit, low=1, high=MAX_ROWS))
+    rows = await FeedbackService().list_recent(
+        current_actor().user, limit=clamp(limit, low=1, high=MAX_ROWS),
+    )
     return [
         FeedbackEntry(
             id=row.id,

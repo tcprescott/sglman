@@ -56,6 +56,8 @@ _RUNS_PAGE = {'rowsPerPage': 25, 'page': 1}
 # gets a bigger page than the runs table, plus a search box.
 _BOARD_PAGE = {'rowsPerPage': 50, 'page': 1}
 
+_MY_RUNS_ID = 'my-runs'
+
 _REATTEMPT_ACTION = '''
     <q-btn v-if="props.row.reattemptable" flat dense icon="restart_alt" color="primary"
            label="Reattempt"
@@ -93,9 +95,15 @@ def _review_cell(run) -> str:
 
 
 def _score_cell(run, exact: bool):
-    """The exact score once results are public; the band while they are not."""
+    """The exact score once results are public; the band while they are not.
+
+    A run that never finished has no side of par, so it says what happened to it
+    rather than borrowing a band.
+    """
     if exact:
         return '' if run.score is None else round(run.score, 1)
+    if run.status.value in ('forfeit', 'disqualified'):
+        return STATUS_LABELS[run.status.value]
     if run.score_band is None:
         return ''
     return BAND_LABELS.get(run.score_band.value, run.score_band.value)
@@ -157,7 +165,7 @@ def create() -> None:
                             ui.label(q.description).classes('text-caption wiz-free-text')
 
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
-    async def qualifier_detail(qualifier_id: int) -> None:
+    async def qualifier_detail(qualifier_id: int, focus: str | None = None) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifier')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
@@ -361,7 +369,7 @@ def create() -> None:
         async def _render_my_runs(current) -> None:
             runs = await service.list_user_runs(current, qualifier_id)
             allowance = await service.get_reattempt_allowance(current, qualifier_id)
-            ui.label('My runs').classes('text-subtitle1')
+            ui.label('My runs').classes('text-subtitle1').props(f'id={_MY_RUNS_ID}')
             # A reattempt after the window closes would delete the runner's own
             # score with no way to replace it, so neither the action nor the
             # sentence promising it appears once the window shuts. The service
@@ -500,6 +508,13 @@ def create() -> None:
             ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
         await render()
+        # The run-reviewed and run-expired DMs land here with ?focus=runs: the
+        # verdict is in My runs, below the start/submit card.
+        if focus == 'runs':
+            ui.run_javascript(
+                f"setTimeout(() => document.getElementById('{_MY_RUNS_ID}')"
+                "?.scrollIntoView({behavior: 'smooth', block: 'start'}), 400)"
+            )
 
 
 def _window_open(qualifier) -> bool:
