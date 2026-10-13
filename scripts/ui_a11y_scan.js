@@ -1,7 +1,7 @@
 /*
  * Accessibility and contrast gate for the running app (MOCK_DISCORD mode).
  *
- * Reads the same config as scripts/ui_smoke.js, logs in once per colour scheme,
+ * Reads the same config as scripts/ui_smoke.js, logs in once,
  * and runs two checks on every target page, in light and in dark:
  *
  *   1. axe-core's WCAG 2.1 A/AA rules, minus `color-contrast`. Badges are
@@ -233,6 +233,22 @@ async function runAxe(page, source) {
   });
 }
 
+// Each phone entry is a Playwright device name, which sets the width, pixel
+// ratio and user agent together, or { name, viewport, deviceScaleFactor } for a
+// phone Playwright has no profile for. A device's defaultBrowserType is
+// dropped: CI only has Chromium, so this is Chromium's layout at that size.
+function phoneProfiles(phone) {
+  return (phone.devices || [{ name: 'phone', viewport: phone.viewport || { width: 390, height: 844 } }]).map((d) => {
+    if (typeof d === 'string') {
+      if (!devices[d]) throw new Error(`unknown phone device ${d}`);
+      const { defaultBrowserType, ...profile } = devices[d];
+      return { name: d, profile };
+    }
+    const { name, ...profile } = d;
+    return { name, profile };
+  });
+}
+
 (async () => {
   const cfg = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
   const baseUrl = cfg.baseUrl || 'http://127.0.0.1:8000';
@@ -246,90 +262,105 @@ async function runAxe(page, source) {
   const outDir = path.join(cfg.outDir || '/tmp/ui-smoke', 'a11y');
   fs.mkdirSync(outDir, { recursive: true });
   const source = axeSource();
+  const targets = cfg.targets || [];
+  // Most of a page's time is the settle wait, so pages load side by side. The
+  // app is one uvicorn worker; six tabs gave the same findings as one, at a
+  // quarter of the time.
+  const concurrency = Math.max(1, +(process.env.A11Y_CONCURRENCY || cfg.concurrency || 6));
 
   const browser = await chromium.launch({ executablePath: findChrome(cfg.chrome), args: ['--no-sandbox'] });
-  const failures = [];
-  const report = {};
-  for (const scheme of schemes) {
-    const ctx = await browser.newContext({ viewport: cfg.viewport || { width: 1440, height: 900 }, colorScheme: scheme });
-    const page = await ctx.newPage();
-    await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(800);
-    await page.locator('tr, .wiz-grid-card', { hasText: loginAs }).first().getByRole('button', { name: 'Log in as' }).click();
-    await page.waitForTimeout(1500);
 
-    for (const t of cfg.targets || []) {
-      const label = `${scheme} ${t.name}`;
-      try {
-        await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
-      } catch (e) {
-        failures.push(`[${label}] navigation failed: ${e.message.split('\n')[0]}`);
-        continue;
-      }
-      await page.waitForTimeout(1800);
-      const isDark = await page.evaluate(() => document.body.classList.contains('body--dark'));
-      if ((scheme === 'dark') !== isDark) {
-        failures.push(`[${label}] page did not render in ${scheme} mode`);
-        continue;
-      }
-      const axe = (await runAxe(page, source)).filter((v) => !ignored(v.rule, t.name));
-      const contrast = ignored('contrast', t.name) ? [] : await page.evaluate(contrastCheck);
-      report[label] = { axe, contrast };
-      for (const v of axe) {
-        failures.push(`[${label}] axe ${v.rule} (${v.impact}, ${v.count}x): ${v.help}`);
-        for (const n of v.nodes) failures.push(`      ${n.target}  ${n.html}`);
-      }
-      for (const c of contrast) failures.push(`[${label}] contrast ${c.ratio}:1 <${c.tag} class="${c.cls}"> "${c.text}"`);
-      console.log(`  [${label}] axe=${axe.length} contrast=${contrast.length}`);
-    }
-    await ctx.close();
-  }
+  // One login; every pass reuses its session cookie.
+  const loginCtx = await browser.newContext({ viewport: cfg.viewport || { width: 1440, height: 900 } });
+  const loginPage = await loginCtx.newPage();
+  await loginPage.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
+  await loginPage.waitForTimeout(800);
+  await loginPage.locator('tr, .wiz-grid-card', { hasText: loginAs }).first().getByRole('button', { name: 'Log in as' }).click();
+  await loginPage.waitForTimeout(1500);
+  const storageState = await loginCtx.storageState();
+  await loginCtx.close();
 
+  const passes = schemes.map((scheme) => ({
+    key: `a11y ${scheme}`,
+    label: scheme,
+    scheme,
+    context: { viewport: cfg.viewport || { width: 1440, height: 900 }, colorScheme: scheme },
+  }));
   const phone = cfg.phone;
+  const phoneIgnore = (phone && phone.ignore) || [];
   if (phone) {
-    // Each entry is a Playwright device name, which sets the width, pixel ratio
-    // and user agent together, or { name, viewport, deviceScaleFactor } for a
-    // phone Playwright has no profile for. A device's defaultBrowserType is
-    // dropped: CI only has Chromium, so this is Chromium's layout at that size.
-    const phones = (phone.devices || [{ name: 'phone', viewport: phone.viewport || { width: 390, height: 844 } }]).map((d) => {
-      if (typeof d === 'string') {
-        if (!devices[d]) throw new Error(`unknown phone device ${d}`);
-        const { defaultBrowserType, ...profile } = devices[d];
-        return { name: d, profile };
-      }
-      const { name, ...profile } = d;
-      return { name, profile };
-    });
-    const phoneIgnore = phone.ignore || [];
-    for (const { name: phoneName, profile } of phones) for (const scheme of phone.schemes || ['light']) {
-      const ctx = await browser.newContext({ isMobile: true, hasTouch: true, ...profile, colorScheme: scheme });
-      const page = await ctx.newPage();
-      await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(800);
-      await page.locator('tr, .wiz-grid-card', { hasText: loginAs }).first().getByRole('button', { name: 'Log in as' }).click();
-      await page.waitForTimeout(1500);
-      for (const t of cfg.targets || []) {
-        const label = `${phoneName} ${profile.viewport.width}px ${scheme} ${t.name}`;
-        try {
-          await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
-        } catch (e) {
-          failures.push(`[${label}] navigation failed: ${e.message.split('\n')[0]}`);
-          continue;
-        }
-        await page.waitForTimeout(1800);
-        const selectors = phoneIgnore.filter((i) => !i.target || i.target === t.name).map((i) => i.selector);
-        const layout = await page.evaluate(layoutCheck, selectors);
-        report[label] = { layout };
-        for (const l of layout) failures.push(`[${label}] ${l.kind} by ${l.by}px: ${l.el} "${l.text}"`);
-        if (layout.length) await page.screenshot({ path: path.join(outDir, `${label.replace(/\s+/g, '-')}.png`), fullPage: true });
-        console.log(`  [${label}] layout=${layout.length}`);
-      }
-      await ctx.close();
+    for (const { name, profile } of phoneProfiles(phone)) for (const scheme of phone.schemes || ['light']) {
+      passes.push({
+        key: `phone ${name} ${scheme}`,
+        label: `${name} ${profile.viewport.width}px ${scheme}`,
+        phone: true,
+        context: { isMobile: true, hasTouch: true, ...profile, colorScheme: scheme },
+      });
     }
   }
 
+  async function scan(page, pass, t) {
+    const label = `${pass.label} ${t.name}`;
+    const failures = [];
+    try {
+      await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
+    } catch (e) {
+      return { label, failures: [`[${label}] navigation failed: ${e.message.split('\n')[0]}`] };
+    }
+    await page.waitForTimeout(1800);
+    if (pass.phone) {
+      const selectors = phoneIgnore.filter((i) => !i.target || i.target === t.name).map((i) => i.selector);
+      const layout = await page.evaluate(layoutCheck, selectors);
+      for (const l of layout) failures.push(`[${label}] ${l.kind} by ${l.by}px: ${l.el} "${l.text}"`);
+      if (layout.length) await page.screenshot({ path: path.join(outDir, `${label.replace(/\s+/g, '-')}.png`), fullPage: true });
+      return { label, failures, entry: { layout }, summary: `layout=${layout.length}` };
+    }
+    const isDark = await page.evaluate(() => document.body.classList.contains('body--dark'));
+    if ((pass.scheme === 'dark') !== isDark) return { label, failures: [`[${label}] page did not render in ${pass.scheme} mode`] };
+    const axe = (await runAxe(page, source)).filter((v) => !ignored(v.rule, t.name));
+    const contrast = ignored('contrast', t.name) ? [] : await page.evaluate(contrastCheck);
+    for (const v of axe) {
+      failures.push(`[${label}] axe ${v.rule} (${v.impact}, ${v.count}x): ${v.help}`);
+      for (const n of v.nodes) failures.push(`      ${n.target}  ${n.html}`);
+    }
+    for (const c of contrast) failures.push(`[${label}] contrast ${c.ratio}:1 <${c.tag} class="${c.cls}"> "${c.text}"`);
+    return { label, failures, entry: { axe, contrast }, summary: `axe=${axe.length} contrast=${contrast.length}` };
+  }
+
+  // A worker keeps one tab open per pass and moves to the next pass when its
+  // own runs out, so the jobs run pass by pass, each page in a pass once.
+  const jobs = passes.flatMap((pass) => targets.map((t) => ({ pass, t })));
+  const results = new Array(jobs.length);
+  let next = 0;
+  async function worker() {
+    let ctx = null;
+    let page = null;
+    let key = null;
+    try {
+      while (next < jobs.length) {
+        const i = next++;
+        const { pass, t } = jobs[i];
+        if (pass.key !== key) {
+          if (ctx) await ctx.close();
+          ctx = await browser.newContext({ ...pass.context, storageState });
+          page = await ctx.newPage();
+          key = pass.key;
+        }
+        results[i] = await scan(page, pass, t);
+        console.log(`  [${results[i].label}] ${results[i].summary || 'failed'}`);
+      }
+    } finally {
+      if (ctx) await ctx.close();
+    }
+  }
+  const started = Date.now();
+  await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
   await browser.close();
+
+  const failures = results.flatMap((r) => r.failures);
+  const report = Object.fromEntries(results.filter((r) => r.entry).map((r) => [r.label, r.entry]));
   fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 1));
+  console.log(`scanned ${jobs.length} page loads in ${Math.round((Date.now() - started) / 1000)}s, ${concurrency} at a time`);
   console.log('=== accessibility, contrast and phone layout failures ===');
   console.log(failures.length ? failures.join('\n') : '(none)');
   if (failures.length) {

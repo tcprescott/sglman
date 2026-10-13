@@ -173,7 +173,9 @@ npm install --no-save playwright@1.56.1 axe-core@4.10.3   # once
 node scripts/ui_a11y_scan.js scripts/ui_a11y_ci.json
 ```
 
-It writes `report.json` under `<outDir>/a11y/`. When it fails:
+It loads six pages at a time (`A11Y_CONCURRENCY=1` for one at a time, which
+makes a flaky hit easier to read) and writes `report.json` under
+`<outDir>/a11y/`. When it fails:
 
 - **A contrast hit** names the element, its class and the ratio. Fix the colour
   at the token or the class, never by adding a one-off hex. If it fails only in
