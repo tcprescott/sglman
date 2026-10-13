@@ -20,7 +20,7 @@
     "name": "card-phone",
     "user": "player_three",
     "path": "/home/schedule",
-    "selector": ".match-grid-card:has-text(\"Started\")",
+    "selector": ".player-sheet__card:has-text(\"Live\")",
     "hide": [
       ".q-footer"
     ]

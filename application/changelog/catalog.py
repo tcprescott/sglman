@@ -14,6 +14,14 @@ same few lines of ``changelog.md`` and conflict. Each file joins the entry that
 covers its date, or, when ``changelog.md`` has none, a Monday-to-Sunday entry
 made for that week. Giving that week a headline is an optional one-line heading
 in ``changelog.md``, which the files' bullets then fill.
+
+Inside an entry, and inside every change file, bullets sit under a category
+heading (``### New``, ``### Improved``, ``### Fixed``, ``### Security`` or
+``### Behind the scenes``) and the page shows each week's lines grouped in that
+order. A bullet with no heading, or under a heading that isn't one of those, is
+logged and shown last under "More changes" rather than dropped: a change file
+written before categories existed still reaches the page, and
+``test_changelog`` catches it before it ships.
 """
 
 from __future__ import annotations
@@ -30,12 +38,16 @@ from application.content import Block, parse_blocks
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    'CATEGORIES',
+    'UNSORTED',
     'ChangelogEntry',
+    'ChangelogSection',
     'all_entries',
     'apply_changes',
     'change_file_date',
     'parse_changelog',
     'reload_entries',
+    'split_categories',
 ]
 
 CHANGELOG_PATH = Path(__file__).parent / 'changelog.md'
@@ -46,9 +58,28 @@ CHANGE_FILE_RE = re.compile(r'^(?P<date>\d{4}-\d{2}-\d{2})-[a-z0-9]+(?:-[a-z0-9]
 #: The headline of a week no ``changelog.md`` heading has named yet.
 UNTITLED_WEEK = 'Updates'
 
+#: Every category a line can be filed under, in the order the page shows them.
+CATEGORIES = ('New', 'Improved', 'Fixed', 'Security', 'Behind the scenes')
+
+#: Where a line with no recognised category heading lands, after every category.
+UNSORTED = 'More changes'
+
+CATEGORY_HEADING_RE = re.compile(r'^### (?P<name>\S.*?)\s*$')
+
 ENTRY_HEADING_RE = re.compile(
     r'^## (?P<start>\d{4}-\d{2}-\d{2})/(?P<end>\d{4}-\d{2}-\d{2}) (?P<title>\S.*?)\s*$'
 )
+
+
+@dataclass(frozen=True)
+class ChangelogSection:
+    category: str
+    blocks: tuple[Block, ...]
+
+    @property
+    def count(self) -> int:
+        """How many lines the section lists."""
+        return sum(len(b.items) for b in self.blocks if b.kind == 'bullets')
 
 
 @dataclass(frozen=True)
@@ -56,7 +87,12 @@ class ChangelogEntry:
     start: date
     end: date
     title: str
-    blocks: tuple[Block, ...]
+    sections: tuple[ChangelogSection, ...]
+
+    @property
+    def blocks(self) -> tuple[Block, ...]:
+        """Every block in the entry, section after section."""
+        return tuple(b for s in self.sections for b in s.blocks)
 
     @property
     def anchor(self) -> str:
@@ -73,6 +109,50 @@ class ChangelogEntry:
         if start.month != end.month:
             return f'{start:%b} {start.day} – {end:%b} {end.day}, {end.year}'
         return f'{start:%b} {start.day} – {end.day}, {end.year}'
+
+
+def split_categories(text: str, source: str) -> list[tuple[str, list[Block]]]:
+    """``text`` cut at its ``### Category`` headings, each run parsed into blocks.
+
+    ``source`` names the entry or file in the log line a stray bullet produces.
+    """
+    runs: list[tuple[str, list[str]]] = [(UNSORTED, [])]
+    for line in text.splitlines():
+        match = CATEGORY_HEADING_RE.match(line)
+        if match is None:
+            runs[-1][1].append(line)
+            continue
+        name = match['name']
+        if name not in CATEGORIES:
+            logger.warning('changelog: unknown category %r in %s; shown as %s', name, source, UNSORTED)
+            name = UNSORTED
+        runs.append((name, []))
+    if any(line.strip() for line in runs[0][1]):
+        logger.warning('changelog: lines before any category heading in %s; shown as %s', source, UNSORTED)
+    return [(name, blocks) for name, lines in runs if (blocks := parse_blocks('\n'.join(lines)))]
+
+
+def _merge_bullets(blocks: list[Block]) -> tuple[Block, ...]:
+    """Adjacent bullet lists from separate files read as one list."""
+    merged: list[Block] = []
+    for block in blocks:
+        if merged and block.kind == 'bullets' and merged[-1].kind == 'bullets':
+            merged[-1] = replace(merged[-1], items=merged[-1].items + block.items)
+        else:
+            merged.append(block)
+    return tuple(merged)
+
+
+def _sections(runs: list[tuple[str, list[Block]]]) -> tuple[ChangelogSection, ...]:
+    """One section per category in page order, each category's runs merged."""
+    by_category: dict[str, list[Block]] = {}
+    for name, blocks in runs:
+        by_category.setdefault(name, []).extend(blocks)
+    return tuple(
+        ChangelogSection(name, _merge_bullets(by_category[name]))
+        for name in (*CATEGORIES, UNSORTED)
+        if name in by_category
+    )
 
 
 def _entry(heading: str, body: list[str]) -> ChangelogEntry | None:
@@ -93,7 +173,7 @@ def _entry(heading: str, body: list[str]) -> ChangelogEntry | None:
         start=start,
         end=end,
         title=match['title'],
-        blocks=tuple(parse_blocks('\n'.join(body))),
+        sections=_sections(split_categories('\n'.join(body), heading)),
     )
 
 
@@ -125,41 +205,31 @@ def change_file_date(name: str) -> date | None:
         return None
 
 
-def _merge_bullets(blocks: list[Block]) -> tuple[Block, ...]:
-    """Adjacent bullet lists from separate files read as one list."""
-    merged: list[Block] = []
-    for block in blocks:
-        if merged and block.kind == 'bullets' and merged[-1].kind == 'bullets':
-            merged[-1] = replace(merged[-1], items=merged[-1].items + block.items)
-        else:
-            merged.append(block)
-    return tuple(merged)
-
-
 def apply_changes(
     entries: list[ChangelogEntry], changes: list[tuple[date, str]]
 ) -> list[ChangelogEntry]:
     """Fold ``(date, text)`` change files into ``entries``, newest first.
 
     A change joins the entry whose interval covers its date; otherwise it joins
-    (or opens) an untitled entry for its Monday-to-Sunday week. Within an entry
-    the files keep the order given, which the loader makes date-then-name.
+    (or opens) an untitled entry for its Monday-to-Sunday week. Within each
+    category the files keep the order given, which the loader makes
+    date-then-name.
     """
-    extra: dict[date, list[Block]] = {}
-    bodies: dict[date, list[Block]] = {e.start: list(e.blocks) for e in entries}
+    extra: dict[date, list[tuple[str, list[Block]]]] = {}
+    bodies = {e.start: [(s.category, list(s.blocks)) for s in e.sections] for e in entries}
     for day, text in changes:
-        blocks = parse_blocks(text)
+        runs = split_categories(text, f'a change file dated {day.isoformat()}')
         owner = next((e for e in entries if e.start <= day <= e.end), None)
         if owner is not None:
-            bodies[owner.start].extend(blocks)
+            bodies[owner.start].extend(runs)
         else:
-            extra.setdefault(day - timedelta(days=day.weekday()), []).extend(blocks)
+            extra.setdefault(day - timedelta(days=day.weekday()), []).extend(runs)
     result = [
-        ChangelogEntry(e.start, e.end, e.title, _merge_bullets(bodies[e.start])) for e in entries
+        ChangelogEntry(e.start, e.end, e.title, _sections(bodies[e.start])) for e in entries
     ]
     result.extend(
-        ChangelogEntry(monday, monday + timedelta(days=6), UNTITLED_WEEK, _merge_bullets(blocks))
-        for monday, blocks in extra.items()
+        ChangelogEntry(monday, monday + timedelta(days=6), UNTITLED_WEEK, _sections(runs))
+        for monday, runs in extra.items()
     )
     return sorted(result, key=lambda e: e.start, reverse=True)
 

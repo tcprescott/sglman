@@ -1,12 +1,14 @@
 
 
-from nicegui import ui
+from nicegui import app, ui
 
 from application.services import MatchService
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
+from theme.dialog.match_sheet import MatchSheet
 from theme.help import help_icon
 from theme.tables.match import MatchTableView
-from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+from theme.tables.match_access import MatchBoardAccess
+from theme.tables.match_player_run_sheet import PLAYER_RUN_SHEET_COLUMNS, decorate_player_row
 from theme.tables.preferences import TableKeys
 
 #: Session key for the Needs crew switch, namespaced like the board's filters.
@@ -55,42 +57,27 @@ async def schedule():
                 'Needs crew', value=bool(tenant_session_get(NEEDS_CREW_KEY, False)),
             ).props('dense').tooltip('Only matches still short of commentators or trackers')
 
-        columns = [
-            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True},
-            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at',
-             'sortable': True},
-            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
-            # Not sortable: joined rosters sort on whoever is listed first.
-            {'name': 'players', 'label': 'Players', 'field': 'players'},
-            # Crew and Watch beside Players: the Sign up buttons are what this
-            # board offers a member, and after Stage and Seed they started past
-            # the table's right edge at 1440.
-            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
-            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
-            {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
-            {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
-            {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed',
-             'sortable': True},
-        ]
-
         async def get_query():
             return await match_service.get_all_matches_for_schedule()
 
-        extra_slots = {
-            'body-cell-state': state_readonly_slot(scheduled_detailed=True),
-            'body-cell-generated_seed': SEED_SLOT_READONLY,
-        }
+        # The details sheet holds what the line leaves out (seed, stations,
+        # who's confirmed). A spectator's access, so it offers no staff control.
+        discord_id = app.storage.user.get('discord_id')
+        sheet = MatchSheet(None, access=MatchBoardAccess(),
+                           decorate=lambda row: decorate_player_row(row, discord_id))
 
         view = MatchTableView(
             row_filter=needs_crew if needs_crew_switch.value else None,
-            columns=columns,
+            columns=PLAYER_RUN_SHEET_COLUMNS,
             get_query=get_query,
             admin_controls=False,
             table_key=TableKeys.HOME_SCHEDULE,
-            extra_slots=extra_slots,
-            grid_breakpoint='lt.lg',
             storage_key='home_schedule',
+            on_rows_changed=sheet.sync,
+            layout='player_run_sheet',
+            on_open_match=sheet.open,
         )
+        sheet.view = view
 
         async def on_needs_crew(event) -> None:
             tenant_session_set(NEEDS_CREW_KEY, bool(event.value))

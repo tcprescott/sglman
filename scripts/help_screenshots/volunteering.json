@@ -11,7 +11,7 @@
     "path": "/volunteer/my-shifts",
     "setup": [
       {
-        "click": "text=Can't make this"
+        "click": "text=Can't make it"
       },
       {
         "waitFor": ".q-dialog"

@@ -6,7 +6,10 @@
     "path": "/admin/presets",
     "setup": [
       {
-        "click": "[aria-label=\"Test roll\"] >> nth=0"
+        "click": ".preset-list__menu >> nth=0"
+      },
+      {
+        "click": ".q-menu .q-item:has-text(\"Test roll\")"
       },
       {
         "waitFor": "text=The randomizer rolled a seed."

@@ -200,16 +200,25 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                             )
                         ui.label(provenance).classes('text-caption text-grey')
                         _render_brief(assignment)
-                    # Actions wrap in their own row: the header row could not hold
-                    # two buttons plus the badge stack at 390px.
-                    with ui.row().classes('items-center gap-2 full-width q-mt-sm') \
-                            .style('flex-wrap: wrap;'):
+                    # Negative left, positive right in every state: a status that
+                    # replaces Acknowledge takes its slot rather than shifting
+                    # "Can't make it" across.
+                    with ui.element('div').classes('wiz-shift-actions'):
+                        # Offered whether or not it is acknowledged — agreeing to a
+                        # shift is not a commitment you cannot revise.
+                        if can_release:
+                            ui.button("Can't make it", icon='event_busy',
+                                      on_click=lambda a=assignment: confirm_release(a)) \
+                                .props('outline color=negative')
                         if checked_in:
-                            ui.badge('Checked in', color='teal')
+                            with ui.element('div').classes('wiz-shift-status st-live'):
+                                ui.icon('how_to_reg')
+                                ui.label('Checked in')
                         if acked:
-                            ui.badge('Acknowledged', color='positive')
-                        ui.space()
-                        if can_ack:
+                            with ui.element('div').classes('wiz-shift-status st-ok'):
+                                ui.icon('check')
+                                ui.label('Acknowledged')
+                        elif can_ack:
                             async def ack(a_id=assignment.id) -> None:
                                 try:
                                     await service.acknowledge(a_id, user)
@@ -217,13 +226,8 @@ async def my_shifts_tab(release: Optional[str] = None) -> None:
                                 except (ValueError, PermissionError) as e:
                                     notify_error(e)
                                 shift_list.refresh()
-                            ui.button('Acknowledge', icon='check', on_click=ack).props('color=primary')
-                        # Offered whether or not it is acknowledged — agreeing to a
-                        # shift is not a commitment you cannot revise.
-                        if can_release:
-                            ui.button("Can't make this", icon='event_busy',
-                                      on_click=lambda a=assignment: confirm_release(a)) \
-                                .props('flat color=negative')
+                            ui.button('Acknowledge', icon='check', on_click=ack) \
+                                .props('color=primary')
 
         def on_toggle(e) -> None:
             state['upcoming_only'] = not e.value

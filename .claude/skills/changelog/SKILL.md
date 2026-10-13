@@ -35,6 +35,7 @@ application/changelog/changes/2026-10-13-equipment-help.md
 ```
 
 ```markdown
+### New
 - Help has a new article on borrowing equipment: scanning a loaner's QR code,
   giving it back, and running the equipment desk.
 ```
@@ -43,8 +44,18 @@ application/changelog/changes/2026-10-13-equipment-help.md
    will pick (the feature, not "help" or "fix"). The date only has to land in
    the right Monday-to-Sunday week; use today, or the day you expect it to merge
    if that's next week.
-2. Bullets only. No heading, no intro paragraph. One bullet per change a reader
-   would notice; a big PR may have several.
+2. Bullets under category headings, nothing else: no `## ` heading, no intro
+   paragraph. One bullet per change a reader would notice; a big PR may have
+   several, under more than one category. The categories, in page order:
+   - `### New`: something a reader couldn't do before.
+   - `### Improved`: works better, looks different, moved or was renamed.
+   - `### Fixed`: a bug someone hit.
+   - `### Security`: a hole closed, or private data kept private.
+   - `### Behind the scenes`: work a reader only notices indirectly (error
+     reporting, dependency bumps with a security reason, speed-ups).
+
+   A bullet that does several things goes under its biggest part. A bullet
+   outside a category shows under "More changes" and fails the test.
 3. Revising the line later means editing *your* file, never someone else's.
 
 The page folds each file into the `changelog.md` entry covering its date. A week
@@ -59,7 +70,7 @@ whole weeks, Monday to Sunday, newest first; quiet weeks may share one entry
 spanning several, but never split a week into days.
 
 `tests/test_changelog.py` fails the build on a misnamed change file, one holding
-anything but bullets, a malformed heading, an entry that doesn't start on a
+anything but categorized bullets, a malformed heading, an entry that doesn't start on a
 Monday and end on a Sunday, overlapping entries, or entries out of order.
 
 ## How to write a bullet
@@ -90,7 +101,8 @@ git log origin/main --first-parent --merges --since=<last entry end> \
 git log --no-merges --format='  - %s' <merge>^1..<merge>^2
 ```
 
-Group by ISO week (`--date=format:%G-W%V`), write one entry per week, and fold
-weeks with only a commit or two into their neighbour. A catch-up is the one time
+Group by ISO week (`--date=format:%G-W%V`), write one entry per week with its
+bullets under the same `### ` category headings, and fold weeks with only a
+commit or two into their neighbour. A catch-up is the one time
 you write entries in `changelog.md` directly: the weeks are over, so no other
 PR is adding to them.

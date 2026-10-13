@@ -16,9 +16,9 @@ Online play. Staff and anyone with the Preset Manager role can change them.
 
 There are three ways to add one:
 
-- **Import Built-ins** adds the presets that ship with Wizzrobe. Running it again
-  only adds ones you don't have yet.
-- **Import from Randomizer** fetches the presets a randomizer publishes on its own
+- **Import → Built-in presets** adds the presets that ship with Wizzrobe. Running
+  it again only adds ones you don't have yet.
+- **Import → From a randomizer** fetches the presets a randomizer publishes on its own
   site. Pick the randomizer, fetch its catalogue, type to filter, and tick the
   ones you want. An imported preset is your copy: later changes on the
   randomizer's site don't follow it.
@@ -36,10 +36,19 @@ Some randomizers need your community's own API key before they appear in the
 randomizer list or can roll anything. Set those under **Settings → Integrations →
 Randomizer Keys**. A stored key is never shown again, only whether it's set.
 
+## Finding and changing a preset
+
+Presets are grouped under the randomizer they roll, one line each, and every line
+says how many tournaments use it. Click a preset's name to edit it. **Test roll**,
+**Edit** and **Delete** are in the ⋮ menu at the end of the line.
+
+Delete asks first. If any tournament rolls from the preset, the question names
+them: they lose the preset and need another one picked before they can roll.
+
 ## Test roll before the event
 
 :::snippet admin-preset-test-roll
-Every preset has a **Test roll** button (the flask icon on its row). It rolls one
+Every preset has a **Test roll** in the ⋮ menu at the end of its line. It rolls one
 seed the way a match would and shows you the link, or the randomizer's error if
 the roll failed. The seed isn't attached to any match and nobody is sent it.
 :::
