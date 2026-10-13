@@ -48,6 +48,85 @@ def seed_rollable(row: dict) -> bool:
     )
 
 
+def _names(names: list) -> str:
+    return names[0] if len(names) == 1 else ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
+def readiness(row: dict) -> list[dict]:
+    """The match sheet's checklist, one item per thing a match needs.
+
+    ``ready`` is True or False for what a match can't start well without, and
+    None for what's only information (no stage just means off stream). Seed and
+    crew appear only where the tournament uses them.
+    """
+    players = row.get('players') or []
+    acks = row.get('acknowledgments') or []
+    items = []
+
+    if not players:
+        items.append({'key': 'players', 'label': 'Players', 'ready': False, 'detail': 'Not decided yet'})
+    else:
+        unconfirmed = [a.get('name') or '' for a in acks if not a.get('acknowledged')]
+        if not unconfirmed:
+            detail = 'Everyone has confirmed'
+        elif len(unconfirmed) == len(players) and len(players) == 2:
+            detail = f'Neither {unconfirmed[0]} nor {unconfirmed[1]} has confirmed'
+        else:
+            detail = f"{_names(unconfirmed)} {'hasn' if len(unconfirmed) == 1 else 'haven'}'t confirmed"
+        items.append({'key': 'players', 'label': 'Players confirmed', 'ready': not unconfirmed, 'detail': detail})
+
+        stations = [(p.get('name') or '', p.get('station')) for p in players]
+        missing = [name for name, station in stations if not station]
+        if len(missing) == len(stations):
+            detail = 'Not assigned'
+        else:
+            detail = ' · '.join(f'{name} {station}' for name, station in stations if station)
+            if missing:
+                detail += f" · {_names(missing)} {'has' if len(missing) == 1 else 'have'} none"
+        items.append({'key': 'stations', 'label': 'Stations', 'ready': not missing, 'detail': detail})
+
+    stage = row.get('_stage') or ''
+    items.append({
+        'key': 'stage', 'label': 'Stage', 'ready': True if row.get('stage') else None,
+        'detail': stage or 'No stage',
+    })
+
+    seed = row.get('generated_seed')
+    if seed or row.get('tournament_seed_generator'):
+        if seed:
+            ready, detail = True, ''
+        elif row.get('seed_rolling_since'):
+            ready, detail = False, f"Rolling… {row.get('seed_rolling_label') or ''}".strip()
+        elif row.get('seed_roll_error'):
+            ready, detail = False, row['seed_roll_error']
+        elif row.get('is_racetime'):
+            ready, detail = None, 'The race room rolls it'
+        else:
+            ready, detail = False, 'Not rolled'
+        items.append({'key': 'seed', 'label': 'Seed', 'ready': ready, 'detail': detail})
+
+    wanted = row.get('crew_wanted') or {}
+    required = row.get('crew_required') or {}
+    need = approved = waiting = 0
+    for key, _role, _label in _ROLES:
+        if not wanted.get(key):
+            continue
+        people = row.get(key) or []
+        got = sum(1 for p in people if p.get('approved'))
+        need += max((required.get(key) or 0) - got, 0)
+        approved += got
+        waiting += sum(1 for p in people if not p.get('approved'))
+    if any(required.get(k) for k, _r, _l in _ROLES if wanted.get(k)):
+        if need:
+            detail = f'{need} more needed'
+            if waiting:
+                detail += f', {waiting} waiting for approval below'
+        else:
+            detail = 'Covered'
+        items.append({'key': 'crew', 'label': 'Crew', 'ready': not need, 'detail': detail})
+    return items
+
+
 class MatchSheet:
     """The match sheet. Two-phase like the lifecycle handlers: set ``view`` after
     the board exists, since the board needs ``open`` as its callback."""
@@ -162,96 +241,94 @@ class MatchSheet:
         if row.get('is_racetime') and state not in ('Finished', 'Confirmed'):
             ui.label('Runs on racetime.gg').classes('match-sheet__note')
 
-    def _field(self, label: str):
-        """One label/value line; returns the value cell to build into."""
-        ui.label(label).classes('match-sheet__label')
-        return ui.column().classes('match-sheet__value gap-1')
-
     def _setup(self, row: dict) -> None:
-        match_id = row['id']
-        h = self.handlers
-        heading = ui.label('Setup').classes('match-sheet__section')
+        """The setup as a checklist: what's ready, what's missing, and the fix
+        on the same line. Before the match starts it counts what's ready."""
+        items = readiness(row)
+        counted = [i for i in items if i['ready'] is not None]
+        before = row.get('state') in ('Scheduled', 'Checked In')
+        title = (f"Ready to play? {sum(1 for i in counted if i['ready'])} of {len(counted)}"
+                 if before and counted else 'Setup')
+        heading = ui.label(title).classes('match-sheet__section')
         heading.tag = 'h4'
-        with ui.element('div').classes('match-sheet__fields'):
-            players = row.get('players') or []
-            acks = row.get('acknowledgments') or []
-            with self._field('Players'):
-                if not players:
-                    ui.label('Not decided yet').classes('match-sheet__note')
-                for idx, player in enumerate(players):
-                    with ui.column().classes('gap-0'):
-                        with ui.row().classes('items-center gap-1'):
-                            winner = player.get('finish_rank') == 1
-                            ui.label(player.get('name') or '').classes('st-ok-strong' if winner else '')
-                            if winner:
-                                ui.label('(winner)').classes('match-sheet__note')
-                            if player.get('ada'):
-                                ui.button(icon='accessible', on_click=lambda p=player: self.view._show_accommodation(
-                                    {'name': p.get('name'), 'note': p.get('ada_note')})) \
-                                    .props('flat round dense size=sm color=primary') \
-                                    .tooltip('ADA accommodation')
-                        notes = []
-                        if player.get('station'):
-                            notes.append(f"Station {player['station']}")
-                        ack = acks[idx] if idx < len(acks) else None
-                        if ack and not ack.get('acknowledged'):
-                            notes.append("hasn't confirmed they're playing")
-                        if notes:
-                            ui.label(' · '.join(notes)).classes('match-sheet__note')
-            if self.access.run and players \
-                    and row.get('state') in ('Scheduled', 'Checked In', 'Started'):
-                ui.button('Stations', on_click=lambda: h.on_assign_stations(match_id)) \
-                    .props('flat dense no-caps color=primary').classes('match-sheet__act')
-            else:
-                ui.element('span')
-
-            with self._field('Stage'):
-                if self.access.assign_stream and self.view is not None:
-                    options = {_NO_STAGE: 'No stage'}
-                    for opt in self.view._stage_options() or []:
-                        if opt['value'] is not None:
-                            options[opt['value']] = opt['label']
-                    current = row.get('stage_id') or (CANDIDATE_STAGE if row.get('is_stream_candidate') else _NO_STAGE)
-
-                    async def set_stage(e, mid=match_id):
-                        value = e.value if e.value != _NO_STAGE else None
-                        await h.on_set_stage(mid, value)
-
-                    ui.select(options, value=current, on_change=set_stage) \
-                        .props('dense outlined options-dense aria-label="Stage"').classes('match-sheet__select')
-                else:
-                    ui.label(row.get('_stage') or 'None').classes('' if row.get('_stage') else 'text-muted')
-            if row.get('stage_url'):
-                ui.link('Watch', row['stage_url'], new_tab=True).classes('match-sheet__act')
-            else:
-                ui.element('span')
-
-            with self._field('Seed'):
-                seed = row.get('generated_seed')
-                if seed:
-                    if str(seed).startswith(('http://', 'https://')):
-                        ui.link(seed, seed, new_tab=True).classes('match-sheet__seed')
+        with ui.column().classes('match-sheet__checklist full-width gap-0'):
+            for item in items:
+                with ui.row().classes('match-sheet__check no-wrap full-width'):
+                    if item['ready'] is True:
+                        ui.icon('check_circle').classes('match-sheet__check-icon st-ok') \
+                            .props('aria-label=Ready role=img')
+                    elif item['ready'] is False:
+                        ui.icon('error_outline').classes('match-sheet__check-icon st-pending') \
+                            .props('aria-label="Not ready" role=img')
                     else:
-                        ui.label(seed).classes('match-sheet__seed')
-                elif row.get('seed_rolling_since'):
-                    ui.label(f"Rolling… {row.get('seed_rolling_label') or ''}").classes('match-sheet__note')
-                elif row.get('seed_roll_error'):
-                    ui.label(row['seed_roll_error']).classes('st-cancelled')
-                else:
-                    ui.label('Not rolled').classes('match-sheet__note')
-                blocked = row.get('seed_dm_blocked') or []
-                if seed and blocked:
-                    ui.label("Couldn't DM " + ', '.join(str(b) for b in blocked) + '. Hand them the seed.') \
-                        .classes('match-sheet__note')
-            if seed and not str(seed).startswith(('http://', 'https://')):
-                ui.button('Copy', on_click=lambda: copy_to_clipboard(seed, 'Seed')) \
-                    .props('flat dense no-caps color=primary').classes('match-sheet__act')
-            elif not seed and not row.get('seed_rolling_since') and self.access.run \
-                    and seed_rollable(row):
-                ui.button('Generate seed', on_click=lambda: h.on_generate_seed(match_id)) \
-                    .props('flat dense no-caps color=primary').classes('match-sheet__act')
+                        ui.icon('remove_circle_outline').classes('match-sheet__check-icon text-muted') \
+                            .props('aria-hidden=true')
+                    with ui.column().classes('match-sheet__check-body col gap-1'):
+                        ui.label(item['label']).classes('match-sheet__check-label')
+                        getattr(self, f"_check_{item['key']}")(row, item)
+
+    def _check_players(self, row: dict, item: dict) -> None:
+        ui.label(item['detail']).classes('match-sheet__note')
+        for player in row.get('players') or []:
+            if player.get('ada'):
+                name = player.get('name') or ''
+                ui.button(f'{name}: ADA accommodation', icon='accessible',
+                          on_click=lambda p=player: self.view._show_accommodation(
+                              {'name': p.get('name'), 'note': p.get('ada_note')})) \
+                    .props('flat dense no-caps color=primary').classes('self-start')
+
+    def _check_stations(self, row: dict, item: dict) -> None:
+        with ui.row().classes('items-center no-wrap full-width gap-2'):
+            ui.label(item['detail']).classes('match-sheet__note col')
+            if self.access.run and row.get('state') in ('Scheduled', 'Checked In', 'Started'):
+                ui.button('Assign' if item['ready'] is False else 'Change',
+                          on_click=lambda: self.handlers.on_assign_stations(row['id'])) \
+                    .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
+
+    def _check_stage(self, row: dict, item: dict) -> None:
+        match_id = row['id']
+        with ui.row().classes('items-center no-wrap full-width gap-2'):
+            if self.access.assign_stream and self.view is not None:
+                options = {_NO_STAGE: 'No stage'}
+                for opt in self.view._stage_options() or []:
+                    if opt['value'] is not None:
+                        options[opt['value']] = opt['label']
+                current = row.get('stage_id') or (CANDIDATE_STAGE if row.get('is_stream_candidate') else _NO_STAGE)
+
+                async def set_stage(e, mid=match_id):
+                    value = e.value if e.value != _NO_STAGE else None
+                    await self.handlers.on_set_stage(mid, value)
+
+                ui.select(options, value=current, on_change=set_stage) \
+                    .props('dense outlined options-dense aria-label="Stage"').classes('match-sheet__select col')
             else:
-                ui.element('span')
+                ui.label(item['detail']).classes('match-sheet__note col')
+            if row.get('stage_url'):
+                ui.link('Watch', row['stage_url'], new_tab=True).classes('match-sheet__check-act')
+
+    def _check_seed(self, row: dict, item: dict) -> None:
+        seed = row.get('generated_seed')
+        with ui.row().classes('items-center no-wrap full-width gap-2'):
+            if seed and str(seed).startswith(('http://', 'https://')):
+                ui.link(seed, seed, new_tab=True).classes('match-sheet__seed col')
+            elif seed:
+                ui.label(seed).classes('match-sheet__seed col')
+            else:
+                ui.label(item['detail']).classes(
+                    'col ' + ('st-cancelled' if row.get('seed_roll_error') else 'match-sheet__note'))
+            if seed:
+                ui.button('Copy', on_click=lambda: copy_to_clipboard(seed, 'Seed')) \
+                    .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
+            elif not row.get('seed_rolling_since') and self.access.run and seed_rollable(row):
+                ui.button('Generate', on_click=lambda: self.handlers.on_generate_seed(row['id'])) \
+                    .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
+        blocked = row.get('seed_dm_blocked') or []
+        if seed and blocked:
+            ui.label("Couldn't DM " + ', '.join(str(b) for b in blocked) + '. Hand them the seed.') \
+                .classes('match-sheet__note')
+
+    def _check_crew(self, row: dict, item: dict) -> None:
+        ui.label(item['detail']).classes('match-sheet__note')
 
     def _crew(self, row: dict) -> None:
         wanted = row.get('crew_wanted') or {}
@@ -261,40 +338,65 @@ class MatchSheet:
         heading = ui.label('Crew').classes('match-sheet__section')
         heading.tag = 'h4'
         required = row.get('crew_required') or {}
-        with ui.element('div').classes('match-sheet__fields'):
-            for key, role, label in roles:
-                people = row.get(key) or []
-                need = required.get(key)
-                approved = sum(1 for p in people if p.get('approved'))
-                with self._field(label):
-                    if not people:
-                        ui.label('No signups yet').classes('match-sheet__note italic-note')
-                    for idx, person in enumerate(people):
-                        self._crew_person(row, role, idx, person)
-                if need and approved < need:
-                    ui.label(f'{need - approved} more needed').classes('match-sheet__note match-sheet__act')
-                else:
-                    ui.element('span')
+        for key, role, label in roles:
+            people = list(enumerate(row.get(key) or []))
+            need = required.get(key) or 0
+            approved = [(i, p) for i, p in people if p.get('approved')]
+            waiting = [(i, p) for i, p in people if not p.get('approved')]
+            with ui.column().classes('match-sheet__role full-width gap-2'):
+                with ui.row().classes('match-sheet__role-head items-baseline no-wrap full-width'):
+                    title = ui.label(label).classes('match-sheet__role-title col')
+                    title.tag = 'h5'
+                    if need and len(approved) < need and row.get('crew_signup_open'):
+                        ui.label(f'{need - len(approved)} more needed').classes('match-sheet__short')
+                if not people:
+                    ui.label('No signups yet').classes('match-sheet__note italic-note')
+                    continue
+                with ui.row().classes('match-sheet__approved items-center'):
+                    ui.label('Approved:' if approved else 'Approved: nobody yet').classes('match-sheet__note')
+                    for idx, person in approved:
+                        self._approved_pill(row, role, idx, person)
+                if waiting:
+                    self._waiting(row, role, waiting)
 
-    def _crew_person(self, row: dict, role: str, idx: int, person: dict) -> None:
+    def _profile(self, row: dict, role: str, idx: int):
         event = SimpleNamespace(args={'row': row, 'idx': idx})
-        if person.get('approved') and person.get('acknowledged'):
-            note = 'confirmed'
-        elif person.get('approved'):
-            note = "approved, hasn't confirmed"
-        else:
-            note = 'signed up'
-        with ui.row().classes('items-center gap-1'):
-            if self.access.approve_crew:
-                ui.button(person.get('name') or '', on_click=lambda: self.view._handle_edit_role(role, event)) \
-                    .props('flat dense no-caps color=primary').classes('match-sheet__name')
+        return lambda: self.view._handle_edit_role(role, event)
+
+    def _toggle(self, row: dict, role: str, idx: int):
+        event = SimpleNamespace(args={'row': row, 'idx': idx})
+        return lambda: self.view._handle_toggle_approval(role, event)
+
+    def _approved_pill(self, row: dict, role: str, idx: int, person: dict) -> None:
+        name = person.get('name') or ''
+        with ui.element('span').classes('match-sheet__pill'):
+            ui.label(name).classes('match-sheet__pill-name')
+            if person.get('acknowledged'):
+                ui.label('confirmed').classes('match-sheet__pill-state st-ok')
             else:
-                ui.label(person.get('name') or '')
-            ui.label(note).classes('match-sheet__note')
+                ui.label("hasn't confirmed").classes('match-sheet__pill-state')
             if self.access.approve_crew:
-                ui.button('Un-approve' if person.get('approved') else 'Approve',
-                          on_click=lambda: self.view._handle_toggle_approval(role, event)) \
-                    .props('flat dense no-caps color=primary')
+                with ui.button(icon='more_horiz').props(f'flat round dense size=sm color=primary aria-label="More for {name}"'):
+                    with ui.menu():
+                        ui.menu_item('Open profile', on_click=self._profile(row, role, idx))
+                        ui.menu_item('Un-approve', on_click=self._toggle(row, role, idx))
+
+    def _waiting(self, row: dict, role: str, waiting: list) -> None:
+        # The people waiting on staff get the weight; approved crew shrinks to
+        # pills above. Three runs of link-coloured text per person read as one blur.
+        with ui.column().classes('match-sheet__waiting full-width gap-0'):
+            heading = 'Waiting for you' if self.access.approve_crew else 'Signed up'
+            ui.label(f'{heading} · {len(waiting)}').classes('match-sheet__waiting-head')
+            for idx, person in waiting:
+                with ui.row().classes('match-sheet__waiting-row items-center no-wrap full-width'):
+                    name = person.get('name') or ''
+                    if self.access.approve_crew:
+                        ui.button(name, on_click=self._profile(row, role, idx), color=None) \
+                            .props('flat dense no-caps align=left').classes('match-sheet__waiting-name col') \
+                            .tooltip(f"Open {name}'s profile")
+                        ui.button('Approve', on_click=self._toggle(row, role, idx)).props('no-caps color=primary')
+                    else:
+                        ui.label(name).classes('match-sheet__waiting-name col')
 
     def _footer(self, row: dict) -> None:
         if not self.access.edit:

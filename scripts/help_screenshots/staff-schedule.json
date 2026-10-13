@@ -21,7 +21,16 @@
         "wait": 1500
       },
       {
-        "click": ".run-sheet__open:has-text(\"Player One vs Player Two\")"
+        "click": ".q-table__bottom .q-select"
+      },
+      {
+        "click": ".q-menu .q-item:has-text(\"All\")"
+      },
+      {
+        "wait": 1000
+      },
+      {
+        "click": ".run-sheet__open:has-text(\"Player Four vs Player Two\")"
       },
       {
         "waitFor": ".match-sheet"

@@ -36,10 +36,13 @@ The crew column counts signups against what the tournament needs, per role:
 that's short says **needs crew** in orange, and one with enough signups that
 you haven't approved yet says **to approve**.
 
-Tap a line to open the match. Everything you can do to it is there: **Check
-in**, **Start match**, **Finish** and **Confirm result**, the stage, the seed,
-stations, and the crew. **Edit match** at the bottom opens the full dialog, and
-**New match** at the top of the page adds one.
+Tap a line to open the match. Its next step (**Check in**, **Start match**,
+**Finish** or **Confirm result**) sits under the title. Below it, **Ready to
+play?** checks the match off before it starts: players confirmed, stations,
+stage, seed and crew, each ticked or flagged with the fix on the same line
+(**Assign** stations, **Generate** a seed, pick a stage). No stage isn't a
+problem, it just means the match is off stream. **Edit match** at the bottom
+opens the full dialog, and **New match** at the top of the page adds one.
 
 **Needs you**, beside the board on a computer and above it on a phone, lists
 the work that's waiting on you rather than on the clock. See
@@ -48,7 +51,7 @@ the work that's waiting on you rather than on the clock. See
 
 ![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next](/static/help/staff-schedule/board-desktop.webp)
 
-![A match opened from the board: its status and next step, players and stations, stage, seed and crew](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match.")
+![A match opened from the board: its next step, then the Ready to play? checklist of players, stations, stage, seed and crew, each ticked or flagged with its fix](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match.")
 
 ### Who sees what
 
@@ -167,15 +170,17 @@ The stages themselves (name, stream URL, and whether they're active) live on
 
 :::snippet staff-crew-approval
 Commentators and trackers who sign up themselves arrive unapproved. Open the
-match: under **Crew**, each person says "signed up", "approved, hasn't
-confirmed" or "confirmed", and the role says how many more it needs. Press
-**Approve** or **Un-approve** beside a name.
+match: under **Crew**, each role lists the people **Waiting for you** with an
+**Approve** button each, and says how many more it needs. Approved people sit
+above as a name with "confirmed" or "hasn't confirmed". Their **⋯** menu has
+**Un-approve**.
 
 Approving asks you to confirm first, and warns you if that person is already
 committed somewhere else at the same time. Once you approve, they're DMed and
 asked to acknowledge. Un-approving clears their acknowledgment and tells them.
 
-Press a name to see that person's profile.
+Press a waiting name, or **Open profile** in an approved person's **⋯** menu,
+to see their profile.
 :::
 
 ### Finding gaps in coverage
