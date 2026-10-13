@@ -4,7 +4,8 @@ Lets a community's STAFF override the shipped brand palette (primary, secondary,
 accent, and the header's brand mark). Reads/writes go through ``TenantThemeService``;
 semantic status colours are intentionally not editable. A preset picker offers
 contrast-verified palettes, and each field shows a live WCAG-AA contrast warning
-when a colour would be hard to read where it is used. Saving reloads the page so
+naming each place, and mode, where the colour would be hard to read. Warnings
+never block saving. Saving reloads the page so
 the new palette (applied at chrome render) takes effect immediately.
 
 The logo section uploads through ``TenantLogoService``, which validates and
@@ -120,23 +121,22 @@ async def admin_theme_page() -> None:
         ui.separator()
 
         inputs: dict[str, ui.color_input] = {}
-        warn_labels: dict[str, ui.label] = {}
+        warn_boxes: dict[str, ui.column] = {}
+        # With a logo uploaded the brand-mark colour is never drawn, so its
+        # contrast is moot.
+        skip = {'header'} if colors.get('logo') else set()
 
         def revalidate() -> None:
-            report = TenantThemeService.contrast_report(
-                {key: (inp.value or '') for key, inp in inputs.items()}
+            issues = TenantThemeService.contrast_issues(
+                {key: (inp.value or '') for key, inp in inputs.items() if key not in skip}
             )
-            for key, wl in warn_labels.items():
-                result = report.get(key)
-                if result and not result['ok']:
-                    wl.text = (
-                        f'⚠ Contrast {result["ratio"]}:1 against {result["against"]} '
-                        f'— below the {result["threshold"]}:1 AA target.'
-                    )
-                    wl.visible = True
-                else:
-                    wl.text = ''
-                    wl.visible = False
+            for key, box in warn_boxes.items():
+                box.clear()
+                with box:
+                    for issue in issues.get(key, []):
+                        with ui.row().classes('items-start no-wrap gap-1'):
+                            ui.icon('warning', size='1rem').classes('text-warning').props('aria-hidden=true')
+                            ui.label(issue).classes('text-caption text-warning')
 
         # Preset picker: contrast-verified palettes; selecting one fills the
         # fields below (which the user can then fine-tune before saving).
@@ -161,14 +161,14 @@ async def admin_theme_page() -> None:
 
         with ui.column().classes('wiz-form-column gap-4'):
             for label, key, caption in _FIELDS:
-                inputs[key] = ui.color_input(
-                    label=f'{label} ({DEFAULT_THEME[key]} default)',
-                    value=colors[key],
-                ).classes('w-full')
-                inputs[key].on_value_change(revalidate)
-                ui.label(caption).classes('text-caption text-grey')
-                warn_labels[key] = ui.label('').classes('text-caption text-warning')
-                warn_labels[key].visible = False
+                with ui.column().classes('w-full gap-1'):
+                    inputs[key] = ui.color_input(
+                        label=f'{label} ({DEFAULT_THEME[key]} default)',
+                        value=colors[key],
+                    ).classes('w-full')
+                    inputs[key].on_value_change(revalidate)
+                    ui.label(caption).classes('text-caption text-grey')
+                    warn_boxes[key] = ui.column().classes('gap-1').props('role=status aria-live=polite')
 
         revalidate()
 
@@ -180,9 +180,9 @@ async def admin_theme_page() -> None:
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return
-            if TenantThemeService.contrast_warnings(payload):
+            if TenantThemeService.contrast_issues({k: v for k, v in payload.items() if k not in skip}):
                 ui.notify(
-                    'Saved — but some colours may be hard to read (see contrast warnings).',
+                    'Saved, but some colours fall short of AA contrast. The warnings say where.',
                     color='warning',
                 )
             else:

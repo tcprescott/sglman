@@ -32,3 +32,10 @@ def contrast_ratio(a: str, b: str) -> float:
     la, lb = relative_luminance(a), relative_luminance(b)
     lighter, darker = (la, lb) if la >= lb else (lb, la)
     return (lighter + 0.05) / (darker + 0.05)
+
+
+def mix(a: str, b: str, weight: float) -> str:
+    """``color-mix(in srgb, a weight, b)``: ``weight`` of ``a``, the rest ``b``."""
+    return '#' + ''.join(
+        f'{round(x * weight + y * (1 - weight)):02x}' for x, y in zip(_rgb(a), _rgb(b), strict=True)
+    )

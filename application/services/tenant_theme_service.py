@@ -16,7 +16,8 @@ service reads/writes through the cross-tenant ``TenantRepository``.
 """
 
 import re
-from typing import Optional
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 from application.errors import require_found
 from application.repositories.tenant_repository import TenantRepository
@@ -24,7 +25,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.tenant_logo_service import TenantLogoService, logo_url
 from application.tenant_context import get_current_tenant_id, require_tenant_id
-from application.utils.color_contrast import contrast_ratio
+from application.utils.color_contrast import contrast_ratio, mix
 from models import User
 
 # The overridable brand colours and their shipped Phoenix defaults. Keep these in
@@ -46,24 +47,58 @@ CONFIG_KEY = 'theme'
 _HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 # --- Contrast (WCAG AA) ----------------------------------------------------
-# Each brand colour is checked against the surface it actually paints on, so a
-# warning means "hard to read where this is used", not an abstract score.
-# primary/secondary sit as text and white-labelled button fills on the light
-# surface; accent is the dark-mode link/title colour on the dark page; the
-# header colour is the brand mark beside the wordmark on the white header bar.
-# All four are held to AA normal-text (4.5:1) — the shipped defaults clear it
-# (~4.6:1), so presets and custom colours meet the line the app already meets.
-_LIGHT_SURFACE = '#ffffff'   # white cards/tables/page
-_DARK_SURFACE = '#1c1714'    # --wiz-dark-bg (dark-mode page body)
-_AA_CONTRAST = 4.5
+# Each brand colour is checked where static/css/styles.css actually paints it,
+# in each mode, so a warning names a real use ("button text in both modes")
+# rather than an abstract score. The surfaces are the --surface / --page-bg /
+# --surface-alt tokens; tests/theme/test_style_guide.py asserts they still match
+# styles.css. Text and button labels are held to AA normal text (4.5:1); the
+# brand mark is a graphic, so it gets the 3:1 non-text line.
+_WHITE = '#ffffff'
+_LIGHT_SURFACES = ('#ffffff', '#f5f5f4', '#fafaf9')
+_DARK_SURFACES = ('#1f1d1a', '#161513', '#262420')
+_AA_TEXT = 4.5
+_AA_GRAPHIC = 3.0
 
-# key → (colour it is contrasted with, phrase describing where it is used)
-_CONTRAST_AGAINST: dict[str, tuple[str, str]] = {
-    'primary': (_LIGHT_SURFACE, 'links and button labels on a light background'),
-    'secondary': (_LIGHT_SURFACE, 'secondary text and button labels on a light background'),
-    'accent': (_DARK_SURFACE, 'links and titles in dark mode'),
-    'header': (_LIGHT_SURFACE, 'the white header bar'),
+
+@dataclass(frozen=True)
+class _ContrastCheck:
+    use: str
+    mode: str                         # 'light', 'dark' or 'both'
+    against: tuple[str, ...]          # the worst of these is reported
+    threshold: float = _AA_TEXT
+    paint: Callable[[str], str] = lambda colour: colour  # what CSS derives from it
+
+
+_CONTRAST_CHECKS: dict[str, tuple[_ContrastCheck, ...]] = {
+    # Filled buttons keep the exact primary in both modes, under a white label.
+    # Light-mode links and primary text are --wiz-link: 15% toward black.
+    'primary': (
+        _ContrastCheck('button text', 'both', (_WHITE,)),
+        _ContrastCheck('links and highlighted text', 'light', _LIGHT_SURFACES,
+                       paint=lambda c: mix(c, '#000000', 0.85)),
+    ),
+    # Secondary text buttons sit on cards and dialogs; dark mode lifts the text
+    # 30% toward white (the .text-secondary rule in @layer theme).
+    'secondary': (
+        _ContrastCheck('button text', 'both', (_WHITE,)),
+        _ContrastCheck('text buttons', 'light', (_LIGHT_SURFACES[0],)),
+        _ContrastCheck('text buttons', 'dark', (_DARK_SURFACES[0],),
+                       paint=lambda c: mix(c, '#ffffff', 0.7)),
+    ),
+    # Dark mode's --accent: links, highlighted text, the active nav item.
+    'accent': (
+        _ContrastCheck('links and highlighted text', 'dark', _DARK_SURFACES),
+    ),
+    # The square beside the wordmark on the white header bar. Light mode only:
+    # the mark is decorative, and a dark-mode check would flag every preset's
+    # deep header colour.
+    'header': (
+        _ContrastCheck('the brand mark in the header', 'light', (_LIGHT_SURFACES[0],),
+                       threshold=_AA_GRAPHIC),
+    ),
 }
+
+_MODE_PHRASE = {'light': 'in light mode', 'dark': 'in dark mode', 'both': 'in light and dark mode'}
 
 # Curated palettes, each **verified** to meet the contrast thresholds above —
 # tests/test_color_contrast.py asserts every field of every preset passes, so a
@@ -74,7 +109,7 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
     'Ocean': {'primary': '#0e7470', 'secondary': '#1d4ed8', 'accent': '#38bdf8', 'header': '#0e7470'},
     'Forest': {'primary': '#15803d', 'secondary': '#b45309', 'accent': '#4ade80', 'header': '#166534'},
     'Grape': {'primary': '#6d28d9', 'secondary': '#be185d', 'accent': '#c084fc', 'header': '#5b21b6'},
-    'Rose': {'primary': '#be123c', 'secondary': '#9f1239', 'accent': '#fb7185', 'header': '#9f1239'},
+    'Rose': {'primary': '#be123c', 'secondary': '#c81e4a', 'accent': '#fb7185', 'header': '#9f1239'},
     'Slate': {'primary': '#334155', 'secondary': '#0f766e', 'accent': '#94a3b8', 'header': '#1e293b'},
 }
 
@@ -137,39 +172,55 @@ class TenantThemeService:
         return {name: dict(colors) for name, colors in THEME_PRESETS.items()}
 
     @staticmethod
-    def contrast_report(colors: dict) -> dict[str, dict]:
-        """Per-colour WCAG contrast against the surface each colour is used on.
+    def contrast_report(colors: dict) -> dict[str, list[dict]]:
+        """Every WCAG check for each colour, where the app actually uses it.
 
-        Returns ``{key: {'ratio', 'ok', 'threshold', 'against'}}`` for every
-        valid hex value supplied; blank/invalid values are skipped so a
-        half-typed field never errors. Pure — the editor uses it for live
-        warnings and the preset test uses it for verification.
+        Returns ``{key: [{'use', 'mode', 'ratio', 'threshold', 'ok'}, ...]}``
+        for every valid hex value supplied; ``ratio`` is the worst across the
+        surfaces that use sits on. Blank/invalid values are skipped so a
+        half-typed field never errors. Pure: the editor uses it for live
+        warnings and the preset test for verification.
         """
-        report: dict[str, dict] = {}
-        for key, (other, where) in _CONTRAST_AGAINST.items():
+        report: dict[str, list[dict]] = {}
+        for key, checks in _CONTRAST_CHECKS.items():
             value = colors.get(key)
             if not (isinstance(value, str) and _HEX_RE.match(value)):
                 continue
-            ratio = contrast_ratio(value, other)
-            report[key] = {
-                'ratio': round(ratio, 2),
-                'ok': ratio >= _AA_CONTRAST,
-                'threshold': _AA_CONTRAST,
-                'against': where,
-            }
+            report[key] = []
+            for check in checks:
+                painted = check.paint(value)
+                ratio = min(contrast_ratio(painted, surface) for surface in check.against)
+                report[key].append({
+                    'use': check.use,
+                    'mode': check.mode,
+                    'ratio': round(ratio, 2),
+                    'threshold': check.threshold,
+                    'ok': ratio >= check.threshold,
+                })
         return report
 
     @staticmethod
+    def contrast_issues(colors: dict) -> dict[str, list[str]]:
+        """Per colour, one sentence for each use that falls below AA."""
+        issues: dict[str, list[str]] = {}
+        for key, results in TenantThemeService.contrast_report(colors).items():
+            failing = [
+                f"{r['use'].capitalize()} {_MODE_PHRASE[r['mode']]} would be "
+                f"{r['ratio']:.1f}:1, under the {r['threshold']:g}:1 AA minimum."
+                for r in results if not r['ok']
+            ]
+            if failing:
+                issues[key] = failing
+        return issues
+
+    @staticmethod
     def contrast_warnings(colors: dict) -> list[str]:
-        """Human-readable warnings for colours below the AA contrast target."""
-        warnings: list[str] = []
-        for key, result in TenantThemeService.contrast_report(colors).items():
-            if not result['ok']:
-                warnings.append(
-                    f"{key.title()} contrast is {result['ratio']}:1 against "
-                    f"{result['against']} — below the {result['threshold']}:1 AA target."
-                )
-        return warnings
+        """Every failing use across the palette, each prefixed with its colour."""
+        return [
+            f'{key.title()}: {issue}'
+            for key, issues in TenantThemeService.contrast_issues(colors).items()
+            for issue in issues
+        ]
 
     @staticmethod
     async def set_theme(actor: User, colors: dict) -> dict[str, str]:

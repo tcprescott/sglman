@@ -302,3 +302,19 @@ def test_text_tokens_meet_aa_on_every_surface(text, dark):
 def test_white_label_meets_aa_on_the_default_accent_fill():
     ratio = _contrast((255, 255, 255), _resolve('--wiz-gold-deep', False))
     assert ratio >= 4.5, f'white on the default accent is {ratio:.2f}:1'
+
+
+def test_theme_editor_contrast_checks_match_the_stylesheet():
+    """The Appearance editor's contrast warnings model these tokens and rules;
+    if styles.css moves a surface or a brand-text mix, the warnings must follow."""
+    from application.services import tenant_theme_service as theme
+
+    def hexed(rgb) -> str:
+        return '#' + ''.join(f'{round(c):02x}' for c in rgb)
+
+    assert theme._LIGHT_SURFACES == tuple(hexed(_resolve(s, False)) for s in SURFACES)
+    assert theme._DARK_SURFACES == tuple(hexed(_resolve(s, True)) for s in SURFACES)
+    assert ROOT_TOKENS['--wiz-link'].strip() == 'color-mix(in srgb, var(--accent) 85%, #000)'
+    assert 'body:not(.body--dark) .text-primary { color: color-mix(in srgb, var(--q-primary) 85%, #000)' in STYLES.read_text()
+    assert '.body--dark .text-secondary { color: color-mix(in srgb, var(--wiz-ember) 70%, #fff)' in STYLES.read_text()
+    assert DARK_TOKENS['--wiz-link'].strip() == 'var(--wiz-gold)'

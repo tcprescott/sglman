@@ -15,6 +15,7 @@ from application.services.tenant_theme_service import (
     TenantThemeService,
 )
 from application.tenant_context import tenant_scope
+from application.utils.color_contrast import contrast_ratio
 from models import Role, User, UserRole
 
 # ---------------------------------------------------------------------------
@@ -67,20 +68,43 @@ class TestContrast:
 
     def test_near_white_header_warns(self):
         warnings = TenantThemeService.contrast_warnings({'header': '#fefefe'})
-        assert any('Header' in w for w in warnings)
+        assert any(w.startswith('Header: The brand mark') for w in warnings)
 
     def test_dark_accent_warns_against_dark_surface(self):
         # A near-black accent has almost no contrast on the dark page.
-        warnings = TenantThemeService.contrast_warnings({'accent': '#101010'})
-        assert any('Accent' in w for w in warnings)
+        issues = TenantThemeService.contrast_issues({'accent': '#101010'})
+        assert issues['accent'] and 'in dark mode' in issues['accent'][0]
+
+    def test_pale_primary_names_button_text_and_links(self):
+        # Pale yellow: white labels on it and links in it both fail in light mode.
+        issues = TenantThemeService.contrast_issues({'primary': '#f5e050'})['primary']
+        assert any(i.startswith('Button text in light and dark mode') for i in issues)
+        assert any(i.startswith('Links and highlighted text in light mode') for i in issues)
+        assert all(':1, under the 4.5:1 AA minimum.' in i for i in issues)
+
+    def test_link_check_judges_the_darkened_link_colour(self):
+        # Raw, the default primary is under 4.5:1 on the grey page canvas; links
+        # draw it 15% toward black, which clears it. Judge what is drawn.
+        assert contrast_ratio('#9c6b12', '#f5f5f4') < 4.5
+        link = TenantThemeService.contrast_report({'primary': '#9c6b12'})['primary'][1]
+        assert link['use'] == 'links and highlighted text'
+        assert link['ok'] is True
+
+    def test_dark_secondary_judged_after_the_lift_toward_white(self):
+        # #9f1239 is 3.9:1 once lifted 30% toward white on a dark card.
+        issues = TenantThemeService.contrast_issues({'secondary': '#9f1239'})
+        assert issues['secondary'] == [
+            'Text buttons in dark mode would be 3.9:1, under the 4.5:1 AA minimum.'
+        ]
 
     def test_report_skips_invalid_and_blank(self):
         assert TenantThemeService.contrast_report({'primary': 'nope', 'accent': ''}) == {}
 
     def test_report_shape(self):
         report = TenantThemeService.contrast_report({'primary': '#9c6b12'})
-        assert set(report['primary']) == {'ratio', 'ok', 'threshold', 'against'}
-        assert report['primary']['ok'] is True
+        for result in report['primary']:
+            assert set(result) == {'use', 'mode', 'ratio', 'threshold', 'ok'}
+            assert result['ok'] is True
 
     def test_list_presets_includes_verified_default(self):
         presets = TenantThemeService.list_presets()
