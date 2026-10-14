@@ -20,7 +20,7 @@ from nicegui import app, context, ui
 
 from application.services import AuthService, TenantService, WatchLayoutService, get_user_from_discord_id
 from application.services.watch_layout_service import WATCH_LAYOUTS
-from application.tenant_context import get_current_tenant_id
+from application.tenant_context import require_tenant_id
 from application.utils import live_audience
 from middleware.auth import public_page
 from pages.watch_data import get_watch_view, watch_version
@@ -38,7 +38,7 @@ _REPAINT_SECONDS = 30.0
 def create() -> None:
     @public_page('/live')
     async def live_watch() -> None:
-        tenant_id = get_current_tenant_id()
+        tenant_id = require_tenant_id()
         community = await TenantService.current_community_name() or 'Wizzrobe'
         ui.page_title(f'Watch — {community}')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))

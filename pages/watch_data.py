@@ -240,7 +240,7 @@ async def build_watch_view(tenant_id: int) -> WatchView:
         by_stage: Dict[int, list] = {}
         later = []
         for match in matches:
-            if to_local(match.scheduled_at).date() == today:
+            if to_local(match.scheduled_at).date() == today:  # type: ignore[union-attr]
                 by_stage.setdefault(match.stage_id, []).append(match)  # type: ignore[attr-defined]
             else:
                 later.append(match)
@@ -269,11 +269,11 @@ async def build_watch_view(tenant_id: int) -> WatchView:
         coming: List[WatchDay] = []
         upcoming = sorted(overflow, key=lambda m: m.scheduled_at) + later
         for match in upcoming[:COMING_UP_LIMIT]:
-            day = to_local(match.scheduled_at).date()
+            day = to_local(match.scheduled_at).date()  # type: ignore[union-attr]
             label = 'Later today' if day == today else f'{day:%A}, {day:%B} {day.day}'
             if not coming or coming[-1].label != label:
                 coming.append(WatchDay(label=label))
-            coming[-1].matches.append(_row(match, stage_name.get(match.stage_id, '')))  # type: ignore[attr-defined]
+            coming[-1].matches.append(_row(match, stage_name.get(match.stage_id, '')))
         zone = timezone_label()
 
     try:
@@ -286,7 +286,7 @@ async def build_watch_view(tenant_id: int) -> WatchView:
         community=await TenantService.current_community_name() or 'Wizzrobe',
         stages=watch_stages,
         coming=coming,
-        tournaments=await _tournaments({m.tournament_id for m in matches}),
+        tournaments=await _tournaments({m.tournament_id for m in matches}),  # type: ignore[attr-defined]
         timezone_label=zone,
         primary_color=primary,
         generated_at=datetime.now(timezone.utc),

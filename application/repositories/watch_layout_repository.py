@@ -24,7 +24,7 @@ class WatchLayoutRepository:
         row, _ = await WatchLayoutVote.get_or_create(
             tenant_id=current_tenant_id(), session_id=session_id, layout=layout,
         )
-        row.vote = vote
+        row.vote = vote  # type: ignore[assignment]
         await row.save(update_fields=['vote', 'updated_at'])
 
     @staticmethod
