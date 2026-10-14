@@ -5,18 +5,15 @@ from nicegui import ui
 from application.utils.easter_eggs import random_cat_fact
 
 # The fact sat right under the empty-state message in the same muted italic,
-# so it read as part of what the app was telling you. The kicker and the rule
-# above it mark it as an aside.
-FACT_KICKER = 'Cat fact, just for fun'
+# so it read as part of what the app was telling you. The paw and the rule
+# above it mark it as an aside without a caption announcing it.
 
 
 def cat_fact() -> None:
     """Render a cat fact set apart from whatever it sits under."""
     with ui.column().classes('empty-state-fact items-center') as aside:
         aside.props('role=note')
-        with ui.row().classes('empty-state-fact__kicker items-center no-wrap'):
-            ui.icon('pets').props('size=xs')
-            ui.label(FACT_KICKER)
+        ui.icon('pets').props('size=xs aria-hidden=true').classes('empty-state-fact__icon')
         ui.label(random_cat_fact()).classes('empty-state-fact__text')
 
 
@@ -52,8 +49,7 @@ def no_data_slot(message: str = 'Nothing here yet.', icon: str = 'inbox') -> str
         f'<q-icon name="{safe_icon}" size="md" class="q-mb-sm wiz-empty-icon"></q-icon>'
         f'<div>{safe_message}</div>'
         '<div class="empty-state-fact column items-center" role="note">'
-        '<div class="empty-state-fact__kicker row items-center no-wrap">'
-        f'<q-icon name="pets" size="xs"></q-icon><span>{FACT_KICKER}</span></div>'
+        '<q-icon name="pets" size="xs" aria-hidden="true" class="empty-state-fact__icon"></q-icon>'
         f'<div class="empty-state-fact__text">{safe_fact}</div>'
         '</div></div></div>'
     )

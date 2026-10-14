@@ -69,18 +69,22 @@ class TestWaitingPanel:
 
 class TestFactReadsAsAnAside:
     """The fact sat under the empty-state message in the same muted italic, so
-    it read as something the app was reporting. Both renderers label it."""
+    it read as something the app was reporting. Both renderers mark it with a
+    paw, and neither captions it: Thomas didn't want it announced as a fun fact."""
 
-    def test_helper_labels_the_fact(self):
+    def test_helper_marks_the_fact(self):
         source = inspect.getsource(empty_state.cat_fact)
-        assert 'FACT_KICKER' in source
+        assert 'empty-state-fact__icon' in source
         assert 'random_cat_fact()' in source
+        assert 'just for fun' not in source.lower()
 
     def test_empty_state_uses_the_helper(self):
         assert 'cat_fact()' in inspect.getsource(empty_state.empty_state)
 
-    def test_table_no_data_slot_labels_the_fact(self):
-        assert empty_state.FACT_KICKER in empty_state.no_data_slot()
+    def test_table_no_data_slot_marks_the_fact(self):
+        slot = empty_state.no_data_slot()
+        assert 'empty-state-fact__icon' in slot
+        assert 'just for fun' not in slot.lower()
 
 
 class TestAuthWaitScreens:

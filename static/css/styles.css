@@ -2172,8 +2172,8 @@ main.q-page:focus {
 }
 
 /* theme/empty_state.cat_fact: an aside, not part of the message above it.
-   Space and a dashed rule part it from the empty-state text, and the kicker
-   names it, so nobody mistakes the fact for something the app is reporting. */
+   Space, a dashed rule and a paw part it from the empty-state text, so nobody
+   mistakes the fact for something the app is reporting. */
 .empty-state-fact {
     margin-top: var(--space-5);
     padding-top: var(--space-3);
@@ -2186,14 +2186,7 @@ main.q-page:focus {
     text-align: center;
 }
 
-.empty-state-fact__kicker {
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    font-style: normal;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
+.empty-state-fact__icon { color: var(--fg-muted); }
 
 /* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
 .wiz-empty-icon {
