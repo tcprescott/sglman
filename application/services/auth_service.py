@@ -554,7 +554,7 @@ async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]:
 #: ``password_stamp``, so changing or removing the password ends it.
 SESSION_USER_ID = 'user_id'
 SESSION_AUTH_METHOD = 'auth_method'
-SESSION_PASSWORD_STAMP = 'password_stamp'
+SESSION_PASSWORD_STAMP_FIELD = 'password_stamp'
 AUTH_METHOD_PASSWORD = 'password'
 
 
@@ -587,7 +587,7 @@ async def get_user_from_session(storage: Any) -> Optional[User]:
         return None
     if storage.get(SESSION_AUTH_METHOD) == AUTH_METHOD_PASSWORD and (
         not user.password_hash
-        or storage.get(SESSION_PASSWORD_STAMP) != password_session_stamp(user)
+        or storage.get(SESSION_PASSWORD_STAMP_FIELD) != password_session_stamp(user)
     ):
         return None
     return user

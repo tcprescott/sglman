@@ -12,7 +12,7 @@ from nicegui import app
 from application.services.auth_service import (
     AUTH_METHOD_PASSWORD,
     SESSION_AUTH_METHOD,
-    SESSION_PASSWORD_STAMP,
+    SESSION_PASSWORD_STAMP_FIELD,
     SESSION_USER_ID,
     password_session_stamp,
 )
@@ -21,11 +21,11 @@ from models import User
 
 def start_session(user: User, fields: Optional[dict[str, Any]] = None, *, password: bool = False) -> None:
     storage = app.storage.user
-    for key in (SESSION_AUTH_METHOD, SESSION_PASSWORD_STAMP):
+    for key in (SESSION_AUTH_METHOD, SESSION_PASSWORD_STAMP_FIELD):
         storage.pop(key, None)
     if password:
         # No Discord identity rides along: drop one a previous sign-in left.
         storage.pop('discord_id', None)
         storage[SESSION_AUTH_METHOD] = AUTH_METHOD_PASSWORD
-        storage[SESSION_PASSWORD_STAMP] = password_session_stamp(user)
+        storage[SESSION_PASSWORD_STAMP_FIELD] = password_session_stamp(user)
     storage.update({**(fields or {}), 'authenticated': True, SESSION_USER_ID: user.id})
