@@ -4024,6 +4024,14 @@ ol.wiz-help-list { list-style-type: decimal; }
 
 .wiz-help-table th { font-weight: 700; white-space: nowrap; }
 
+/* The prose around a table breaks `anywhere`, which lowers every cell's
+   min-content width to one letter: auto layout then squeezed the chip column
+   until "Flagged" stacked two letters a line. Cells break long words only when
+   they would overflow, and a chip never wraps. */
+.wiz-help-table th,
+.wiz-help-table td { overflow-wrap: break-word; }
+.wiz-help-table .wiz-chip { white-space: nowrap; }
+
 /* Screenshots (theme/help/render.py). A phone capture is taller than the column
    is wide, so the inline copy is height-capped and centred; tapping opens the
    full-size one. The shots are taken in the light theme, so in dark mode they
@@ -4203,6 +4211,11 @@ ol.wiz-help-list { list-style-type: decimal; }
     background: var(--surface);
     color: var(--fg);
 }
+
+/* A table needs more room than a paragraph: at the reading width its third
+   column ran under the scrollbar. The phone sheet is full width already. */
+.q-menu.wiz-help-menu:has(.wiz-help-table) { width: min(32rem, calc(100vw - 2rem)); }
+.wiz-help-menu-body .wiz-help-table { min-width: 0; }
 
 .wiz-help-view { gap: 0; width: 100%; }
 
