@@ -490,7 +490,7 @@ async def _members_panel(
                     if member is None:
                         ui.notify('That account no longer exists', color='negative')
                         return
-                    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    viewer = await get_user_from_session(app.storage.user)
                     if viewer is None:
                         return
                     await open_emergency_contact_dialog(viewer, member)
