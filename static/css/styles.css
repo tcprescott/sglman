@@ -5539,8 +5539,17 @@ ol.wiz-help-list { list-style-type: decimal; }
 .match-sheet__comment-head {
     gap: 0.5rem;
 }
+.match-sheet__comment-byline {
+    flex: 1;
+    min-width: 0;
+    gap: 0.125rem 0.5rem;
+}
 .match-sheet__comment-author {
     font-weight: 700;
+}
+.match-sheet__comment-author,
+.match-sheet__comment-when {
+    white-space: nowrap;
 }
 .match-sheet__comment-body {
     overflow-wrap: anywhere;

@@ -505,10 +505,10 @@ class MatchSheet:
         name = 'You' if comment['own'] and not staff else comment['author']
         with ui.column().classes('match-sheet__comment full-width gap-1'):
             with ui.row().classes('match-sheet__comment-head items-center no-wrap full-width'):
-                ui.label(name).classes('match-sheet__comment-author')
-                self._comment_tag(comment['kind'], staff, comment['own'])
-                ui.label(comment['when']).classes('match-sheet__note')
-                ui.space()
+                with ui.row().classes('match-sheet__comment-byline items-center'):
+                    ui.label(name).classes('match-sheet__comment-author')
+                    self._comment_tag(comment['kind'], staff, comment['own'])
+                    ui.label(comment['when']).classes('match-sheet__note match-sheet__comment-when')
                 if comment['can_delete']:
                     with more_menu(f"the comment from {comment['author']}"):
                         menu_action('delete', 'Delete comment',
