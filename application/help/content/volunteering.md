@@ -105,6 +105,23 @@ them again.
 
 ![My Shifts on a phone: the hours line, the Show all shifts switch marked 3, then a Broadcast Tech shift card with its notes, Can't make it marked 1 and Acknowledge marked 2](/static/help/volunteering/my-shifts-phone.webp "One upcoming shift: **Can't make it** (1), **Acknowledge** (2), and **Show all shifts** (3) for the ones that have finished.")
 
+## Full Schedule
+
+:::snippet full-schedule
+**Full Schedule** shows every role's shifts for one day, so you can see who is
+at which station and when. Pick a day along the top; the page remembers it next
+time.
+
+Each role is a column and the hours run down the side. A shift is a block with
+its times and the names on it, and a block outlined in the accent colour is
+yours. During the event a line marks the current time. Shifts the coordinator
+is still drafting don't show here until they are sent out, and a block reading
+**Nobody yet** is a shift with no one on it.
+
+On a phone the hour column stays put while you swipe sideways through the
+roles. When a block has more names than fit, tap **+N more** for the full list.
+:::
+
 ## Giving a shift back
 
 :::snippet shift-release

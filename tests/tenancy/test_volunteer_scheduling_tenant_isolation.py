@@ -97,3 +97,40 @@ async def test_a_qualification_cannot_name_another_communitys_position(two_tenan
             await VolunteerQualificationService().set_qualifications(coordinator, volunteer, [b_only.id])
 
     assert not await VolunteerQualification.filter(user=volunteer).exists()
+
+
+async def test_the_full_schedule_shows_only_this_communitys_shifts(two_tenants):
+    from datetime import date, time
+
+    from application.utils.timezone import combine_local
+
+    a, b = two_tenants
+    day = combine_local(date(2026, 10, 23), time(0))
+    with tenant_scope(b.id):
+        b_desk = await VolunteerPosition.create(name='B desk')
+        await VolunteerShift.create(
+            position=b_desk, starts_at=day + timedelta(hours=8), ends_at=day + timedelta(hours=12),
+        )
+    with tenant_scope(a.id):
+        viewer = await make_user(7101, 'viewer')
+        await join_community(viewer)
+        await UserRole.create(user=viewer, role=Role.VOLUNTEER)
+        a_desk = await VolunteerPosition.create(name='A desk')
+        await VolunteerShift.create(
+            position=a_desk, starts_at=day + timedelta(hours=8), ends_at=day + timedelta(hours=12),
+        )
+
+        grid = await VolunteerScheduleService().day_grid(viewer, date(2026, 10, 23))
+
+        assert [c.position for c in grid.columns] == ['A desk']
+
+
+async def test_the_full_schedule_refuses_someone_off_the_volunteer_hub(two_tenants):
+    from datetime import date
+
+    a, _ = two_tenants
+    with tenant_scope(a.id):
+        player = await make_user(7102, 'player')
+        await join_community(player)
+        with pytest.raises(PermissionError):
+            await VolunteerScheduleService().day_grid(player, date(2026, 10, 23))

@@ -1,0 +1,135 @@
+"""The read-only day grid volunteers see under Volunteer → Full Schedule.
+
+Pure layout: turns one day's shifts into role columns positioned on an hour
+scale, so the page only draws boxes and the rules (which assignments count,
+where a day starts and ends) are testable without a database or a browser.
+"""
+
+import math
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
+from typing import Iterable, Optional, Tuple
+
+# An event day runs 06:00 to 06:00 local, so a 20:00–02:00 shift sits on the
+# evening it starts rather than splitting across two tabs.
+DAY_STARTS_AT_HOUR = 6
+DAY_LENGTH_HOURS = 24
+
+
+@dataclass(frozen=True)
+class GridPerson:
+    name: str
+    is_viewer: bool
+
+
+@dataclass(frozen=True)
+class GridShift:
+    starts_at: datetime
+    ends_at: datetime
+    label: str
+    # Hours from local midnight of the day, clipped to the day's window.
+    start_hour: float
+    end_hour: float
+    people: Tuple[GridPerson, ...]
+    open_slots: int
+    # Side-by-side placement for shifts of one position that overlap (a
+    # staggered position runs 08–12 beside 10–14): this shift's lane, and how
+    # many lanes its overlapping group needs.
+    lane: int = 0
+    lanes: int = 1
+
+    @property
+    def has_viewer(self) -> bool:
+        return any(p.is_viewer for p in self.people)
+
+
+@dataclass(frozen=True)
+class GridColumn:
+    position: str
+    shifts: Tuple[GridShift, ...]
+
+
+@dataclass(frozen=True)
+class DayGrid:
+    midnight: datetime
+    first_hour: int
+    last_hour: int
+    columns: Tuple[GridColumn, ...]
+
+    @property
+    def hours(self) -> range:
+        return range(self.first_hour, self.last_hour)
+
+    def hour_at(self, moment: datetime) -> Optional[float]:
+        """Where ``moment`` falls on the grid, or None when it is off it."""
+        offset = (moment - self.midnight).total_seconds() / 3600
+        return offset if self.first_hour <= offset < self.last_hour else None
+
+
+def day_window(midnight: datetime) -> Tuple[datetime, datetime]:
+    start = midnight + timedelta(hours=DAY_STARTS_AT_HOUR)
+    return start, start + timedelta(hours=DAY_LENGTH_HOURS)
+
+
+def build_day_grid(shifts: Iterable, midnight: datetime, viewer_id: Optional[int]) -> DayGrid:
+    """Columns per position, in the order ``shifts`` arrive (position order).
+
+    Draft assignments are left out: those volunteers have not been told, and
+    the grid is read by everyone on the schedule.
+    """
+    lo_bound = float(DAY_STARTS_AT_HOUR)
+    hi_bound = float(DAY_STARTS_AT_HOUR + DAY_LENGTH_HOURS)
+    by_position: dict = {}
+    names: dict = {}
+    for shift in shifts:
+        start_h = max(lo_bound, (shift.starts_at - midnight).total_seconds() / 3600)
+        end_h = min(hi_bound, (shift.ends_at - midnight).total_seconds() / 3600)
+        if end_h <= start_h:
+            continue
+        published = [a for a in shift.assignments if not a.auto_generated and a.user]
+        people = tuple(sorted(
+            (GridPerson(a.user.preferred_name, a.user_id == viewer_id) for a in published),
+            key=lambda p: p.name.casefold(),
+        ))
+        key = shift.position_id
+        names.setdefault(key, shift.position.name if shift.position else 'Volunteer')
+        by_position.setdefault(key, []).append(GridShift(
+            starts_at=shift.starts_at, ends_at=shift.ends_at, label=shift.label or '',
+            start_hour=start_h, end_hour=end_h, people=people,
+            open_slots=max(0, shift.slots_needed - len(people)),
+        ))
+    columns = tuple(
+        GridColumn(names[key], _in_lanes(items)) for key, items in by_position.items()
+    )
+    if not columns:
+        return DayGrid(midnight, DAY_STARTS_AT_HOUR, DAY_STARTS_AT_HOUR, ())
+    first = math.floor(min(s.start_hour for c in columns for s in c.shifts))
+    last = math.ceil(max(s.end_hour for c in columns for s in c.shifts))
+    return DayGrid(midnight, first, last, columns)
+
+
+def _in_lanes(shifts: list) -> Tuple[GridShift, ...]:
+    """Give overlapping shifts their own lanes; each group of overlaps shares a width."""
+    placed: list = []
+    group: list = []
+    group_end = None
+    lane_ends: list = []
+
+    def close_group() -> None:
+        for shift in group:
+            placed.append(replace(shift, lanes=len(lane_ends)))
+
+    for shift in sorted(shifts, key=lambda s: (s.start_hour, s.end_hour)):
+        if group_end is not None and shift.start_hour >= group_end:
+            close_group()
+            group, lane_ends, group_end = [], [], None
+        lane = next((i for i, end in enumerate(lane_ends) if end <= shift.start_hour), None)
+        if lane is None:
+            lane = len(lane_ends)
+            lane_ends.append(shift.end_hour)
+        else:
+            lane_ends[lane] = shift.end_hour
+        group.append(replace(shift, lane=lane))
+        group_end = shift.end_hour if group_end is None else max(group_end, shift.end_hour)
+    close_group()
+    return tuple(placed)

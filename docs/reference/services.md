@@ -1587,6 +1587,10 @@ The onsite volunteer subsystem is one service per concern plus a background remi
 
 A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
 
+### volunteer_schedule_grid.py — the Full Schedule day grid
+
+`VolunteerScheduleService.day_grid(viewer, day)` (gated on `VOLUNTEERS`, refuses anyone `AuthService.can_view_volunteer` rejects with `PermissionError`) loads the shifts overlapping one event day, 06:00 to 06:00 local so a late shift stays on the evening it starts, and hands them to the pure `build_day_grid(shifts, midnight, viewer_id)`. That returns a `DayGrid`: one `GridColumn` per position in repository order, each `GridShift` carrying its hours from local midnight (clipped to the day), the published names (draft assignments are left out), open slots, whether the viewer is on it, and a `lane`/`lanes` pair that puts overlapping shifts of one position side by side.
+
 ### volunteer_hours.py — VolunteerHoursService
 
 Totals the time a volunteer actually served, against the per-tenant comp tiers from `SystemConfigService.get_volunteer_comp_tiers()`. Read-only: no `AuditActions` entry and no `EventType`, on purpose.

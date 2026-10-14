@@ -4851,6 +4851,169 @@ ol.wiz-help-list { list-style-type: decimal; }
     flex: 0 0 auto;
 }
 
+/* Volunteer → Full Schedule: one column per role on an hour scale. The same
+   grid on every width; on a phone it scrolls sideways under a pinned hour
+   column. --wiz-vgrid-hour is HOUR_PX in pages/volunteer_tabs/full_schedule.py. */
+.wiz-vgrid {
+    --wiz-vgrid-hour: 48px;
+    --wiz-vgrid-head: 44px;
+    position: relative;
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md, 12px);
+}
+
+.wiz-vgrid:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.wiz-vgrid__times {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    flex: 0 0 3.5rem;
+    background: var(--surface);
+    box-shadow: 1px 0 0 var(--border-subtle);
+}
+
+.wiz-vgrid__col {
+    flex: 1 0 9rem;
+    min-width: 9rem;
+    border-left: 1px solid var(--border-subtle);
+}
+
+.wiz-vgrid__head {
+    height: var(--wiz-vgrid-head);
+    box-sizing: border-box;
+    padding: 0 var(--space-2, 8px);
+    display: flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--fg);
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.wiz-vgrid__body {
+    position: relative;
+}
+
+.wiz-vgrid__body--lines {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        var(--border-subtle) 0,
+        var(--border-subtle) 1px,
+        transparent 1px,
+        transparent var(--wiz-vgrid-hour)
+    );
+}
+
+.wiz-vgrid__hour {
+    position: absolute;
+    right: var(--space-2, 8px);
+    padding-top: 2px;
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    white-space: nowrap;
+}
+
+.wiz-vgrid__shift {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+}
+
+.wiz-vgrid__shift--mine {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+    border: 2px solid var(--accent);
+}
+
+.wiz-vgrid__time {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--fg-muted);
+    white-space: nowrap;
+}
+
+.wiz-vgrid__name,
+.wiz-vgrid__open {
+    font-size: 0.875rem;
+    line-height: 18px;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wiz-vgrid__name--you {
+    font-weight: 700;
+}
+
+.wiz-vgrid__open {
+    color: var(--fg-muted);
+    font-style: italic;
+}
+
+.wiz-vgrid__more {
+    align-self: flex-start;
+    min-height: 0;
+    padding: 0 4px;
+    margin-left: -4px;
+}
+
+.wiz-vgrid__now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    z-index: 2;
+    border-top: 2px solid var(--status-live);
+    pointer-events: none;
+}
+
+.wiz-vgrid-days {
+    gap: var(--space-2, 8px);
+    flex-wrap: wrap;
+}
+
+.wiz-vgrid-legend {
+    gap: var(--space-3, 12px);
+    font-size: 0.8125rem;
+    color: var(--fg-secondary);
+}
+
+.wiz-vgrid-legend__mine {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    box-sizing: border-box;
+    border-radius: 4px;
+    background: var(--accent-soft);
+    border: 2px solid var(--accent);
+}
+
+.wiz-vgrid-legend__now {
+    display: inline-block;
+    width: 16px;
+    border-top: 2px solid var(--status-live);
+}
+
+.wiz-vgrid-legend__hint {
+    color: var(--fg-muted);
+}
+
 /* A card's action buttons travel as one group: when the title row runs out of
    room the whole group drops to the next line, right-aligned, instead of
    leaving Delete alone on a line of its own. */

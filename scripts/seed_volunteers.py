@@ -239,6 +239,15 @@ async def seed_volunteers_for_tenant(
             defaults={"assigned_by": staff},
         )
 
+    # A published shift for the staff login, so Volunteer → Full Schedule shows
+    # its "your shift" outline to whoever the browser checks sign in as.
+    staff_desk = shift_index.get((second_day, "Admin Desk|Shift 3"))
+    if staff_desk:
+        await VolunteerAssignment.get_or_create(
+            shift=staff_desk, user=staff, tenant=tenant,
+            defaults={"assigned_by": staff},
+        )
+
     # Position → role mappings. Race Proctor → PROCTOR lands on proctor_user, who
     # already holds it by hand, so it shows a manual grant left alone; Broadcast
     # Tech → STREAM_MANAGER hands FULL_RACERS[1] a volunteer-sourced role. The
