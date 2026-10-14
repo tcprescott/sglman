@@ -15,14 +15,19 @@ from application.repositories import (
     TournamentRepository,
     UserRepository,
 )
+from application.services._challonge_notifications import ChallongeNotificationMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
 from models import ChallongeParticipant, FeatureFlag, Tournament, User
 
 
-class ChallongeParticipantAssignmentMixin:
-    """The three collaborators are set up by ``ChallongeService.__init__``."""
+class ChallongeParticipantAssignmentMixin(ChallongeNotificationMixin):
+    """The three collaborators are set up by ``ChallongeService.__init__``.
+
+    Resolving an entrant can make their matchup
+    bookable, which is the moment both players get the ready-to-schedule DM.
+    """
 
     repository: ChallongeRepository
     tournament_repository: TournamentRepository
@@ -86,6 +91,7 @@ class ChallongeParticipantAssignmentMixin:
                 f"{user.display_name or user.username} is already mapped to "
                 f"{taken.name or 'another entrant'} in this bracket."
             )
+        bookable_before = await self._bookable_match_ids(participant.tournament)
         await self.repository.set_participant_user(participant, user, manual=True)
         await self.audit_service.write_log(
             actor, AuditActions.CHALLONGE_PARTICIPANT_ASSIGNED,
@@ -93,6 +99,7 @@ class ChallongeParticipantAssignmentMixin:
              'challonge_participant_id': participant.challonge_participant_id,
              'user_id': user.id},
         )
+        await self._announce_newly_bookable(participant.tournament, bookable_before)
         return participant
 
     @requires_feature(FeatureFlag.CHALLONGE)

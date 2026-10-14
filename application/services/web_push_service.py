@@ -45,9 +45,10 @@ logger = logging.getLogger(__name__)
 DECLARATIVE_WEB_PUSH_VERSION = 8030
 
 # The DM templates (application/utils/discord_messages.py) only ever emit
-# **bold**, so only that token is stripped — usernames and URLs legitimately
+# **bold** plus the backslash that keeps a member-typed bracket from forming a
+# masked link, so only those are stripped — usernames and URLs legitimately
 # contain __, ~~ and backticks and must pass through untouched.
-_MARKDOWN_TOKENS = re.compile(r'\*\*')
+_MARKDOWN_TOKENS = re.compile(r'\*\*|\\(?=[\[\]])')
 
 
 @lru_cache(maxsize=4)

@@ -16,7 +16,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.content import parse_blocks
+from application.content import parse_user_blocks
 from application.services import (
     AuthService,
     CommunityEventService,
@@ -41,7 +41,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_state
 from theme.error_page import render_not_found
 from theme.help import help_icon
-from theme.help.render import render_blocks
+from theme.help.render import render_user_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
 
@@ -292,7 +292,7 @@ def create() -> None:
 
                 if current.description:
                     with ui.column().classes('wiz-community-event__body gap-0 full-width'):
-                        render_blocks(parse_blocks(current.description))
+                        render_user_blocks(parse_user_blocks(current.description))
 
                 if can_manage and current.rsvp_enabled:
                     attendees = await service.list_attendees(user, current.id)

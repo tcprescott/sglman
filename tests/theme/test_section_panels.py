@@ -77,7 +77,7 @@ class TestWhatWaitsOnThePlayerComesFirst:
         the reader. Below the board and its filter card it was off-screen, which
         is where the "matchup ready" DM used to land."""
         src = inspect.getsource(player.render_player_dashboard)
-        brackets = src.index('await bracket_section()')
+        brackets = src.index('await waiting_section()')
         board = src.index('table_view = MatchTableView(')
         requests = src.index('await requests_section()')
         assert brackets < board < requests

@@ -70,9 +70,8 @@ class TestBookingCopy:
         # Rebuilding the section deletes the dialog the callback runs from, and
         # the board refresh after it found no tenant ("No tenant in context").
         source = _read('pages/home_tabs/player.py')
-        for section in ('challonge_section', 'bracket_section'):
-            after = source[source.index(f'{section}.refresh()') - 120:source.index(f'{section}.refresh()')]
-            assert 'await table_view.refresh()' in after, section
+        after = source[source.index('waiting_section.refresh()') - 120:source.index('waiting_section.refresh()')]
+        assert 'await table_view.refresh()' in after
 
 
 class TestBookingDialog:
@@ -85,7 +84,7 @@ class TestBookingDialog:
     def test_a_lost_race_closes_and_refreshes(self):
         source = _read('theme/dialog/bracket_schedule_dialog.py')
         branch = source[source.index('except AlreadyBookedError'):]
-        branch = branch[:branch.index('except PermissionError')]
+        branch = branch[:branch.index('except (PermissionError')]
         assert 'dialog.close()' in branch
         assert 'return' not in branch  # falls through to _after_submit
 
@@ -114,8 +113,8 @@ class TestBookingCaption:
         from pages.home_tabs.player import _booking_caption
 
         yes, no = (SimpleNamespace(allow_reschedule_requests=v) for v in (True, False))
-        assert _booking_caption('From your bracket.', [yes]).endswith('can ask staff to move it.')
-        assert 'ask staff' not in _booking_caption('From your bracket.', [yes, no])
+        assert _booking_caption([yes]).endswith('can ask staff to move it.')
+        assert 'ask staff' not in _booking_caption([yes, no])
 
     def test_the_toast_follows_the_same_rule(self):
         from theme.dialog._helpers import booked_notice

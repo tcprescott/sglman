@@ -17,13 +17,13 @@ from typing import Any, Optional
 
 from nicegui import app, ui
 
-from application.content import parse_blocks
+from application.content import parse_user_blocks
 from application.errors import NotFoundError
 from application.services import MatchCommentService, get_user_from_session
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, dialog_header
 from theme.dialog.confirmation_dialog import ConfirmationDialog
-from theme.help.render import render_blocks
+from theme.help.render import render_user_blocks
 from theme.markdown_editor import MarkdownEditor
 from theme.menu import menu_action, more_menu
 from theme.tables.match_access import MatchBoardAccess
@@ -515,7 +515,7 @@ class MatchSheet:
                         menu_action('delete', 'Delete comment',
                                     lambda cid=comment['id']: self._confirm_delete(cid), negative=True)
             with ui.element('div').classes('wiz-help-prose match-sheet__comment-body'):
-                render_blocks(parse_blocks(comment['body']))
+                render_user_blocks(parse_user_blocks(comment['body']))
 
     @staticmethod
     def _comment_tag(kind: str, staff: bool, own: bool) -> None:
