@@ -288,6 +288,10 @@ async def full_schedule_tab() -> None:
         region = ui.element('div').classes('wiz-vgrid').props(
             f'tabindex=0 role=region aria-label="Volunteer schedule for {day_label(state.day)}"'
         )
+        # The Volunteer tabs are swipeable, so a sideways swipe meant to scroll
+        # the grid would flip to the next tab. Keep the gesture inside the grid.
+        for gesture in ('touchstart', 'mousedown'):
+            region.on(gesture, js_handler='(e) => e.stopPropagation()')
         with region:
             with ui.element('div').classes('wiz-vgrid__times'):
                 ui.element('div').classes('wiz-vgrid__head')
