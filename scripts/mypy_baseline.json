@@ -154,7 +154,6 @@
   "pages/home.py": 1,
   "pages/home_tabs/_link_section.py": 2,
   "pages/home_tabs/brackets.py": 2,
-  "pages/home_tabs/stage_timeline.py": 6,
   "pages/platform.py": 5,
   "pages/platform_bots.py": 2,
   "pages/platform_feature_groups.py": 2,

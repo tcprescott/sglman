@@ -31,7 +31,6 @@
   },
   "targets": [
     { "name": "home-schedule", "path": "/home/schedule" },
-    { "name": "home-on-air", "path": "/home/on-air" },
     { "name": "home-player", "path": "/home/player" },
     { "name": "home-profile", "path": "/home/profile" },
     { "name": "home-tournaments", "path": "/home/tournaments" },

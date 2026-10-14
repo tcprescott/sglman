@@ -260,3 +260,10 @@ class TestRoutes:
 def test_vary_cookie_is_dropped_so_a_cdn_can_share_one_entry():
     assert _drop_cookie_vary(b'Accept-Encoding, Cookie, Accept-Encoding') == b'Accept-Encoding'
     assert _drop_cookie_vary(b'Cookie') == b''
+
+
+def test_the_static_page_offers_the_dark_mode_toggle_and_honours_the_cookie():
+    body = render_watch_document(WatchView(community='C'))
+    assert 'id="wizw-theme"' in body
+    assert 'aria-label="Toggle dark mode"' in body
+    assert 'wiz_dark' in body

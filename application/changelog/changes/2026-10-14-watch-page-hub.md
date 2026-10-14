@@ -1,5 +1,5 @@
 ### New
-- The Watch page at /live now has On Air's Twitch player, every stage's match on now with its crew, a "Coming up on stream" list for the next few days, and each tournament's bracket and rules links with how far along it is.
+- The Watch page at /live is now **Watch** in the sidebar and replaces the On Air view on the Event tab. It has a Twitch player, every stage's match on now with its crew, a "Coming up on stream" list for the next few days, and each tournament's bracket and rules links with how far along it is. Whoever runs the Schedule board still gets **Open in Schedule** on each match.
 - Staff can see who's on the Watch page under Admin → Settings → Watch page, and switch it between live and static. During a rush it switches to static on its own, and the player keeps playing either way.
 
 ### Improved

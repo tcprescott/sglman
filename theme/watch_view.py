@@ -25,7 +25,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from application.utils.safe_url import http_url_or_empty
-from theme.brackets.static_view.document import _bar, _document
+from theme.brackets.static_view.document import _document
 from theme.brackets.static_view.markup import _esc, _tag
 
 #: Upcoming matches listed under each stage; the rest are in "Coming up".
@@ -49,6 +49,8 @@ class WatchMatch:
     stage: str = ''
     commentators: str = ''
     trackers: str = ''
+    match_id: int = 0
+    tournament_id: Optional[int] = None
 
 
 @dataclass
@@ -118,6 +120,9 @@ body { --wiz-header-height: 0px; }
   display: flex; flex-direction: column; }
 .stage-header { display: flex; justify-content: space-between; }
 .match-card-top { display: flex; align-items: center; gap: 8px; }
+.wizw-bar-end { display: flex; align-items: center; gap: 10px; }
+.wizw-theme { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border-subtle, #e2e1de);
+  background: transparent; color: inherit; font-size: 24px; line-height: 1; cursor: pointer; }
 </style>
 """
 
@@ -158,6 +163,10 @@ document.addEventListener('click',function(e){
   var b=e.target.closest?e.target.closest('[data-watch]'):null;
   if(b){e.preventDefault();watch(b);return;}
   if(e.target.closest&&e.target.closest('#wizw-close')){e.preventDefault();close();}
+  if(e.target.closest&&e.target.closest('#wizw-theme')){
+    var dark=!document.body.classList.contains('body--dark');
+    document.body.classList.toggle('body--dark',dark);
+    document.cookie='wiz_dark='+(dark?1:0)+'; path=/; max-age=31536000; samesite=lax';}
 });
 var url=document.body.getAttribute('data-refresh-url');
 if(url){setInterval(function(){
@@ -265,6 +274,11 @@ def _tournaments(view: WatchView, root: str) -> str:
     return _tag('div', 'wizs-card', body)
 
 
+_THEME_BUTTON = (
+    '<button type="button" id="wizw-theme" class="wizw-theme" '
+    'aria-label="Toggle dark mode" title="Toggle dark mode">\u25d0</button>'
+)
+
 _THEATER = (
     '<section id="wizw-theater" class="twitch-theater wizw-theater" aria-label="Live stream">'
     '<div id="wizw-frame" class="twitch-theater__player"></div>'
@@ -300,7 +314,11 @@ def render_watch_document(view: WatchView, *, root_path: str = '', refresh_url: 
     zone = f'Times in {view.timezone_label}' if view.timezone_label else ''
     body = (
         _WATCH_CSS
-        + _bar(view.community, _esc(zone))
+        + _tag(
+            'div', 'wizs-bar',
+            _tag('div', 'wizs-brand', _esc(view.community))
+            + _tag('div', 'wizw-bar-end', _tag('span', 'wizs-sub', _esc(zone)) + _THEME_BUTTON),
+        )
         + _tag(
             'div', 'wizs-wrap wizw-stack',
             _THEATER + f'<div id="wizw-live">{live}</div>' + involved,

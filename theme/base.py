@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from typing import Optional
 
 from nicegui import app, context, ui
 
@@ -40,6 +41,14 @@ def current_local_url() -> str:
     except Exception:
         return '/'
     return f'{url.path}?{url.query}' if url.query else url.path
+
+
+def _cookie_dark_pref() -> Optional[bool]:
+    try:
+        value = context.client.request.cookies.get('wiz_dark')
+    except Exception:
+        return None
+    return {'1': True, '0': False}.get(value or '')
 
 
 def tab_slug(label: str) -> str:
@@ -276,6 +285,8 @@ class BaseLayout:
         """Assemble the header/drawer nav. Deferred out of ``__init__`` so
         ``render`` can resolve Volunteer visibility (an async access check) first."""
         self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
+        if self._tenant_id is not None:
+            self.top_menu.append({'label': 'Watch', 'icon': 'live_tv', 'url': '/live'})
         if self._show_volunteer:
             self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
         if self._show_check_in:
@@ -298,6 +309,10 @@ class BaseLayout:
         colors = self._theme_colors or DEFAULT_THEME
 
         dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
+        if dark_pref is None:
+            # A reader who toggled on a static page (which has no session) left
+            # the choice in this cookie; see theme.chrome._dark_cookie_js.
+            dark_pref = _cookie_dark_pref()
         self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
         for font_file in (

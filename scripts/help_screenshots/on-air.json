@@ -1,14 +1,5 @@
 [
   {
-    "name": "timeline-phone",
-    "user": "player_two",
-    "path": "/home/on-air",
-    "selector": ".card-full-width .match-card",
-    "hide": [
-      ".q-footer"
-    ]
-  },
-  {
     "name": "watch-page-phone",
     "user": null,
     "path": "/live"

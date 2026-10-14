@@ -103,7 +103,9 @@ a { color: var(--wiz-link, #9C6B12); }
 
 # Hover-run highlight, the one behaviour worth 300 bytes of vanilla JS: it needs
 # no socket, no framework and no state, and it is what makes a large bracket
-# readable. Everything else in the static view is served pre-rendered.
+# readable. Everything else in the static view is served pre-rendered. The theme
+# follows the ``wiz_dark`` cookie the app's dark-mode toggle writes
+# (``theme.chrome.dark_mode_button``), else the reader's system theme.
 _HOVER_JS = (
     "<script>(function(){var t=function(on){return function(e){"
     "var el=e.target.closest?e.target.closest('[data-entrant-id]'):null;if(!el)return;"
@@ -112,7 +114,8 @@ _HOVER_JS = (
     "for(var i=0;i<ns.length;i++){ns[i].classList.toggle('run-highlight',on);}};};"
     "document.addEventListener('mouseover',t(true),true);"
     "document.addEventListener('mouseout',t(false),true);"
-    "if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){"
+    "var c=document.cookie.match(/(?:^|; )wiz_dark=([01])/);"
+    "if(c?c[1]==='1':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){"
     "document.body.classList.add('body--dark');}})();</script>"
 )
 

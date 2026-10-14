@@ -1,4 +1,5 @@
 from fastapi import Request
+from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 
 from application.services import AuthService, TenantService, get_user_from_discord_id
@@ -135,6 +136,9 @@ def create() -> None:
         if tid is None:
             await _render_platform_landing()
             return
+        # On Air became the Watch page; old links and DMs land there.
+        if section == 'on-air':
+            return RedirectResponse(f"{request.scope.get('root_path', '') if request else ''}/live")
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
         )
@@ -188,9 +192,9 @@ def create() -> None:
         # always did while the URL normalizes to the new slug on the first switch.
         tabs = [
             # `view` is the section slug the visitor arrived on: the Event tab
-            # opens on the matching view, so /home/on-air and /home/brackets
-            # still open On Air and Brackets rather than the board.
-            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'on-air', 'brackets'),
+            # opens on the matching view, so /home/brackets still opens
+            # Brackets rather than the board.
+            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'brackets'),
              'content': (event_tab, (), {'view': section})},
             # `schedule` is a bracket matchup id: the matches section opens its
             # schedule dialog on arrival, so the "matchup ready" DM's button

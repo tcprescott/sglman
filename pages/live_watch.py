@@ -1,7 +1,9 @@
 """``/live``: the Watch page, the one place an online viewer needs.
 
-Streams with On Air's player, what's on each stage now and next, what's coming
-up on stream over the next few days, and every tournament's bracket. No sign-in
+Every stage's stream in one player, what's on each stage now and next, what's
+coming up on stream over the next few days, and every tournament's bracket. It
+replaced the Event tab's On Air view, so whoever runs the Schedule board gets a
+⋮ "Open in Schedule" on each match their board can show. No sign-in
 and no feature flag. A live NiceGUI page by default; when staff set it static,
 or a rush of arrivals trips it, ``middleware/watch_mode.py`` answers before this
 page is built (see ``pages/static_watch.py``).
@@ -16,7 +18,7 @@ import time
 
 from nicegui import app, context, ui
 
-from application.services import TenantService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_discord_id
 from application.tenant_context import get_current_tenant_id
 from application.utils import live_audience
 from middleware.auth import public_page
@@ -44,7 +46,7 @@ def create() -> None:
         root_path = context.client.request.scope.get('root_path', '') or ''
         with ui.column().classes('page-container'):
             page_header('Watch', subtitle=f'Times in {view.timezone_label}' if view.timezone_label else None)
-            live = LiveWatch(root_path)
+            live = LiveWatch(root_path, await AuthService.schedule_board_scope(user))
             live.render(view)
 
         seen = {'version': watch_version(tenant_id), 'at': time.monotonic()}
