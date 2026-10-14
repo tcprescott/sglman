@@ -15,6 +15,7 @@ staff, the tournament's admins and proctors. Authors may delete their own
 comments; staff may delete any.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
@@ -28,6 +29,11 @@ from models import Match, MatchComment, MatchCommentKind, User
 #: Long enough for a paragraph or two of markdown, short enough to keep the
 #: match sheet a sheet.
 MAX_COMMENT_LENGTH = 2000
+
+#: A player's comments per match in a rolling minute. Each one refreshes every
+#: open staff board, so one player holding Send down can churn the floor's
+#: screens mid-event; nobody genuine posts this fast. Staff are not limited.
+PLAYER_COMMENTS_PER_MINUTE = 10
 
 _STAFF_KINDS = (MatchCommentKind.STAFF_PRIVATE, MatchCommentKind.STAFF_TO_PLAYERS)
 
@@ -65,6 +71,9 @@ class MatchCommentService:
         match = await self._match(match_id)
         if user.id not in _player_ids(match):
             raise ValueError('Only the players in a match can comment on it here.')
+        since = datetime.now(timezone.utc) - timedelta(minutes=1)
+        if await self.repository.count_by_author_since(match.id, user.id, since) >= PLAYER_COMMENTS_PER_MINUTE:
+            raise ValueError('Slow down, try again in a minute.')
         return await self._add(match, user, MatchCommentKind.PLAYER, self._clean(body))
 
     async def add_staff_comment(
@@ -91,7 +100,10 @@ class MatchCommentService:
             EventType.MATCH_COMMENT_ADDED,
             event_extra={
                 'tournament_id': match.tournament_id,  # type: ignore[attr-defined]
-                'body': body,
+                # Only what the players were told leaves the app: a webhook is
+                # an outside listener, and the telemetry mirror outlives a
+                # delete, so player comments and private notes carry no text.
+                **({'body': body} if kind is MatchCommentKind.STAFF_TO_PLAYERS else {}),
             },
         )
         match_live.publish(match.id)

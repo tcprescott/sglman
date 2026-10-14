@@ -42,9 +42,9 @@ class EventType:
     # are willing. MATCH_STREAM_CANDIDATE_SET is still the decision.
     MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
     MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
-    # A comment on a match and its removal. The payload carries ``kind``, so a
-    # subscriber posting to a public channel can drop player comments and
-    # private staff notes and keep only what the players were told.
+    # A comment on a match and its removal. The payload carries ``kind``; only
+    # a staff message to players (``staff_to_players``) carries its ``body``.
+    # Player comments and private staff notes never leave the app as text.
     MATCH_COMMENT_ADDED = 'match.comment_added'
     MATCH_COMMENT_DELETED = 'match.comment_deleted'
     # A player asking staff to move or call off their match. Worth publishing
