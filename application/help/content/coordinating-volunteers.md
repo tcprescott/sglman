@@ -110,14 +110,14 @@ you go ahead, when the shift is already full or the person said they're
 unavailable or never said they're free.
 
 A hand assignment is published straight away. The volunteer gets a Discord DM
-with an **Acknowledge** button, and their chip on the shift tells you where it
-stands:
+with an **Acknowledge** button, and their chip on the shift says where it stands
+after their name:
 
-| Chip | Means |
+| Chip says | Means |
 |---|---|
-| {chip:live:Name} | A draft. They haven't been told. |
-| {chip:neutral:Name} | Published, not acknowledged yet. |
-| {chip:ok:Name} | Acknowledged. |
+| Name · Draft | They haven't been told. |
+| Name · Waiting | Published, not acknowledged yet. |
+| Name · Acknowledged | They've acknowledged it. |
 
 The **×** on a chip removes that person. If the assignment was published they get
 a DM saying so; removing a draft is silent.
