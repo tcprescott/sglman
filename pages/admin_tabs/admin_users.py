@@ -20,6 +20,7 @@ from theme.accommodation_copy import STATUS_LABELS
 from theme.dialog import AdminUserDialog
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.emergency_contact_dialog import open_emergency_contact_dialog
 from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -51,7 +52,15 @@ _JOINED_VIA_SLOT = '''<q-td :props="props">
 </q-td>'''
 _CC_FILTER = '_crew_coordinator'
 
-_ROW_ACTIONS = '''
+_EMERGENCY_CONTACT_ITEM = '''
+                <q-item clickable @click="$parent.$emit('emergency_contact', props.row)">
+                    <q-item-section avatar><q-icon name="contact_phone"/></q-item-section>
+                    <q-item-section>Emergency contact…</q-item-section>
+                </q-item>'''
+
+
+def _row_actions(emergency_contacts: bool) -> str:
+    return '''
     <q-btn flat round dense icon="more_vert" color="grey-7"
            :aria-label="'More for ' + props.row.username">
         <q-menu auto-close anchor="bottom right" self="top right">
@@ -59,7 +68,7 @@ _ROW_ACTIONS = '''
                 <q-item clickable @click="$parent.$emit('edit_user', { row: props.row })">
                     <q-item-section avatar><q-icon name="edit"/></q-item-section>
                     <q-item-section>Edit member</q-item-section>
-                </q-item>
+                </q-item>''' + (_EMERGENCY_CONTACT_ITEM if emergency_contacts else '') + '''
                 <q-separator />
                 <q-item clickable class="text-negative"
                         @click="$parent.$emit('remove_member', props.row)">
@@ -78,7 +87,10 @@ async def _in_client(client, coro) -> None:
         await coro
 
 
-async def admin_users_page(accommodations: bool = False, ada_request: int | None = None) -> None:
+async def admin_users_page(
+    accommodations: bool = False, ada_request: int | None = None,
+    emergency_contacts: bool = False,
+) -> None:
     """Members table, plus an ADA requests sub-tab when the community has the feature.
 
     ``ada_request`` is the staff DM's deep link: the ADA sub-tab opens on that
@@ -94,7 +106,7 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
                     'ADA requests aren’t turned on for this community, so that '
                     'link has nothing to open.', color='warning',
                 )
-            await _members_panel(accommodations=False)
+            await _members_panel(accommodations=False, emergency_contacts=emergency_contacts)
             return
 
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -126,7 +138,10 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
 
         with ui.tab_panels(sub_tabs, value=members_tab).classes('w-full'):
             with ui.tab_panel(members_tab).style('padding-left: 0; padding-right: 0'):
-                await _members_panel(accommodations=True, actor=actor, on_open_ada=open_ada)
+                await _members_panel(
+                    accommodations=True, actor=actor, on_open_ada=open_ada,
+                    emergency_contacts=emergency_contacts,
+                )
             with ui.tab_panel(ada_tab).style('padding-left: 0; padding-right: 0'):
                 opener['open'] = await render_accommodation_panel(on_change=recount)
         await recount()
@@ -136,6 +151,7 @@ async def admin_users_page(accommodations: bool = False, ada_request: int | None
 
 async def _members_panel(
     accommodations: bool, actor: User | None = None, on_open_ada=None,
+    emergency_contacts: bool = False,
 ) -> None:
     with ui.column().classes('w-full gap-4'):
         ui.label(
@@ -380,6 +396,7 @@ async def _members_panel(
                     message=(
                         f'{consequence}\n\nAn open ADA request of theirs is '
                         'withdrawn and its details cleared.'
+                        + (' Their emergency contact is deleted.' if emergency_contacts else '')
                     ),
                     confirm_text='Remove',
                     on_confirm=lambda: table_view._bg(_in_client(client, confirmed())),
@@ -453,7 +470,7 @@ async def _members_panel(
         # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
             columns=columns, get_query=get_query, show_toolbar=False,
-            row_actions=_ROW_ACTIONS, table_key=TableKeys.ADMIN_USERS,
+            row_actions=_row_actions(emergency_contacts), table_key=TableKeys.ADMIN_USERS,
             before_refresh=load_row_data,
             decorate_row=decorate,
             extra_slots={'body-cell-joined_via': _JOINED_VIA_SLOT},
@@ -466,6 +483,21 @@ async def _members_panel(
             'remove_member',
             lambda e: table_view._bg(remove_member(e.args, context.client)),
         )
+        if emergency_contacts:
+            async def open_contact(row, client) -> None:
+                with client:
+                    member = await UserService().get_user_by_id(row['id'])
+                    if member is None:
+                        ui.notify('That account no longer exists', color='negative')
+                        return
+                    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    if viewer is None:
+                        return
+                    await open_emergency_contact_dialog(viewer, member)
+            table_view.table.on(
+                'emergency_contact',
+                lambda e: table_view._bg(open_contact(e.args, context.client)),
+            )
         if on_open_ada is not None:
             async def open_ada(e) -> None:
                 row = e.args.get('row', e.args) if isinstance(e.args, dict) else {}

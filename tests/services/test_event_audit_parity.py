@@ -165,6 +165,11 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ACCOMMODATION_STATUS_CHANGED,
     AuditActions.ACCOMMODATION_NOTES_UPDATED,
     AuditActions.ACCOMMODATION_CHANGE_REVIEWED,
+    # Emergency contacts: a phone number for a member's family is the last
+    # thing to broadcast, and a staff look is audited, not announced.
+    AuditActions.EMERGENCY_CONTACT_SAVED,
+    AuditActions.EMERGENCY_CONTACT_REMOVED,
+    AuditActions.EMERGENCY_CONTACT_VIEWED,
     # Bulk copy of volunteer availability and notes out of the app. Audited so
     # the tenant can see who took a copy; deliberately not webhooked, since
     # announcing a PII export to arbitrary receivers is the wrong direction.

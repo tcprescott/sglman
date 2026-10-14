@@ -122,6 +122,8 @@ erDiagram
     User ||--o{ ApiToken : "user"
     User ||--o{ Feedback : "user"
     User ||--o{ AccommodationRequest : "user"
+    User ||--o{ EmergencyContact : "user"
+    User |o--o{ EmergencyContact : "last_viewed_by"
     User ||--o{ CommunityEvent : "host"
     User |o--o{ CommunityEvent : "reviewed_by"
     CommunityEvent ||--o{ CommunityEventSubscription : "event"
@@ -738,6 +740,21 @@ A member's ADA accommodation request in one community (`unique_together = (tenan
 | `changed_since_arranged` | `BooleanField` | default `False` | The member edited `details` after staff arranged it. The request stays `ARRANGED`; staff saving it clears the flag (migration 75) |
 | `arranged_details` | `TextField` | null | `details` as they were when arranged, kept while `changed_since_arranged` is set so staff can compare |
 | `staff_notified_at` | `DatetimeField` | null | Last "request opened" staff DM; another isn't sent within 24 h (`STAFF_DM_WINDOW`), so toggling the box doesn't DM staff each time (migration 76) |
+| `created_at` / `updated_at` | `DatetimeField` | auto | |
+
+#### `EmergencyContact`
+
+Who a member wants one community's staff to call if something happens to them (`emergency_contact`, migration 99; `unique_together = (tenant, user)`). Removing it deletes the row. None of the three text fields ever leaves the app: audit rows carry ids only, nothing is published, and there's no REST, MCP or export surface. Gated by `FeatureFlag.EMERGENCY_CONTACTS`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='emergency_contacts'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='emergency_contacts'` |
+| `name` | `CharField(100)` | not null | |
+| `relationship` | `CharField(60)` | null | |
+| `phone` | `CharField(40)` | not null | Digits, spaces and `+ ( ) - . / x #`, at least five digits (service-enforced) |
+| `last_viewed_at` | `DatetimeField` | null | Stamped on every staff open; the member sees it on their profile |
+| `last_viewed_by` | FK → `User` | null, `SET_NULL` | `related_name='emergency_contacts_viewed'` |
 | `created_at` / `updated_at` | `DatetimeField` | auto | |
 
 #### `CommunityEvent`
@@ -2047,6 +2064,7 @@ Consult the source for full signatures.
 | `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `create_oauth_token`, `get_by_id`, `get_by_hash`, `get_by_refresh_hash`, `rotate_refresh`, `list_for_user`, `touch_last_used`, `revoke`. Reads match this tenant's PATs **or** the user's tenant-less OAuth tokens, so MCP connections stay revocable from any community. `create_oauth_token` defaults `read_only=True`, matching the consent screen's own default. |
 | `McpAuthRepository` | [`mcp_auth_repository.py`](../../application/repositories/mcp_auth_repository.py) | `McpOAuthClient`, `McpAuthorizationCode` | `create_client`, `get_client`, `create_code`, `get_code`, `consume_code`, `purge_expired_codes`. Global by design — neither model carries a tenant. |
 | `AccommodationRepository` | [`accommodation_repository.py`](../../application/repositories/accommodation_repository.py) | `AccommodationRequest` | `TenantScopedRepository` CRUD plus `get_by_id` (prefetches `user`), `get_for_user`, `list_by_status` (oldest first), `user_ids_with_status` |
+| `EmergencyContactRepository` | [`emergency_contact_repository.py`](../../application/repositories/emergency_contact_repository.py) | `EmergencyContact` | `TenantScopedRepository` CRUD plus `get_for_user` (prefetches `last_viewed_by`) and `create_for` |
 | `CommunityEventRepository` | [`community_event_repository.py`](../../application/repositories/community_event_repository.py) | `CommunityEvent` | `create`, `get_by_id` (prefetches `host`, `reviewed_by`), `update`, `list_by_status(statuses, starts_after=None)`, `list_for_host`, `count_by_status` |
 | `CommunityEventSubscriptionRepository` | [`community_event_repository.py`](../../application/repositories/community_event_repository.py) | `CommunityEventSubscription` | `create`, `delete`, `get_for`, `event_ids_for_user`, `counts_for`, `list_for_event`, `clear_reminders`, `mark_reminded`; worker scan `due_for_reminder` (deliberately cross-tenant) |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `list_for_user`, `set_status` |
