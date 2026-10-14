@@ -1,12 +1,14 @@
 """Password sign-in at ``/password-login``: unlisted, for accounts a platform
 admin gave a password.
 
-Nothing links here. It works on the platform host, under ``/t/<slug>`` and on a
-community's own domain, and signs the browser in on whichever host serves it.
+Nothing links here. It works on the platform host and under ``/t/<slug>``; on a
+community's own domain it redirects to that community's ``/t/<slug>`` copy on the
+platform host, because a custom domain's operator can read what is typed there.
 Every failure reads the same, so the page never says whether a name exists.
 """
 
 from typing import Optional
+from urllib.parse import urlencode
 
 from nicegui import Client, app, ui
 from starlette.requests import Request
@@ -14,8 +16,10 @@ from starlette.responses import RedirectResponse
 
 from application.services import PasswordAuthService, TenantService
 from application.services.password_auth_service import normalize_login_name
+from application.tenant_context import is_host_mode
 from application.utils import login_throttle
-from application.utils.tenant_urls import return_path_for_login, strip_root_path
+from application.utils.tenant_urls import return_path_for_login, safe_local_path, strip_root_path
+from pages._oauth_link import platform_link_redirect
 from pages._session import start_session
 from theme.banner import banner
 from theme.chrome import render_platform_chrome
@@ -25,11 +29,28 @@ _MISMATCH = "That sign-in name and password don't match. Check both and try agai
 _BLOCKED = 'Too many tries. Wait a few minutes, then try again.'
 
 
+async def main_site_sign_in(next_param: Optional[str]) -> Optional[str]:
+    """On a custom domain, this community's sign-in page on the platform host.
+
+    Whoever runs a custom domain's DNS or TLS can read what is typed there, and
+    unlike a host-bound session a password works on every host. ``None`` off a
+    custom domain, where the page signs in in place.
+    """
+    if not is_host_mode():
+        return None
+    local_next = safe_local_path(next_param)
+    here = f'/password-login?{urlencode({"next": local_next})}' if local_next else '/password-login'
+    return await platform_link_redirect(here) or '/'
+
+
 def create() -> None:
     @ui.page('/password-login')
     async def password_login(request: Request, client: Client) -> Optional[RedirectResponse]:
         root_path = request.scope.get('root_path', '') or ''
         next_param = request.query_params.get('next')
+        main_site = await main_site_sign_in(next_param)
+        if main_site is not None:
+            return RedirectResponse(main_site)
         if app.storage.user.get('authenticated', False):
             return RedirectResponse(return_path_for_login(root_path, next_param, None))
         return_to = return_path_for_login(root_path, next_param, app.storage.user.get('referrer_path'))
@@ -51,7 +72,7 @@ def create() -> None:
                 browser_id = app.storage.browser.get('id')
             except Exception:
                 browser_id = None
-            if login_throttle.is_blocked(name, browser_id):
+            if not login_throttle.begin_attempt(name, browser_id):
                 state['error'] = _BLOCKED
                 error_slot.refresh()
                 return
@@ -61,12 +82,11 @@ def create() -> None:
             finally:
                 button.props(remove='loading')
             if user is None:
-                login_throttle.record_failure(name, browser_id)
                 state['error'] = _MISMATCH
                 password_input.value = ''
                 error_slot.refresh()
                 return
-            login_throttle.record_success(name)
+            login_throttle.record_success(name, browser_id)
             app.storage.user.clear()
             start_session(user, {'username': user.username, 'avatar': None}, password=True)
             # Tenant-local: this page is served under root_path and the client

@@ -112,6 +112,7 @@ class AuditActions:
     # in ``details``; only the sign-in name and whether the account is new.
     USER_PASSWORD_SET = 'user.password_set'
     USER_PASSWORD_REMOVED = 'user.password_removed'
+    USER_PASSWORD_SIGNED_IN = 'user.password_signed_in'
 
     # Discord role mapping / sync
     DISCORD_ROLE_MAPPING_ADDED = 'discord_role.mapping_added'

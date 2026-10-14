@@ -137,3 +137,27 @@ async def test_platform_link_redirect_none_in_path_mode(db):
     from pages._oauth_link import platform_link_redirect
     # No host mode -> the flow runs in place, so no detour.
     assert await platform_link_redirect('/home/profile') is None
+
+
+async def test_password_login_moves_off_a_custom_domain(db, monkeypatch):
+    """A password typed on a custom domain is readable by whoever runs it, so the
+    page sends people to the community's copy on the platform host."""
+    monkeypatch.setenv('BASE_URL', 'https://main.gg')
+    from pages.password_login import main_site_sign_in
+    tenant_token = set_tenant_id(1)
+    host_token = set_host_mode(True)
+    try:
+        plain = await main_site_sign_in(None)
+        with_next = await main_site_sign_in('/admin/schedule')
+        hostile = await main_site_sign_in('//evil.example')
+    finally:
+        reset_host_mode(host_token)
+        reset_tenant_id(tenant_token)
+    assert plain == 'https://main.gg/t/default/password-login'
+    assert with_next == 'https://main.gg/t/default/password-login?next=%2Fadmin%2Fschedule'
+    assert hostile == plain
+
+
+async def test_password_login_stays_put_off_a_custom_domain(db):
+    from pages.password_login import main_site_sign_in
+    assert await main_site_sign_in('/admin') is None

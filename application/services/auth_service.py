@@ -588,6 +588,9 @@ async def get_user_from_session(storage: Any) -> Optional[User]:
     if storage.get(SESSION_AUTH_METHOD) == AUTH_METHOD_PASSWORD and (
         not user.password_hash
         or storage.get(SESSION_PASSWORD_STAMP_FIELD) != password_session_stamp(user)
+        # Made a platform admin after signing in by password: that session
+        # can't carry the role (see PasswordAuthService.authenticate).
+        or await AuthService.is_super_admin(user)
     ):
         return None
     return user

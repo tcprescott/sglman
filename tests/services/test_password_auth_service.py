@@ -162,3 +162,54 @@ def test_throttle_blocks_one_name_after_repeated_failures():
         assert not login_throttle.is_blocked('mvance', None)
     finally:
         login_throttle.reset()
+
+
+def test_throttle_counts_each_try_before_it_is_checked():
+    """Tries fired in parallel each take a slot up front, so the limit holds even
+    before any of them has failed."""
+    login_throttle.reset()
+    try:
+        for _ in range(login_throttle.MAX_FAILURES_PER_NAME):
+            assert login_throttle.begin_attempt('mvance', 'browser-a')
+        assert not login_throttle.begin_attempt('mvance', 'browser-b')
+        login_throttle.record_success('mvance', 'browser-a')
+        assert login_throttle.begin_attempt('mvance', 'browser-b')
+    finally:
+        login_throttle.reset()
+
+
+def test_throttle_success_hands_back_the_browser_slot():
+    login_throttle.reset()
+    try:
+        for i in range(login_throttle.MAX_FAILURES_PER_BROWSER * 2):
+            assert login_throttle.begin_attempt(f'name-{i}', 'desk-laptop')
+            login_throttle.record_success(f'name-{i}', 'desk-laptop')
+        assert not login_throttle.is_blocked('anyone', 'desk-laptop')
+    finally:
+        login_throttle.reset()
+
+
+async def test_successful_sign_in_is_audited_without_the_password(admin, member):
+    service = PasswordAuthService()
+    await service.set_password(admin, member, 'mvance', PASSWORD)
+    await service.authenticate('mvance', 'not-the-password')
+    assert not await AuditLog.filter(action=AuditActions.USER_PASSWORD_SIGNED_IN).exists()
+    await service.authenticate('mvance', PASSWORD)
+    row = await AuditLog.get(action=AuditActions.USER_PASSWORD_SIGNED_IN)
+    assert row.user_id == member.id
+    assert PASSWORD not in str(row.details)
+
+
+async def test_super_admins_cannot_have_or_use_a_password(admin, member):
+    service = PasswordAuthService()
+    with pytest.raises(ValueError, match='Discord only'):
+        await service.set_password(admin, admin, 'owner', PASSWORD)
+
+    # A password account later made a super-admin: sign-in refuses it, and the
+    # session it already had stops resolving.
+    await service.set_password(admin, member, 'mvance', PASSWORD)
+    await member.refresh_from_db()
+    session = _password_session(member)
+    await UserRole.create(user=member, role=Role.SUPER_ADMIN, tenant=None)
+    assert await service.authenticate('mvance', PASSWORD) is None
+    assert await get_user_from_session(session) is None
