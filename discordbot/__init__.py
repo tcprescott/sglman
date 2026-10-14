@@ -21,6 +21,7 @@ from application.services.discord.discord_service import (
     VIEW_RESCHEDULE_AGREE,
     VIEW_UNWATCH,
     VIEW_VOLUNTEER_ACK,
+    VIEW_VOLUNTEER_ARRIVAL,
     register_app_command,
     register_interaction_handler,
     register_view_factory,
@@ -75,6 +76,29 @@ from discordbot.volunteer_acknowledgment import (
     handle_volunteer_acknowledgment_interaction,
     make_volunteer_acknowledgment_view,
 )
+from discordbot.volunteer_arrival import (
+    CANT_PREFIX as VOLUNTEER_CANT_PREFIX,
+)
+from discordbot.volunteer_arrival import (
+    CANT_REASON_PREFIX as VOLUNTEER_CANT_REASON_PREFIX,
+)
+from discordbot.volunteer_arrival import (
+    HERE_PREFIX as VOLUNTEER_HERE_PREFIX,
+)
+from discordbot.volunteer_arrival import (
+    LATE_MINUTES_PREFIX as VOLUNTEER_LATE_MINUTES_PREFIX,
+)
+from discordbot.volunteer_arrival import (
+    LATE_PREFIX as VOLUNTEER_LATE_PREFIX,
+)
+from discordbot.volunteer_arrival import (
+    handle_cant_interaction,
+    handle_cant_reason_interaction,
+    handle_here_interaction,
+    handle_late_interaction,
+    handle_late_minutes_interaction,
+    make_volunteer_arrival_view,
+)
 from discordbot.watch_buttons import (
     CUSTOM_ID_PREFIX as WATCH_PREFIX,
 )
@@ -89,6 +113,11 @@ register_interaction_handler(CREW_SIGNUP_PREFIX, handle_crew_signup_interaction)
 register_interaction_handler(MATCH_ACK_PREFIX, handle_match_acknowledgment_interaction)
 register_interaction_handler(CREW_ACK_PREFIX, handle_crew_acknowledgment_interaction)
 register_interaction_handler(VOLUNTEER_ACK_PREFIX, handle_volunteer_acknowledgment_interaction)
+register_interaction_handler(VOLUNTEER_HERE_PREFIX, handle_here_interaction)
+register_interaction_handler(VOLUNTEER_LATE_PREFIX, handle_late_interaction)
+register_interaction_handler(VOLUNTEER_LATE_MINUTES_PREFIX, handle_late_minutes_interaction)
+register_interaction_handler(VOLUNTEER_CANT_PREFIX, handle_cant_interaction)
+register_interaction_handler(VOLUNTEER_CANT_REASON_PREFIX, handle_cant_reason_interaction)
 register_interaction_handler(WATCH_PREFIX, handle_unwatch_interaction)
 register_interaction_handler(RESCHEDULE_AGREE_PREFIX, handle_reschedule_agree_interaction)
 register_interaction_handler(HARD_PRESET_PREFIX, handle_hard_preset_interaction)
@@ -103,6 +132,7 @@ register_view_factory(VIEW_CREW_SIGNUP, make_crew_signup_view)
 register_view_factory(VIEW_MATCH_ACK, make_match_acknowledgment_view)
 register_view_factory(VIEW_CREW_ACK, make_crew_acknowledgment_view)
 register_view_factory(VIEW_VOLUNTEER_ACK, make_volunteer_acknowledgment_view)
+register_view_factory(VIEW_VOLUNTEER_ARRIVAL, make_volunteer_arrival_view)
 register_view_factory(VIEW_UNWATCH, make_unwatch_view)
 register_view_factory(VIEW_RESCHEDULE_AGREE, make_reschedule_agree_view)
 register_view_factory(VIEW_HARD_PRESET, make_hard_preset_view)

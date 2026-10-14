@@ -45,6 +45,8 @@ from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, Vo
 
 logger = logging.getLogger(__name__)
 
+RELEASE_REASON_MAX_CHARS = 500
+
 
 class VolunteerScheduleService:
     """Core volunteer-scheduling operations."""
@@ -478,7 +480,7 @@ class VolunteerScheduleService:
             raise ValueError("That shift has already finished.")
         details = {
             'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
-            'reason': (reason or '').strip() or None,
+            'reason': (reason or '').strip()[:RELEASE_REASON_MAX_CHARS] or None,
             'hours_notice': round((shift.starts_at - now).total_seconds() / 3600.0, 1),
         }
         await self.assignment_repository.delete(assignment)
@@ -499,9 +501,15 @@ class VolunteerScheduleService:
         if assignment.checked_in_at is None:
             assignment.checked_in_at = datetime.now(timezone.utc)
             assignment.checked_in_by_id = actor.id
-            await assignment.save()
-            await self.audit_service.write_log(
-                actor, AuditActions.VOLUNTEER_CHECKED_IN, {'assignment_id': assignment.id},
+            assignment.late_minutes = None
+            await self.assignment_repository.save(
+                assignment, update_fields=['checked_in_at', 'checked_in_by_id', 'late_minutes'],
+            )
+            await self.audit_service.write_and_publish(
+                actor, AuditActions.VOLUNTEER_CHECKED_IN,
+                {'assignment_id': assignment.id, 'shift_id': assignment.shift_id,
+                 'self_reported': False},
+                EventType.VOLUNTEER_CHECKED_IN, event_extra={'user_id': assignment.user_id},
             )
         return assignment
 
@@ -723,23 +731,14 @@ class VolunteerScheduleService:
     async def _notify_coordinators_of_release(
         self, volunteer: User, shift: VolunteerShift, details: Dict,
     ) -> None:
-        """Best-effort DM to whoever has to find cover. Never raises.
-
-        The only role-addressed DM in the codebase, so the fan-out stays private
-        to this service rather than becoming a general broadcast utility.
-        """
-        from application.repositories import UserRoleRepository
+        """Best-effort DM to whoever has to find cover. Never raises."""
         from application.services.tenant_service import TenantService
+        from application.services.volunteer.volunteer_coordinator_dm import notify_coordinators
         from application.utils.discord_embeds import time_field, volunteer_embed
-        from application.utils.discord_messages_volunteer import volunteer_released_dm
-        from models import Role
-
-        recipients: Dict[int, User] = {}
-        for role in (Role.VOLUNTEER_COORDINATOR, Role.STAFF):
-            for candidate in await UserRoleRepository.list_users_with_role(role):
-                recipients[candidate.id] = candidate
-        if not recipients:
-            return
+        from application.utils.discord_messages_volunteer import (
+            released_description,
+            volunteer_released_dm,
+        )
 
         position_name = shift.position.name if shift.position else ''
         message = volunteer_released_dm(
@@ -757,29 +756,10 @@ class VolunteerScheduleService:
             community_name=await TenantService.current_community_name(),
             starts=shift.starts_at,
             ends=shift.ends_at,
-            description=f'**{volunteer.preferred_name}** can no longer cover this. '
-                        'The slot is open again.',
+            description=released_description(
+                volunteer.preferred_name, details.get('hours_notice'), details.get('reason'),
+            ),
         )
         # The ask is "find cover", so the button opens the roster on the day of
-        # the shift rather than on whatever day the schedule defaults to. The
-        # community's own clock, not any reader's: the roster day is a property
-        # of the schedule, and a coordinator abroad must not be sent to
-        # yesterday's board.
-        from application.services import notification_links
-        from application.services.timezone_service import TimezoneService
-        from application.utils.timezone import to_local
-
-        day = None
-        if shift.starts_at:
-            local = to_local(shift.starts_at, await TimezoneService.tenant_timezone_name())
-            day = local.date() if local else None
-        link = await notification_links.admin_volunteer_schedule(day, label='Find cover')
-        for coordinator in recipients.values():
-            discord_id = getattr(coordinator, 'discord_id', None)
-            if not discord_id:
-                continue
-            discord_queue.enqueue(
-                self.discord_service.send_dm(
-                    int(discord_id), message, embed=embed, link=link,
-                )
-            )
+        # the shift rather than on whatever day the schedule defaults to.
+        await notify_coordinators(shift, message, embed, link_label='Find cover')

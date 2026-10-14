@@ -7,7 +7,14 @@ upcoming shifts (stamping ``reminder_sent_at`` before the send so a restart
 resumes rather than double-notifies).
 """
 
-from application.services.volunteer import volunteer_reminder
+from application.services.volunteer import volunteer_coordinator_dm, volunteer_reminder
+from application.services.volunteer.volunteer_arrival_service import (
+    CHECK_IN_LEAD,
+    VolunteerArrivalService,
+    can_self_check_in,
+    can_undo_check_in,
+    describe_late,
+)
 from application.services.volunteer.volunteer_autoschedule_service import (
     DEFAULT_MAX_HOURS,
     DraftPolicy,
@@ -44,6 +51,7 @@ from application.services.volunteer.volunteer_schedule_grid import (
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 
 __all__ = [
+    'CHECK_IN_LEAD',
     'DEFAULT_MAX_HOURS',
     'DayGrid',
     'DraftPolicy',
@@ -52,6 +60,7 @@ __all__ = [
     'GridRole',
     'GridShift',
     'HoursSummary',
+    'VolunteerArrivalService',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
@@ -64,7 +73,11 @@ __all__ = [
     'apply_roles',
     'arrange_roles',
     'build_day_grid',
+    'can_self_check_in',
+    'can_undo_check_in',
+    'describe_late',
     'merged_hours',
     'roles_config',
+    'volunteer_coordinator_dm',
     'volunteer_reminder',
 ]

@@ -382,7 +382,7 @@ class TestReleaseFanOut:
         async def list_users_with_role(role):
             return recipients_by_role.get(role, [])
 
-        with patch('application.repositories.UserRoleRepository') as repo, \
+        with patch('application.services.volunteer.volunteer_coordinator_dm.UserRoleRepository') as repo, \
                 patch('application.services.tenant_service.TenantService') as tenants, \
                 patch('application.services.discord.discord_queue.enqueue') as enqueue:
             repo.list_users_with_role = AsyncMock(side_effect=list_users_with_role)

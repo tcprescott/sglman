@@ -217,6 +217,46 @@ class VolunteerAssignmentRepository:
         )
 
     @staticmethod
+    async def awaiting_arrival(
+        user_id: int, opens_before: datetime, now: datetime,
+    ) -> List[VolunteerAssignment]:
+        """The user's published, un-checked-in assignments whose check-in window is open.
+
+        A shift's window runs from ``opens_before`` (now plus the lead) back to its
+        start, and ends when the shift does.
+        """
+        return await (
+            scoped(VolunteerAssignment.filter(
+                user_id=user_id,
+                auto_generated=False,
+                checked_in_at__isnull=True,
+                shift__starts_at__lte=opens_before,
+                shift__ends_at__gt=now,
+            ))
+            .prefetch_related(*_PREFETCH)
+            .order_by('shift__starts_at')
+        )
+
+    @staticmethod
+    async def due_for_start_dm(
+        started_after: datetime, now: datetime,
+    ) -> List[VolunteerAssignment]:
+        """Published assignments whose shift started in (started_after, now] and
+        that have had no shift-start DM and no check-in yet."""
+        # Deliberately cross-tenant, like due_for_reminder: the worker wraps each
+        # assignment in its own tenant_scope. Do NOT scope this.
+        return await (
+            VolunteerAssignment.filter(
+                auto_generated=False,
+                start_dm_sent_at__isnull=True,
+                checked_in_at__isnull=True,
+                shift__starts_at__gt=started_after,
+                shift__starts_at__lte=now,
+            )
+            .prefetch_related(*_PREFETCH)
+        )
+
+    @staticmethod
     async def due_for_reminder(
         window_start: datetime, window_end: datetime,
     ) -> List[VolunteerAssignment]:

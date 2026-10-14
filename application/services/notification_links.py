@@ -51,6 +51,7 @@ from application.utils.app_links import (
     player_schedule_url,
     qualifier_runs_url,
     qualifier_url,
+    volunteer_my_shifts_url,
     volunteer_release_url,
 )
 from application.utils.discord_messages import DMLink
@@ -261,6 +262,11 @@ async def admin_reschedule_request(
     reason are the whole point and live in the dialog.
     """
     return await link_for(label, admin_reschedule_request_url(request_id))
+
+
+async def volunteer_my_shifts(*, label: str = 'My Shifts') -> Optional[DMLink]:
+    """My Shifts, for a DM whose own buttons already carry the actions."""
+    return await link_for(label, volunteer_my_shifts_url())
 
 
 async def volunteer_release(

@@ -79,6 +79,9 @@ class EventType:
     # to tell "the coordinator removed them" from "the volunteer dropped out",
     # because only the second one needs cover found.
     VOLUNTEER_RELEASED = 'volunteer.released'
+    VOLUNTEER_CHECKED_IN = 'volunteer.checked_in'
+    VOLUNTEER_CHECK_IN_UNDONE = 'volunteer.check_in_undone'
+    VOLUNTEER_RUNNING_LATE = 'volunteer.running_late'
 
     # Racetime race-room lifecycle (mirrors AuditActions.RACE_ROOM_*). Tenant-
     # scoped domain events a webhook subscriber can act on; published by the
@@ -239,7 +242,8 @@ class EventType:
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,
-        VOLUNTEER_RELEASED,
+        VOLUNTEER_RELEASED, VOLUNTEER_CHECKED_IN, VOLUNTEER_CHECK_IN_UNDONE,
+        VOLUNTEER_RUNNING_LATE,
         RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
         RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
         SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,

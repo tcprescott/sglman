@@ -17,6 +17,13 @@ Times arrive as **display strings** already rendered by
 
 from typing import Optional
 
+import discord
+
+# A volunteer's own words, shown to coordinators in a Discord embed. Escaped so
+# they read as plain text (no links, mentions or formatting) and capped so one
+# message can't fill the card.
+REASON_MAX_CHARS = 300
+
 
 def _volunteer_shift_lines(
     position_name: str,
@@ -143,13 +150,122 @@ def volunteer_released_dm(
     blocks = [f"**{volunteer_name}** has given back a volunteer shift."]
     if details:
         blocks.append("\n".join(details))
-    if hours_notice is not None:
-        hours = round(hours_notice)
-        blocks.append(f"Notice: about {hours} hour{'' if hours == 1 else 's'}.")
+    notice = released_notice(hours_notice)
+    if notice:
+        blocks.append(notice)
     if reason:
         blocks.append(f'Their reason: "{reason}"')
     blocks.append("This slot is open again.")
     return "\n\n".join(blocks)
+
+
+def released_notice(hours_notice: Optional[float]) -> Optional[str]:
+    """How much warning the coordinators got, or that the shift had already begun."""
+    if hours_notice is None:
+        return None
+    if hours_notice <= 0:
+        return "Notice: given after the shift started."
+    hours = round(hours_notice)
+    if hours < 1:
+        return "Notice: less than an hour."
+    return f"Notice: about {hours} hour{'' if hours == 1 else 's'}."
+
+
+def quoted_reason(reason: Optional[str]) -> Optional[str]:
+    """A volunteer's reason, made safe to drop into an embed description."""
+    text = ' '.join((reason or '').split())
+    if not text:
+        return None
+    if len(text) > REASON_MAX_CHARS:
+        text = text[:REASON_MAX_CHARS - 1].rstrip() + '…'
+    text = discord.utils.escape_mentions(discord.utils.escape_markdown(text))
+    return f'Their reason: “{text}”'
+
+
+def released_description(
+    volunteer_name: str, hours_notice: Optional[float], reason: Optional[str],
+) -> str:
+    """The coordinators' release embed: who, how much notice, and why.
+
+    The embed replaces the message text in Discord, so the reason has to be in
+    here or the coordinator never sees it.
+    """
+    lines = [f'**{discord.utils.escape_markdown(volunteer_name)}** can no longer cover this. '
+             'The slot is open again.']
+    notice = released_notice(hours_notice)
+    if notice:
+        lines.append(notice)
+    said = quoted_reason(reason)
+    if said:
+        lines.append(said)
+    return '\n'.join(lines)
+
+
+LATE_CHOICES: tuple[int, ...] = (10, 20, 30)
+
+
+def late_label(minutes: int) -> str:
+    """'About 10 minutes' / 'About 20 minutes' / '30 minutes or more'."""
+    if minutes >= LATE_CHOICES[-1]:
+        return f'{LATE_CHOICES[-1]} minutes or more'
+    return f'About {minutes} minutes'
+
+
+def volunteer_shift_start_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> str:
+    """DM at the start of a shift, asking the volunteer to say they've arrived."""
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["Your volunteer shift is starting."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Tap **I'm here** so your coordinator knows, **Running late** if "
+                  "you're on your way, or **I can't make it**.")
+    return "\n\n".join(blocks)
+
+
+VOLUNTEER_SHIFT_START_DESCRIPTION = (
+    "Your shift is starting. Tap **I'm here** so your coordinator knows."
+)
+
+
+def volunteer_running_late_dm(
+    volunteer_name: str,
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+    minutes: int,
+) -> str:
+    """DM to the coordinators when a volunteer says they're running late."""
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = [f"**{volunteer_name}** is running late for their shift "
+              f"({late_label(minutes).lower()})."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("They're keeping the shift.")
+    return "\n\n".join(blocks)
+
+
+def running_late_description(volunteer_name: str, minutes: int) -> str:
+    return (f'**{discord.utils.escape_markdown(volunteer_name)}** is on their way '
+            f'({late_label(minutes).lower()} late). They\'re keeping the shift.')
+
+
+def volunteer_here_confirmation(position_name: str) -> str:
+    return f"Thanks! You're checked in for **{position_name}**."
+
+
+def volunteer_late_confirmation(minutes: int) -> str:
+    return (f"Thanks for the heads-up. Your coordinator knows you're running late "
+            f"({late_label(minutes).lower()}). Tap **I'm here** when you arrive.")
+
+
+def volunteer_released_confirmation() -> str:
+    return "Your shift is given back and your coordinator has been told."
 
 
 def volunteer_ack_confirmation(position_name: str) -> str:

@@ -255,6 +255,9 @@ class BaseLayout:
             if self._is_member and not self._chromeless:
                 from theme.profile_nudge_banner import render_profile_nudge_banner
                 await render_profile_nudge_banner(self.user)
+                if self._show_volunteer:
+                    from theme.shift_arrival_banner import render_shift_arrival_banner
+                    await render_shift_arrival_banner(self.user)
             if self.tabs:
                 await self._render_tab_panels()
 

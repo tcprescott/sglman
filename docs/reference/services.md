@@ -1699,6 +1699,16 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 | `get_assignment(assignment_id)` | `VolunteerAssignment \| None` | Read-only lookup for entry surfaces (`api/`, `discordbot/`). |
 | `find_assignment(shift_id, user_id)` | `VolunteerAssignment \| None` | This volunteer's assignment on this shift, if they hold one. |
 | `check_in(assignment_id, actor)` | `VolunteerAssignment` | Coordinator-only (`PermissionError` otherwise); stamp `checked_in_at`/`checked_in_by` once (idempotent). Audits `volunteer.checked_in`. |
+
+`VolunteerArrivalService` ([volunteer_arrival_service.py](../../application/services/volunteer/volunteer_arrival_service.py)) is the volunteer's own side of `check_in`, writing the same `checked_in_at`/`checked_in_by`. Every method is `VOLUNTEERS`-gated and refuses someone else's assignment or a draft (`ValueError`). The window is `CHECK_IN_LEAD` (30 minutes) before the start until the end; `can_self_check_in`, `can_undo_check_in` and `describe_late` are the pure rules the UI reads.
+
+| Method | Returns | Notes |
+|---|---|---|
+| `awaiting_arrival(user)` | `list[VolunteerAssignment]` | Published, un-checked-in assignments whose window is open — the every-page banner (`theme/shift_arrival_banner.py`). |
+| `check_in_self(assignment_id, user)` | `VolunteerAssignment` | Idempotent; clears `late_minutes`; audits + publishes `volunteer.checked_in` with `self_reported: True`. |
+| `undo_check_in(assignment_id, user)` | `VolunteerAssignment` | Only a check-in the volunteer made themselves, before the shift ends; `volunteer.check_in_undone`. |
+| `report_late(assignment_id, user, minutes)` | `VolunteerAssignment` | `minutes` in `LATE_CHOICES` (10/20/30); keeps the shift, publishes `volunteer.running_late` and DMs coordinators + staff via `volunteer_coordinator_dm.notify_coordinators` (shared with `release`). Repeating the same answer is a no-op. |
+
 | `request_acknowledgment(assignment, shift, user)` | `None` | The best-effort acknowledgment DM (`send_dm_with_volunteer_acknowledgment_button`) that `assign` and `confirm_assignment` send. Never raises. |
 | `coverage(start, end)` | `list[dict]` | Per-shift `filled`/`needed` counts (flagging understaffed shifts), with `drafts` and `acknowledged` breaking the filled total down. `filled` **counts drafts** — this is the coordinator's working schedule. |
 | `day_summary(start, end)` | `dict` | The day's totals over `coverage`: `shifts`, `needed`, `filled`, `open`, `drafts`, `unacknowledged` (published but not acknowledged), `understaffed_shifts`. Feeds the coordinator's coverage strip. |

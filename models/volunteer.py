@@ -70,6 +70,11 @@ class VolunteerAssignment(Model):
     reminder_sent_at = fields.DatetimeField(null=True)
     checked_in_at = fields.DatetimeField(null=True)
     checked_in_by = fields.ForeignKeyField('models.User', related_name='volunteer_check_ins', null=True, on_delete=fields.SET_NULL)
+    # Stamped when the shift-start DM ("I'm here" / running late / can't make
+    # it) is queued, so each assignment gets it once.
+    start_dm_sent_at = fields.DatetimeField(null=True)
+    # Self-reported from that DM; cleared on check-in.
+    late_minutes = fields.IntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
