@@ -51,6 +51,7 @@ from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
 from theme.help import help_icon
+from theme.markdown_editor import MarkdownEditor
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -325,9 +326,10 @@ async def admin_qualifiers_page(
             event_in = ui.input(
                 'Feeds event (optional)', value=(existing.event_name or '') if is_edit else ''
             ).classes('w-full')
-            desc_in = ui.textarea(
-                'Description', value=(existing.description or '') if is_edit else ''
-            ).classes('w-full').props('rows=2')
+            desc_in = MarkdownEditor(
+                'Description', value=(existing.description or '') if is_edit else '',
+                placeholder='Who it\'s for, what it seeds into, and the rules for a run.',
+            )
             ui.label('Window (leave a date blank for open-ended)').classes('text-caption text-grey')
             with ui.row().classes('form-pair gap-2'):
                 opens_date = native_date_input('Opens date')

@@ -296,8 +296,9 @@ async def seed_for_tenant(
             "average_match_duration": 90,
             "max_match_duration": 150,
             "triforce_access_message": (
-                "Submit your triforce text once you have played a match — "
-                "approved texts go into the seeds we roll for finals."
+                "Triforce texts are a **donation incentive**. "
+                "[Donate here](https://example.invalid/wizzrobe/donate) and "
+                "staff will unlock submissions for you."
             ),
             "randomizer_notes": (
                 "Rolled from the `casualboots` preset on "

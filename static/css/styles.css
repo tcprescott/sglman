@@ -4963,6 +4963,10 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--fg-muted);
     pointer-events: none;
 }
+.wiz-md-editor--compact .wiz-md-editor__content,
+.wiz-md-editor--compact .wiz-md-editor__prose {
+    min-height: 4rem;
+}
 .wiz-md-editor--disabled .wiz-md-editor__prose {
     color: var(--fg-muted);
 }

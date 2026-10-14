@@ -54,7 +54,11 @@ async def seed_qualifiers_for_tenant(tenant: Tenant, preset: Preset) -> None:
     qualifier, _ = await AsyncQualifier.get_or_create(
         name="Dev Async Qualifier", tenant=tenant,
         defaults={
-            "description": "Self-paced qualifier fixture for local dev.",
+            "description": (
+                "Self-paced qualifier fixture for local dev. **Top 8** seed into the bracket.\n\n"
+                "- One attempt per seed\n"
+                "- Submit your VOD within 24 hours\n"
+            ),
             "event_name": "Wizzrobe Dev Season",
             "opens_at": now - timedelta(days=1),
             "closes_at": now + timedelta(days=7),

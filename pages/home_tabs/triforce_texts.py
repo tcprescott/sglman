@@ -10,6 +10,7 @@ from typing import Set
 
 from nicegui import Client, ui
 
+from application.content import parse_blocks
 from application.services import (
     AuthService,
     SeedGenerationService,
@@ -17,6 +18,7 @@ from application.services import (
 )
 from models import Tournament, User
 from theme.dialog._helpers import form_dialog
+from theme.help.render import render_blocks
 
 _HELP_TEXT = (
     "Submit up to 3 lines (max 19 characters each) that may be embedded into "
@@ -65,12 +67,10 @@ async def _build_triforce_dialog(tournament: Tournament, user: User) -> None:
 
         if not can_submit:
             if tournament.triforce_access_message:
-                # Rendered as plain text (not markdown/HTML): this field is
-                # writable by per-tournament admins and shown to all players,
-                # so HTML passthrough would be a stored-XSS vector.
-                ui.label(tournament.triforce_access_message).style(
-                    'white-space: pre-wrap'
-                )
+                # Parsed to blocks, never ui.markdown: per-tournament admins write
+                # this and every player reads it, so it renders as element content.
+                with ui.element('div').classes('wiz-help-prose'):
+                    render_blocks(parse_blocks(tournament.triforce_access_message))
             else:
                 ui.label(
                     'Submitting triforce texts is a paid option for this tournament.'
