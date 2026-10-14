@@ -48,7 +48,8 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `AsyncQualifierService` | [async_qualifier_service.py](../../application/services/async_qualifier/async_qualifier_service.py) | Self-paced permalink-pool qualifiers: management, draw, run lifecycle, review, scoring | [online-tournaments.md](../features/online-tournaments.md) |
 | `AsyncQualifierLiveRaceService` | [async_qualifier_live_race_service.py](../../application/services/async_qualifier/async_qualifier_live_race_service.py) | Synchronous racetime qualifier races feeding `AsyncQualifierRun`s | [online-tournaments.md](../features/online-tournaments.md) |
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
-| `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](authentication.md#roles) |
+| `AuthService` / `get_user_from_session` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks, permission policy, resolving the signed-in user from the session | [authentication.md](authentication.md), [role-based-auth.md](authentication.md#roles) |
+| `PasswordAuthService` | [password_auth_service.py](../../application/services/password_auth_service.py) | Password sign-in check plus the super-admin account tools on Platform → Users: set/remove password, create a password-only account, (de)activate | [authentication.md](authentication.md#password-sign-in) |
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CheckInService` | [check_in_service.py](../../application/services/check_in_service.py) | Matcherino-backed event check-in: roster sync, auto-linking, the desk's check-in/link actions, walk-ups | [event-check-in.md](../features/event-check-in.md), `EVENT_CHECK_IN` |
@@ -244,6 +245,19 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `ensure_super_admin` / `ensure_can_manage_presets` / `ensure_can_manage_sync` / `ensure_can_admin_qualifier` | `None` | Gate-and-raise wrappers over the matching `is_*`/`can_*` predicate. |
 
 **Module-level helper:** `get_user_from_discord_id(discord_id) -> User | None` resolves a Discord id — typically `app.storage.user.get('discord_id')`, read in the page layer — to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
+
+### password_auth_service.py — PasswordAuthService
+
+| Method | Purpose |
+|---|---|
+| `authenticate(login_name, password)` | Returns the active, non-placeholder `User` or `None`. Unknown names verify against a dummy hash so timing is even. scrypt runs in `asyncio.to_thread`. |
+| `list_accounts(actor)` | Every real account for the Users tab (placeholders and the system user excluded). |
+| `create_account(actor, display_name, login_name, password)` | Password-only account with no Discord. Audits `user.created` and `user.password_set`. |
+| `set_password(actor, user, login_name, password)` | Sets or changes the sign-in name and password; bumps `password_changed_at`, which ends that user's existing password sessions. |
+| `remove_password(actor, user)` | Clears it; refuses an account with no Discord ("Deactivate the account instead"). |
+| `set_active(actor, user, active)` | (De)activates; you can't deactivate yourself. |
+
+Every method but `authenticate` is super-admin only. Module helpers: `hash_password`, `verify_password`, `generate_password`, `normalize_login_name`, `MIN_PASSWORD_LENGTH`. Failed-attempt limits live in `application/utils/login_throttle.py` (per name and per browser, never per IP).
 
 ### oauth_handoff_service.py — module functions
 
