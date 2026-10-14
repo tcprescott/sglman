@@ -82,8 +82,8 @@ means two filters are narrowing what you see.
 
 ![The board's filters opened on a phone: Day set to All dates, Tournament and Stage empty, and State set to Scheduled, Checked In and Started](/static/help/schedule-board/filters-phone.webp "The filters on a phone, at their defaults.")
 
-**Needs crew**, the switch above the board, is separate from the filters. It
-shows only matches still short of an approved commentator or tracker that
+**Needs crew**, the switch at the start of the filter row, works on its own
+and isn't counted with the filters. It shows only matches still short of an approved commentator or tracker that
 haven't started yet. It's the list to open if you came to crew;
 [Signing up as crew](/help/crew#signing-up) has the rest.
 
