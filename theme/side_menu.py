@@ -20,7 +20,7 @@ hub as a plain link.
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Awaitable, Callable, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from nicegui import ui
 
@@ -329,7 +329,7 @@ class SideMenu:
     def _bar_tabs(self) -> None:
         pins = self.pinned()[:BOTTOM_BAR_PINS]
         paths = {e.path for e in pins}
-        value = self._active if self._active in paths else None
+        value: Any = self._active if self._active in paths else None
         with ui.tabs(value=value).props('dense no-caps').classes('wiz-bottom-nav').props(
                 'data-usage-area="bottom bar"') as self._bar:
             for entry in pins:
@@ -385,7 +385,8 @@ class SideMenu:
             return
         value = self._bar.value
         if value == _MENU:
-            self._layout._drawer.toggle()
+            if self._layout._drawer is not None:
+                self._layout._drawer.toggle()
             self._set_bar_value(self._active)
             return
         entry = self._destinations().get(value or '')
@@ -427,6 +428,8 @@ class SideMenu:
 
     async def _save_pins(self, pins: list[str]) -> None:
         from application.services import NavPreferenceService
+        if self._layout.user is None:
+            return
         try:
             with tenant_scope(self._layout._tenant_id):
                 self._pins = await NavPreferenceService().save_pins(self._layout.user, pins)

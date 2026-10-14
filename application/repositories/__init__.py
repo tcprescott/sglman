@@ -49,6 +49,7 @@ from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .matcherino_login_repository import MatcherinoLoginRepository
 from .mcp_auth_repository import McpAuthRepository
+from .nav_preference_repository import NavPreferenceRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
 from .profile_nudge_repository import ProfileNudgeRepository
@@ -57,7 +58,6 @@ from .race_room_profile_repository import RaceRoomProfileRepository
 from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
-from .nav_preference_repository import NavPreferenceRepository
 from .reschedule_request_repository import RescheduleRequestRepository
 from .room_token_repository import RoomTokenRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
@@ -125,6 +125,7 @@ __all__ = [
     'MatchWatcherRepository',
     'MatcherinoLoginRepository',
     'McpAuthRepository',
+    'NavPreferenceRepository',
     'PlayedPermalinks',
     'PlayerAvailabilityRepository',
     'PresetRepository',
@@ -140,7 +141,6 @@ __all__ = [
     'SpeedGamingEventLinkRepository',
     'StageRepository',
     'StationRepository',
-    'NavPreferenceRepository',
     'TablePreferenceRepository',
     'TelemetryRepository',
     'TenantFeatureFlagRepository',

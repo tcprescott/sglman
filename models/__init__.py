@@ -241,6 +241,7 @@ __all__ = [
     'McpAuthorizationCode',
     'McpOAuthClient',
     'MembershipSource',
+    'NavPreference',
     # volunteer
     'PlayerAvailability',
     'Preset',
@@ -288,7 +289,6 @@ __all__ = [
     'User',
     'UserRole',
     # per-user UI preferences
-    'NavPreference',
     'UserTablePreference',
     'VolunteerAssignment',
     'VolunteerAvailability',

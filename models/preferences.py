@@ -68,4 +68,4 @@ class NavPreference(Model):
         unique_together = (('tenant', 'user'),)
 
     def __str__(self) -> str:
-        return f'nav prefs for user {self.user_id} in tenant {self.tenant_id}'  # type: ignore[attr-defined]
+        return f'nav prefs for user {self.user_id} in tenant {self.tenant_id}'

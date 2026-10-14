@@ -8,9 +8,9 @@ on the wrong tab reads as a broken app to the person holding the phone.
 
 import pytest
 
+from application.services.nav_preference_service import DEFAULT_PINS
 from models import FeatureFlag
 from pages.home_tabs.event import VIEWS, available_views, resolve_view
-from application.services.nav_preference_service import DEFAULT_PINS
 from theme.base import BaseLayout, tab_slug
 
 # Every home path a Discord DM, an OAuth return, or a seeded feedback row can

@@ -17,9 +17,9 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
 from theme.base import HOME_SECTIONS, BaseLayout
-from theme.side_menu import register_hub_sections
 from theme.empty_state import empty_panel
 from theme.page_header import page_title
+from theme.side_menu import register_hub_sections
 from theme.timer_teardown import PageTimer
 
 

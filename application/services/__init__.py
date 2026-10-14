@@ -82,6 +82,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .nav_preference_service import NavPreferenceService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
@@ -97,7 +98,6 @@ from .randomizer_credential_service import RandomizerCredentialService
 from .reports_service import ReportsService
 from .room_token_service import RoomTokenService
 from .seed_roll_service import SeedRollService
-from .nav_preference_service import NavPreferenceService
 from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
@@ -188,6 +188,7 @@ __all__ = [
     'MatcherinoLoginService',
     'MatcherinoLoginStatus',
     'McpAuthService',
+    'NavPreferenceService',
     'NotFoundError',
     'PasswordAuthService',
     'PayoutService',
@@ -214,7 +215,6 @@ __all__ = [
     'StageService',
     'StationService',
     'SystemConfigService',
-    'NavPreferenceService',
     'TablePreferenceService',
     'TelemetryService',
     'TenantLogoService',
