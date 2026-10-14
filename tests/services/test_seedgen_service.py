@@ -255,7 +255,7 @@ class TestGenerateFf1r:
 
         from application.utils.seed_provider import SeedProviderInvalidRequest
 
-        with pytest.raises(SeedProviderInvalidRequest, match='finalfantasyrandomizer.com'):
+        with pytest.raises(SeedProviderInvalidRequest, match=r'finalfantasyrandomizer\.com'):
             await service._generate_ff1r(SimpleNamespace(settings={}))
 
 
