@@ -7,6 +7,7 @@ from application.services import AuthService, TenantService, get_user_from_sessi
 from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
 from pages.volunteer_tabs.availability import availability_tab
+from pages.volunteer_tabs.full_schedule import full_schedule_tab
 from pages.volunteer_tabs.my_shifts import my_shifts_tab
 from pages.volunteer_tabs.proctor_station import proctor_station_tab
 from theme.base import BaseLayout
@@ -40,6 +41,10 @@ def create() -> None:
             # make it" button and opens that shift's give-back dialog.
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',
                          'content': (my_shifts_tab, (), {'release': release})})
+        # Everyone the hub admits reads the whole published schedule: knowing who
+        # is at the next station over is the point, and volunteers may see what
+        # staff see.
+        tabs.append({'label': 'Full Schedule', 'icon': 'calendar_view_week', 'content': full_schedule_tab})
         if is_proctor or is_staff:
             # Bound to the viewer: the tab's help icons read role-gated snippets
             # from the event handbook, and the page has already resolved who is

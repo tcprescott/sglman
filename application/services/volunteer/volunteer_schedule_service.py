@@ -7,7 +7,7 @@ for Discord notifications.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
@@ -29,8 +29,14 @@ from application.services.timezone_service import TimezoneService
 from application.services.volunteer.volunteer_role_mapping_service import (
     VolunteerRoleMappingService,
 )
+from application.services.volunteer.volunteer_schedule_grid import (
+    DayGrid,
+    build_day_grid,
+    day_window,
+)
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
+    combine_local,
     format_local_display,
     format_local_time,
     parse_local_datetime,
@@ -55,6 +61,23 @@ class VolunteerScheduleService:
 
     async def list_shifts_for_window(self, start: datetime, end: datetime) -> List[VolunteerShift]:
         return await self.shift_repository.list_for_window(start, end)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def grid_roles(self, viewer: Optional[User]) -> List[Tuple[int, str]]:
+        """The roles a Full Schedule viewer can show, hide and reorder."""
+        if not await AuthService.can_view_volunteer(viewer):
+            raise PermissionError("You don't have access to the volunteer schedule.")
+        return [(p.id, p.name) for p in await self.position_repository.list_active()]
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def day_grid(self, viewer: Optional[User], day: date) -> DayGrid:
+        """One event day's published schedule, for anyone the volunteer hub admits."""
+        if not await AuthService.can_view_volunteer(viewer):
+            raise PermissionError("You don't have access to the volunteer schedule.")
+        midnight = combine_local(day, time(0))
+        start, end = day_window(midnight)
+        shifts = await self.shift_repository.list_for_window(start, end)
+        return build_day_grid(shifts, midnight, viewer.id)
 
     async def get_shift(self, shift_id: int) -> Optional[VolunteerShift]:
         return await self.shift_repository.get_by_id(shift_id)
