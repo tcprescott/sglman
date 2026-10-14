@@ -13,7 +13,7 @@ instants make up "that day" is a rule about the display clock, and grouping by
 stage is the shape the board wants rather than the shape the table has.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from application.repositories import MatchRepository
@@ -112,6 +112,15 @@ class MatchReadsMixin:
         return await self.repository.scheduled_between(
             start, end, exclude_finished, require_stage
         )
+
+    async def get_streamed_matches(self, first_day: date, days: int) -> List[Match]:
+        """Unfinished matches on a stage across ``days`` days from ``first_day``.
+
+        The Watch page's whole schedule in one read: today's stage columns and
+        the days after them. Days resolve on the display clock, as above.
+        """
+        start, end = local_day_bounds(first_day, first_day + timedelta(days=days - 1))
+        return await self.repository.scheduled_between(start, end, True, True)
 
     async def group_matches_by_stage(
         self,

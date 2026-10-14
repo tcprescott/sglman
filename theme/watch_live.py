@@ -1,0 +1,162 @@
+"""The live Watch page's body: On Air's player and stage columns, then what's next.
+
+Renders a :class:`theme.watch_view.WatchView`, the same content the static
+rendering draws, with On Air's own pieces: the :class:`TwitchTheater` above the
+stage columns (pinned on a phone) and the stage cards' classes, so a viewer who
+knows one page knows the other. :meth:`LiveWatch.render` repaints everything
+but the player, so a change to the schedule never restarts the video.
+"""
+
+from typing import Dict, Optional
+
+from nicegui import ui
+
+from application.utils.safe_url import http_url_or_empty
+from theme.twitch_theater import NowPlaying, TwitchTheater
+from theme.watch_view import (
+    GET_INVOLVED_PLACEHOLDER,
+    WatchMatch,
+    WatchStage,
+    WatchView,
+    bracket_href,
+)
+
+
+def _now_playing(stage: WatchStage) -> NowPlaying:
+    now = stage.on_now
+    return NowPlaying(
+        stage_id=stage.id,
+        stage_name=stage.name,
+        channel=stage.channel or '',
+        stream_url=stage.stream_url,
+        time=now.time if now else '',
+        players=now.players if now else '',
+        tournament=now.tournament if now else '',
+    )
+
+
+def _match_card(match: WatchMatch, *, live: bool) -> None:
+    with ui.card().classes('match-card'):
+        with ui.row().classes('match-card-top items-center no-wrap'):
+            ui.label(match.time).classes('match-time')
+            if live:
+                ui.label('On now').classes('wiz-chip wiz-chip--live')
+            else:
+                ui.label('Scheduled').classes('wiz-chip wiz-chip--neutral')
+        ui.label(match.players).classes('match-players')
+        if match.tournament:
+            ui.label(match.tournament).classes('match-tournament')
+        for icon, label, names in (
+            ('mic', 'Commentary', match.commentators),
+            ('track_changes', 'Tracking', match.trackers),
+        ):
+            if names:
+                with ui.row().classes('match-crew no-wrap'):
+                    ui.icon(icon).props(f'aria-label="{label}"')
+                    ui.label(names)
+
+
+class LiveWatch:
+    def __init__(self, root_path: str = '') -> None:
+        self.root_path = root_path
+        self.view: Optional[WatchView] = None
+        self._buttons: Dict[int, ui.button] = {}
+        self.theater = TwitchTheater(on_change=self._paint_buttons)
+        self.content = ui.column().classes('wiz-watch w-full')
+
+    def render(self, view: WatchView) -> None:
+        self.view = view
+        self._buttons.clear()
+        self.content.clear()
+        with self.content:
+            ui.label('On stream today').classes('wiz-watch__h2').tag = 'h2'
+            if view.stages:
+                with ui.element('div').classes('timeline-container'):
+                    for stage in view.stages:
+                        self._stage(stage)
+            else:
+                ui.label('Nothing is on a stream right now. Check back later.').classes('empty-state')
+            with ui.element('div').classes('wiz-watch-two'):
+                self._coming(view)
+                self._tournaments(view)
+            with ui.element('section').classes('wiz-panel'):
+                with ui.element('div').classes('wiz-panel__body'):
+                    ui.label('Get involved').classes('wiz-watch__h2').tag = 'h2'
+                    ui.label(GET_INVOLVED_PLACEHOLDER).classes('text-muted')
+        watched = next(
+            (s for s in view.stages if self.theater.is_watching(s.id) and s.channel), None,
+        )
+        if watched:
+            self.theater.refresh(_now_playing(watched))
+        self._paint_buttons()
+
+    def _stage(self, stage: WatchStage) -> None:
+        with ui.card().classes('card-full-width'):
+            with ui.row().classes('stage-header no-wrap'):
+                with ui.column().classes('stage-title'):
+                    ui.label(stage.name).classes('stage-name')
+                if stage.channel and self.theater.available:
+                    self._buttons[stage.id] = ui.button(
+                        'Watch', icon='play_arrow',
+                        on_click=lambda s=stage: self.theater.watch(_now_playing(s)),
+                    ).props('outline no-caps').classes('stage-watch')
+                elif stage.stream_url:
+                    with ui.link(target=stage.stream_url, new_tab=True).classes('stage-link'):
+                        ui.label('Open stream')
+                        ui.icon('open_in_new', size='16px')
+            with ui.column().classes('column-spacing'):
+                if stage.on_now:
+                    _match_card(stage.on_now, live=True)
+                for match in stage.up_next:
+                    _match_card(match, live=False)
+                if not stage.on_now and not stage.up_next:
+                    ui.label('Nothing else on this stage today.').classes('text-muted')
+
+    def _coming(self, view: WatchView) -> None:
+        with ui.element('section').classes('wiz-panel'):
+            with ui.element('div').classes('wiz-panel__body'):
+                ui.label('Coming up on stream').classes('wiz-watch__h2').tag = 'h2'
+                if not view.coming:
+                    ui.label('Nothing else is scheduled on stream yet.').classes('text-muted')
+                for day in view.coming:
+                    ui.label(day.label).classes('wiz-watch-day')
+                    for match in day.matches:
+                        with ui.element('div').classes('wiz-watch-row'):
+                            ui.label(match.time).classes('match-time')
+                            with ui.element('div').classes('wiz-watch-row__main'):
+                                ui.label(match.players).classes('wiz-watch-row__players')
+                                if match.tournament:
+                                    ui.label(match.tournament).classes('text-muted')
+                            ui.label(match.stage).classes('wiz-watch-tag')
+
+    def _tournaments(self, view: WatchView) -> None:
+        with ui.element('section').classes('wiz-panel'):
+            with ui.element('div').classes('wiz-panel__body'):
+                ui.label('Tournaments').classes('wiz-watch__h2').tag = 'h2'
+                if not view.tournaments:
+                    ui.label('No brackets are up yet.').classes('text-muted')
+                for t in view.tournaments:
+                    with ui.element('div').classes('wiz-watch-tourn'):
+                        with ui.element('div').classes('wiz-watch-tourn__line'):
+                            ui.label(t.name).classes('wiz-watch-row__players')
+                            if t.status:
+                                ui.label(t.status).classes(f'wiz-chip wiz-chip--{t.tone}')
+                        if t.format:
+                            ui.label(t.format).classes('text-muted')
+                        with ui.element('div').classes('wiz-watch-links'):
+                            href = bracket_href(t.bracket_url, self.root_path)
+                            if href:
+                                ui.link('Bracket ↗', href, new_tab=True)
+                            rules = http_url_or_empty(t.rules_url)
+                            if rules:
+                                ui.link('Rules ↗', rules, new_tab=True)
+
+    def _paint_buttons(self) -> None:
+        for stage_id, button in self._buttons.items():
+            on = self.theater.is_watching(stage_id)
+            button.text = 'Watching' if on else 'Watch'
+            button.props(f'aria-pressed={"true" if on else "false"}')
+            if on:
+                button.props(remove='outline', add='unelevated')
+            else:
+                button.props(remove='unelevated', add='outline')

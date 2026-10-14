@@ -6,13 +6,10 @@ from application.services import (
     SystemConfigService,
     TenantMembershipService,
     TenantService,
-    TimezoneService,
 )
-from application.services.system_config_service import KEY_JOIN_PREVIEW
 from application.services.tenant_membership_service import JoinMode
 from application.tenant_context import require_tenant_id
 from application.utils.app_links import USERS, admin_url
-from application.utils.timezone import timezone_label
 from pages.admin_tabs.settings._common import current_actor
 from theme.notify import notify_error
 from theme.save_footer import SaveFooter
@@ -55,11 +52,9 @@ JOIN_MODE_HELP = {
 
 async def _joining_card(can_edit: bool) -> None:
     join_mode = await TenantMembershipService.get_join_mode()
-    join_preview = await SystemConfigService.get_bool(KEY_JOIN_PREVIEW)
     discord_invite_url = await SystemConfigService.get_discord_invite_url() or ''
     tenant = await TenantService.get_by_id(require_tenant_id())
     guild_linked = bool(tenant and tenant.discord_guild_id)
-    tenant_tz_label = timezone_label(await TimezoneService.tenant_timezone_name())
 
     # Who can join is one choice, not two switches whose combinations staff had
     # to reason out from four paragraphs of caption.
@@ -95,12 +90,6 @@ async def _joining_card(can_edit: bool) -> None:
         ).props('flat dense no-caps color=primary').classes('self-start')
 
         ui.separator()
-        join_preview_input = ui.switch(
-            'List today’s matches on the join page', value=join_preview,
-        ).props('dense').tooltip(
-            f'Match times and player names, on the community’s clock '
-            f'({tenant_tz_label}). Published brackets are always listed.'
-        )
         discord_invite_input = ui.input(
             'Discord invite link', value=discord_invite_url,
             placeholder='https://discord.gg/abc123',
@@ -113,9 +102,6 @@ async def _joining_card(can_edit: bool) -> None:
                 discord_invite_input.value,
             )
             await TenantMembershipService.set_join_mode(actor, JoinMode(join_mode_input.value))
-            await SystemConfigService.set_raw(
-                KEY_JOIN_PREVIEW, 'true' if join_preview_input.value else 'false', actor,
-            )
             await SystemConfigService.set_discord_invite_url(invite_raw, actor)
         except (ValueError, PermissionError) as e:
             notify_error(e)
@@ -124,7 +110,7 @@ async def _joining_card(can_edit: bool) -> None:
         ui.notify('Join settings saved', color='positive')
         return True
 
-    controls = (join_mode_input, join_preview_input, discord_invite_input)
+    controls = (join_mode_input, discord_invite_input)
     with card.panel:
         SaveFooter(save_join, enabled=can_edit).watch(*controls)
     if not can_edit:

@@ -29,7 +29,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 # The static spectator routes, with or without a ``/t/<slug>`` tenant prefix.
 _PUBLIC_CACHEABLE = re.compile(
     r'^(?:/t/[a-z0-9][a-z0-9-]*)?/live'
-    r'(?:/brackets/\d+|/tournament/\d+/brackets)?/?$'
+    r'(?:/brackets/\d+|/tournament/\d+/brackets|/static)?/?$'
 )
 
 
@@ -52,6 +52,13 @@ def _drop_cookie_vary(value: bytes) -> bytes:
     return ', '.join(fields).encode('latin-1')
 
 
+def _is_public(headers) -> bool:
+    return any(
+        name.lower() == b'cache-control' and b'public' in value.lower()
+        for name, value in headers
+    )
+
+
 class PublicCacheMiddleware:
     """Strip ``Set-Cookie`` from the responses served as publicly cacheable."""
 
@@ -64,7 +71,9 @@ class PublicCacheMiddleware:
             return
 
         async def send_wrapper(message: Message) -> None:
-            if message['type'] == 'http.response.start':
+            # /live is also the live NiceGUI Watch page, which needs its session
+            # cookie: only a response actually marked public is shared.
+            if message['type'] == 'http.response.start' and _is_public(message.get('headers', [])):
                 headers = []
                 for name, value in message.get('headers', []):
                     if name.lower() == b'set-cookie':

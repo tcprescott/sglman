@@ -82,10 +82,6 @@ async def seed_venue_for_tenant(
         # enforces numeric labels; tenant B has no station pool and keeps the
         # free-text default — the two halves of the same setting.
         ("station_format", "numeric" if tenant.slug == "default" else "free"),
-        # Both halves of the join-page preview: tenant B publishes today's
-        # matches to non-members, tenant A keeps the gate closed. A dev
-        # signed out of both sees the two versions of the same door.
-        ("join_page_match_preview", "true" if tenant.slug == "second" else "false"),
         # Both halves of Discord auto-join, the same way: tenant B lets its
         # server in, tenant A only offers the invite. ``outsider`` is in no mock
         # server (mock_discord_data.MOCK_NON_GUILD_MEMBERS), so it still meets

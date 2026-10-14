@@ -44,7 +44,7 @@ async def test_unknown_key_is_refused(db, app):
     ('max_concurrent_players', 'lots'),
     ('max_concurrent_players', '0'),
     ('event_start_date', '10/23/2025'),
-    ('join_page_match_preview', 'maybe'),
+    ('community_event_require_approval', 'maybe'),
     ('station_format', 'hexagonal'),
     ('volunteer_comp_tiers', '8, -4'),
     ('tournament_hours_by_date', '{"2025-10-23": {"open": "22:00", "close": "09:00"}}'),
@@ -55,7 +55,7 @@ async def test_bad_values_are_400(db, app, key, value):
 
 @pytest.mark.parametrize(('key', 'value', 'stored'), [
     ('max_concurrent_players', ' 40 ', '40'),
-    ('join_page_match_preview', 'YES', 'true'),
+    ('community_event_require_approval', 'YES', 'true'),
     ('volunteer_comp_tiers', '16, 8,12', '8, 12, 16'),
     ('tournament_hours_by_date', '{"2025-10-23": {"open": "09:00", "close": "22:00"}}',
      '{"2025-10-23": {"open": "09:00", "close": "22:00"}}'),

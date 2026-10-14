@@ -52,14 +52,10 @@ class JoinPreview:
     #: ``(tournament_id, tournament_name)`` for each tournament with published
     #: stages. Empty when BRACKETS is off or nothing is published yet.
     tournaments: List[Tuple[int, str]] = field(default_factory=list)
-    #: Today's matches, on the **community's** clock. Empty unless staff enabled
-    #: the preview.
+    #: Today's matches, on the **community's** clock. Player names are public.
     matches: List[PreviewMatch] = field(default_factory=list)
     #: Matches today beyond the ones listed above, or 0.
     more_matches: int = 0
-    #: Whether staff enabled the match preview at all — an enabled preview with
-    #: no matches says "nothing today", a disabled one says nothing.
-    matches_enabled: bool = False
     #: The zone the times above are in, e.g. ``EST``.
     timezone_label: str = ''
     #: Staff's invite to the community's Discord server, or None.
@@ -100,7 +96,6 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import (
         KEY_DISCORD_AUTO_JOIN,
-        KEY_JOIN_PREVIEW,
         KEY_JOIN_REQUESTS,
         KEY_OPEN_MEMBERSHIP,
         SystemConfigService,
@@ -137,28 +132,26 @@ async def resolve_join_preview(tenant_id: int) -> JoinPreview:
         logger.exception('Join page: bracket preview failed for tenant %s', tenant_id)
 
     try:
-        preview.matches_enabled = await SystemConfigService.get_bool(KEY_JOIN_PREVIEW)
-        if preview.matches_enabled:
-            # The community's own clock, not the visitor's: "today" here means
-            # the event's day, and someone reading from two zones over must not
-            # be shown a different list than the person standing in the venue.
-            tz = await TimezoneService.tenant_timezone_name(tenant_id)
-            with tz_scope(tz):
-                preview.timezone_label = timezone_label()
-                # Unfinished only: a door showing what already happened this
-                # morning answers a question nobody standing outside is asking.
-                matches = await MatchService().get_matches_for_date(
-                    today_local(), exclude_finished=True, require_stage=False,
+        # The community's own clock, not the visitor's: "today" here means
+        # the event's day, and someone reading from two zones over must not
+        # be shown a different list than the person standing in the venue.
+        tz = await TimezoneService.tenant_timezone_name(tenant_id)
+        with tz_scope(tz):
+            preview.timezone_label = timezone_label()
+            # Unfinished only: a door showing what already happened this
+            # morning answers a question nobody standing outside is asking.
+            matches = await MatchService().get_matches_for_date(
+                today_local(), exclude_finished=True, require_stage=False,
+            )
+            preview.matches = [
+                PreviewMatch(
+                    time=format_local_time(match.scheduled_at),
+                    players=roster_label(match),
+                    tournament=match.tournament.name if match.tournament else '',
                 )
-                preview.matches = [
-                    PreviewMatch(
-                        time=format_local_time(match.scheduled_at),
-                        players=roster_label(match),
-                        tournament=match.tournament.name if match.tournament else '',
-                    )
-                    for match in matches[:PREVIEW_LIMIT]
-                ]
-                preview.more_matches = max(0, len(matches) - PREVIEW_LIMIT)
+                for match in matches[:PREVIEW_LIMIT]
+            ]
+            preview.more_matches = max(0, len(matches) - PREVIEW_LIMIT)
     except Exception:
         logger.exception('Join page: match preview failed for tenant %s', tenant_id)
 
@@ -198,9 +191,6 @@ def _render_discord(preview: JoinPreview, *, signed_in: bool) -> None:
 
 def _render_preview(preview: JoinPreview) -> None:
     """The two look-inside sections, beneath whatever the door is offering."""
-    if not preview.tournaments and not preview.matches_enabled:
-        return
-
     ui.separator().classes('separator-spacing')
 
     if preview.tournaments:
@@ -215,9 +205,6 @@ def _render_preview(preview: JoinPreview) -> None:
                 ),
             ).props('flat dense no-caps no-wrap align=left') \
                 .classes('w-full join-preview-button').tooltip(name)
-
-    if not preview.matches_enabled:
-        return
 
     label = 'Today' + (f' ({preview.timezone_label})' if preview.timezone_label else '')
     ui.label(label).classes('text-subtitle2 text-bold q-mt-md')

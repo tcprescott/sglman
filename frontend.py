@@ -23,6 +23,7 @@ from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.public_cache import PublicCacheMiddleware
 from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
+from middleware.watch_mode import WatchModeMiddleware
 from pages import (
     admin,
     auth,
@@ -36,6 +37,7 @@ from pages import (
     equipment_labels,
     event_info,
     home,
+    live_watch,
     mcp_consent,
     platform,
     qualifiers,
@@ -45,6 +47,7 @@ from pages import (
     static_watch,
     twitch_oauth,
     volunteer,
+    watch_data,
 )
 
 # Its own statement, and aliased: ruff's isort keeps an `as` import separate,
@@ -64,6 +67,9 @@ _ui_logger = logging.getLogger('wizzrobe.ui')
 # resolved and the ASGI path rewritten before AuthMiddleware reads the (now
 # unprefixed) path. TransportPrefixMiddleware is added last (outermost of ours)
 # and is pure-ASGI so it also handles the websocket scope BaseHTTPMiddleware skips.
+# Innermost: decides whether /live is answered statically, which needs the
+# tenant already resolved (see middleware/watch_mode.py).
+app.add_middleware(WatchModeMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(TransportPrefixMiddleware)
@@ -273,6 +279,8 @@ def init(fastapi_app: FastAPI) -> None:
     # sit on the same app (and behind the same tenant middleware) as the pages.
     static_brackets.create()
     static_watch.create()
+    watch_data.subscribe()
+    live_watch.create()
     platform.create()
     qualifiers.create()
     help_pages.create()
