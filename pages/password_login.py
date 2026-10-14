@@ -37,7 +37,7 @@ def create() -> None:
         ui.page_title('Sign in')
         render_platform_chrome(await TenantService.current_community_name() or None)
 
-        state = {'error': None}
+        state: dict[str, Optional[str]] = {'error': None}
 
         @ui.refreshable
         def error_slot() -> None:

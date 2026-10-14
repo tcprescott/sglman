@@ -59,8 +59,8 @@ _ACTIONS = slot_more_menu('props.row.display', [
 
 
 def _row(user: User, me: User) -> dict[str, Any]:
-    communities = sorted({m.tenant.name for m in user.tenant_memberships})
-    super_admin = any(r.role == Role.SUPER_ADMIN and r.tenant_id is None for r in user.roles)
+    communities = sorted({m.tenant.name for m in user.tenant_memberships})  # type: ignore[attr-defined]
+    super_admin = any(r.role == Role.SUPER_ADMIN and r.tenant_id is None for r in user.roles)  # type: ignore[attr-defined]
     handle = f'@{user.username}' if user.discord_id else 'No Discord'
     return {
         'id': user.id,
