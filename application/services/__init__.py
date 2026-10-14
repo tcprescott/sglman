@@ -57,6 +57,7 @@ from .discord import (
     discord_event_worker,
     discord_queue,
 )
+from .emergency_contact_service import EmergencyContactService
 from .equipment_service import EquipmentService
 from .event_info_service import EventInfoService
 from .feature_flag_service import FeatureFlagService
@@ -160,6 +161,7 @@ __all__ = [
     'DiscordRoleMappingService',
     'DiscordService',
     'DraftPolicy',
+    'EmergencyContactService',
     'EquipmentService',
     'EventDraft',
     'EventInfoService',

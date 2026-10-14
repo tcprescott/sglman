@@ -199,6 +199,14 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             service_modules=('application/services/accommodation_service.py',),
         ),
         FeatureFlagSpec(
+            FeatureFlag.EMERGENCY_CONTACTS,
+            'Emergency Contacts',
+            'Members can add an emergency contact on their profile; staff can '
+            'open it when something happens, and every look is logged.',
+            'Community',
+            service_modules=('application/services/emergency_contact_service.py',),
+        ),
+        FeatureFlagSpec(
             FeatureFlag.COMMUNITY_EVENTS,
             'Community Events',
             'Members submit the meetups, panels and side events they are running '

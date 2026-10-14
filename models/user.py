@@ -111,6 +111,7 @@ class User(Model):
     api_tokens = fields.ReverseRelation["ApiToken"]
     feedback_submissions = fields.ReverseRelation["Feedback"]
     accommodation_requests = fields.ReverseRelation["AccommodationRequest"]  # type: ignore[name-defined]
+    emergency_contacts = fields.ReverseRelation["EmergencyContact"]  # type: ignore[name-defined]
     owned_equipment = fields.ReverseRelation["Equipment"]
     equipment_loans = fields.ReverseRelation["EquipmentLoan"]
     equipment_checkouts_performed = fields.ReverseRelation["EquipmentLoan"]

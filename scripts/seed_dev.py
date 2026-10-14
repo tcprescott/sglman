@@ -37,6 +37,7 @@ from models import (
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
+    EmergencyContact,
     FeatureFlag,
     FeatureFlagGroup,
     JoinRequestStatus,
@@ -529,6 +530,23 @@ async def seed_for_tenant(
             },
         )
         print(f"    [{tenant.slug}] ADA accommodation requests ok (one per status)")
+
+        # --- Emergency contacts -----------------------------------------------
+        # player_two's has been opened by staff (the profile shows "last
+        # opened"); player_one's hasn't. Everyone else has none, so the staff
+        # dialog's empty state shows too.
+        await EmergencyContact.get_or_create(
+            tenant=tenant, user=users["player_two"],
+            defaults={
+                "name": "Jordan Rivera", "relationship": "Sibling", "phone": "+1 555 0142",
+                "last_viewed_at": now_utc - timedelta(hours=2), "last_viewed_by": staff,
+            },
+        )
+        await EmergencyContact.get_or_create(
+            tenant=tenant, user=users["player_one"],
+            defaults={"name": "Sam Okafor", "relationship": "Parent", "phone": "+44 20 7946 0958"},
+        )
+        print(f"    [{tenant.slug}] emergency contacts ok")
 
         # --- Audit log -------------------------------------------------------
         # One row per action a staff member actually takes on a match day, so the

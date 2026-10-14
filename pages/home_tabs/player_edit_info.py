@@ -19,6 +19,7 @@ from pages.home_tabs._link_section import render_connected_accounts_section
 from pages.home_tabs.accommodation_section import render_accommodation_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
+from pages.home_tabs.emergency_contact_section import render_emergency_contact_section
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
@@ -124,6 +125,7 @@ async def render_edit_info_tab(focus: str | None = None):
         # so a community without payouts is not asked for one.
         payouts_live = FeatureFlag.PAYOUTS in live_flags
         accommodations_live = FeatureFlag.ADA_ACCOMMODATIONS in live_flags
+        emergency_contacts_live = FeatureFlag.EMERGENCY_CONTACTS in live_flags
 
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
@@ -436,6 +438,9 @@ async def render_edit_info_tab(focus: str | None = None):
                         on_change=on_personal_typing,
                     ).props('outlined dense stack-label').classes('input-full-width')
                     matcherino_input.on('blur', flush_personal)
+
+            if emergency_contacts_live:
+                await render_emergency_contact_section(user)
 
             if accommodations_live:
                 await render_accommodation_section(user)

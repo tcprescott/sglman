@@ -148,6 +148,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations',
                      'content': (admin_users_page, (),
                                  {'accommodations': FeatureFlag.ADA_ACCOMMODATIONS in live,
+                                  'emergency_contacts': FeatureFlag.EMERGENCY_CONTACTS in live,
                                   # The ADA staff DMs' button: opens that request.
                                   'ada_request': ada_request})})
     if is_staff or is_ta_any:

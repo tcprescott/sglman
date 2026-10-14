@@ -222,9 +222,11 @@ class TenantMembershipService:
             {'target_user_id': user.id, 'revoked_tokens': revoked_tokens},
             EventType.TENANT_MEMBER_REMOVED,
         )
-        # Local import: AccommodationService imports this module.
+        # Local imports: both services import this module.
         from application.services.accommodation_service import AccommodationService
         await AccommodationService().close_for_removed_member(actor, user)
+        from application.services.emergency_contact_service import EmergencyContactService
+        await EmergencyContactService().remove_for_removed_member(actor, user)
         await self._notify_member(
             user, member_removed_dm,
             can_ask=await self.get_join_mode(tenant_id) in (

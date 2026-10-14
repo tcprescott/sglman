@@ -36,6 +36,7 @@ from .check_in import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, Ma
 from .column_guards import FieldValueError, install_column_guards
 from .community_event import CommunityEvent, CommunityEventSubscription
 from .discord_events import DiscordScheduledEvent
+from .emergency_contact import EmergencyContact
 from .enums import (
     STATION_REGEXES,
     SYSTEM_USER_DISCORD_ID,
@@ -207,6 +208,7 @@ __all__ = [
     # discord events
     'DiscordScheduledEvent',
     'DiscordTournamentGrant',
+    'EmergencyContact',
     # equipment
     'Equipment',
     'EquipmentLoan',

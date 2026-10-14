@@ -190,6 +190,12 @@ class AuditActions:
     ACCOMMODATION_NOTES_UPDATED = 'accommodation.notes_updated'
     ACCOMMODATION_CHANGE_REVIEWED = 'accommodation.change_reviewed'
 
+    # Emergency contacts. Details carry ids only, never the name or number.
+    # ``viewed`` is the point of the feature: every staff look leaves a row.
+    EMERGENCY_CONTACT_SAVED = 'emergency_contact.saved'
+    EMERGENCY_CONTACT_REMOVED = 'emergency_contact.removed'
+    EMERGENCY_CONTACT_VIEWED = 'emergency_contact.viewed'
+
     # Equipment lending
     EQUIPMENT_CREATED = 'equipment.created'
     EQUIPMENT_UPDATED = 'equipment.updated'
