@@ -33,6 +33,7 @@ from application.services import (
     TenantService,
     UserService,
     get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services import oauth_handoff_service as handoff_service
 from application.services.discord.discord_login_service import CLAIM_PATH as DISCORD_LOGIN_PATH
@@ -50,6 +51,7 @@ from application.utils.tenant_urls import (
 )
 from models import Role, Tenant, User
 from pages._browser_url import browser_url
+from pages._session import start_session
 from theme.notice import drain_notice, stash_notice
 from theme.tables.mobile_grid import enable_mobile_grid
 from theme.waiting import waiting_screen
@@ -221,7 +223,7 @@ def _register_discord_connect_callback() -> None:
             ui.navigate.to(return_path)
             return
 
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         tenant = await TenantService.get_by_id(int(tenant_id))
         if actor is None or tenant is None:
             stash_notice('Your session expired. Log in again to continue.', color='warning')
@@ -290,12 +292,12 @@ def _register_discord_login_claim() -> None:
             return
         # Someone else was signed in on this browser: drop their whole session
         # rather than leave their leftovers under the new identity.
-        if str(app.storage.user.get('discord_id')) != str(payload['discord_id']):
+        if str(app.storage.user.get('discord_id')) != str(payload['discord_id']) or \
+                app.storage.user.get('user_id') not in (None, user.id):
             app.storage.user.clear()
-        app.storage.user.update({
+        start_session(user, {
             'username': payload['username'],
             'avatar': payload['avatar'],
-            'authenticated': True,
             'discord_id': payload['discord_id'],
         })
         # Self-defensive; never blocks login.
@@ -455,11 +457,10 @@ def create() -> None:
                 # Mint failed (host no longer valid) — fall through to a normal
                 # platform-host login rather than stranding the user.
 
-            app.storage.user.update({
+            start_session(user, {
                 'username': current_user.username,
                 'avatar': current_user.avatar_url,
-                'authenticated': True,
-                'discord_id': current_user.id
+                'discord_id': current_user.id,
             })
 
             # Map the user's Discord guild roles onto application roles.
@@ -548,10 +549,9 @@ def create() -> None:
             stash_notice('This account is inactive. Contact staff if this is a mistake.', color='negative')
             await wait.navigate_to('/login')
             return
-        app.storage.user.update({
+        start_session(user, {
             'username': payload.get('username'),
             'avatar': payload.get('avatar'),
-            'authenticated': True,
             'discord_id': payload['discord_id'],
         })
         # Self-defensive; never blocks login.
@@ -564,10 +564,9 @@ def create() -> None:
 
 def _login_as(user: User, root_path: str = '') -> None:
     """Populate app.storage.user the same way the real OAuth callback does."""
-    app.storage.user.update({
+    start_session(user, {
         'username': user.username,
         'avatar': None,
-        'authenticated': True,
         'discord_id': user.discord_id,
     })
     referrer = app.storage.user.get('referrer_path', '/')

@@ -8,7 +8,7 @@ spinners and the 404 page. Finding it should still feel like finding something.
 
 from nicegui import app, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from application.utils.easter_eggs import CAT_FACT_SECTIONS, CAT_FACTS, random_cat_fact
 from middleware.auth import public_page
 from theme.base import BaseLayout
@@ -21,7 +21,7 @@ def create() -> None:
     @public_page('/cat-facts')
     async def cat_facts() -> None:
         ui.page_title('Cat facts')
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         await BaseLayout(user=user).render()
 
         state = {'fact': random_cat_fact()}

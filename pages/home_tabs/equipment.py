@@ -11,7 +11,7 @@ still holding?", which is this.
 
 from nicegui import app, ui
 
-from application.services import EquipmentService, get_user_from_discord_id
+from application.services import EquipmentService, get_user_from_session
 from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.section import section_panel
@@ -47,7 +47,7 @@ _VIEW_LABEL_BTN = (
 
 
 async def equipment_checkouts_section() -> None:
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         return
 

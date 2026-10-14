@@ -81,6 +81,15 @@ class User(Model):
     # so it is unique. It is how a registrant linked at one event is recognised
     # at the next, whatever they have since renamed themselves.
     matcherino_user_id = fields.CharField(max_length=64, null=True, unique=True)
+    # Password sign-in, set only by a platform super-admin (no self-service).
+    # A password account may have no ``discord_id`` at all: the DB CHECK
+    # ``ck_user_identity`` requires a discord id, a password, or placeholder
+    # status. ``login_name`` is stored lower-cased so lookups are
+    # case-insensitive. ``password_changed_at`` stamps each password session;
+    # a change or removal moves it, which ends every older password session.
+    login_name = fields.CharField(max_length=64, null=True, unique=True)
+    password_hash = fields.CharField(max_length=255, null=True)
+    password_changed_at = fields.DatetimeField(null=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]

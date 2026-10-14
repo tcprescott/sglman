@@ -9,7 +9,7 @@ from application.services import (
     NotFoundError,
     TenantMembershipService,
     UserService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.tenant_service import TenantService
 from application.tenant_context import require_tenant_id
@@ -109,7 +109,7 @@ async def admin_users_page(
             await _members_panel(accommodations=False, emergency_contacts=emergency_contacts)
             return
 
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         service = AccommodationService()
 
         # Counts what needs doing, not every open request: an arranged,
@@ -172,7 +172,7 @@ async def _members_panel(
                 return
             if not pending:
                 return
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
 
             async def decide(request_id: int, approve: bool) -> None:
                 try:
@@ -326,7 +326,7 @@ async def _members_panel(
             await dialog.open()
 
         async def add_member():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             candidates = await TenantMembershipService().addable_users()
 
             with form_dialog('Add a member', card_classes='dialog-card dialog-card--sm gap-2') as dialog:
@@ -382,7 +382,7 @@ async def _members_panel(
                 )
 
                 async def confirmed() -> None:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     try:
                         await TenantMembershipService().remove_member(actor, user)
                     except (ValueError, PermissionError) as e:
@@ -490,7 +490,7 @@ async def _members_panel(
                     if member is None:
                         ui.notify('That account no longer exists', color='negative')
                         return
-                    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    viewer = await get_user_from_session(app.storage.user)
                     if viewer is None:
                         return
                     await open_emergency_contact_dialog(viewer, member)

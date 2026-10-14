@@ -21,7 +21,7 @@ from typing import Any
 
 from nicegui import app, ui
 
-from application.services import MatchScheduleService, MatchService, get_user_from_discord_id
+from application.services import MatchScheduleService, MatchService, get_user_from_session
 from application.tenant_context import require_tenant_id
 from application.utils.match_labels import match_model_label
 from models import Match
@@ -107,7 +107,7 @@ class MatchLifecycleHandlers:
         return cb
 
     async def _actor(self):
-        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        return await get_user_from_session(app.storage.user)
 
     async def on_edit(self, match_id: int):
         match = await Match.get(id=match_id, tenant_id=require_tenant_id())

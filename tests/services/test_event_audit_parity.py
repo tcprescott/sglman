@@ -92,6 +92,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.USER_SELF_PROFILE_UPDATED,
     AuditActions.USER_ACTIVATION_CHANGED,
     AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
+    AuditActions.USER_PASSWORD_SET,
+    AuditActions.USER_PASSWORD_REMOVED,
+    AuditActions.USER_PASSWORD_SIGNED_IN,
     # Discord role mapping / sync plumbing.
     AuditActions.DISCORD_ROLE_MAPPING_ADDED,
     AuditActions.DISCORD_ROLE_MAPPING_REMOVED,

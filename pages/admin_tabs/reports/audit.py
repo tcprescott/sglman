@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from nicegui import app, ui
 
-from application.services import AuditService, AuthService, get_user_from_discord_id
+from application.services import AuditService, AuthService, get_user_from_session
 from application.utils.timezone import format_local_display, timezone_label
 from theme.tables.preferences import TableKeys
 
@@ -41,7 +41,7 @@ async def audit_page(
     page: Optional[int] = None,
     **_unused,
 ) -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     if actor is None or not await AuthService.is_staff(actor):
         with report_page_shell('Audit Log', SUBTITLE):
             ui.label('Only Staff can view the audit log.').classes('text-error')

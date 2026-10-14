@@ -2,9 +2,8 @@
 Authorization Service - Business Logic Layer
 
 Stateless policy helpers for role-based access control. All checks accept
-a User model (or None). UI code that only has the storage discord_id
-should call get_user_from_discord_id() once at page entry to resolve the
-User, then pass it into the helpers.
+a User model (or None). UI code calls get_user_from_session(app.storage.user) once at page entry to
+resolve the signed-in User, then passes it into the helpers.
 """
 
 from typing import Any, ClassVar, Optional
@@ -547,3 +546,60 @@ async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]:
     if user is not None and not user.is_active:
         return None
     return user
+
+
+#: Session keys every sign-in writes into ``app.storage.user``. ``user_id`` is the
+#: identity; ``discord_id`` stays for Discord sessions (and sessions from before
+#: ``user_id`` existed). A password session also carries ``auth_method`` and
+#: ``password_stamp``, so changing or removing the password ends it.
+SESSION_USER_ID = 'user_id'
+SESSION_AUTH_METHOD = 'auth_method'
+SESSION_PASSWORD_STAMP_FIELD = 'password_stamp'
+AUTH_METHOD_PASSWORD = 'password'
+
+
+def password_session_stamp(user: User) -> Optional[str]:
+    """The value a password session records; a password change or removal moves it."""
+    return user.password_changed_at.isoformat() if user.password_changed_at else None
+
+
+async def get_user_from_session(storage: Any) -> Optional[User]:
+    """Resolve the signed-in :class:`User` from a session mapping (``app.storage.user``).
+
+    The one way presentation code learns who is signed in. ``None`` for a
+    signed-out session, a missing or deactivated account, or a password session
+    whose password has since been changed or removed. A session from before
+    ``user_id`` was recorded resolves by its Discord id and gains ``user_id``.
+    """
+    if not storage:
+        return None
+    user_id = storage.get(SESSION_USER_ID)
+    if not user_id:
+        user = await get_user_from_discord_id(storage.get('discord_id'))
+        if user is not None:
+            try:
+                storage[SESSION_USER_ID] = user.id
+            except Exception:  # a read-only mapping, or storage written outside its context
+                pass
+        return user
+    user = await User.get_or_none(id=user_id)
+    if user is None or not user.is_active:
+        return None
+    if storage.get(SESSION_AUTH_METHOD) == AUTH_METHOD_PASSWORD and (
+        not user.password_hash
+        or storage.get(SESSION_PASSWORD_STAMP_FIELD) != password_session_stamp(user)
+        # Made a platform admin after signing in by password: that session
+        # can't carry the role (see PasswordAuthService.authenticate).
+        or await AuthService.is_super_admin(user)
+    ):
+        return None
+    return user
+
+
+def session_user_id(storage: Any) -> Optional[int]:
+    """The signed-in account's id, without a query (for "is this row mine?")."""
+    try:
+        value = storage.get(SESSION_USER_ID) if storage else None
+        return int(value) if value else None
+    except (TypeError, ValueError):
+        return None

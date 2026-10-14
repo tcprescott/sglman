@@ -2,13 +2,13 @@
 
 from nicegui import app, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from models import User
 
 
 async def current_actor() -> User:
     """The signed-in user, looked up at save time rather than at build time."""
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     if actor is None:
         raise ValueError('Sign in again to save these settings.')
     return actor

@@ -12,7 +12,7 @@ from application.services import (
     DiscordService,
     TenantService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.discord.discord_link_service import connect_redirect_uri
 from application.tenant_context import get_current_tenant_id, is_host_mode
@@ -109,7 +109,7 @@ _ROW_ACTIONS = '''
 
 
 async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_manage = await AuthService.can_grant_roles(actor)
 
     service = DiscordRoleMappingService()
@@ -156,7 +156,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
     async def disconnect_server(client):
         with client:
             try:
-                current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                current = await get_user_from_session(app.storage.user)
                 if tenant is None:
                     ui.notify('Select a community first.', color='warning')
                     return
@@ -255,7 +255,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
 
             async def delete_mapping(row, client):
                 async def do_remove() -> None:
-                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    current = await get_user_from_session(app.storage.user)
                     if current is None:
                         return
                     try:
@@ -276,7 +276,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
             async def remove_selected():
                 ids = [row['id'] for row in table.selected]
                 try:
-                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    current = await get_user_from_session(app.storage.user)
                     removed = await service.remove_mappings(ids, current)
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
@@ -386,7 +386,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                             ui.notify('Pick the tournament this grant applies to.', color='warning')
                             return
                         try:
-                            current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                            current = await get_user_from_session(app.storage.user)
                             created, skipped = await service.add_mappings(
                                 guild_id=guild_id,
                                 discord_roles=[
@@ -441,7 +441,7 @@ async def admin_discord_roles_page(volunteer_mappings: bool = False) -> None:
                         return
                     ui.notify('Syncing Discord roles for this community…')
                     try:
-                        current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                        current = await get_user_from_session(app.storage.user)
                         result = await service.sync_all_users(current)
                     except (ValueError, PermissionError) as e:
                         notify_error(e)

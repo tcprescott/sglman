@@ -88,6 +88,7 @@ async def seed_access_for_tenant(tenant: Tenant, users: dict[str, User]) -> None
     # (VolunteerPoolService.assignable_volunteers filters on Role.VOLUNTEER).
     role_grants = [
         ("staff_user", Role.STAFF),
+        ("desk_password", Role.CHECK_IN_DESK),
         ("proctor_user", Role.PROCTOR),
         ("sm_user", Role.STREAM_MANAGER),
         ("player_one", Role.TRIFORCE_SUBMITTER),

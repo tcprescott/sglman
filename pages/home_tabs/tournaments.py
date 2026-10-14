@@ -23,7 +23,7 @@ from application.content import parse_blocks
 from application.services import (
     FeatureFlagService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.tournament_service import TournamentSignupCard
 from application.utils.safe_url import http_url_or_empty
@@ -111,7 +111,7 @@ def _card_dom_id(tournament_id: int) -> str:
 
 
 async def tournaments_tab() -> None:
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         ui.label('You must be logged in to sign up for tournaments.').classes('text-error')
         return

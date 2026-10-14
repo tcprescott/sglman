@@ -11,7 +11,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.services import TelemetryService, get_user_from_discord_id
+from application.services import TelemetryService, get_user_from_session
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_local_display, timezone_label
 from theme.section import section_panel
@@ -57,7 +57,7 @@ async def telemetry_page(
     page: Optional[int] = None,
     **_unused,
 ) -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     service = TelemetryService()
     if not await _is_staff(actor):
         with report_page_shell('Engagement Telemetry', SUBTITLE):

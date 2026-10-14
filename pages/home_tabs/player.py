@@ -10,7 +10,7 @@ from application.services import (
     MatchRescheduleService,
     MatchService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.match.match_reads import (
     RELATION_CREW,
@@ -273,9 +273,8 @@ def _render_request_card(row, *, on_withdraw) -> None:
 
             async def withdraw(_=None, request_id=row.id):
                 from application.services import MatchRescheduleService
-                from application.services import get_user_from_discord_id as _get
 
-                actor = await _get(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 try:
                     await MatchRescheduleService().withdraw(request_id, actor)
                 except (ValueError, PermissionError) as e:
@@ -333,7 +332,7 @@ async def render_player_dashboard(
     # Resolved once for the help icons below: three of them read from the event
     # handbook, which filters by role, and each would otherwise look the viewer
     # up for itself.
-    viewer = await get_user_from_discord_id(discord_id)
+    viewer = await get_user_from_session(app.storage.user)
     match_service = MatchService()
     reschedule_service = MatchRescheduleService()
     hard_preset_service = MatchHardPresetService()
@@ -380,7 +379,7 @@ async def render_player_dashboard(
         # with the same title.
         @ui.refreshable
         async def waiting_section():
-            user = await get_user_from_discord_id(discord_id)
+            user = await get_user_from_session(app.storage.user)
             if user is None:
                 return
             challonge_rows, matchups = await _waiting_on_you(user)
@@ -411,7 +410,7 @@ async def render_player_dashboard(
                         opponent_linked = opponent is not None and opponent.user_id is not None
 
                         async def do_challonge(_=None, m=cm, oname=opponent_name):
-                            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                            actor = await get_user_from_session(app.storage.user)
                             await ChallongeScheduleDialog(
                                 m, actor=actor, opponent_name=oname, on_submit=after,
                             ).open()
@@ -436,9 +435,7 @@ async def render_player_dashboard(
 
                         async def do_schedule(_=None, m=bm, oname=opponent_name,
                                               n=number, bo=best_of):
-                            actor = await get_user_from_discord_id(
-                                app.storage.user.get('discord_id')
-                            )
+                            actor = await get_user_from_session(app.storage.user)
                             await BracketScheduleDialog(
                                 m.id, actor,
                                 opponent_name=oname,

@@ -84,12 +84,14 @@ def _session_user() -> Optional[Dict[str, Any]]:
     try:
         from nicegui import app
         storage = app.storage.user
-        discord_id = storage.get('discord_id')
+        # A password-only account has no Discord id; its account id stands in.
+        ident = storage.get('discord_id') or (
+            f"user:{storage['user_id']}" if storage.get('user_id') else None)
     except Exception:
         return None
-    if discord_id is None:
+    if ident is None:
         return None
-    return {'id': str(discord_id), 'username': storage.get('username')}
+    return {'id': str(ident), 'username': storage.get('username')}
 
 
 def _enrich_event(event: Dict[str, Any]) -> Dict[str, Any]:

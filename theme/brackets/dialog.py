@@ -16,7 +16,7 @@ from typing import Awaitable, Callable, Dict, Optional
 from nicegui import app, background_tasks, context, ui
 from tortoise import exceptions as tortoise_exceptions
 
-from application.services import BracketService, MatchService, get_user_from_discord_id
+from application.services import BracketService, MatchService, get_user_from_session
 from application.services.match.match_status import MatchStatus
 from application.services.match.match_status import label as status_label
 from application.services.match.match_status import tone as status_tone
@@ -227,7 +227,7 @@ async def _schedule_dialog(
 
     with client:
         with tenant_scope(tenant_id):
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
         await BracketScheduleDialog(
             bracket_match_id, actor,
             matchup_label=matchup_label,

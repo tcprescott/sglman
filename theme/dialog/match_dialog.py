@@ -6,7 +6,7 @@ from application.services import (
     MatchStreamVolunteerService,
     RaceRoomService,
     RacetimeRoomService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import FeatureFlag, RaceRoomStatus
@@ -89,7 +89,7 @@ class AdminMatchDialog(BaseMatchDialog):
         if tournament is None or tournament.racetime_bot_id is None:
             return
         existing = await RacetimeRoomService().get_for_match(self.match)
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         can_sync = await AuthService.can_manage_sync(actor)
         with ui.column().classes('gap-1'):
             ui.label('Racetime Room').classes('text-bold')
@@ -129,7 +129,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
         async def do_cancel(client) -> None:
             with client:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 try:
                     await AuthService.ensure(
                         await AuthService.can_manage_sync(actor),
@@ -418,7 +418,7 @@ class AdminMatchDialog(BaseMatchDialog):
                 new_tracker_ids = selected_trackers.value if isinstance(selected_trackers.value, list) else [selected_trackers.value]
 
                 async def do_update():
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     await self.match_service.update_match(
                         match_id=self.match.id,
                         tournament_id=tournament_id,
@@ -447,7 +447,7 @@ class AdminMatchDialog(BaseMatchDialog):
                     await self._save_preset_override(preset_override_select)
 
                 async def do_create():
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     new_match = await self.match_service.create_match(
                         tournament_id=tournament_id,
                         scheduled_date=date_value,

@@ -9,7 +9,7 @@ from application.services import (
     PresetService,
     RandomizerCredentialService,
     SeedGenerationService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.utils.discord_messages import is_seed_link
 from theme.clipboard import copy_to_clipboard
@@ -61,7 +61,7 @@ async def admin_presets_page() -> None:
         state: dict = {'rows': None, 'usage': {}}
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def refresh_table():
             # Re-read the configured set, not just the rows: the admin tabs are

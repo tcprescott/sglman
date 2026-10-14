@@ -26,7 +26,7 @@ from application.services import (
     CommunityEventService,
     SystemConfigService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from middleware.auth import protected_page
 from models import CommunityEvent, CommunityEventStatus, FeatureFlag, User
@@ -59,7 +59,7 @@ EVENT_TAB = 'Event'
 
 
 async def _viewer() -> Optional[User]:
-    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return await get_user_from_session(app.storage.user)
 
 
 async def _chrome(user: User, *parts: str) -> None:

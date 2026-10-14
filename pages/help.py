@@ -16,7 +16,7 @@ from application.help import HelpArticle
 from application.services import (
     HelpService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from middleware.auth import public_page
 from theme.a11y import make_activatable
@@ -52,7 +52,7 @@ def _whats_new_card() -> None:
 
 
 async def _viewer():
-    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return await get_user_from_session(app.storage.user)
 
 
 async def _render_chrome(user) -> None:

@@ -2,7 +2,7 @@
 
 from nicegui import app, ui
 
-from application.services import FeedbackService, get_user_from_discord_id
+from application.services import FeedbackService, get_user_from_session
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.notify import notify_error
@@ -65,7 +65,7 @@ async def admin_feedback_page() -> None:
 
         @ui.refreshable
         async def _render_table() -> None:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             try:
                 submissions = await service.list_recent(actor)
             except (ValueError, PermissionError) as e:
@@ -96,7 +96,7 @@ async def admin_feedback_page() -> None:
 
             async def set_reviewed(event, reviewed: bool):
                 row = event.args
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 try:
                     await service.set_reviewed(actor, row['id'], reviewed=reviewed)
                 except (ValueError, PermissionError) as e:

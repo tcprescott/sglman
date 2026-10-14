@@ -140,6 +140,7 @@ class TableKeys:
     PLATFORM_RACETIME_BOTS = 'platform.racetime_bots'
     PLATFORM_SERVICE_HEALTH = 'platform.service_health'
     PLATFORM_TENANTS = 'platform.tenants'
+    PLATFORM_USERS = 'platform.users'
 
 
 def _declared_keys() -> frozenset[str]:

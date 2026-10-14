@@ -5,7 +5,7 @@ import json
 from nicegui import app, background_tasks, context, ui
 
 from application.events import EventType
-from application.services import WebhookService, get_user_from_discord_id
+from application.services import WebhookService, get_user_from_session
 from application.utils.timezone import format_local_display
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -185,7 +185,7 @@ async def admin_webhooks_page() -> None:
             table.update()
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def delete_webhook(row, client):
             async def do_delete() -> None:

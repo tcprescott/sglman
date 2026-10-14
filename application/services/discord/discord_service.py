@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # send_dm's two "Discord said no" outcomes, as opposed to a failure on our side.
 # Callers that report reachability (the check-in test DM) compare against these.
 DM_USER_NOT_FOUND = "User not found"
+DM_NO_DISCORD = 'This person has no Discord account, so no DM was sent.'
 DM_REFUSED = "Cannot send DM to this user (DMs may be disabled)"
 DM_UNREACHABLE = frozenset({DM_USER_NOT_FOUND, DM_REFUSED})
 # Not a failure: the recipient turned Discord DMs off on their profile. Any
@@ -275,6 +276,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
             - If successful: (True, "Message sent successfully.")
             - If failed: (False, error_message)
         """
+        if not user_id:
+            # A password-only account has no Discord to message.
+            return False, DM_NO_DISCORD
         # Mirror before the bot-readiness checks so device notifications still
         # go out when the bot is down or the user blocks Discord DMs. Corollary:
         # a (False, ...) return means the *Discord* send failed — subscribed

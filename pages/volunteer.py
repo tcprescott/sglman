@@ -3,7 +3,7 @@
 from fastapi import Request
 from nicegui import app, ui
 
-from application.services import AuthService, TenantService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_session
 from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
 from pages.volunteer_tabs.availability import availability_tab
@@ -19,8 +19,7 @@ def create() -> None:
         section: str | None = None, request: Request = None, release: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
-        discord_id = app.storage.user.get('discord_id', None)
-        user = await get_user_from_discord_id(discord_id)
+        user = await get_user_from_session(app.storage.user)
 
         roles = await AuthService.get_roles(user)
         # Staff-equivalence throughout, so a platform super-admin sees the whole

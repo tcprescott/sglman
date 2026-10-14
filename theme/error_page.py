@@ -153,27 +153,28 @@ def _reveal_when_member(button) -> None:
     try:
         client = context.client
         tenant_id = get_current_tenant_id()
-        discord_id = app.storage.user.get('discord_id')
+        # A copy: the background task below runs outside the session.
+        session = dict(app.storage.user)
     except Exception:  # pragma: no cover - no client or session in scope
         return
-    if tenant_id is None or discord_id is None:
+    if tenant_id is None or not session.get('authenticated'):
         return
-    background_tasks.create(_reveal(button, client, tenant_id, discord_id))
+    background_tasks.create(_reveal(button, client, tenant_id, session))
 
 
-async def _reveal(button, client, tenant_id: int, discord_id) -> None:
+async def _reveal(button, client, tenant_id: int, session: dict) -> None:
     from application.services import (
         AuthService,
         FeatureFlagService,
         TenantService,
-        get_user_from_discord_id,
+        get_user_from_session,
     )
     from application.tenant_context import tenant_scope
     from models import FeatureFlag
 
     try:
         with tenant_scope(tenant_id):
-            user = await get_user_from_discord_id(discord_id)
+            user = await get_user_from_session(session)
             if user is None:
                 return
             allowed = (
@@ -203,10 +204,10 @@ def _remember_error_id(error_id: str) -> None:
 
 async def _open_error_report(error_id: str) -> None:
     """Load the current user lazily and open the prefilled feedback dialog."""
-    from application.services.auth_service import get_user_from_discord_id
+    from application.services.auth_service import get_user_from_session
     from theme.dialog import FeedbackDialog
 
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         ui.notify('Please log in to report this error.', color='warning')
         return

@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 from nicegui import app, ui
 
-from application.services import MatchService, StationService, get_user_from_discord_id
+from application.services import MatchService, StationService, get_user_from_session
 from application.services.system_config_service import SystemConfigService
 from application.utils.match_labels import match_model_label
 from models import STATION_REGEXES, Match
@@ -159,7 +159,7 @@ class StationAssignmentDialog:
         click rather than a correction.
         """
         try:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             suggestion = await self.match_service.suggest_stations(
                 self.match.id, actor=actor,
             )
@@ -191,7 +191,7 @@ class StationAssignmentDialog:
                 station = station_input.value.strip() if station_input.value else None
                 assignments[player_id] = station
 
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             await self.match_service.assign_stations(self.match.id, assignments, actor=actor)
 
             # In 'checkin' mode the caller still has to seat the match, so it

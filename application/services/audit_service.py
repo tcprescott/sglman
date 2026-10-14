@@ -108,6 +108,11 @@ class AuditActions:
     USER_ROLE_GRANTED = 'user.role_granted'
     USER_ROLE_REVOKED = 'user.role_revoked'
     USER_TOURNAMENT_ENROLLMENT_UPDATED = 'user.tournament_enrollment_updated'
+    # Password sign-in, administered on /platform. The password itself is never
+    # in ``details``; only the sign-in name and whether the account is new.
+    USER_PASSWORD_SET = 'user.password_set'
+    USER_PASSWORD_REMOVED = 'user.password_removed'
+    USER_PASSWORD_SIGNED_IN = 'user.password_signed_in'
 
     # Discord role mapping / sync
     DISCORD_ROLE_MAPPING_ADDED = 'discord_role.mapping_added'

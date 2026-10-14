@@ -2,7 +2,7 @@
 
 from nicegui import app, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from models import VolunteerPosition
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
@@ -51,7 +51,7 @@ class VolunteerPositionDialog:
                 return int(value)
 
             async def submit():
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 try:
                     order_value = int(order_input.value or 0)
                     length_value = _opt_int(length_input.value)

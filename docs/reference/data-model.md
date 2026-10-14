@@ -576,7 +576,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `discord_id` | `BigIntField` | **null**, `unique=True` | Discord snowflake. NULL only for a SpeedGaming placeholder — a DB `CHECK (discord_id IS NOT NULL OR is_placeholder)` enforces it (Postgres allows many NULLs under the unique) |
+| `discord_id` | `BigIntField` | **null**, `unique=True` | Discord snowflake. NULL only for a SpeedGaming placeholder or a password-only account — the DB `CHECK ck_user_identity (discord_id IS NOT NULL OR is_placeholder OR password_hash IS NOT NULL)` enforces it (Postgres allows many NULLs under the unique) |
 | `username` | `CharField(150)` | not null | Discord username |
 | `display_name` | `CharField(150)` | null | Preferred display name |
 | `discord_avatar` | `CharField(64)` | null | Discord avatar **hash**, not a URL — `application/utils/discord_avatar.py` derives the CDN path from it plus `discord_id`. Written at every web login and whenever the bot sees `GUILD_MEMBER_UPDATE` change it. NULL = no custom avatar; a stale hash 404s and each surface falls back to its own placeholder |
@@ -597,6 +597,9 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `racetime_linked_at` | `DatetimeField` | null | When the racetime identity was linked |
 | `is_placeholder` | `BooleanField` | default `False` | Flags an unresolved SpeedGaming player kept as a first-class `User` so its `MatchPlayers` row stays NOT NULL |
 | `speedgaming_id` | `CharField(64)` | null, `unique=True` | SG-side id used to re-find the same placeholder across syncs and to **upgrade it in place** once a `discord_id` appears |
+| `login_name` | `CharField(64)` | null, `unique=True` | Password sign-in name, stored lower-cased; set only by a platform super-admin ([authentication.md](authentication.md#password-sign-in)) |
+| `password_hash` | `CharField(255)` | null | scrypt hash (`scrypt$n$r$p$salt$hash`); never shown or logged |
+| `password_changed_at` | `DatetimeField` | null | Stamped on every set or removal; a password session records it and ends when it moves |
 | `matcherino_username` | `CharField(255)` | null | Matcherino handle (`name#id`), where prize money is sent. Self-entered, so deliberately **not** unique — a typo under a unique constraint would lock the rightful owner out of their own handle. Global, like the rest of identity. See [payouts.md](../features/payouts.md) |
 | `matcherino_user_id` | `CharField(64)` | null, `unique=True` | Matcherino's numeric account id. Written only by a check-in link (a Discord/Twitch id match or a manual link, never a typed-handle match), only when empty, and cleared again by an unlink; so it is unique: it recognises a registrant linked at one event at the next. Global. See [event-check-in.md](../features/event-check-in.md#matching-buyers-to-accounts) |
 

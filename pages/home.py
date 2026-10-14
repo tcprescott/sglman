@@ -2,7 +2,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 
-from application.services import AuthService, TenantService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_session
 from application.tenant_context import (
     get_current_tenant_id,
     is_host_mode,
@@ -28,7 +28,7 @@ async def _render_platform_landing() -> None:
     Runs with no tenant context: lists active tenants (each linking to its
     path-mode home) and, for a super-admin, a link to the /platform surface."""
     ui.page_title('Wizzrobe')
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     tenants = [t for t in await TenantService.list_tenants() if t.is_active]
 
     # Phoenix brand chrome. The picker is the platform's front door (bare host,
@@ -155,12 +155,12 @@ def create() -> None:
         stash_client_host_mode(is_host_mode())
 
         ui.page_title(await TenantService.current_community_name() or 'Wizzrobe')
-        discord_id = app.storage.user.get('discord_id', None)
-        # get_user_from_discord_id enforces is_active, so a deactivated account
+        signed_in = app.storage.user.get('authenticated', False)
+        # get_user_from_session enforces is_active, so a deactivated account
         # is treated as logged-out here too (uniform with /admin, /equipment,
         # the login flow, and the REST API) rather than still being shown its
         # personalized home and admin/volunteer nav affordances.
-        user = await get_user_from_discord_id(discord_id)
+        user = await get_user_from_session(app.storage.user)
         # Bind the display clock. Same reason this page applies the membership
         # gate itself: it is a bare ``ui.page``, so it never passes through
         # ``_tenant_page`` and gets nothing from it. Without this every tab below
@@ -179,7 +179,7 @@ def create() -> None:
         # the bracket views — stays public on its own routes.
         if await enforce_membership(tid, user):
             return
-        if user is None and discord_id is not None:
+        if user is None and signed_in:
             with ui.row():
                 ui.label('User not found in the database. Logging out...').classes('text-error')
                 app.storage.user.clear()

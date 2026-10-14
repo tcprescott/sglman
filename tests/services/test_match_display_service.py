@@ -205,6 +205,7 @@ class TestFormatMatchForDisplay:
     def test_commentators_formatted_as_dicts(self, display_service):
         commentator = SimpleNamespace(
             id=11,
+            user_id=7,
             user=SimpleNamespace(preferred_name="Charlie", discord_id="123"),
             approved=True,
             acknowledged_at=None,
@@ -216,6 +217,7 @@ class TestFormatMatchForDisplay:
                 "name": "Charlie",
                 "approved": True,
                 "discord_id": "123",
+                "user_id": 7,
                 "acknowledged": False,
                 "ack_ts": "",
                 "id": 11,
@@ -225,6 +227,7 @@ class TestFormatMatchForDisplay:
     def test_trackers_formatted_as_dicts(self, display_service):
         tracker = SimpleNamespace(
             id=22,
+            user_id=8,
             user=SimpleNamespace(preferred_name="Dana", discord_id="456"),
             approved=False,
             acknowledged_at=None,
@@ -236,6 +239,7 @@ class TestFormatMatchForDisplay:
                 "name": "Dana",
                 "approved": False,
                 "discord_id": "456",
+                "user_id": 8,
                 "acknowledged": False,
                 "ack_ts": "",
                 "id": 22,

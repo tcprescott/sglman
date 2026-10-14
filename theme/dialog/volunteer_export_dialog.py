@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from nicegui import app, ui
 
-from application.services import SystemConfigService, get_user_from_discord_id
+from application.services import SystemConfigService, get_user_from_session
 from application.services.volunteer.volunteer_export_service import (
     VolunteerExportBundle,
     VolunteerExportService,
@@ -39,7 +39,7 @@ class VolunteerExportDialog:
         self.service = VolunteerExportService()
 
     async def open(self) -> None:
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         event_start, event_end = await SystemConfigService.get_event_window()
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):

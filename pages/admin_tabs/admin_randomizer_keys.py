@@ -12,7 +12,7 @@ form; a blank submit is rejected and clearing is an explicit action.
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import RandomizerCredentialService, get_user_from_discord_id
+from application.services import RandomizerCredentialService, get_user_from_session
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -23,7 +23,7 @@ async def admin_randomizer_keys_page() -> None:
     service = RandomizerCredentialService()
 
     async def _current():
-        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        return await get_user_from_session(app.storage.user)
 
     async def save(randomizer: str, key: str, value_input, client) -> None:
         with client:

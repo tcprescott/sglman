@@ -13,6 +13,7 @@ from application.services import (
     MatchStreamVolunteerService,
     MatchWatcherService,
     UserService,
+    get_user_from_session,
 )
 from application.tenant_context import get_current_tenant_id
 from theme.dialog._helpers import form_dialog
@@ -553,10 +554,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
             self.on_rows_changed(self.table.rows)
 
     async def _fetch_watched_ids(self) -> set:
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            return set()
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
             return set()
         return set(await self.watcher_service.list_watched_match_ids(user))
@@ -567,10 +565,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         Separate from the row's ``stream_volunteers`` names, which are everyone's
         and are what staff read.
         """
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            return set()
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
             return set()
         return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
@@ -595,8 +590,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if not self.show_accommodations:
             return
         user_ids = {p.get('user_id') for row in rows for p in row.get('players') or []}
-        discord_id = app.storage.user.get('discord_id', None)
-        actor = await self.user_service.get_current_user_from_storage(discord_id) if discord_id else None
+        actor = await get_user_from_session(app.storage.user)
         notes = await self.accommodation_service.arranged_notes_for(actor, user_ids)
         if not notes:
             return
@@ -644,10 +638,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         """
         if not self._shows_column('hard_preset'):
             return {}
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            return {}
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
             return {}
         match_ids = [row.get('id') for row in rows if row.get('id') is not None]
@@ -666,10 +657,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         """
         if not self._shows_column('reschedule'):
             return set(), set()
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            return set(), set()
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
             return set(), set()
         requestable = await self.reschedule_service.list_requestable_match_ids(user)

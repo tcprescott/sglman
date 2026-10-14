@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from nicegui import app, ui
 
 from application.content import parse_blocks
-from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
+from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_session
 from application.services.async_qualifier.async_qualifier_rules import (
     ClaimVerdict,
     classify_claim,
@@ -141,7 +141,7 @@ def create() -> None:
     @protected_page('/qualifiers', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifiers_list() -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifiers')
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(user=user, show_admin=show_admin).render()
 
@@ -170,7 +170,7 @@ def create() -> None:
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int, focus: str | None = None) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifier')
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(user=user, show_admin=show_admin).render()
 

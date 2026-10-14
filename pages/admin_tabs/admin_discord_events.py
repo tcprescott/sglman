@@ -11,7 +11,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     DiscordEventSyncService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.notify import notify_error
@@ -48,7 +48,7 @@ async def admin_discord_events_page() -> None:
         link_banner = ui.row().classes('w-full items-center')
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def refresh_link_banner():
             link_banner.clear()

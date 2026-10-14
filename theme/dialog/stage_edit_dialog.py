@@ -2,7 +2,7 @@
 
 from nicegui import app, ui
 
-from application.services import StageService, get_user_from_discord_id
+from application.services import StageService, get_user_from_session
 from models import Stage
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.notify import notify_error
@@ -41,7 +41,7 @@ class StageEditDialog:
                 url = url_input.value.strip()
                 is_active = is_active_checkbox.value
                 try:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     if self.stage:
                         result_stage = await self.stage_service.update_stage(
                             self.stage,

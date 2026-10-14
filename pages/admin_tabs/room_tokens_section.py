@@ -10,7 +10,7 @@ Presentation only — every mutation goes through :class:`RoomTokenService`.
 
 from nicegui import app, ui
 
-from application.services import RoomTokenService, TenantService, get_user_from_discord_id
+from application.services import RoomTokenService, TenantService, get_user_from_session
 from application.services.room_token_service import room_seeds_path
 from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import tenant_url
@@ -26,7 +26,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
     service = RoomTokenService()
 
     async def _actor():
-        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        return await get_user_from_session(app.storage.user)
 
     async def _url_for(raw_token: str) -> str:
         # Absolute and tenant-qualified: the URL is pasted into a browser on a

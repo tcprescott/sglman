@@ -270,12 +270,12 @@ class TestCurrentUserBestEffort:
 
         sentinel = object()
 
-        async def fake_get(discord_id):
-            assert discord_id == 7
+        async def fake_get(storage):
+            assert storage == {'discord_id': 7}
             return sentinel
 
         monkeypatch.setattr(
-            'application.services.auth_service.get_user_from_discord_id', fake_get
+            'application.services.auth_service.get_user_from_session', fake_get
         )
         assert await _current_user_best_effort() is sentinel
 
@@ -339,11 +339,11 @@ class TestRegisteredHandlers:
             lambda **kw: calls.__setitem__('render', kw),
         )
 
-        async def fake_get(discord_id):
+        async def fake_get(storage):
             return None
 
         monkeypatch.setattr(
-            'application.services.auth_service.get_user_from_discord_id', fake_get
+            'application.services.auth_service.get_user_from_session', fake_get
         )
 
         # No 'endpoint' in scope -> the JSON guard fails -> themed page path.

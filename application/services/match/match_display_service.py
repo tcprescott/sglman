@@ -428,6 +428,7 @@ class MatchDisplayService:
                     'approved': c.approved,
                     # str: raw snowflake ints lose precision as JS numbers, breaking == checks
                     'discord_id': str(c.user.discord_id) if c.user.discord_id else None,
+                    'user_id': c.user_id,
                     'acknowledged': c.acknowledged_at is not None,
                     'ack_ts': format_local_display(c.acknowledged_at) if c.acknowledged_at else '',
                     'id': c.id,
@@ -439,6 +440,7 @@ class MatchDisplayService:
                     'name': t.user.preferred_name,
                     'approved': t.approved,
                     'discord_id': str(t.user.discord_id) if t.user.discord_id else None,
+                    'user_id': t.user_id,
                     'acknowledged': t.acknowledged_at is not None,
                     'ack_ts': format_local_display(t.acknowledged_at) if t.acknowledged_at else '',
                     'id': t.id,

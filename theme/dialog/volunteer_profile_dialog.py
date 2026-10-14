@@ -2,7 +2,7 @@
 
 from nicegui import app, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_local_date, format_local_time_range
@@ -72,7 +72,7 @@ class VolunteerProfileDialog:
                             checkboxes[position.id] = cb
 
             async def save() -> None:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 selected_ids = [pid for pid, cb in checkboxes.items() if cb.value]
                 try:
                     await qualification_service.set_qualifications(actor, self.user, selected_ids)

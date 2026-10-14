@@ -23,7 +23,7 @@ from application.content import ContentArticle
 from application.services import (
     EventInfoService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.utils.tenant_urls import login_path
 from middleware.auth import public_page
@@ -50,7 +50,7 @@ def _article_card(article: ContentArticle) -> None:
 
 async def _viewer():
     """The signed-in reader, or None — the articles are role-filtered."""
-    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return await get_user_from_session(app.storage.user)
 
 
 async def _render_chrome(user) -> None:

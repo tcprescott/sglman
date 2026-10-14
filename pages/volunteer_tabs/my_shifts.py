@@ -5,7 +5,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.services import SystemConfigService, get_user_from_discord_id
+from application.services import SystemConfigService, get_user_from_session
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display
@@ -79,7 +79,7 @@ def shift_actions(assignment, now: datetime) -> tuple[bool, bool]:
 
 
 async def my_shifts_tab(release: Optional[str] = None) -> None:
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return

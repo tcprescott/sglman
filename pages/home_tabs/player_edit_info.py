@@ -10,7 +10,7 @@ from application.services import (
     TimezoneService,
     TournamentNotificationService,
     UserService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.profile_nudge_service import ProfileSection
 from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED
@@ -92,15 +92,15 @@ async def render_edit_info_tab(focus: str | None = None):
     # 1rem column gap on top of it double-spaced every card down a page that is
     # already mostly whitespace. The gap still separates the header/status rows.
     with ui.column().classes('page-container-narrow gap-2'):
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
+        signed_in = app.storage.user.get('authenticated', False)
+        if not signed_in:
             with ui.card().classes('card-centered'):
                 ui.icon('lock', size='3em').classes('icon-large')
                 ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
 
-        user = await get_user_from_discord_id(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             with ui.card().classes('card-centered'):
                 ui.icon('error', size='3em').classes('icon-error')

@@ -48,11 +48,11 @@ def callback(monkeypatch, storage):
     async def no_handoff(url):
         return False
 
-    async def a_user(discord_id):
+    async def a_user(storage):
         return object()
 
     monkeypatch.setattr(ch, 'handle_link_handoff_callback', no_handoff)
-    monkeypatch.setattr(ch, 'get_user_from_discord_id', a_user)
+    monkeypatch.setattr(ch, 'get_user_from_session', a_user)
     ch.create()
 
     async def run(url: str) -> None:

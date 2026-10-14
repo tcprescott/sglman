@@ -11,7 +11,7 @@ from application.services import (
     SetupStep,
     TenantService,
     TenantSetupService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.tenant_context import get_current_tenant_id
 from middleware.auth import protected_page, protected_tab_page
@@ -242,16 +242,16 @@ def create() -> None:
         pane: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
+        signed_in = app.storage.user.get('authenticated', False)
+        if not signed_in:
             with ui.row():
                 ui.label('You must be logged in to view this page.').classes('text-error')
             return
 
-        # get_user_from_discord_id enforces is_active, so a deactivated account
+        # get_user_from_session enforces is_active, so a deactivated account
         # loses admin access on its next request — consistent with the REST API
         # and the login flow, and not bypassed by this non-role-gated page.
-        user = await get_user_from_discord_id(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             with ui.row():
                 ui.label('User not found in the database.').classes('text-error')

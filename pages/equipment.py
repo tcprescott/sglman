@@ -13,7 +13,7 @@ from application.services import (
     EquipmentService,
     TenantLogoService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.tenant_context import get_current_tenant_id
 from application.utils.environment import get_base_url
@@ -66,9 +66,9 @@ def create() -> None:
     @protected_page('/equipment/{asset_id}', feature=FeatureFlag.EQUIPMENT)
     async def equipment_detail(asset_id: int) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Equipment')
-        # get_user_from_discord_id enforces is_active so a deactivated user
+        # get_user_from_session enforces is_active so a deactivated user
         # cannot keep reading asset owner labels / manager-only private notes.
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         await BaseLayout(user=user).render()
 
         if user is None:
@@ -232,15 +232,15 @@ def create() -> None:
                         expansion.on_value_change(on_expand)
 
         async def do_checkout():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             await open_checkout(actor, asset_id, can_manage=can_manage, on_done=render_detail.refresh)
 
         async def do_checkin():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             await quick_checkin(actor, asset_id, on_done=render_detail.refresh)
 
         async def edit_asset():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             asset = await service.get_asset(asset_id)
             if asset is None:
                 ui.notify("Couldn't find that asset. It may have been removed.", color='warning')

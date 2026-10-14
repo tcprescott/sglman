@@ -127,6 +127,7 @@ class TelemetryService:
         *,
         path: str,
         discord_id: Optional[str] = None,
+        user_id: Optional[int] = None,
         username: Optional[str] = None,
         session_id: Optional[str] = None,
         params: Optional[Mapping[str, Any]] = None,
@@ -137,6 +138,7 @@ class TelemetryService:
             event_type=TelemetryEventType.PAGE_VIEW,
             path=path,
             discord_id=discord_id,
+            user_id=user_id,
             username=username,
             session_id=session_id,
             details=dict(params) if params else None,
@@ -148,6 +150,7 @@ class TelemetryService:
         event_type: str,
         path: Optional[str] = None,
         discord_id: Optional[str] = None,
+        user_id: Optional[int] = None,
         username: Optional[str] = None,
         session_id: Optional[str] = None,
         details: Optional[Mapping[str, Any]] = None,
@@ -158,6 +161,7 @@ class TelemetryService:
             event_type=event_type,
             path=path,
             discord_id=discord_id,
+            user_id=user_id,
             username=username,
             session_id=session_id,
             details=dict(details) if details else None,
@@ -169,6 +173,7 @@ class TelemetryService:
         path: str,
         tab: str,
         discord_id: Optional[str] = None,
+        user_id: Optional[int] = None,
         username: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> None:
@@ -181,7 +186,7 @@ class TelemetryService:
         if not telemetry_enabled():
             return
         try:
-            user_id, username = await self._resolve_user(discord_id, username)
+            user_id, username = await self._resolve_user(discord_id, username, user_id)
             await self.repository.create(
                 category=TelemetryCategory.INTERACTION,
                 event_type=TelemetryEventType.TAB_VIEW,
@@ -199,6 +204,7 @@ class TelemetryService:
         events: Any,
         *,
         discord_id: Optional[str] = None,
+        user_id: Optional[int] = None,
         username: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> int:
@@ -210,7 +216,7 @@ class TelemetryService:
         if not telemetry_enabled() or not isinstance(events, list):
             return 0
         try:
-            user_id, username = await self._resolve_user(discord_id, username)
+            user_id, username = await self._resolve_user(discord_id, username, user_id)
             rows: list[dict] = []
             for raw in events[:UI_BATCH_MAX]:
                 if not isinstance(raw, dict) or raw.get('type') not in UI_EVENT_TYPES:
@@ -244,14 +250,17 @@ class TelemetryService:
 
     @staticmethod
     async def _resolve_user(
-        discord_id: Optional[str], username: Optional[str],
+        discord_id: Optional[str], username: Optional[str], user_id: Optional[int] = None,
     ) -> tuple[Optional[int], Optional[str]]:
         # Resolve to a User for the FK when possible, but attribute even
         # deactivated accounts (unlike get_user_from_discord_id, which hides
         # them) — telemetry is about who did what, not who may act now.
-        if not discord_id:
+        if discord_id:
+            user = await User.get_or_none(discord_id=discord_id)
+        elif user_id:
+            user = await User.get_or_none(id=user_id)
+        else:
             return None, username
-        user = await User.get_or_none(discord_id=discord_id)
         if user is None:
             return None, username
         return user.id, username or getattr(user, 'username', None)
@@ -266,11 +275,12 @@ class TelemetryService:
         username: Optional[str],
         session_id: Optional[str],
         details: Optional[dict],
+        user_id: Optional[int] = None,
     ) -> None:
         if not telemetry_enabled():
             return
         try:
-            user_id, username = await self._resolve_user(discord_id, username)
+            user_id, username = await self._resolve_user(discord_id, username, user_id)
             enriched = dict(details) if details else {}
             if username is not None:
                 enriched.setdefault('actor_username', username)

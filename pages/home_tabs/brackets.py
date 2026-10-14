@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 
 from nicegui import app, ui
 
-from application.services import BracketService, get_user_from_discord_id
+from application.services import BracketService, get_user_from_session
 from models import Bracket
 from theme.brackets import (
     format_label,
@@ -63,7 +63,7 @@ def _render_stage(bracket: Bracket) -> None:
 async def brackets_tab() -> None:
     # DRAFT/CANCELLED stages are unpublished: the service hands a staff viewer
     # the full list and everyone else only what is public.
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     brackets = await BracketService().list_all_visible_brackets(user)
 
     with ui.column().classes('page-container'):

@@ -18,7 +18,7 @@ from application.services import (
     StageService,
     TournamentService,
     UserService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.match import (
     MATCH_STEP_LABELS,
@@ -322,7 +322,7 @@ class BaseMatchDialog:
 
     async def _delete_match(self, dialog):
         try:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             await self.match_service.delete_match(self.match.id, actor=actor)
             with dialog:
                 ui.notify('Match deleted', color='negative')
@@ -348,7 +348,7 @@ class BaseMatchDialog:
 
     async def _cancel_match(self, dialog):
         try:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             await self.match_service.cancel_match(self.match.id, actor=actor)
             with dialog:
                 ui.notify('Match called off — players and crew notified', color='negative')
@@ -382,7 +382,7 @@ class BaseMatchDialog:
 
             async def do_rewind() -> None:
                 try:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     await self.match_service.rewind_match(self.match.id, choice.value, actor=actor)
                     with edit_dialog:
                         ui.notify(f'Match rewound to {MATCH_STEP_LABELS[choice.value]}', color='positive')
@@ -405,7 +405,7 @@ class BaseMatchDialog:
     def _confirm_clear_seed(self, dialog):
         async def on_confirm():
             try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 await self.match_service.clear_match_seed(self.match.id, actor=actor)
                 with dialog:
                     ui.notify('Seed cleared', color='positive')
@@ -523,7 +523,7 @@ class BaseMatchDialog:
             # The actor is passed so the enrolments this creates carry a name in
             # the audit log — scheduling someone into a tournament they were not
             # in is a roster change somebody made, not one that happened.
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             newly_enrolled = await self.match_service.ensure_players_enrolled(
                 # This dialog is behind a staff-gated page, so the lookup cannot
                 # come back empty in practice; if it ever did, the service's
@@ -624,7 +624,7 @@ class BaseMatchDialog:
         """
         if not self.match:
             return None
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         await self.match.fetch_related(
             'tournament', 'tournament__preset', 'tournament__hard_preset', 'players',
         )
@@ -672,7 +672,7 @@ class BaseMatchDialog:
         override = PresetOverride(chosen) if chosen else None
         if override == self.match.preset_override:
             return
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         if actor is None:
             raise ValueError("We couldn't find your account. Try logging in again.")
         await MatchHardPresetService().set_override(self.match.id, override, actor)

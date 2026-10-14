@@ -23,7 +23,7 @@ the public walks through.
 
 from nicegui import app, ui
 
-from application.services import RoomTokenService, get_user_from_discord_id
+from application.services import RoomTokenService, get_user_from_session
 from application.services.match.match_display_service import is_seeded_and_unplayed
 from middleware.auth import public_page
 from theme.base import BaseLayout
@@ -54,7 +54,7 @@ def create() -> None:
         if await RoomTokenService().resolve(token) is None:
             from theme.error_page import render_not_found
             await render_not_found(
-                user=await get_user_from_discord_id(app.storage.user.get('discord_id')),
+                user=await get_user_from_session(app.storage.user),
             )
             return
 

@@ -7,7 +7,7 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import RaceRoomProfileService, get_user_from_discord_id
+from application.services import RaceRoomProfileService, get_user_from_session
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.menu import SlotItem, slot_more_menu, slot_name_link
@@ -68,7 +68,7 @@ async def admin_racetime_page() -> None:
         table_container = ui.column().classes('w-full')
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def refresh_table():
             profiles = await service.list_profiles(await _current())

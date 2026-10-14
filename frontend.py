@@ -39,6 +39,7 @@ from pages import (
     home,
     live_watch,
     mcp_consent,
+    password_login,
     platform,
     qualifiers,
     racetime_oauth,
@@ -268,6 +269,7 @@ def init(fastapi_app: FastAPI) -> None:
     _register_root_routes(fastapi_app)
 
     auth.create()
+    password_login.create()
     challonge_oauth.create()
     twitch_oauth.create()
     racetime_oauth.create()
