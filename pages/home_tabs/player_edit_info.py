@@ -158,6 +158,7 @@ async def render_edit_info_tab(focus: str | None = None):
                     display_name=display_name_input.value,
                     pronouns=pronouns_input.value,
                     dm_notifications=dm_switch.value,
+                    dm_match_comments=comments_switch.value,
                     matcherino_username=(
                         matcherino_input.value if payouts_live else None
                     ),
@@ -370,6 +371,16 @@ async def render_edit_info_tab(focus: str | None = None):
                             with ui.row().classes('items-start gap-2 no-wrap'):
                                 ui.icon('check', size='xs').classes('st-ok q-mt-xs')
                                 ui.label(line).classes('text-caption col')
+
+                    with ui.row().classes('wiz-notify-item no-wrap'):
+                        with ui.column().classes('gap-0 col min-w-0'):
+                            ui.label('Staff comments on your matches').classes('wiz-notify-item__name')
+                            ui.label(
+                                'A message when staff leave you a comment, like a station change'
+                            ).classes('text-muted text-caption')
+                        comments_switch = ui.switch(
+                            value=user.dm_match_comments, on_change=on_dm_change,
+                        ).props('aria-label="Staff comments on your matches"')
 
                     # A follow is not a consequence of enrollment:
                     # get_match_notification_subscribers never checks the player
