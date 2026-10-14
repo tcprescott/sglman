@@ -5,18 +5,37 @@ mutations go through :class:`ApiTokenService`; the page never writes the ORM
 directly. The plaintext token is shown exactly once, at creation.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from nicegui import ui
 
 from application.services import ApiTokenService
 from application.utils.environment import get_base_url
-from application.utils.timezone import format_local_date
+from application.utils.timezone import format_local_date, format_local_display
 from models import ApiTokenOrigin, User
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.secret_dialog import show_secret_dialog
+
+EXPIRY_CHOICES: dict[str, Optional[timedelta]] = {
+    '8 hours': timedelta(hours=8),
+    '24 hours': timedelta(hours=24),
+    '7 days': timedelta(days=7),
+    '30 days': timedelta(days=30),
+    '90 days': timedelta(days=90),
+    '1 year': timedelta(days=365),
+    'Never': None,
+}
+DEFAULT_EXPIRY = '30 days'
+
+
+def expiry_hint(choice: str, now: datetime) -> str:
+    delta = EXPIRY_CHOICES.get(choice)
+    if delta is None:
+        return 'Works until you revoke it.'
+    return f'Expires {format_local_display(now + delta)}'
 
 
 async def render_api_tokens_section(user: User) -> None:
@@ -54,7 +73,12 @@ async def render_api_tokens_section(user: User) -> None:
                             f'Last used {format_local_date(t.last_used_at)}'
                             if t.last_used_at else 'Never used'
                         )
-                        expires = f' · Expires {format_local_date(t.expires_at)}' if t.expires_at else ''
+                        expires = ''
+                        if t.expires_at:
+                            # A short-lived token needs the hour; a date alone reads as "all day".
+                            soon = t.expires_at - datetime.now(timezone.utc) < timedelta(days=2)
+                            fmt = format_local_display if soon else format_local_date
+                            expires = f' · Expires {fmt(t.expires_at)}'
                         prefix = '' if is_oauth else f'{t.token_prefix}… · '
                         ui.label(prefix + used + expires) \
                             .classes('text-caption text-grey-7') \
@@ -86,14 +110,9 @@ async def render_api_tokens_section(user: User) -> None:
         )
         confirm.open()
 
-    async def generate(name: str, read_only: bool, expires_str: str, dialog) -> None:
-        expires_at = None
-        if expires_str and expires_str.strip():
-            try:
-                expires_at = datetime.strptime(expires_str.strip(), '%Y-%m-%d').replace(tzinfo=timezone.utc)
-            except ValueError:
-                ui.notify('Expiry must be in YYYY-MM-DD format.', color='warning')
-                return
+    async def generate(name: str, read_only: bool, expiry: str, dialog) -> None:
+        delta = EXPIRY_CHOICES.get(expiry)
+        expires_at = datetime.now(timezone.utc) + delta if delta is not None else None
         try:
             _, raw_token = await service.create_token(
                 user, name=name or '', read_only=read_only, expires_at=expires_at,
@@ -110,13 +129,26 @@ async def render_api_tokens_section(user: User) -> None:
             name_input = ui.input('Token name', placeholder='e.g. OBS overlay') \
                 .classes('input-full-width').props('outlined dense')
             read_only_cb = ui.checkbox('Read-only (can only call GET endpoints)')
-            expires_input = ui.input('Expiry date (optional)', placeholder='YYYY-MM-DD') \
-                .classes('input-full-width').props('outlined dense')
+
+            def refresh_hint() -> None:
+                hint = expiry_hint(expires_select.value, datetime.now(timezone.utc))
+                expires_select.props['hint'] = hint
+                expires_select.update()
+                if EXPIRY_CHOICES.get(expires_select.value) is None:
+                    expires_select.classes(add='api-token-expiry--never')
+                else:
+                    expires_select.classes(remove='api-token-expiry--never')
+
+            expires_select = ui.select(
+                list(EXPIRY_CHOICES), value=DEFAULT_EXPIRY, label='Expires',
+                on_change=lambda _: refresh_hint(),
+            ).classes('input-full-width').props('outlined dense')
+            refresh_hint()
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button(
                     'Generate', icon='vpn_key',
-                    on_click=lambda: generate(name_input.value, read_only_cb.value, expires_input.value, dialog),
+                    on_click=lambda: generate(name_input.value, read_only_cb.value, expires_select.value, dialog),
                 ).props('color=primary')
         dialog.open()
 

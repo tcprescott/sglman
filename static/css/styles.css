@@ -1252,6 +1252,8 @@ main.q-page:focus {
     transform: none;
 }
 .form-grid .q-field__bottom { padding-top: var(--space-1); }
+/* A token that never expires is allowed but worth a second look. */
+.api-token-expiry--never .q-field__bottom { color: var(--status-pending); }
 @media (max-width: 600px) {
     .form-grid { row-gap: var(--space-4); }
 }
