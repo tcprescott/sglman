@@ -87,6 +87,11 @@ def home_url(section: Optional[str] = None, **params) -> str:
     return f"{'/home/' + section if section else '/home'}{_query(params)}"
 
 
+def volunteer_my_shifts_url() -> str:
+    """My Shifts, where the volunteer's "I'm here" and give-back live."""
+    return f'/volunteer/{VOLUNTEER_MY_SHIFTS}'
+
+
 def volunteer_release_url(assignment_id: int) -> str:
     """My Shifts with one assignment's "Give this shift back?" dialog open."""
     return f'/volunteer/{VOLUNTEER_MY_SHIFTS}{_query({"release": assignment_id})}'

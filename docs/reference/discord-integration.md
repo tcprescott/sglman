@@ -124,6 +124,7 @@ Registered handler prefixes:
 | `match_ack:` | [`match_acknowledgment.py`](../../discordbot/match_acknowledgment.py) → `handle_match_acknowledgment_interaction` |
 | `crew_ack:` | [`crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) → `handle_crew_acknowledgment_interaction` |
 | `volunteer_ack:` | [`volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) → `handle_volunteer_acknowledgment_interaction` |
+| `vol_here:` / `vol_late:` / `vol_late_min:` / `vol_cant:` / `vol_cant_reason:` | [`volunteer_arrival.py`](../../discordbot/volunteer_arrival.py) → the shift-start DM's buttons. `vol_cant:` answers with a **modal** (the reason form), so it does not defer; the modal's submit (`vol_cant_reason:`) is routed through the same registry because `on_interaction` dispatches `modal_submit` as well as `component` |
 | `match_watch:` | [`watch_buttons.py`](../../discordbot/watch_buttons.py) → `handle_unwatch_interaction` |
 | `reschedule_agree:` | [`reschedule_agreement.py`](../../discordbot/reschedule_agreement.py) → `handle_reschedule_agree_interaction` |
 | `wiz_login:` | [`login.py`](../../discordbot/login.py) → `handle_login_panel_interaction`. `wiz_login:<tenant_id>` — the community travels in the id because one server can back several. It doesn't use `run_dm_interaction`. Like `/login` and `/wizzrobe login-panel`, it defers first (`defer(ephemeral=True, thinking=True)`), because minting provisions an account and the panel posts to the channel before answering, which can miss Discord's 3-second window (`10062 Unknown interaction`). The answer goes out as an ephemeral follow-up, and the link reply is deleted with `WebhookMessage.delete(delay=LINK_TTL_SECONDS)`. If the defer itself fails, it falls back to `response.send_message(..., delete_after=…)` |
@@ -141,6 +142,7 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `send_dm_with_crew_buttons` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the two crew signup buttons (`VIEW_CREW_SIGNUP`). |
 | `send_dm_with_acknowledgment_button` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the player Acknowledge button (`VIEW_MATCH_ACK`). |
 | `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int, embed=None, link=None)` | DM with the crew Acknowledge button (`VIEW_CREW_ACK`). `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
+| `send_dm_with_volunteer_arrival_buttons` | `(user_id, message, assignment_id: int, embed=None, link=None)` | The shift-start DM: I'm here / Running late / I can't make it (`VIEW_VOLUNTEER_ARRIVAL`). |
 | `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int, embed=None, link=None)` | DM with the volunteer shift Acknowledge button (`VIEW_VOLUNTEER_ACK`). |
 | `send_dm_with_unwatch_button` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the Unwatch button (`VIEW_UNWATCH`). |
 | `send_dm_with_reschedule_agree_button` | `(user_id, message, request_id: int, embed=None, link=None)` | DM with the opponent's Agree button (`VIEW_RESCHEDULE_AGREE`). |
@@ -315,6 +317,8 @@ Ephemeral confirmation strings sit beside their domain's builders: `match_ack_co
 | Bracket matchup ready | `_bracket/notifications.py` → `_send_matchup_ready(...)` per entrant (opt-in only) | `send_dm` | Pick a time (link) |
 | Seed generated | `MatchScheduleService.generate_seed` → inline `_send_seed_dms()` per opted-in player | `send_dm` | Open your seed (link, off-site); for a pasted seed (WWR, Z1R) Copy it from Wizzrobe → `player_match` |
 | Volunteer shift assigned — ack request | `VolunteerScheduleService.assign(notify=True)` | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
+| Volunteer shift starting | `volunteer_reminder` loop (`_start_dms`), once per published assignment whose shift started in the last 30 minutes and that isn't checked in | `send_dm_with_volunteer_arrival_buttons` | I'm here / Running late / I can't make it, plus a My Shifts link |
+| Volunteer running late | `VolunteerArrivalService.report_late` → coordinators + staff | `send_dm` | Open the schedule |
 | Volunteer shift reminder | `volunteer_reminder` loop, per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge |
 | Admin direct message | `SendMessageDialog.send` — awaited inline, **not** queued | `send_dm` | none |
 

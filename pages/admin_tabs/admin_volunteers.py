@@ -6,6 +6,7 @@ from typing import List, Optional
 from nicegui import app, ui
 
 from application.services import AuthService, SystemConfigService, get_user_from_session
+from application.services.volunteer.volunteer_arrival_service import describe_late
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
@@ -443,8 +444,14 @@ async def admin_volunteers_page(day: str | None = None) -> None:
                 chip.on_value_change(ask_remove)
 
                 if assignment.checked_in_at:
-                    ui.icon('how_to_reg', color='teal', size='sm').tooltip('Checked in')
+                    who = ('they said they were here'
+                           if assignment.checked_in_by_id == assignment.user_id else 'by a coordinator')  # type: ignore[attr-defined]
+                    ui.icon('how_to_reg', color='teal', size='sm') \
+                        .tooltip(f'Checked in {format_local_time(assignment.checked_in_at)}, {who}')
                 else:
+                    late = describe_late(assignment)
+                    if late:
+                        ui.icon('schedule', size='sm').classes('st-pending').tooltip(late)
                     async def do_check_in(a_id=assignment.id) -> None:
                         try:
                             await schedule_service.check_in(a_id, actor)

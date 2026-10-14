@@ -63,7 +63,6 @@ _EVENT_CANDIDATES = frozenset({
     AuditActions.TRIFORCE_TEXT_REJECTED,
     AuditActions.EQUIPMENT_CHECKED_OUT,
     AuditActions.EQUIPMENT_CHECKED_IN,
-    AuditActions.VOLUNTEER_CHECKED_IN,
 })
 
 # Deliberately never webhooked: security-sensitive, internal plumbing, or noise.

@@ -10,11 +10,12 @@ from typing import Iterator, Literal, Optional
 
 from nicegui import ui
 
-BannerTone = Literal['info', 'ok', 'warning', 'danger']
+BannerTone = Literal['info', 'ok', 'live', 'warning', 'danger']
 
 _DEFAULT_ICONS: dict[str, str] = {
     'info': 'info',
     'ok': 'check_circle',
+    'live': 'place',
     'warning': 'warning',
     'danger': 'error',
 }

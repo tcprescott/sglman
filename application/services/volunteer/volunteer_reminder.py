@@ -27,6 +27,9 @@ TICK_SECONDS = 60
 # realistic volunteer-reminder lead (typically minutes to hours).
 MAX_LEAD_MINUTES = 7 * 24 * 60
 
+# The shift-start DM goes out only this soon after the start; see _start_dms.
+START_DM_GRACE = timedelta(minutes=30)
+
 
 async def _scoped_dm(tenant_id: int, coro) -> None:
     """Await a DM-send coroutine with its tenant bound so deep links resolve."""
@@ -50,6 +53,7 @@ async def _tick() -> None:
     from models import FeatureFlag
 
     now = datetime.now(timezone.utc)
+    await _start_dms(now)
     # Cross-tenant scan over a wide window (due_for_reminder is intentionally
     # unscoped); each assignment is re-checked against its own tenant's lead.
     window_end = now + timedelta(minutes=MAX_LEAD_MINUTES)
@@ -122,9 +126,77 @@ async def _tick() -> None:
     await for_each_tenant_scoped(
         due,
         _remind,
-        tenant_id_of=lambda assignment: assignment.tenant_id,
+        tenant_id_of=lambda assignment: assignment.tenant_id,  # type: ignore[attr-defined]
         logger=logger,
         describe=lambda assignment: f'assignment {getattr(assignment, "id", None)}',
+    )
+
+
+async def _start_dms(now: datetime) -> None:
+    """DM each volunteer whose shift just started and who hasn't said they're here.
+
+    Shifts that started more than ``START_DM_GRACE`` ago are left alone, so a
+    deploy or an outage doesn't send a burst of stale "your shift is starting"
+    DMs for shifts already well under way.
+    """
+    from application.repositories import VolunteerAssignmentRepository
+    from application.services import notification_links
+    from application.services.discord import discord_queue
+    from application.services.discord.discord_service import DiscordService
+    from application.services.feature_flag_service import FeatureFlagService
+    from application.services.tenant_service import TenantService
+    from application.utils.discord_embeds import time_field, volunteer_embed
+    from application.utils.discord_messages_volunteer import (
+        VOLUNTEER_SHIFT_START_DESCRIPTION,
+        volunteer_shift_start_dm,
+    )
+    from models import FeatureFlag
+
+    due = await VolunteerAssignmentRepository.due_for_start_dm(now - START_DM_GRACE, now)
+    if not due:
+        return
+    discord_service = DiscordService()
+
+    async def _send(assignment) -> None:
+        if not await FeatureFlagService().is_enabled(FeatureFlag.VOLUNTEERS):
+            return
+        # Stamp only this column first, for the same reasons as the reminder.
+        assignment.start_dm_sent_at = now
+        await VolunteerAssignmentRepository.save(assignment, update_fields=['start_dm_sent_at'])
+        discord_id = getattr(assignment.user, 'discord_id', None)
+        if not discord_id:
+            return
+        shift = assignment.shift
+        position_name = shift.position.name if shift.position else ''
+        message = volunteer_shift_start_dm(
+            position_name=position_name,
+            label=shift.label,
+            starts_display=time_field(shift.starts_at),
+            ends_display=time_field(shift.ends_at),
+        )
+        description = VOLUNTEER_SHIFT_START_DESCRIPTION
+        if shift.label:
+            description = f'**{shift.label}**\n{description}'
+        embed = volunteer_embed(
+            title='📍 Your shift is starting',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description=description,
+        )
+        link = await notification_links.volunteer_my_shifts()
+        send = discord_service.send_dm_with_volunteer_arrival_buttons(
+            int(discord_id), message, assignment.id, embed=embed, link=link,
+        )
+        discord_queue.enqueue(_scoped_dm(assignment.tenant_id, send))
+
+    await for_each_tenant_scoped(
+        due,
+        _send,
+        tenant_id_of=lambda assignment: assignment.tenant_id,  # type: ignore[attr-defined]
+        logger=logger,
+        describe=lambda assignment: f'start DM for assignment {getattr(assignment, "id", None)}',
     )
 
 

@@ -124,9 +124,16 @@ after their name:
 The **×** on a chip removes that person, after you confirm. If the assignment
 was published they get a DM saying so; removing a draft is silent.
 
-When someone turns up, press the check-in button beside their name. A checked-in
-volunteer can't give the shift back from their own phone, so they have to come
-and talk to you.
+Volunteers check themselves in: from 30 minutes before a shift they get an
+**I'm here** button on every page, and a DM when the shift starts. A checked-in
+volunteer shows a check beside their name, and its tooltip says when and whether
+they did it themselves. A clock means they said they're running late. When
+someone turns up without checking in, press the check-in button beside their
+name. A checked-in volunteer can't give the shift back from their own phone, so
+they have to come and talk to you.
+
+Anyone who taps **Running late** in the shift-start DM keeps the shift, and every
+coordinator and staff member gets a DM saying how late they expect to be.
 
 ## The auto-scheduler
 

@@ -1518,6 +1518,8 @@ A volunteer placed into a shift, mirroring the crew signup/acknowledge flow.
 | `reminder_sent_at` | `DatetimeField` | null | Last reminder DM time (see [`volunteer_reminder`](services.md)) |
 | `checked_in_at` | `DatetimeField` | null | Volunteer checked in on site |
 | `checked_in_by` | FK → `User` | null, `SET_NULL` | `related_name='volunteer_check_ins'` |
+| `start_dm_sent_at` | `DatetimeField` | null | Stamped by `volunteer_reminder` when it queues the shift-start DM (I'm here / Running late / I can't make it), so each assignment gets it once |
+| `late_minutes` | `IntField` | null | Self-reported from the shift-start DM (10, 20 or 30 = "30 or more"); cleared on check-in |
 
 Constraints: `unique_together (('shift', 'user'),)`; index on `user` (the composite is shift-first, leaving the "my shifts" lookup uncovered).
 

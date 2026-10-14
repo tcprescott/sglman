@@ -76,6 +76,7 @@ async def test_tick_noop_when_no_due_assignments(monkeypatch):
         'application.repositories.VolunteerAssignmentRepository',
     ) as MockRepo:
         MockRepo.due_for_reminder = AsyncMock(return_value=[])
+        MockRepo.due_for_start_dm = AsyncMock(return_value=[])
         with patch(
             'application.services.system_config_service.SystemConfigService.get_volunteer_reminder_lead_minutes',
             AsyncMock(return_value=60),

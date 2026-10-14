@@ -120,6 +120,7 @@ VIEW_CREW_SIGNUP = 'crew_signup'
 VIEW_MATCH_ACK = 'match_ack'
 VIEW_CREW_ACK = 'crew_ack'
 VIEW_VOLUNTEER_ACK = 'volunteer_ack'
+VIEW_VOLUNTEER_ARRIVAL = 'volunteer_arrival'
 VIEW_UNWATCH = 'match_watch'
 VIEW_RESCHEDULE_AGREE = 'reschedule_agree'
 VIEW_HARD_PRESET = 'match_hard'
@@ -201,7 +202,11 @@ def get_discord_bot() -> commands.Bot:
 
         @_bot_instance.event
         async def on_interaction(interaction: discord.Interaction) -> None:
-            if interaction.type == discord.InteractionType.component:
+            # A modal's submit carries the modal's own custom_id, so the same
+            # prefix registry routes it.
+            if interaction.type in (
+                discord.InteractionType.component, discord.InteractionType.modal_submit,
+            ):
                 custom_id = (interaction.data or {}).get('custom_id', '')
                 prefix = custom_id.split(':', 1)[0]
                 handler = _interaction_handlers.get(prefix)
@@ -397,6 +402,17 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         """Send a DM with a volunteer shift Acknowledge button."""
         return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ACK](assignment_id), embed=embed, link=link)
 
+    async def send_dm_with_volunteer_arrival_buttons(
+        self,
+        user_id: int,
+        message: str,
+        assignment_id: int,
+        embed: Optional[discord.Embed] = None,
+        link: Optional[DMLink] = None,
+    ) -> Tuple[bool, str]:
+        """Send the shift-start DM: I'm here / Running late / I can't make it."""
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ARRIVAL](assignment_id), embed=embed, link=link)
+
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         """Send a DM with an Unwatch button for match watchers."""
         return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id), embed=embed, link=link)
@@ -458,6 +474,9 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_volunteer_acknowledgment_button(self, user_id: int, message: str, assignment_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed, link=link)
+
+    async def send_dm_with_volunteer_arrival_buttons(self, user_id: int, message: str, assignment_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:
         return await self.send_dm(user_id, message, embed=embed, link=link)
 
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None, link: Optional[DMLink] = None) -> Tuple[bool, str]:

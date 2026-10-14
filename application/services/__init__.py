@@ -121,6 +121,7 @@ from .user_service import UserService
 from .volunteer import (
     DraftPolicy,
     HoursSummary,
+    VolunteerArrivalService,
     VolunteerAutoscheduleService,
     VolunteerAvailabilityService,
     VolunteerExportService,
@@ -227,6 +228,7 @@ __all__ = [
     'TriforceTextService',
     'TwitchService',
     'UserService',
+    'VolunteerArrivalService',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',

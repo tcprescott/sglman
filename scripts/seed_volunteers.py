@@ -248,6 +248,8 @@ async def seed_volunteers_for_tenant(
             defaults={"assigned_by": staff},
         )
 
+    await _seed_arrivals(tenant, positions["Admin Desk"], users, staff, now_utc)
+
     # Position → role mappings. Race Proctor → PROCTOR lands on proctor_user, who
     # already holds it by hand, so it shows a manual grant left alone; Broadcast
     # Tech → STREAM_MANAGER hands FULL_RACERS[1] a volunteer-sourced role. The
@@ -258,3 +260,38 @@ async def seed_volunteers_for_tenant(
         )
     await VolunteerRoleMappingService().reconcile_all(staff)
     print(f"    [{tenant.slug}] volunteers ok")
+
+
+async def _seed_arrivals(
+    tenant: Tenant,
+    position: VolunteerPosition,
+    users: dict[str, User],
+    staff: User,
+    now_utc: datetime,
+) -> None:
+    """A shift starting in a few minutes, so self check-in is visible on any run.
+
+    Like the race rooms, this one is re-pointed at "now" on every run rather
+    than created once: a fixed time would have passed by the next day's seed.
+    player_two hasn't arrived (sign in as them to see the "I'm here" banner),
+    proctor_user said they're running late, and player_one checked themselves
+    in. Admin Desk, because it maps to no app role: a Race Proctor shift would
+    hand these users PROCTOR through the role mapping below.
+    """
+    starts_at = (now_utc + timedelta(minutes=15)).replace(second=0, microsecond=0)
+    shift, _ = await VolunteerShift.update_or_create(
+        position=position, label="Arrival demo", tenant=tenant,
+        defaults={"starts_at": starts_at, "ends_at": starts_at + timedelta(hours=2),
+                  "slots_needed": 3},
+    )
+    states = [
+        (users["player_two"], {"checked_in_at": None, "checked_in_by": None, "late_minutes": None}),
+        (users["proctor_user"], {"checked_in_at": None, "checked_in_by": None, "late_minutes": 20}),
+        (users["player_one"], {"checked_in_at": now_utc, "checked_in_by": users["player_one"],
+                               "late_minutes": None}),
+    ]
+    for user, state in states:
+        await VolunteerAssignment.update_or_create(
+            shift=shift, user=user, tenant=tenant,
+            defaults={"assigned_by": staff, "acknowledged_at": now_utc, **state},
+        )

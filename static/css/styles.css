@@ -1167,6 +1167,7 @@ body:has(.wiz-header) .q-notifications__list--top {
 }
 
 .wiz-banner--ok      { --banner-c: var(--status-ok); }
+.wiz-banner--live    { --banner-c: var(--status-live); }
 .wiz-banner--warning { --banner-c: var(--status-pending); }
 .wiz-banner--danger  { --banner-c: var(--status-cancelled); }
 
