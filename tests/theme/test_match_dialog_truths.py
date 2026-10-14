@@ -14,79 +14,22 @@ import inspect
 
 import pytest
 
-from theme.dialog.match_dialog_base import (
-    BaseMatchDialog,
-    acknowledgment_empty_state,
-)
+from theme.dialog.match_dialog_base import BaseMatchDialog
 
 
-class TestAcknowledgmentEmptyState:
-    """F5: the copy described the wrong absence."""
+class TestRewindMenu:
+    """Rewinding is one step picker behind the ⋮, not five arming buttons."""
 
-    def test_no_players_says_so(self):
-        assert acknowledgment_empty_state(0, sg_sourced=False) == 'No players assigned yet.'
+    def test_the_footer_menu_offers_rewind_and_clear_seed(self):
+        src = inspect.getsource(BaseMatchDialog._render_submit_footer)
+        assert "'Rewind…'" in src
+        assert "'Clear seed…'" in src
+        assert "'Call off match…'" in src
+        assert src.index("'Clear seed…'") < src.index("'Delete match…'")
 
-    def test_players_without_rows_does_not_claim_nobody_is_assigned(self):
-        text = acknowledgment_empty_state(2, sg_sourced=False)
-        assert 'No players assigned' not in text
-        assert '2 players are assigned' in text
-        assert 'acknowledgment rows' in text
-
-    def test_one_player_reads_as_singular(self):
-        assert '1 player is assigned' in acknowledgment_empty_state(1, sg_sourced=False)
-
-    def test_a_sourced_match_names_the_cause(self):
-        """This state is reachable almost only through the SpeedGaming sync."""
-        text = acknowledgment_empty_state(2, sg_sourced=True)
-        assert 'SpeedGaming' in text
-
-    def test_an_unsourced_match_does_not_blame_speedgaming(self):
-        assert 'SpeedGaming' not in acknowledgment_empty_state(2, sg_sourced=False)
-
-
-class TestClearSummary:
-    """F6: arming five lifecycle-clear buttons produced no summary at all."""
-
-    def test_nothing_armed_says_nothing(self):
-        assert BaseMatchDialog._clear_summary({}) == ''
-        assert BaseMatchDialog._clear_summary({'Check In': False}) == ''
-
-    def test_one_armed_step_is_named(self):
-        assert BaseMatchDialog._clear_summary(
-            {'Check In': True}) == 'Save will undo: Check In.'
-
-    def test_two_armed_steps_read_as_a_sentence(self):
-        assert BaseMatchDialog._clear_summary(
-            {'Check In': True, 'Started': True},
-        ) == 'Save will undo: Check In and Started.'
-
-    def test_three_armed_steps_keep_the_serial_comma_shape(self):
-        assert BaseMatchDialog._clear_summary(
-            {'Check In': True, 'Started': True, 'Finish': True},
-        ) == 'Save will undo: Check In, Started and Finish.'
-
-    def test_un_arming_removes_the_step_from_the_sentence(self):
-        """The whole point: the buttons used to be one-way."""
-        assert BaseMatchDialog._clear_summary(
-            {'Check In': True, 'Started': False},
-        ) == 'Save will undo: Check In.'
-
-
-def test_the_clear_buttons_toggle_rather_than_disable_themselves():
-    """A one-way arm meant closing the dialog — and losing every other edit —
-    was the only way to change your mind."""
-    src = inspect.getsource(BaseMatchDialog._render_clear_buttons)
-    assert 'btn.disable()' in src, 'a step the match never reached stays disabled'
-    # The arming path itself must not disable; it flips a flag both ways.
-    toggle = src[src.index('def toggle():'):src.index('btn = ui.button')]
-    assert 'disable()' not in toggle
-    assert 'not getattr(self, attr_flag)' in toggle
-
-
-def test_the_rewind_group_says_what_it_does():
-    src = inspect.getsource(BaseMatchDialog._render_clear_buttons)
-    assert 'Rewind the lifecycle' in src
-    assert 'undone when you press Save' in src
+    def test_clearing_the_seed_confirms_first(self):
+        src = inspect.getsource(BaseMatchDialog._confirm_clear_seed)
+        assert 'ConfirmationDialog' in src
 
 
 class TestStateSummary:

@@ -473,6 +473,22 @@ class MatchService(
 
         return match
 
+    async def rewind_match(self, match_id: int, to_step: str, *, actor: User) -> Match:
+        """Take a match back to ``to_step``, clearing every later step together."""
+        from application.services.match.match_rewind import clear_flags_for, rewind_targets
+
+        match = await self._require_match(match_id)
+        if to_step not in {step for step, _ in rewind_targets(match)}:
+            raise ValueError("This match hasn't gone past that step, so there's nothing to rewind.")
+        return await self.update_match(match_id, actor=actor, **clear_flags_for(to_step))
+
+    async def clear_match_seed(self, match_id: int, *, actor: User) -> Match:
+        """Drop the match's rolled seed so a new one can be rolled."""
+        match = await self._require_match(match_id)
+        if match.generated_seed_id is None:
+            raise ValueError("This match doesn't have a seed to clear.")
+        return await self.update_match(match_id, clear_seed=True, actor=actor)
+
     async def _announce_removed_players(self, match: Match, removed: List[User]) -> None:
         """Tell players dropped from the line-up, the way removed crew are told."""
         discord_ids = [int(u.discord_id) for u in removed if u.discord_id]

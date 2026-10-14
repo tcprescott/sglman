@@ -105,10 +105,6 @@ A match synced from SpeedGaming carries a **Synced from SpeedGaming** badge. Its
 tournament, players and time are locked, because the next sync would overwrite
 any change you made. Edit those on SpeedGaming.
 
-At the bottom, **Player Acknowledgments** shows who has confirmed they'll play
-and when. "(auto)" means the app acknowledged for them, usually because they
-requested the match themselves.
-
 ### Seed settings
 
 When a tournament offers a second, harder preset, the dialog shows **Seed
@@ -118,15 +114,14 @@ way to make the call yourself. Both players are DMed whichever you choose.
 
 ### Rewinding a match
 
-**Rewind the lifecycle** undoes steps that shouldn't have happened: a match
-checked in by mistake, a winner confirmed too soon, a seed rolled for the wrong
-pair. Each button (**Clear Check In**, **Clear Started**, **Clear Finish**,
-**Clear Confirmed**, **Clear Seed**) is armed by one press and disarmed by a
-second. Nothing changes until you press **Save**, and the line under the buttons
-says exactly what will be undone.
+Open the dialog's ⋮ menu and choose **Rewind…** when a step shouldn't have
+happened: a match checked in by mistake, or a result confirmed too soon. Pick
+the step to go back to (**Finished**, **Started**, **Checked in** or
+**Scheduled**) and every step after it is cleared together, straight away. The
+menu only offers steps the match has actually reached.
 
-Clearing a seed is how you re-roll one. The match's **Seed** line offers
-**Generate** again once it's gone.
+To re-roll a seed, choose **Clear seed…** from the same menu and confirm. The
+match's **Seed** line offers **Generate** again once it's gone.
 
 To correct only the winner, don't rewind. Open the match and press **Change
 result** instead (see [Match day queues](/help/staff-match-day)).
@@ -137,7 +132,7 @@ The match dialog's ⋮ menu, left of Cancel and Save, has two ways to call a mat
 
 | Menu item | What it does | Use it when |
 |---|---|---|
-| **Cancel match…** | Removes the match, DMs its players and crew, and closes any open race room | The match was real and people were planning around it |
+| **Call off match…** | Removes the match, DMs its players and crew, and closes any open race room | The match was real and people were planning around it |
 | **Delete match…** | Removes the match and tells nobody | It should never have existed: a duplicate, a test, a typo |
 
 If a player asked to call it off, approve their request instead (see
