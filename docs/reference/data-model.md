@@ -128,6 +128,7 @@ erDiagram
     User |o--o{ CommunityEvent : "reviewed_by"
     CommunityEvent ||--o{ CommunityEventSubscription : "event"
     User ||--o{ CommunityEventSubscription : "user"
+    User ||--o{ CommunityEventSeen : "user"
     User |o--o{ Equipment : "owner_user"
     Equipment ||--o{ EquipmentLoan : "equipment"
     User ||--o{ EquipmentLoan : "borrower"
@@ -792,6 +793,16 @@ A member asking for a DM before a community event starts (`community_event_subsc
 | `reminder_sent_at` | `DatetimeField` | null | Stamped by `community_event_reminder`; cleared when the event moves |
 | `going` | `BooleanField` | default `False` | An RSVP; counts only while the event has RSVPs on |
 | `created_at` | `DatetimeField` | auto | |
+
+#### `CommunityEventSeen`
+
+When a member last opened the community events listing (`community_event_seen`, migration 100, `unique_together = (tenant, user)`). Events listed after `seen_at` are new to them; no row means everything is. See [community-events.md](../features/community-events.md#whats-new).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='community_events_seen'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='community_events_seen'` |
+| `seen_at` | `DatetimeField` | not null | Moved to now each time they open the Community view |
 
 ### Tournament
 

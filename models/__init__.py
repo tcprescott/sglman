@@ -34,7 +34,7 @@ from .challonge import (
 )
 from .check_in import CheckInEntrant, CheckInEvent, CheckInPass, CheckInTier, MatcherinoLogin
 from .column_guards import FieldValueError, install_column_guards
-from .community_event import CommunityEvent, CommunityEventSubscription
+from .community_event import CommunityEvent, CommunityEventSeen, CommunityEventSubscription
 from .discord_events import DiscordScheduledEvent
 from .emergency_contact import EmergencyContact
 from .enums import (
@@ -201,6 +201,7 @@ __all__ = [
     # match / crew
     'Commentator',
     'CommunityEvent',
+    'CommunityEventSeen',
     'CommunityEventStatus',
     'CommunityEventSubscription',
     'DiscordEventSource',

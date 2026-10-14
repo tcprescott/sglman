@@ -10,14 +10,16 @@ Which view opens is driven by the incoming section slug, so the retired
 the Event tab in :mod:`pages.home`; ``/home/on-air`` redirects to ``/live``).
 """
 
-from typing import Awaitable, Callable, NamedTuple, Optional
+from typing import Any, Awaitable, Callable, NamedTuple, Optional
 
 from nicegui import ui
 
-from application.services import FeatureFlagService
-from models import FeatureFlag
+from application.services import CommunityEventService, FeatureFlagService
+from models import FeatureFlag, User
+from pages.community_events import EVENT_TAB, community_events_view
 from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.schedule import schedule as schedule_view
+from theme.nav_badges import nav_count_badge
 
 
 class EventView(NamedTuple):
@@ -32,12 +34,47 @@ class EventView(NamedTuple):
     flag: Optional[FeatureFlag] = None
 
 
-# Order is the reading order: the whole schedule, then the tournament
-# structure behind it.
+COMMUNITY = 'community'
+
+# Order is the reading order: the whole schedule, the tournament structure
+# behind it, then what attendees are running around it.
 VIEWS: tuple[EventView, ...] = (
     EventView('schedule', 'Schedule', 'schedule', schedule_view),
     EventView('brackets', 'Brackets', 'account_tree', brackets_tab, FeatureFlag.BRACKETS),
+    EventView(COMMUNITY, 'Community', 'groups', community_events_view, FeatureFlag.COMMUNITY_EVENTS),
 )
+
+
+class _SlottedToggle(ui.toggle):
+    """A ``ui.toggle`` whose segments can carry a named slot beside their label.
+
+    QBtnToggle renders an option's ``slot`` inside its button. NiceGUI rebuilds
+    the options on every update, so the slot names are put back each time.
+    """
+
+    def __init__(self, *args: Any, slots: Optional[dict[Any, str]] = None, **kwargs: Any) -> None:
+        self._option_slots = slots or {}
+        super().__init__(*args, **kwargs)
+
+    def _update_options(self) -> None:
+        super()._update_options()
+        for option, value in zip(self._props['options'], self._values, strict=True):
+            if value in self._option_slots:
+                option['slot'] = self._option_slots[value]
+
+
+async def community_new_count(user: Optional[User]) -> int:
+    """Community events listed since ``user`` last opened the Community view.
+
+    The Event tab's count. Zero, never an error, wherever the feature is off or
+    the viewer can't see the listing: it is a nudge on a page about something else.
+    """
+    if user is None or not await FeatureFlagService().is_enabled(FeatureFlag.COMMUNITY_EVENTS):
+        return 0
+    try:
+        return len(await CommunityEventService().unseen_ids(user))
+    except (ValueError, PermissionError):
+        return 0
 
 
 def available_views(live: set) -> list[EventView]:
@@ -58,7 +95,7 @@ def resolve_view(views: list[EventView], slug: Optional[str]) -> EventView:
     return next((v for v in views if v.slug == slug), views[0])
 
 
-async def event_tab(view: Optional[str] = None) -> None:
+async def event_tab(view: Optional[str] = None, community_new: int = 0) -> None:
     live = await FeatureFlagService().enabled_flags()
     views = available_views(live)
     state = {'slug': resolve_view(views, view).slug}
@@ -82,9 +119,16 @@ async def event_tab(view: Optional[str] = None) -> None:
                 # and the selected one was indistinguishable from the other two.
                 # `toggle-color` (primary by default) is the one that marks the
                 # selection; the rest of the look is .wiz-segmented in styles.css.
-                ui.toggle(
+                # The Event tab's count also rides the segment it leads to, and
+                # clears with it when that view opens.
+                badged = community_new > 0 and any(v.slug == COMMUNITY for v in views)
+                toggle = _SlottedToggle(
                     {v.slug: v.label for v in views},
                     value=state['slug'],
                     on_change=lambda e: switch(e.value),
+                    slots={COMMUNITY: COMMUNITY} if badged else None,
                 ).props('no-caps dense unelevated').classes('wiz-segmented')
+                if badged:
+                    with toggle.add_slot(COMMUNITY):
+                        nav_count_badge(EVENT_TAB, community_new).classes('q-ml-xs')
         await body()

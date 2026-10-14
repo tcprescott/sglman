@@ -29,6 +29,7 @@ from .check_in_repository import (
 from .commentator_repository import CommentatorRepository
 from .community_event_repository import (
     CommunityEventRepository,
+    CommunityEventSeenRepository,
     CommunityEventSubscriptionRepository,
 )
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
@@ -105,6 +106,7 @@ __all__ = [
     'CheckInUserLookupRepository',
     'CommentatorRepository',
     'CommunityEventRepository',
+    'CommunityEventSeenRepository',
     'CommunityEventSubscriptionRepository',
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',

@@ -51,7 +51,7 @@ equipment in.
 **Commentator**: crew who talk over a match on stream.
 
 **Community event**: a meetup, panel or side event an attendee runs and lists on
-the Community Events page. It isn't official programming. See
+Home › Event › Community. It isn't official programming. See
 [Community events](/help/community-events).
 
 **Comp / comped**: let into the event without buying a badge, because of a role

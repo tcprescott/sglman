@@ -10,7 +10,7 @@ from application.tenant_context import (
     stash_client_tenant_id,
 )
 from middleware.auth import bind_display_timezone, enforce_membership, record_page_view
-from pages.home_tabs.event import event_tab
+from pages.home_tabs.event import community_new_count, event_tab
 from pages.home_tabs.my_schedule import my_schedule_tab
 from pages.home_tabs.player import count_waiting_on_you
 from pages.home_tabs.player_edit_info import render_edit_info_tab
@@ -194,12 +194,17 @@ def create() -> None:
         # Each tab lists the slugs it absorbed. Those answer on read-in only, so
         # DMs already sent (docs/features/discord.md) keep landing where they
         # always did while the URL normalizes to the new slug on the first switch.
+        community_new = await community_new_count(user)
         tabs = [
             # `view` is the section slug the visitor arrived on: the Event tab
             # opens on the matching view, so /home/brackets still opens
             # Brackets rather than the board.
-            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'brackets'),
-             'content': (event_tab, (), {'view': section})},
+            # `badge` counts the community events listed since the member last
+            # opened the Community view (`/home/community`, which also answers
+            # the retired `/community-events`).
+            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'brackets', 'community'),
+             'badge': community_new,
+             'content': (event_tab, (), {'view': section, 'community_new': community_new})},
             # `schedule` is a bracket matchup id (`book` the same for a Challonge
             # matchup): the matches section opens its schedule dialog on arrival, so the "matchup ready" DM's button
             # lands on the date/time picker rather than on a page about it.

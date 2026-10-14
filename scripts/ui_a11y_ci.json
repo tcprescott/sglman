@@ -69,7 +69,7 @@
     { "name": "settings-watch", "path": "/admin/settings/watch" },
     { "name": "changelog", "path": "/changelog" },
     { "name": "event-info", "path": "/event-info" },
-    { "name": "community-events", "path": "/community-events" },
+    { "name": "community-events", "path": "/home/community" },
     { "name": "admin-community-events", "path": "/admin/community-events" },
     { "name": "platform", "path": "/platform", "platform": true }
   ]

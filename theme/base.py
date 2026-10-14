@@ -135,9 +135,6 @@ class BaseLayout:
         # is a public page, and someone who has not signed in is squarely who it
         # is written for.
         self._show_event_info = False
-        # Members only, like Feedback: the listing is the community's own and
-        # the page's membership gate would turn anyone else away.
-        self._show_community_events = False
         # Members only, for the same reason: /qualifiers runs the membership gate.
         self._show_qualifiers = False
         # The check-in desk, offered only while an event is open and to people
@@ -233,9 +230,6 @@ class BaseLayout:
         if self._tenant_id is not None:
             self._show_event_info = await FeatureFlagService().is_enabled(FeatureFlag.EVENT_INFO)
         if self._is_member:
-            self._show_community_events = await FeatureFlagService().is_enabled(
-                FeatureFlag.COMMUNITY_EVENTS,
-            )
             self._show_qualifiers = await FeatureFlagService().is_enabled(
                 FeatureFlag.ASYNC_QUALIFIERS,
             )
@@ -481,7 +475,7 @@ class BaseLayout:
         # NiceGUI renders the drawer body (.q-drawer__content) as a flex column,
         # so a trailing ui.space() pushes the copyright to the foot of the drawer
         # when the nav fits, and it falls to the scroll-end when the nav is long.
-        # 224px fits the longest label ("Community Events") with room to spare;
+        # 224px fits the longest label ("Event Information") with room to spare;
         # Quasar's 300px default left a wide empty strip beside the nav.
         with ui.left_drawer(value=False).props(
             'breakpoint=1023 show-if-above bordered width=224'
@@ -566,15 +560,6 @@ class BaseLayout:
                         ui.icon('event_note').props('size=sm')
                     with ui.item_section():
                         ui.item_label('Event Information')
-
-            if self._show_community_events:
-                with ui.item(
-                    on_click=lambda: ui.navigate.to('/community-events')
-                ).props('clickable v-ripple'):
-                    with ui.item_section().props('avatar'):
-                        ui.icon('groups').props('size=sm')
-                    with ui.item_section():
-                        ui.item_label('Community Events')
 
             if self._show_qualifiers:
                 with ui.item(

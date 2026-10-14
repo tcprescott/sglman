@@ -16,10 +16,15 @@ You need to be a member of the community to see the listing or add to it.
 
 ## Finding events
 
-Open **Community Events** in the side menu. It lists every event that hasn't
-finished yet, grouped by day, soonest first. Each card shows the time and
-length, where it is, and who's hosting. An event that's running right now
-carries a {chip:live:Happening now} chip.
+Open **Event** on Home and switch to **Community** at the top. It lists every
+event that hasn't finished yet, grouped by day, soonest first. Each card shows
+the time and length, where it is, and who's hosting. An event that's running
+right now carries a {chip:live:Happening now} chip.
+
+When events have gone up since you last looked, the **Event** tab and the
+**Community** switch both show how many. Those events carry a {chip:new:New}
+chip while you look through them, and the count clears once you've opened the
+list. Your own events never count as new.
 
 Tap an event's title for its own page, with the full description.
 
@@ -46,7 +51,7 @@ these are DMs, so they only reach you while Discord DMs are on in your
 [notification settings](/help/notifications#where-your-settings-live).
 :::
 
-![Community Events on a phone: the not-official notice and Submit an event, then events grouped by day. Morning coffee run is Happening now with a Remind me button marked 1, Board game night shows 2 of 6 going with an RSVP button marked 2, and Speedrun trivia shows 2 of 2 going with a greyed-out Full button marked 3. Your events at the bottom lists a cancelled event](/static/help/community-events/listing-phone.webp "**Remind me** (1), **RSVP** (2) and **Full** (3), depending on the event.")
+![The Community list on a phone: the not-official notice and Submit an event, then events grouped by day, each marked New on a first visit. Morning coffee run is Happening now with a Remind me button marked 1, Board game night shows 2 of 6 going with an RSVP button marked 2, and Speedrun trivia shows 2 of 2 going with a greyed-out Full button marked 3. Your events at the bottom lists a cancelled event](/static/help/community-events/listing-phone.webp "**Remind me** (1), **RSVP** (2) and **Full** (3), depending on the event.")
 
 The reminder goes out 30 minutes before the start unless staff have set a
 different lead time for the community.
@@ -54,7 +59,7 @@ different lead time for the community.
 ## Submitting your own
 
 :::snippet community-events-submit
-Tap **Submit an event** on the Community Events page. Give it a **Title**, when
+Tap **Submit an event** at the top of the community events list. Give it a **Title**, when
 it **Starts**, and how long it runs (anywhere from 5 minutes to 72 hours).
 **Where** and the **Description** are optional, but people are more likely to
 turn up when they know where to go and what to bring. The description takes

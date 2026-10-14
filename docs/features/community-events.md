@@ -1,6 +1,6 @@
 # Community Events
 
-A members-only listing at `/community-events` of the meetups, panels, side
+A members-only listing — the **Community** view of Home's Event tab (`/home/community`) — of the meetups, panels, side
 tournaments and board game nights that attendees run for each other during the
 onsite event. Members submit events, staff approve them, and anyone can subscribe
 to a listed event for a Discord DM shortly before it starts.
@@ -93,12 +93,29 @@ git-ignored.
 
 | Surface | Who | Gate |
 |---|---|---|
-| `/community-events` | members | `@protected_page(feature=COMMUNITY_EVENTS)`; drawer item for members where the flag is live |
+| Home → Event → **Community** (`/home/community`) | members | an `EventView` gated on `COMMUNITY_EVENTS` (`pages/home_tabs/event.py`); builder `community_events_view` in `pages/community_events.py` |
+| `/community-events` | members | `@protected_page(feature=COMMUNITY_EVENTS)`; redirects to `/home/community` |
 | `/community-events/{id}` | members (non-approved events: host and staff only, else 404) | same |
 | Admin → Community Events | STAFF | `FeatureFlag.COMMUNITY_EVENTS in live` |
 | Admin → Settings → Community Events | STAFF | same |
 
 No REST router or MCP tool exists yet.
+
+## What's new
+
+`CommunityEventSeen` (one row per member per community, migration 100) holds
+when the member last opened the Community view. An event is **new** to them when
+it's approved, not finished, not their own, and `listed_at(event)` (its
+`reviewed_at`, else `created_at` for one listed without review) is after that.
+No row means everything listed is new. `CommunityEventService.unseen_ids` reads
+it; `mark_seen` moves it to now, and opening the view calls both, in that order,
+so the New chips show on that visit only.
+
+The count rides the Event tab's `badge` (drawer and bottom nav) and the
+Community segment of the view switcher, all registered under the `Event` label
+in `theme/nav_badges.py`, so `set_nav_count('Event', 0)` clears every copy when
+the view opens. `community_new_count` (in `pages/home_tabs/event.py`) returns 0
+rather than raising when the flag is off or the viewer can't see the listing.
 
 ## Audit and webhooks
 

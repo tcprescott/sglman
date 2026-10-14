@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from models import (
     CommunityEvent,
+    CommunityEventSeen,
     CommunityEventStatus,
     CommunityEventSubscription,
     Tenant,
@@ -87,4 +88,13 @@ async def seed_community_events_for_tenant(
         )
     await CommunityEvent.filter(id=events['Speedrun trivia'].id).update(rsvp_enabled=True, rsvp_capacity=2)
     await CommunityEventSubscription.filter(event_id=events['Speedrun trivia'].id).update(going=True)
+    # The coffee run went up two days ago, the rest just now. player_one last
+    # opened the listing yesterday, so the rest carry a New chip and count on
+    # their Event tab; staff_user never has, so everything is new to them.
+    await CommunityEvent.filter(id=events['Morning coffee run'].id).update(
+        reviewed_at=now_utc - timedelta(days=2),
+    )
+    await CommunityEventSeen.update_or_create(
+        tenant=tenant, user=users['player_one'], defaults={'seen_at': now_utc - timedelta(days=1)},
+    )
     print(f"    [{tenant.slug}] community events ok (one per status, with subscriptions and RSVPs)")

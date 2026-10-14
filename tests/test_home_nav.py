@@ -30,7 +30,7 @@ LEGACY_PATHS = {
 # page function needs a request, a tenant and a signed-in user to assemble it,
 # none of which this test has or needs.
 HOME_TABS = [
-    {'label': 'Event', 'aliases': ('schedule', 'brackets')},
+    {'label': 'Event', 'aliases': ('schedule', 'brackets', 'community')},
     {'label': 'My Schedule', 'aliases': ('player', 'my-crew', 'availability', 'equipment')},
     {'label': 'Tournaments', 'aliases': ('triforce-texts',)},
     {'label': 'Profile'},
@@ -105,3 +105,13 @@ class TestTheEventViewSwitcher:
         views = available_views({FeatureFlag.BRACKETS})
         assert resolve_view(views, 'schedule').slug == 'schedule'
         assert resolve_view(views, 'brackets').slug == 'brackets'
+
+
+class TestTheCommunityView:
+    def test_community_drops_out_when_the_community_has_it_off(self):
+        assert 'community' not in [v.slug for v in available_views({FeatureFlag.BRACKETS})]
+        assert [v.slug for v in available_views({FeatureFlag.COMMUNITY_EVENTS})] == ['schedule', 'community']
+
+    def test_the_old_listing_url_lands_on_the_view(self):
+        layout = _layout('community')
+        assert layout._default_tab == 'Event'
