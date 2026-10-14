@@ -12,7 +12,8 @@ revise in place rather than appending a second snapshot.
 Wizzrobe's first tenant is **SpeedGaming Live**, and its first production use was
 **October 2025** — in a much cruder form than what's in this tree today (see git
 history for that era). The project was originally named **SGLMan**
-("SpeedGaming Live Manager"), reflected in this repo's name (`sglman`).
+("SpeedGaming Live Manager"), and the GitHub repository was called `sglman`
+until it was renamed to `wizzrobe` in October 2026.
 
 Its original purpose was narrow: simplify operations during SGL's on-site
 tournament. That purpose broadened once it became clear how much overlap exists
