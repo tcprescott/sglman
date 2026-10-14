@@ -40,9 +40,9 @@ from .feature_flag_repository import TenantFeatureFlagRepository
 from .feedback_repository import FeedbackRepository
 from .log_level_override_repository import LogLevelOverrideRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
+from .match_comment_repository import MatchCommentRepository
 from .match_hard_preset_repository import MatchHardPresetRepository
 from .match_repository import MatchRepository
-from .match_comment_repository import MatchCommentRepository
 from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .matcherino_login_repository import MatcherinoLoginRepository
@@ -113,9 +113,9 @@ __all__ = [
     'FeedbackRepository',
     'LogLevelOverrideRepository',
     'MatchAcknowledgmentRepository',
+    'MatchCommentRepository',
     'MatchHardPresetRepository',
     'MatchRepository',
-    'MatchCommentRepository',
     'MatchStreamVolunteerRepository',
     'MatchWatcherRepository',
     'MatcherinoLoginRepository',

@@ -35,6 +35,7 @@ async def my_schedule_tab(
     match: Optional[int] = None,
     hard: Optional[int] = None,
     agree: Optional[int] = None,
+    comments: Optional[int] = None,
 ) -> None:
     """The deep-link params belong to the matches section and pass straight
     through to it; see :func:`pages.home_tabs.player.render_player_dashboard` for
@@ -57,7 +58,7 @@ async def my_schedule_tab(
             await my_crew_tab(focus_match=match)
         await render_player_dashboard(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard,
-            agree=agree,
+            agree=agree, comments=comments,
         )
         if plays:
             await my_crew_tab(focus_match=match)

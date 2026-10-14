@@ -46,7 +46,7 @@ async def notify_match_comment(
             player_names=list(player_names),
             when=when,
         )
-        link = await notification_links.player_match(match_id, label='Open the match')
+        link = await notification_links.player_match_comments(match_id)
         discord_service = DiscordService()
         for user in recipients:
             if not user.discord_id:

@@ -5,6 +5,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AccommodationService,
+    MatchCommentService,
     MatchDisplayService,
     MatchHardPresetService,
     MatchRescheduleService,
@@ -82,7 +83,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
                  storage_key='match', default_state_filter=None, match_ids=None,
                  scope_tournament_ids=None, table_key=None, searchable=False,
                  show_accommodations=False, layout='table', on_open_match=None,
-                 run_sheet_group=None, proctor_run_sheet=False):
+                 run_sheet_group=None, proctor_run_sheet=False, show_comment_counts=False):
         self.columns = columns
         # 'table' draws every column's control in its cell (and a full card per
         # match on a phone); 'run_sheet' draws one grouped line per match and
@@ -108,6 +109,9 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         # Opt-in per surface (admin Schedule, Proctor Station); the service still
         # decides per viewer, so a tournament admin on the same board sees none.
         self.show_accommodations = show_accommodations
+        # Whether lines carry their player and staff comment counts. Staff
+        # boards only: the staff number includes private notes.
+        self.show_comment_counts = show_comment_counts
         self._plan = None
         # Serialises single-row updates. One service call can push match_live
         # twice (approving a move: once from update_match, once after the
@@ -497,6 +501,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         requestable_ids, asked_ids = await self._fetch_reschedule_state()
         hard_preset_states = await self._fetch_hard_preset_states(rows)
         await self._apply_accommodations(rows)
+        await self._apply_comment_counts(rows)
         stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
@@ -569,6 +574,14 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         if not user:
             return set()
         return set(await self.stream_volunteer_service.list_volunteered_match_ids(user))
+
+    async def _apply_comment_counts(self, rows) -> None:
+        """Stamp ``comment_counts`` on each row, in one query, on a staff board."""
+        if not (getattr(self, 'show_comment_counts', False) and self.access.run):
+            return
+        counts = await MatchCommentService().counts_by_match([row.get('id') for row in rows])
+        for row in rows:
+            row['comment_counts'] = counts.get(row.get('id'))
 
     async def _apply_accommodations(self, rows) -> None:
         """Mark each player with an arranged ADA accommodation, in one query.
@@ -692,6 +705,7 @@ class MatchTableView(MatchFiltersMixin, MatchTableHandlersMixin):
         carry_viewer_row_state(match_data, self.table.rows[idx])
         await self._restamp_shared_state(match_data)
         await self._apply_accommodations([match_data])
+        await self._apply_comment_counts([match_data])
         stage_options = self._stage_options()
         if stage_options is not None:
             match_data['stage_options'] = stage_options
