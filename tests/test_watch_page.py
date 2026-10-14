@@ -97,6 +97,7 @@ class TestBuildWatchView:
 
         [main] = view.stages
         assert main.channel == 'main'
+        assert main.channel_name == 'Main'
         assert main.stream_url == 'https://twitch.tv/Main'
         assert ' vs ' in main.on_now.players
         assert main.on_now.commentators == 'Caster'
@@ -303,3 +304,17 @@ class TestLayoutVotes:
                 await service.vote(None, 'one_page', 'up')
             with pytest.raises(PermissionError):
                 await service.tally(await make_user(discord_id=8002, username='nobody'))
+
+
+def test_a_twitch_stage_names_its_channel_as_the_link_spells_it():
+    from application.utils.twitch_embed import twitch_channel, twitch_channel_name
+
+    assert twitch_channel_name('https://www.twitch.tv/SpeedGaming') == 'SpeedGaming'
+    assert twitch_channel('https://www.twitch.tv/SpeedGaming') == 'speedgaming'
+    assert twitch_channel_name('https://youtube.com/@sg') is None
+    body = render_watch_document(WatchView(
+        community='C',
+        stages=[WatchStage(id=1, name='Main', stream_url='https://twitch.tv/SpeedGaming',
+                           channel='speedgaming', channel_name='SpeedGaming')],
+    ))
+    assert 'twitch.tv/SpeedGaming' in body

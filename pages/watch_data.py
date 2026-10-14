@@ -42,7 +42,7 @@ from application.utils.timezone import (
     to_local,
     today_local,
 )
-from application.utils.twitch_embed import twitch_channel
+from application.utils.twitch_embed import twitch_channel, twitch_channel_name
 from models import BracketState, FeatureFlag
 from theme.join_page import roster_label
 from theme.watch_view import (
@@ -260,6 +260,7 @@ async def build_watch_view(tenant_id: int) -> WatchView:
                 name=stage.name,
                 stream_url=http_url_or_empty(stage.stream_url),
                 channel=twitch_channel(stage.stream_url),
+                channel_name=twitch_channel_name(stage.stream_url),
                 on_now=_row(seated[-1]) if seated else None,
                 up_next=[_row(m) for m in waiting[:UP_NEXT_LIMIT]],
             ))

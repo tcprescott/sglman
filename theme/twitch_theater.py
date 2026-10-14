@@ -26,6 +26,7 @@ class NowPlaying:
     time: str = ''
     players: str = ''
     tournament: str = ''
+    channel_name: str = ''
 
 
 class TwitchTheater:
@@ -92,7 +93,8 @@ class TwitchTheater:
             self._on_change()
 
     def _paint(self, now: NowPlaying) -> None:
-        self.eyebrow.text = f'Watching {now.stage_name}'
+        self.eyebrow.text = f'Watching {now.stage_name}' + (
+            f' · twitch.tv/{now.channel_name}' if now.channel_name else '')
         self.time.text = now.time
         self.time.set_visibility(bool(now.time))
         self.chip.set_visibility(bool(now.players))

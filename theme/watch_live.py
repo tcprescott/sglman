@@ -37,12 +37,18 @@ def _now_playing(stage: WatchStage) -> NowPlaying:
     return NowPlaying(
         stage_id=stage.id,
         stage_name=stage.name,
+        channel_name=stage.channel_name or '',
         channel=stage.channel or '',
         stream_url=stage.stream_url,
         time=now.time if now else '',
         players=now.players if now else '',
         tournament=now.tournament if now else '',
     )
+
+
+def _channel_label(stage: WatchStage) -> None:
+    if stage.channel_name:
+        ui.label(f'twitch.tv/{stage.channel_name}').classes('stage-channel')
 
 
 def _open_in_schedule(match: WatchMatch, board_scope: Optional[FrozenSet[int]]) -> None:
@@ -183,7 +189,9 @@ class LiveWatch:
             for stage in view.stages:
                 with ui.element('div').classes('wiz-watch-tile'):
                     with ui.row().classes('wiz-watch-tile__head no-wrap items-center'):
-                        ui.label(stage.name).classes('stage-name')
+                        with ui.column().classes('stage-title'):
+                            ui.label(stage.name).classes('stage-name')
+                            _channel_label(stage)
                         if stage.channel and self.theater.available:
                             self._buttons[stage.id] = ui.button(
                                 'Watch', icon='play_arrow',
@@ -212,6 +220,7 @@ class LiveWatch:
             with ui.row().classes('stage-header no-wrap'):
                 with ui.column().classes('stage-title'):
                     ui.label(stage.name).classes('stage-name')
+                    _channel_label(stage)
                 if stage.channel and self.theater.available:
                     self._buttons[stage.id] = ui.button(
                         'Watch', icon='play_arrow',
