@@ -21,6 +21,7 @@ def _wants_dm(user: Optional[User]) -> bool:
 def event_embed(event: CommunityEvent, *, title: str, color: int, community_name: Optional[str],
                 description: str):
     from application.utils.discord_embeds import notification_embed, time_field
+    from application.utils.discord_messages_community_events import literal
 
     return notification_embed(
         title=title,
@@ -28,10 +29,10 @@ def event_embed(event: CommunityEvent, *, title: str, color: int, community_name
         community_name=community_name,
         description=description,
         fields=[
-            ('Event', event.title, False),
+            ('Event', literal(event.title), False),
             ('Starts', time_field(event.starts_at), False),
             ('Length', format_duration(event.duration_minutes), True),
-            ('Where', event.location or '', True),
+            ('Where', literal(event.location), True),
         ],
     )
 

@@ -3948,6 +3948,7 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 .wiz-help-link { color: var(--wiz-link); text-decoration: underline; }
+.wiz-user-link__icon { margin-left: 0.15em; vertical-align: -0.1em; }
 
 /* A state name renders as the board's own icon + label pair, so the help shows
    the reader the thing they will actually see. */

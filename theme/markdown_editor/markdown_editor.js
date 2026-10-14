@@ -23,7 +23,8 @@ const TOOLS = [
 // heading or a note block in them would outweigh the text around it.
 const COMPACT_TOOLS = ["bold", "italic", "code", "link", "bullets"];
 
-const SAFE_HREF = /^(https:\/\/\S+|mailto:\S+|\/\S*)$/;
+// Mirrors application/content/blocks.py: `//host` and `/\host` are other sites.
+const SAFE_HREF = /^(https:\/\/[^\s\\]+|mailto:\S+|\/(?![\/\\])[^\s\\]*)$/;
 
 export default {
   template: `

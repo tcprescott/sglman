@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from nicegui import ui
 
-from application.content import parse_blocks
+from application.content import parse_user_blocks
 from application.services import CommunityEventService
 from application.utils.timezone import format_local_display
 from models import CommunityEvent, CommunityEventStatus
@@ -18,7 +18,7 @@ from theme.dialog._helpers import dialog_actions, dialog_more_menu, form_dialog
 from theme.dialog.community_event_dialog import CommunityEventDialog
 from theme.empty_state import no_data_slot
 from theme.help import help_icon
-from theme.help.render import render_blocks
+from theme.help.render import render_user_blocks
 from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -128,7 +128,7 @@ def _review_dialog(service: CommunityEventService, actor, event: CommunityEvent,
                 meta_row('feedback', f'Last reason given: {event.review_note}')
             if event.description:
                 with ui.column().classes('wiz-community-event__body gap-0 full-width'):
-                    render_blocks(parse_blocks(event.description))
+                    render_user_blocks(parse_user_blocks(event.description))
             ui.label(DISCLAIMER).classes('text-caption text-muted')
             reason = ui.textarea(
                 'Reason (sent to the host if you reject it)',

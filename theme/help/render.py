@@ -14,11 +14,24 @@ from nicegui import ui
 
 from application.help import STATE_STYLES, Block, Span
 
-__all__ = ['render_blocks', 'render_spans']
+__all__ = ['render_blocks', 'render_spans', 'render_user_blocks']
 
 
-def _render_span(span: Span) -> None:
-    if span.kind == 'link':
+def _render_user_link(span: Span) -> None:
+    # Someone else wrote this link, so it always opens a new tab, says it leaves
+    # the page, and passes on neither the opener nor the referring path.
+    link = ui.link('', span.href, new_tab=True).classes('wiz-help-link wiz-user-link')
+    link.props['rel'] = 'noopener noreferrer nofollow'
+    link.props['aria-label'] = f'{span.text} (opens in a new tab)'
+    with link:
+        ui.label(span.text).classes('wiz-help-inline')
+        ui.icon('open_in_new').props('size=0.9em aria-hidden=true').classes('wiz-user-link__icon')
+
+
+def _render_span(span: Span, *, untrusted: bool = False) -> None:
+    if span.kind == 'link' and untrusted:
+        _render_user_link(span)
+    elif span.kind == 'link':
         # Internal links stay in this tab; anything off-site opens a new one, so
         # a reader following a link out of the help does not lose their place.
         ui.link(span.text, span.href, new_tab=not span.href.startswith(('/', '#'))) \
@@ -44,10 +57,10 @@ def _render_span(span: Span) -> None:
         ui.label(span.text).classes('wiz-help-inline')
 
 
-def render_spans(spans: tuple[Span, ...]) -> None:
+def render_spans(spans: tuple[Span, ...], *, untrusted: bool = False) -> None:
     """Render one run of inline content into the current slot."""
     for span in spans:
-        _render_span(span)
+        _render_span(span, untrusted=untrusted)
 
 
 def _render_table(block: Block) -> None:
@@ -70,12 +83,12 @@ def _render_table(block: Block) -> None:
                                 render_spans(cell)
 
 
-def _render_list(block: Block) -> None:
+def _render_list(block: Block, *, untrusted: bool = False) -> None:
     tag = 'ul' if block.kind == 'bullets' else 'ol'
     with ui.element(tag).classes('wiz-help-list'):
         for item in block.items:
             with ui.element('li'):
-                render_spans(item)
+                render_spans(item, untrusted=untrusted)
 
 
 def _img(block: Block, *, lazy: bool):
@@ -140,3 +153,17 @@ def render_blocks(blocks, *, heading_offset: int = 0) -> None:
                 ui.icon('info').props('size=xs').classes('wiz-help-note-icon')
                 with ui.element('span'):
                     render_spans(block.spans)
+
+
+def render_user_blocks(blocks) -> None:
+    """Render text a player or volunteer wrote (from ``parse_user_blocks``).
+
+    Only paragraphs and lists are drawn; any other block kind is skipped rather
+    than trusted, and every link is marked as leaving the page.
+    """
+    for block in blocks:
+        if block.kind == 'para':
+            with ui.element('p').classes('wiz-help-p'):
+                render_spans(block.spans, untrusted=True)
+        elif block.kind in ('bullets', 'numbers'):
+            _render_list(block, untrusted=True)
