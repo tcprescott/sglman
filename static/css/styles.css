@@ -380,6 +380,8 @@ main.q-page:focus {
 .wiz-chip--neutral   { --chip-c: var(--status-neutral); }
 .wiz-chip--cancelled { --chip-c: var(--status-cancelled); }
 .wiz-chip--candidate { --chip-c: var(--wiz-gold-deep); }
+/* The community events listed since the last visit: the nav count's colour. */
+.wiz-chip--new       { --chip-c: var(--wiz-count-bg); }
 
 .body--dark .wiz-chip--candidate,
 .q-dark .wiz-chip--candidate {

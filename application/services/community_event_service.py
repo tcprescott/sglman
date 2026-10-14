@@ -33,6 +33,7 @@ from application.events import EventType
 from application.feature_flags import requires_feature
 from application.repositories.community_event_repository import (
     CommunityEventRepository,
+    CommunityEventSeenRepository,
     CommunityEventSubscriptionRepository,
 )
 from application.services import _community_event_notifications as notify
@@ -73,6 +74,15 @@ class EventDraft:
 
 def ends_at(event: CommunityEvent) -> datetime:
     return event.starts_at + timedelta(minutes=event.duration_minutes)
+
+
+def listed_at(event: CommunityEvent) -> datetime:
+    """When ``event`` went onto the listing: its approval, else its submission.
+
+    A submission listed without review (approval off) has no ``reviewed_at``.
+    A re-approval after a takedown moves it, so a returning event is new again.
+    """
+    return event.reviewed_at or event.created_at
 
 
 def _now() -> datetime:
@@ -124,6 +134,7 @@ class CommunityEventService:
     def __init__(self) -> None:
         self.repository = CommunityEventRepository()
         self.subscriptions = CommunityEventSubscriptionRepository()
+        self.seen = CommunityEventSeenRepository()
         self.audit_service = AuditService()
 
     # --- access -----------------------------------------------------------
@@ -184,6 +195,26 @@ class CommunityEventService:
             [CommunityEventStatus.APPROVED], starts_after=now - _RUNNING_LOOKBACK,
         )
         return [e for e in events if ends_at(e) > now]
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def unseen_ids(self, actor: User) -> Set[int]:
+        """Listed events that went up since ``actor`` last opened the listing.
+
+        Their own events never count. Someone who has never opened it has
+        everything still to come as new.
+        """
+        await self._ensure_member(actor)
+        seen = await self.seen.seen_at(actor.id)
+        return {
+            e.id for e in await self.list_upcoming(actor)
+            if e.host_id != actor.id and (seen is None or listed_at(e) > seen)
+        }
+
+    @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
+    async def mark_seen(self, actor: User) -> None:
+        """``actor`` has opened the listing, so nothing on it is new any more."""
+        await self._ensure_member(actor)
+        await self.seen.mark(actor.id, _now())
 
     @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
     async def list_mine(self, actor: User) -> List[CommunityEvent]:

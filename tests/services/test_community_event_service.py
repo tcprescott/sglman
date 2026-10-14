@@ -515,3 +515,50 @@ async def test_the_approval_dm_matches_how_members_sign_up(member, staff, dms, r
 
     [sent] = await dms()
     assert says in sent['text']
+
+
+# --- what's new since the last visit --------------------------------------------
+
+
+async def test_everything_listed_is_new_until_the_listing_is_opened(member, other_member, staff, dms):
+    service = CommunityEventService()
+    theirs = await service.submit(staff, _draft(title='Panel'))
+    await service.submit(other_member, _draft(title='Waiting'))
+
+    assert await service.unseen_ids(member) == {theirs.id}
+
+    await service.mark_seen(member)
+
+    assert await service.unseen_ids(member) == set()
+
+
+async def test_an_event_listed_after_the_last_visit_is_new_and_your_own_never_is(member, staff, dms):
+    service = CommunityEventService()
+    await service.mark_seen(member)
+    mine = await service.submit(member, _draft(title='Mine'))
+    await service.approve(staff, mine.id)
+    later = await service.submit(staff, _draft(title='Later'))
+
+    assert await service.unseen_ids(member) == {later.id}
+
+
+async def test_an_event_put_back_after_a_takedown_is_new_again(member, staff, dms):
+    service = CommunityEventService()
+    event = await service.submit(staff, _draft())
+    await service.mark_seen(member)
+    await service.reject(staff, event.id, 'Wrong room')
+    await service.mark_seen(member)
+
+    await service.approve(staff, event.id)
+
+    assert await service.unseen_ids(member) == {event.id}
+
+
+async def test_whats_new_is_for_members_only(staff, dms):
+    outsider = await make_user(discord_id=603, username='outsider')
+    service = CommunityEventService()
+    await service.submit(staff, _draft())
+
+    for call in (service.unseen_ids(outsider), service.mark_seen(outsider)):
+        with pytest.raises(PermissionError):
+            await call

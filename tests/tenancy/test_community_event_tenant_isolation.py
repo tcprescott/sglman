@@ -6,7 +6,7 @@ import pytest
 
 from application.services.community_event_service import CommunityEventService, EventDraft
 from application.tenant_context import tenant_scope
-from models import CommunityEvent, CommunityEventSubscription, Role, TenantMembership, UserRole
+from models import CommunityEvent, CommunityEventSeen, CommunityEventSubscription, Role, TenantMembership, UserRole
 from tests.factories import make_user
 
 
@@ -44,6 +44,8 @@ async def test_community_events_do_not_leak_across_tenants(two_tenants):
         ):
             with pytest.raises(ValueError):
                 await call
+        assert await service.unseen_ids(member) == set()
+        await service.mark_seen(member)
         mine, counts = await service.subscription_state(member, [listed.id])
         assert mine == set() and counts == {}
         await service.unsubscribe(member, listed.id)
@@ -51,3 +53,8 @@ async def test_community_events_do_not_leak_across_tenants(two_tenants):
     assert await CommunityEventSubscription.filter(event_id=listed.id).count() == 1
     assert (await CommunityEvent.get(id=pending.id)).status.value == 'pending'
     assert (await CommunityEvent.get(id=listed.id)).status.value == 'approved'
+
+    with tenant_scope(a.id):
+        # Opening B's listing marked nothing seen in A.
+        assert await service.unseen_ids(member) == {listed.id}
+        assert await CommunityEventSeen.filter(user=member).count() == 1

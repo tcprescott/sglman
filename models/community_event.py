@@ -85,3 +85,28 @@ class CommunityEventSubscription(Model):
         table = 'community_event_subscription'
         unique_together = (('event', 'user'),)
         indexes = (('tenant',), ('reminder_sent_at',))
+
+
+class CommunityEventSeen(Model):
+    """When a member last opened the community events listing.
+
+    One row per member per community. An approved event listed after
+    ``seen_at`` is new to them, which is what the count on Home's Event tab
+    shows; opening the listing moves ``seen_at`` to now. No row means they
+    have never looked, so everything listed is new.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='community_events_seen', on_delete=fields.CASCADE,
+    )
+    tenant_id: int
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='community_events_seen', on_delete=fields.CASCADE,
+    )
+    user_id: int
+    seen_at = fields.DatetimeField()
+
+    class Meta:
+        table = 'community_event_seen'
+        unique_together = (('tenant', 'user'),)

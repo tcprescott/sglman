@@ -2,7 +2,7 @@
   {
     "name": "listing-phone",
     "user": "player_four",
-    "path": "/community-events",
+    "path": "/home/community",
     "selector": ".wiz-community-events",
     "hide": [
       ".q-footer"
@@ -25,7 +25,7 @@
   {
     "name": "submit-phone",
     "user": "player_four",
-    "path": "/community-events",
+    "path": "/home/community",
     "setup": [
       {
         "click": "button:has-text('Submit an event')"

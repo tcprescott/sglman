@@ -73,7 +73,7 @@ IMAGE_SRC_RE = re.compile(r'^/static/help/[a-z0-9-]+/[a-z0-9-]+\.(?:webp|png)$')
 
 # The six chip tones static/css/styles.css defines. An article naming any other
 # falls back to neutral rather than emitting a class with no rule behind it.
-CHIP_TONES = frozenset({'ok', 'pending', 'live', 'neutral', 'cancelled', 'candidate'})
+CHIP_TONES = frozenset({'ok', 'pending', 'live', 'neutral', 'cancelled', 'candidate', 'new'})
 
 # The five match states the schedule board actually shows a player or crew
 # member, mapped to the icon and colour class the board's own state cell uses

@@ -14,6 +14,7 @@ from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
     CommunityEvent,
+    CommunityEventSeen,
     CommunityEventStatus,
     CommunityEventSubscription,
     User,
@@ -146,3 +147,20 @@ class CommunityEventSubscriptionRepository(TenantScopedRepository[CommunityEvent
             event__starts_at__gte=window_start,
             event__starts_at__lte=window_end,
         ).prefetch_related('event', 'user')
+
+
+class CommunityEventSeenRepository(TenantScopedRepository[CommunityEventSeen]):
+    """When each member last opened the community events listing."""
+
+    model = CommunityEventSeen
+
+    @staticmethod
+    async def seen_at(user_id: int) -> Optional[datetime]:
+        row = await CommunityEventSeen.get_or_none(user_id=user_id, tenant_id=current_tenant_id())
+        return row.seen_at if row else None
+
+    @staticmethod
+    async def mark(user_id: int, when: datetime) -> None:
+        await CommunityEventSeen.update_or_create(
+            defaults={'seen_at': when}, user_id=user_id, tenant_id=current_tenant_id(),
+        )

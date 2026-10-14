@@ -1,8 +1,10 @@
 """Community events: what members are running for each other during the event.
 
-``/community-events`` lists the approved events still to come, grouped by day,
-with a reminder toggle (or an RSVP button, when the host takes RSVPs) on each,
-the viewer's own submissions underneath, and the Submit button. ``/community-events/{id}`` is one event, and is where every DM
+The listing is the Community view on Home's Event tab (``/home/community``;
+``/community-events`` redirects there): the approved events still to come,
+grouped by day, with a reminder toggle (or an RSVP button, when the host takes
+RSVPs) on each, the viewer's own submissions underneath, and the Submit button.
+``/community-events/{id}`` is one event, and is where every DM
 about it lands: a subscriber's reminder, a host's approval or rejection.
 
 Members only (``protected_page`` runs the membership gate) and behind
@@ -14,7 +16,9 @@ block parser, never as markup.
 from itertools import groupby
 from typing import Optional
 
+from fastapi import Request
 from nicegui import app, ui
+from starlette.responses import RedirectResponse
 
 from application.content import parse_user_blocks
 from application.services import (
@@ -42,12 +46,16 @@ from theme.empty_state import empty_state
 from theme.error_page import render_not_found
 from theme.help import help_icon
 from theme.help.render import render_user_blocks
+from theme.nav_badges import set_nav_count
 from theme.notify import notify_error
 from theme.page_header import page_header
 
 __all__ = ['create']
 
 INDEX = '/community-events'
+#: Where the listing lives: the Community view of Home's Event tab.
+LISTING = '/home/community'
+EVENT_TAB = 'Event'
 
 
 async def _viewer() -> Optional[User]:
@@ -151,11 +159,14 @@ async def _attendance_state(service: CommunityEventService, user: User, event_id
     return {'subscribed': subscribed, 'counts': counts, 'going': going, 'going_counts': going_counts}
 
 
-def _event_card(service, user, event: CommunityEvent, state: dict, on_change) -> None:
+def _event_card(service, user, event: CommunityEvent, state: dict, on_change, *, new: bool = False) -> None:
     with ui.card().classes('wiz-community-event full-width'):
         with ui.row().classes('items-start justify-between no-wrap full-width gap-2'):
             with ui.column().classes('gap-1 col min-w-0'):
-                ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
+                with ui.row().classes('items-center gap-2'):
+                    ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
+                    if new:
+                        chip('New', 'new')
                 with ui.row().classes('items-center gap-2'):
                     if is_live(event):
                         chip('Happening now', 'live')
@@ -170,65 +181,83 @@ def _event_card(service, user, event: CommunityEvent, state: dict, on_change) ->
             _attendance(service, user, event, state, on_change)
 
 
-def create() -> None:
-    @protected_page('/community-events', feature=FeatureFlag.COMMUNITY_EVENTS)
-    async def community_events_index() -> None:
-        user = await _viewer()
-        if user is None:
-            ui.label('Your account could not be found.').classes('text-error')
-            return
-        await _chrome(user, 'Community Events')
-        service = CommunityEventService()
-        is_staff = await AuthService.is_staff(user)
-        needs_review = await SystemConfigService.community_events_require_approval()
+async def community_events_view() -> None:
+    """The listing, as the Community view on Home's Event tab.
 
-        with ui.column().classes('wiz-community-events page-container-narrow w-full gap-3'):
-            with page_header('Community Events', 'Meetups, panels and side events attendees are running.'):
+    Opening it is what "seen" means: the events new since the last visit carry
+    a New chip this once, and the count on the Event tab clears.
+    """
+    user = await _viewer()
+    if user is None:
+        ui.label('Your account could not be found.').classes('text-error')
+        return
+    service = CommunityEventService()
+    is_staff = await AuthService.is_staff(user)
+    needs_review = await SystemConfigService.community_events_require_approval()
+    try:
+        new_ids = await service.unseen_ids(user)
+        await service.mark_seen(user)
+    except (ValueError, PermissionError) as e:
+        notify_error(e)
+        return
+    set_nav_count(EVENT_TAB, 0)
+
+    with ui.column().classes('wiz-community-events page-container w-full gap-3'):
+        disclaimer()
+        with ui.row().classes('items-center justify-between w-full gap-2'):
+            with ui.row().classes('items-center gap-1 no-wrap'):
+                ui.label('Meetups, panels and side events attendees are running.') \
+                    .classes('wiz-community-event__meta')
                 await help_icon('community-events-attend', 'community-events-submit', user=user)
-            disclaimer()
-
-            @ui.refreshable
-            async def upcoming() -> None:
-                events = await service.list_upcoming(user)
-                if not events:
-                    empty_state('Nothing is listed yet. Running something? Submit it.')
-                    return
-                state = await _attendance_state(service, user, [e.id for e in events])
-                for day, group in groupby(events, key=day_label):
-                    ui.label(day).classes('wiz-community-event__day')
-                    with ui.element('div').classes('wiz-tile-grid'):
-                        for event in group:
-                            _event_card(service, user, event, state, refresh_all)
-
-            @ui.refreshable
-            async def submissions() -> None:
-                events = await service.list_mine(user)
-                if not events:
-                    return
-                ui.label('Your events').classes('wiz-community-event__day')
-                with ui.element('div').classes('wiz-tile-grid'):
-                    for event in events:
-                        with ui.card().classes('wiz-community-event full-width'):
-                            with ui.row().classes('items-center gap-2'):
-                                ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
-                                status_chip(event)
-                            ui.label(when_line(event, with_day=True)).classes('wiz-community-event__meta')
-                            if event.status is CommunityEventStatus.REJECTED and event.review_note:
-                                meta_row('feedback', f'Staff said: {event.review_note}')
-
-            async def refresh_all(_saved=None) -> None:
-                upcoming.refresh()
-                submissions.refresh()
-
             ui.button(
                 'Submit an event', icon='add',
                 on_click=lambda: CommunityEventDialog(
                     user, is_staff=is_staff, needs_review=needs_review, on_saved=refresh_all,
                 ).open(),
-            ).props('color=primary').classes('self-start')
+            ).props('color=primary')
 
-            await upcoming()
-            await submissions()
+        @ui.refreshable
+        async def upcoming() -> None:
+            events = await service.list_upcoming(user)
+            if not events:
+                empty_state('Nothing is listed yet. Running something? Submit it.')
+                return
+            state = await _attendance_state(service, user, [e.id for e in events])
+            for day, group in groupby(events, key=day_label):
+                ui.label(day).classes('wiz-community-event__day')
+                with ui.element('div').classes('wiz-tile-grid'):
+                    for event in group:
+                        _event_card(service, user, event, state, refresh_all, new=event.id in new_ids)
+
+        @ui.refreshable
+        async def submissions() -> None:
+            events = await service.list_mine(user)
+            if not events:
+                return
+            ui.label('Your events').classes('wiz-community-event__day')
+            with ui.element('div').classes('wiz-tile-grid'):
+                for event in events:
+                    with ui.card().classes('wiz-community-event full-width'):
+                        with ui.row().classes('items-center gap-2'):
+                            ui.link(event.title, f'{INDEX}/{event.id}').classes('wiz-community-event__title')
+                            status_chip(event)
+                        ui.label(when_line(event, with_day=True)).classes('wiz-community-event__meta')
+                        if event.status is CommunityEventStatus.REJECTED and event.review_note:
+                            meta_row('feedback', f'Staff said: {event.review_note}')
+
+        async def refresh_all(_saved=None) -> None:
+            upcoming.refresh()
+            submissions.refresh()
+
+        await upcoming()
+        await submissions()
+
+
+def create() -> None:
+    # The listing moved onto Home's Event tab; bookmarks and old links follow it.
+    @protected_page('/community-events', feature=FeatureFlag.COMMUNITY_EVENTS)
+    async def community_events_index(request: Request) -> RedirectResponse:
+        return RedirectResponse(f"{request.scope.get('root_path', '')}{LISTING}")
 
     @protected_page('/community-events/{event_id}', feature=FeatureFlag.COMMUNITY_EVENTS)
     async def community_event_detail(event_id: int) -> None:
@@ -243,7 +272,7 @@ def create() -> None:
             await render_not_found(
                 user=user,
                 message="We couldn't find that event. It may have been cancelled or taken down.",
-                actions=[('All community events', 'event', INDEX)],
+                actions=[('All community events', 'event', LISTING)],
             )
             return
 
@@ -255,7 +284,7 @@ def create() -> None:
         async def body() -> None:
             current = await service.get_event(user, event_id)
             with ui.column().classes('page-container-narrow w-full gap-3'):
-                ui.link('← All community events', INDEX).classes('text-caption')
+                ui.link('← All community events', LISTING).classes('text-caption')
                 page_header(current.title)
                 disclaimer()
                 with ui.row().classes('items-center gap-2'):
