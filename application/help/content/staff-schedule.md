@@ -98,7 +98,7 @@ the winner, and whether it's flagged), then everything below edits it.
 
 Moving the date or time tells everyone on the match and asks the players to
 acknowledge again. Changing the players asks the new line-up to acknowledge;
-a player you take off isn't told. Commentators and trackers you add or remove
+a player you take off gets a DM saying so. Commentators and trackers you add or remove
 both get a DM.
 
 A match synced from SpeedGaming carries a **Synced from SpeedGaming** badge. Its

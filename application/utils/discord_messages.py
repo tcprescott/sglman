@@ -412,6 +412,29 @@ def cancelled_dm(
     )
 
 
+def removed_from_match_dm(
+    tournament_name: str,
+    *,
+    scheduled_at_display: str = '',
+    stage_name: str = '',
+    bracket_line: str = '',
+) -> str:
+    """DM to a player staff took off a match's line-up."""
+    info = _match_info_lines(
+        scheduled_at_display=scheduled_at_display,
+        stage_name=stage_name,
+        time_label='Was scheduled for',
+        bracket_line=bracket_line,
+    )
+    block = ("\n".join(info) + "\n\n") if info else ''
+    return (
+        f"Staff have taken you off a match in **{tournament_name}**, so you're no "
+        "longer playing in it.\n\n"
+        f"{block}"
+        "Nothing else to do here. If you think this is a mistake, ask staff."
+    )
+
+
 def state_changed_dm(
     tournament_name: str,
     new_state: str,

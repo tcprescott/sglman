@@ -13,7 +13,7 @@ on under **Profile → Notifications**. There is no email and no SMS.
 
 | You are | You hear about |
 |---|---|
-| A player | Being scheduled, rescheduled or cancelled; your match being confirmed; the answer to a change request you sent |
+| A player | Being scheduled, rescheduled or cancelled; being taken off a match; your match being confirmed; the answer to a change request you sent |
 | A player whose opponent asked to change a match | Their request, with an **Agree** button |
 | Crew | Your signup being approved, and approval being withdrawn |
 | A volunteer | Being assigned a shift, and a reminder before it starts |

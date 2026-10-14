@@ -404,8 +404,11 @@ class MatchService(
         if update_fields:
             await self.repository.update(match, **update_fields)
 
+        removed_players: List[User] = []
         if player_ids is not None:
-            await self.participants.sync_players(match, player_ids, tournament_id or match.tournament_id)
+            removed_players = await self.participants.sync_players(
+                match, player_ids, tournament_id or match.tournament_id,
+            )
 
         # After both: a swap can break an agreement the remaining players were
         # told about, dropping the one holdout can complete one, and moving the
@@ -464,10 +467,41 @@ class MatchService(
                 ))
 
         await self._announce_crew_changes(assigned_crew, actor, removed_crew)
+        await self._announce_removed_players(match, removed_players)
 
         match_live.publish(match.id)
 
         return match
+
+    async def _announce_removed_players(self, match: Match, removed: List[User]) -> None:
+        """Tell players dropped from the line-up, the way removed crew are told."""
+        discord_ids = [int(u.discord_id) for u in removed if u.discord_id]
+        if not discord_ids:
+            return
+        from application.services.match.match_schedule_service import (
+            _community_name,
+            _match_embed_kwargs,
+            bracket_dm_context,
+        )
+        from application.utils.discord_embeds import COLOR_CANCELLED, match_embed, time_field
+        from application.utils.discord_messages import removed_from_match_dm
+
+        await match.fetch_related('tournament', 'players__user', 'stage')
+        bracket_line, _ = await bracket_dm_context(match.id)
+        message = removed_from_match_dm(
+            match.tournament.name,
+            scheduled_at_display=time_field(match.scheduled_at),
+            stage_name=match.stage.name if match.stage else '',
+            bracket_line=bracket_line,
+        )
+        embed = match_embed(
+            title='Removed from match',
+            color=COLOR_CANCELLED,
+            **_match_embed_kwargs(match, await _community_name()),
+        )
+        discord_queue.enqueue(
+            self.match_schedule_service.notify_players_removed(discord_ids, message, embed)
+        )
 
     async def _announce_crew_changes(
         self, assigned_crew: list, actor: Optional[User], removed_crew: Optional[list] = None,
