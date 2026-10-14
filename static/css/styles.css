@@ -917,6 +917,9 @@ body:has(.wiz-header) .q-notifications__list--top {
     gap: 0;
     align-items: stretch;
 }
+.q-drawer .wiz-nav-sub {
+    width: 100%;
+}
 .q-drawer .wiz-nav-group > .q-expansion-item__container > .q-item,
 .q-drawer .q-item.wiz-nav-depth-1 {
     padding-left: 22px;

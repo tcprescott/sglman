@@ -246,8 +246,10 @@ class SideMenu:
                     entry = NavEntry(path=hub.path, label=hub.label, icon=hub.icon)
                     self._entry_item(entry, pinnable=pinnable, target=hub.path)
                     continue
+                # Each expansion is a listitem of the list it sits in and holds its
+                # rows in a list of its own, so the ARIA list structure stays whole.
                 with ui.expansion(hub.label, icon=hub.icon, value=hub.key in open_set).classes(
-                        'wiz-nav-hub') as exp:
+                        'wiz-nav-hub').props('role=listitem') as exp, ui.list().classes('wiz-nav-sub'):
                     exp.on_value_change(lambda e, k=hub.key: self._set_open(k, e.value))
                     groups = [g for g in dict.fromkeys(e.group for e in hub.entries)]
                     if groups == [None]:
@@ -257,7 +259,8 @@ class SideMenu:
                     for group in groups:
                         key = f'{hub.key}:{group}'
                         with ui.expansion(group or 'More', icon=GROUP_ICONS.get(group or '', 'folder'),
-                                          value=key in open_set).classes('wiz-nav-group') as sub:
+                                          value=key in open_set).classes('wiz-nav-group').props(
+                                'role=listitem') as sub, ui.list().classes('wiz-nav-sub'):
                             sub.on_value_change(lambda e, k=key: self._set_open(k, e.value))
                             for entry in hub.entries:
                                 if entry.group == group:
