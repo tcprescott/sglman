@@ -269,10 +269,10 @@ async def admin_settings_page(
         with form_dialog('Leave without saving?', card_classes='dialog-card dialog-card--sm') as dialog:
             with ui.column().classes('q-pa-md'):
                 ui.label(f'Your changes on {label} haven’t been saved.')
-            with dialog_actions().classes('justify-end'):
+            with dialog_actions().classes('justify-end'):  # style-guide: exempt — a three-way choice, short labels keep it one line
                 ui.button('Keep editing', on_click=dialog.close).props('flat no-caps')
-                ui.button('Discard changes', on_click=discard_and_leave).props('outline no-caps color=primary')
-                ui.button('Save and leave', on_click=save_and_leave).props('unelevated no-caps color=primary')
+                ui.button('Discard', on_click=discard_and_leave).props('outline no-caps color=primary')
+                ui.button('Save', on_click=save_and_leave).props('unelevated no-caps color=primary')
         dialog.open()
 
     with ui.column().classes('wiz-settings'):

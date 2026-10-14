@@ -327,6 +327,9 @@ async def admin_presets_page() -> None:
                             note += f', {already} already imported'
                         ui.label(note).classes('text-caption text-grey')
 
+                    fetch_button = ui.button(
+                        'Fetch presets', icon='cloud_download', on_click=lambda: fetch(),
+                    ).props('flat color=primary')
                     results()
 
                     async def fetch() -> None:
@@ -361,10 +364,7 @@ async def admin_presets_page() -> None:
                         dialog.close()
                         await refresh_table()
 
-                    with ui.row().classes('justify-end w-full'):
-                        fetch_button = ui.button(
-                            'Fetch Presets', icon='cloud_download', on_click=fetch,
-                        ).props('flat color=primary')
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button(
                             'Import', icon='download', on_click=do_import,

@@ -13,9 +13,9 @@ from nicegui import ui
 
 from application.services import RacetimeBotService, TenantService
 from pages.platform_shared import ACTIVE_ICON_SLOT, current_actor, section_intro
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import dialog_actions, dialog_more_menu, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
-from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
+from theme.menu import SlotItem, menu_action, slot_more_menu, slot_name_link, slot_row_button
 from theme.notify import notify_error
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
 
@@ -231,11 +231,12 @@ async def _open_bot_edit_dialog(actor, table, row) -> None:
                 on_confirm=do_delete_bot, confirm_text='Delete', title='Delete bot?',
             ).open()
 
-        with dialog_actions().classes('justify-between'):
-            ui.button('Delete', on_click=delete_bot, color='negative').props('flat')
-            with ui.row():
-                ui.button('Cancel', on_click=dialog.close).props('flat')
-                ui.button('Save', on_click=submit, color='primary')
+        with dialog_actions():
+            with dialog_more_menu():
+                menu_action('delete', 'Delete bot…', delete_bot, negative=True)
+            ui.space()
+            ui.button('Cancel', on_click=dialog.close).props('flat')
+            ui.button('Save', on_click=submit, color='primary')
     dialog.open()
 
 

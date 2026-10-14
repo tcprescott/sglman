@@ -30,6 +30,7 @@ from models import Match, PresetOverride
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
+    dialog_more_menu,
     mobile_sheet,
     native_date_input,
     native_time_input,
@@ -37,6 +38,7 @@ from theme.dialog._helpers import (
     submit_on_enter,
 )
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action
 from theme.notify import notify_error
 
 
@@ -614,11 +616,13 @@ class BaseMatchDialog:
         """
         with dialog_actions():
             if self.match:
-                ui.button('Delete', on_click=lambda: self._confirm_delete(dialog)).props('color=negative flat')
-                # Distinct from the footer's 'Cancel' (which just closes this
-                # dialog): calling the match off notifies everyone who committed
-                # to it, where Delete is the silent "this shouldn't exist" path.
-                ui.button('Cancel match', on_click=lambda: self._confirm_cancel(dialog)).props('color=negative flat')
+                with dialog_more_menu():
+                    # Distinct from the footer's 'Cancel' (which just closes this
+                    # dialog): calling the match off notifies everyone who committed
+                    # to it, where Delete is the silent "this shouldn't exist" path.
+                    menu_action('event_busy', 'Cancel match…', lambda: self._confirm_cancel(dialog))
+                    ui.separator()
+                    menu_action('delete', 'Delete match…', lambda: self._confirm_delete(dialog), negative=True)
             ui.space()
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save' if self.match else create_label, on_click=submit).props('color=primary')

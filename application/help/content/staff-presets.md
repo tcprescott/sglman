@@ -18,7 +18,7 @@ There are three ways to add one:
 - **Import → Built-in presets** adds the presets that ship with Wizzrobe. Running
   it again only adds ones you don't have yet.
 - **Import → From a randomizer** fetches the presets a randomizer publishes on its own
-  site. Pick the randomizer, press **Fetch Presets**, then type in
+  site. Pick the randomizer, press **Fetch presets**, then type in
   **Presets to import** to filter and pick the ones you want. An imported preset is your copy: later changes on the
   randomizer's site don't follow it.
 - **Add Preset** takes a name, a randomizer, a description, and the settings as

@@ -194,8 +194,16 @@ a width (it shrank to one word per line).
   `.form-pair`.
 - **A field's hint wraps under its own field** and never runs into the next one.
 - **The footer sits on the right** with the primary action last and Cancel just
-  left of it. A destructive dialog action (Delete match) sits apart at the far
-  left, with `ui.space()` between.
+  left of it, in a `dialog_actions()` bar that stays pinned to the bottom of the
+  card while the body scrolls.
+- **A footer is one line on a 360px phone.** It holds at most Cancel and the
+  primary button. Anything else the dialog can do (Delete match, Cancel match,
+  Send message, Reset to defaults) goes in a ⋮ menu at the far left,
+  `dialog_more_menu()`, with `ui.space()` between it and Cancel; the destructive
+  item is red and last, and still confirms first. Keep the two labels short
+  (`test_dialog_footers_fit_one_line_on_a_phone` caps them at 30 characters
+  together). A genuine three-way choice (Keep editing, Discard, Save) may keep
+  three short buttons, marked exempt.
 
 ## Desktop layout
 
@@ -339,7 +347,7 @@ Automated, on every PR:
 
 | Check | Catches |
 |---|---|
-| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a Decline/Reject/Remove/Withdraw-style button right of an Approve/Confirm/Save-style one in the same group; a `.match-filters-card` with no Filters toggle; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a row's ⋮ not named "More for …"; a red menu item that isn't last in its menu; an awaited `delete_*`/`remove_*`/`cancel_*`/`clear_*`/… service call that no `ConfirmationDialog` stands in front of; the side menu off 224px |
+| `tests/theme/test_style_guide.py` | Dialog cards off the three sizes; colour literals in `.style()` / slot `style=`; `text-h1`…`h5` titles; hex colours in CSS rules outside token definitions; `:root` aliases not restated for dark mode; text tokens under 4.5:1 on any surface in either mode; Cancel or Close after the primary button in a dialog footer; a dialog footer with more than two buttons or over 30 characters of labels; a Decline/Reject/Remove/Withdraw-style button right of an Approve/Confirm/Save-style one in the same group; a `.match-filters-card` with no Filters toggle; a Close in a dialog footer; a hand-built dialog without `mobile_sheet`; an inline `min-width`/`max-width` inside a dialog; a `more_horiz` overflow icon; a row's ⋮ not named "More for …"; a red menu item that isn't last in its menu; an awaited `delete_*`/`remove_*`/`cancel_*`/`clear_*`/… service call that no `ConfirmationDialog` stands in front of; the side menu off 224px |
 | `tests/test_a11y_names.py` | Icon-only `<q-btn>` in a slot template with no name |
 | `check_table_grid`, `check_table_prefs` hooks | Tables with no phone card view or no `table_key` |
 | `scripts/ui_a11y_scan.js` (CI `browser` job) | On every page in `scripts/ui_a11y_ci.json`, in light and dark: axe's WCAG 2.1 A/AA rules, and rendered text under 4.5:1 |

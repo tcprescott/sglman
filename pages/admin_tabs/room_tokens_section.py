@@ -16,7 +16,7 @@ from application.tenant_context import require_tenant_id
 from application.utils.tenant_urls import tenant_url
 from application.utils.timezone import format_local_display
 from theme.clipboard import copy_to_clipboard
-from theme.dialog._helpers import form_dialog
+from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.section import section_panel
@@ -93,7 +93,7 @@ async def render_room_tokens_section(can_edit: bool) -> None:
                 'so bookmark it on the machine rather than posting it anywhere.'
             ).classes('text-warning')
             ui.input(value=url).classes('input-full-width').props('outlined readonly dense')
-            with ui.row().classes('button-row'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Copy', icon='content_copy',
                           on_click=lambda: copy_to_clipboard(url, 'Room URL')).props('flat')
                 ui.button('Done', on_click=dialog.close).props('color=primary')

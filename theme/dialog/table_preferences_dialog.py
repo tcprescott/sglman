@@ -15,8 +15,9 @@ from dataclasses import dataclass
 from nicegui import ui
 
 from application.services import TablePreferenceService
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import dialog_actions, dialog_more_menu, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.menu import menu_action
 from theme.tables.admin_crud import current_actor
 from theme.tables.preferences import apply_saved_config, customization_of
 
@@ -212,8 +213,9 @@ async def open_table_preferences(table: ui.table) -> None:
                 on_confirm=do_reset, confirm_text='Reset', title='Reset table?',
             ).open()
 
-        with dialog_actions().classes('justify-end'):
-            ui.button('Reset to defaults', on_click=reset).props('flat color=negative')
+        with dialog_actions():
+            with dialog_more_menu():
+                menu_action('restart_alt', 'Reset to defaults…', reset, negative=True)
             ui.space()
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Confirm', on_click=confirm).props('color=primary')

@@ -124,7 +124,7 @@ submits one, and its button opens the event's review dialog directly. The
 | **Approve** | Lists it. The host gets a DM. Also puts back an event you took down, though its old subscribers and RSVPs don't come back with it. |
 | **Reject** | Turns it down. Write a reason first; the host gets it in a DM and can edit and resubmit. |
 | **Take down** | The same as Reject, for an event that's already listed. Anyone subscribed or going is told it's cancelled, and their subscriptions and RSVPs are cleared. |
-| **Edit** | Changes the event yourself. It keeps its status. |
+| **Edit event** (in the ⋮ menu) | Changes the event yourself. It keeps its status. |
 
 Events staff submit are listed straight away, and staff can edit or cancel any
 event from its own page, the same as its host.
