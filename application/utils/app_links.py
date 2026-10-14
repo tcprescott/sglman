@@ -92,6 +92,11 @@ def volunteer_release_url(assignment_id: int) -> str:
     return f'/volunteer/{VOLUNTEER_MY_SHIFTS}{_query({"release": assignment_id})}'
 
 
+def player_match_comments_url(match_id: int) -> str:
+    """The Player tab narrowed to one match, with its details open on the comments."""
+    return home_url(HOME_PLAYER, comments=match_id)
+
+
 def player_schedule_url(bracket_match_id: int) -> str:
     """The Player tab with the schedule dialog for one bracket matchup open.
 

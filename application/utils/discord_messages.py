@@ -690,3 +690,8 @@ def hard_preset_withdraw_confirmation(preset_name: str) -> str:
         f"You're out of **{preset_name}**. This match will use the standard "
         "settings unless you opt back in before the seed is rolled."
     )
+
+
+def match_comment_dm(author_name: str, tournament_name: str, body: str) -> str:
+    """Staff left a comment the players of a match can read."""
+    return f"**{author_name}** left a comment on your **{tournament_name}** match:\n\n{body}"

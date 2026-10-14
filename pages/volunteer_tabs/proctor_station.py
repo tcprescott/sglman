@@ -59,6 +59,7 @@ async def proctor_station_tab(user: Optional[User] = None) -> None:
             storage_key='proctor',
             table_key=TableKeys.PROCTOR_STATION,
             show_accommodations=True,
+            show_comment_counts=True,
             searchable=True,
             exclude_racetime=True,
             on_rows_changed=sheet.sync,

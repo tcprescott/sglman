@@ -195,6 +195,35 @@ def test_one_help_button_per_heading():
     assert not bad, 'Help buttons out of place:\n  ' + '\n  '.join(bad)
 
 
+def test_toasts_take_the_shared_position():
+    """Toasts open top-centre under the header (theme/notify.py). A per-call
+    ``position='bottom'`` put one back over a phone sheet's Cancel/Save footer."""
+    offenders = []
+    for path, _, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and _ui_call(node) in {'notify', 'notification'}):
+                continue
+            if node.func.attr not in {'notify', 'notification'}:
+                continue
+            for kw in node.keywords:
+                if kw.arg == 'position' and isinstance(kw.value, ast.Constant) and not _exempt(lines, node.lineno):
+                    offenders.append(f'{path}:{node.lineno}')
+    assert not offenders, f'toasts that pick their own position: {offenders}'
+
+
+def test_toasts_default_to_the_top(monkeypatch):
+    from nicegui import ui
+
+    import theme.notify as notify
+
+    sent = []
+    monkeypatch.setattr(ui, 'notify', lambda message, **kw: sent.append(kw))
+    monkeypatch.setattr(notify, '_installed', False)
+    notify.install_toast_position()
+    ui.notify('Saved', color='positive')
+    assert sent == [{'position': 'top', 'color': 'positive'}]
+
+
 def test_toggles_use_the_segmented_control():
     """A bare `ui.toggle` is Quasar's gold button row; the app's switch is `.wiz-segmented`."""
     bad = []

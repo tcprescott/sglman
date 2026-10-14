@@ -299,7 +299,7 @@ def _round_label(bracket_match, best_of: int, number: int) -> str:
 async def render_player_dashboard(
     schedule: int | None = None, reschedule: int | None = None,
     match: int | None = None, hard: int | None = None,
-    agree: int | None = None, book: int | None = None,
+    agree: int | None = None, book: int | None = None, comments: int | None = None,
 ):
     """The player's own schedule.
 
@@ -356,6 +356,8 @@ async def render_player_dashboard(
     )
     with panel.body:
         board_match_ids = None
+        # The staff-comment DM: the same one-match board, with the sheet open.
+        match = match or comments
         if match:
             relation = await match_service.viewer_relation(int(match), viewer)
             if relation == RELATION_PLAYER:
@@ -584,6 +586,8 @@ async def render_player_dashboard(
             on_open_match=sheet.open,
         )
         sheet.view = table_view
+        if comments and board_match_ids:
+            sheet.open_when_loaded(int(comments))
 
         await requests_section()
         if reschedule is not None:

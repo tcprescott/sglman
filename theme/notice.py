@@ -25,6 +25,7 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.tenant_context import get_current_tenant_id
+from theme.notify import TOAST_POSITION
 
 __all__ = ['drain_notice', 'stash_notice']
 
@@ -94,7 +95,7 @@ def drain_notice() -> None:
                 pass
 
         ui.notification(
-            message, color=notice.get('color') or 'warning', position='bottom',
+            message, color=notice.get('color') or 'warning', position=TOAST_POSITION,
             timeout=None, multi_line=True, on_dismiss=dismissed,
             # An action rather than close_button: the theme paints the close
             # button primary, which is unreadable on a positive toast.

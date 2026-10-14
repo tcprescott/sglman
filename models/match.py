@@ -2,6 +2,7 @@ from tortoise import fields
 from tortoise.models import Model
 
 from .enums import (
+    MatchCommentKind,
     PresetOverride,
     RescheduleRequestKind,
     RescheduleRequestStatus,
@@ -264,6 +265,34 @@ class MatchStreamVolunteer(Model):
         unique_together = ('user', 'match')
         table = 'matchstreamvolunteer'
         indexes = (('match',),)  # composite is user-first; match-only fan-out lookup uncovered
+
+
+class MatchComment(Model):
+    """A comment on a match, signed with its author's name.
+
+    ``kind`` decides the audience (see ``MatchCommentKind``). The author is
+    SET_NULL rather than CASCADE so removing an account keeps the notes staff
+    left on a match; the board then shows them unsigned.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='match_comments', on_delete=fields.CASCADE
+    )
+    match: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Match', related_name='comments', on_delete=fields.CASCADE
+    )
+    author: fields.ForeignKeyNullableRelation = fields.ForeignKeyField(
+        'models.User', related_name='match_comments', null=True, on_delete=fields.SET_NULL
+    )
+    kind = fields.CharEnumField(MatchCommentKind, max_length=24)
+    body = fields.TextField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'matchcomment'
+        indexes = (('match',),)
 
 
 class MatchRescheduleRequest(Model):

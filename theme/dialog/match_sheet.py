@@ -15,10 +15,17 @@ viewer's ``MatchBoardAccess`` covers it.
 from types import SimpleNamespace
 from typing import Any, Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
+from application.content import parse_blocks
+from application.errors import NotFoundError
+from application.services import MatchCommentService, get_user_from_discord_id
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, dialog_header
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.help.render import render_blocks
+from theme.markdown_editor import MarkdownEditor
+from theme.menu import menu_action, more_menu
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_run_sheet import decorate_run_sheet_row
 from theme.tables.match_slots import CANDIDATE_STAGE
@@ -144,6 +151,19 @@ class MatchSheet:
         self.decorate = decorate
         self.view: Any = None
         self.row: Optional[dict] = None
+        # Comments are read per viewer, so they are fetched when the sheet
+        # opens rather than carried on the board's rows, which every viewer of
+        # a shared board would otherwise receive.
+        self._discord_id = app.storage.user.get('discord_id')
+        self._viewer: Any = None
+        self._comments: list = []
+        # Which comment box is open: 'private' or 'players' for staff, while
+        # a player's box is always open. The draft survives the repaints a
+        # live update causes while someone is typing.
+        self._compose: Optional[str] = None
+        self._draft = ''
+        # A deep link asks for a match before the board has loaded it.
+        self._pending_open: Optional[int] = None
         # mobile_sheet's own breakpoint, but a side sheet rather than a centred
         # card above it: the board stays readable beside the open match.
         with ui.dialog().props(''':position="Quasar.Screen.lt.sm ? 'bottom' : 'right'"''') as self.dialog, \
@@ -155,24 +175,36 @@ class MatchSheet:
 
     def _closed(self) -> None:
         self.row = None
+        self._compose = None
+        self._draft = ''
 
     async def open(self, match_id) -> None:
         row = self._find(match_id)
         if row is None:
             return
         self.row = row
+        await self._load_comments()
         with self.dialog:
             self._content.refresh()
             self.dialog.open()
 
+    def open_when_loaded(self, match_id: int) -> None:
+        """Open ``match_id`` once the board's first load brings its row."""
+        self._pending_open = match_id
+
     def sync(self, rows) -> None:
         """Repaint from the board's latest copy of the open match's row."""
+        if self._pending_open is not None:
+            pending, self._pending_open = self._pending_open, None
+            if any(r.get('id') == pending for r in rows):
+                self.view._bg(self.open(pending))
         if self.row is None:
             return
         fresh = next((r for r in rows if r.get('id') == self.row.get('id')), None)
         if fresh is not None:
             self.row = fresh
         self._content.refresh()
+        self.view._bg(self._reload_comments())
 
     def _run(self, handler, *args) -> None:
         """Run a lifecycle callback the way the board runs its own row events.
@@ -204,6 +236,7 @@ class MatchSheet:
             self._setup(row)
             if self.show_crew:
                 self._crew(row)
+            self._comments_section(row)
         self._footer(row)
 
     def _headline(self, row: dict) -> None:
@@ -419,6 +452,180 @@ class MatchSheet:
                         ui.button('Approve', on_click=self._toggle(row, role, idx)).props('no-caps color=primary')
                     else:
                         ui.label(name).classes('match-sheet__waiting-name col')
+
+    # -- comments ------------------------------------------------------
+
+    async def _load_comments(self) -> None:
+        if self.row is None:
+            self._comments = []
+            return
+        if self._viewer is None and self._discord_id:
+            self._viewer = await get_user_from_discord_id(self._discord_id)
+        try:
+            self._comments = await MatchCommentService().list_for_viewer(self.row['id'], self._viewer)
+        except NotFoundError:
+            self._comments = []
+
+    async def _reload_comments(self) -> None:
+        await self._load_comments()
+        if self.row is not None:
+            with self.dialog:
+                self._content.refresh()
+
+    def _plays(self, row: dict) -> bool:
+        viewer_id = getattr(self._viewer, 'id', None)
+        return viewer_id is not None and any(
+            p.get('user_id') == viewer_id for p in row.get('players') or []
+        )
+
+    def _comments_section(self, row: dict) -> None:
+        """The match's comments, then a way to add one.
+
+        Staff (anyone who can run the match) read every comment and choose
+        between a private note and a message the players read. A player reads
+        their own comments and staff's messages, and writes to staff.
+        """
+        staff = self.access.run
+        player = self._plays(row)
+        if not (staff or player):
+            return
+        count = f' · {len(self._comments)}' if self._comments else ''
+        heading = ui.label(f'Comments{count}').classes('match-sheet__section')
+        heading.tag = 'h4'
+        if staff and not self._comments:
+            ui.label('No comments yet.').classes('match-sheet__note')
+        for comment in self._comments:
+            self._comment(comment, staff)
+        if staff:
+            self._staff_composer(row)
+        else:
+            self._player_composer()
+
+    def _comment(self, comment: dict, staff: bool) -> None:
+        name = 'You' if comment['own'] and not staff else comment['author']
+        with ui.column().classes('match-sheet__comment full-width gap-1'):
+            with ui.row().classes('match-sheet__comment-head items-center no-wrap full-width'):
+                with ui.row().classes('match-sheet__comment-byline items-center'):
+                    ui.label(name).classes('match-sheet__comment-author')
+                    self._comment_tag(comment['kind'], staff, comment['own'])
+                    ui.label(comment['when']).classes('match-sheet__note match-sheet__comment-when')
+                if comment['can_delete']:
+                    with more_menu(f"the comment from {comment['author']}"):
+                        menu_action('delete', 'Delete comment',
+                                    lambda cid=comment['id']: self._confirm_delete(cid), negative=True)
+            with ui.element('div').classes('wiz-help-prose match-sheet__comment-body'):
+                render_blocks(parse_blocks(comment['body']))
+
+    @staticmethod
+    def _comment_tag(kind: str, staff: bool, own: bool) -> None:
+        if staff:
+            tag = {
+                'player': (None, 'Player', ''),
+                'staff_private': ('lock', 'Private', 'match-sheet__tag--private'),
+                'staff_to_players': ('visibility', 'Players see this', 'match-sheet__tag--shared'),
+            }.get(kind)
+        else:
+            tag = ('shield', 'Staff', 'match-sheet__tag--shared') if kind == 'staff_to_players' else None
+        if tag is None:
+            return
+        icon, label, tone = tag
+        with ui.element('span').classes(f'match-sheet__tag {tone}'):
+            if icon:
+                ui.icon(icon).props('aria-hidden=true')
+            ui.label(label)
+
+    def _keep_draft(self, e) -> None:
+        self._draft = e.value or ''
+
+    def _staff_composer(self, row: dict) -> None:
+        names = [p.get('name') or '' for p in row.get('players') or []]
+        if self._compose is None:
+            with ui.row().classes('match-sheet__comment-start no-wrap full-width'):
+                ui.button('Private note', icon='lock', on_click=lambda: self._start('private')) \
+                    .props('outline no-caps color=primary').classes('col')
+                if names:
+                    ui.button('Message players', icon='visibility', on_click=lambda: self._start('players')) \
+                        .props('outline no-caps color=primary').classes('col')
+            return
+        to_players = self._compose == 'players'
+        tone = 'match-sheet__composer--shared' if to_players else ''
+        with ui.column().classes(f'match-sheet__composer {tone} full-width gap-0'):
+            with ui.row().classes('match-sheet__composer-head items-center no-wrap full-width'):
+                ui.icon('visibility' if to_players else 'lock').props('aria-hidden=true')
+                ui.label(f"Message to {' and '.join(names)}" if to_players
+                         else 'Private note. Only staff and proctors see it.')
+            with ui.column().classes('match-sheet__composer-body full-width gap-2'):
+                MarkdownEditor(
+                    'Message' if to_players else 'Note', value=self._draft, compact=True,
+                    on_change=self._keep_draft,
+                    placeholder="What the players need to know" if to_players
+                    else 'Something for the rest of staff',
+                )
+                with ui.row().classes('justify-end full-width gap-2'):
+                    ui.button('Cancel', on_click=self._cancel).props('flat no-caps color=primary')
+                    ui.button('Send to players' if to_players else 'Save note',
+                              on_click=lambda: self._run(self._post, self._compose)) \
+                        .props('no-caps color=primary')
+
+    def _player_composer(self) -> None:
+        with ui.column().classes('match-sheet__composer-body full-width gap-2'):
+            MarkdownEditor(
+                'Tell staff something about this match', value=self._draft, compact=True,
+                on_change=self._keep_draft,
+                placeholder="Running late, need a left-handed setup, that kind of thing",
+            )
+            with ui.row().classes('items-center no-wrap full-width gap-2'):
+                ui.label("Only staff read what you send. Your opponent doesn't.") \
+                    .classes('match-sheet__note col')
+                ui.button('Send', on_click=lambda: self._run(self._post, 'player')) \
+                    .props('no-caps color=primary')
+
+    def _start(self, mode: str) -> None:
+        self._compose = mode
+        self._content.refresh()
+
+    def _cancel(self) -> None:
+        self._compose = None
+        self._draft = ''
+        self._content.refresh()
+
+    async def _post(self, mode: Optional[str]) -> None:
+        if self.row is None or self._viewer is None or mode is None:
+            return
+        service = MatchCommentService()
+        try:
+            if mode == 'player':
+                await service.add_player_comment(self.row['id'], self._viewer, self._draft)
+            else:
+                await service.add_staff_comment(
+                    self.row['id'], self._viewer, self._draft, to_players=mode == 'players',
+                )
+        except ValueError as e:
+            with self.dialog:
+                ui.notify(str(e), color='warning')
+            return
+        self._draft = ''
+        self._compose = None
+        await self._reload_comments()
+        with self.dialog:
+            ui.notify({'player': 'Sent to staff', 'players': 'Sent to the players'}.get(mode, 'Note saved'),
+                      color='positive')
+
+    def _confirm_delete(self, comment_id: int) -> None:
+        ConfirmationDialog(
+            "Delete this comment? This can't be undone.",
+            on_confirm=lambda: self._run(self._delete, comment_id),
+            confirm_text='Delete', title='Delete comment',
+        ).open()
+
+    async def _delete(self, comment_id: int) -> None:
+        try:
+            await MatchCommentService().delete_comment(comment_id, self._viewer)
+        except ValueError as e:
+            with self.dialog:
+                ui.notify(str(e), color='warning')
+            return
+        await self._reload_comments()
 
     def _footer(self, row: dict) -> None:
         if not self.access.edit:

@@ -131,6 +131,7 @@ def create() -> None:
         hard: str | None = None,
         agree: str | None = None,
         book: str | None = None,
+        comments: str | None = None,
         focus: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
@@ -143,7 +144,7 @@ def create() -> None:
             return RedirectResponse(f"{request.scope.get('root_path', '') if request else ''}/live")
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
-            book=book,
+            book=book, comments=comments,
         )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
@@ -210,13 +211,15 @@ def create() -> None:
             # match's private opt-in dialog. `agree` is a reschedule request id
             # from the opponent DM, opening that request with its Agree button.
             # `badge` counts the matches waiting on this player to pick a time.
+            # `comments` is a match id from the staff-comment DM: the board
+            # narrows to that match and opens its details on the comments.
             {'label': 'My Schedule', 'icon': 'event_available',
              'badge': await count_waiting_on_you(user),
              'aliases': ('player', 'my-crew', 'availability', 'equipment'),
              'content': (my_schedule_tab, (),
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
                           'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree'],
-                          'book': ids['book']})},
+                          'book': ids['book'], 'comments': ids['comments']})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission

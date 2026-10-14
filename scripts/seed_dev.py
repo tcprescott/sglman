@@ -41,6 +41,9 @@ from models import (
     FeatureFlagGroup,
     JoinRequestStatus,
     LogLevelOverride,
+    Match,
+    MatchComment,
+    MatchCommentKind,
     McpOAuthClient,
     PlayerAvailability,
     ProfileNudgeDismissal,
@@ -680,6 +683,28 @@ async def seed_watch_layout_votes(tenant: Tenant) -> None:
         )
 
 
+async def seed_match_comments(tenant: Tenant, users: dict[str, User]) -> None:
+    """One comment of each kind on an upcoming match, so the sheet's thread,
+    its tags and the run sheet's counts all show in a dev environment."""
+    match = await Match.filter(
+        tenant=tenant, started_at__isnull=True, scheduled_at__isnull=False,
+        players__user=users['player_two'],
+    ).order_by('scheduled_at').first()
+    if match is None:
+        return
+    for author, kind, body in (
+        ('player_two', MatchCommentKind.PLAYER,
+         "My flight lands at 12:20, so I might be **ten minutes late**."),
+        ('staff_user', MatchCommentKind.STAFF_PRIVATE,
+         "Hold the slot. Swap with the next match if they're not here in time."),
+        ('proctor_user', MatchCommentKind.STAFF_TO_PLAYERS,
+         "You're on station 4, by the window."),
+    ):
+        await MatchComment.get_or_create(
+            tenant=tenant, match=match, author=users[author], kind=kind, body=body,
+        )
+
+
 async def seed_push_devices(users: dict[str, User]) -> None:
     """One phone with device notifications on; ``.invalid`` so a push can't land."""
     ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) Version/18.4 Mobile/15E148 Safari/604.1'
@@ -756,6 +781,7 @@ async def seed_all() -> None:
         await seed_for_tenant(tenant, users, bots)
         await seed_profile_reminders(tenant, users)
         await seed_watch_layout_votes(tenant)
+        await seed_match_comments(tenant, users)
     await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link

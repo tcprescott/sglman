@@ -42,6 +42,11 @@ class EventType:
     # are willing. MATCH_STREAM_CANDIDATE_SET is still the decision.
     MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
     MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
+    # A comment on a match and its removal. The payload carries ``kind``, so a
+    # subscriber posting to a public channel can drop player comments and
+    # private staff notes and keep only what the players were told.
+    MATCH_COMMENT_ADDED = 'match.comment_added'
+    MATCH_COMMENT_DELETED = 'match.comment_deleted'
     # A player asking staff to move or call off their match. Worth publishing
     # separately from the match.rescheduled an approval also emits: a subscriber
     # wants to hear that someone *asked*, not only that the schedule moved.
@@ -225,6 +230,7 @@ class EventType:
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         MATCH_FLAGGED_FOR_REVIEW, MATCH_REVIEW_CLEARED,
         MATCH_STREAM_VOLUNTEERED, MATCH_STREAM_VOLUNTEER_WITHDRAWN,
+        MATCH_COMMENT_ADDED, MATCH_COMMENT_DELETED,
         MATCH_HARD_PRESET_AGREED, MATCH_HARD_PRESET_AGREEMENT_REVOKED,
         MATCH_PRESET_OVERRIDE_SET, MATCH_PRESET_OVERRIDE_CLEARED,
         MATCH_RESCHEDULE_REQUESTED, MATCH_RESCHEDULE_AGREED,

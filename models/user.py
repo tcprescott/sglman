@@ -31,6 +31,10 @@ class User(Model):
     # via ``UserService.get_system_user()``, never construct it ad hoc.
     is_system = fields.BooleanField(default=False)
     dm_notifications = fields.BooleanField(default=True)
+    # A DM when staff leave a comment on one of this person's matches that
+    # players can read. Separate from ``dm_notifications``, which turns off
+    # every DM at once.
+    dm_match_comments = fields.BooleanField(default=True)
     # Display-timezone preference (IANA name). NULL means "detect from my
     # device" — the browser reports its zone and that is used. Only consulted
     # when the community leaves the choice to its members; a community that

@@ -45,6 +45,7 @@ from application.utils.app_links import (
     player_agree_url,
     player_challonge_schedule_url,
     player_hard_preset_url,
+    player_match_comments_url,
     player_match_url,
     player_reschedule_url,
     player_schedule_url,
@@ -175,6 +176,13 @@ async def player_match(
     sent there would be the third failure this module's docstring lists.
     """
     return await link_for(label, player_match_url(match_id))
+
+
+async def player_match_comments(
+    match_id: int, *, label: str = 'Open the match',
+) -> Optional[DMLink]:
+    """The staff-comment DM's button: the player's match with its comments open."""
+    return await link_for(label, player_match_comments_url(match_id))
 
 
 async def player_agree(
