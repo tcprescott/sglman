@@ -286,6 +286,13 @@ main.q-page:focus {
     background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+/* Native date/time inputs draw their calendar/clock icon and popup from the
+   page's colour scheme, not from CSS colour: without this they stay black on
+   the dark surface and open a white picker. */
+.body--dark {
+    color-scheme: dark;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         transition-duration: 0.01ms !important;
@@ -2405,15 +2412,22 @@ main.q-page:focus {
     margin-bottom: calc(-1 * var(--space-3));
 }
 
-/* Shortcut ranges under the filter fields: a line of their own on desktop and
-   the full width of the phone's 2x2 grid, scrolling sideways rather than
-   wrapping when a long event has more days than fit. */
+/* Shortcut ranges beside the filter fields on desktop (wrapping to a line of
+   their own only when the row is full) and the full width of the phone's 2x2
+   grid, scrolling sideways rather than wrapping when a long event has more
+   days than fit. */
 .wiz-report-jumps {
     flex-basis: 100%;
     grid-column: 1 / -1;
     gap: var(--space-2);
     overflow-x: auto;
     max-width: 100%;
+}
+
+@media (min-width: 1024px) {
+    .wiz-report-jumps {
+        flex-basis: auto;
+    }
 }
 
 .wiz-report-jumps > .text-caption,
