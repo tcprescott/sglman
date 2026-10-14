@@ -66,6 +66,41 @@ async def _read_bundled_preset(path: str) -> str:
     return await asyncio.to_thread(Path(path).read_text, encoding='utf-8')
 
 
+_FF1R_HOST = 'finalfantasyrandomizer.com'
+
+
+def _ff1r_reference_url(settings: Optional[dict]) -> str:
+    """The FFR flags link a preset holds, checked, or ``ValueError`` naming what's wrong."""
+    url = settings.get('url') if isinstance(settings, dict) else None
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError('A Final Fantasy preset needs a "url": the flags link copied from finalfantasyrandomizer.com.')
+    unknown = set(settings) - {'url'}
+    if unknown:
+        raise ValueError(f"A Final Fantasy preset holds only a flags link, not {', '.join(sorted(unknown))}.")
+    url = url.strip()
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or '').lower()
+    if parsed.scheme != 'https' or not (host == _FF1R_HOST or host.endswith('.' + _FF1R_HOST)):
+        raise ValueError('That isn\'t a finalfantasyrandomizer.com link. Copy the link from the site\'s address bar.')
+    if not urllib.parse.parse_qs(parsed.query).get('f', [''])[0]:
+        raise ValueError('That link has no flags in it (the "f=" part). Copy it again after setting the flags.')
+    return url
+
+
+def _z1r_flags(settings: Optional[dict]) -> str:
+    """The Z1R flag string a preset holds, checked, or ``ValueError`` naming what's wrong."""
+    flags = settings.get('flags') if isinstance(settings, dict) else None
+    if not isinstance(flags, str) or not flags.strip():
+        raise ValueError('A Zelda 1 preset needs "flags": the flag string from the randomizer.')
+    unknown = set(settings) - {'flags'}
+    if unknown:
+        raise ValueError(f"A Zelda 1 preset holds only flags, not {', '.join(sorted(unknown))}.")
+    flags = flags.strip()
+    if re.search(r'\s', flags):
+        raise ValueError('Zelda 1 flags are one string with no spaces.')
+    return flags
+
+
 # The bare domain 308s to www, and the generate call is read without following
 # redirects, so it has to start on the host that answers it.
 _DASH_BASE_URL = 'https://www.dashrando.net'
@@ -106,7 +141,7 @@ class SeedGenerationService(DK64RBackend):
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'smdash', 'wwr'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r', 'ff1r', 'smdash', 'wwr', 'z1r'}
 
     # Rolls that ``MOCK_SEEDGEN`` leaves alone. DK64R mocks one layer down (see
     # ``generate_seed_call``); WWR and Z1R are built locally with no upstream to
@@ -159,7 +194,12 @@ class SeedGenerationService(DK64RBackend):
         judge them. WWR has no upstream, so a pasted permalink is decoded here,
         and one that isn't a permalink, or doesn't fit its vendored build, is
         refused with a ``ValueError`` rather than at the desk minutes before a race.
+        FFR and Z1R are built locally too, so their flags are checked here as well.
         """
+        if randomizer == 'ff1r':
+            return {'url': _ff1r_reference_url(settings)}
+        if randomizer == 'z1r':
+            return {'flags': _z1r_flags(settings)}
         if randomizer != 'wwr':
             return settings
         permalink = settings.get('permalink')
@@ -261,7 +301,7 @@ class SeedGenerationService(DK64RBackend):
         Args:
             randomizer: Name of the randomizer (alttpr, ff1r, z1r, smmap, ootr, test)
             preset: Optional resolved ``Preset`` supplying the randomizer settings.
-                Preset-aware backends (``PRESET_AWARE_RANDOMIZERS``: ALTTPR, DK64R, DASH)
+                Preset-aware backends (``PRESET_AWARE_RANDOMIZERS``: ALTTPR, DK64R, DASH, FFR, WWR, Z1R)
                 use ``preset.settings`` when given and fall back to a committed
                 default without one. Other backends are still hard-coded and
                 ignore the preset.
@@ -375,29 +415,46 @@ class SeedGenerationService(DK64RBackend):
         )
         return RolledSeed(url=seed.url, settings=settings)
 
-    async def _generate_ff1r(self) -> RolledSeed:
+    async def _generate_ff1r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """
         Generate a Final Fantasy 1 Randomizer seed.
 
-        Purely local: the flag string is fixed and only the seed number varies,
-        so there is no upstream to fail.
+        Purely local: the preset's flags link (``{"url": ...}``, copied from the
+        site, whose host pins the version) keeps its flags and gets a fresh seed
+        number; the site builds the game in the browser, so the link is the seed.
+        Without a preset, ``presets/ff1r/sgl2026.json``.
         """
-        url = 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=7yYeU3NWYWa-shYkqHmG37-rS90EfpcUfUjp78ZR6KibBTdXQJnVpIePSloACp-y7pmGE2-q9cgwtGhrPz.mWHn.CIpIv7SBX0Cq6Q-JkRCpdP4JdINmzfSpJnbrJIUV7i9Zc0bReCbdLdiHKyjE6C-v9OEgBo-lQpuYWgo7KPkEA5Q58DLpK5GPOujIdXYCxVNLqv'
+        if preset is not None:
+            settings = preset.settings
+        else:
+            settings = json.loads(await _read_bundled_preset("presets/ff1r/sgl2026.json"))
+        try:
+            reference = _ff1r_reference_url(settings)
+        except ValueError as e:
+            raise SeedProviderInvalidRequest(str(e), provider='ff1r', operation='generate_seed') from None
         seed = ('%008x' % random.randrange(16 ** 8)).upper()
-        up = urllib.parse.urlparse(url)
+        up = urllib.parse.urlparse(reference)
         qs = urllib.parse.parse_qs(up.query)
-        qs['s'] = seed
+        qs['s'] = [seed]
         newurl = urllib.parse.urlunparse((up.scheme, up.netloc, up.path, up.params,
                                           urllib.parse.urlencode(qs, doseq=True), up.fragment))
-        return RolledSeed(url=newurl, settings={'seed': seed, 'flags': qs.get('f', [''])[0]})
+        return RolledSeed(url=newurl, settings={'seed': seed, 'flags': qs['f'][0]})
 
-    async def _generate_z1r(self) -> RolledSeed:
+    async def _generate_z1r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """
         Generate a Zelda 1 Randomizer seed.
 
-        Returns a "seed - flags" string rather than a URL; purely local.
+        Returns a "seed - flags" string rather than a URL; purely local. The flags
+        come from the preset (``{"flags": ...}``), else ``presets/z1r/sgl2026.json``.
         """
-        flags = '12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA'
+        if preset is not None:
+            settings = preset.settings
+        else:
+            settings = json.loads(await _read_bundled_preset("presets/z1r/sgl2026.json"))
+        try:
+            flags = _z1r_flags(settings)
+        except ValueError as e:
+            raise SeedProviderInvalidRequest(str(e), provider='z1r', operation='generate_seed') from None
         seed = random.randint(0, 8999999999999999999)
         return RolledSeed(
             url=f"{seed} - {flags}", settings={'seed': str(seed), 'flags': flags},

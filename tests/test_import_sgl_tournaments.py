@@ -140,13 +140,10 @@ def test_rules_doc_seed_links_override_the_sheet():
 
 
 def test_ffr_description_link_matches_the_flags_wizzrobe_rolls():
-    import re
+    import json
     from pathlib import Path
 
-    rolled = re.search(
-        r"url = '(https://[0-9-]+\.finalfantasyrandomizer\.com/[^']+)'",
-        Path('application/services/seedgen_service.py').read_text(),
-    ).group(1)
+    rolled = json.loads(Path('presets/ff1r/sgl2026.json').read_text())['url']
     assert seed_generation_for('Final Fantasy Randomizer', '') == rolled
 
 
