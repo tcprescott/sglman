@@ -34,6 +34,7 @@ class MarkdownEditor(
         *,
         value: str = '',
         placeholder: Optional[str] = None,
+        compact: bool = False,
         on_change: Optional[Handler[ValueChangeEventArguments[str]]] = None,
     ) -> None:
         super().__init__(value=value or '', on_value_change=on_change)
@@ -41,6 +42,8 @@ class MarkdownEditor(
             self._props['label'] = label
         if placeholder:
             self._props['placeholder'] = placeholder
+        if compact:
+            self._props['compact'] = True
 
     def _event_args_to_value(self, e: Any) -> str:
         return e.args if isinstance(e.args, str) else ''
