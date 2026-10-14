@@ -3,7 +3,8 @@
 Opened from the admin Equipment tab's "Print QR labels" button. The manager
 narrows the set (all / available-only / by owner / an asset-number range, or by
 hand), picks a template (plain grid, or an Avery peel-off layout), optional
-extra label content, and opens ``/equipment/qr-labels`` in a new tab. The target
+extra label content and whether the community logo goes in the QR codes, and
+opens ``/equipment/qr-labels`` in a new tab. The target
 is a bare in-app path — ``ui.navigate.to`` prepends the request's ``root_path``
 (the ``/t/<slug>`` in path mode, empty on a custom domain) — so the new tab
 stays on the community the manager is already viewing and carries the session.
@@ -13,7 +14,7 @@ from typing import Optional
 
 from nicegui import ui
 
-from application.services import EquipmentService, TenantService
+from application.services import EquipmentService, TenantService, TenantThemeService
 from models import EquipmentStatus, User
 from pages.equipment_labels import TEMPLATE_CHOICES
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
@@ -66,6 +67,7 @@ class QrLabelDialog:
     async def open(self) -> None:
         assets = await self.service.list_assets()
         community = await TenantService.current_community_name()
+        has_logo = bool((await TenantThemeService.get_current_theme()).get('logo'))
         rows = [
             {
                 'id': a.id,
@@ -84,7 +86,7 @@ class QrLabelDialog:
 
             template_select = paper_toggle = cols_toggle = None
             owner_select = avail_only = num_from = num_to = None
-            show_owner = show_community = show_desc = None
+            show_owner = show_community = show_desc = show_logo = None
 
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 if not assets:
@@ -107,6 +109,8 @@ class QrLabelDialog:
                         show_owner = ui.checkbox('Owner', value=False)
                         show_community = ui.checkbox('Community', value=False)
                         show_desc = ui.checkbox('Description', value=False)
+                        if has_logo:
+                            show_logo = ui.checkbox('Logo in QR code', value=True)
 
                     ui.separator()
 
@@ -168,6 +172,8 @@ class QrLabelDialog:
                                         ('desc', show_desc)) if cb and cb.value]
                 if show:
                     params.append('show=' + ','.join(show))
+                if show_logo is not None and not show_logo.value:
+                    params.append('logo=0')
 
                 dialog.close()
                 # Bare path: ui.navigate.to prepends the tenant's root_path, so

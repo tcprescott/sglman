@@ -188,25 +188,37 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
 
     # A community's logo, by content hash (TenantLogoService). The hash names the
     # bytes, so the response never changes and caches for a year; a new upload is
-    # a new URL. Public, because the logo sits on signed-out pages too. The CSP
-    # and nosniff are belt-and-braces: the bytes are always a WebP we encoded.
-    @fastapi_app.get('/brand-logo/{tenant_id}/{sha256}.webp', include_in_schema=False)
-    async def _brand_logo(tenant_id: int, sha256: str, request: Request) -> Response:
+    # a new URL. Public, because the logo sits on signed-out pages too. The bytes
+    # are always a WebP we encoded or an SVG we rebuilt from an allowlist; the
+    # CSP and nosniff are belt-and-braces, and the CSP's sandbox keeps an SVG
+    # opened directly in a tab from running anything even if the sanitiser
+    # ever missed something.
+    async def _brand_logo_response(tenant_id: int, sha256: str, fmt: str, request: Request) -> Response:
         from application.services import TenantLogoService
+        from application.services.tenant_logo_service import stored_format
 
         etag = f'"{sha256}"'
         headers = {
             'Cache-Control': 'public, max-age=31536000, immutable',
             'ETag': etag,
             'X-Content-Type-Options': 'nosniff',
-            'Content-Security-Policy': "default-src 'none'; sandbox",
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
         }
         content = await TenantLogoService.get_logo_bytes(tenant_id, sha256)
-        if content is None:
+        if content is None or stored_format(content) != fmt:
             return Response(status_code=404, headers={'Cache-Control': 'no-store'})
         if request.headers.get('if-none-match') == etag:
             return Response(status_code=304, headers=headers)
-        return Response(content, media_type='image/webp', headers=headers)
+        media = 'image/svg+xml' if fmt == 'svg' else 'image/webp'
+        return Response(content, media_type=media, headers=headers)
+
+    @fastapi_app.get('/brand-logo/{tenant_id}/{sha256}.webp', include_in_schema=False)
+    async def _brand_logo(tenant_id: int, sha256: str, request: Request) -> Response:
+        return await _brand_logo_response(tenant_id, sha256, 'webp', request)
+
+    @fastapi_app.get('/brand-logo/{tenant_id}/{sha256}.svg', include_in_schema=False)
+    async def _brand_logo_svg(tenant_id: int, sha256: str, request: Request) -> Response:
+        return await _brand_logo_response(tenant_id, sha256, 'svg', request)
 
 
 def init(fastapi_app: FastAPI) -> None:

@@ -1,7 +1,7 @@
 """Tests for TenantLogoService — upload validation, storage and serving.
 
-``normalise_logo`` is pure and covers the hostile-file cases (SVG, polyglot,
-image bomb, oversize). The persistence tests run against real ``Tenant`` rows
+``normalise_logo`` is pure and covers the hostile-bitmap cases (polyglot,
+image bomb, oversize); hostile SVGs are covered in tests/test_svg_sanitize.py. The persistence tests run against real ``Tenant`` rows
 via ``two_tenants``; the route tests mount ``frontend._register_root_routes`` on
 a bare app, as tests/test_public_bracket_access.py does for robots.txt.
 """
@@ -63,15 +63,16 @@ class TestNormalise:
         Image.new('RGB', (100, 100), (1, 2, 3)).save(out, fmt)
         assert normalise_logo(out.getvalue())
 
-    def test_rejects_svg(self):
+    def test_bitmap_path_never_takes_svg(self):
+        # SVGs go through svg_sanitize via prepare_logo, never the bitmap decoder.
         svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
-        with pytest.raises(ValueError, match="isn't a PNG"):
+        with pytest.raises(ValueError, match="isn't an SVG, PNG"):
             normalise_logo(svg)
 
     def test_rejects_gif(self):
         out = BytesIO()
         Image.new('RGB', (100, 100)).save(out, 'GIF')
-        with pytest.raises(ValueError, match="isn't a PNG"):
+        with pytest.raises(ValueError, match="isn't an SVG, PNG"):
             normalise_logo(out.getvalue())
 
     def test_rejects_garbage_and_empty(self):
@@ -190,3 +191,49 @@ async def test_route_serves_with_cache_headers(tenants_with_staff, logo_client):
 
         missing = await client.get(f'/brand-logo/{a.id}/{"0" * 64}.webp')
         assert missing.status_code == 404
+
+
+_SVG = (
+    b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10">'
+    b'<style>.a{fill:#ffce29}</style><rect class="a" width="20" height="10"/></svg>'
+)
+
+
+async def test_svg_logo_is_stored_sanitised_and_served_as_svg(tenants_with_staff, logo_client):
+    a, _, staff = tenants_with_staff
+    hostile = _SVG.replace(b'<rect', b'<script>alert(1)</script><rect onclick="x()"')
+    with tenant_scope(a.id):
+        url = await TenantLogoService.set_logo(staff, hostile)
+    assert url.endswith('.svg')
+    assert (await TenantThemeService.get_theme(a.id))['logo'] == url
+    row = await TenantLogo.get(tenant_id=a.id)
+    stored = bytes(row.content)
+    assert stored.startswith(b'<svg') and b'script' not in stored and b'onclick' not in stored
+    async with logo_client as client:
+        resp = await client.get(url)
+        assert resp.status_code == 200
+        assert resp.headers['content-type'].startswith('image/svg+xml')
+        assert 'sandbox' in resp.headers['content-security-policy']
+        # The same hash under the other extension is not served.
+        assert (await client.get(url.replace('.svg', '.webp'))).status_code == 404
+
+
+async def test_replacing_svg_with_bitmap_drops_the_format(tenants_with_staff):
+    a, _, staff = tenants_with_staff
+    with tenant_scope(a.id):
+        await TenantLogoService.set_logo(staff, _SVG)
+        url = await TenantLogoService.set_logo(staff, _png())
+    assert url.endswith('.webp')
+    assert (await TenantThemeService.get_theme(a.id))['logo'] == url
+
+
+async def test_qr_logo_is_the_current_communitys(tenants_with_staff):
+    a, b, staff = tenants_with_staff
+    with tenant_scope(a.id):
+        assert await TenantLogoService.qr_logo_data_uri() is None
+        await TenantLogoService.set_logo(staff, _SVG)
+        assert (await TenantLogoService.qr_logo_data_uri()).startswith('data:image/svg+xml;base64,')
+        await TenantLogoService.set_logo(staff, _png())
+        assert (await TenantLogoService.qr_logo_data_uri()).startswith('data:image/webp;base64,')
+    with tenant_scope(b.id):
+        assert await TenantLogoService.qr_logo_data_uri() is None

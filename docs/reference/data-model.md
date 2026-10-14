@@ -461,11 +461,13 @@ Constraints: `unique_together (('user', 'tenant'),)`.
 
 #### `TenantLogo`
 
-A community's uploaded logo: the header's brand mark and the browser tab icon.
-One row per tenant, holding only the normalised 256×256 WebP that
-`TenantLogoService` produced, never the upload as sent. `Tenant.config['logo']`
-carries the hash so a page build knows the URL without loading the bytes. Served
-from `/brand-logo/<tenant_id>/<sha256>.webp` (`frontend.py`). Tenant-scoped
+A community's uploaded logo: the header's brand mark, the browser tab icon and
+the optional mark in equipment QR codes. One row per tenant, holding only what
+`TenantLogoService` produced (a normalised 256×256 WebP, or an allowlist-rebuilt
+SVG), never the upload as sent. `Tenant.config['logo']` carries the hash and
+`config['logo_format']` is `'svg'` for an SVG, so a page build knows the URL
+without loading the bytes. Served from `/brand-logo/<tenant_id>/<sha256>.webp`
+or `.svg` (`frontend.py`). Tenant-scoped
 (`TenantLogoRepository`).
 
 | Field | Type | Null / default | Notes |

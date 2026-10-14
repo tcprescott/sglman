@@ -8,11 +8,17 @@ out or back in, and managers can edit/delete it.
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    EquipmentService,
+    TenantLogoService,
+    TenantService,
+    get_user_from_discord_id,
+)
 from application.tenant_context import get_current_tenant_id
 from application.utils.environment import get_base_url
 from application.utils.hostname import effective_request_host
-from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
+from application.utils.qrcode_util import asset_qr_png_bytes, asset_qr_svg, asset_qr_svg_data_uri
 from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from application.utils.timezone import format_local_display
 from middleware.auth import protected_page
@@ -127,7 +133,8 @@ def create() -> None:
                                 ui.label(asset.private_notes).classes('wiz-free-text')
 
                     with ui.column().classes('items-center gap-1'):
-                        ui.image(asset_qr_data_uri(asset_link)).classes('w-40 h-40')
+                        qr_logo = await TenantLogoService.qr_logo_data_uri()
+                        ui.image(asset_qr_svg_data_uri(asset_link, qr_logo)).classes('w-40 h-40')
                         ui.label(asset_link).classes('text-caption wiz-free-text')
                         # Manager-only: a volunteer scanning a label cannot act
                         # on a BASE_URL misconfiguration and does not need the
@@ -144,7 +151,13 @@ def create() -> None:
                             ).classes('text-warning text-caption')
 
                         def download_qr():
-                            ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
+                            # The logo is an SVG or WebP the server can't
+                            # rasterise into a PNG, so a logo code downloads as SVG.
+                            if qr_logo:
+                                ui.download(asset_qr_svg(asset_link, qr_logo).encode('utf-8'),
+                                            f'asset-{asset.asset_number}-qr.svg', 'image/svg+xml')
+                            else:
+                                ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
 
                         with ui.row().classes('gap-1'):
                             ui.button('Download QR', icon='download', on_click=download_qr).props('flat dense')

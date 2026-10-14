@@ -744,7 +744,7 @@ async def seed_all() -> None:
             tenant.config = config
             await tenant.save()
         print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
-        # The default community shows an uploaded logo; the second keeps the
+        # The default community shows an uploaded SVG logo; the second keeps the
         # colour square, so both header shapes are reachable.
         if slug == 'default':
             await seed_logo_for_tenant(tenant)
