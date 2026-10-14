@@ -12,13 +12,13 @@ Every toast also opens at the top of the page, just under the header
 Cancel/Save footer of a phone bottom-sheet dialog, and on the keyboard.
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, Final, Literal
 
 from nicegui import ui
 
 __all__ = ['TOAST_POSITION', 'install_toast_position', 'notify_error']
 
-TOAST_POSITION = 'top'
+TOAST_POSITION: Final[Literal['top']] = 'top'
 
 _installed = False
 
@@ -38,7 +38,7 @@ def install_toast_position() -> None:
     def notify(message: Any, *, position: str = TOAST_POSITION, **kwargs: Any) -> None:
         original(message, position=position, **kwargs)
 
-    ui.notify = notify  # type: ignore[assignment]
+    ui.notify = notify
     _installed = True
 
 
