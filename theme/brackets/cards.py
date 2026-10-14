@@ -136,7 +136,7 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
             mine = entry_id in ctx.viewer_entries
             ui.label(name).classes('bracket-name').tooltip(f'{name} (you)' if mine else name)
             if mine:
-                ui.label('You').classes('bracket-you')
+                ui.label('(you)').classes('bracket-you')
         else:
             ui.element('div').classes('bracket-avatar is-empty')
             ui.label(placeholder_text(match, slot, ctx, completed=completed)) \

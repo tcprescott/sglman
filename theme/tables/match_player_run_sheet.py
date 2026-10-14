@@ -88,7 +88,7 @@ def player_crew(row: dict, discord_id) -> list[dict]:
     ``'approved'``, ``'waiting'`` or None; ``can_sign_up`` mirrors the gate the
     old crew cell used (``match_slots.CREW_CAN_SIGN_UP_JS``), and ``ack_idx`` is
     set when the viewer is approved but hasn't confirmed they'll cover it.
-    ``unavailable`` is why there's no button to press. ``people`` are the names, the viewer's printed as "You", and ``empty`` is
+    ``unavailable`` is why there's no button to press. ``people`` are the names, the viewer's followed by "(you)", and ``empty`` is
     the "No signups yet" line while the role can still be filled.
     """
     wanted = row.get('crew_wanted') or {}
@@ -192,8 +192,6 @@ _WHEN = r'''<span v-if="props.row._time" class="run-sheet__time" :class="props.r
 <span v-if="props.row._day && props.row._day !== 'Today'" class="run-sheet__day">{{ props.row._day }}</span>'''
 
 _TITLE = "props.row._who || (props.row.bracket ? props.row.bracket.name : props.row.title)"
-
-_YOU = '<span v-if="props.row._mine" class="player-sheet__you">You</span>'
 
 # One role: the count, the viewer's own control in a tray of its own, then the
 # names. Every role draws a button, a disabled Sign up with the reason beside it
@@ -314,7 +312,7 @@ _BODY_SLOT = r'''
         <template v-else-if="col.name === 'match'">
             <button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
                 {{ ''' + _TITLE + ''' }}</button>
-            <span class="run-sheet__meta">''' + _YOU + '''{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
+            <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
         </template>
         <template v-else-if="col.name === 'stage'">''' + _STAGE + '''</template>
         <template v-else-if="col.name === 'commentators' || col.name === 'trackers'">
@@ -344,7 +342,7 @@ _ITEM_SLOT = r'''
                 <span class="run-sheet__when">''' + _WHEN + '''</span>
                 <span class="run-sheet__main">
                     <span class="run-sheet__who">{{ ''' + _TITLE + ''' }}</span>
-                    <span class="run-sheet__meta">''' + _YOU + '''{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
+                    <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
                 </span>
                 <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
             </button>''' + _BELL + '''__MENU__
