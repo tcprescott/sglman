@@ -218,3 +218,87 @@ class TestStaffGating:
     async def test_staff_reads_allowed(self, db):
         staff = await _staff()
         assert await TelemetryService().count_events(staff) == 0
+
+
+# ---------------------------------------------------------------------------
+# track_tab_view / track_ui_batch — in-page usage
+# ---------------------------------------------------------------------------
+
+
+class TestTrackTabView:
+    async def test_records_hub_and_tab(self, db):
+        user = await _plain(discord_id=777, username='admin')
+        await TelemetryService().track_tab_view(
+            path='/admin/schedule', tab='schedule', discord_id='777', session_id='s',
+        )
+        row = (await TelemetryEvent.all())[0]
+        assert row.category == TelemetryCategory.INTERACTION
+        assert row.event_type == TelemetryEventType.TAB_VIEW
+        assert row.path == '/admin/schedule'
+        assert row.target == 'schedule'
+        assert row.user_id == user.id
+
+
+class TestTrackUiBatch:
+    async def test_keeps_known_events_and_drops_the_rest(self, db):
+        await _plain(discord_id=778, username='clicker')
+        kept = await TelemetryService().track_ui_batch(
+            [
+                {'type': 'ui.click', 'target': 'Add match', 'path': '/admin/schedule',
+                 'kind': 'button', 'dialog': None, 'device': 'phone', 'width': 390},
+                {'type': 'ui.dialog_closed', 'target': 'Edit match', 'via': 'Cancel',
+                 'path': '/admin/schedule', 'device': 'laptop'},
+                {'type': 'drop.table', 'target': 'x'},
+                {'type': 'ui.click', 'target': '   '},
+                {'type': 'ui.click', 'target': {'nested': 1}},
+                'not a dict',
+            ],
+            discord_id='778', session_id='s',
+        )
+        assert kept == 2
+        rows = await TelemetryEvent.all().order_by('id')
+        assert [r.target for r in rows] == ['Add match', 'Edit match']
+        assert rows[0].device == 'phone'
+        assert rows[1].device is None
+        details = json.loads(rows[0].details)
+        assert details['kind'] == 'button'
+        assert details['width'] == '390'
+        assert 'dialog' not in details
+        assert json.loads(rows[1].details)['via'] == 'Cancel'
+
+    async def test_bounds_batch_and_text(self, db):
+        kept = await TelemetryService().track_ui_batch(
+            [{'type': 'ui.click', 'target': 'x' * 500, 'path': '/p'}] * 80,
+        )
+        assert kept == 50
+        row = await TelemetryEvent.first()
+        assert len(row.target) == 200
+
+    async def test_not_a_list_is_ignored(self, db):
+        assert await TelemetryService().track_ui_batch({'type': 'ui.click'}) == 0
+        assert await TelemetryEvent.all().count() == 0
+
+    async def test_disabled_is_noop(self, db, monkeypatch):
+        monkeypatch.setenv('TELEMETRY_ENABLED', 'false')
+        await TelemetryService().track_ui_batch([{'type': 'ui.click', 'target': 'a'}])
+        assert await TelemetryEvent.all().count() == 0
+
+    async def test_top_controls_groups_by_page_and_control(self, db):
+        staff = await _staff()
+        await _plain(discord_id=779, username='other')
+        svc = TelemetryService()
+        click = {'type': 'ui.click', 'target': 'Add match', 'path': '/admin/schedule'}
+        await svc.track_ui_batch([{**click, 'device': 'phone'}, click], discord_id='1001')
+        await svc.track_ui_batch([click], discord_id='779')
+        await svc.track_ui_batch([{**click, 'path': '/home/schedule'}], discord_id='779')
+        await svc.track_page_view(path='/admin', discord_id='1001')
+        rows = await svc.top_controls(staff)
+        assert rows[0] == {
+            'path': '/admin/schedule', 'event_type': 'ui.click', 'target': 'Add match',
+            'uses': 3, 'users': 2, 'phone': 1,
+        }
+        assert len(rows) == 2
+
+    async def test_top_controls_is_staff_only(self, db):
+        with pytest.raises(PermissionError):
+            await TelemetryService().top_controls(await _plain())

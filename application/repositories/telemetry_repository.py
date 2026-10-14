@@ -10,6 +10,7 @@ full high-volume table into memory.
 from datetime import datetime
 from typing import List, Optional
 
+from tortoise.expressions import Q
 from tortoise.functions import Count
 
 from application.tenant_context import get_current_tenant_id
@@ -28,6 +29,8 @@ class TelemetryRepository:
         path: Optional[str] = None,
         session_id: Optional[str] = None,
         details: Optional[str] = None,
+        target: Optional[str] = None,
+        device: Optional[str] = None,
     ) -> TelemetryEvent:
         # Nullable tenant: stamped from the ambient context (the event's tenant
         # for the domain mirror, the request/page tenant for page views); None
@@ -40,6 +43,15 @@ class TelemetryRepository:
             path=path,
             session_id=session_id,
             details=details,
+            target=target,
+            device=device,
+        )
+
+    @staticmethod
+    async def bulk_create(rows: List[dict]) -> None:
+        tenant_id = get_current_tenant_id()
+        await TelemetryEvent.bulk_create(
+            [TelemetryEvent(tenant_id=tenant_id, **row) for row in rows]
         )
 
     @staticmethod
@@ -190,5 +202,30 @@ class TelemetryRepository:
             .order_by('-events')
             .limit(limit)
             .values('user_id', 'events', 'sessions')
+        )
+        return list(rows)
+
+    @classmethod
+    async def top_controls(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        category: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[dict]:
+        """Most-used controls: one row per (page, kind of use, control)."""
+        rows = await (
+            cls._filtered(start=start, end=end, category=category)
+            .filter(target__isnull=False)
+            .annotate(
+                uses=Count('id'),
+                users=Count('user_id', distinct=True),
+                phone=Count('id', _filter=Q(device='phone')),
+            )
+            .group_by('path', 'event_type', 'target')
+            .order_by('-uses')
+            .limit(limit)
+            .values('path', 'event_type', 'target', 'uses', 'users', 'phone')
         )
         return list(rows)

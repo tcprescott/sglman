@@ -15,7 +15,7 @@ from models import User
 
 router = APIRouter(prefix="/telemetry", tags=["Telemetry"], route_class=ServiceErrorRoute)
 
-Dimension = Literal['paths', 'event_types', 'users']
+Dimension = Literal['paths', 'event_types', 'users', 'controls']
 
 StartQuery = Query(None, description="Window start (UTC ISO 8601). Unbounded when omitted.")
 EndQuery = Query(None, description="Window end (UTC ISO 8601). Unbounded when omitted.")
@@ -51,5 +51,6 @@ async def top(
         'paths': service.top_paths,
         'event_types': service.top_event_types,
         'users': service.top_users,
+        'controls': service.top_controls,
     }[dimension]
     return await fn(actor, start=start, end=end, limit=limit)

@@ -169,7 +169,7 @@ Two are **reshaped rather than passed through**, exactly as the matching MCP too
 ### Telemetry (`/api/telemetry`) · `telemetry.py`
 Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 - `GET /telemetry/summary?start=&end=` — events, unique users, sessions, page views.
-- `GET /telemetry/top?dimension=&start=&end=&limit=` — `dimension` is `paths`, `event_types` or `users`.
+- `GET /telemetry/top?dimension=&start=&end=&limit=` — `dimension` is `paths`, `event_types`, `users` or `controls` (tabs, buttons, menu items, dialogs and fields per page, with distinct users and phone uses).
 
 ### Notifications (`/api/notifications`) · `notifications.py`
 - `GET /preferences` · `PUT /preferences`.
