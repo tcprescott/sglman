@@ -165,11 +165,13 @@ def render_platform_chrome(
     ui.add_head_html(f'<link rel="stylesheet" href="{asset_url("css/styles.css")}">')
     ui.add_head_html('<meta name="robots" content="noindex, nofollow">')
     ui.add_head_html('<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">')
-    # The same two scripts BaseLayout loads: dialog naming and focus return, and
-    # drag-to-resize table headers. Without them a /platform dialog had no name
-    # and its table headers could not be dragged wider.
+    # The same scripts BaseLayout loads: dialog naming and focus return,
+    # drag-to-resize table headers, and keeping dialogs above the phone
+    # keyboard. Without them a /platform dialog had no name and its table
+    # headers could not be dragged wider.
     ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
     ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
+    ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
     install_timezone_detection()
     # The shipped phoenix defaults, not a tenant override: these surfaces belong
     # to the platform, and the consent screen in particular grants a credential

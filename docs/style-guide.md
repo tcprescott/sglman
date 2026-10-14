@@ -182,7 +182,10 @@ a width (it shrank to one word per line).
   accent. `dialog_header` draws both. That's the one Close: a footer never
   repeats it, and a dialog with nothing to do but read has no footer at all.
 - **On a phone every dialog is a bottom sheet** as tall as its content
-  (`mobile_sheet`), never a full screen of blank card.
+  (`mobile_sheet`), never a full screen of blank card. While the on-screen
+  keyboard is up, `static/js/dialog-keyboard.js` lifts every dialog (sheet or
+  centred) into the area above it and scrolls the focused field into view, so
+  don't add per-dialog keyboard workarounds.
 - **Pick the narrowest size that fits**: 520px (`--sm`) for a short form or a
   confirmation, 640px for a long form, 960px (`--lg`) for a table or two columns.
 - **Fields fill the dialog's width.** The card's own padding is the one 16px
