@@ -54,6 +54,19 @@ _STATUS_SEG_CLASS = {
 }
 _NONE_SEG_CLASS = 'avail-seg--none'
 
+# Each state also carries an icon, so the bar never relies on colour alone:
+# red and green read as one olive under deuteranopia.
+_STATUS_ICON = {
+    VolunteerAvailabilityStatus.UNAVAILABLE: 'close',
+    VolunteerAvailabilityStatus.PREFERRED: 'star',
+    VolunteerAvailabilityStatus.AVAILABLE: 'check',
+}
+
+# Share of the day a segment needs before its pill also shows the word
+# (desktop, then phone), so the label fits inside the segment.
+_WIDE_PCT = 20
+_WIDER_PCT = 29
+
 
 @dataclass(frozen=True)
 class EditorMode:
@@ -119,6 +132,16 @@ BLOCK_MODE = EditorMode(
 
 def _seg_class(status) -> str:
     return _STATUS_SEG_CLASS.get(status, _NONE_SEG_CLASS)
+
+
+def _seg_pill(status, label: Optional[str] = None) -> None:
+    icon = _STATUS_ICON.get(status)
+    if icon is None:
+        return
+    with ui.element('span').classes('avail-pill' if label else 'avail-pill avail-pill--swatch'):
+        ui.icon(icon).classes('avail-pill__icon').props('aria-hidden="true"')
+        if label:
+            ui.label(label).classes('avail-pill__text')
 
 
 def _split_by_open(seg_start, seg_end, open_ranges):
@@ -335,7 +358,8 @@ async def render_availability_editor(
                 with ui.row().classes('items-center gap-4 q-mb-xs'):
                     for legend_status in mode.legend_statuses:
                         with ui.row().classes('items-center gap-1 no-wrap'):
-                            ui.element('div').classes(f'avail-swatch {_seg_class(legend_status)}')
+                            with ui.element('div').classes(f'avail-swatch {_seg_class(legend_status)}'):
+                                _seg_pill(legend_status)
                             ui.label(mode.label(legend_status)).classes('text-caption')
                     if open_ranges is not None:
                         with ui.row().classes('items-center gap-1 no-wrap'):
@@ -344,7 +368,7 @@ async def render_availability_editor(
                 for day, day_start, day_end in event_days:
                     segments = service.effective_segments(windows, day_start, day_end)
                     total = (day_end - day_start).total_seconds()
-                    with ui.row().classes('items-center no-wrap gap-2 w-full'):
+                    with ui.row().classes('items-center no-wrap gap-2 w-full avail-day-row'):
                         ui.label(day.strftime('%a %b %d')).classes('text-caption avail-day-label')
                         with ui.element('div').classes('flex-grow avail-bar'):
                             if not segments:
@@ -356,13 +380,20 @@ async def render_availability_editor(
                                     pct = (part_end - part_start).total_seconds() / total * 100
                                     label = mode.label(status) if is_open else mode.closed_label
                                     css = _seg_class(status) if is_open else _NONE_SEG_CLASS
-                                    seg = ui.element('div').classes(css).style(f'width:{pct}%')
+                                    if pct >= _WIDE_PCT:
+                                        css += ' avail-seg--wide'
+                                    if pct >= _WIDER_PCT:
+                                        css += ' avail-seg--wider'
+                                    seg = ui.element('div').classes(f'avail-seg {css}').style(f'width:{pct}%')
+                                    if is_open:
+                                        with seg:
+                                            _seg_pill(status, label)
                                     seg.tooltip(
                                         f'{format_local_time(part_start)}–'
                                         f'{format_local_time(part_end)} · {label}'
                                     )
-                with ui.row().classes('items-center no-wrap gap-2 w-full'):
-                    ui.label('').classes('avail-day-label')
+                with ui.row().classes('items-center no-wrap gap-2 w-full avail-day-row'):
+                    ui.label('').classes('avail-day-label avail-day-label--spacer')
                     with ui.row().classes('flex-grow justify-between no-wrap'):
                         for tick in ('00:00', '06:00', '12:00', '18:00', '24:00'):
                             ui.label(tick).classes('text-caption text-grey').style('white-space:nowrap')
