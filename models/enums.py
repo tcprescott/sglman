@@ -366,6 +366,19 @@ class RescheduleRequestKind(str, Enum):
     CANCEL = 'cancel'
 
 
+class MatchCommentKind(str, Enum):
+    """Who wrote a match comment, and so who may read it.
+
+    A player's comment goes to staff only; their opponent never sees it. Staff
+    pick one of two paths: a private note other staff and proctors read, or a
+    message the match's players see as well.
+    """
+
+    PLAYER = 'player'
+    STAFF_PRIVATE = 'staff_private'
+    STAFF_TO_PLAYERS = 'staff_to_players'
+
+
 class RescheduleRequestStatus(str, Enum):
     """Where a request has got to.
 

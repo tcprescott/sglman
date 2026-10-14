@@ -177,6 +177,7 @@ async def admin_schedule_page(
                     storage_key='admin_schedule',
                     table_key=TableKeys.ADMIN_SCHEDULE,
                     show_accommodations=True,
+                    show_comment_counts=True,
                     searchable=True,
                     # The admin's job *is* the Finished-not-yet-Confirmed set, so it
                     # must be on screen without them discovering the State filter.

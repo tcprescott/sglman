@@ -67,6 +67,7 @@ from .log_level_service import LoggerLevelRow, LogLevelService
 from .match import (
     CancellationMixin,
     HardPresetState,
+    MatchCommentService,
     MatchDisplayService,
     MatchHardPresetService,
     MatchParticipants,
@@ -170,6 +171,7 @@ __all__ = [
     'IdentityLinkService',
     'LogLevelService',
     'LoggerLevelRow',
+    'MatchCommentService',
     'MatchDisplayService',
     'MatchHardPresetService',
     'MatchParticipants',

@@ -104,6 +104,8 @@ erDiagram
     Match ||--o{ MatchWatcher : "match"
     User ||--o{ MatchWatcher : "user"
     Match ||--o{ MatchStreamVolunteer : "match"
+    Match ||--o{ MatchComment : "match"
+    User |o--o{ MatchComment : "author"
     User ||--o{ MatchStreamVolunteer : "user"
     Match ||--o{ MatchHardPresetOptIn : "match"
     User ||--o{ MatchHardPresetOptIn : "user"
@@ -579,6 +581,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `is_active` | `BooleanField` | default `True` | |
 | `is_system` | `BooleanField` | default `False` | Marks the single reserved automation actor (sentinel `discord_id` = `SYSTEM_USER_DISCORD_ID` = `0`). Workers/bots pass this row as `actor`; resolve it via `UserService.get_system_user()`. `AuthService.is_system()` treats it as authorized for automation actions |
 | `dm_notifications` | `BooleanField` | default `True` | The **Discord DMs** switch. Enforced inside `DiscordService.send_dm`, after the web-push mirror, so device notifications don't depend on it |
+| `dm_match_comments` | `BooleanField` | default `True` | DM when staff send a message to the players of one of the user's matches (`MatchCommentKind.STAFF_TO_PLAYERS`). Profile → "Staff comments on your matches" |
 | `timezone` | `CharField(64)` | null | The person's own display zone (IANA name), used when their community follows each viewer; NULL falls back to the browser's zone. Global, like the rest of identity — see [timezone-handling.md](../timezone-handling.md) |
 | `challonge_user_id` | `CharField(64)` | null, `unique=True` | Verified Challonge identity, captured via one-time OAuth (scope `me`). Unique so bracket sync resolves to exactly one user (Postgres allows multiple NULLs) |
 | `challonge_username` | `CharField(255)` | null | Cached Challonge username |
@@ -596,7 +599,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 
 The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch and racetime.gg identities are likewise **identity only** — the user's access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
-Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profiles` (one per tenant), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `challonge_participations`, `web_push_subscriptions`, `tenant_memberships`. Accessors that exist only implicitly via the children's `related_name` (no class-level annotation): `player_availability`, `challonge_connections`, `telemetry_events`, `volunteer_check_ins`, `bracket_entrants`, `mcp_authorization_codes`, `admin_async_qualifiers` (M2M), `async_qualifier_runs`, `reviewed_async_qualifier_runs`, `claimed_async_qualifier_runs`, `granted_async_qualifier_reattempts`, `authored_async_qualifier_review_notes`, `join_requests`, `join_requests_decided`, `discord_tournament_grants`, `table_preferences`, `stream_volunteered_matches`, `hard_preset_opt_ins`, `reschedule_requests`, `decided_reschedule_requests`, `payouts`, `rolled_seeds`, `provider_tasks`, `room_tokens_created`, `check_in_entries`, `check_in_links_made`, `check_ins_performed`.
+Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profiles` (one per tenant), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `challonge_participations`, `web_push_subscriptions`, `tenant_memberships`. Accessors that exist only implicitly via the children's `related_name` (no class-level annotation): `player_availability`, `challonge_connections`, `telemetry_events`, `volunteer_check_ins`, `bracket_entrants`, `mcp_authorization_codes`, `admin_async_qualifiers` (M2M), `async_qualifier_runs`, `reviewed_async_qualifier_runs`, `claimed_async_qualifier_runs`, `granted_async_qualifier_reattempts`, `authored_async_qualifier_review_notes`, `join_requests`, `join_requests_decided`, `discord_tournament_grants`, `table_preferences`, `stream_volunteered_matches`, `match_comments`, `hard_preset_opt_ins`, `reschedule_requests`, `decided_reschedule_requests`, `payouts`, `rolled_seeds`, `provider_tasks`, `room_tokens_created`, `check_in_entries`, `check_in_links_made`, `check_ins_performed`.
 
 Properties: `preferred_name` returns `display_name` if it is truthy, otherwise `username`.
 
@@ -892,7 +895,7 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `preset_override` | `CharEnumField(PresetOverride)` | null | `max_length=16`. Staff overruling the players' hard-preset choice for this one match, in either direction. Null = the players decide. Refused once the seed is rolled, after which `generated_seed.preset` is the record |
 | `speedgaming_episode` | O2O → `SpeedGamingEpisode` | null, `SET_NULL` | The canonical **source marker**: non-null = materialized by the SpeedGaming ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`) read-only in Wizzrobe (guard in `MatchService.update_match`). `SET_NULL` soft-detaches the match if its episode is purged. `related_name='match'` |
 
-Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); `players`, `commentators`, `trackers`, `watchers`, `stream_volunteers`, `reschedule_requests`, `hard_preset_opt_ins`, `provider_tasks`, `racetime_room`, and `bracket_match_game` exist via the children's `related_name`s without class-level declarations.
+Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); `players`, `commentators`, `trackers`, `watchers`, `stream_volunteers`, `comments`, `reschedule_requests`, `hard_preset_opt_ins`, `provider_tasks`, `racetime_room`, and `bracket_match_game` exist via the children's `related_name`s without class-level declarations.
 
 Properties: `is_seated`, `is_started`, `is_finished`, `is_confirmed` are each `<field> is not None`; `current_state` returns the first of `'Finished'` / `'In Progress'` / `'Checked In'` whose timestamp is set, else `'Scheduled'` (see [Match lifecycle](#match-lifecycle)).
 
@@ -944,6 +947,21 @@ A player putting their **own** match forward to be streamed. Advisory: it does n
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='stream_volunteers'` |
 
 Constraint: `unique_together ('user', 'match')`. Index on `match` (the composite is user-first, so the per-board fan-out lookup is otherwise uncovered).
+
+#### `MatchComment`
+
+A signed comment on a match. `kind` (`MatchCommentKind`: `player`, `staff_private`, `staff_to_players`) is the audience, enforced in `MatchCommentService`; see [match-participation.md](../features/match-participation.md#match-comments). Table `matchcomment`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='match_comments'` |
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='comments'` |
+| `author` | FK → `User` | null, `SET_NULL` | `related_name='match_comments'`; a deleted account reads as "Removed user" |
+| `kind` | `CharEnumField(MatchCommentKind)` | not null | max 24 |
+| `body` | `TextField` | not null | markdown, at most 2,000 characters (service-enforced) |
+| `created_at` / `updated_at` | `DatetimeField` | auto | |
+
+Index on `match`.
 
 #### `MatchHardPresetOptIn`
 
@@ -2010,6 +2028,7 @@ Consult the source for full signatures.
 | `MatchWatcherRepository` | [`match_watcher_repository.py`](../../application/repositories/match_watcher_repository.py) | `MatchWatcher` | `get_by_id`, `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_watching`, `get_or_create` (idempotent watch), `delete`, `delete_by_match_and_user` |
 | `RescheduleRequestRepository` | [`reschedule_request_repository.py`](../../application/repositories/reschedule_request_repository.py) | `MatchRescheduleRequest` | `get_by_id` (prefetching), `list_pending` (the staff queue, oldest first), `list_for_match`, `list_for_user`, `get_pending_for`, `list_pending_for_match`, `pending_count`, `pending_match_ids`, `pending_match_ids_for_user`, `pending_by_match` (whole board in one query) |
 | `MatchHardPresetRepository` | [`match_hard_preset_repository.py`](../../application/repositories/match_hard_preset_repository.py) | `MatchHardPresetOptIn` | `has_opted_in`, `user_ids_for_match`, `user_ids_by_match` (whole board in one query), `opted_in_match_ids` (one viewer's own rows), `get_or_create`, `delete_by_match_and_user`, `delete_for_user_in_match` |
+| `MatchCommentRepository` | [`match_comment_repository.py`](../../application/repositories/match_comment_repository.py) | `MatchComment` | `list_for_match(match_id, kinds=None)` (author prefetched, oldest first), `counts_by_match(match_ids)` (`{match_id: {kind: n}}`, one query for a board) |
 | `MatchStreamVolunteerRepository` | [`match_stream_volunteer_repository.py`](../../application/repositories/match_stream_volunteer_repository.py) | `MatchStreamVolunteer` | `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_volunteer`, `names_by_match` (whole board in one query), `get_or_create`, `delete_by_match_and_user` |
 | `StationRepository` | [`station_repository.py`](../../application/repositories/station_repository.py) | `Station` | `get_all`, `get_active`, `active_names` (the assignable labels; empty = no pool defined), plus the `TenantScopedRepository` CRUD quartet |
 | `StageRepository` | [`stage_repository.py`](../../application/repositories/stage_repository.py) | `Stage` | `get_by_id`, `get_all`, `any_exists`, `get_all_as_dict` (id → name for select options), `count_matches`, `create`, `update`, `delete` |

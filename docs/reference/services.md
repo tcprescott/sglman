@@ -75,6 +75,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-participation.md](../features/match-participation.md) |
 | `MatchRescheduleService` | [match_reschedule_service.py](../../application/services/match_reschedule_service.py) | Players asking staff to move or call off their match; approving performs the change | [match-participation.md](../features/match-participation.md#reschedule-requests) |
 | `MatchHardPresetService` | [match_hard_preset_service.py](../../application/services/match/match_hard_preset_service.py) | Players privately opting into a match's harder preset; resolves which preset a roll uses | [match-participation.md](../features/match-participation.md#harder-settings-opt-in) |
+| `MatchCommentService` | [match_comment_service.py](../../application/services/match/match_comment_service.py) | Signed comments on a match: player → staff, private staff notes, staff messages to players | [match-participation.md](../features/match-participation.md#match-comments) |
 | `MatchStreamVolunteerService` | [match_stream_volunteer_service.py](../../application/services/match/match_stream_volunteer_service.py) | Players offering their own match for stream (advisory) | [match-participation.md](../features/match-participation.md#stream-volunteering) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services; the `default` argument is what makes one opt-out and the other opt-in | — |
@@ -769,6 +770,24 @@ Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without 
 | `is_watching(match_id, user)` / `list_watched_match_ids(user)` | `bool` / `list[int]` | Whether the user watches one match; every match id they watch (marks rows in the schedule table). |
 
 Collaborators: `MatchWatcherRepository`, `MatchRepository`, `AuditService`.
+
+### match_comment_service.py — MatchCommentService
+
+Signed comments on a match. The kind is the audience; "staff" is
+`AuthService.can_run_match`. Feature doc:
+[match-participation.md](../features/match-participation.md#match-comments).
+
+| Method | Returns | Description |
+|---|---|---|
+| `add_player_comment(match_id, user, body)` | `MatchComment` | A player's comment to staff. `ValueError` for a non-player or an empty/over-long body. |
+| `add_staff_comment(match_id, user, body, *, to_players)` | `MatchComment` | A private note, or a message the players read. `to_players` DMs each player with `dm_match_comments` on (never the author) via `_comment_notifications.notify_match_comment`. |
+| `delete_comment(comment_id, user)` | `None` | Author or staff only. |
+| `list_for_viewer(match_id, user)` | `list[dict]` | Display dicts (`id`, `kind`, `body`, `author`, `own`, `when`, `can_delete`): everything for staff; own player comments plus staff messages for a player; nothing for anyone else. |
+| `counts_by_match(match_ids)` | `dict[int, dict]` | `{match_id: {'player': n, 'staff': n}}` for a staff board. Includes private notes, so callers gate it on `access.run`. |
+
+Add and delete audit + emit `match.comment_added` / `match.comment_deleted` (payload carries `kind`; add also carries `body`) and nudge `match_live`.
+
+Collaborators: `MatchCommentRepository`, `MatchRepository`, `AuditService`.
 
 ### match_stream_volunteer_service.py — MatchStreamVolunteerService
 

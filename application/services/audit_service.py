@@ -53,6 +53,9 @@ class AuditActions:
     # Advisory: neither one touches is_stream_candidate.
     MATCH_STREAM_VOLUNTEERED = 'match.stream_volunteered'
     MATCH_STREAM_VOLUNTEER_WITHDRAWN = 'match.stream_volunteer_withdrawn'
+    # A comment on a match, from a player or staff, and its removal.
+    MATCH_COMMENT_ADDED = 'match.comment_added'
+    MATCH_COMMENT_DELETED = 'match.comment_deleted'
     # A player asking staff to move or call off their match, and what became of
     # it. The approval also writes the underlying match.rescheduled / match.cancelled,
     # since approving *performs* the change rather than blessing it.

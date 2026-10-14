@@ -18,6 +18,7 @@ from application.services.match.bracket_result_guard import (
 )
 from application.services.match.match_acknowledgment import MatchAcknowledgmentMixin
 from application.services.match.match_cancellation import CancellationMixin
+from application.services.match.match_comment_service import MatchCommentService
 from application.services.match.match_display_service import MatchDisplayService
 from application.services.match.match_hard_preset_service import (
     HardPresetState,
@@ -53,6 +54,7 @@ __all__ = [
     'CancellationMixin',
     'HardPresetState',
     'MatchAcknowledgmentMixin',
+    'MatchCommentService',
     'MatchDisplayService',
     'MatchHardPresetService',
     'MatchParticipants',

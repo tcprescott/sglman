@@ -522,6 +522,38 @@ Like the station pool and the dispute flag, this has **no per-tenant feature
 flag** — it self-gates through `Tournament.allow_reschedule_requests`, which a
 community sets per tournament.
 
+## Match comments
+
+Anyone on the match can leave a signed, markdown comment in the match sheet,
+and who reads it depends on its kind (`MatchCommentKind`):
+
+| Kind | Written by | Read by |
+|---|---|---|
+| `player` | one of the match's players | staff, and that player. **Never the opponent**: "I'll be late" is between the player and the people running the event |
+| `staff_private` | staff ("Private note") | staff only |
+| `staff_to_players` | staff ("Message players") | staff and every player in the match |
+
+"Staff" is `AuthService.can_run_match`: STAFF, proctors and the tournament's
+admins, so the thread works on Admin → Schedule and on Proctor Station. The two
+staff kinds have separate buttons and separate composers so a private note can't
+be sent to players by a mis-set toggle. Authors delete their own; staff delete
+any. Bodies are capped at 2,000 characters and render through the help markdown
+model, never `ui.markdown`.
+
+Bodies never ride the shared board rows: the sheet fetches them per viewer via
+`MatchCommentService.list_for_viewer`. Staff boards (`show_comment_counts=True`
+on `MatchTableView`, honoured only for viewers with `access.run`) show a person
+icon with the player-comment count and a shield with the staff count on each
+run-sheet line; the staff count includes private notes, which is why players
+never get counts.
+
+A `staff_to_players` message DMs each player whose `User.dm_match_comments` is on
+(default on; Profile → "Staff comments on your matches"). The DM's button opens
+`/home/player?comments=<match_id>`, which narrows My Schedule to that match and
+opens its sheet. Every add and delete audits and emits `match.comment_added` /
+`match.comment_deleted`, with `kind` in the payload so a webhook can drop private
+notes. No feature flag.
+
 ## Models
 
 | Model | Holds |
@@ -530,6 +562,7 @@ community sets per tournament.
 | `MatchAcknowledgment` | per-player acknowledgment state per match |
 | `MatchWatcher` | user × match watch subscriptions |
 | `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
+| `MatchComment` | a signed comment on a match; its `kind` decides who reads it |
 | `MatchStreamVolunteer` | one player's offer to have their match streamed; advisory, never the decision |
 | `MatchRescheduleRequest` | a player's ask to move or cancel a match; kind, proposed time, reason, status, and staff's decision |
 | `MatchHardPresetOptIn` | one player's private agreement to the tournament's harder preset; unanimity is derived from the set, never stored |

@@ -5159,6 +5159,35 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--fg-secondary);
     overflow-wrap: anywhere;
 }
+/* The names, then the comment counts beside them. */
+.run-sheet__name-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+}
+.run-sheet__comments {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+.run-sheet__main > .run-sheet__comments {
+    display: flex;
+    margin-top: 0.25rem;
+}
+.run-sheet__comment-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0 0.4375rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--fg-secondary);
+    white-space: nowrap;
+}
 .run-sheet__none {
     color: var(--fg-secondary);
 }
@@ -5554,6 +5583,81 @@ ol.wiz-help-list { list-style-type: decimal; }
     font-weight: 700;
     color: var(--fg);
     overflow-wrap: anywhere;
+}
+/* Match comments: a name, a tag saying who reads it, the text. */
+.match-sheet__comment + .match-sheet__comment {
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+}
+.match-sheet__comment-head {
+    gap: 0.5rem;
+}
+.match-sheet__comment-byline {
+    flex: 1;
+    min-width: 0;
+    gap: 0.125rem 0.5rem;
+}
+.match-sheet__comment-author {
+    font-weight: 700;
+}
+.match-sheet__comment-author,
+.match-sheet__comment-when {
+    white-space: nowrap;
+}
+.match-sheet__comment-body {
+    overflow-wrap: anywhere;
+}
+.match-sheet__comment-body > :last-child {
+    margin-bottom: 0;
+}
+.match-sheet__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0 0.375rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-secondary);
+    white-space: nowrap;
+}
+.match-sheet__tag .q-icon {
+    font-size: 0.8125rem;
+}
+.match-sheet__tag--private {
+    background: var(--surface-sunken);
+    border-color: transparent;
+}
+.match-sheet__tag--shared {
+    background: var(--accent-soft);
+    border-color: transparent;
+    color: var(--wiz-link);
+}
+.match-sheet__comment-start {
+    gap: 0.5rem;
+}
+.match-sheet__composer {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+.match-sheet__composer--shared {
+    border-color: var(--accent);
+}
+.match-sheet__composer-head {
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-sunken);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+.match-sheet__composer--shared .match-sheet__composer-head {
+    background: var(--accent-soft);
+    color: var(--wiz-link);
+}
+.match-sheet__composer > .match-sheet__composer-body {
+    padding: 0.625rem 0.75rem;
 }
 .run-sheet__card > .wiz-chip {
     flex: none;
