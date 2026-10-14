@@ -101,7 +101,9 @@ async def telemetry_top(
     end: Optional[str] = None,
     limit: int = 15,
 ) -> List[Dict[str, Any]]:
-    """Top engagement rows for one dimension: `paths`, `event_types`, or `users`.
+    """Top engagement rows for one dimension: `paths`, `event_types`, `users`,
+    or `controls` (the tabs, buttons, menu items, dialogs and fields people used,
+    per page, with distinct users and how many uses came from a phone).
 
     Requires staff access.
     """
@@ -113,6 +115,7 @@ async def telemetry_top(
         'paths': service.top_paths,
         'event_types': service.top_event_types,
         'users': service.top_users,
+        'controls': service.top_controls,
     })
     return await fn(actor.user, start=start_dt, end=end_dt, limit=limit)
 

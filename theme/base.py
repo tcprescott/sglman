@@ -13,6 +13,7 @@ from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
+from theme.usage_telemetry import install_usage_capture, record_tab_view
 from theme.waiting import waiting_panel
 
 logger = logging.getLogger(__name__)
@@ -392,6 +393,7 @@ class BaseLayout:
         ui.add_head_html(f'<script src="{asset_url("js/table-columns.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/a11y.js")}"></script>')
         ui.add_head_html(f'<script defer src="{asset_url("js/dialog-keyboard.js")}"></script>')
+        install_usage_capture(self._tenant_id)
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme).
         apply_brand_palette(colors)
@@ -625,12 +627,12 @@ class BaseLayout:
                 item.props(remove='active')
         self._sync_bottom_nav(label)
         # replace(), not push(): tab switches (incl. every swipe) update the URL for
-        # deep-linking/sharing without stacking history entries that would turn the
-        # Back button into a per-tab trap on mobile. The section is a path segment
-        # (/base/<slug>), not a query param, so the URL reads like an app route.
-        # Done before the (possibly awaited) first build so the URL lands promptly.
+        # deep-linking/sharing without a Back-button trap per tab on mobile, and so
+        # load no page — hence the explicit tab-view telemetry. Done before the
+        # (possibly awaited) first build so the URL lands promptly.
         if self._base_path is not None:
             ui.navigate.history.replace(f'{self._base_path}/{self._slug_by_label[label]}')
+            record_tab_view(self._base_path, self._slug_by_label[label])
         # First visit builds the panel, which loads its own data — broadcasting
         # ``selected_tab`` as well would make it fetch twice. Afterwards the panel
         # already exists, so the broadcast is what refreshes it.
@@ -787,6 +789,7 @@ class BaseLayout:
                 self._pending_tabs[tab['label']] = tab
 
         await self._build_tab(self._default_tab, deferred=False)
+        record_tab_view(self._base_path, self._slug_by_label.get(self._default_tab))
 
         # Panel changes (drawer click, bottom-tab tap, or swipe) all route through
         # _handle_tab_change, which syncs both highlights and the URL. Registered

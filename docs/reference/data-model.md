@@ -1262,7 +1262,7 @@ Indexes: `created_at` and `user` for the audit-log listing hot path.
 
 #### `TelemetryEvent`
 
-Append-only engagement telemetry — *how* people use the tool, as opposed to the deliberate admin **actions** `AuditLog` records. Written from three capture points (the event-bus mirror, page-view tracking in `protected_page`, and explicit interaction calls); read only by the Staff-gated engagement report. See [telemetry.md](../features/telemetry.md).
+Append-only engagement telemetry — *how* people use the tool, as opposed to the deliberate admin **actions** `AuditLog` records. Written from the event-bus mirror, page-view tracking in `protected_page`, explicit interaction calls, tab switches in `BaseLayout`, and batched in-page usage from `static/js/usage.js`; read only by the Staff-gated engagement report. See [telemetry.md](../features/telemetry.md).
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -1272,6 +1272,8 @@ Append-only engagement telemetry — *how* people use the tool, as opposed to th
 | `path` | `CharField(512)` | null | Route the event happened on (page views + interactions); null for domain events |
 | `session_id` | `CharField(64)` | null, indexed | Per-browser correlation id (NiceGUI `app.storage.browser` id) for session reconstruction; null for bus events |
 | `details` | `TextField` | null | JSON-encoded dict (page params / event payload, plus `actor_username`) |
+| `target` | `CharField(200)` | null | The control a `tab.view` / `ui.*` row is about (tab slug, button or field name, dialog title); the `controls` leaderboard groups by it |
+| `device` | `CharField(16)` | null | `phone` / `tablet` / `desktop` from the viewport width, on client-reported `ui.*` rows only |
 | `created_at` | `DatetimeField` | `auto_now_add`, indexed | |
 
 Indexes: `created_at`, `category`, `event_type`, `session_id`, and `user` — the report's aggregation and filter dimensions. Capture honors the `TELEMETRY_ENABLED` kill-switch.
@@ -2001,7 +2003,7 @@ Consult the source for full signatures.
 | Repository | Source | Serves | Key methods |
 |---|---|---|---|
 | `AuditRepository` | [`audit_repository.py`](../../application/repositories/audit_repository.py) | `AuditLog` | `list` (newest first, `user` prefetched) and `count`, over the same filters: date range, actor, case-insensitive action substring, limit/offset |
-| `TelemetryRepository` | [`telemetry_repository.py`](../../application/repositories/telemetry_repository.py) | `TelemetryEvent` | `create`, `list`, `count`, `count_distinct_users`, `count_distinct_sessions`, `top_paths`, `top_event_types`, `top_users` — DB-side aggregations for the engagement report, never full-table scans into memory |
+| `TelemetryRepository` | [`telemetry_repository.py`](../../application/repositories/telemetry_repository.py) | `TelemetryEvent` | `create`, `bulk_create`, `list`, `count`, `count_distinct_users`, `count_distinct_sessions`, `top_paths`, `top_event_types`, `top_users`, `top_controls` — DB-side aggregations for the engagement report, never full-table scans into memory |
 | `CommentatorRepository`, `TrackerRepository` | [`commentator_repository.py`](../../application/repositories/commentator_repository.py), [`tracker_repository.py`](../../application/repositories/tracker_repository.py) | `Commentator`, `Tracker` | Model bindings over `CrewRepository`; no methods of their own |
 | `MatchAcknowledgmentRepository` | [`match_acknowledgment_repository.py`](../../application/repositories/match_acknowledgment_repository.py) | `MatchAcknowledgment` | `list_for_match`, `list_for_matches` (one query for many matches, grouped by id; every requested id gets a possibly-empty list), `get`, `upsert`, `reconcile`, `delete_for_match`, `delete_for_user` |
 | `MatchRepository` | [`match_repository.py`](../../application/repositories/match_repository.py) | `Match`, `MatchPlayers` | `get_by_id`, `get_all` (filters by tournaments, stages, upcoming-only = `finished_at IS NULL`, the matches one user plays in, `exclude_racetime`, or explicit `match_ids`; ordered by `scheduled_at`), `create`, `update`, `delete`, `add_player`, `remove_player`, `get_players`; schedule/board reads `get_all_for_schedule`, `get_by_ids_with_players`, `get_by_ids_with_presets`, `scheduled_between`, `occupied_stations` (seated-and-unfinished station labels), player views `get_for_player`, `get_upcoming_for_user`, `commitments_for_user`; worker/sync scans `get_by_speedgaming_episode`, `list_sourced_stale`, `list_for_discord_sync`, `due_for_stage_reminder`. `get_by_id` and `get_all` prefetch `tournament`, `players(+user)`, `stage`, `generated_seed`, `commentators(+user)`, `trackers(+user)`, and the bracket seam (`bracket_match_game` → its bracket match, bracket, and sibling games) unless asked not to |

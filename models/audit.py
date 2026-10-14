@@ -55,6 +55,13 @@ class TelemetryEvent(Model):
     # journey can be reconstructed as an ordered session; null for bus events.
     session_id = fields.CharField(max_length=64, null=True, index=True)
     details = fields.TextField(null=True)
+    # The control a ``ui.*`` interaction row is about (a button's name, a dialog's
+    # title, a tab's slug); a column rather than a details key so the "which
+    # controls get used" leaderboard can GROUP BY it. Null for every other row.
+    target = fields.CharField(max_length=200, null=True)
+    # 'phone' / 'tablet' / 'desktop' from the viewport width at the time of a
+    # client-reported interaction; null where the server can't know it.
+    device = fields.CharField(max_length=16, null=True)
     created_at = fields.DatetimeField(auto_now_add=True, index=True)
 
     class Meta:

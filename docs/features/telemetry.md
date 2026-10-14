@@ -31,7 +31,7 @@ did something, not who may still act — which is why capture resolves the user
 directly rather than through `get_user_from_discord_id` (that helper hides
 inactive users on purpose for authorization).
 
-## Three capture points
+## Capture points
 
 All capture is **best-effort and non-blocking**: a telemetry failure is logged
 and swallowed so it can never break a page render or a mutating call. All three
@@ -69,6 +69,29 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    layout (`details` carries the `table_key`). To add another, call
    `track_interaction(event_type=…, path=…, discord_id=…, session_id=…)` from the presentation layer, reading identity from
    `app.storage`.
+4. **Tab switches** — `BaseLayout` records a `tab.view` (`TelemetryService.track_tab_view`)
+   for the landing tab and every switch on a tabbed hub (Admin, Home, Volunteer).
+   A switch only rewrites the URL (`ui.navigate.history.replace`), so without
+   this the hub's page views say nothing past the tab someone landed on. `path`
+   is the hub plus the tab (`/admin/schedule`), `target` the tab slug.
+5. **In-page usage** — [`static/js/usage.js`](../../static/js/usage.js), loaded
+   by `BaseLayout` through [`theme/usage_telemetry.py`](../../theme/usage_telemetry.py),
+   batches four kinds of row and sends them as the `wiz_usage` event every 5s
+   (and when the tab is hidden); `TelemetryService.track_ui_batch` stores them:
+   - `ui.click` — any named control: button, link, menu item, tab, toggle,
+     checkbox, chip, clickable list item, select. `details` notes the `kind`,
+     the `dialog` and ⋮ `menu` it sat in, and the `table` key. A row button's
+     "… for <row>" suffix is dropped so every row's ⋮ counts as one control.
+   - `ui.dialog_opened` / `ui.dialog_closed` — by dialog title; a close carries
+     `via`, the last button pressed inside it, or `dismissed` (Escape / outside).
+   - `ui.field_used` — a field whose value changed, by its label. **Never the
+     value.**
+   Each row carries `device` (`phone` < 600px ≤ `tablet` < 1024px ≤ `desktop`)
+   and the raw `width` in `details`. Paths are normalised the same way on both
+   sides (`/t/<slug>` dropped, numeric segments → `{id}`; `tests/theme/test_usage_telemetry.py`
+   pins the match). The browser is untrusted: the service keeps only the four
+   known types, bounds every string, takes at most 50 rows a batch, and a page
+   stops forwarding after 5,000. The `/platform` chrome doesn't load the script.
 
 Telemetry has its own table rather than reusing either neighbour: `EventType.ALL`
 is an external webhook contract that high-volume page views would flood and
@@ -93,7 +116,9 @@ Reads are scoped to the current tenant in `TelemetryRepository` (`NULL`
 outside one, so the platform sees only platform rows). The same Staff-gated
 summary and leaderboards are exposed over REST (`GET /api/telemetry/summary`,
 `GET /api/telemetry/top?dimension=…`) and as the MCP tools `telemetry_summary`
-and `telemetry_top`.
+and `telemetry_top`. Those two also take `dimension=controls`: one row per
+(page, event type, `target`) with uses, distinct users, and how many came from
+a phone. The in-app report has no controls view yet.
 
 Aggregations run in the database (`GROUP BY` / `COUNT DISTINCT` via
 `TelemetryRepository`), never by loading the table into memory.
@@ -108,6 +133,6 @@ unaffected; the report just shows whatever was already captured. See the
 ## Tests
 
 [`tests/services/test_telemetry_service.py`](../../tests/services/test_telemetry_service.py):
-the three capture paths (including the disabled no-op and anonymous fallback),
+every capture path, the `ui.*` batch validation, the `controls` leaderboard (including the disabled no-op and anonymous fallback),
 the aggregation SQL against SQLite, list/count filters, and the Staff-only read
 boundary.

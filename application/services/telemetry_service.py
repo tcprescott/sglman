@@ -14,6 +14,9 @@ failure must never break a page render or a mutating call):
   every authenticated page load.
 * :meth:`track_interaction` — called from presentation code for specific
   high-value interactions (report opened, export downloaded, ...).
+* :meth:`track_tab_view` — every tab switch on a tabbed hub page.
+* :meth:`track_ui_batch` — clicks, dialog opens/closes and field use, batched
+  by ``static/js/usage.js`` in the browser.
 
 Reads (the admin engagement report) are Staff-gated at the service boundary,
 mirroring :class:`~application.services.webhook_service.WebhookService`, because
@@ -53,6 +56,33 @@ class TelemetryEventType:
     PAGE_VIEW = 'page.view'
     REPORT_VIEWED = 'report.viewed'
     REPORT_EXPORTED = 'report.exported'
+    TAB_VIEW = 'tab.view'
+    # Reported in batches by static/js/usage.js (see track_ui_batch).
+    UI_CLICK = 'ui.click'
+    UI_DIALOG_OPENED = 'ui.dialog_opened'
+    UI_DIALOG_CLOSED = 'ui.dialog_closed'
+    UI_FIELD_USED = 'ui.field_used'
+
+
+#: The client-reported kinds track_ui_batch accepts. The browser is not trusted:
+#: anything else in a batch is dropped rather than stored under a made-up name.
+UI_EVENT_TYPES = frozenset({
+    TelemetryEventType.UI_CLICK,
+    TelemetryEventType.UI_DIALOG_OPENED,
+    TelemetryEventType.UI_DIALOG_CLOSED,
+    TelemetryEventType.UI_FIELD_USED,
+})
+UI_DEVICES = frozenset({'phone', 'tablet', 'desktop'})
+UI_BATCH_MAX = 50
+_UI_TEXT_MAX = 120
+_UI_DETAIL_KEYS = ('kind', 'dialog', 'menu', 'table', 'via', 'width')
+
+
+def _clip(value: Any, limit: int = _UI_TEXT_MAX) -> Optional[str]:
+    if value is None or isinstance(value, (dict, list)):
+        return None
+    text = ' '.join(str(value).split())
+    return text[:limit] or None
 
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
@@ -133,6 +163,99 @@ class TelemetryService:
             details=dict(details) if details else None,
         )
 
+    async def track_tab_view(
+        self,
+        *,
+        path: str,
+        tab: str,
+        discord_id: Optional[str] = None,
+        username: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> None:
+        """Record a switch to a tab on a tabbed hub page (Admin, Home, Volunteer).
+
+        A tab switch rewrites the URL in place rather than loading a page, so
+        without this row the hub's page views only say which tab someone landed
+        on. ``path`` is the hub plus the tab (``/admin/schedule``).
+        """
+        if not telemetry_enabled():
+            return
+        try:
+            user_id, username = await self._resolve_user(discord_id, username)
+            await self.repository.create(
+                category=TelemetryCategory.INTERACTION,
+                event_type=TelemetryEventType.TAB_VIEW,
+                user_id=user_id,
+                path=_clip(path, 512),
+                session_id=session_id,
+                target=_clip(tab, 200),
+                details=_encode_details({'actor_username': username} if username else None),
+            )
+        except Exception:
+            logger.exception("telemetry tab view failed")
+
+    async def track_ui_batch(
+        self,
+        events: Any,
+        *,
+        discord_id: Optional[str] = None,
+        username: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> int:
+        """Store a batch of client-reported UI interactions; returns rows kept.
+
+        The batch comes from the browser, so every field is bounded and anything
+        malformed is dropped. Never raises.
+        """
+        if not telemetry_enabled() or not isinstance(events, list):
+            return 0
+        try:
+            user_id, username = await self._resolve_user(discord_id, username)
+            rows: list[dict] = []
+            for raw in events[:UI_BATCH_MAX]:
+                if not isinstance(raw, dict) or raw.get('type') not in UI_EVENT_TYPES:
+                    continue
+                target = _clip(raw.get('target'), 200)
+                if target is None:
+                    continue
+                details: dict[str, Any] = {
+                    key: _clip(raw.get(key)) for key in _UI_DETAIL_KEYS
+                    if _clip(raw.get(key)) is not None
+                }
+                if username is not None:
+                    details['actor_username'] = username
+                device = raw.get('device')
+                rows.append({
+                    'category': TelemetryCategory.INTERACTION,
+                    'event_type': raw['type'],
+                    'user_id': user_id,
+                    'path': _clip(raw.get('path'), 512),
+                    'session_id': session_id,
+                    'target': target,
+                    'device': device if device in UI_DEVICES else None,
+                    'details': _encode_details(details),
+                })
+            if rows:
+                await self.repository.bulk_create(rows)
+            return len(rows)
+        except Exception:
+            logger.exception("telemetry ui batch failed")
+            return 0
+
+    @staticmethod
+    async def _resolve_user(
+        discord_id: Optional[str], username: Optional[str],
+    ) -> tuple[Optional[int], Optional[str]]:
+        # Resolve to a User for the FK when possible, but attribute even
+        # deactivated accounts (unlike get_user_from_discord_id, which hides
+        # them) — telemetry is about who did what, not who may act now.
+        if not discord_id:
+            return None, username
+        user = await User.get_or_none(discord_id=discord_id)
+        if user is None:
+            return None, username
+        return user.id, username or getattr(user, 'username', None)
+
     async def _capture(
         self,
         *,
@@ -147,15 +270,7 @@ class TelemetryService:
         if not telemetry_enabled():
             return
         try:
-            # Resolve to a User for the FK when possible, but attribute even
-            # deactivated accounts (unlike get_user_from_discord_id, which hides
-            # them) — telemetry is about who did what, not who may act now.
-            user_id: Optional[int] = None
-            if discord_id:
-                user = await User.get_or_none(discord_id=discord_id)
-                if user is not None:
-                    user_id = user.id
-                    username = username or getattr(user, 'username', None)
+            user_id, username = await self._resolve_user(discord_id, username)
             enriched = dict(details) if details else {}
             if username is not None:
                 enriched.setdefault('actor_username', username)
@@ -252,6 +367,21 @@ class TelemetryService:
     ) -> List[dict]:
         await self._ensure_staff(actor)
         return await self.repository.top_event_types(start=start, end=end, limit=limit)
+
+    async def top_controls(
+        self,
+        actor: User,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        limit: int = 50,
+    ) -> List[dict]:
+        """Most-used tabs, buttons, menu items, dialogs and fields, with how
+        many distinct people used each and how many uses came from a phone."""
+        await self._ensure_staff(actor)
+        return await self.repository.top_controls(
+            start=start, end=end, category=TelemetryCategory.INTERACTION, limit=limit,
+        )
 
     async def top_users(
         self,

@@ -105,4 +105,19 @@ async def seed_observability_for_tenant(
                 event_type=event_type, path=path, session_id=session_id,
                 details=json.dumps({"seed": True}),
             )
+    # In-page usage (tab.view + the ui.* rows usage.js reports): enough that
+    # the `controls` leaderboard has a tab, a click and a dialog to rank.
+    usage_specs = [
+        ("tab.view", "/admin/schedule", "schedule", None),
+        ("ui.click", "/admin/schedule", "New match", "desktop"),
+        ("ui.dialog_opened", "/admin/schedule", "Create Match", "desktop"),
+        ("ui.dialog_closed", "/admin/schedule", "Create Match", "phone"),
+    ]
+    if not await TelemetryEvent.filter(tenant=tenant, target__isnull=False).exists():
+        for event_type, path, target, device in usage_specs:
+            await TelemetryEvent.create(
+                tenant=tenant, user=staff, category="interaction",
+                event_type=event_type, path=path, session_id="sess-dev-1",
+                target=target, device=device, details=json.dumps({"seed": True}),
+            )
     print(f"    [{tenant.slug}] telemetry ok")
