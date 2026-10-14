@@ -6,7 +6,10 @@
     "path": "/admin/payouts",
     "setup": [
       {
-        "click": "tr:has-text(\"Last Season\") [aria-label=\"Edit split\"]"
+        "click": "[aria-label=\"More for Wizzrobe Cup \u2014 Last Season\"]"
+      },
+      {
+        "click": ".q-menu .q-item:has-text(\"Edit split\")"
       },
       {
         "waitFor": ".q-dialog"
@@ -15,6 +18,17 @@
         "wait": 600
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog button:has-text('Add place')",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-card button.text-negative, .q-dialog .q-card button:has(i:text('delete'))",
+        "n": 2
+      }
+    ]
   }
 ]

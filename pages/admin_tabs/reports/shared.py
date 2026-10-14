@@ -80,9 +80,13 @@ def themed_chart_option(option: dict) -> dict:
     """Overlay the mode-neutral chrome colors onto an ECharts option in place.
 
     Sets default text, legend text, and per-axis label/name/line/split-line
-    colors without clobbering anything the chart already specifies.
+    colors, plus decal patterns and an aria description, without clobbering
+    anything the chart already specifies.
     """
     option.setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
+    # Patterned series (decals) so stacked and multi-series charts don't rely on
+    # colour alone; aria also gives screen readers a generated description.
+    option.setdefault('aria', {'enabled': True, 'decal': {'show': True}})
     if 'legend' in option:
         option['legend'].setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
     if 'toolbox' in option:
@@ -149,13 +153,20 @@ async def default_date_range(
 
 
 @contextmanager
-def report_page_shell(title: str, subtitle: Optional[str] = None) -> Iterator[None]:
-    """A report's page top: an "All reports" link back, then the page header."""
+def report_page_shell(
+    title: str, subtitle: Optional[str] = None, *, all_reports_link: bool = True,
+) -> Iterator[None]:
+    """A report's page top: an "All reports" link back, then the page header.
+
+    ``all_reports_link=False`` drops the link for a viewer limited to this one
+    report, who has no dashboard to go back to.
+    """
     with ui.column().classes('page-container-wide wiz-report'):
-        ui.button(
-            'All reports', icon='chevron_left',
-            on_click=lambda: navigate_with_params(report=None),
-        ).props('flat dense no-caps color=primary').classes('wiz-report-back')
+        if all_reports_link:
+            ui.button(
+                'All reports', icon='chevron_left',
+                on_click=lambda: navigate_with_params(report=None),
+            ).props('flat dense no-caps color=primary').classes('wiz-report-back')
         page_header(title, subtitle)
         yield
 

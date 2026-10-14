@@ -97,7 +97,7 @@ def readiness(row: dict, *, crew: bool = True) -> list[dict]:
         if seed:
             ready, detail = True, ''
         elif row.get('seed_rolling_since'):
-            ready, detail = False, f"Rolling… {row.get('seed_rolling_label') or ''}".strip()
+            ready, detail = False, row.get('seed_rolling_label') or 'Rolling…'
         elif row.get('seed_roll_error'):
             ready, detail = False, row['seed_roll_error']
         elif row.get('is_racetime'):

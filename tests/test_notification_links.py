@@ -91,6 +91,15 @@ class TestLinkBuilding:
         link = links.link_for_tenant(tenant, 'Submit or forfeit', '/qualifiers/4')
         assert link.url.endswith('/t/acme/qualifiers/4')
 
+    def test_a_qualifier_verdict_lands_on_the_runners_own_runs(self):
+        """The leaderboard is hidden from players until close, so it is not the target."""
+        tenant = type('T', (), {'slug': 'acme', 'domain': None})()
+        link = links.player_qualifier_runs(tenant, 4)
+        assert link.label == 'See your runs'
+        assert link.url.endswith('/t/acme/qualifiers/4?focus=runs')
+        assert links.player_qualifier(tenant, 4, label='Submit or forfeit').url.endswith(
+            '/t/acme/qualifiers/4')
+
     def test_link_for_tenant_tolerates_a_missing_tenant(self):
         assert links.link_for_tenant(None, 'x', '/y') is None
 
@@ -236,3 +245,12 @@ async def test_default_labels_read_as_actions(builder, expected_label):
     with patch.object(links, '_current_tenant', AsyncMock(return_value=tenant)):
         link = await builder(1)
     assert link.label == expected_label
+
+
+def test_the_review_backlog_dm_does_not_claim_a_pending_run_blocks_the_runner():
+    """A pending run holds only its own pool slot, the same as an approved one."""
+    from application.utils.discord_messages_qualifier import qualifier_review_queue_dm
+
+    body = qualifier_review_queue_dm('Spring Q', waiting=3, oldest_hours=5)
+    assert 'cannot start' not in body
+    assert '3 runs awaiting review' in body

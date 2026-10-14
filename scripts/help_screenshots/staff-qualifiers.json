@@ -1,0 +1,71 @@
+[
+  {
+    "name": "pools",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/qualifiers",
+    "setup": [
+      {
+        "click": ".q-card:has(.section-title:text-is('Dev Async Qualifier')) button:has-text('Manage')"
+      },
+      {
+        "waitFor": ".q-tab:has-text('Review Queue')"
+      },
+      {
+        "wait": 1500
+      }
+    ],
+    "selector": ".q-page",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-card:has(.section-title:text-is('Dev Async Qualifier')) button:has-text('Manage')",
+        "n": 1
+      },
+      {
+        "selector": ".q-tab:has-text('Pools')",
+        "n": 2
+      },
+      {
+        "selector": ".q-card:has-text('Standard Pool') button:has-text('Roll')",
+        "n": 3
+      }
+    ]
+  },
+  {
+    "name": "review-queue",
+    "user": "staff_user",
+    "viewport": "desktop",
+    "path": "/admin/qualifiers",
+    "setup": [
+      {
+        "click": ".q-card:has(.section-title:text-is('Dev Async Qualifier')) button:has-text('Manage')"
+      },
+      {
+        "waitFor": ".q-tab:has-text('Review Queue')"
+      },
+      {
+        "click": ".q-tab:has-text('Review Queue')"
+      },
+      {
+        "wait": 1500
+      }
+    ],
+    "selector": ".q-page",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-tab:has-text('Review Queue')",
+        "n": 1
+      },
+      {
+        "selector": "button:has-text('Claim') >> nth=0",
+        "n": 2
+      },
+      {
+        "selector": "text=/^drift / >> nth=0",
+        "n": 3
+      }
+    ]
+  }
+]

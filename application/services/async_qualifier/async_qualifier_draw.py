@@ -9,7 +9,7 @@ methods that call it.
 
 import secrets
 from datetime import datetime, timezone
-from typing import Collection, Iterable, List, Optional
+from typing import Iterable, List, Optional
 
 from tortoise.transactions import in_transaction
 
@@ -18,6 +18,7 @@ from application.repositories import (
     AsyncQualifierPoolRepository,
     AsyncQualifierRepository,
     AsyncQualifierRunRepository,
+    PlayedPermalinks,
 )
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_scoring import compute_par, compute_score
@@ -47,20 +48,27 @@ class AsyncQualifierDraw:
 
     @staticmethod
     def drawable(
-        permalinks: Iterable[AsyncQualifierPermalink], played_ids: Collection[int]
+        permalinks: Iterable[AsyncQualifierPermalink], played: PlayedPermalinks
     ) -> List[AsyncQualifierPermalink]:
         """The one definition of "this player may still draw this seed".
+
+        A seed the player has never drawn comes first. A seed they played only in a
+        voided run is offered again only when the pool has nothing fresh left, so a
+        reattempt lands on a new permalink whenever one exists and a small pool
+        still never dead-ends.
 
         Pure, so a caller holding the pool's permalinks already (the availability
         read prefetches them for every pool) does not have to re-read them to ask.
         """
-        return [p for p in permalinks if not p.live_race and p.id not in played_ids]
+        open_seeds = [p for p in permalinks if not p.live_race and p.id not in played.valid]
+        fresh = [p for p in open_seeds if p.id not in played.voided]
+        return fresh or open_seeds
 
     async def draw_candidates(
         self, pool: AsyncQualifierPool, user_id: int
     ) -> List[AsyncQualifierPermalink]:
         """Permalinks a player may still draw from a pool: not live-race and not
-        already played by them (no-repeat)."""
+        already played by them (no-repeat; see :meth:`drawable`)."""
         permalinks = await self.permalink_repository.list_for_pool(pool.id)
         played = await self.run_repository.played_permalink_ids_for_user_in_pool(pool.id, user_id)
         return self.drawable(permalinks, played)

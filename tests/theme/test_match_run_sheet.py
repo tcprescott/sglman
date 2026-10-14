@@ -130,3 +130,10 @@ class TestReadiness:
                             crew_required={'commentators': 2}, commentators=[{'approved': False}])
         assert items['seed']['detail'] == 'Not rolled'
         assert items['crew']['detail'] == '2 more needed, 1 waiting for approval below'
+
+    def test_a_rolling_seed_says_rolling_once(self):
+        items = self._items(tournament_seed_generator='alttpr', seed_rolling_since='2026-10-13T15:00:00Z',
+                            seed_rolling_label='Rolling… 15:57')
+        assert items['seed']['detail'] == 'Rolling… 15:57'
+        items = self._items(tournament_seed_generator='alttpr', seed_rolling_since='2026-10-13T15:00:00Z')
+        assert items['seed']['detail'] == 'Rolling…'

@@ -65,7 +65,12 @@ async def admin_feedback_page() -> None:
 
         @ui.refreshable
         async def _render_table() -> None:
-            submissions = await service.list_recent()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            try:
+                submissions = await service.list_recent(actor)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
             rows = [
                 {
                     'id': fb.id,

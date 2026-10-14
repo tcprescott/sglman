@@ -28,13 +28,13 @@ The UI is built entirely with NiceGUI (Quasar/Vue under the hood) mounted into t
 
 [`theme/base.py`](../../theme/base.py) defines **`BaseLayout`**, the shell used by every page.
 
-Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=False, show_volunteer=None, wordmark=None, chromeless=False, **_kwargs)`.
+Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=None, show_volunteer=None, wordmark=None, chromeless=False, **_kwargs)`.
 
 - `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'`, `'group'` and `'aliases'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass the board's `MatchBoardAccess` and the report query params. A `'group'` turns the drawer's flat tab list into labeled sections.
 - `section` is the URL **slug** of the initially active tab (e.g. `reports`); it resolves to a label via the auto-derived slug map (`tab_slug()`, or an explicit `'slug'`). An unknown or missing slug falls back to the first tab.
 - `'aliases'` is a tuple of **retired** slugs the tab absorbed. They resolve on read-in only (`_label_by_alias`, consulted *after* `_label_by_slug`, so a live tab's own slug can never be shadowed) and are never written back, so the URL normalizes to the canonical slug on the first tab switch. They exist for links already in the wild — a Discord DM outlives the app version that sent it. Home uses them; see [Home](#home--pageshomepy).
 - `base_path` is the section URL base **including any `/t/<slug>` root_path** (e.g. `/t/foo/admin`); tab switches rewrite the URL to `{base_path}/{slug}`. `None` on tab-less pages, which never touch the URL.
-- `show_admin=True` adds an "Admin" entry to the drawer's top menu (Home is always present).
+- `show_admin` adds an "Admin" entry to the drawer's top menu (Home is always present). Only an explicit `True` (the admin page itself) is taken as given; otherwise `prepare()` resolves it via `AuthService.can_open_admin(user)`, which mirrors the admin page's tab gates so the link is offered exactly when `/admin` has a tab for the viewer. Pages no longer pass it.
 - `show_volunteer` is **tri-state**. `None` — the default, and what every page but `/volunteer` uses — resolves it in `render()` via `AuthService.can_view_volunteer(user)`, so the link is never offered where the `VOLUNTEERS` flag or the role gate would reject it and dead-end on a 404/403. An explicit bool is honoured as-is, which keeps the synchronous error path working without a DB round-trip.
 - The **Check-in** top-menu item (`how_to_reg`, `/checkin`, after Volunteer) is resolved in `prepare()`: shown to a member for whom `AuthService.can_view_check_in_desk(user)` holds (`EVENT_CHECK_IN` live, Staff or `CHECK_IN_DESK`) **and** `CheckInService().has_open_event()`, so it appears only while there is a desk to work. False on the synchronous error path.
 - `wordmark` is the header brand text; `None` resolves to the in-scope community's own name via `TenantService.current_community_name()`, falling back to `Wizzrobe`.
@@ -170,7 +170,7 @@ Only the signed-in shape is listed because it is the only shape: `enforce_member
 
 **Absorbed slugs.** A tab dict may carry `'aliases'`, a tuple of retired section slugs. `BaseLayout` resolves them on **read-in only** (`_label_by_alias`, consulted after `_label_by_slug`, so a live tab's own slug always wins), and the URL normalizes to the canonical slug on the first tab switch. They exist because Discord DMs outlive the app version that sent them and four of the six link targets in [../features/discord.md](../features/discord.md) address `/home/player`. `tests/test_home_nav.py` pins every one of them.
 
-`show_admin` is computed via `AuthService.can_view_admin(user)`; `show_volunteer` is left unset so `BaseLayout` resolves it.
+`show_admin` and `show_volunteer` are both left unset so `BaseLayout` resolves them.
 
 ## Home tabs (`pages/home_tabs/`)
 
@@ -323,7 +323,7 @@ No longer a tab. `open_triforce_dialog(tournament, user)` is a dialog opened fro
 
 ## Volunteer hub (`/volunteer`, `pages/volunteer.py`)
 
-`volunteer_page(section=None, request=None)` is registered with `@protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF], feature=FeatureFlag.VOLUNTEERS)` — the whole hub 404s for a tenant without the `VOLUNTEERS` flag. It resolves the user, loads roles via `AuthService.get_roles`, and builds tabs by role before rendering `BaseLayout` (`show_volunteer=True`, `show_admin` via `AuthService.can_view_admin`).
+`volunteer_page(section=None, request=None)` is registered with `@protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF], feature=FeatureFlag.VOLUNTEERS)` — the whole hub 404s for a tenant without the `VOLUNTEERS` flag. It resolves the user, loads roles via `AuthService.get_roles`, and builds tabs by role before rendering `BaseLayout` (`show_volunteer=True`; `show_admin` resolved by the layout).
 
 | Tab | Shown to | Content function | Responsibility |
 |---|---|---|---|
@@ -373,7 +373,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Vol. Schedule | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
 | Equipment | Community | Staff, Equipment Manager | `EQUIPMENT` |
 | Feedback | Community | Staff | `FEEDBACK` |
-| Reports | System | Staff, Tournament Admin (any), Crew Coordinator (any) | — |
+| Reports | System | Staff, Tournament Admin (any), Crew Coordinator (any); a Volunteer Coordinator otherwise gets Volunteer Coverage only (`only=VOLUNTEER_REPORTS`, no dashboard) | — (Volunteer Coordinator path: `VOLUNTEERS`) |
 | Service Health | System | Staff | — |
 | Settings | System | Anyone with at least one [settings pane](#admin-settings-pagesadmin_tabssettings): Staff, Sync Admin (Discord Events only), Preset Manager (Randomizer Keys only) | — |
 

@@ -16,8 +16,10 @@ Information** in the sidebar.
 
 **My Schedule** is everything you've personally signed up for, on one page. Your
 matches come first, then any crew slots, then when you can't play, then any
-equipment you've borrowed. The **Event** tab shows everybody's matches; this one
-shows only yours.
+equipment you've borrowed. (If you aren't entered in any tournament, your crew
+slots move to the top.) The **Event** tab shows everybody's matches; this one
+shows only yours. The **?** at the end of each section's heading opens help for
+that section without leaving the page.
 
 :::snippet player-schedule
 **My Schedule** lists the matches you're playing in, in your local time. The
@@ -53,17 +55,18 @@ says *Showing one match only*, and **Show all my matches** puts the rest back.
 
 When you're scheduled into a match, the bot DMs you with an **Acknowledge**
 button. You can also tap **Acknowledge** on the match's line on My Schedule.
-Either way it tells staff you've seen the time and intend to be there, and a
-green tick appears beside your name for everyone to see.
+Either way it tells staff you've seen the time and intend to be there, and the
+match's details count you under *Players confirmed*.
 
 It isn't a requirement, and nobody is stopped from playing for not
-acknowledging. It is useful to staff and your proctor, though: they work from
-the unacknowledged list to decide who to chase, so acknowledging is the
-difference between being left alone and being tracked down. It isn't check-in
+acknowledging. It is useful to staff and your proctor, though: each match's
+*Ready to play?* checklist names who hasn't confirmed, and that's who they
+chase, so acknowledging is the difference between being left alone and being
+tracked down. It isn't check-in
 either. You still check in at the event on the day.
 
-If you booked the match yourself, you're acknowledged automatically and your
-name shows *(auto)*.
+If you booked the match yourself, you're acknowledged automatically, and staff
+see it marked *(auto)*.
 
 ## Getting a match scheduled
 
@@ -108,7 +111,7 @@ their Challonge account to Wizzrobe. Hover or long-press it to see why; staff ca
 also link them by hand.
 :::
 
-![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time.")
+![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button, the first one marked 1](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time: tap **Schedule** (1) to pick one.")
 
 ### Suggest a time
 
@@ -148,16 +151,17 @@ offered to you inside a window you entered.
 
 For a randomizer tournament, the seed is the game you're about to play. Staff or
 the proctor roll it shortly before the match. When it lands, the bot DMs you a
-**🎲 Seed ready** message with an **Open your seed** button, and the same link
-appears in the **Generated Seed** column on My Schedule.
+**🎲 Seed ready** message with an **Open your seed** button. The same seed is
+under **Seed** in the match's details on My Schedule (tap the match), with a
+**Copy** button.
 
 Some randomizers take a few minutes to generate a seed. While that happens the
-column shows a spinner, and you can leave the page: the DM still arrives.
+details say *Rolling…*, and you can leave the page: the DM still arrives.
 
 Some randomizers don't give you a link. Wind Waker gives you a **permalink** and
 Zelda 1 a seed and flags, which you paste into your own copy of the randomizer.
-The DM shows it in a box you can long-press to copy, and the Generated Seed column
-has a copy button beside it. A Wind Waker permalink only works in the build the DM
+The DM shows it in a box you can long-press to copy, and the match's details
+have a **Copy** button beside it. A Wind Waker permalink only works in the build the DM
 names, so check you've got that one before you paste.
 
 ### Harder settings
@@ -168,8 +172,8 @@ settings** in a match's **⋮** menu lets you opt in for one match, and the matc
 plays harder if **every** player opts in.
 
 Your answer is private. Nobody is told you opted in unless all of you did, and
-nobody is told if you decide against it. Once everyone is in, the button reads
-*Playing* and the preset's name.
+nobody is told if you decide against it. Once everyone is in, the menu item
+reads *Playing* and the preset's name.
 
 You can change your mind until the seed is rolled. After that, or if staff have
 set the match's settings themselves, there's nothing left to choose.
@@ -225,7 +229,7 @@ their reason and an **Ask again** button.
 The button isn't there when the tournament doesn't take requests, when the
 match is already checked in (find your proctor instead), or when its schedule
 comes from SpeedGaming, which has to change at the source. Once you've asked,
-the cell shows *Change requested* until staff answer.
+the **⋮** menu shows *Change requested* until staff answer.
 :::
 
 ![The Ask staff to change this match form: what you're asking for, a preferred date and time, and a required reason](/static/help/player/ask-to-change-phone.webp "The request form behind Ask to change.")

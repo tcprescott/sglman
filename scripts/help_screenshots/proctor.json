@@ -8,6 +8,12 @@
       {
         "wait": 1500
       }
+    ],
+    "annotate": [
+      {
+        "selector": ".run-sheet__card--split:has-text('ADA'):has-text('Check in') >> button:has-text('Check in')",
+        "n": 1
+      }
     ]
   },
   {
@@ -25,7 +31,22 @@
         "wait": 500
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-select >> nth=0",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog button:has-text('Randomize')",
+        "n": 2
+      },
+      {
+        "selector": ".q-dialog button:has-text('Check in & seat')",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "result-phone",
@@ -42,6 +63,17 @@
         "wait": 500
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog button:has-text('Player One')",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-checkbox:has-text('Flag for admin review')",
+        "n": 2
+      }
+    ]
   }
 ]

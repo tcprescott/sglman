@@ -3,6 +3,17 @@
     "name": "ada-card-phone",
     "user": "player_two",
     "path": "/home/profile",
-    "selector": ".q-card:has-text(\"ADA accommodation\")"
+    "selector": ".q-card:has-text(\"ADA accommodation\")",
+    "annotate": [
+      {
+        "selector": ".q-card:has-text(\"ADA accommodation\") .q-checkbox",
+        "n": 1
+      },
+      {
+        "selector": ".q-card:has-text(\"ADA accommodation\") .q-field__control",
+        "n": 2,
+        "tab": "bottom"
+      }
+    ]
   }
 ]

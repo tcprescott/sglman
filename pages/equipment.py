@@ -63,10 +63,7 @@ def create() -> None:
         # get_user_from_discord_id enforces is_active so a deactivated user
         # cannot keep reading asset owner labels / manager-only private notes.
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-        show_admin = await AuthService.can_view_admin(user)
-        await BaseLayout(
-            user=user, show_admin=show_admin,
-        ).render()
+        await BaseLayout(user=user).render()
 
         if user is None:
             ui.label('You must be logged in to view this page.').classes('text-error')

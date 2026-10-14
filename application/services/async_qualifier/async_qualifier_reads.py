@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Awaitable, Callable, List, Optional
 
 from application.feature_flags import requires_feature
+from application.repositories import PlayedPermalinks
 from application.services.async_qualifier import async_qualifier_access as access
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_scoring import (
@@ -243,7 +244,11 @@ class PlayerReadsMixin:
             reattempt_was_granted=run.reattempt_granted_by_id is not None,  # type: ignore[attr-defined]
             expired_at=run.expired_at,
             score=run.score if exact_scores else None,
-            score_band=score_band(run.score),
+            # A forfeit or disqualification is written as 0, which bands as
+            # "above par" — a claim about a pace the runner never set. Only a
+            # finished run has a side of par to be on.
+            score_band=(score_band(run.score)
+                        if run.status == AsyncQualifierRunStatus.FINISHED else None),
             notes=[
                 n.note for n in sorted(
                     (n for n in getattr(run, 'review_notes', []) or [] if n.note),
@@ -288,7 +293,8 @@ class PlayerReadsMixin:
         spent = await self.run_repository.valid_run_counts_for_user_by_pool(pool_ids, user.id)
         usage = {}
         for pool in pools:
-            candidates = self.draw.drawable(pool.permalinks, played.get(pool.id, set()))
+            candidates = self.draw.drawable(
+                pool.permalinks, played.get(pool.id) or PlayedPermalinks())
             usage[pool.id] = rules.PoolUsage(
                 pool_id=pool.id, name=pool.name, used=spent.get(pool.id, 0),
                 allowed=qualifier.runs_per_pool, has_candidates=bool(candidates),

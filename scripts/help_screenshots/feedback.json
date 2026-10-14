@@ -1,0 +1,70 @@
+[
+  {
+    "name": "send-phone",
+    "user": "player_one",
+    "path": "/home/my-schedule",
+    "setup": [
+      {
+        "click": ".wiz-burger"
+      },
+      {
+        "waitFor": ".q-drawer .q-item:has-text('Feedback')"
+      },
+      {
+        "click": ".q-drawer .q-item:has-text('Feedback')"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      },
+      {
+        "click": ".q-dialog .q-select"
+      },
+      {
+        "click": ".q-menu .q-item:has-text('Bug')"
+      },
+      {
+        "fill": ".q-dialog textarea",
+        "value": "The bracket page cuts off the losers side on my phone. I have to turn it sideways to see round 2."
+      },
+      {
+        "wait": 1200
+      }
+    ],
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-select",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-field:has(textarea)",
+        "n": 2,
+        "tab": "bottom"
+      },
+      {
+        "selector": ".q-dialog button:has-text('Send')",
+        "n": 3
+      }
+    ]
+  },
+  {
+    "name": "yours-phone",
+    "user": "player_one",
+    "path": "/home/profile",
+    "selector": ".q-card:has(.section-title:text-is('Your feedback'))",
+    "hide": [
+      ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": ".q-card:has(.section-title:text-is('Your feedback')) .wiz-chip:has-text('Not read yet')",
+        "n": 1
+      },
+      {
+        "selector": ".q-card:has(.section-title:text-is('Your feedback')) .wiz-chip:has-text('Read by staff')",
+        "n": 2
+      }
+    ]
+  }
+]

@@ -14,6 +14,7 @@ from .async_qualifier_repository import (
     AsyncQualifierRepository,
     AsyncQualifierReviewNoteRepository,
     AsyncQualifierRunRepository,
+    PlayedPermalinks,
 )
 from .audit_repository import AuditRepository
 from .bracket_repository import BracketRepository
@@ -116,6 +117,7 @@ __all__ = [
     'MatchWatcherRepository',
     'MatcherinoLoginRepository',
     'McpAuthRepository',
+    'PlayedPermalinks',
     'PlayerAvailabilityRepository',
     'PresetRepository',
     'ProfileNudgeRepository',

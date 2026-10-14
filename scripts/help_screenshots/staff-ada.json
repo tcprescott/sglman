@@ -2,7 +2,10 @@
   {
     "name": "queue",
     "user": "staff_user",
-    "viewport": "desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
     "path": "/admin/users",
     "setup": [
       {
@@ -12,12 +15,22 @@
         "wait": 800
       },
       {
-        "click": "text=Members who asked for ADA accommodation"
+        "click": "text=Attendees who asked for ADA accommodation"
       },
       {
         "wait": 600
       }
     ],
-    "selector": ".q-tab-panels"
+    "selector": ".q-tab-panels",
+    "annotate": [
+      {
+        "selector": ".q-tab-panels .q-checkbox:has-text('Show withdrawn')",
+        "n": 1
+      },
+      {
+        "selector": ".q-tab-panels button:has-text('Update')",
+        "n": 2
+      }
+    ]
   }
 ]

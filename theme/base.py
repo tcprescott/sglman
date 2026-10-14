@@ -66,7 +66,7 @@ class BaseLayout:
         # (the bracket views, /help) renders chrome for an anonymous visitor,
         # and the error page does too.
         user: User | None = None,
-        show_admin: bool = False,
+        show_admin: bool | None = None,
         show_volunteer: bool | None = None,
         wordmark: str | None = None,
         chromeless: bool = False,
@@ -117,6 +117,11 @@ class BaseLayout:
         # off or the user holds none of the volunteer roles, or it dead-ends on a
         # 404/403. An explicit bool is honoured as-is, which keeps the synchronous
         # render_chrome() path (the error page) working without a DB round-trip.
+        # Admin follows the same rule from AuthService.can_open_admin, which
+        # mirrors the admin page's tab gates. Only an explicit True is taken as
+        # given (the admin page itself): a False is resolved anyway, because
+        # callers used to pass can_view_admin, which leaves out the online-play
+        # roles that do have an Admin tab.
         self._show_admin = show_admin
         self._show_volunteer = show_volunteer
         # Same shape as _show_volunteer: resolved in render() because the drawer
@@ -131,6 +136,8 @@ class BaseLayout:
         # Members only, like Feedback: the listing is the community's own and
         # the page's membership gate would turn anyone else away.
         self._show_community_events = False
+        # Members only, for the same reason: /qualifiers runs the membership gate.
+        self._show_qualifiers = False
         # The check-in desk, offered only while an event is open and to people
         # who can work it. False on the synchronous error path, like Feedback.
         self._show_check_in = False
@@ -212,6 +219,8 @@ class BaseLayout:
             self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
         if self._show_volunteer is None:
             self._show_volunteer = await AuthService.can_view_volunteer(self.user)
+        if self._show_admin is not True and self.user is not None and self._tenant_id is not None:
+            self._show_admin = await AuthService.can_open_admin(self.user)
         if self.user is not None and self._tenant_id is not None:
             self._is_member = (
                 await AuthService.is_super_admin(self.user)
@@ -224,6 +233,9 @@ class BaseLayout:
         if self._is_member:
             self._show_community_events = await FeatureFlagService().is_enabled(
                 FeatureFlag.COMMUNITY_EVENTS,
+            )
+            self._show_qualifiers = await FeatureFlagService().is_enabled(
+                FeatureFlag.ASYNC_QUALIFIERS,
             )
         if self._is_member and await AuthService.can_view_check_in_desk(self.user):
             from application.services import CheckInService
@@ -554,6 +566,15 @@ class BaseLayout:
                         ui.icon('groups').props('size=sm')
                     with ui.item_section():
                         ui.item_label('Community Events')
+
+            if self._show_qualifiers:
+                with ui.item(
+                    on_click=lambda: ui.navigate.to('/qualifiers')
+                ).props('clickable v-ripple'):
+                    with ui.item_section().props('avatar'):
+                        ui.icon('timer').props('size=sm')
+                    with ui.item_section():
+                        ui.item_label('Qualifiers')
 
             # Not gated on ``self.user``: /help is a public page, and a
             # signed-out visitor on any framed public surface is exactly the

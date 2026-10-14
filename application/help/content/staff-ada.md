@@ -19,16 +19,17 @@ that still need you.
 The queue lists open requests, oldest first, with the attendee's own details and
 your staff notes side by side. Tick **Show withdrawn** to see requests attendees
 have taken back. Press **Update** on a row to set its status and write notes
-only staff can read. Proctors see an icon once it's Arranged, never the notes.
+only staff can read. Proctors see an "ADA:" line on the match once it's
+Arranged, never the notes.
 :::
 
 You get a Discord DM when a request opens, with a button that opens it here. The
 DM names the attendee and never what they asked for.
 
 On the Members tab, the **ADA** column shows each person's request status, and
-the **Needs ADA accommodation** filter narrows the table to people with one open.
+ticking **Needs ADA** under **Filters** narrows the table to people with one open.
 
-![The ADA requests tab listing four requests with their status, the attendee's details and staff notes, one marked Changed since arranged](/static/help/staff-ada/queue.webp "The ADA queue, oldest first.")
+![The ADA requests tab listing four requests with their status, the attendee's details and staff notes, one marked Changed since arranged, with Show withdrawn marked 1 and the first row's Update button marked 2](/static/help/staff-ada/queue.webp "The ADA queue, oldest first: **Show withdrawn** (1), and **Update** (2) on each row.")
 
 ## Working a request
 
@@ -47,10 +48,12 @@ them when you change it.
 
 ## What proctors see
 
-Once a request is **Arranged**, the attendee gets an accessibility icon beside their
-name on the Schedule and on the Proctor Station board. Staff who tap it see the
+Once a request is **Arranged**, each of the attendee's matches on the Admin →
+Schedule and Proctor Station run sheets carries an "ADA:" line with their name.
+Open the match and its **Ready to play?** checklist has a
+*name: ADA accommodation* button under the players. Staff who tap it see the
 staff notes. Proctors see only that something has been arranged and to check with
-staff. Tournament admins and crew coordinators don't get the icon.
+staff. Tournament admins and crew coordinators don't see any of it.
 
 So write the notes for whoever is on the floor: what's been set up and where, in a
 line or two.
@@ -58,7 +61,7 @@ line or two.
 ## When an attendee changes an arranged request
 
 If the attendee edits their details after you've arranged it, the request stays
-Arranged so the proctors don't lose the icon, and it gets a
+Arranged so the proctors don't lose the "ADA:" line, and it gets a
 {chip:pending:Changed since arranged} chip. You get one DM about it.
 
 Open it and you'll see what was arranged next to what they're asking for now.

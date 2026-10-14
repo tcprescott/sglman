@@ -17,6 +17,7 @@ from nicegui import app, context, ui
 from application.services import (
     AsyncQualifierLiveRaceService,
     AsyncQualifierService,
+    AuthService,
     PresetService,
     UserService,
     get_user_from_discord_id,
@@ -49,6 +50,7 @@ from pages.admin_tabs.admin_qualifiers.shared import (
 from theme.dialog._helpers import dialog_actions, form_dialog, native_date_input, native_time_input
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
+from theme.help import help_icon
 from theme.menu import menu_action, more_menu
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -89,6 +91,7 @@ async def admin_qualifiers_page(
     tenant_id = require_tenant_id()
     state: dict = {
         'qualifiers': [], 'managing': None, 'shell': None, 'list_error': None,
+        'can_create': False,
         # The drill-down loads one tab at a time. 'loaded' is which tabs have their
         # data, 'errors' is the per-tab refusal to render in place of it, and 'tab'
         # survives a rebuild so a verdict does not throw the reviewer back to Pools.
@@ -110,7 +113,11 @@ async def admin_qualifiers_page(
     async def load_list() -> None:
         try:
             with tenant_scope(tenant_id):
-                state['qualifiers'] = await service.list_qualifiers(await _current())
+                current = await _current()
+                state['qualifiers'] = await service.list_qualifiers(current)
+                # A per-qualifier reviewer sees the ones they review, but only
+                # STAFF and QUALIFIER_ADMIN may create one.
+                state['can_create'] = await AuthService.can_admin_qualifier(current)
             state['list_error'] = None
         except PermissionError as e:
             state['qualifiers'] = []
@@ -253,8 +260,9 @@ async def admin_qualifiers_page(
             ui.label(state['list_error']).classes('text-warning')
             return
         with ui.row().classes('full-width items-center'):
-            ui.button('New Qualifier', icon='add',
-                      on_click=lambda: open_qualifier_dialog()).props('color=primary')
+            if state['can_create']:
+                ui.button('New Qualifier', icon='add',
+                          on_click=lambda: open_qualifier_dialog()).props('color=primary')
             ui.space()
             ui.button(icon='refresh',
                       on_click=load_list).props('flat color=primary').tooltip('Refresh')
@@ -365,6 +373,7 @@ async def admin_qualifiers_page(
                             description=desc_in.value, opens_at=opens_at, closes_at=closes_at,
                             runs_per_pool=int(rpp_in.value or 1),
                             allowed_reattempts=int(reattempts_in.value or 0),
+                            is_active=active_in.value,
                         )
                         ui.notify('Qualifier created', color='positive')
                     dialog.close()
@@ -604,12 +613,13 @@ async def admin_qualifiers_page(
     # ------------------------------------------------------------------ shell
 
     with ui.column().classes('page-container'):
-        page_header(
+        with page_header(
             'Async Qualifiers',
             'Self-paced permalink-pool qualifiers — a peer of Tournaments. Create a '
             'qualifier, author permalink pools, then review submitted runs. The '
             'leaderboard and pools stay hidden from players until the qualifier closes.',
-        )
+        ):
+            await help_icon('qualifiers-pools', 'qualifiers-review-queue')
         list_view()
         detail_view()
 

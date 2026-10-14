@@ -40,6 +40,7 @@ from theme.dialog.community_event_dialog import CommunityEventDialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_state
 from theme.error_page import render_not_found
+from theme.help import help_icon
 from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
@@ -120,13 +121,28 @@ def _rsvp_button(service: CommunityEventService, user: User, event: CommunityEve
             .props('flat color=primary').tooltip("Say you're coming and get a DM before it starts")
 
 
+def attendance_controls(event: CommunityEvent, state: dict) -> tuple[str, ...]:
+    """Which attendance buttons the viewer gets: ``'rsvp'``, ``'reminder'`` or both.
+
+    The RSVP button when the event takes RSVPs, else the reminder toggle. Someone
+    who asked for a reminder before the host turned RSVPs on still holds it, so
+    they keep the toggle beside the RSVP button to switch it off.
+    """
+    if not event.rsvp_enabled:
+        return ('reminder',)
+    if event.id in state['subscribed'] and event.id not in state['going']:
+        return ('rsvp', 'reminder')
+    return ('rsvp',)
+
+
 def _attendance(service, user, event: CommunityEvent, state: dict, on_change) -> None:
-    """The RSVP button when the event takes RSVPs, else the reminder toggle."""
-    if event.rsvp_enabled:
-        _rsvp_button(service, user, event, event.id in state['going'],
-                     state['going_counts'].get(event.id, 0), on_change)
-    else:
-        _subscribe_button(service, user, event, event.id in state['subscribed'], on_change)
+    controls = attendance_controls(event, state)
+    with ui.row().classes('items-center justify-end gap-1'):
+        if 'rsvp' in controls:
+            _rsvp_button(service, user, event, event.id in state['going'],
+                         state['going_counts'].get(event.id, 0), on_change)
+        if 'reminder' in controls:
+            _subscribe_button(service, user, event, event.id in state['subscribed'], on_change)
 
 
 async def _attendance_state(service: CommunityEventService, user: User, event_ids: list[int]) -> dict:
@@ -167,7 +183,8 @@ def create() -> None:
         needs_review = await SystemConfigService.community_events_require_approval()
 
         with ui.column().classes('wiz-community-events page-container-narrow w-full gap-3'):
-            page_header('Community Events', 'Meetups, panels and side events attendees are running.')
+            with page_header('Community Events', 'Meetups, panels and side events attendees are running.'):
+                await help_icon('community-events-attend', 'community-events-submit', user=user)
             disclaimer()
 
             @ui.refreshable

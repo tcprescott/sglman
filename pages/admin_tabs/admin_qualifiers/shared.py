@@ -11,7 +11,7 @@ from application.services.async_qualifier import async_qualifier_rules as rules
 from application.utils.duration import format_hms
 from application.utils.timezone import format_local_display
 from models import AsyncQualifierReviewStatus, AsyncQualifierRunStatus
-from theme.qualifier_copy import REVIEW_LABELS, STATUS_LABELS
+from theme.qualifier_copy import LIVE_RACE_STATUS_LABELS, REVIEW_LABELS, STATUS_LABELS
 
 __all__ = [
     'BOARD_COLUMNS',
@@ -133,7 +133,7 @@ def status_label(run) -> str:
 
 def review_label(run) -> str:
     """A run's review state, or '—' while there is nothing to review yet."""
-    if enum_value(run.status) == 'in_progress':
+    if enum_value(run.status) in ('pending', 'in_progress'):
         return '—'
     value = enum_value(run.review_status)
     return REVIEW_LABELS.get(value, value)
@@ -242,3 +242,9 @@ def live_race_color(status) -> str:
         'finished': 'green',
         'cancelled': 'negative',
     }.get(enum_value(status), 'grey')
+
+
+def live_race_label(status) -> str:
+    """A live race's status in words, not the enum value (``in_progress``)."""
+    value = enum_value(status)
+    return LIVE_RACE_STATUS_LABELS.get(value, value.replace('_', ' ').capitalize())

@@ -1,0 +1,65 @@
+[
+  {
+    "name": "start-phone",
+    "user": "player_one",
+    "path": "/qualifiers/1",
+    "selector": ".page-container",
+    "hide": [
+      ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": "button:has-text('Start: Bonus Pool')",
+        "n": 1
+      },
+      {
+        "selector": ".page-container >> text=0 of 2 runs used >> nth=0",
+        "n": 2
+      }
+    ]
+  },
+  {
+    "name": "run-phone",
+    "user": "player_three",
+    "path": "/qualifiers/1",
+    "selector": ".q-card:has-text('Your run is in progress')",
+    "hide": [
+      ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": ".q-card:has-text('Your run is in progress') .q-field:has-text('Finish time')",
+        "n": 1
+      },
+      {
+        "selector": ".q-card:has-text('Your run is in progress') button:has-text('Forfeit')",
+        "n": 2
+      },
+      {
+        "selector": ".q-card:has-text('Your run is in progress') button:has-text('Submit')",
+        "n": 3
+      }
+    ]
+  },
+  {
+    "name": "my-runs-phone",
+    "user": "player_three",
+    "path": "/qualifiers/1",
+    "selector": ".wiz-table",
+    "hide": [
+      ".q-footer",
+      ".q-header"
+    ],
+    "annotate": [
+      {
+        "selector": ".wiz-table >> text=/The VoD cuts off/",
+        "n": 1
+      },
+      {
+        "selector": ".wiz-table button:has-text('Reattempt') >> nth=0",
+        "n": 2,
+        "tab": "bottom"
+      }
+    ]
+  }
+]

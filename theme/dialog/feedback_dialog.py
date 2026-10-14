@@ -3,6 +3,7 @@ from nicegui import ui
 from application.services import FeedbackService
 from models import FeedbackCategory, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.help import resolve_help
 from theme.notify import notify_error
 
 CATEGORY_OPTIONS = {
@@ -27,7 +28,7 @@ class FeedbackDialog:
         with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
-            dialog_header('Send Feedback', dialog)
+            dialog_header('Send Feedback', dialog, help=await resolve_help(['feedback-send'], user=self.user))
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 category_input = ui.select(
                     options=CATEGORY_OPTIONS,

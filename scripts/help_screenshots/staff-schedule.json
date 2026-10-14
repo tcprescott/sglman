@@ -3,13 +3,31 @@
     "name": "board-desktop",
     "user": "staff_user",
     "path": "/admin/schedule",
-    "viewport": "desktop",
+    "viewport": {
+      "width": 1680,
+      "height": 1000
+    },
     "setup": [
       {
         "wait": 1500
       }
     ],
-    "selector": ".schedule-layout__board .match-table"
+    "selector": ".schedule-layout__board .match-table",
+    "annotate": [
+      {
+        "selector": ".schedule-layout__board .match-table >> text=Flagged",
+        "n": 1
+      },
+      {
+        "selector": ".schedule-layout__board .match-table >> text=/needs crew/",
+        "n": 2
+      },
+      {
+        "selector": ".schedule-layout__board .match-table >> text=/to approve/ >> xpath=..",
+        "n": 3,
+        "tab": "bottom"
+      }
+    ]
   },
   {
     "name": "match-sheet",
@@ -39,7 +57,22 @@
         "wait": 800
       }
     ],
-    "selector": ".match-sheet"
+    "selector": ".match-sheet",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".match-sheet button:has-text('Check in')",
+        "n": 1
+      },
+      {
+        "selector": ".match-sheet button:has-text('Assign')",
+        "n": 2
+      },
+      {
+        "selector": ".match-sheet button:has-text('Edit match')",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "match-dialog",
@@ -66,6 +99,13 @@
         "wait": 800
       }
     ],
-    "selector": ".dialog-card:not(.match-sheet)"
+    "selector": ".dialog-card:not(.match-sheet)",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".dialog-card:not(.match-sheet) .wiz-chip:has-text('Needs review')",
+        "n": 1
+      }
+    ]
   }
 ]

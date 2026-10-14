@@ -23,7 +23,7 @@ Behind `FeatureFlag.ADA_ACCOMMODATIONS` (ships dark).
   who belongs to two communities has two independent requests; neither
   community's staff can see the other's.
 - **STAFF only** on the admin side (`AuthService.is_staff`, so super-admins
-  too). The one exception is the schedule icon below: **PROCTORs** see that a
+  too). The one exception is the run-sheet `ADA:` line below: **PROCTORs** see that a
   request is Arranged, and nothing else. They never get the staff notes:
   `arranged_notes_for` returns `None` per player for a proctor, so the text
   never reaches their browser. The Users tab is already STAFF-only; the
@@ -35,8 +35,9 @@ Behind `FeatureFlag.ADA_ACCOMMODATIONS` (ships dark).
   published on the event bus, so webhooks never see it, and there is no REST
   or MCP surface. The staff DMs (below) name the member and nothing else.
 - Both surfaces show the same disclaimer (`privacy_disclaimer(community)`):
-  only that community's staff can read the notes, proctors see an icon once
-  it's arranged but not what it says, privacy can't be guaranteed, so don't
+  only that community's staff can read the notes, proctors see an `ADA:` line
+  on their run sheets and a checklist button once it's arranged but not what
+  the notes say, privacy can't be guaranteed, so don't
   write anything sensitive or personal; contact staff directly instead.
 
 ## Lifecycle
@@ -51,7 +52,7 @@ Behind `FeatureFlag.ADA_ACCOMMODATIONS` (ships dark).
 | `ARRANGED` | member changes details | stays `ARRANGED`, `changed_since_arranged` set, `arranged_details` keeps the arranged text |
 | any open status | staff Update | `NEW` / `ACKNOWLEDGED` / `ARRANGED`, and clears `changed_since_arranged` (audited `accommodation.change_reviewed`) |
 
-An Arranged request keeps its board icon through an edit on purpose: a typo
+An Arranged request keeps its run-sheet `ADA:` line through an edit on purpose: a typo
 fixed on the morning of the event must not take the accommodation off the
 proctors' view. Typing the details back to what was arranged clears the flag.
 Withdrawing clears it too.
@@ -80,13 +81,16 @@ request requires community membership.
   stale id says the request no longer exists; with the feature off, the
   Users tab says ADA requests aren't turned on).
 
-- **Admin → Schedule and Volunteer → Proctor Station**: a player whose
-  request is **Arranged** gets an accessibility icon beside their name, on the
-  desktop table and the phone card alike. Tapping it opens a popup with the
-  **staff notes** only, never the member's own details. Only STAFF and
-  PROCTORs see it; a tournament admin, crew coordinator or stream manager on
-  the same admin board gets no icon. A proctor's popup says staff have
-  arranged something and to check with staff, with no notes. Other boards (home schedule, player
+- **Admin → Schedule and Volunteer → Proctor Station**: a match with a player
+  whose request is **Arranged** shows an `ADA: <name>` line on its run-sheet
+  row (`_ADA` in `theme/tables/match_run_sheet.py`, plain text, not a
+  control). The match sheet's **Ready to play?** checklist adds a
+  `<name>: ADA accommodation` button under Players
+  (`theme/dialog/match_sheet.py`), which opens a popup with the **staff
+  notes** only, never the member's own details. Only STAFF and PROCTORs see
+  either; a tournament admin, crew coordinator or stream manager on the same
+  admin board gets neither. A proctor's popup says staff have arranged
+  something and to check with staff, with no notes. Other boards (home schedule, player
   dashboards, the room kiosk) never request the data
   (`MatchTableView(show_accommodations=True)` is opt-in).
 

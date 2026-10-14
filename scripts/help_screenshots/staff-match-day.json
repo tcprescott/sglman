@@ -12,7 +12,21 @@
         "wait": 800
       }
     ],
-    "selector": ".match-inbox"
+    "selector": ".match-inbox",
+    "annotate": [
+      {
+        "selector": ".match-inbox__item button:has-text('Approve')",
+        "n": 1
+      },
+      {
+        "selector": ".match-inbox__item:has-text('Flagged') >> text=Flagged",
+        "n": 2
+      },
+      {
+        "selector": ".match-inbox__item button:has-text('Confirm')",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "reschedule-request",
@@ -33,6 +47,21 @@
         "wait": 800
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-card .q-field:has-text('Note to the player')",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-card button:has-text('Decline')",
+        "n": 2
+      },
+      {
+        "selector": ".q-dialog .q-card button:has-text('Approve and move it')",
+        "n": 3
+      }
+    ]
   }
 ]

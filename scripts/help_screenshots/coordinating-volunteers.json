@@ -3,7 +3,13 @@
     "name": "schedule-desktop",
     "user": "vc_user",
     "viewport": "desktop",
-    "path": "/admin/vol-schedule"
+    "path": "/admin/vol-schedule",
+    "annotate": [
+      {
+        "selector": "button:has-text('Actions')",
+        "n": 1
+      }
+    ]
   },
   {
     "name": "assign-picker-desktop",
@@ -24,7 +30,18 @@
         "wait": 500
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-checkbox:has-text('Show unqualified volunteers')",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-card :is(.q-badge,.wiz-chip,span):text-is('Qualified')",
+        "n": 2
+      }
+    ]
   },
   {
     "name": "autofill-dialog-desktop",
@@ -45,6 +62,7 @@
         "wait": 500
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0
   }
 ]

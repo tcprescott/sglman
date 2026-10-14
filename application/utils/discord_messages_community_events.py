@@ -15,11 +15,16 @@ def submitted_to_staff_dm(community_name: str, host_name: str, title: str) -> st
     )
 
 
-def approved_dm(community_name: str, title: str) -> str:
+def approved_dm(community_name: str, title: str, rsvp_enabled: bool = False) -> str:
     """DM to the host when staff approve their event."""
+    how = (
+        "Members can RSVP to it, which also gets them a reminder before it starts."
+        if rsvp_enabled else
+        'Members can subscribe to it for a reminder before it starts.'
+    )
     return (
         f'**{title}** is approved and now listed in **{community_name}**\'s community '
-        'events. Members can subscribe to it for a reminder before it starts.'
+        f'events. {how}'
     )
 
 
