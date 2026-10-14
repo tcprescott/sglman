@@ -95,7 +95,7 @@ Both presets have to use the same randomizer. Test roll the harder one as well.
 
 ## Rolling a match's seed
 
-Once a tournament has a preset, open a match on Admin → Schedule or the Proctor
+Once a tournament has a preset, open a match on Admin Schedule or the Proctor
 Station: the **Seed** line of its checklist offers **Generate** for any match that
 has players, no seed yet and isn't finished, unless it runs in a racetime.gg room.
 Rolling DMs the seed to the players. Staff, proctors and the tournament's admins

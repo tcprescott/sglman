@@ -40,7 +40,7 @@ def test_setup_tab_is_absent_once_required_steps_are_done():
 
 def test_schedule_is_still_the_default_for_a_ready_tenant():
     tabs = build_admin_tabs(STAFF, set(), {}, _steps(ready=True))
-    assert _labels(tabs)[0] == 'Schedule'
+    assert _labels(tabs)[0] == 'Admin Schedule'
 
 
 def test_outstanding_advisory_steps_do_not_keep_the_tab_on_screen():
@@ -62,7 +62,7 @@ def test_the_checklist_is_not_offered_to_a_non_admin_role():
     assert 'Setup' not in _labels(tabs)
     # Schedule is theirs because assigning a stage is a match-board action and
     # this is the only board that offers it; Stages manages the venues.
-    assert _labels(tabs) == ['Schedule', 'Stages']
+    assert _labels(tabs) == ['Admin Schedule', 'Stages']
 
 
 def test_the_stream_manager_reaches_the_board_with_only_the_stage_control():
@@ -72,7 +72,7 @@ def test_the_stream_manager_reaches_the_board_with_only_the_stage_control():
     control the service admits and none of the ones it refuses.
     """
     tabs = build_admin_tabs(AdminAccess(is_stream_manager=True), set(), {}, None)
-    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Schedule')
+    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Admin Schedule')
     access = kwargs['access']
     assert access.assign_stream is True
     assert not access.edit and not access.run and not access.confirm and not access.approve_crew
@@ -84,7 +84,7 @@ def test_the_crew_coordinators_board_offers_approval_and_nothing_else():
     """The finding this split closes: 37 controls that all refused, and not the one."""
     access_in = AdminAccess(is_crew_coordinator=True, operated_tournament_ids=frozenset({7}))
     tabs = build_admin_tabs(access_in, set(), {}, None)
-    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Schedule')
+    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Admin Schedule')
     access = kwargs['access']
     assert access.approve_crew is True
     assert not access.edit and not access.run and not access.confirm and not access.assign_stream
@@ -94,7 +94,7 @@ def test_the_crew_coordinators_board_offers_approval_and_nothing_else():
 
 def test_staffs_board_is_not_scoped_to_a_tournament_set():
     tabs = build_admin_tabs(STAFF, set(), {}, None)
-    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Schedule')
+    _fn, _args, kwargs = next(t['content'] for t in tabs if t['label'] == 'Admin Schedule')
     assert kwargs['tournament_ids'] is None
     assert kwargs['access'].edit and kwargs['access'].run and kwargs['access'].confirm
 

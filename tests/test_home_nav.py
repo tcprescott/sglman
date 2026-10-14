@@ -10,6 +10,7 @@ import pytest
 
 from models import FeatureFlag
 from pages.home_tabs.event import VIEWS, available_views, resolve_view
+from application.services.nav_preference_service import DEFAULT_PINS
 from theme.base import BaseLayout, tab_slug
 
 # Every home path a Discord DM, an OAuth return, or a seeded feedback row can
@@ -54,11 +55,14 @@ class TestTheHomeTabsMatchThePage:
             for alias in tab.get('aliases', ()):
                 assert alias in src, f'{alias} is pinned here but absent from home.py'
 
-    def test_the_bottom_nav_holds_every_tab(self):
-        # The phone bottom bar only renders where the whole nav fits it, so home
-        # staying within capacity is what keeps players a thumb-tap from every
-        # tab. Go over and the bar vanishes for them entirely.
-        assert len(HOME_TABS) <= BaseLayout.BOTTOM_NAV_CAPACITY
+    def test_the_default_pins_point_at_home_tabs(self):
+        # Everyone starts with these pinned, which is what puts them in the phone
+        # bottom bar. Rename a slug without updating the pin and it silently
+        # disappears from every player's bar.
+        slugs = {tab.get('slug') or tab_slug(tab['label']) for tab in HOME_TABS}
+        for pin in DEFAULT_PINS:
+            hub, slug = pin.strip('/').split('/')
+            assert hub == 'home' and slug in slugs, pin
 
 
 class TestRetiredSlugsStillResolve:

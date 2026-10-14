@@ -10,9 +10,42 @@ from pages.volunteer_tabs.availability import availability_tab
 from pages.volunteer_tabs.my_shifts import my_shifts_tab
 from pages.volunteer_tabs.proctor_station import proctor_station_tab
 from theme.base import BaseLayout
+from theme.side_menu import register_hub_sections
+
+
+async def volunteer_tabs(user, *, release: str | None = None) -> list[dict]:
+    """The Volunteer hub's tabs for ``user``; the side menu lists the same ones."""
+    roles = await AuthService.get_roles(user)
+    # Staff-equivalence throughout, so a platform super-admin sees the whole
+    # hub in a tenant they hold no roles in.
+    is_staff = await AuthService.is_staff(user)
+    is_proctor = Role.PROCTOR in roles
+    is_volunteer = Role.VOLUNTEER in roles
+
+    tabs = []
+    # The two self-service tabs read the *signed-in* user's own availability
+    # and shifts, so they are safe (and empty) for someone who volunteers for
+    # nothing; the role gate above is the only guard on saving availability.
+    # This tab is when you can *work*, and it is opt-in — the player one on
+    # Home is when you can't *play*, opt-out.
+    if is_volunteer or is_staff:
+        tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
+        # ``?release=<assignment id>`` comes from the reminder DM's "Can't
+        # make it" button and opens that shift's give-back dialog.
+        tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',
+                     'content': (my_shifts_tab, (), {'release': release})})
+    if is_proctor or is_staff:
+        # Bound to the viewer: the tab's help icons read role-gated snippets
+        # from the event handbook, and the page has already resolved who is
+        # looking.
+        tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
+                     'content': (proctor_station_tab, (user,))})
+    return tabs
 
 
 def create() -> None:
+    register_hub_sections('volunteer', volunteer_tabs)
+
     @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
                         feature=FeatureFlag.VOLUNTEERS)
     async def volunteer_page(
@@ -21,31 +54,7 @@ def create() -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
         user = await get_user_from_session(app.storage.user)
 
-        roles = await AuthService.get_roles(user)
-        # Staff-equivalence throughout, so a platform super-admin sees the whole
-        # hub in a tenant they hold no roles in.
-        is_staff = await AuthService.is_staff(user)
-        is_proctor = Role.PROCTOR in roles
-        is_volunteer = Role.VOLUNTEER in roles
-
-        tabs = []
-        # The two self-service tabs read the *signed-in* user's own availability
-        # and shifts, so they are safe (and empty) for someone who volunteers for
-        # nothing; the role gate above is the only guard on saving availability.
-        # This tab is when you can *work*, and it is opt-in — the player one on
-        # Home is when you can't *play*, opt-out.
-        if is_volunteer or is_staff:
-            tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
-            # ``?release=<assignment id>`` comes from the reminder DM's "Can't
-            # make it" button and opens that shift's give-back dialog.
-            tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',
-                         'content': (my_shifts_tab, (), {'release': release})})
-        if is_proctor or is_staff:
-            # Bound to the viewer: the tab's help icons read role-gated snippets
-            # from the event handbook, and the page has already resolved who is
-            # looking.
-            tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
-                         'content': (proctor_station_tab, (user,))})
+        tabs = await volunteer_tabs(user, release=release)
         base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
         await BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='volunteer', user=user,

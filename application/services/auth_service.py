@@ -233,10 +233,10 @@ class AuthService:
 
     @staticmethod
     async def can_view_schedule_board(user: Optional[User]) -> bool:
-        """Whether the admin Schedule tab is reachable for ``user``.
+        """Whether the Admin Schedule tab is reachable for ``user``.
 
         Staff, a STREAM_MANAGER, any tournament admin, or any crew coordinator in
-        this tenant — the same predicates ``pages/admin.py`` appends the Schedule
+        this tenant — the same predicates ``pages/admin.py`` appends the Admin Schedule
         tab on. The reports resolve their drill-out links against this so they
         never offer a route the destination would refuse. (What the board *lets*
         them do once there is a separate question, answered per capability by

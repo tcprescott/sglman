@@ -219,4 +219,4 @@ async def admin_schedule_page(
         # tenant (the selected_tab handler runs in a detached task that lost it).
         def on_tab_selected():
             table_view._bg(table_view.refresh())
-        ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Schedule' else None)
+        ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Admin Schedule' else None)

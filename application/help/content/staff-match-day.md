@@ -4,11 +4,11 @@ slug: staff-match-day
 icon: pending_actions
 order: 205
 audience: staff
-summary: For staff. What's waiting on you on Admin → Schedule: reschedule and cancellation requests, results to confirm, disputes, seeds, race rooms and the room screens.
+summary: For staff. What's waiting on you on Admin Schedule: reschedule and cancellation requests, results to confirm, disputes, seeds, race rooms and the room screens.
 ---
 
 **This one is for staff.** On match day most of your work arrives as a queue
-on **Admin → Schedule**: players asking to move a match, results a proctor has
+on **Admin Schedule**: players asking to move a match, results a proctor has
 recorded, and the odd dispute. This page is how to clear each one. Booking and
 editing matches is in [Running the schedule](/help/staff-schedule).
 
@@ -144,7 +144,7 @@ fingerprint of it is kept and a lost link can't be shown again. Revoke it and
 issue a new one instead. The list shows when each token was last used, so you can
 spot a machine that's stopped using its own.
 
-The screen is read-only. Rolling a seed still happens on Admin → Schedule or the
+The screen is read-only. Rolling a seed still happens on Admin Schedule or the
 Proctor Station.
 
 ## Race rooms

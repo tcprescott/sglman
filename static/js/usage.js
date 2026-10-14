@@ -4,8 +4,8 @@
  *
  * Records the *name* of what was used, never what was typed or selected:
  * - every click on a named control (button, link, menu item, tab, toggle,
- *   checkbox, chip, clickable list item, select), with the dialog, ⋮ menu or
- *   table it sat in;
+ *   checkbox, chip, clickable list item, select), with the dialog, ⋮ menu,
+ *   table or navigation area (side menu, pinned, bottom bar) it sat in;
  * - each dialog opening, and how it closed (the button pressed in it, or
  *   "dismissed" for Escape / a click outside);
  * - each form field whose value was changed, by its label.
@@ -132,6 +132,8 @@
       lastMenuOpener = name;
     }
     if (table) event.table = table.getAttribute('data-wiz-table-key');
+    var area = el.closest('[data-usage-area]');
+    if (area) event.area = area.getAttribute('data-usage-area');
     push(event);
   }, true);
 

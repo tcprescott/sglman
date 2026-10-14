@@ -180,7 +180,7 @@ Two front-matter keys gate an article by **reader**, on top of `feature:`:
 | `roles: A, B` | Only holders of one of those roles in this community; a super-admin always qualifies |
 
 Use `audience: staff` for anything a tournament admin or crew coordinator also
-works from (Admin → Schedule above all), since those are per-tournament
+works from (Admin Schedule above all), since those are per-tournament
 assignments, not roles. Use `roles:` to narrow further (volunteer coordination
 to `STAFF, VOLUNTEER_COORDINATOR`). Both together means both must pass.
 

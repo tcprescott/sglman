@@ -57,6 +57,7 @@ from .race_room_profile_repository import RaceRoomProfileRepository
 from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
+from .nav_preference_repository import NavPreferenceRepository
 from .reschedule_request_repository import RescheduleRequestRepository
 from .room_token_repository import RoomTokenRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
@@ -139,6 +140,7 @@ __all__ = [
     'SpeedGamingEventLinkRepository',
     'StageRepository',
     'StationRepository',
+    'NavPreferenceRepository',
     'TablePreferenceRepository',
     'TelemetryRepository',
     'TenantFeatureFlagRepository',

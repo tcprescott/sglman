@@ -47,6 +47,7 @@ from models import (
     MatchCommentKind,
     McpOAuthClient,
     PlayerAvailability,
+    NavPreference,
     ProfileNudgeDismissal,
     RacetimeBot,
     Role,
@@ -691,6 +692,15 @@ async def seed_profile_reminders(tenant: Tenant, users: dict[str, User]) -> None
     )
 
 
+async def seed_nav_preferences(tenant: Tenant, users: dict[str, User]) -> None:
+    """One member who rearranged their side menu; everyone else keeps the default pins."""
+    await NavPreference.get_or_create(
+        tenant=tenant, user=users['proctor_user'],
+        defaults={'pins': ['/volunteer/proctor-station', '/home/my-schedule', '/live'],
+                  'open_sections': ['volunteer']},
+    )
+
+
 async def seed_watch_layout_votes(tenant: Tenant) -> None:
     """A few browsers' ratings of the Watch page layouts, so the tally isn't empty."""
     for session_id, layout, vote in (
@@ -801,6 +811,7 @@ async def seed_all() -> None:
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
         await seed_profile_reminders(tenant, users)
+        await seed_nav_preferences(tenant, users)
         await seed_watch_layout_votes(tenant)
         await seed_match_comments(tenant, users)
     await seed_fledgling_tenant(users, groups)

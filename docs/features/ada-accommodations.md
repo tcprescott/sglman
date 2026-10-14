@@ -81,7 +81,7 @@ request requires community membership.
   stale id says the request no longer exists; with the feature off, the
   Users tab says ADA requests aren't turned on).
 
-- **Admin → Schedule and Volunteer → Proctor Station**: a match with a player
+- **Admin Schedule and Volunteer → Proctor Station**: a match with a player
   whose request is **Arranged** shows an `ADA: <name>` line on its run-sheet
   row (`_ADA` in `theme/tables/match_run_sheet.py`, plain text, not a
   control). The match sheet's **Ready to play?** checklist adds a

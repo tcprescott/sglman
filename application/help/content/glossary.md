@@ -102,7 +102,7 @@ still short of approved crew. A line that's still short also says *needs crew*
 beside its crew count. See [Signing up as crew](/help/crew#signing-up).
 
 **Needs review**: a finished match a proctor flagged for an admin to look at.
-Its status on Admin › Schedule and Proctor Station reads *Flagged*, and the match's own dialog
+Its status on Admin Schedule and Proctor Station reads *Flagged*, and the match's own dialog
 shows a *Needs review* chip. Confirming the result clears it. See
 [Running a match](/help/proctor#running-a-match).
 
@@ -150,7 +150,7 @@ It also gets you the reminder DM. See
 [Getting a reminder or RSVPing](/help/community-events#getting-a-reminder-or-rsvping).
 
 **Run sheet**: how the schedule boards (Event › Schedule, My Schedule,
-Admin › Schedule and Proctor Station) lay out matches: one line each, grouped by
+Admin Schedule and Proctor Station) lay out matches: one line each, grouped by
 where it stands (*Live now*, *Up next* and so on), with only the buttons you use
 most on the line. Tap a line to open the match's details: seed, stations, the
 full crew list and the rest.

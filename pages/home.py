@@ -16,7 +16,8 @@ from pages.home_tabs.player import count_waiting_on_you
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
-from theme.base import BaseLayout
+from theme.base import HOME_SECTIONS, BaseLayout
+from theme.side_menu import register_hub_sections
 from theme.empty_state import empty_panel
 from theme.page_header import page_title
 from theme.timer_teardown import PageTimer
@@ -121,7 +122,18 @@ def deep_link_ids(**raw: str | None) -> tuple[dict[str, int | None], bool]:
     return ids, malformed
 
 
+async def home_menu_tabs(user) -> list[dict]:
+    """Home's sections as the side menu lists them off Home, with the same counts."""
+    badges = {'Event': await community_new_count(user), 'My Schedule': await count_waiting_on_you(user)}
+    return [
+        {'label': label, 'icon': icon, **({'badge': badges[label]} if label in badges else {})}
+        for label, icon in HOME_SECTIONS
+    ]
+
+
 def create() -> None:
+    register_hub_sections('home', home_menu_tabs)
+
     async def home(
         section: str | None = None,
         request: Request = None,

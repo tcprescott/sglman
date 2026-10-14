@@ -80,6 +80,7 @@ erDiagram
     User |o--o{ TelemetryEvent : "user"
     User ||--o{ WebPushSubscription : "user"
     User ||--o{ UserTablePreference : "user"
+    User ||--o{ NavPreference : "user"
 
     Tournament }o--o{ User : "admins (TournamentAdmins)"
     Tournament }o--o{ User : "crew_coordinators (TournamentCrewCoordinators)"
@@ -1296,6 +1297,25 @@ reconciled against the shipped defaults in presentation
 
 Unique together: `(user, table_key)` — one row per person per table, written by upsert. Lives in `models/preferences.py`.
 
+#### `NavPreference`
+
+One member's side menu in one community: the items they pinned and the sections
+they left open. **Tenant-scoped**, unlike `UserTablePreference`, because the
+menu's destinations are the community's (a pin to Admin Schedule means nothing
+in a community where you aren't staff). Validated by `NavPreferenceService`;
+pins the viewer can no longer reach are hidden by `theme/side_menu.py`, not
+deleted. Added in migration `101_…_nav_preference`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | |
+| `user` | FK → `User` | not null, `CASCADE` | |
+| `pins` | `JSONField` | null | Ordered tenant-local paths (`/home/event`, `/admin/schedule`, `/live`); `NULL` = never edited, so the service's defaults apply. The first four fill the phone bottom bar |
+| `open_sections` | `JSONField` | null | Menu section keys left open (`admin`, `admin:Operations`); `NULL` = never touched, so the current area starts open |
+| `updated_at` | `DatetimeField` | `auto_now` | |
+
+Unique together: `(tenant, user)`. Lives in `models/preferences.py`.
+
 #### `AuditLog`
 
 Append-only record of admin actions — rows are never modified. Action naming conventions are in [CLAUDE.md](../../CLAUDE.md); the feature in [audit-logging.md](../features/audit-logging.md).
@@ -2095,6 +2115,7 @@ Consult the source for full signatures.
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `list_all_connections`, `save_connection`, `update_connection_tokens`, `clear_connection`; mirror teardown: `delete_mirror` (drops a tournament's participants + matches, leaving the scheduled `Match` rows); participants: `upsert_participant`, `resolve_users_by_challonge_ids`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `rotate`, `delete`, `delete_by_endpoint`, `touch_last_used` |
+| `NavPreferenceRepository` | [`nav_preference_repository.py`](../../application/repositories/nav_preference_repository.py) | `NavPreference` | Tenant-scoped. `get_for_user`, `upsert(user_id, **fields)` |
 | `TablePreferenceRepository` | [`table_preference_repository.py`](../../application/repositories/table_preference_repository.py) | `UserTablePreference` | **Global — never tenant-scoped** (the model has no tenant column). `all_for_user` (one query; the only read a page build makes), `get`, `upsert`, `delete`, `delete_all_for_user` |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `outcome_counts_since`, `prune_older_than` |

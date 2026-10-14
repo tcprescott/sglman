@@ -115,7 +115,7 @@ class TestOnlinePlayRolesStayNarrow:
     @pytest.mark.parametrize('role', ONLINE_ROLES)
     def test_none_of_them_sees_the_staff_tabs(self, role):
         labels = set(_labels(role, ALL_FLAGS))
-        assert not labels & {'Schedule', 'Users', 'Tournaments', 'Reports',
+        assert not labels & {'Admin Schedule', 'Users', 'Tournaments', 'Reports',
                              'Service Health', 'Payouts', 'Check-in'}
 
 

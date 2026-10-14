@@ -75,7 +75,7 @@ UI_EVENT_TYPES = frozenset({
 UI_DEVICES = frozenset({'phone', 'tablet', 'desktop'})
 UI_BATCH_MAX = 50
 _UI_TEXT_MAX = 120
-_UI_DETAIL_KEYS = ('kind', 'dialog', 'menu', 'table', 'via', 'width')
+_UI_DETAIL_KEYS = ('kind', 'dialog', 'menu', 'table', 'area', 'via', 'width')
 
 
 def _clip(value: Any, limit: int = _UI_TEXT_MAX) -> Optional[str]:

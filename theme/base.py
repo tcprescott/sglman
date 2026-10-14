@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 
 from nicegui import app, context, ui
 
@@ -11,9 +10,9 @@ from models import FeatureFlag, User
 from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
-from theme.nav_badges import bottom_nav_tab, drawer_tab_badge
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
+from theme.side_menu import SideMenu, tab_slug
 from theme.usage_telemetry import install_usage_capture, record_tab_view
 from theme.waiting import waiting_panel
 
@@ -42,17 +41,6 @@ def current_local_url() -> str:
     except Exception:
         return '/'
     return f'{url.path}?{url.query}' if url.query else url.path
-
-
-def tab_slug(label: str) -> str:
-    """Derive a URL path segment from a tab's display label.
-
-    Lowercases and collapses each run of non-alphanumeric characters to a
-    single hyphen: ``"Vol. Roster"`` → ``vol-roster``, ``"On Air"`` → ``on-air``.
-    Auto-derived slugs are collision-free within each page's label set; a tab
-    dict may override with an explicit ``'slug'`` key if ever needed.
-    """
-    return re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
 
 
 class BaseLayout:
@@ -93,10 +81,6 @@ class BaseLayout:
 
         self._drawer = None
         self._tab_panels = None
-        self._bottom_tabs = None
-        self._bottom_tab_labels: list = []
-        self._syncing_nav = False
-        self._tab_item_refs: dict = {}
         # Lazy tab rendering: every panel gets a container up front, but its
         # content is built on first show. `_pending_tabs` holds the not-yet-built
         # tabs; a label leaves it exactly once, when its content is built.
@@ -145,7 +129,6 @@ class BaseLayout:
         # refuses to anyone else, and the home sections on a tab-less page.
         self._is_member = False
         self._prepared = False
-        self.top_menu: list[dict] = []
 
         if tabs:
             # Sections are addressed in the URL by slug; internally everything
@@ -174,6 +157,11 @@ class BaseLayout:
             self._label_by_slug = {}
             self._label_by_alias = {}
             self._default_tab = None
+
+        # The hub this page is ('home', 'admin', 'volunteer'): its tabs are the
+        # menu's sections for that hub, and switch in place rather than navigate.
+        page_name = _kwargs.get('page_name')
+        self._menu = SideMenu(self, page_name if tabs and isinstance(page_name, str) else None)
 
     @property
     def wordmark(self) -> str:
@@ -237,6 +225,7 @@ class BaseLayout:
             from application.services import CheckInService
             self._show_check_in = await CheckInService().has_open_event()
         await self._load_theme_colors()
+        await self._menu.load()
         return self
 
     async def render(self) -> None:
@@ -268,19 +257,6 @@ class BaseLayout:
         from application.services import TenantThemeService
         self._theme_colors = await TenantThemeService.get_current_theme()
 
-    def _build_top_menu(self) -> None:
-        """Assemble the header/drawer nav. Deferred out of ``__init__`` so
-        ``render`` can resolve Volunteer visibility (an async access check) first."""
-        self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
-        if self._tenant_id is not None:
-            self.top_menu.append({'label': 'Watch', 'icon': 'live_tv', 'url': '/live'})
-        if self._show_volunteer:
-            self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
-        if self._show_check_in:
-            self.top_menu.append({'label': 'Check-in', 'icon': 'how_to_reg', 'url': '/checkin'})
-        if self._show_admin:
-            self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
-
     def render_chrome(self) -> None:
         """Render the synchronous page frame (palette, header, drawer, footer).
 
@@ -289,7 +265,6 @@ class BaseLayout:
         themed chrome. Tab panels (the only async part) are rendered by
         :meth:`render`.
         """
-        self._build_top_menu()
         # Per-tenant brand palette (loaded in render(); shipped defaults on the
         # synchronous error path or the tenant-less platform surface).
         from application.services.tenant_theme_service import DEFAULT_THEME
@@ -401,7 +376,7 @@ class BaseLayout:
             return
         self._render_header()
         self._render_drawer()
-        self._render_footer()
+        self._menu.render_bottom_bar()
 
     def _open_cat_fact(self) -> None:
         from theme.dialog import CatFactDialog
@@ -470,7 +445,7 @@ class BaseLayout:
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""
         # Unify the drawer's auto-show boundary with the app-shell <1024px break:
-        # below it the bottom nav + burger carry navigation, at/above it the drawer
+        # below it the pinned bottom bar + burger carry navigation, at/above it the drawer
         # pins open (show-if-above). This matches the grid-card table breakpoint.
         # NiceGUI renders the drawer body (.q-drawer__content) as a flex column,
         # so a trailing ui.space() pushes the copyright to the foot of the drawer
@@ -480,51 +455,7 @@ class BaseLayout:
         with ui.left_drawer(value=False).props(
             'breakpoint=1023 show-if-above bordered width=224'
         ) as self._drawer:
-            with ui.list().props('padding'):
-                for item in self.top_menu:
-                    with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
-                        with ui.item_section().props('avatar'):
-                            ui.icon(item['icon']).props('size=sm')
-                        with ui.item_section():
-                            ui.item_label(item['label'])
-
-            if not self.tabs and self._is_member:
-                # A tab-less page has no section list of its own, so a member
-                # gets home's: the bracket or article they followed a link to
-                # is not where they stop being a player.
-                ui.separator()
-                with ui.list().props('padding'):
-                    for label, icon in HOME_SECTIONS:
-                        with ui.item(
-                            on_click=lambda slug=tab_slug(label): ui.navigate.to(f'/home/{slug}')
-                        ).props('clickable v-ripple'):
-                            with ui.item_section().props('avatar'):
-                                ui.icon(icon).props('size=sm')
-                            with ui.item_section():
-                                ui.item_label(label)
-
-            if self.tabs:
-                ui.separator()
-                with ui.list().props('padding'):
-                    current_group = None
-                    for tab in self.tabs:
-                        # Section headers for grouped drawers (admin passes a
-                        # 'group' per tab); ungrouped pages render a flat list.
-                        group = tab.get('group')
-                        if group and group != current_group:
-                            current_group = group
-                            ui.item_label(group).props('header').classes('wiz-drawer-group')
-                        with ui.item(
-                            on_click=lambda t=tab['label']: self._switch_tab(t)
-                        ).props('clickable v-ripple') as tab_item:
-                            with ui.item_section().props('avatar'):
-                                ui.icon(tab.get('icon', 'circle')).props('size=sm')
-                            with ui.item_section():
-                                ui.item_label(tab['label'])
-                            drawer_tab_badge(tab)
-                        if tab['label'] == self._default_tab:
-                            tab_item.props(add='active')
-                        self._tab_item_refs[tab['label']] = tab_item
+            self._menu.render()
 
             if self._tenant_id is not None:
                 self._render_drawer_help()
@@ -597,7 +528,7 @@ class BaseLayout:
     def _switch_tab(self, label: str) -> None:
         # Only move the panel; the drawer highlight and the /base/<slug> history
         # replace are handled centrally by _handle_tab_change so every entry point
-        # (drawer, bottom nav, swipe) produces identical side effects and no loops.
+        # (side menu, bottom bar, swipe) produces identical side effects and no loops.
         self._tab_panels.set_value(label)
 
     async def _handle_tab_change(self) -> None:
@@ -607,12 +538,7 @@ class BaseLayout:
         panels are built so the initial deep-linked value does not fire a spurious
         history entry."""
         label = self._tab_panels.value
-        for lbl, item in self._tab_item_refs.items():
-            if lbl == label:
-                item.props(add='active')
-            else:
-                item.props(remove='active')
-        self._sync_bottom_nav(label)
+        self._menu.tab_changed(label)
         # replace(), not push(): tab switches (incl. every swipe) update the URL for
         # deep-linking/sharing without a Back-button trap per tab on mobile, and so
         # load no page — hence the explicit tab-view telemetry. Done before the
@@ -631,73 +557,6 @@ class BaseLayout:
         # own label, so a single broadcast reaches exactly the active tab. Emitted
         # client-side via the global emitEvent so e.args is the plain label string.
         ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
-
-    def _sync_bottom_nav(self, label: str) -> None:
-        """Highlight the active tab in the bottom nav.
-
-        The bar only exists where every tab is in it (see ``_render_footer``), so
-        the label always has a matching child and there is no not-in-the-bar case
-        to fall back from."""
-        if self._bottom_tabs is None:
-            return
-        # Guard: setting the bottom tab's value re-fires its own change handler.
-        self._syncing_nav = True
-        self._bottom_tabs.set_value(label)
-        self._syncing_nav = False
-
-    def _on_bottom_tab(self) -> None:
-        """A bottom-nav tab was tapped: drive the panel (which then routes through
-        _handle_tab_change for the highlight/URL sync). Ignored while we are
-        programmatically syncing the highlight to avoid a feedback loop."""
-        if self._syncing_nav:
-            return
-        value = self._bottom_tabs.value
-        if value and value != self._tab_panels.value:
-            self._tab_panels.set_value(value)
-
-    # A bottom bar can hold about this many tabs before the labels stop being
-    # readable at 390px. It is also, not coincidentally, the number Home was cut
-    # down to.
-    BOTTOM_NAV_CAPACITY = 4
-
-    def _render_footer(self) -> None:
-        """Render the app-shell bottom navigation for phones/tablets (<1024px).
-
-        **Only when every tab fits.** The bar used to show `tabs[:4]` and hide the
-        rest behind a **More** button, which meant a hub with more tabs than the
-        bar holds — Admin has twenty-seven — spent 72px of phone screen offering
-        four of them chosen by list order, plus a button that is the drawer with
-        an extra tap. Where the nav does not fit, the drawer is the honest answer
-        and the header's burger opens it.
-
-        Where it does fit, the bar is worth its space: Home's four are the tabs a
-        player switches between constantly, and a thumb reaches the bottom of a
-        phone far more easily than the top-left corner.
-
-        The footer is *only* the bottom nav — copyright and Feedback live in the
-        drawer — so a page that does not qualify renders no footer at all rather
-        than an empty strip.
-        """
-        if not self.tabs or len(self.tabs) > self.BOTTOM_NAV_CAPACITY:
-            return
-
-        # Tells styles.css this page actually reserves bottom-nav clearance —
-        # see the --wiz-bottom-nav-h comment there. Without it, a page with no bar
-        # (a tab-less one like /help, or a hub whose nav does not fit) still
-        # reserves 72px of dead space under the reconnect banner/popup and the
-        # refresh FAB, for a nav that never renders.
-        ui.query('body').classes(add='wiz-has-bottom-nav')
-
-        with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
-            self._bottom_tab_labels = [tab['label'] for tab in self.tabs]
-            # Every tab is in the bar, so the deep-linked default always has a
-            # matching child — no empty value to bind and no Quasar warning.
-            with ui.tabs(value=self._default_tab).props('dense no-caps').classes('wiz-bottom-nav') as self._bottom_tabs:
-                for tab in self.tabs:
-                    bottom_nav_tab(tab)
-            # Tapping a bottom tab drives the panel; the highlight/URL sync then
-            # flows back through _handle_tab_change.
-            self._bottom_tabs.on_value_change(self._on_bottom_tab)
 
     @staticmethod
     async def _render_tab_content(tab: dict) -> None:
@@ -776,10 +635,9 @@ class BaseLayout:
         await self._build_tab(self._default_tab, deferred=False)
         record_tab_view(self._base_path, self._slug_by_label.get(self._default_tab))
 
-        # Panel changes (drawer click, bottom-tab tap, or swipe) all route through
-        # _handle_tab_change, which syncs both highlights and the URL. Registered
+        # Panel changes (side menu, bottom bar, or swipe) all route through
+        # _handle_tab_change, which syncs the highlights and the URL. Registered
         # after construction so the initial deep-linked value does not fire it (no
-        # spurious history entry). The bottom nav is kept in sync manually rather
-        # than via bind_value, because a two-way bind would force the tab model to a
-        # value with no matching child whenever the active tab lives behind More.
+        # spurious history entry). The bottom bar is synced by hand rather than via
+        # bind_value: it holds pins, so the current tab often has no tab in it.
         self._tab_panels.on_value_change(self._handle_tab_change)

@@ -19,7 +19,7 @@ Each side has a surface of its own for the work it owns:
 
 | Who | Where | What it carries |
 |---|---|---|
-| Staff / TA / crew coordinator | Admin → Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
+| Staff / TA / crew coordinator | Admin Schedule; Reports → Crew Activity | The approval toggle beside each name on the board, and a Pending-only filter in the report |
 | The volunteer | Home → **My Schedule** → crew section (`home_tabs/my_crew.py`) | The player run sheet (`layout='player_run_sheet'`) narrowed to the matches they crew (`MatchTableView(crew_discord_id=...)`, approved or waiting), so their Withdraw and Confirm sit in their own role's tray as on Event › Schedule. A line they withdraw from leaves the board (`_still_crews`), and `?match=` narrows it to that match with a *Showing one match only* chip. It leads the tab for anyone entered in no tournament |
 
 The crew list is on Home rather than the Volunteer hub deliberately: crew signup
@@ -471,7 +471,7 @@ on every route (Discord, web, REST).
 |---|---|---|
 | The player | Home → My Schedule, the **Change** column | The ask, and below the board **Your change requests**: what they asked for, whether the opponent agreed, and staff's reply — with **Withdraw** while it is pending |
 | The opponent | Home → My Schedule, **Your opponent asked to reschedule** above the board | The request (time now, proposed time, reason) with **Agree**; `MatchRescheduleService.list_awaiting_agreement`, two-player matches only |
-| Staff | Admin → Schedule, **Needs you** | Each request named, with *Approve* for a move at the proposed time and *Decline* / *Review* opening the decision dialog |
+| Staff | Admin Schedule, **Needs you** | Each request named, with *Approve* for a move at the proposed time and *Decline* / *Review* opening the decision dialog |
 
 The strip is **live**. Submitting, withdrawing, agreeing and declining all
 publish on `match_live`, and the strip subscribes through
@@ -534,7 +534,7 @@ and who reads it depends on its kind (`MatchCommentKind`):
 | `staff_to_players` | staff ("Message players") | staff and every player in the match |
 
 "Staff" is `AuthService.can_run_match`: STAFF, proctors and the tournament's
-admins, so the thread works on Admin → Schedule and on Proctor Station. The two
+admins, so the thread works on Admin Schedule and on Proctor Station. The two
 staff kinds have separate buttons and separate composers so a private note can't
 be sent to players by a mis-set toggle. Authors delete their own; staff delete
 any. Bodies are capped at 2,000 characters and render through the help markdown

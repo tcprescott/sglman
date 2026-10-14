@@ -95,6 +95,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `ProfileNudgeService` | [profile_nudge_service.py](../../application/services/profile_nudge_service.py) | A community's recommended profile items and which ones a member still owes | [profile-reminders.md](../features/profile-reminders.md) |
 | `WatchLayoutService` | [watch_layout_service.py](../../application/services/watch_layout_service.py) | The three Watch page layouts: assign one at random, record each browser's thumbs up/down, staff tally | [../reference/frontend.md](frontend.md) |
+| `NavPreferenceService` | [nav_preference_service.py](../../application/services/nav_preference_service.py) | A member's side menu pins and open sections, per community | [frontend.md](frontend.md#side-menu-themeside_menupy) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
 | `PayoutService` | [payout_service.py](../../application/services/payout_service.py) | Prize pool, placement splits, and the Matcherino export | [payouts.md](../features/payouts.md), `PAYOUTS` |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
@@ -1103,6 +1104,19 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; Staff-only. |
 | `validate_hours_mapping(mapping)` | `dict[str, dict[str, str]]` | Pure HH:MM / close-after-open validation (`ValueError`) into a storable blob (blank days dropped), shared by `set_tournament_hours` and the per-tournament override. |
 | `get_station_format(default=StationFormat.FREE)` | `StationFormat` | The venue's station-numbering mode. |
+
+### nav_preference_service.py — NavPreferenceService
+
+A member's side menu in the current community (`NavPreference`). `load(user)`
+returns `(pins, open_sections)`: pins default to `DEFAULT_PINS` (Event, My
+Schedule) plus `/admin/schedule` for anyone `AuthService.can_view_schedule_board`
+admits; `open_sections` stays `None` until the member opens or closes one.
+`save_pins` (ordered, deduplicated, at most 12, each a tenant-local path starting
+with a single `/`) and `save_open_sections` (at most 40) raise `ValueError` on a
+bad list or for a non-member (super-admins pass). It never learns which menu
+items exist; presentation drops a pin the viewer can't reach. **No audit row and
+no event**, for `TablePreferenceService`'s reason. Collaborators:
+`NavPreferenceRepository`, `TenantService`, `AuthService`.
 
 ### table_preference_service.py — TablePreferenceService
 

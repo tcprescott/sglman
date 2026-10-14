@@ -80,7 +80,8 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    (and when the tab is hidden); `TelemetryService.track_ui_batch` stores them:
    - `ui.click` — any named control: button, link, menu item, tab, toggle,
      checkbox, chip, clickable list item, select. `details` notes the `kind`,
-     the `dialog` and ⋮ `menu` it sat in, and the `table` key. A row button's
+     the `dialog` and ⋮ `menu` it sat in, the `table` key, and the `area` of the
+     app shell it was in (`side menu`, `pinned`, `bottom bar`). A row button's
      "… for <row>" suffix is dropped so every row's ⋮ counts as one control.
    - `ui.dialog_opened` / `ui.dialog_closed` — by dialog title; a close carries
      `via`, the last button pressed inside it, or `dismissed` (Escape / outside).

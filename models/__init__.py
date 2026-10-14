@@ -99,7 +99,7 @@ from .match import (
     Tracker,
 )
 from .mcp import McpAuthorizationCode, McpOAuthClient
-from .preferences import UserTablePreference
+from .preferences import NavPreference, UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
 from .system import LogLevelOverride, RoomToken, SystemConfiguration
@@ -288,6 +288,7 @@ __all__ = [
     'User',
     'UserRole',
     # per-user UI preferences
+    'NavPreference',
     'UserTablePreference',
     'VolunteerAssignment',
     'VolunteerAvailability',

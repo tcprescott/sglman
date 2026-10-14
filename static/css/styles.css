@@ -909,6 +909,49 @@ body:has(.wiz-header) .q-notifications__list--top {
     color: var(--fg-muted);
 }
 
+/* Side menu accordion (theme/side_menu.py). Each area is a QExpansionItem whose
+   header is the same .q-item as a plain row; its sections indent one step, and
+   Admin's groups indent their sections a second step. */
+.q-drawer .wiz-nav-hub .nicegui-expansion-content {
+    padding: 0;
+    gap: 0;
+    align-items: stretch;
+}
+.q-drawer .wiz-nav-group > .q-expansion-item__container > .q-item,
+.q-drawer .q-item.wiz-nav-depth-1 {
+    padding-left: 22px;
+}
+.q-drawer .q-item.wiz-nav-depth-2 {
+    padding-left: 34px;
+}
+.q-drawer .q-expansion-item .q-item__section--side > .q-icon {
+    font-size: 20px;
+    color: var(--fg-muted);
+}
+.q-drawer .wiz-side-empty {
+    padding: var(--space-1) 14px;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+}
+.q-drawer .wiz-pin-tools {
+    padding-left: 2px;
+}
+.q-drawer .q-item .wiz-pin-tool {
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0;
+}
+.q-drawer .q-item .wiz-pin-tool .q-icon {
+    font-size: 18px;
+    color: var(--fg-muted);
+}
+.q-drawer .q-item .wiz-pin-tool.wiz-pin-on .q-icon {
+    color: var(--accent);
+}
+.q-drawer .q-item .wiz-pin-tool.wiz-pin-off .q-icon {
+    transform: rotate(30deg);
+}
+
 /* Layout & Container Styles */
 .page-container {
     width: 100%;

@@ -30,11 +30,11 @@ The UI is built entirely with NiceGUI (Quasar/Vue under the hood) mounted into t
 
 Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=None, show_volunteer=None, wordmark=None, chromeless=False, **_kwargs)`.
 
-- `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'`, `'group'` and `'aliases'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass the board's `MatchBoardAccess` and the report query params. A `'group'` turns the drawer's flat tab list into labeled sections.
+- `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'`, `'group'` and `'aliases'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass the board's `MatchBoardAccess` and the report query params. A `'group'` nests the tab under that group in the side menu.
 - `section` is the URL **slug** of the initially active tab (e.g. `reports`); it resolves to a label via the auto-derived slug map (`tab_slug()`, or an explicit `'slug'`). An unknown or missing slug falls back to the first tab.
 - `'aliases'` is a tuple of **retired** slugs the tab absorbed. They resolve on read-in only (`_label_by_alias`, consulted *after* `_label_by_slug`, so a live tab's own slug can never be shadowed) and are never written back, so the URL normalizes to the canonical slug on the first tab switch. They exist for links already in the wild — a Discord DM outlives the app version that sent it. Home uses them; see [Home](#home--pageshomepy).
 - `base_path` is the section URL base **including any `/t/<slug>` root_path** (e.g. `/t/foo/admin`); tab switches rewrite the URL to `{base_path}/{slug}`. `None` on tab-less pages, which never touch the URL.
-- `show_admin` adds an "Admin" entry to the drawer's top menu (Home is always present). Only an explicit `True` (the admin page itself) is taken as given; otherwise `prepare()` resolves it via `AuthService.can_open_admin(user)`, which mirrors the admin page's tab gates so the link is offered exactly when `/admin` has a tab for the viewer. Pages no longer pass it.
+- `show_admin` adds the Admin area to the side menu. Only an explicit `True` (the admin page itself) is taken as given; otherwise `prepare()` resolves it via `AuthService.can_open_admin(user)`, which mirrors the admin page's tab gates so the link is offered exactly when `/admin` has a tab for the viewer. Pages no longer pass it.
 - `show_volunteer` is **tri-state**. `None` — the default, and what every page but `/volunteer` uses — resolves it in `render()` via `AuthService.can_view_volunteer(user)`, so the link is never offered where the `VOLUNTEERS` flag or the role gate would reject it and dead-end on a 404/403. An explicit bool is honoured as-is, which keeps the synchronous error path working without a DB round-trip.
 - The **Check-in** top-menu item (`how_to_reg`, `/checkin`, after Volunteer) is resolved in `prepare()`: shown to a member for whom `AuthService.can_view_check_in_desk(user)` holds (`EVENT_CHECK_IN` live, Staff or `CHECK_IN_DESK`) **and** `CheckInService().has_open_event()`, so it appears only while there is a desk to work. False on the synchronous error path.
 - `wordmark` is the header brand text; `None` resolves to the in-scope community's own name via `TenantService.current_community_name()`, falling back to `Wizzrobe`.
@@ -50,13 +50,41 @@ Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=
 | Dark mode | `render_chrome()` | `app.storage.user['dark_mode']` into `ui.dark_mode()` (`None` ⇒ follow the client's system theme), font preloads, `styles.css`, the `noindex` meta, the PWA manifest / theme-color metas / `/sw.js` registration, the Konami-code listener, `install_timezone_detection()` (the `wiz_tz` cookie), `install_connection_watch()`, and `js/table-columns.js` (drag-to-resize headers) |
 | Palette | `render_chrome()` | `colors = self._theme_colors or DEFAULT_THEME` → `ui.colors(primary/secondary/accent=…)` (status colours stay fixed) plus an injected `<style>` re-pointing the `--wiz-*` brand vars. See [Per-tenant theme colours](#per-tenant-theme-colours) |
 | Header | `_render_header()` | Burger, wordmark (the community name), `ui.space()` spacer, then either the user's name + Discord avatar (or an `account_circle` placeholder) + logout, or an icon-only-on-phones "Login with Discord" button that carries the current page as `/login?next=…` (see [Coming back to the page](authentication.md#coming-back-to-the-page)); finally the dark-mode toggle |
-| Drawer | `_render_drawer()` | `ui.left_drawer` at `breakpoint=1023 show-if-above bordered width=224` (pinned ≥1024px, behind the burger below; 224px rather than Quasar's 300px default). Top menu (Home / Volunteer / Admin); one item per tab with a `.wiz-drawer-group` header per `'group'` — or, on a **tab-less** page viewed by a member, home's four sections (`HOME_SECTIONS`, linking `/home/<slug>`) so a bracket or an article is never a dead end for a player; then, **only inside a community**, **Event Information** (`EVENT_INFO` live, not gated on a user), **Community Events** (members only, `COMMUNITY_EVENTS` live), **Help**, and **Feedback** (members only, `FEEDBACK` live — `FeedbackService.submit` refuses anyone else); and a GitHub link + copyright caption pinned to the foot via `ui.space()`. Off any community (the bare host) the Help item would point at the page it sits on, so the section is omitted |
-| Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.wiz-bottom-nav`), and only when **every** tab fits it (`len(tabs) <= BOTTOM_NAV_CAPACITY`, currently 4). Each tab takes an equal share of the bar and may shrink below its label (ellipsis), and Quasar's scroll arrows are hidden: Home's four natural widths summed to 373px in a 358px bar, which put **Profile** under a scroll arrow on every phone. Hidden ≥1024px, so desktop, tab-less pages, and hubs with more tabs than the bar holds render no footer. When it renders, it also stamps `body.wiz-has-bottom-nav`, which is what gives `--wiz-bottom-nav-h` its 72px (0 otherwise) |
+| Drawer | `_render_drawer()` | `ui.left_drawer` at `breakpoint=1023 show-if-above bordered width=224` (pinned ≥1024px, behind the burger below; 224px rather than Quasar's 300px default). Navigation is the [side menu](#side-menu-themeside_menupy); below it, **only inside a community**, **Event Information** (`EVENT_INFO` live, not gated on a user), **Community Events** (members only, `COMMUNITY_EVENTS` live), **Help**, and **Feedback** (members only, `FEEDBACK` live — `FeedbackService.submit` refuses anyone else); and a GitHub link + copyright caption pinned to the foot via `ui.space()`. Off any community (the bare host) the Help item would point at the page it sits on, so the section is omitted |
+| Footer | `SideMenu.render_bottom_bar()` | The mobile bottom bar (`.wiz-bottom-nav`), for **members on every page**: their first four pins (`BOTTOM_BAR_PINS`) by short name, then **Menu**, which opens the drawer. Each tab takes an equal share of the bar and may shrink below its label (ellipsis), and Quasar's scroll arrows are hidden. Hidden ≥1024px. It stamps `body.wiz-has-bottom-nav`, which is what gives `--wiz-bottom-nav-h` its 72px (0 otherwise) |
 | Tabs | `_render_tab_panels()` | Panel *containers* are all created up front; each tab's **content is built on first show** — see below |
 
 **Lazy tab rendering.** Every `ui.tab_panel` container exists from page load (so panel switching, deep-linked sections, and swipe all work), but a tab's content is built the first time it is shown, by `_build_tab`. Unbuilt tabs sit in `_pending_tabs`; a label leaves it exactly once. A deferred build gets a spinner, is wrapped in `tenant_scope(self._tenant_id)` — the tenant captured at page-build time, because the deferred build runs in a websocket handler where the contextvar is unset — and falls back to an inline error label if the content raises. This is why the home hub is cheap: eager rendering spent roughly half of the page's render CPU on panels nobody looked at.
 
 **Tab deep-linking.** Sections are addressed by **path segment** (`/admin/reports`), not a query param. Tab switching does not reload: `_switch_tab(label)` moves the drawer's `active` prop and the tab-panels value, and `_handle_tab_change` replaces the URL with `{base_path}/{slug}` via `ui.navigate.history.replace` (`replace`, not `push`, so per-tab switches don't stack a Back-button trap). The reverse direction works because each hub is registered under both `/base` and `/base/{section}` (via `protected_tab_page`, or three `ui.page()` calls for the public home page): the page function declares a `section: str = None` parameter that NiceGUI maps the path param onto. The home hub lives at `/` with sections at `/home/<slug>`. Report filters (`report`, `start`, `end`, …) remain query params on top of the path.
+
+### Side menu (`theme/side_menu.py`)
+
+The drawer's navigation and the phone bottom bar, built by `SideMenu(layout, hub)`
+(`hub` is the page's `page_name` when it has tabs). Project owner's pick
+(2026-10-14): an accordion with pins, the bottom bar driven by the pins.
+
+- **Pinned** block at the top: the member's pins (`NavPreferenceService`; default
+  Event and My Schedule, plus Admin Schedule for anyone who can open the board).
+  **Edit pins** turns on a pin toggle on every menu row and up / down / unpin
+  tools on each pin; the first four fill the phone bottom bar. A pin the viewer
+  can no longer reach is hidden, not deleted.
+- **Areas** as `ui.expansion` rows: Home (members), Watch (`/live`), Volunteer,
+  Check-in and Admin, each shown on the layout's own `_show_*` gates. An area
+  without sections is a plain link. Admin nests a second level by tab `'group'`
+  (Operations, Online play, Community, System). Open/closed state is saved per
+  member per community; never saved means the current area (and group) start open.
+- **Sections of other areas** come from resolvers each hub page registers with
+  `register_hub_sections(key, resolver)` (`pages/home.py`, `pages/volunteer.py`,
+  `pages/admin.py`), so the theme never imports pages. A resolver returns the tab
+  dicts the viewer would see on that hub; failures are logged and the area falls
+  back to a plain link.
+- A section on the current hub switches the panel in place (and closes the
+  drawer on a phone); anything else navigates to `/<hub>/<slug>`.
+- **Short names**: labels too long for a fifth of a phone get a short form in
+  `SHORT_NAMES` (`Admin Schedule` → `Adm Schd`), used only by the bottom bar.
+- Telemetry: every click in it carries `area` (`side menu`, `pinned`,
+  `bottom bar`) from the `data-usage-area` attribute.
 
 ### Per-tenant theme colours
 
@@ -347,7 +375,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Tab | Group | Visible to | Flag |
 |---|---|---|---|
 | Setup | Operations | Staff, Tournament Admin (any) — only while `TenantSetupService.is_ready` is false, and placed **first** so a new community lands on the checklist | — |
-| Schedule | Operations | Staff, Tournament Admin (any), Crew Coordinator (any), Stream Manager | — |
+| Admin Schedule | Operations | Staff, Tournament Admin (any), Crew Coordinator (any), Stream Manager | — |
 | Users | Operations | Staff | — |
 | Tournaments | Operations | Staff, Tournament Admin (any) | — |
 | Stages | Operations | Staff, Stream Manager | — |
@@ -368,16 +396,16 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Service Health | System | Staff | — |
 | Settings | System | Anyone with at least one [settings pane](#admin-settings-pagesadmin_tabssettings): Staff, Sync Admin (Discord Events only), Preset Manager (Randomizer Keys only) | — |
 
-Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → System), which the drawer renders as labeled sections.
+Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → System), which the side menu renders as a second accordion level under Admin.
 
-A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER reaches the tab for exactly one control (`assign_stream`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
+A **`MatchBoardAccess`** is passed into the Admin Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER reaches the tab for exactly one control (`assign_stream`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
 
 **Deep-link query params.** Besides the `section` path segment, the page declares every tab's params in one signature and forwards each as a kwargs dict to the tab that owns it:
 
 | Tab | Params |
 |---|---|
 | Reports | `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stage_id`, `state`, `approval`, `action`, `focus`, `category`, `page` |
-| Schedule | `match_id` — focuses the board on one match (suspending its State filter) with a chip back to the full board; `reschedule_request` — opens that request's decision dialog once the board renders (the staff reschedule DM's button) |
+| Admin Schedule (`/admin/schedule`) | `match_id` — focuses the board on one match (suspending its State filter) with a chip back to the full board; `reschedule_request` — opens that request's decision dialog once the board renders (the staff reschedule DM's button) |
 | Qualifiers | `qualifier`, `tab` (forwarded as `open_tab`) — the "runs are waiting" DM lands on that qualifier's queue |
 | Vol. Schedule | `day` — opens on that event day, ignored unless it is one of them |
 
@@ -914,7 +942,7 @@ Three view classes — `MatchTableView`, `TournamentTableView`, `UserTableView` 
 
 ### `MatchTableView` (`theme/tables/match.py`)
 
-The largest UI component, used by the home Schedule and Player boards, the admin Schedule tab, the volunteer Proctor Station, and the tournament-room seeds board. Split across `match.py` (view), `match_filters.py` (the filter strip and its stored state), `match_slots.py` (Vue templates), `match_grid.py` (cards), `match_handlers.py` (event-handler coroutines), `match_access.py` (capabilities), `match_lifecycle.py` (the shared lifecycle handlers), and `hard_preset_rows.py` (the per-viewer harder-preset row fields).
+The largest UI component, used by the home Schedule and Player boards, the Admin Schedule tab, the volunteer Proctor Station, and the tournament-room seeds board. Split across `match.py` (view), `match_filters.py` (the filter strip and its stored state), `match_slots.py` (Vue templates), `match_grid.py` (cards), `match_handlers.py` (event-handler coroutines), `match_access.py` (capabilities), `match_lifecycle.py` (the shared lifecycle handlers), and `hard_preset_rows.py` (the per-viewer harder-preset row fields).
 
 **Constructor flags**: `admin_controls` (this is an operator's board — station chips, no self-signup), `access` (a `MatchBoardAccess`; see below), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_edit_result`, `on_set_stage`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Per-surface identity: `storage_key` (each board's own filter namespace — pass a distinct one per construction site), `default_state_filter`, `table_key` (saved column layout), `searchable` (a search box over the visible columns), and `grid_breakpoint` (default `lt.md`; the home Schedule uses `lt.lg`). Scoping: `match_ids` (a deep link focusing the board on specific matches — narrows the query and suspends the State and Day filters without touching the stored ones) and `scope_tournament_ids` (a hard bound for a per-tournament operator, intersected with the Tournament filter so choosing one cannot widen the board). Five **board-shaping** options exist for surfaces that need a different frame around the same rows: `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `row_filter` (a per-row predicate defining what the board *is*, rather than what its operator chose — the tournament-room board passes `is_seeded_and_unplayed`; it applies to a full refresh **and** to a single row arriving from a live update, so a match that starts leaves the screen and a match that gains a seed brings the board to a refresh), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players). With `layout='run_sheet'`, `run_sheet_group` picks the grouping (`match_run_sheet.admin_group` by default, `proctor_group` on the Proctor Station) and `proctor_run_sheet=True` draws the proctor's line (stations on the names, the next step as a button).
 
