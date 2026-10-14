@@ -41,21 +41,12 @@ def needs_crew(row: dict) -> bool:
 async def schedule():
     match_service = MatchService()
 
-    with ui.column().classes('page-container'):
-        # No page title: the Event tab's view switcher directly above already
-        # names this view. The line stays because "you can sign up for crew from
-        # this board" is not something the table says on its own.
-        # One compact line under the view switcher, not a `header-row` +
-        # `separator-spacing` stack: that put ~3em of empty band between a
-        # one-sentence note and the board it introduces, and on a phone the
-        # help icons dropped to their own line stranded in the middle of it.
-        with ui.row().classes('wiz-view-note items-center wiz-help-row'):
-            ui.label('Every match, and where you can sign up as crew.') \
-                .classes('text-muted')
-            await help_icon(('schedule-columns', 'Reading the board'), 'match-states')
-            needs_crew_switch = ui.switch(
-                'Needs crew', value=bool(tenant_session_get(NEEDS_CREW_KEY, False)),
-            ).props('dense').tooltip('Only matches still short of commentators or trackers')
+    with ui.column().classes('page-container wiz-board-page'):
+        # No intro line and no title: the view switcher already names the view,
+        # the Sign up buttons on each line say what the board is for, and the
+        # help topic says the rest. The Needs crew switch and the help button
+        # ride the board's own filter strip instead of rows of their own.
+        needs_crew_on = bool(tenant_session_get(NEEDS_CREW_KEY, False))
 
         async def get_query():
             return await match_service.get_all_matches_for_schedule()
@@ -67,7 +58,7 @@ async def schedule():
                            decorate=lambda row: decorate_player_row(row, discord_id))
 
         view = MatchTableView(
-            row_filter=needs_crew if needs_crew_switch.value else None,
+            row_filter=needs_crew if needs_crew_on else None,
             columns=PLAYER_RUN_SHEET_COLUMNS,
             get_query=get_query,
             admin_controls=False,
@@ -79,12 +70,30 @@ async def schedule():
         )
         sheet.view = view
 
+        # One switch per strip (phone row, desktop card); only one is ever
+        # visible, and flipping either moves the other with it.
+        switches: list = []
+
         async def on_needs_crew(event) -> None:
-            tenant_session_set(NEEDS_CREW_KEY, bool(event.value))
-            view.row_filter = needs_crew if event.value else None
+            on = bool(event.value)
+            if view.row_filter is (needs_crew if on else None):
+                return
+            tenant_session_set(NEEDS_CREW_KEY, on)
+            view.row_filter = needs_crew if on else None
+            for other in switches:
+                if other is not event.sender:
+                    other.set_value(on)
             await view.refresh()
 
-        needs_crew_switch.on_value_change(on_needs_crew)
+        for lead, end in zip(view.toolbar_lead, view.toolbar_end, strict=True):
+            with lead:
+                switches.append(
+                    ui.switch('Needs crew', value=needs_crew_on, on_change=on_needs_crew)
+                    .props('dense').classes('wiz-needs-crew')
+                    .tooltip('Only matches still short of commentators or trackers')
+                )
+            with end:
+                await help_icon(('schedule-columns', 'Reading the board'), 'match-states')
 
         # The view loads itself once its filters are restored (MatchTableView
         # ._initial_load) — kicking a refresh here as well raced that restore and

@@ -200,12 +200,19 @@ class MatchFiltersMixin:
         """
         # Mobile-only filter toggle (CSS hides this row >=1024px, where the card is
         # shown inline; below 1024px the card is collapsed until toggled open).
-        with ui.row().classes('wiz-filter-toggle full-width items-center'):
-            ui.button('Filters', icon='filter_list', on_click=self._toggle_filters).props('flat color=primary')
+        # Each strip has an empty lead and end slot a page can fill with its own
+        # controls (``toolbar_lead`` / ``toolbar_end``): one pair on the phone
+        # row, one in the desktop card. Only one strip shows at a time, so a
+        # control the page wants on both is built once into each.
+        with ui.row().classes('wiz-filter-toggle full-width items-center no-wrap'):
+            phone_lead = ui.row().classes('wiz-toolbar-slot items-center no-wrap')
+            ui.button('Filters', icon='filter_list', on_click=self._toggle_filters) \
+                .props('flat color=primary').classes('wiz-filter-toggle__btn')
             self.filter_badge = ui.badge('0').props('color=primary')
             self.filter_badge.set_visibility(False)
             ui.space()
             ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary round dense').tooltip('Refresh table')
+            phone_end = ui.row().classes('wiz-toolbar-slot items-center no-wrap')
 
         # Each field carries its own label inside the box rather than a caption
         # line above it: with captions the open card stood ~550px tall on a
@@ -213,6 +220,7 @@ class MatchFiltersMixin:
         self.filters_card = ui.card().classes('match-filters-card match-filters-card--compact')
         with self.filters_card:
             with ui.row().classes('match-filter-row'):
+                desk_lead = ui.row().classes('wiz-toolbar-slot wiz-toolbar-slot--desk items-center no-wrap')
                 # Day filter, first because it is the coarsest narrowing and
                 # the one an operator working a venue reaches for.
                 self.day_filter = ui.select(
@@ -255,5 +263,8 @@ class MatchFiltersMixin:
                     gear_slot = ui.row().classes('items-center')
                     ui.button(icon='refresh', on_click=self.refresh) \
                         .props('flat color=primary').classes('gt-sm').tooltip('Refresh table')
+                    desk_end = ui.row().classes('wiz-toolbar-slot wiz-toolbar-slot--desk items-center no-wrap')
 
+        self.toolbar_lead = (phone_lead, desk_lead)
+        self.toolbar_end = (phone_end, desk_end)
         return search_slot, gear_slot

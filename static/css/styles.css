@@ -4018,9 +4018,10 @@ ol.wiz-help-list { list-style-type: decimal; }
    (The other half of that bug was in the page: passing `color=primary` sets the
    *inactive* background, so all three segments were gold and none of them
    looked chosen.) */
+/* The column's own gap is the only space under the switcher: a margin on top
+   of it left a 40px band before every view. */
 .wiz-view-switch {
     width: 100%;
-    margin-bottom: var(--space-4);
 }
 
 .wiz-segmented {
@@ -4199,6 +4200,46 @@ ol.wiz-help-list { list-style-type: decimal; }
     gap: var(--space-2);
     flex-wrap: wrap;
     margin-bottom: var(--space-3);
+}
+
+/* Page controls a board hands to its filter strip (MatchTableView's
+   toolbar_lead / toolbar_end). An unfilled slot takes no room, and the desktop
+   pair stays out of the phone's opened filter card, where the phone row above
+   it already carries the same controls. */
+.wiz-toolbar-slot {
+    gap: var(--space-2);
+    flex: none;
+}
+
+.wiz-toolbar-slot:empty {
+    display: none;
+}
+
+@media (max-width: 1023.98px) {
+    .wiz-toolbar-slot--desk {
+        display: none;
+    }
+}
+
+/* A board page whose only header is its filter strip: the strip sits tight
+   to the lines it filters instead of a card margin, a column gap and a table
+   margin stacked between them. */
+.wiz-board-page {
+    gap: var(--space-2);
+}
+
+.wiz-board-page .match-filters-card,
+.wiz-board-page .wiz-filter-toggle {
+    margin-bottom: 0;
+}
+
+.wiz-board-page .match-table-container {
+    margin-top: 0;
+}
+
+.wiz-board-page .wiz-filter-toggle__btn {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
 }
 
 /* Event check-in desk (pages/check_in.py). Built for a phone held in one hand:
