@@ -12,8 +12,11 @@ it starts (the lead time is a community setting; see
 when an approved event moves or is called off.
 
 Edits by the host go live without another review: staff can take a listed event
-down (``reject`` on an approved event) if an edit crosses a line. A rejected
-event edited by its host goes back into the review queue.
+down (``reject`` on an approved event) if an edit crosses a line. Taking one down
+tells its subscribers it's cancelled and drops their subscriptions and RSVPs, so
+if it's approved again they start from nothing rather than getting a reminder
+for an event they were told was off. A rejected event edited by its host goes
+back into the review queue.
 
 Members only throughout: the listing, the submissions and the subscriptions all
 belong to the community. Gated by :attr:`~models.FeatureFlag.COMMUNITY_EVENTS`.
@@ -270,7 +273,15 @@ class CommunityEventService:
         )
         if resubmitted:
             fields.update(status=CommunityEventStatus.PENDING, reviewed_by=None, reviewed_at=None)
-        await self.repository.update(event, **fields)
+        async with in_transaction():
+            if draft.rsvp_enabled and draft.rsvp_capacity is not None:
+                await self.subscriptions.lock_event(event.id)
+                going = (await self.subscriptions.going_counts_for([event.id])).get(event.id, 0)
+                if draft.rsvp_capacity < going:
+                    raise ValueError(
+                        f"{going} people have already RSVP'd, so the cap can't be lower than {going}."
+                    )
+            await self.repository.update(event, **fields)
         await self._record(actor, AuditActions.COMMUNITY_EVENT_UPDATED,
                            EventType.COMMUNITY_EVENT_UPDATED, event,
                            moved=moved, resubmitted=resubmitted)
@@ -420,15 +431,21 @@ class CommunityEventService:
         if event.status is CommunityEventStatus.CANCELLED:
             raise ValueError('This event was already cancelled.')
         was_listed = event.status is CommunityEventStatus.APPROVED
-        await self.repository.update(
-            event, status=CommunityEventStatus.REJECTED,
-            reviewed_by=actor, reviewed_at=_now(), review_note=reason,
-        )
+        # Taking a listed event down drops its subscriptions and RSVPs: they've
+        # just been told it's cancelled, so a later re-approval must not remind them.
+        subscribers = await self._subscribers(event) if was_listed else []
+        async with in_transaction():
+            await self.repository.update(
+                event, status=CommunityEventStatus.REJECTED,
+                reviewed_by=actor, reviewed_at=_now(), review_note=reason,
+            )
+            if was_listed:
+                await self.subscriptions.delete_for_event(event.id)
         await self._record(actor, AuditActions.COMMUNITY_EVENT_REJECTED,
                            EventType.COMMUNITY_EVENT_REJECTED, event, was_listed=was_listed)
         await notify.notify_host_of_decision(event, event.host, approved=False, was_listed=was_listed)
-        if was_listed and ends_at(event) > _now():
-            await notify.notify_subscribers(event, await self._subscribers(event), cancelled=True)
+        if subscribers and ends_at(event) > _now():
+            await notify.notify_subscribers(event, subscribers, cancelled=True)
         return event
 
     # --- helpers ----------------------------------------------------------

@@ -2,7 +2,16 @@
   {
     "name": "tournaments-phone",
     "user": "player_four",
-    "path": "/home/tournaments"
+    "path": "/home/tournaments",
+    "hide": [
+      ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": "button:has-text(\"Sign up\")",
+        "n": 1
+      }
+    ]
   },
   {
     "name": "join-door-phone",

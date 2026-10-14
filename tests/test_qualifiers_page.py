@@ -71,3 +71,40 @@ class TestForfeitIsConfirmed:
         source = inspect.getsource(qualifiers_page.create)
         assert "ui.notify(str(e)" not in source
         assert 'notify_error(e)' in source
+
+
+class TestScoreCell:
+    """While open the column shows a band; a run that never finished has none."""
+
+    @staticmethod
+    def _run(status, band=None, score=0.0):
+        from types import SimpleNamespace
+        return SimpleNamespace(status=SimpleNamespace(value=status), score=score,
+                               score_band=SimpleNamespace(value=band) if band else None)
+
+    def test_a_forfeit_reads_forfeited_not_above_par(self):
+        assert qualifiers_page._score_cell(self._run('forfeit'), exact=False) == 'Forfeited'
+
+    def test_a_disqualification_reads_disqualified(self):
+        assert qualifiers_page._score_cell(self._run('disqualified'), exact=False) == 'Disqualified'
+
+    def test_a_finished_run_keeps_its_band(self):
+        run = self._run('finished', band='above', score=80.0)
+        assert qualifiers_page._score_cell(run, exact=False) == 'Above par'
+
+
+class TestPendingLiveRaceRun:
+    """A live race creates the run before the race starts; it isn't under review."""
+
+    @staticmethod
+    def _run():
+        from types import SimpleNamespace
+        return SimpleNamespace(status=SimpleNamespace(value='pending'), reattempted=False,
+                               review_status=SimpleNamespace(value='pending'))
+
+    def test_status_reads_in_words(self):
+        from theme.qualifier_copy import STATUS_LABELS
+        assert STATUS_LABELS['pending'] == 'Waiting for the race'
+
+    def test_review_is_blank_not_awaiting_review(self):
+        assert qualifiers_page._review_cell(self._run()) == '—'

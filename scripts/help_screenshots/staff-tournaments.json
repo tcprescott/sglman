@@ -18,12 +18,23 @@
         "wait": 600
       },
       {
-        "click": ".q-dialog >> text=Player signups"
+        "click": ".q-dialog >> text=Tournament Days"
       },
       {
         "wait": 400
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-field:has-text('Signups open')",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog .q-field:has-text('Signups close')",
+        "n": 2
+      }
+    ]
   }
 ]

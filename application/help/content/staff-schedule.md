@@ -22,7 +22,7 @@ disputes, seeds and race rooms) have their own page:
 **Admin → Schedule** lists every match in the community, one line each: the
 time, who's playing, the stage, the crew and where the match stands. Out of the box it
 hides {state:Confirmed} matches, because a confirmed match needs nothing more
-from you. Change that with the **State** filter, and narrow by day, tournament or
+from you. Change that with the **State** filter, and narrow by day, tournament, stage or
 a search the same way as [the public board](/help/schedule-board).
 
 The lines are grouped by what they need: **Needs a decision** (finished, not yet
@@ -35,7 +35,7 @@ The **Commentators** and **Trackers** columns count signups against what the
 tournament needs: "1/2" is one signup for two places. Until the match starts, a
 role that's short says **needs crew** in orange, and one with enough signups
 that you haven't approved yet says **to approve**. The names are listed under
-the count, a tick for approved and "to approve" for the rest.
+the count, a tick for approved and a clock and "to approve" for the rest.
 
 Tap a line to open the match. Its next step (**Check in**, **Start match**,
 **Finish** or **Confirm result**) sits under the title. Below it, **Ready to
@@ -50,9 +50,9 @@ the work that's waiting on you rather than on the clock. See
 [Match day queues](/help/staff-match-day).
 :::
 
-![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next](/static/help/staff-schedule/board-desktop.webp)
+![The Admin Schedule board: one line per match, grouped into Needs a decision, Live now and Up next, with a Flagged chip marked 1, a commentary count reading needs crew marked 2, and a tracker signup reading to approve marked 3](/static/help/staff-schedule/board-desktop.webp "A result to decide (1), a role that **needs crew** (2), and a signup **to approve** (3).")
 
-![A match opened from the board: its next step, then the Ready to play? checklist of players, stations, stage, seed and crew, each ticked or flagged with its fix](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match.")
+![A match opened from the board: its next step, Check in, marked 1, then the Ready to play? checklist of players, stations, stage, seed and crew, each ticked or flagged, with the stations' Assign fix marked 2 and Edit match at the bottom marked 3](/static/help/staff-schedule/match-sheet.webp "Tap a line to open the match: its next step (1), a fix on the checklist (2), and **Edit match** (3).")
 
 ### Who sees what
 
@@ -94,11 +94,12 @@ Saving DMs the players and asks each of them to acknowledge the match.
 Open the match and press **Edit match**. The top of the dialog says where the match is now (its state,
 the winner, and whether it's flagged), then everything below edits it.
 
-![The Edit Match dialog for a finished match, showing its winner and a Needs review flag above the fields](/static/help/staff-schedule/match-dialog.webp)
+![The Edit Match dialog for a finished match, showing its Finished state, its winner and a Needs review flag, marked 1, above the fields](/static/help/staff-schedule/match-dialog.webp "A flagged result (1) shows at the top of the dialog.")
 
 Moving the date or time tells everyone on the match and asks the players to
-acknowledge again. If a player or crew member changes, the people added and the
-people removed both get a DM.
+acknowledge again. Changing the players asks the new line-up to acknowledge;
+a player you take off gets a DM saying so. Commentators and trackers you add or remove
+both get a DM.
 
 A match synced from SpeedGaming carries a **Synced from SpeedGaming** badge. Its
 tournament, players and time are locked, because the next sync would overwrite
@@ -124,8 +125,8 @@ pair. Each button (**Clear Check In**, **Clear Started**, **Clear Finish**,
 second. Nothing changes until you press **Save**, and the line under the buttons
 says exactly what will be undone.
 
-Clearing a seed is how you re-roll one. The match offers **Generate seed** again
-once it's gone.
+Clearing a seed is how you re-roll one. The match's **Seed** line offers
+**Generate** again once it's gone.
 
 To correct only the winner, don't rewind. Open the match and press **Change
 result** instead (see [Match day queues](/help/staff-match-day)).
@@ -153,7 +154,7 @@ match is on.
   stream.
 - **Candidate** means "this is going out, we haven't picked a stage yet". It's
   what you set while you're still planning, and the coverage report counts it.
-- **No Stage** takes it off.
+- **No stage** takes it off.
 
 Picking a real stage over Candidate keeps the match counted as a stream match in
 the reports, so you don't have to untick anything.
@@ -173,14 +174,14 @@ The stages themselves (name, stream URL, and whether they're active) live on
 Commentators and trackers who sign up themselves arrive unapproved. Open the
 match: under **Crew**, each role lists the people **Waiting for you** with an
 **Approve** button each, and says how many more it needs. Approved people sit
-above as a name with "confirmed" or "hasn't confirmed". Their **⋯** menu has
-**Un-approve**.
+above, after **Approved:**, as a name with "confirmed" or "hasn't confirmed".
+Their **⋮** menu has **Un-approve**.
 
 Approving asks you to confirm first, and warns you if that person is already
 committed somewhere else at the same time. Once you approve, they're DMed and
 asked to acknowledge. Un-approving clears their acknowledgment and tells them.
 
-Press a waiting name, or **Open profile** in an approved person's **⋯** menu,
+Press a waiting name, or **Open profile** in an approved person's **⋮** menu,
 to see their profile.
 :::
 

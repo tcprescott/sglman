@@ -491,3 +491,43 @@ class TestAdminAssignedCrew:
         assert [(e.payload["user_id"], e.payload["role"]) for e in removed] == [(dropped.id, "tracker")]
         assert removed[0].actor_id == actor.id
         assert [c.cr_code.co_name for c in stub_discord_queue] == ["send_dm"]
+
+
+# ---------------------------------------------------------------------------
+# a player taken off the line-up is told
+# ---------------------------------------------------------------------------
+
+
+def _removed_player_dms(captured):
+    return [c for c in captured if c.cr_code.co_name == "notify_players_removed"]
+
+
+class TestRemovedPlayers:
+    async def test_update_dms_only_the_removed_player(self, service, db, stub_discord_queue):
+        actor = await make_staff()
+        t = await make_tournament(name="Cup")
+        kept = await make_player("kept", "Kept")
+        dropped = await make_player("dropped", "Dropped")
+        added = await make_player("added", "Added")
+        match = await _seed_match(service, actor, t, [kept.id, dropped.id])
+        for coro in stub_discord_queue:
+            coro.close()
+        stub_discord_queue.clear()
+
+        await service.update_match(match_id=match.id, player_ids=[kept.id, added.id], actor=actor)
+
+        dms = _removed_player_dms(stub_discord_queue)
+        assert len(dms) == 1
+        args = dms[0].cr_frame.f_locals
+        assert args["discord_ids"] == [int(dropped.discord_id)]
+        assert "taken you off a match in **Cup**" in args["message"]
+
+    async def test_unchanged_line_up_dms_nobody(self, service, db, stub_discord_queue):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        match = await _seed_match(service, actor, t, [player.id])
+
+        await service.update_match(match_id=match.id, player_ids=[player.id], actor=actor)
+
+        assert _removed_player_dms(stub_discord_queue) == []

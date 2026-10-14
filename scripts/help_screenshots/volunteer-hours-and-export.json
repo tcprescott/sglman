@@ -3,6 +3,12 @@
     "name": "roster-desktop",
     "user": "vc_user",
     "viewport": "desktop",
-    "path": "/admin/vol-roster"
+    "path": "/admin/vol-roster",
+    "annotate": [
+      {
+        "selector": ".q-table tbody tr:has-text('Player One') button",
+        "n": 1
+      }
+    ]
   }
 ]

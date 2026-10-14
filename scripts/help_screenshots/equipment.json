@@ -3,7 +3,13 @@
     "name": "yours-phone",
     "user": "player_one",
     "path": "/home/my-schedule",
-    "selector": ".wiz-panel:has-text(\"Equipment you have out\")"
+    "selector": ".wiz-panel:has-text(\"Equipment you have out\")",
+    "annotate": [
+      {
+        "selector": ".wiz-panel:has-text(\"Equipment you have out\") button:has-text('View')",
+        "n": 1
+      }
+    ]
   },
   {
     "name": "held-phone",
@@ -24,7 +30,21 @@
     "user": "equip_manager",
     "path": "/admin/equipment",
     "viewport": "desktop",
-    "selector": ".equipment-table"
+    "selector": ".equipment-table",
+    "annotate": [
+      {
+        "selector": ".equipment-table .equipment-state-btn:has-text('Check in') >> nth=0",
+        "n": 1
+      },
+      {
+        "selector": ".equipment-table .equipment-state-btn:has-text('Check out') >> nth=0",
+        "n": 2
+      },
+      {
+        "selector": ".equipment-table tbody tr >> nth=0 >> button[aria-label^='More']",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "checkout-desktop",
@@ -39,6 +59,18 @@
         "waitFor": ".q-dialog .q-card"
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-select",
+        "n": 1,
+        "tab": "bottom"
+      },
+      {
+        "selector": ".q-dialog .q-checkbox:has-text('Include people outside this community')",
+        "n": 2
+      }
+    ]
   }
 ]

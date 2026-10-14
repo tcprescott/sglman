@@ -70,8 +70,8 @@ class MatchParticipants:
 
     async def sync_players(
         self, match: Match, new_player_ids: List[int], tournament_id: int
-    ) -> None:
-        """Sync match players to new list."""
+    ) -> List[User]:
+        """Sync match players to new list; returns the players taken off it."""
         current_players = await self.match_repository.get_players(match)
         current_ids = {p.user_id for p in current_players}
         new_ids = set(new_player_ids)
@@ -86,12 +86,15 @@ class MatchParticipants:
 
         # Remove old players (resolve the removed set in one query)
         to_remove = current_ids - new_ids
+        removed: List[User] = []
         if to_remove:
             remove_users = await self.user_repository.get_by_ids(list(to_remove))
             for uid in to_remove:
                 user = remove_users.get(uid)
                 if user:
                     await self.match_repository.remove_player(match, user)
+                    removed.append(user)
+        return removed
 
     async def sync_crew(
         self, match: Match, new_ids: List[int], repository, actor: Optional[User] = None,

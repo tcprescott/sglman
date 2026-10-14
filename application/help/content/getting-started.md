@@ -10,7 +10,8 @@ summary: Signing in, joining the community, finishing your profile, and where to
 
 Everything is tied to your Discord account, so there's no separate password. Tap
 **Sign in** (or **Login with Discord**), approve the request in Discord, and you
-land back on the page you started from.
+land back on the page you started from. Once you've approved Wizzrobe, Discord
+skips that screen next time.
 
 On a phone, it's often quicker to sign in from Discord itself. In a server
 that's linked to the community, type `/login` (or press **Log in** on the
@@ -86,7 +87,7 @@ More on windows, withdrawing and Challonge rosters:
 [Signing up for a tournament](/help/tournament-signup).
 :::
 
-![The Tournaments tab on a phone, with a tournament open for signup and its Sign up button](/static/help/getting-started/tournaments-phone.webp "The Tournaments tab on a phone.")
+![The Tournaments tab on a phone, listing tournaments under Open for signup, with the first one's Sign up button marked 1](/static/help/getting-started/tournaments-phone.webp "The Tournaments tab on a phone: one tap on **Sign up** (1).")
 
 ## Then, depending on why you're here
 
@@ -108,5 +109,7 @@ Those DMs are how you find out you've been scheduled, moved, or that your seed i
 ready, so make sure the bot can reach you. See
 [Notifications](/help/notifications).
 
-> Not sure what a word means? The [glossary](/help/glossary) defines every term
-> the app uses.
+> Not sure what something does? The **?** at the end of a section heading, or
+> **Help** in a dialog's title bar, opens the help for just that part of the
+> page. For a word you don't know, the [glossary](/help/glossary) defines every
+> term the app uses.

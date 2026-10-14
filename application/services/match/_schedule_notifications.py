@@ -297,6 +297,31 @@ class MatchNotificationMixin:
                     "notify_match_cancelled unexpected error for %s", discord_id
                 )
 
+    async def notify_players_removed(
+        self,
+        discord_ids: list[int],
+        message: str,
+        embed: Optional[discord.Embed] = None,
+    ) -> None:
+        """DM players staff took off a match. They are no longer in its line-up,
+        so ``collect_match_recipients`` can't find them; the caller passes them.
+
+        Never raises; per-DM failures are logged and swallowed.
+        """
+        for discord_id in discord_ids:
+            try:
+                success, err = await self.discord_service.send_dm(
+                    discord_id, message, embed=embed,
+                )
+                if not success:
+                    logger.warning(
+                        "notify_players_removed DM failed for %s: %s", discord_id, err
+                    )
+            except Exception:
+                logger.exception(
+                    "notify_players_removed unexpected error for %s", discord_id
+                )
+
     async def _send_dms(
         self,
         match: Match,

@@ -15,6 +15,14 @@
         "waitFor": "text=The randomizer rolled a seed."
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-card a[href*='seedgen']",
+        "n": 1,
+        "tab": "bottom"
+      }
+    ]
   }
 ]

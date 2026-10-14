@@ -51,6 +51,7 @@ from application.services.async_qualifier.async_qualifier_pools import PoolManag
 from application.services.async_qualifier.async_qualifier_reads import PlayerReadsMixin
 from application.services.async_qualifier.async_qualifier_review import RunReviewMixin
 from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
 from application.utils.safe_url import normalize_http_url
 from models import (
     AsyncQualifier,
@@ -111,8 +112,16 @@ class AsyncQualifierService(
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_qualifiers(self, actor: Optional[User]) -> List[AsyncQualifier]:
-        await access.ensure_qualifier_admin(actor, message="Cannot administer qualifiers")
-        return await self.repository.list_all()
+        """The qualifiers ``actor`` may administer and review.
+
+        Every one for STAFF and ``QUALIFIER_ADMIN``; for a per-qualifier reviewer,
+        only the ones that list them. Anyone else is refused.
+        """
+        if await AuthService.can_admin_qualifier(actor):
+            return await self.repository.list_all()
+        assigned = await self.repository.list_administered_by(actor.id) if actor else []
+        await AuthService.ensure(bool(assigned), "Cannot administer qualifiers")
+        return assigned
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_qualifier(self, actor: Optional[User], qualifier_id: int) -> AsyncQualifier:
@@ -132,6 +141,7 @@ class AsyncQualifierService(
         closes_at: Optional[datetime] = None,
         runs_per_pool: int = 1,
         allowed_reattempts: int = 0,
+        is_active: bool = True,
         config: Optional[dict] = None,
     ) -> AsyncQualifier:
         await access.ensure_qualifier_admin(actor, message="Cannot administer qualifiers")
@@ -149,6 +159,7 @@ class AsyncQualifierService(
             closes_at=closes_at,
             runs_per_pool=runs_per_pool,
             allowed_reattempts=allowed_reattempts,
+            is_active=is_active,
             config=config,
         )
         await self.audit_service.write_log(

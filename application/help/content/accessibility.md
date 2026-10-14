@@ -22,32 +22,37 @@ the stage, a seat near an exit, or extra time between matches. It saves as you
 type.
 
 Only staff of this community can read what you write. Once your request is
-arranged, proctors see an accessibility icon beside your name on their match
-boards so they know something is in place, but they don't see your details.
+arranged, proctors see an "ADA:" line with your name on their match run sheets,
+and a button in the match's **Ready to play?** checklist that tells them to
+check with staff. They don't see your details.
 We can't promise notes stay private, so leave out anything sensitive and tell
 staff directly instead.
 :::
 
-![The ADA accommodation card on Profile, ticked, with details filled in and an Arranged status](/static/help/accessibility/ada-card-phone.webp "An arranged request.")
+![The ADA accommodation card on Profile with the I'd like to request an ADA accommodation box ticked and marked 1, the Details box filled in and marked 2, and an Arranged status](/static/help/accessibility/ada-card-phone.webp "An arranged request: the box you tick (1) and your details (2).")
 
 A request belongs to the community you made it in. If you play in more than one,
 ask in each.
 
 ## What the status means
 
-Once you've asked, the card shows where staff are with it:
+Once you've asked, the card shows where staff are with it, beside *Staff status*:
 
 | Status | Meaning |
 |---|---|
 | {chip:pending:New} | Staff haven't looked at it yet. |
 | {chip:live:Acknowledged} | Staff have read it and are working on it. |
-| {chip:ok:Arranged} | It's in place. Proctors see the accessibility icon. |
-| {chip:neutral:Withdrawn} | You took the request back. |
+| {chip:ok:Arranged} | It's in place. Proctors see the "ADA:" line on your matches. |
+| {chip:neutral:Withdrawn} | You took the request back. Staff see this one; your own card just shows the box unticked. |
 
 If you edit your details after a request is arranged, staff are told about the
-change. What they arranged stays in place while they check it.
+change. What they arranged stays in place while they check it. Editing a request
+that's only {chip:live:Acknowledged} puts it back to {chip:pending:New}, so staff
+read it again.
 
 ## Changing your mind
 
-Untick the box to withdraw the request. Your details are cleared, and you can
-tick it again any time to ask afresh.
+Untick the box to withdraw the request. It asks first: **Withdraw request**
+clears your details and staff see the request as withdrawn, while **Keep
+request** leaves it as it was. You can tick the box again any time to ask
+afresh, and staff will review it from the start.

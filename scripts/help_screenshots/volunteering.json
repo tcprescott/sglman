@@ -3,7 +3,21 @@
     "name": "my-shifts-phone",
     "user": "sm_user",
     "path": "/volunteer/my-shifts",
-    "selector": ".page-container:has-text('Show all shifts')"
+    "selector": ".page-container:has-text('Show all shifts')",
+    "annotate": [
+      {
+        "selector": ".page-container button:has-text(\"Can't make it\")",
+        "n": 1
+      },
+      {
+        "selector": ".page-container button:has-text('Acknowledge')",
+        "n": 2
+      },
+      {
+        "selector": ".page-container .q-toggle:has-text('Show all shifts')",
+        "n": 3
+      }
+    ]
   },
   {
     "name": "release-phone",
@@ -20,6 +34,17 @@
         "wait": 500
       }
     ],
-    "selector": ".q-dialog .q-card"
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .q-field__control:has(textarea)",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog button:has-text('Give it back')",
+        "n": 2
+      }
+    ]
   }
 ]

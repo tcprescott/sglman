@@ -153,13 +153,20 @@ async def default_date_range(
 
 
 @contextmanager
-def report_page_shell(title: str, subtitle: Optional[str] = None) -> Iterator[None]:
-    """A report's page top: an "All reports" link back, then the page header."""
+def report_page_shell(
+    title: str, subtitle: Optional[str] = None, *, all_reports_link: bool = True,
+) -> Iterator[None]:
+    """A report's page top: an "All reports" link back, then the page header.
+
+    ``all_reports_link=False`` drops the link for a viewer limited to this one
+    report, who has no dashboard to go back to.
+    """
     with ui.column().classes('page-container-wide wiz-report'):
-        ui.button(
-            'All reports', icon='chevron_left',
-            on_click=lambda: navigate_with_params(report=None),
-        ).props('flat dense no-caps color=primary').classes('wiz-report-back')
+        if all_reports_link:
+            ui.button(
+                'All reports', icon='chevron_left',
+                on_click=lambda: navigate_with_params(report=None),
+            ).props('flat dense no-caps color=primary').classes('wiz-report-back')
         page_header(title, subtitle)
         yield
 

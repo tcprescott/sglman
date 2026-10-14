@@ -362,12 +362,8 @@ def test_dialog_footers_carry_no_second_close():
     """The header already ends in Close. A footer whose only job was a second
     Close (15 of them) gave every reader two ways to leave and pushed the real
     actions off the right edge. A form footer dismisses with Cancel."""
-    # Seed Presets is being reworked separately; its test-roll dialog is fixed there.
-    pending = {'pages/admin_tabs/admin_presets.py'}
     bad = []
     for rel, _source, tree, lines in _python_sources():
-        if rel.as_posix() in pending:
-            continue
         for node in ast.walk(tree):
             if not (isinstance(node, (ast.With, ast.AsyncWith))
                     and any(_base_name(i.context_expr) == 'dialog_actions' for i in node.items)):

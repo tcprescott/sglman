@@ -1,0 +1,64 @@
+[
+  {
+    "name": "listing-phone",
+    "user": "player_four",
+    "path": "/community-events",
+    "selector": ".wiz-community-events",
+    "hide": [
+      ".q-footer"
+    ],
+    "annotate": [
+      {
+        "selector": ".wiz-community-event:has-text('Morning coffee run') button:has-text('Remind me')",
+        "n": 1
+      },
+      {
+        "selector": ".wiz-community-event:has-text('Board game night') button:has-text('RSVP')",
+        "n": 2
+      },
+      {
+        "selector": ".wiz-community-event:has-text('Speedrun trivia') button:has-text('Full')",
+        "n": 3
+      }
+    ]
+  },
+  {
+    "name": "submit-phone",
+    "user": "player_four",
+    "path": "/community-events",
+    "setup": [
+      {
+        "click": "button:has-text('Submit an event')"
+      },
+      {
+        "waitFor": ".q-dialog .q-card"
+      },
+      {
+        "fill": ".q-dialog input[aria-label='Title']",
+        "value": "Retro trading meetup"
+      },
+      {
+        "fill": ".q-dialog input[aria-label='Where']",
+        "value": "Food court"
+      },
+      {
+        "click": ".q-dialog .q-toggle:has-text('Take RSVPs')"
+      },
+      {
+        "wait": 400
+      }
+    ],
+    "selector": ".q-dialog .q-card",
+    "padding": 0,
+    "annotate": [
+      {
+        "selector": ".q-dialog .nicegui-column:has(.q-toggle:has-text('Take RSVPs')) >> nth=-1",
+        "n": 1
+      },
+      {
+        "selector": ".q-dialog button:has-text('Submit')",
+        "n": 2
+      }
+    ]
+  }
+]

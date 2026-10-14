@@ -22,15 +22,17 @@ players** and, if you've brought them back with the State filter, **Finished**.
 |---|---|
 | **Time** | When it starts, in your local time. A date under it means it isn't today. |
 | **Match** | Who's playing, and the tournament. **You** marks a match you're playing in. |
-| **Stage** | Which stage it's on. If the stage is streamed, its name links to the stream. |
+| **Stage** | Which stage it's on. If the stage is streamed, its name links to the stream. **Candidate** means staff are thinking about streaming it but haven't picked a stage. |
 | **Commentators**, **Trackers** | Approved crew against how many the match needs, your own **Sign up** or **Withdraw** under that, then the names of everyone signed up. |
 | **Status** | Where the match is, plus **Acknowledge** on a match you play that you haven't confirmed yet. |
 | **Watch** | The bell. Tap it to get a DM every time this match changes. |
 :::
 
-Tap a match's name, or anywhere on its line, for its details: whether each
-player has confirmed, the stations they're seated at, the stage and its stream
-link, the seed once one exists, and everyone signed up as crew.
+Tap a match's name, or anywhere on its line, for its details. Before the match
+starts they open on a **Ready to play?** checklist: whether each player has
+confirmed, the stations they're seated at, the stage and its stream link, the
+seed once one exists, and how much crew is still needed. Under that is everyone
+signed up as crew.
 
 An empty cell or a "None" means there's nothing to show yet, not that something's
 wrong. A match usually gets its stage, its seed and its crew at different times.
@@ -116,7 +118,8 @@ top right. Your **Acknowledge** and each crew role's **Sign up** or **Withdraw**
 sit underneath, so you don't have to open the match to use them. Tap the names
 for the details.
 
-![A match on a phone: 11:50, Player One vs Player Two, Wizzrobe Cup on Stage 3, a Live chip, the bell, and Commentary 0/2 underneath](/static/help/schedule-board/card-phone.webp "One match, as a card on a phone.")
+![A match on a phone: its start time, Player One vs Player Two, Wizzrobe Cup on Stage 3, a Live chip, the bell, and Commentary 0/2 underneath](/static/help/schedule-board/card-phone.webp "One match, as a card on a phone.")
 
-You can also choose which columns you see and in what order, per device. That
-choice is yours alone, and it doesn't change what anyone else sees.
+On a computer, the gear beside **Export CSV** lets you choose which columns you
+see and in what order. That choice is saved to your account, and it doesn't
+change what anyone else sees.

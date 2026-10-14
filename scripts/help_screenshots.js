@@ -30,6 +30,9 @@
  *     "padding": 8,                  // px of page around the cropped element
  *     "fullPage": false,             // whole scrollable page instead of the viewport (no selector)
  *     "hide": [".some-banner"],      // hidden before capture, on top of the defaults
+ *     "annotate": [                  // numbered red call-outs drawn over controls
+ *       { "selector": "text=Sign up", "n": 1 },   // optional "tab": "top" | "bottom"
+ *     ],
  *     "setup": [                     // run in order after the page settles
  *       { "click": "text=Request a match" },
  *       { "fill": "input[aria-label=Search]", "value": "zelda" },
@@ -61,7 +64,7 @@ const VIEWPORTS = {
 };
 
 // Transient chrome that would date a screenshot or cover what it is about.
-const DEFAULT_HIDE = ['.q-notifications', '.q-loading-bar'];
+const DEFAULT_HIDE = ['.q-notifications', '.q-loading-bar', '.wiz-skip-link'];
 
 const WEBP_QUALITY = 0.85;
 
@@ -136,32 +139,107 @@ async function runSetup(page, steps) {
   }
 }
 
+// Numbered call-outs: a red outline padded clear of the control, with its number
+// in a tab on the outline's top-left edge (or bottom-left when the top would fall
+// outside the capture). Drawn as page overlays so they scale with the device.
+// They hang off <html>, not <body>: with a dialog open Quasar pins the body with
+// position:fixed and a negative top, which would shift anything placed inside it.
+const MARK = { color: '#D92D20', border: 3, radius: 6, gap: 4, tab: 21 };
+
+async function drawAnnotations(page, marks, captureTop) {
+  if (!marks || !marks.length) return [];
+  const boxes = [];
+  for (const mark of marks) {
+    const target = page.locator(mark.selector).first();
+    await target.waitFor({ state: 'visible' });
+    const r = await target.evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      return { x: b.left + window.scrollX, y: b.top + window.scrollY, width: b.width, height: b.height };
+    });
+    boxes.push({ ...r, n: String(mark.n), tab: mark.tab });
+  }
+  return page.evaluate(({ boxes, M, captureTop }) => {
+    const extents = [];
+    for (const b of boxes) {
+      const left = b.x - M.gap;
+      const top = b.y - M.gap;
+      const width = b.width + M.gap * 2;
+      const height = b.height + M.gap * 2;
+      const box = document.createElement('div');
+      box.className = 'wiz-help-annotation';
+      Object.assign(box.style, {
+        position: 'absolute', left: `${left}px`, top: `${top}px`,
+        width: `${width}px`, height: `${height}px`, boxSizing: 'border-box',
+        border: `${M.border}px solid ${M.color}`, borderRadius: `${M.radius}px`,
+        pointerEvents: 'none', zIndex: '2147483646', margin: '0',
+      });
+      const onTop = b.tab === 'bottom' ? false : (b.tab === 'top' || top - M.tab >= captureTop);
+      const tab = document.createElement('div');
+      tab.className = 'wiz-help-annotation';
+      tab.textContent = b.n;
+      Object.assign(tab.style, {
+        position: 'absolute', left: `${left}px`,
+        top: onTop ? `${top - M.tab}px` : `${top + height}px`,
+        height: `${M.tab}px`, minWidth: '22px', padding: '0 4px', boxSizing: 'border-box',
+        background: M.color, color: '#fff', font: 'bold 12px/21px system-ui, sans-serif',
+        textAlign: 'center', borderRadius: onTop ? `${M.radius}px ${M.radius}px 0 0` : `0 0 ${M.radius}px ${M.radius}px`,
+        pointerEvents: 'none', zIndex: '2147483647', margin: '0', letterSpacing: '0',
+      });
+      document.documentElement.appendChild(box);
+      document.documentElement.appendChild(tab);
+      extents.push({
+        x1: left, x2: left + width,
+        y1: onTop ? top - M.tab : top, y2: onTop ? top + height : top + height + M.tab,
+      });
+    }
+    return extents;
+  }, { boxes, M: MARK, captureTop });
+}
+
+async function clearAnnotations(page) {
+  await page.evaluate(() => document.querySelectorAll('.wiz-help-annotation').forEach((el) => el.remove()));
+}
+
 async function capturePng(page, shot) {
   const options = { animations: 'disabled', caret: 'hide', type: 'png' };
-  if (!shot.selector) {
-    return page.screenshot({ ...options, fullPage: Boolean(shot.fullPage) });
+  try {
+    if (!shot.selector) {
+      const top = shot.fullPage ? 0 : await page.evaluate(() => window.scrollY);
+      await drawAnnotations(page, shot.annotate, top);
+      return await page.screenshot({ ...options, fullPage: Boolean(shot.fullPage) });
+    }
+    const target = page.locator(shot.selector).first();
+    await target.waitFor({ state: 'visible' });
+    await target.scrollIntoViewIfNeeded();
+    // Page coordinates rather than viewport ones, so an element taller than the
+    // viewport is captured whole.
+    const box = await target.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height };
+    });
+    const pad = shot.padding ?? 8;
+    const size = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+    }));
+    const x = Math.max(0, box.x - pad);
+    const y = Math.max(0, box.y - pad);
+    const clip = {
+      x, y,
+      width: Math.min(size.width - x, box.width + pad * 2),
+      height: Math.min(size.height - y, box.height + pad * 2),
+    };
+    // A mark on a control at the crop's edge widens the crop just enough to
+    // show the whole outline, rather than cutting it off.
+    for (const e of await drawAnnotations(page, shot.annotate, y)) {
+      const x1 = Math.max(0, Math.min(clip.x, e.x1 - 1));
+      const x2 = Math.min(size.width, Math.max(clip.x + clip.width, e.x2 + 1));
+      const y2 = Math.min(size.height, Math.max(clip.y + clip.height, e.y2 + 1));
+      clip.width = x2 - x1; clip.x = x1; clip.height = y2 - clip.y;
+    }
+    return await page.screenshot({ ...options, fullPage: true, clip });
+  } finally {
+    if (shot.annotate && shot.annotate.length) await clearAnnotations(page).catch(() => {});
   }
-  const target = page.locator(shot.selector).first();
-  await target.waitFor({ state: 'visible' });
-  await target.scrollIntoViewIfNeeded();
-  // Page coordinates rather than viewport ones, so an element taller than the
-  // viewport is captured whole.
-  const box = await target.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height };
-  });
-  const pad = shot.padding ?? 8;
-  const size = await page.evaluate(() => ({
-    width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
-  }));
-  const x = Math.max(0, box.x - pad);
-  const y = Math.max(0, box.y - pad);
-  const clip = {
-    x, y,
-    width: Math.min(size.width - x, box.width + pad * 2),
-    height: Math.min(size.height - y, box.height + pad * 2),
-  };
-  return page.screenshot({ ...options, fullPage: true, clip });
 }
 
 async function toWebp(encoder, png) {

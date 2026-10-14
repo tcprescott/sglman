@@ -26,10 +26,11 @@ slots needed, how many are still open, how many assigned volunteers haven't
 acknowledged yet, and how many draft assignments haven't been published.
 
 Below that, every active position gets a card with its shifts for the day. A
-shift's badge reads filled/needed and turns amber while it's short.
+shift's badge reads filled/needed and turns amber while it's short. On a phone,
+a position whose shifts are all filled folds away behind **Show N shift(s)**.
 :::
 
-![Vol. Schedule for one event day: the coverage chips, the day picker and Actions menu, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp)
+![Vol. Schedule for one event day: the coverage chips, the day picker and the Actions menu, marked 1, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp "The **Actions** menu (1) holds auto-fill, positions, the export and the reset.")
 
 ## Positions
 
@@ -43,19 +44,19 @@ them all and opens each one for editing.
 | Active | Untick to retire a position. It leaves the grid and the auto-scheduler, and its old shifts stay on record. |
 | Shift length and stagger | Leave both blank for the four fixed blocks. Set both to make **Generate standard shifts** produce rolling shifts instead. |
 
-**Generate standard shifts** on a position's card fills the day for you. With no
+**Generate standard shifts**, in the ⋮ menu on a position's card, fills the day for you. With no
 length or stagger set, you get four blocks on the community's clock: 08:00–12:00,
 12:00–16:00, 16:00–20:00 and 20:00–midnight. With both set, you get shifts of that
 length starting every stagger interval across the same 08:00 to midnight window,
 so people hand over one at a time instead of all at once. Every generated shift
-needs one person; edit a shift to ask for more.
+needs one person; use **Edit shift** to ask for more.
 
 ### Roles a position grants
 
 A position can hand out an app role to whoever works it, so the people on the
 Proctor position get the Proctor role without anyone granting it by hand. Staff
 set this up under **Admin → Settings → Discord**, in the Volunteer positions
-section at the bottom.
+section at the bottom of Role Mappings.
 
 The role arrives when someone's assignment is published and stays while they
 hold any published assignment to that position, finished shifts included. A
@@ -73,7 +74,8 @@ shifts would otherwise be able to give those out.
 **Add shift** on a position's card opens the shift form: the position, start and
 end, an optional label, how many people it needs, and optional notes. The
 volunteer sees the notes on their shift card, and you see a note icon on the
-shift that shows them on hover.
+shift that shows them on hover. **Edit shift** and **Delete shift** are in the
+⋮ menu on each shift; deleting asks first.
 
 What happens to the people already on a shift depends on what you change:
 
@@ -98,7 +100,7 @@ about that time:
 | {chip:cancelled:Unavailable} | They ruled this time out. |
 | {chip:neutral:Not stated} | None of their availability windows cover this shift. |
 
-![The Assign picker for a Race Proctor shift with Show unqualified volunteers ticked, each name carrying its availability badge and one marked Qualified](/static/help/coordinating-volunteers/assign-picker-desktop.webp)
+![The Assign picker for a Race Proctor shift with Show unqualified volunteers ticked and marked 1, each name carrying its availability badge, and Player Two's Qualified badge marked 2](/static/help/coordinating-volunteers/assign-picker-desktop.webp "**Show unqualified volunteers** (1) widens the list past the people marked **Qualified** (2).")
 
 If anyone is qualified for the position, the picker shows only them until you
 tick **Show unqualified volunteers**. Qualifications are set per person on the
@@ -119,8 +121,8 @@ after their name:
 | Name · Waiting | Published, not acknowledged yet. |
 | Name · Acknowledged | They've acknowledged it. |
 
-The **×** on a chip removes that person. If the assignment was published they get
-a DM saying so; removing a draft is silent.
+The **×** on a chip removes that person, after you confirm. If the assignment
+was published they get a DM saying so; removing a draft is silent.
 
 When someone turns up, press the check-in button beside their name. A checked-in
 volunteer can't give the shift back from their own phone, so they have to come
@@ -173,11 +175,11 @@ page:
 While a day has drafts, a banner says how many and that the volunteers haven't
 been told. Review the grid, move people around by hand if you need to, then:
 
-- **Publish draft** sends every volunteer on a draft assignment a DM asking them
-  to acknowledge. You can't take that back quietly: removing someone afterwards
+- **Publish draft** asks you to confirm with **Publish & notify**, then sends
+  every volunteer on a draft assignment a DM asking them to acknowledge. You can't take that back quietly: removing someone afterwards
   sends them another DM.
-- **Clear draft** throws away every draft on this day. Nobody is told, because
-  nobody was told about them in the first place.
+- **Clear draft** asks first, then throws away every draft on this day. Nobody
+  is told, because nobody was told about them in the first place.
 
 A draft that clashes with a shift someone was given by hand in the meantime
 stays a draft, and the app lists those after publishing so you can sort them

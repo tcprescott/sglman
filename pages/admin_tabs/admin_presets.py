@@ -174,8 +174,6 @@ async def admin_presets_page() -> None:
                             else 'Rolling…',
                             size='md',
                         )
-                    with dialog_actions().classes('justify-end'):
-                        ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()
             background_tasks.create(run_test_roll(row, body, context.client))
 

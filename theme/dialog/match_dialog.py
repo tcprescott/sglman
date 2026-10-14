@@ -550,9 +550,9 @@ class UserMatchDialog(BaseMatchDialog):
         with ui.dialog() as dialog, ui.card().classes('dialog-card dialog-card--sm'):
             self.dialog = dialog
             mobile_sheet(dialog)
-            # Suggest a time is only on the player's dialog: what it is built
-            # from (both players' availability windows) is the player's own
-            # data, and the help that explains it is written for them.
+            # Both dialogs offer Suggest a time, but only this one carries its
+            # help: the article is written for a player, about their own and
+            # their opponent's availability windows. The admin header has none.
             dialog_header(
                 title, dialog,
                 help=await resolve_help([('match-request', 'Requesting a match'), 'suggest-time']),

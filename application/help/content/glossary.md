@@ -24,6 +24,13 @@ staff's answers are listed under *Your change requests* on My Schedule.
 **Asset**: one piece of loaner gear in the equipment register, with its own
 number and QR code. Only where your community lends equipment. See [Borrowing equipment](/help/equipment).
 
+**Async qualifier**: a qualifier you play on your own time inside a window,
+rather than against an opponent at a set time. Only where your community runs
+them. See [Async qualifiers](/help/qualifiers).
+
+**Attendee**: someone at the event in person. Community Events and accommodation
+requests use this word; *member* means belonging to the community in the app.
+
 **Bracket**: the structure that decides who plays whom. In a bracket-run
 tournament, matchups come from the bracket rather than from match requests.
 
@@ -42,6 +49,10 @@ does it, not you. Not to be confused with *event check-in* or with checking
 equipment in.
 
 **Commentator**: crew who talk over a match on stream.
+
+**Community event**: a meetup, panel or side event an attendee runs and lists on
+the Community Events page. It isn't official programming. See
+[Community events](/help/community-events).
 
 **Comp / comped**: let into the event without buying a badge, because of a role
 (usually staff) or enough scheduled volunteer hours. See [Comped staff and volunteers](/help/check-in#comped-staff-and-volunteers).
@@ -69,10 +80,6 @@ and checking it back in. Staff can do the same. See [Running the equipment desk]
 **Event check-in**: arriving at the event and picking up your lanyard at the
 check-in desk. Separate from a match's check-in. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
-**Generated Seed**: the column on My Schedule (and the Seed line in a match's
-details on the schedule board) that holds a match's seed once it has been rolled: a link, or for randomizers you paste into (Wind Waker, Zelda 1)
-the seed itself with a copy button.
-
 **Harder settings**: a tougher preset some tournaments offer beside their
 standard one. A match only plays it when every player privately opts in.
 
@@ -83,15 +90,20 @@ either way.
 **Lanyard**: what the check-in desk hands you, one per person: Staff, Volunteer,
 VIP, Base or Day Pass, whichever is the highest you qualify for. See [Checking in when you arrive](/help/check-in#checking-in-when-you-arrive).
 
+**Late**: the status on a match past its scheduled time with nobody checked in.
+Proctor Station puts these first, under *Late, check in now*. See [The board](/help/proctor#the-board).
+
 **Member**: someone who belongs to a community. You need to be one to see its
 schedule, sign up for its tournaments, or be scheduled. Signing in alone isn't
 enough.
 
-**Needs crew**: the switch above the schedule board that shows only matches
-still short of approved crew. See [Signing up as crew](/help/crew#signing-up).
+**Needs crew**: the switch above Event › Schedule that shows only matches
+still short of approved crew. A line that's still short also says *needs crew*
+beside its crew count. See [Signing up as crew](/help/crew#signing-up).
 
-**Needs review**: the chip on a finished match a proctor flagged for an admin to
-look at. Confirming the result clears it. See
+**Needs review**: a finished match a proctor flagged for an admin to look at.
+Its status on Admin › Schedule and Proctor Station reads *Flagged*, and the match's own dialog
+shows a *Needs review* chip. Confirming the result clears it. See
 [Running a match](/help/proctor#running-a-match).
 
 **Offer for stream**: the item in a match's ⋮ menu on My Schedule that tells staff you'd be
@@ -100,8 +112,12 @@ happy for a match to be streamed. A hint, not a booking.
 **On Air**: the Event tab view that lays one day out by stage. See
 [On Air](/help/on-air).
 
-**Overdue**: a match past its scheduled time with nobody checked in. The Proctor
-Station board puts these first. See [The board](/help/proctor#the-board).
+**Par**: on an async qualifier seed, the average of the fastest approved times.
+Finishing at par scores 100, and par moves as more runs are approved. See
+[Scoring and the leaderboard](/help/qualifiers#scoring-and-the-leaderboard).
+
+**Pool**: a group of async qualifier seeds, each with a set number of runs per
+player. See [Pools and runs](/help/qualifiers#pools-and-runs).
 
 **Proctor**: a volunteer running matches in a tournament room. They seat
 players at stations, start matches and record results. They do not
@@ -118,6 +134,10 @@ linked Challonge account. Its button takes you to the field.
 **Race room**: the racetime.gg room an online match is played in. When it opens
 you get a DM and a **Join the room** button at the top of My Schedule.
 
+**Reattempt**: voiding one of your async qualifier runs to free its slot for a
+fresh draw, which hands you a seed you haven't played in that pool unless it has
+none left. See [Reattempts](/help/qualifiers#reattempts).
+
 **Request Match**: the button on My Schedule that books a match yourself, in a
 tournament that allows it.
 
@@ -128,9 +148,20 @@ can't be borrowed. See [Running the equipment desk](/help/equipment#running-the-
 every match about to be played. It opens from a private link staff issue per
 machine, is read-only, and drops a match once it starts. See [The room's seeds screen](/help/proctor#the-room-s-seeds-screen).
 
+**RSVP**: on a community event that takes RSVPs, telling the host you're coming.
+It also gets you the reminder DM. See
+[Getting a reminder or RSVPing](/help/community-events#getting-a-reminder-or-rsvping).
+
+**Run sheet**: how the schedule boards (Event › Schedule, My Schedule,
+Admin › Schedule and Proctor Station) lay out matches: one line each, grouped by
+where it stands (*Live now*, *Up next* and so on), with only the buttons you use
+most on the line. Tap a line to open the match's details: seed, stations, the
+full crew list and the rest.
+
 **Seed**: the randomised game the match is played on. When it's rolled you get a
-*Seed ready* DM, and the seed appears in the *Generated Seed* column on My
-Schedule (the *Seed* column on the Proctor Station board).
+*Seed ready* DM, and it appears on the *Seed* line when you tap the match on My
+Schedule, the schedule or Proctor Station: a link, or for randomizers you paste
+into (Wind Waker, Zelda 1) the seed itself with a *Copy* button.
 
 **Signed up**: you are in a tournament's player pool, from the Tournaments tab or
 through a linked Challonge bracket. You have to be signed up before you can be
@@ -144,8 +175,8 @@ techs rather than by a proctor. The board's *Stage* column and the admin
 check-in, and it then shows in the match's details on the schedule board.
 
 **Stream candidate**: a match staff may stream but haven't put on a stage yet.
-It carries a *candidate* chip on phone cards, and the *Streamed, plus possible streams*
-match alert DMs you about these.
+Its *Stage* reads *Candidate* on the schedule boards, and the *Streamed, plus
+possible streams* match alert DMs you about these.
 
 **Suggest a time**: the button in the scheduling dialogs that picks a slot
 neither player has blocked out. It fills the form in; it doesn't book anything.
@@ -161,7 +192,8 @@ Information** where your community publishes one.
 **Tracker**: crew who run the item and progress tracking viewers see alongside
 the game.
 
-**Volunteer**: someone who works scheduled shifts. See
+**Volunteer**: someone who works scheduled shifts. Holding the Volunteer role
+is what puts you in the pool coordinators schedule from. See
 [Volunteering](/help/volunteering).
 
 **Walk-up**: someone checked in at the desk without a Matcherino badge. Only
@@ -179,7 +211,10 @@ answered yet.
 
 ## Match states
 
-The five values the *State* column shows:
+The five states a match moves through, and the ones the *State* filter picks
+from. The boards' *Status* column words some of them for what happens next:
+*Live* for Started, *Late* for a Scheduled match past its time, and, on Admin ›
+Schedule and Proctor Station, *To confirm* or *Flagged* for a Finished one.
 
 | State | Meaning |
 |---|---|

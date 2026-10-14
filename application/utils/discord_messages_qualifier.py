@@ -34,7 +34,7 @@ def qualifier_run_reviewed_dm(
     if reason:
         blocks.append(f"Reason: {reason}")
     if qualifier_url:
-        blocks.append(f"[Your runs and the leaderboard]({qualifier_url})")
+        blocks.append(f"[See your runs]({qualifier_url})")
     return "\n\n".join(blocks)
 
 
@@ -81,7 +81,7 @@ def qualifier_run_expired_dm(
         "attempt without spending your own.",
     ]
     if qualifier_url:
-        blocks.append(f"[Your runs and the leaderboard]({qualifier_url})")
+        blocks.append(f"[See your runs]({qualifier_url})")
     return "\n\n".join(blocks)
 
 
@@ -123,15 +123,17 @@ def qualifier_review_queue_dm(
     backlog, once the oldest run has waited long enough to be worth interrupting
     someone for, and repeats no more often than the reminder interval.
 
-    Leads with the wait rather than the count: a runner cannot start their next
-    run in that pool until this one is settled, so age is the thing that hurts.
+    Leads with the wait rather than the count: each of those runners is waiting
+    to hear whether their run counts, so age is the thing that hurts. (A pending
+    run holds only its own pool slot, exactly as an approved one would; it does
+    not stop the runner starting a run anywhere else.)
     """
     plural = '' if waiting == 1 else 's'
     hours = f"{oldest_hours} hour" + ('' if oldest_hours == 1 else 's')
     blocks = [
         f"**{qualifier_name}** has {waiting} run{plural} awaiting review — the "
         f"oldest has been waiting {hours}.",
-        "A runner cannot start their next run in that pool until it is settled.",
+        "Each of those runners is still waiting to hear whether their run counts.",
     ]
     if queue_url:
         blocks.append(f"[Open the review queue]({queue_url})")

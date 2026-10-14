@@ -49,13 +49,18 @@ async def seed_challonge_for_tenant(
         # tournament schedules only its own matchups. Set here because this seed
         # writes the FK directly rather than going through the service.
         tournament.allow_player_match_requests = False
-        await tournament.save()
+        # Named fields only: ``tournament`` was loaded before seed_payouts set
+        # the pool, and a full-row save would write that stale NULL back.
+        await tournament.save(update_fields=[
+            'challonge_tournament_id', 'challonge_tournament_url',
+            'challonge_last_synced_at', 'allow_player_match_requests',
+        ])
     # A two-stage bracket mid-groups, so Admin -> Challonge offers its next stage
     # action (Finalize groups and start bracket). Healed on an older dev DB too.
     if tournament.challonge_state is None:
         tournament.challonge_state = "group_stages_underway"
         tournament.challonge_group_stage = True
-        await tournament.save()
+        await tournament.save(update_fields=['challonge_state', 'challonge_group_stage'])
 
     # A near-expiry token so the service-health board / tenant subset (PR 5)
     # has a live credential-warning to render. Heal older rows that predate the
