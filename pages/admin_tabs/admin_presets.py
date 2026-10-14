@@ -23,6 +23,24 @@ from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
 from theme.waiting import waiting_panel
 
+# Randomizers whose settings are one string copied out of the randomizer:
+# (settings key, field label, placeholder, hint under the field).
+_PASTE_FIELDS = {
+    'wwr': (
+        'permalink', 'Permalink', "Paste the permalink from the randomizer's Permalink box",
+        'Each roll keeps the build and settings and only changes the seed.',
+    ),
+    'ff1r': (
+        'url', 'Flags link', 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=…',
+        "Copy the link from the randomizer's address bar after setting the flags. "
+        'Each roll keeps the flags and site version and only changes the seed.',
+    ),
+    'z1r': (
+        'flags', 'Flags', 'The flag string from the randomizer',
+        'Each roll adds a fresh seed number to these flags.',
+    ),
+}
+
 
 async def admin_presets_page() -> None:
     service = PresetService()
@@ -396,25 +414,49 @@ async def admin_presets_page() -> None:
                         'Settings (JSON)',
                         value=existing['settings'] if is_edit else '{}',
                     ).classes('w-full font-mono').props('rows=12')
-                    # Wind Waker's settings are one permalink copied out of the
-                    # randomizer, so it gets a field for that instead of JSON.
-                    existing_permalink = ''
-                    if is_edit and existing['randomizer'] == 'wwr':
-                        existing_permalink = json.loads(existing['settings'] or '{}').get('permalink', '')
-                    permalink_input = ui.textarea(
-                        'Permalink', value=existing_permalink,
-                        placeholder="Paste the permalink from the randomizer's Permalink box",
-                    ).classes('w-full seed-value').props('rows=3 autogrow')
+                    # Wind Waker, Final Fantasy and Zelda 1 settings are one string
+                    # copied out of the randomizer, so they get a field for that
+                    # instead of JSON.
+                    existing_paste = ''
+                    if is_edit and existing['randomizer'] in _PASTE_FIELDS:
+                        key = _PASTE_FIELDS[existing['randomizer']][0]
+                        existing_paste = json.loads(existing['settings'] or '{}').get(key, '')
+                    paste_input = ui.textarea(value=existing_paste).classes('w-full seed-value').props(
+                        'rows=2 autogrow',
+                    )
+                    paste_hint = ui.label().classes('text-body2 text-grey')
 
                     @ui.refreshable
-                    def wwr_summary() -> None:
-                        permalink = (permalink_input.value or '').strip()
-                        if not permalink:
+                    def paste_summary() -> None:
+                        value = (paste_input.value or '').strip()
+                        if not value:
                             return
+                        randomizer = randomizer_input.value
                         try:
-                            info = SeedGenerationService.describe_wwr_permalink(permalink)
+                            if randomizer == 'wwr':
+                                info = SeedGenerationService.describe_wwr_permalink(value)
+                            elif randomizer == 'ff1r':
+                                version = SeedGenerationService.describe_ff1r_link(value)
+                            else:
+                                example = SeedGenerationService.example_z1r_seed(value)
                         except ValueError as e:
                             ui.label(str(e)).classes('text-negative text-body2')
+                            return
+                        if randomizer == 'ff1r':
+                            with ui.row().classes('preset-check w-full items-center no-wrap gap-3'):
+                                with ui.column().classes('gap-0 col'):
+                                    ui.label(f'Site version {version}').classes('text-weight-medium')
+                                    ui.label(
+                                        "Open it to check the flags on the randomizer's own page",
+                                    ).classes('text-body2')
+                                ui.link('Open on site', value, new_tab=True).classes(
+                                    'text-weight-medium no-wrap',
+                                )
+                            return
+                        if randomizer == 'z1r':
+                            with ui.column().classes('preset-check w-full gap-1'):
+                                ui.label('Players will get something like').classes('text-body2 text-grey')
+                                ui.label(example).classes('seed-value break-all')
                             return
                         ui.label(f'Build {info.build}').classes('text-weight-medium')
                         if info.summary is None:
@@ -427,21 +469,30 @@ async def admin_presets_page() -> None:
                             ui.label(line).classes('text-body2')
 
                     with ui.column().classes('gap-1 w-full') as summary_box:
-                        wwr_summary()
-                    permalink_input.on_value_change(lambda _: wwr_summary.refresh())
+                        paste_summary()
+                    paste_input.on_value_change(lambda _: paste_summary.refresh())
 
                     def show_settings_editor() -> None:
-                        is_wwr = randomizer_input.value == 'wwr'
-                        settings_input.set_visibility(not is_wwr)
-                        permalink_input.set_visibility(is_wwr)
-                        summary_box.set_visibility(is_wwr)
+                        field = _PASTE_FIELDS.get(randomizer_input.value)
+                        settings_input.set_visibility(field is None)
+                        paste_input.set_visibility(field is not None)
+                        paste_hint.set_visibility(field is not None)
+                        summary_box.set_visibility(field is not None)
+                        if field is not None:
+                            _, label, placeholder, hint = field
+                            paste_input.props['label'] = label
+                            paste_input.props['placeholder'] = placeholder
+                            paste_input.update()
+                            paste_hint.set_text(hint)
+                        paste_summary.refresh()
 
                     randomizer_input.on_value_change(lambda _: show_settings_editor())
                     show_settings_editor()
 
                     async def submit():
-                        if randomizer_input.value == 'wwr':
-                            settings = {'permalink': permalink_input.value or ''}
+                        field = _PASTE_FIELDS.get(randomizer_input.value)
+                        if field is not None:
+                            settings = {field[0]: paste_input.value or ''}
                         else:
                             try:
                                 settings = json.loads(settings_input.value or '{}')

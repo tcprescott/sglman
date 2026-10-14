@@ -668,6 +668,19 @@ main.q-page:focus {
     font-size: 0.8rem;
 }
 
+/* Read-back under a pasted preset value on the Presets tab: the FFR site
+   version with a link to check it, or a sample Z1R seed. */
+.preset-check {
+    background: var(--surface-sunken);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--fg-secondary);
+}
+
+.preset-check .text-weight-medium:not(a) {
+    color: var(--fg);
+}
+
 /* The value and its copy button stay on one line, even in a narrow card. */
 .seed-copy {
     display: inline-flex;

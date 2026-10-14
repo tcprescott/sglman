@@ -14,6 +14,15 @@ def service():
     return SeedGenerationService()
 
 
+def _preset(randomizer: str):
+    """The built-in SGL 2026 preset for a local-flags randomizer, as a stand-in row."""
+    import json
+    from types import SimpleNamespace
+
+    with open(f'presets/{randomizer}/sgl2026.json', encoding='utf-8') as f:
+        return SimpleNamespace(settings=json.load(f))
+
+
 # ---------------------------------------------------------------------------
 # supports_triforce_texts (classmethod)
 # ---------------------------------------------------------------------------
@@ -168,7 +177,7 @@ class TestMockSeedgen:
     async def test_local_string_seeds_skip_the_mock(self, service, monkeypatch):
         monkeypatch.setenv('ENVIRONMENT', 'development')
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
-        assert ' - ' in await service.generate_seed('z1r')
+        assert ' - ' in await service.generate_seed('z1r', _preset('z1r'))
         assert SeedGenerationService.MOCK_EXEMPT_RANDOMIZERS == {'dk64r', 'wwr', 'z1r'}
 
     async def test_mock_urls_are_distinct(self, service, monkeypatch):
@@ -216,7 +225,7 @@ class TestMockSeedgen:
 
 class TestGenerateFf1r:
     async def test_returns_url_with_seed_param(self, service):
-        result = (await service._generate_ff1r()).url
+        result = (await service._generate_ff1r(_preset('ff1r'))).url
         assert '?s=' in result or '&s=' in result
         # Seed is 8 hex chars upper-cased
         from urllib.parse import parse_qs, urlparse
@@ -229,10 +238,35 @@ class TestGenerateFf1r:
         from urllib.parse import parse_qs, urlparse
 
         seeds = {
-            parse_qs(urlparse((await service._generate_ff1r()).url).query)['s'][0]
+            parse_qs(urlparse((await service._generate_ff1r(_preset('ff1r'))).url).query)['s'][0]
             for _ in range(5)
         }
         assert len(seeds) > 1
+
+    async def test_preset_flags_and_site_win(self, service):
+        from types import SimpleNamespace
+        from urllib.parse import parse_qs, urlparse
+
+        preset = SimpleNamespace(settings={'url': 'https://4-8-6.finalfantasyrandomizer.com/?s=00000000&f=ABC'})
+        rolled = await service._generate_ff1r(preset)
+        parsed = urlparse(rolled.url)
+        assert parsed.netloc == '4-8-6.finalfantasyrandomizer.com'
+        assert parse_qs(parsed.query)['f'] == ['ABC']
+        assert rolled.settings == {'seed': parse_qs(parsed.query)['s'][0], 'flags': 'ABC'}
+
+    async def test_without_a_preset_it_refuses(self, service):
+        from application.utils.seed_provider import SeedProviderInvalidRequest
+
+        with pytest.raises(SeedProviderInvalidRequest, match='needs a preset'):
+            await service._generate_ff1r()
+
+    async def test_a_broken_preset_is_an_invalid_request(self, service):
+        from types import SimpleNamespace
+
+        from application.utils.seed_provider import SeedProviderInvalidRequest
+
+        with pytest.raises(SeedProviderInvalidRequest, match=r'finalfantasyrandomizer\.com'):
+            await service._generate_ff1r(SimpleNamespace(settings={}))
 
 
 # ---------------------------------------------------------------------------
@@ -242,13 +276,70 @@ class TestGenerateFf1r:
 
 class TestGenerateZ1r:
     async def test_returns_string_with_flags(self, service):
-        result = (await service._generate_z1r()).url
+        result = (await service._generate_z1r(_preset('z1r'))).url
         assert ' - ' in result
         # Left side is the seed integer, right side is the flags string
         parts = result.split(' - ', 1)
         assert len(parts) == 2
         seed_part = parts[0]
         assert seed_part.isdigit()
+
+    async def test_without_a_preset_it_refuses(self, service):
+        from application.utils.seed_provider import SeedProviderInvalidRequest
+
+        with pytest.raises(SeedProviderInvalidRequest, match='needs a preset'):
+            await service._generate_z1r()
+
+    async def test_preset_flags_win(self, service):
+        from types import SimpleNamespace
+
+        rolled = await service._generate_z1r(SimpleNamespace(settings={'flags': 'XYZ123'}))
+        assert rolled.url.endswith(' - XYZ123')
+        assert rolled.settings['flags'] == 'XYZ123'
+
+    async def test_the_preset_reaches_the_generator(self, service):
+        from types import SimpleNamespace
+
+        call = await service.generate_seed_call('z1r', SimpleNamespace(settings={'flags': 'XYZ123'}))
+        assert call.value.settings['flags'] == 'XYZ123'
+
+
+class TestNormalizeLocalFlagPresets:
+    def test_ff1r_link_is_kept_trimmed(self):
+        url = 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000&f=ABC'
+        assert SeedGenerationService.normalize_preset_settings('ff1r', {'url': f'  {url} '}) == {'url': url}
+
+    @pytest.mark.parametrize('settings,match', [
+        ({}, 'needs a "url"'),
+        ({'url': 'https://example.com/?f=ABC'}, "isn't a finalfantasyrandomizer.com link"),
+        ({'url': 'http://4-9-7.finalfantasyrandomizer.com/?f=ABC'}, "isn't a finalfantasyrandomizer.com link"),
+        ({'url': 'https://evilfinalfantasyrandomizer.com/?f=ABC'}, "isn't a finalfantasyrandomizer.com link"),
+        ({'url': 'https://4-9-7.finalfantasyrandomizer.com/?s=00000000'}, 'no flags'),
+        ({'url': 'https://finalfantasyrandomizer.com/?f=A', 'seed': 1}, 'only a flags link'),
+    ])
+    def test_ff1r_refuses(self, settings, match):
+        with pytest.raises(ValueError, match=match):
+            SeedGenerationService.normalize_preset_settings('ff1r', settings)
+
+    def test_z1r_flags_are_trimmed(self):
+        assert SeedGenerationService.normalize_preset_settings('z1r', {'flags': ' ABC '}) == {'flags': 'ABC'}
+
+    @pytest.mark.parametrize('settings,match', [
+        ({}, 'needs "flags"'),
+        ({'flags': 'AB C'}, 'no spaces'),
+        ({'flags': 'ABC', 'seed': '1'}, 'only flags'),
+    ])
+    def test_z1r_refuses(self, settings, match):
+        with pytest.raises(ValueError, match=match):
+            SeedGenerationService.normalize_preset_settings('z1r', settings)
+
+    def test_bundled_presets_pass_their_own_check(self):
+        import json
+
+        for randomizer in ('ff1r', 'z1r'):
+            with open(f'presets/{randomizer}/sgl2026.json', encoding='utf-8') as f:
+                settings = json.load(f)
+            assert SeedGenerationService.normalize_preset_settings(randomizer, settings) == settings
 
 
 # ---------------------------------------------------------------------------

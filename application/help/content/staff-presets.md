@@ -31,6 +31,14 @@ main settings underneath, so you can check it's this season's. Each roll keeps
 the build and settings and only changes the seed. The SGL 2026 permalink is one
 of the built-ins.
 
+A **Final Fantasy** preset is the flags link from finalfantasyrandomizer.com. Set
+the flags on the site, copy the link from the address bar, and paste it into
+**Flags link**. Wizzrobe shows the site version it pins and an **Open on site**
+link, so you can check the flags on the randomizer's own page. A **Zelda 1**
+preset is the flag string, pasted into **Flags**; underneath you see an example
+of what players will be handed. Both need a preset attached to roll, and the SGL
+2026 flags for each are built-ins.
+
 Some randomizers need your community's own API key before they appear in the
 randomizer list or can roll anything. Set those under **Settings → Integrations →
 Randomizer Keys**. A stored key is never shown again, only whether it's set.
