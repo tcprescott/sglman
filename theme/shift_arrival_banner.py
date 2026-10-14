@@ -85,7 +85,7 @@ async def render_shift_arrival_banner(user: User | None) -> None:
                     ui.button(
                         "I'm here", icon='place',
                         on_click=lambda a=assignment.id: arrive(a),
-                    ).props('unelevated dense no-caps color=primary')
+                    ).props('unelevated no-caps color=primary')
 
     async def arrive(assignment_id: int) -> None:
         try:
