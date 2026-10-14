@@ -717,6 +717,13 @@ main.q-page:focus {
     color: var(--fg-secondary);
 }
 
+/* Toasts open at the top (theme/notify.py), so they clear phone bottom-sheet
+   footers and the keyboard; this drops them below the fixed header instead of
+   over it. Pages without the header keep Quasar's own top edge. */
+body:has(.wiz-header) .q-notifications__list--top {
+    top: calc(var(--wiz-header-height, 56px) + env(safe-area-inset-top, 0px));
+}
+
 .wiz-wordmark {
     display: inline-flex;
     align-items: center;
