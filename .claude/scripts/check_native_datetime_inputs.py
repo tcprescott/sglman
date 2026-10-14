@@ -14,6 +14,12 @@ now take ``dense``/``stack_label``, so there is no longer a reason to bypass, an
 this hook is what keeps that true.
 
 Use ``native_date_input`` / ``native_time_input`` / ``native_datetime_input``.
+
+It also blocks Quasar's own ``ui.date()`` / ``ui.time()`` pickers. The reports
+date range was a free-text box with a ``ui.date`` popup: it took typos, and on a
+phone it opened Quasar's calendar instead of the device's own picker that every
+other date field uses. A jump-to-day calendar that is genuinely not a form field
+can stay, marked ``# native-picker: exempt — <reason>`` on the same line.
 Reads a Claude Code tool payload from stdin and exits with:
   0 — no violation (or not applicable)
   2 — violation found (stderr names the helper to use)
@@ -30,6 +36,10 @@ anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 # A props string requesting a native date/time control. Matches the prop
 # anywhere in the string (``'type=time dense'``, ``"dense type=date"``).
 _RULE = re.compile(r"""\.props\(\s*(['"])[^'"]*\btype=(date|time|datetime-local)\b""")
+
+# Quasar's built-in calendar/clock widgets, as opposed to a native input.
+_QUASAR_RULE = re.compile(r"""\bui\.(date|time)\(""")
+_EXEMPT_MARKER = 'native-picker: exempt'
 
 _HELPER = {
     'date': 'native_date_input',
@@ -67,6 +77,18 @@ def check(file_path: str, content: str) -> list[str]:
             f"  Fix: use `{_HELPER[kind]}(...)`. It takes dense=/stack_label= for compact\n"
             f"  rows, tz= when the field is read on the community's clock rather than the\n"
             f"  viewer's, and show_timezone=False when nearby copy already says it."
+        )
+    for line in content.splitlines():
+        match = _QUASAR_RULE.search(line)
+        if not match or _EXEMPT_MARKER in line:
+            continue
+        kind = match.group(1)
+        violations.append(
+            f"QUASAR {kind.upper()} PICKER in '{file_path}':\n"
+            f"  Found `ui.{kind}(`. Date and time fields use the device's own picker, via\n"
+            f"  `{_HELPER[kind]}(...)` from theme/dialog/_helpers.py, so a phone gets its\n"
+            f"  OS picker and a typo can't be entered. A calendar that only navigates (not\n"
+            f"  a form field) may stay: add `# {_EXEMPT_MARKER} — <reason>` on that line."
         )
     return violations
 

@@ -14,7 +14,7 @@ from nicegui import context, ui
 from application.services import SystemConfigService, TenantThemeService, TournamentService
 from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
-from theme.a11y import make_activatable
+from theme.dialog._helpers import native_date_input
 from theme.empty_state import cat_fact
 from theme.page_header import page_header
 from theme.section import section_panel
@@ -111,13 +111,17 @@ def reports_url(report: Optional[str] = None, **params) -> str:
     return admin_url(REPORTS, report=report, **params)
 
 
+_MIN_YEAR, _MAX_YEAR = 2000, 2100
+
+
 def parse_date(value: Optional[str]) -> Optional[date]:
     if not value:
         return None
     try:
-        return date.fromisoformat(value[:10])
+        parsed = date.fromisoformat(value[:10])
     except (TypeError, ValueError):
         return None
+    return parsed if _MIN_YEAR <= parsed.year <= _MAX_YEAR else None
 
 
 def parse_int(value) -> Optional[int]:
@@ -268,46 +272,32 @@ def date_range_filter(
     default_end: date,
     on_change: Callable[[date, date], None],
 ) -> tuple[ui.input, ui.input]:
-    """Render a Start/End date pair as two filter fields. Calls ``on_change`` when either changes."""
+    """Render a From/To date pair as two filter fields. Calls ``on_change`` when either changes."""
     state = {'start': default_start, 'end': default_end}
 
     def _fire():
         on_change(state['start'], state['end'])
 
-    start_input = filter_field(ui.input('Start date', value=default_start.isoformat()))
-    with start_input:
-        with ui.menu().props('no-parent-event') as start_menu:
-            start_picker = ui.date(value=default_start.isoformat()).bind_value(start_input)
-            with ui.row().classes('justify-end'):
-                ui.button('OK', on_click=start_menu.close).props('flat dense')
-    with start_input.add_slot('append'):
-        make_activatable(ui.icon('edit_calendar').on('click', start_menu.open).classes('cursor-pointer'), 'Pick start date')
+    start_input = filter_field(native_date_input('From', default_start.isoformat()))
+    end_input = filter_field(native_date_input('To', default_end.isoformat()))
 
-    end_input = filter_field(ui.input('End date', value=default_end.isoformat()))
-    with end_input:
-        with ui.menu().props('no-parent-event') as end_menu:
-            end_picker = ui.date(value=default_end.isoformat()).bind_value(end_input)
-            with ui.row().classes('justify-end'):
-                ui.button('OK', on_click=end_menu.close).props('flat dense')
-    with end_input.add_slot('append'):
-        make_activatable(ui.icon('edit_calendar').on('click', end_menu.open).classes('cursor-pointer'), 'Pick end date')
-
-    def _on_start(e):
+    def _on_start(_e):
         parsed = parse_date(start_input.value)
-        if parsed:
+        if parsed and parsed != state['start']:
             state['start'] = parsed
             _fire()
 
-    def _on_end(e):
+    def _on_end(_e):
         parsed = parse_date(end_input.value)
-        if parsed:
+        if parsed and parsed != state['end']:
             state['end'] = parsed
             _fire()
 
-    start_input.on('change', _on_start)
-    end_input.on('change', _on_end)
-    start_picker.on('update:model-value', lambda e: _on_start(e))
-    end_picker.on('update:model-value', lambda e: _on_end(e))
+    # Typing a date fires a change per finished segment, so a year typed digit by
+    # digit passes through 0002, 0020 and 0202. Only the value a pause settles on
+    # re-runs the report; parse_date drops the out-of-range years in between.
+    start_input.on('change', _on_start, throttle=0.8, leading_events=False)
+    end_input.on('change', _on_end, throttle=0.8, leading_events=False)
     return start_input, end_input
 
 
