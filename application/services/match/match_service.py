@@ -473,7 +473,7 @@ class MatchService(
 
         return match
 
-    async def rewind_match(self, match_id: int, to_step: str, *, actor: User) -> Match:
+    async def rewind_match(self, match_id: int, to_step: str, *, actor: Optional[User]) -> Match:
         """Take a match back to ``to_step``, clearing every later step together."""
         from application.services.match.match_rewind import clear_flags_for, rewind_targets
 
@@ -482,7 +482,7 @@ class MatchService(
             raise ValueError("This match hasn't gone past that step, so there's nothing to rewind.")
         return await self.update_match(match_id, actor=actor, **clear_flags_for(to_step))
 
-    async def clear_match_seed(self, match_id: int, *, actor: User) -> Match:
+    async def clear_match_seed(self, match_id: int, *, actor: Optional[User]) -> Match:
         """Drop the match's rolled seed so a new one can be rolled."""
         match = await self._require_match(match_id)
         if match.generated_seed_id is None:
