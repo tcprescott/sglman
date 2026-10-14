@@ -374,6 +374,32 @@ def test_dialog_footers_carry_no_second_close():
     assert not bad, 'Footer Close buttons duplicating the header Close:\n  ' + '\n  '.join(bad)
 
 
+_FOOTER_LABEL_BUDGET = 30
+
+
+def test_dialog_footers_fit_one_line_on_a_phone():
+    """A footer is at most Cancel and the primary button, with anything else the
+    dialog can do (Delete, Cancel match, Send message, Reset) in a ⋮ menu at its
+    left (`dialog_more_menu`). Edit Match's four buttons wrapped onto two lines
+    of a 360px sheet, Save alone on the second. The label budget keeps two long
+    labels from doing the same."""
+    bad = []
+    for rel, _source, tree, lines in _python_sources():
+        for node in ast.walk(tree):
+            if not (isinstance(node, (ast.With, ast.AsyncWith))
+                    and any(_base_name(i.context_expr) == 'dialog_actions' for i in node.items)):
+                continue
+            if _exempt(lines, node.lineno):
+                continue
+            for run in _button_runs(node.body):
+                labels = [_button_label(b) or '' for b in run]
+                if len(run) > 2:
+                    bad.append(f'{rel}:{node.lineno}: {len(run)} buttons {labels} (move extras into dialog_more_menu)')
+                elif sum(len(label) for label in labels) > _FOOTER_LABEL_BUDGET:
+                    bad.append(f'{rel}:{node.lineno}: labels {labels} too long for one line at 360px')
+    assert not bad, 'Dialog footers that wrap on a phone:\n  ' + '\n  '.join(sorted(set(bad)))
+
+
 _INLINE_WIDTH = re.compile(r'\b(?:min|max)-width\s*:')
 
 
@@ -453,7 +479,8 @@ def test_destructive_menu_items_come_last():
     for rel, source, tree, lines in _python_sources():
         for node in ast.walk(tree):
             if not (isinstance(node, (ast.With, ast.AsyncWith))
-                    and any(_ui_call(i.context_expr) == 'menu' or _base_name(i.context_expr) == 'more_menu'
+                    and any(_ui_call(i.context_expr) == 'menu'
+                            or _base_name(i.context_expr) in ('more_menu', 'dialog_more_menu')
                             for i in node.items)):
                 continue
             kinds = [(st, _menu_item_kind(st, source)) for st in node.body]

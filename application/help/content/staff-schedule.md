@@ -133,12 +133,12 @@ result** instead (see [Match day queues](/help/staff-match-day)).
 
 ## Calling a match off
 
-The match dialog has two red buttons, and they aren't the same.
+The match dialog's ⋮ menu, left of Cancel and Save, has two ways to call a match off, and they aren't the same.
 
-| Button | What it does | Use it when |
+| Menu item | What it does | Use it when |
 |---|---|---|
-| **Cancel match** | Removes the match, DMs its players and crew, and closes any open race room | The match was real and people were planning around it |
-| **Delete** | Removes the match and tells nobody | It should never have existed: a duplicate, a test, a typo |
+| **Cancel match…** | Removes the match, DMs its players and crew, and closes any open race room | The match was real and people were planning around it |
+| **Delete match…** | Removes the match and tells nobody | It should never have existed: a duplicate, a test, a typo |
 
 If a player asked to call it off, approve their request instead (see
 [Match day queues](/help/staff-match-day)). That cancels it the same way and

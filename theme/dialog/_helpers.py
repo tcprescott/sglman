@@ -106,6 +106,20 @@ def dialog_actions():
     return ui.row().classes('dialog-actions items-center gap-2')
 
 
+def dialog_more_menu() -> ui.menu:
+    """The ⋮ at the far left of a dialog footer; enter the returned menu to add items.
+
+    A footer holds at most Cancel and the primary button so it stays one line on
+    a phone. Anything else the dialog can do (Delete, Cancel match, Send Message,
+    Reset) goes in here as a ``menu_action``, the destructive one last.
+    """
+    button = ui.button(icon='more_vert', color=None).props('flat round').classes('dialog-more')
+    button.props['aria-label'] = 'More actions'
+    with button:
+        menu = ui.menu().props('anchor="top left" self="bottom left"')
+    return menu
+
+
 def _native_props(
     input_type: str, *, required: bool, clearable: bool, dense: bool, stack_label: bool
 ) -> str:

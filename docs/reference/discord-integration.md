@@ -215,7 +215,7 @@ return match   # caller does not wait for any DM
 
 What gets enqueued is usually a `MatchScheduleService.notify_*` fan-out coroutine, not an individual DM — the per-recipient loop and its own error logging run inside the worker. Variations: `MatchScheduleService.generate_seed` enqueues a locally defined `_send_seed_dms()` closure, `_bracket/notifications.py` enqueues one `_send_matchup_ready(...)` coroutine per entrant, and `CrewService` / `VolunteerScheduleService` / the reschedule, signup and membership notifiers enqueue single `DiscordService` calls directly.
 
-Deliberate exception to the queue rule: the admin Send Message dialog ([`theme/dialog/send_message_dialog.py`](../../theme/dialog/send_message_dialog.py)) awaits `DiscordService.send_dm()` directly so the admin sees the result immediately in a `ui.notify`.
+Deliberate exception to the queue rule: the admin Send message dialog ([`theme/dialog/send_message_dialog.py`](../../theme/dialog/send_message_dialog.py)) awaits `DiscordService.send_dm()` directly so the admin sees the result immediately in a `ui.notify`.
 
 Because `stop()` cancels the worker without draining, anything still queued at shutdown is dropped (the logged count is the only trace).
 

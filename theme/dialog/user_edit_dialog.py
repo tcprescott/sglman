@@ -9,8 +9,15 @@ from application.services import (
     get_user_from_discord_id,
 )
 from models import FeatureFlag, Role, User
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import (
+    dialog_actions,
+    dialog_header,
+    dialog_more_menu,
+    mobile_sheet,
+    submit_on_enter,
+)
 from theme.dialog.send_message_dialog import SendMessageDialog
+from theme.menu import menu_action
 from theme.notify import notify_error
 
 
@@ -352,7 +359,8 @@ class AdminUserDialog(BaseUserDialog):
 
             with dialog_actions():
                 if self.user:
-                    ui.button('Send Message', on_click=open_message_dialog).props('flat')
+                    with dialog_more_menu():
+                        menu_action('mail', 'Send message', open_message_dialog)
                 ui.space()
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 if is_create:

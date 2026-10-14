@@ -14,11 +14,12 @@ from application.services import CommunityEventService
 from application.utils.timezone import format_local_display
 from models import CommunityEvent, CommunityEventStatus
 from theme.community_events import DISCLAIMER, STATUS_CHIPS, meta_row, status_chip, when_line
-from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog._helpers import dialog_actions, dialog_more_menu, form_dialog
 from theme.dialog.community_event_dialog import CommunityEventDialog
 from theme.empty_state import no_data_slot
 from theme.help import help_icon
 from theme.help.render import render_blocks
+from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
 from theme.tables.admin_crud import current_actor, refresh_button
@@ -155,11 +156,13 @@ def _review_dialog(service: CommunityEventService, actor, event: CommunityEvent,
             dialog.close()
             await on_change()
 
-        with dialog_actions().classes('justify-end wrap'):
+        with dialog_actions():
             if event.status is not CommunityEventStatus.CANCELLED:
-                ui.button('Edit', icon='edit', on_click=lambda: CommunityEventDialog(
-                    actor, event, is_staff=True, on_saved=edited,
-                ).open()).props('flat')
+                with dialog_more_menu():
+                    menu_action('edit', 'Edit event', lambda: CommunityEventDialog(
+                        actor, event, is_staff=True, on_saved=edited,
+                    ).open())
+                ui.space()
                 reject_label = 'Take down' if event.status is CommunityEventStatus.APPROVED else 'Reject'
                 ui.button(reject_label, on_click=lambda: decide(False)).props('flat color=negative')
                 if event.status is not CommunityEventStatus.APPROVED:
