@@ -239,6 +239,18 @@ class SeedGenerationService(DK64RBackend):
             build=parsed.build, version=parsed.version, summary=wwr_permalinks.summarize(permalink),
         )
 
+    @staticmethod
+    def describe_ff1r_link(url: str) -> str:
+        """The site version an FFR flags link pins, for the Presets tab, or ``ValueError``."""
+        host = urllib.parse.urlparse(_ff1r_reference_url({'url': url})).hostname or ''
+        prefix = host.lower()[:-len(_FF1R_HOST)].rstrip('.')
+        return prefix.replace('-', '.') if prefix and prefix != 'www' else 'latest'
+
+    @staticmethod
+    def example_z1r_seed(flags: str) -> str:
+        """What a player would be handed for these flags, for the Presets tab, or ``ValueError``."""
+        return f"{random.randint(0, 8999999999999999999)} - {_z1r_flags({'flags': flags})}"
+
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
@@ -422,14 +434,13 @@ class SeedGenerationService(DK64RBackend):
         Purely local: the preset's flags link (``{"url": ...}``, copied from the
         site, whose host pins the version) keeps its flags and gets a fresh seed
         number; the site builds the game in the browser, so the link is the seed.
-        Without a preset, ``presets/ff1r/sgl2026.json``.
+        There is no bundled fallback, so a tournament without a preset fails
+        loudly instead of rolling some other season's flags.
         """
-        if preset is not None:
-            settings = preset.settings
-        else:
-            settings = json.loads(await _read_bundled_preset("presets/ff1r/sgl2026.json"))
         try:
-            reference = _ff1r_reference_url(settings)
+            if preset is None:
+                raise ValueError('Final Fantasy needs a preset with a flags link. Add one on the Presets tab.')
+            reference = _ff1r_reference_url(preset.settings)
         except ValueError as e:
             raise SeedProviderInvalidRequest(str(e), provider='ff1r', operation='generate_seed') from None
         seed = ('%008x' % random.randrange(16 ** 8)).upper()
@@ -445,14 +456,13 @@ class SeedGenerationService(DK64RBackend):
         Generate a Zelda 1 Randomizer seed.
 
         Returns a "seed - flags" string rather than a URL; purely local. The flags
-        come from the preset (``{"flags": ...}``), else ``presets/z1r/sgl2026.json``.
+        come from the preset (``{"flags": ...}``); with no bundled fallback, a
+        tournament without a preset fails loudly.
         """
-        if preset is not None:
-            settings = preset.settings
-        else:
-            settings = json.loads(await _read_bundled_preset("presets/z1r/sgl2026.json"))
         try:
-            flags = _z1r_flags(settings)
+            if preset is None:
+                raise ValueError('Zelda 1 needs a preset with flags. Add one on the Presets tab.')
+            flags = _z1r_flags(preset.settings)
         except ValueError as e:
             raise SeedProviderInvalidRequest(str(e), provider='z1r', operation='generate_seed') from None
         seed = random.randint(0, 8999999999999999999)
