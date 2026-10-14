@@ -82,6 +82,8 @@ class TableKeys:
     # _v2 since the proctor board became a run sheet too (Time, Match, Stage,
     # Next step); v1 layouts name the old Seed, Tournament and # columns.
     PROCTOR_STATION = 'volunteer.proctor_station_v2'
+    # Not a ui.table: the Full Schedule grid's role columns, keyed by position id.
+    VOLUNTEER_FULL_SCHEDULE = 'volunteer.full_schedule'
 
     # Admin
     ADMIN_USERS = 'admin.users'

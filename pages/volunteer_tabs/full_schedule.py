@@ -6,15 +6,29 @@ from typing import List, Optional
 
 from nicegui import app, ui
 
-from application.services import SystemConfigService, get_user_from_discord_id
-from application.services.volunteer import DayGrid, GridShift, VolunteerScheduleService
+from application.services import (
+    SystemConfigService,
+    TablePreferenceService,
+    get_user_from_discord_id,
+)
+from application.services.volunteer import (
+    DayGrid,
+    GridRole,
+    GridShift,
+    VolunteerScheduleService,
+    apply_roles,
+    arrange_roles,
+    roles_config,
+)
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import format_local_time, timezone_label, today_local
-from theme.dialog._helpers import form_dialog
+from theme.dialog._helpers import dialog_actions, dialog_more_menu, form_dialog
 from theme.empty_state import empty_panel
 from theme.help import help_icon
+from theme.menu import menu_action
 from theme.notify import notify_error
 from theme.page_header import page_header
+from theme.tables.preferences import TableKeys
 from theme.timer_teardown import PageTimer
 
 _DAY_KEY = 'volunteer:schedule_day'
@@ -69,12 +83,29 @@ def _px(hours: float) -> str:
     return f'{hours * HOUR_PX:.1f}px'
 
 
+def is_customized(roles, positions) -> bool:
+    """Whether the viewer's columns differ from everyone's default."""
+    return any(not r.visible for r in roles) \
+        or [r.position_id for r in roles] != [pid for pid, _ in positions]
+
+
 async def full_schedule_tab() -> None:
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     service = VolunteerScheduleService()
     start, end = await SystemConfigService.get_event_window()
     days = event_days(start, end)
-    state = {'day': opening_day(days, tenant_session_get(_DAY_KEY), today_local())}
+    prefs = TablePreferenceService()
+    try:
+        positions = await service.grid_roles(user)
+    except (ValueError, PermissionError):
+        positions = []
+    stored = await prefs.get(user, TableKeys.VOLUNTEER_FULL_SCHEDULE) if user else None
+    saved = (stored or {}).get('columns') or []
+    state = {
+        'day': opening_day(days, tenant_session_get(_DAY_KEY), today_local()),
+        'roles': arrange_roles(positions, saved),
+        'saved': saved,
+    }
 
     def open_names(shift: GridShift, position: str) -> None:
         with form_dialog(position, card_classes='dialog-card dialog-card--sm') as dialog:
@@ -83,6 +114,89 @@ async def full_schedule_tab() -> None:
                 for person in shift.people:
                     ui.label(person_label(person.name, person.is_viewer)) \
                         .classes('text-weight-bold' if person.is_viewer else '')
+        dialog.open()
+
+    def open_columns() -> None:
+        staged = [
+            {'position_id': r.position_id, 'name': r.name, 'visible': r.visible}
+            for r in state['roles']
+        ]
+        dragging = {'index': -1}
+
+        with form_dialog('Columns', card_classes='dialog-card dialog-card--sm') as dialog:
+            with ui.column().classes('q-pa-md gap-2 full-width'):
+                ui.label('Pick which roles you see and their order. Saved for you on every device.') \
+                    .classes('text-caption text-muted')
+                role_list = ui.column().classes('full-width gap-0')
+
+            def move(index: int, delta: int) -> None:
+                target = index + delta
+                if 0 <= target < len(staged):
+                    staged[index], staged[target] = staged[target], staged[index]
+                    render_roles()
+
+            def drop(source: int, target: int) -> None:
+                if source == target or not 0 <= source < len(staged):
+                    return
+                staged.insert(min(target, len(staged) - 1), staged.pop(source))
+                render_roles()
+
+            def render_roles() -> None:
+                role_list.clear()
+                with role_list:
+                    for index, entry in enumerate(staged):
+                        # Drag adds to the ▲/▼ buttons rather than replacing
+                        # them: touch screens and keyboards can't drag.
+                        row = ui.row().classes('full-width items-center no-wrap gap-2 q-py-xs')
+                        row.props('draggable="true"')
+                        row.on('dragstart', lambda _, i=index: dragging.update(index=i))
+                        row.on('dragover.prevent', lambda: None)
+                        row.on('drop', lambda _, i=index: drop(dragging['index'], i))
+                        with row:
+                            ui.icon('drag_indicator').classes('text-muted cursor-move gt-sm') \
+                                .tooltip('Drag to reorder')
+                            ui.checkbox(
+                                entry['name'], value=entry['visible'],
+                                on_change=lambda e, c=entry: c.update(visible=e.value),
+                            ).props('dense').classes('col-grow')
+                            up = ui.button(icon='arrow_upward', on_click=lambda _, i=index: move(i, -1)) \
+                                .props('flat dense round aria-label="Move up"').tooltip('Move up')
+                            up.set_enabled(index > 0)
+                            down = ui.button(icon='arrow_downward', on_click=lambda _, i=index: move(i, 1)) \
+                                .props('flat dense round aria-label="Move down"').tooltip('Move down')
+                            down.set_enabled(index < len(staged) - 1)
+
+            def show_all() -> None:
+                default = arrange_roles(positions, None)
+                staged[:] = [
+                    {'position_id': r.position_id, 'name': r.name, 'visible': True} for r in default
+                ]
+                render_roles()
+
+            async def save() -> None:
+                if not any(e['visible'] for e in staged):
+                    ui.notify('Keep at least one role showing.', color='warning')
+                    return
+                roles = tuple(GridRole(e['position_id'], e['name'], e['visible']) for e in staged)
+                config = {'columns': roles_config(roles, state['saved'], TablePreferenceService.MAX_COLUMNS)}
+                try:
+                    stored = await prefs.save(user, TableKeys.VOLUNTEER_FULL_SCHEDULE, config)
+                except ValueError as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                state['saved'] = stored.get('columns', [])
+                state['roles'] = roles
+                dialog.close()
+                day_bar.refresh()
+                grid_view.refresh()
+
+            render_roles()
+            with dialog_actions():
+                with dialog_more_menu():
+                    menu_action('restart_alt', 'Show all in default order', show_all)
+                ui.space()
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Save', on_click=save).props('color=primary')
         dialog.open()
 
     def render_shift(shift: GridShift, position: str, grid: DayGrid) -> None:
@@ -122,6 +236,14 @@ async def full_schedule_tab() -> None:
                     .props(f"no-caps rounded {'unelevated color=primary' if selected else 'outline'}") \
                     .classes('wiz-vgrid-day')
                 button.props(f'aria-pressed={"true" if selected else "false"}')
+            if positions:
+                ui.space()
+                customized = is_customized(state['roles'], positions)
+                with ui.button('Columns', icon='view_column', on_click=open_columns) \
+                        .props('no-caps outline rounded').classes('wiz-vgrid-columns'):
+                    if customized:
+                        ui.badge().props('floating rounded color=primary').classes('wiz-vgrid-columns__dot')
+                        ui.label('(customized)').classes('wiz-sr-only')
 
     @ui.refreshable
     async def grid_view() -> None:
@@ -129,12 +251,20 @@ async def full_schedule_tab() -> None:
             empty_panel('No event dates are set yet.', icon='event_busy')
             return
         try:
-            grid = await service.day_grid(user, state['day'])
+            everyone = await service.day_grid(user, state['day'])
         except (ValueError, PermissionError) as e:
             notify_error(e)
             return
-        if not grid.columns:
+        if not everyone.columns:
             empty_panel(f"No shifts on {day_label(state['day'])}.", icon='event_busy')
+            return
+        grid = apply_roles(everyone, state['roles'])
+        if not grid.columns:
+            empty_panel(
+                f"Every role with shifts on {day_label(state['day'])} is hidden. "
+                'Use Columns to show them.',
+                icon='visibility_off',
+            )
             return
         now_hour = grid.hour_at(datetime.now(timezone.utc))
         with ui.row().classes('wiz-vgrid-legend items-center'):

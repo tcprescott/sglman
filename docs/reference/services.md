@@ -1591,6 +1591,8 @@ A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is ex
 
 `VolunteerScheduleService.day_grid(viewer, day)` (gated on `VOLUNTEERS`, refuses anyone `AuthService.can_view_volunteer` rejects with `PermissionError`) loads the shifts overlapping one event day, 06:00 to 06:00 local so a late shift stays on the evening it starts, and hands them to the pure `build_day_grid(shifts, midnight, viewer_id)`. That returns a `DayGrid`: one `GridColumn` per position in repository order, each `GridShift` carrying its hours from local midnight (clipped to the day), the published names (draft assignments are left out), open slots, whether the viewer is on it, and a `lane`/`lanes` pair that puts overlapping shifts of one position side by side.
 
+Per-viewer columns: `grid_roles(viewer)` (same gate) lists the community's active positions as `(id, name)`; `arrange_roles(positions, saved)` turns the stored column list into `GridRole`s in the viewer's order (unknown ids skipped, new positions appended shown); `apply_roles(grid, roles)` drops hidden columns, reorders the rest and re-fits the hour span; `roles_config(roles, saved, limit)` builds the list to store, keeping entries for other communities' positions since the preference is per user, not per tenant.
+
 ### volunteer_hours.py — VolunteerHoursService
 
 Totals the time a volunteer actually served, against the per-tenant comp tiers from `SystemConfigService.get_volunteer_comp_tiers()`. Read-only: no `AuditActions` entry and no `EventType`, on purpose.

@@ -63,6 +63,13 @@ class VolunteerScheduleService:
         return await self.shift_repository.list_for_window(start, end)
 
     @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def grid_roles(self, viewer: Optional[User]) -> List[Tuple[int, str]]:
+        """The roles a Full Schedule viewer can show, hide and reorder."""
+        if not await AuthService.can_view_volunteer(viewer):
+            raise PermissionError("You don't have access to the volunteer schedule.")
+        return [(p.id, p.name) for p in await self.position_repository.list_active()]
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
     async def day_grid(self, viewer: Optional[User], day: date) -> DayGrid:
         """One event day's published schedule, for anyone the volunteer hub admits."""
         if not await AuthService.can_view_volunteer(viewer):

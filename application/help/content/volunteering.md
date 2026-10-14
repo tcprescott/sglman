@@ -120,6 +120,11 @@ is still drafting don't show here until they are sent out, and a block reading
 
 On a phone the hour column stays put while you swipe sideways through the
 roles. When a block has more names than fit, tap **+N more** for the full list.
+
+**Columns** picks which roles you see and in what order. Untick a role to hide
+it, and drag a row (or use the arrows) to move it. Your choice is saved to your
+account, so it's the same on every device. A role added later shows up at the
+end, and a dot on **Columns** means you've changed something.
 :::
 
 ## Giving a shift back

@@ -4986,6 +4986,16 @@ ol.wiz-help-list { list-style-type: decimal; }
 .wiz-vgrid-days {
     gap: var(--space-2, 8px);
     flex-wrap: wrap;
+    width: 100%;
+}
+
+/* The dot on Columns says "you've changed these", so a missing role isn't a mystery. */
+.wiz-vgrid-columns__dot {
+    min-width: 10px;
+    min-height: 10px;
+    padding: 0;
+    top: -3px;
+    right: -3px;
 }
 
 .wiz-vgrid-legend {

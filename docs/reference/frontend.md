@@ -319,7 +319,7 @@ No longer a tab. `open_triforce_dialog(tournament, user)` is a dialog opened fro
 |---|---|---|---|
 | My Availability | volunteer or staff | `volunteer_tabs/availability.py:availability_tab` | Volunteer availability windows, persisted via `VolunteerAvailabilityService.set_windows` |
 | My Shifts | volunteer or staff | `volunteer_tabs/my_shifts.py:my_shifts_tab` | Upcoming assigned shifts, with acknowledgment |
-| Full Schedule | volunteer, proctor or staff | `volunteer_tabs/full_schedule.py:full_schedule_tab` | Read-only day grid: one column per position on an hour scale, names in each shift block (drafts hidden), the viewer's shifts outlined, a Now line; scrolls sideways under a pinned hour column on a phone |
+| Full Schedule | volunteer, proctor or staff | `volunteer_tabs/full_schedule.py:full_schedule_tab` | Read-only day grid: one column per position on an hour scale, names in each shift block (drafts hidden), the viewer's shifts outlined, a Now line; scrolls sideways under a pinned hour column on a phone. **Columns** dialog hides and reorders roles per viewer (drag or ▲/▼), stored through `TablePreferenceService` under `TableKeys.VOLUNTEER_FULL_SCHEDULE` keyed by position id |
 | Proctor Station | proctor or staff | `volunteer_tabs/proctor_station.py:proctor_station_tab(user)` | The on-site room board, a run sheet grouped by the next step (check in, start, finish) with the step's button on each line. Always `MatchBoardAccess(run=True)`: exactly what `can_run_match` admits them to |
 
 The two self-service tabs read the *signed-in* user's own data, so they are safe (and empty) for someone who volunteers for nothing; only the tab's role gate decides who can save availability.

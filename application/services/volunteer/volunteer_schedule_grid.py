@@ -8,7 +8,7 @@ where a day starts and ends) are testable without a database or a browser.
 import math
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 # An event day runs 06:00 to 06:00 local, so a 20:00–02:00 shift sits on the
 # evening it starts rather than splitting across two tabs.
@@ -45,6 +45,7 @@ class GridShift:
 
 @dataclass(frozen=True)
 class GridColumn:
+    position_id: int
     position: str
     shifts: Tuple[GridShift, ...]
 
@@ -99,13 +100,81 @@ def build_day_grid(shifts: Iterable, midnight: datetime, viewer_id: Optional[int
             open_slots=max(0, shift.slots_needed - len(people)),
         ))
     columns = tuple(
-        GridColumn(names[key], _in_lanes(items)) for key, items in by_position.items()
+        GridColumn(key, names[key], _in_lanes(items)) for key, items in by_position.items()
     )
+    return _framed(midnight, columns)
+
+
+def _framed(midnight: datetime, columns: Tuple[GridColumn, ...]) -> DayGrid:
+    """The grid's hour span: from the earliest shift shown to the latest."""
     if not columns:
         return DayGrid(midnight, DAY_STARTS_AT_HOUR, DAY_STARTS_AT_HOUR, ())
     first = math.floor(min(s.start_hour for c in columns for s in c.shifts))
     last = math.ceil(max(s.end_hour for c in columns for s in c.shifts))
     return DayGrid(midnight, first, last, columns)
+
+
+@dataclass(frozen=True)
+class GridRole:
+    """One role in a viewer's column choice: shown or not, in their order."""
+
+    position_id: int
+    name: str
+    visible: bool = True
+
+
+def arrange_roles(
+    positions: Iterable[Tuple[int, str]], saved: Optional[Sequence[Mapping]],
+) -> Tuple[GridRole, ...]:
+    """The viewer's saved order first, then any role added since, shown, at the end.
+
+    ``saved`` is the stored column list, keyed by position id as a string.
+    Entries naming a position this community no longer has are skipped.
+    """
+    names = dict(positions)
+    roles: list = []
+    for entry in saved or ():
+        try:
+            position_id = int(entry.get('name'))
+        except (TypeError, ValueError):
+            continue
+        if position_id in names and all(r.position_id != position_id for r in roles):
+            roles.append(GridRole(position_id, names[position_id], entry.get('visible') is not False))
+    placed = {r.position_id for r in roles}
+    roles.extend(GridRole(pid, name) for pid, name in names.items() if pid not in placed)
+    return tuple(roles)
+
+
+def apply_roles(grid: DayGrid, roles: Sequence[GridRole]) -> DayGrid:
+    """Drop hidden roles and put the rest in the viewer's order.
+
+    A column for a role the list doesn't know (an inactive position that still
+    has shifts) stays visible, after the ordered ones.
+    """
+    rank = {r.position_id: i for i, r in enumerate(roles)}
+    hidden = {r.position_id for r in roles if not r.visible}
+    kept = sorted(
+        (c for c in grid.columns if c.position_id not in hidden),
+        key=lambda c: rank.get(c.position_id, len(rank)),
+    )
+    return _framed(grid.midnight, tuple(kept))
+
+
+def roles_config(
+    roles: Sequence[GridRole], saved: Optional[Sequence[Mapping]], limit: int,
+) -> list:
+    """The column list to store for ``roles``.
+
+    The preference is per person, not per community, so entries for another
+    community's roles ride along after this one's rather than being lost.
+    """
+    ours = [{'name': str(r.position_id), 'visible': r.visible, 'width': None} for r in roles]
+    names = {e['name'] for e in ours}
+    others = [
+        {'name': str(e.get('name')), 'visible': e.get('visible') is not False, 'width': None}
+        for e in saved or () if str(e.get('name')) not in names
+    ]
+    return (ours + others)[:limit]
 
 
 def _in_lanes(shifts: list) -> Tuple[GridShift, ...]:

@@ -3,8 +3,15 @@
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from application.services.volunteer.volunteer_schedule_grid import build_day_grid, day_window
-from pages.volunteer_tabs.full_schedule import day_label, names_that_fit, opening_day
+from application.services.volunteer.volunteer_schedule_grid import (
+    GridRole,
+    apply_roles,
+    arrange_roles,
+    build_day_grid,
+    day_window,
+    roles_config,
+)
+from pages.volunteer_tabs.full_schedule import day_label, is_customized, names_that_fit, opening_day
 
 MIDNIGHT = datetime(2026, 10, 23, 4, 0, tzinfo=timezone.utc)
 
@@ -119,3 +126,49 @@ def test_overlapping_shifts_of_one_position_sit_side_by_side():
 
     placed = [(s.start_hour, s.lane, s.lanes) for s in grid.columns[0].shifts]
     assert placed == [(8, 0, 2), (10, 1, 2), (12, 0, 2), (18, 0, 1)]
+
+
+POSITIONS = [(1, 'Admin Desk'), (2, 'Check In'), (3, 'Race Proctor')]
+
+
+def test_roles_follow_the_saved_order_and_new_roles_go_last_and_shown():
+    saved = [{'name': '3', 'visible': True}, {'name': '2', 'visible': False}, {'name': '99'}, {'name': 'x'}]
+    roles = arrange_roles(POSITIONS + [(4, 'Board Game Room')], saved)
+
+    assert [(r.position_id, r.visible) for r in roles] == [(3, True), (2, False), (1, True), (4, True)]
+
+
+def test_no_saved_choice_is_every_role_in_the_communitys_order():
+    roles = arrange_roles(POSITIONS, None)
+    assert [r.name for r in roles] == ['Admin Desk', 'Check In', 'Race Proctor']
+    assert not is_customized(roles, POSITIONS)
+    assert is_customized(roles[::-1], POSITIONS)
+
+
+def test_hidden_roles_drop_out_and_the_rest_take_the_viewers_order():
+    grid = build_day_grid([
+        _shift(1, 'Admin Desk', 8, 10),
+        _shift(2, 'Check In', 7, 9),
+        _shift(3, 'Race Proctor', 12, 22),
+        _shift(9, 'Retired Role', 12, 13),
+    ], MIDNIGHT, viewer_id=None)
+    roles = (GridRole(3, 'Race Proctor'), GridRole(1, 'Admin Desk'), GridRole(2, 'Check In', visible=False))
+
+    shown = apply_roles(grid, roles)
+
+    assert [c.position for c in shown.columns] == ['Race Proctor', 'Admin Desk', 'Retired Role']
+    assert (shown.first_hour, shown.last_hour) == (8, 22)
+
+
+def test_saving_keeps_another_communitys_choices():
+    roles = (GridRole(2, 'Check In', visible=False), GridRole(1, 'Admin Desk'))
+    saved = [{'name': '1', 'visible': True}, {'name': '500', 'visible': False}]
+
+    config = roles_config(roles, saved, limit=64)
+
+    assert config == [
+        {'name': '2', 'visible': False, 'width': None},
+        {'name': '1', 'visible': True, 'width': None},
+        {'name': '500', 'visible': False, 'width': None},
+    ]
+    assert len(roles_config(roles, saved, limit=2)) == 2

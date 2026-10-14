@@ -34,8 +34,12 @@ from application.services.volunteer.volunteer_schedule_grid import (
     DayGrid,
     GridColumn,
     GridPerson,
+    GridRole,
     GridShift,
+    apply_roles,
+    arrange_roles,
     build_day_grid,
+    roles_config,
 )
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 
@@ -45,6 +49,7 @@ __all__ = [
     'DraftPolicy',
     'GridColumn',
     'GridPerson',
+    'GridRole',
     'GridShift',
     'HoursSummary',
     'VolunteerAutoscheduleService',
@@ -56,7 +61,10 @@ __all__ = [
     'VolunteerQualificationService',
     'VolunteerRoleMappingService',
     'VolunteerScheduleService',
+    'apply_roles',
+    'arrange_roles',
     'build_day_grid',
     'merged_hours',
+    'roles_config',
     'volunteer_reminder',
 ]

@@ -123,6 +123,7 @@ async def test_the_full_schedule_shows_only_this_communitys_shifts(two_tenants):
         grid = await VolunteerScheduleService().day_grid(viewer, date(2026, 10, 23))
 
         assert [c.position for c in grid.columns] == ['A desk']
+        assert await VolunteerScheduleService().grid_roles(viewer) == [(a_desk.id, 'A desk')]
 
 
 async def test_the_full_schedule_refuses_someone_off_the_volunteer_hub(two_tenants):
@@ -134,3 +135,5 @@ async def test_the_full_schedule_refuses_someone_off_the_volunteer_hub(two_tenan
         await join_community(player)
         with pytest.raises(PermissionError):
             await VolunteerScheduleService().day_grid(player, date(2026, 10, 23))
+        with pytest.raises(PermissionError):
+            await VolunteerScheduleService().grid_roles(player)
