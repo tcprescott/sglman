@@ -133,7 +133,7 @@ POSITIONS = [(1, 'Admin Desk'), (2, 'Check In'), (3, 'Race Proctor')]
 
 def test_roles_follow_the_saved_order_and_new_roles_go_last_and_shown():
     saved = [{'name': '3', 'visible': True}, {'name': '2', 'visible': False}, {'name': '99'}, {'name': 'x'}]
-    roles = arrange_roles(POSITIONS + [(4, 'Board Game Room')], saved)
+    roles = arrange_roles([*POSITIONS, (4, 'Board Game Room')], saved)
 
     assert [(r.position_id, r.visible) for r in roles] == [(3, True), (2, False), (1, True), (4, True)]
 
