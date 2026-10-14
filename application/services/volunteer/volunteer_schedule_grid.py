@@ -135,7 +135,7 @@ def arrange_roles(
     roles: list = []
     for entry in saved or ():
         try:
-            position_id = int(entry.get('name'))
+            position_id = int(str(entry.get('name')))
         except (TypeError, ValueError):
             continue
         if position_id in names and all(r.position_id != position_id for r in roles):
