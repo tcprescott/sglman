@@ -35,6 +35,11 @@ from application.services.match.match_station_draw import (
     StationDrawMixin,
     StationSuggestion,
 )
+from application.services.match.match_rewind import (
+    MATCH_STEP_LABELS,
+    reached_step,
+    rewind_targets,
+)
 from application.services.match.match_stations import StationAssignmentMixin
 from application.services.match.match_status import MatchStatus, resolve_matchup
 from application.services.match.match_stream_volunteer_service import (
@@ -44,6 +49,9 @@ from application.services.match.match_suggestion_service import MatchSuggestionS
 from application.services.match.match_watcher_service import MatchWatcherService
 
 __all__ = [
+    'MATCH_STEP_LABELS',
+    'reached_step',
+    'rewind_targets',
     'CancellationMixin',
     'HardPresetState',
     'MatchAcknowledgmentMixin',

@@ -26,7 +26,7 @@ from application.utils.timezone import (
     next_whole_hour_local,
     now_local,
 )
-from application.services.match.match_rewind import (
+from application.services.match import (
     MATCH_STEP_LABELS,
     reached_step,
     rewind_targets,
