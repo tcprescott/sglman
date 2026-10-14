@@ -2070,6 +2070,14 @@ main.q-page:focus {
     font-size: 1.125rem;
 }
 
+/* The stage's Twitch channel under its name: remote viewers know the channel,
+   only people at the venue know the stage. */
+.stage-channel {
+    font-size: var(--text-sm);
+    color: var(--fg-secondary);
+    overflow-wrap: anywhere;
+}
+
 .stage-link {
     display: inline-flex;
     align-items: center;

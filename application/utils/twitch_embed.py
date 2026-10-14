@@ -23,6 +23,12 @@ _PLAYER = 'https://player.twitch.tv/'
 
 def twitch_channel(stream_url: Optional[str]) -> Optional[str]:
     """The channel a ``twitch.tv/<channel>`` link points at, else ``None``."""
+    name = twitch_channel_name(stream_url)
+    return name.lower() if name else None
+
+
+def twitch_channel_name(stream_url: Optional[str]) -> Optional[str]:
+    """The channel as the link spells it (``SpeedGaming``), for showing to people."""
     url = http_url_or_empty(stream_url)
     if not url:
         return None
@@ -35,7 +41,7 @@ def twitch_channel(stream_url: Optional[str]) -> Optional[str]:
     channel = segments[0]
     if channel.lower() in _RESERVED or not _CHANNEL.match(channel):
         return None
-    return channel.lower()
+    return channel
 
 
 def parent_hostname(host: Optional[str]) -> Optional[str]:

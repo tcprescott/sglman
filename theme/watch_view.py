@@ -60,6 +60,9 @@ class WatchStage:
     stream_url: str = ''
     #: The Twitch channel ``stream_url`` points at, when it is one.
     channel: Optional[str] = None
+    #: That channel as the link spells it, shown beside the stage name: remote
+    #: viewers know the channel, only people at the venue know the stage.
+    channel_name: Optional[str] = None
     on_now: Optional[WatchMatch] = None
     up_next: List[WatchMatch] = field(default_factory=list)
 
@@ -140,7 +143,7 @@ function paint(){
   for(var i=0;i<bs.length;i++){var on=bs[i].getAttribute('data-watch')===watching;
     bs[i].setAttribute('aria-pressed',on?'true':'false');bs[i].textContent=on?'Watching':'Watch';}
   if(!watching)return;var b=pick(watching);if(!b)return;
-  var f=['stage','time','players','tournament'];
+  var f=['stage','channel-label','time','players','tournament'];
   for(var j=0;j<f.length;j++){var el=document.getElementById('wizw-np-'+f[j]);
     if(el)el.textContent=b.getAttribute('data-'+f[j])||'';}
   var link=document.getElementById('wizw-np-link');if(link)link.href=b.getAttribute('data-url')||'#';
@@ -205,13 +208,17 @@ def _match_card(match: WatchMatch, *, live: bool) -> str:
 
 def _stage_card(stage: WatchStage) -> str:
     url = http_url_or_empty(stage.stream_url)
-    head = _tag('div', 'stage-title', _tag('div', 'stage-name', _esc(stage.name)))
+    title = _tag('div', 'stage-name', _esc(stage.name))
+    if stage.channel_name:
+        title += _tag('div', 'stage-channel', f'twitch.tv/{_esc(stage.channel_name)}')
+    head = _tag('div', 'stage-title', title)
     if stage.channel:
         now = stage.on_now
         head += (
             f'<button type="button" class="wizw-btn" aria-pressed="false"'
             f' data-watch="{_esc(stage.id)}" data-channel="{_esc(stage.channel)}"'
             f' data-stage="{_esc(stage.name)}" data-url="{_esc(url)}"'
+            f' data-channel-label="{_esc(f"· twitch.tv/{stage.channel_name}" if stage.channel_name else "")}"'
             f' data-time="{_esc(now.time if now else "")}"'
             f' data-players="{_esc(now.players if now else "Nothing on right now")}"'
             f' data-tournament="{_esc(now.tournament if now else "")}">Watch</button>'
@@ -283,7 +290,7 @@ _THEATER = (
     '<section id="wizw-theater" class="twitch-theater wizw-theater" aria-label="Live stream">'
     '<div id="wizw-frame" class="twitch-theater__player"></div>'
     '<aside class="twitch-theater__panel">'
-    '<div class="twitch-theater__eyebrow">Now watching · <span id="wizw-np-stage"></span></div>'
+    '<div class="twitch-theater__eyebrow">Now watching · <span id="wizw-np-stage"></span> <span id="wizw-np-channel-label"></span></div>'
     '<div class="twitch-theater__now"><span id="wizw-np-time" class="match-time"></span> '
     '<span class="wiz-chip wiz-chip--live">On now</span></div>'
     '<div id="wizw-np-players" class="twitch-theater__players"></div>'
