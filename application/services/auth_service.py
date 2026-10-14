@@ -192,7 +192,7 @@ class AuthService:
             return False
         if Role.QUALIFIER_ADMIN in roles:
             return True
-        query = user.admin_async_qualifiers.all()
+        query = user.admin_async_qualifiers.all()  # type: ignore[attr-defined]
         tid = get_current_tenant_id()
         if tid is not None:
             query = query.filter(tenant_id=tid)
