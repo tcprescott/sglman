@@ -11,9 +11,9 @@ from application.utils.timezone import format_local_time, today_local
 from application.utils.twitch_embed import twitch_channel
 from models import Match, User
 from pages.admin_tabs.links import SCHEDULE, admin_url
-from theme.a11y import make_activatable
 from theme.empty_state import empty_state
 from theme.help import help_icon
+from theme.menu import menu_action, more_menu
 from theme.realtime import register_view
 from theme.twitch_theater import NowPlaying, TwitchTheater
 
@@ -22,7 +22,7 @@ async def stage_timeline_tab():
     """Display a daily calendar view of matches organized by stage."""
     discord_id = app.storage.user.get('discord_id', None)
     user = await get_user_from_discord_id(discord_id) if discord_id else None
-    show_admin_link = await AuthService.can_view_admin(user)
+    board_scope = await AuthService.schedule_board_scope(user)
 
     match_service = MatchService()
 
@@ -34,40 +34,28 @@ async def stage_timeline_tab():
     # `page-container`, like the view switcher above it: `full-width-column`
     # padded this view 16px in from the switcher's left edge.
     with ui.column().classes('page-container'):
-        with ui.row().classes('timeline-header wiz-help-row'):
+        with ui.row().classes('timeline-header'):
             # Keep the chevrons flanking the date as one unit so they never split
             # across lines when the row wraps on a narrow (phone) viewport.
             with ui.row().classes('timeline-nav items-center no-wrap'):
-                prev_btn = ui.button(
-                    icon='chevron_left',
-                    on_click=lambda: None
-                ).props('flat round').tooltip('Previous day')
+                prev_btn = ui.button(icon='chevron_left').props('outline').classes('timeline-tool') \
+                    .tooltip('Previous day')
+                with ui.element('div').classes('timeline-date'):
+                    date_long = ui.label().classes('gt-xs')
+                    date_short = ui.label().classes('xs')
+                next_btn = ui.button(icon='chevron_right').props('outline').classes('timeline-tool') \
+                    .tooltip('Next day')
 
-                date_label = ui.label(current_date['value'].strftime('%A, %B %d, %Y')).classes('large-title timeline-date')
-
-                next_btn = ui.button(
-                    icon='chevron_right',
-                    on_click=lambda: None
-                ).props('flat round').tooltip('Next day')
-
-            today_btn = ui.button(
-                'Today',
-                on_click=lambda: None
-            ).props('outline')
-
-            await help_icon('on-air', 'watch-page', user=user)
-
-            ui.space()
-
-            with ui.input('Select Date', value=current_date['value'].strftime('%Y-%m-%d')) as date_input:
-                with ui.menu().props('no-parent-event') as menu:
-                    ui.date(value=current_date['value'].strftime('%Y-%m-%d')).bind_value(date_input)
-                    with ui.row().classes('justify-end'):
-                        go_btn = ui.button('Go', on_click=lambda: menu.close())
-                with date_input.add_slot('append'):
-                    make_activatable(ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer'), 'Pick a date')
-
-        refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button').tooltip('Refresh')
+            with ui.row().classes('timeline-tools items-center no-wrap'):
+                today_btn = ui.button('Today').props('outline no-caps').classes('timeline-tool')
+                with ui.button(icon='edit_calendar').props('outline').classes('timeline-tool') \
+                        .tooltip('Pick a date'):
+                    with ui.menu() as date_menu:
+                        date_picker = ui.date()
+                ui.space()
+                refresh_btn = ui.button(icon='refresh').props('flat round color=primary') \
+                    .tooltip('Refresh')
+                await help_icon('on-air', 'watch-page', user=user)
 
         theater = TwitchTheater(on_change=lambda: paint_watch_buttons())
         timeline_container = ui.column().classes('timeline-container')
@@ -100,8 +88,10 @@ async def stage_timeline_tab():
             timeline_container.clear()
             watch_buttons.clear()
 
-            date_label.text = current_date['value'].strftime('%A, %B %d, %Y')
-            date_input.value = current_date['value'].strftime('%Y-%m-%d')
+            day = current_date['value']
+            date_long.text = day.strftime('%A, %B %d, %Y')
+            date_short.text = day.strftime('%a, %b %d, %Y')
+            date_picker.value = day.strftime('%Y-%m-%d')
 
             matches = await match_service.get_matches_for_date(
                 target_date=current_date['value'],
@@ -125,16 +115,19 @@ async def stage_timeline_tab():
                     if channel and theater.is_watching(stage.id):
                         watched = now_playing(stage, stage_matches, channel)
                     with ui.card().classes('card-full-width'):
-                        with ui.row().classes('stage-header'):
-                            ui.label(stage.name).classes('stage-name')
+                        with ui.row().classes('stage-header no-wrap'):
+                            with ui.column().classes('stage-title'):
+                                ui.label(stage.name).classes('stage-name')
+                                ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
                             if channel and theater.available:
                                 watch_buttons[stage.id] = ui.button(
                                     'Watch', icon='play_arrow',
                                     on_click=lambda s=stage, m=stage_matches, c=channel: theater.watch(now_playing(s, m, c)),
-                                ).props('outline dense no-caps').classes('stage-watch')
+                                ).props('outline no-caps').classes('stage-watch')
                             elif http_url_or_empty(stage.stream_url):
-                                ui.link('Watch Stream', http_url_or_empty(stage.stream_url), new_tab=True).classes('stage-link')
-                            ui.label(f'{len(stage_matches)} match{"es" if len(stage_matches) != 1 else ""}').classes('stage-match-count')
+                                with ui.link(target=http_url_or_empty(stage.stream_url), new_tab=True).classes('stage-link'):
+                                    ui.label('Open stream')
+                                    ui.icon('open_in_new', size='16px')
 
                         with ui.column().classes('column-spacing'):
                             for match in stage_matches:
@@ -147,51 +140,40 @@ async def stage_timeline_tab():
             """Render a single match card in the timeline."""
             status_text = 'Finished' if match.is_finished else 'In Progress' if match.is_seated else 'Scheduled'
             chip_class = 'wiz-chip--ok' if match.is_finished else 'wiz-chip--live' if match.is_seated else 'wiz-chip--neutral'
+            player_names = [p.user.preferred_name for p in match.players]
+            players = ' vs '.join(player_names) if player_names else 'No players assigned'
 
-            border_class = 'border-left-green' if match.is_finished else 'border-left-blue' if match.is_seated else 'border-left-gray'
-
-            with ui.card().classes(f'match-card {border_class}'):
-                with ui.row().classes('full-width'):
-                    # Time, on the viewer's display clock
+            with ui.card().classes('match-card'):
+                with ui.row().classes('match-card-top items-center no-wrap'):
                     time_str = format_local_time(match.scheduled_at) if match.scheduled_at else 'TBD'
                     ui.label(time_str).classes('match-time')
-
-                    ui.label(status_text).classes(f'match-badge wiz-chip {chip_class}')
-
-                    if match.tournament:
-                        ui.label(match.tournament.name).classes('match-tournament')
-
+                    ui.label(status_text).classes(f'wiz-chip {chip_class}')
                     ui.space()
+                    # Only where the board can actually show this match: a TA or
+                    # CC's board is narrowed to their own tournaments, and an
+                    # equipment manager or volunteer coordinator has no board.
+                    if board_scope is None or match.tournament_id in board_scope:
+                        with more_menu(players):
+                            menu_action(
+                                'calendar_month', 'Open in Schedule',
+                                lambda m=match: ui.navigate.to(admin_url(SCHEDULE, match_id=m.id)),
+                            )
 
-                    # An admin's route to the board, filtered to this match.
-                    # Everyone else got the primary key and nothing to do with
-                    # it — the card already names the match by time, tournament
-                    # and players, which is how the DMs identify one too.
-                    if show_admin_link:
-                        ui.link(
-                            'Open in Schedule', admin_url(SCHEDULE, match_id=match.id),
-                        ).classes('text-link')
+                ui.label(players).classes('match-players')
+                if match.tournament:
+                    ui.label(match.tournament.name).classes('match-tournament')
 
-                with ui.row().classes('match-details'):
-                    ui.icon('sports_esports').classes('icon-spacing')
-                    player_names = [p.user.preferred_name for p in match.players]
-                    ui.label(' vs '.join(player_names) if player_names else 'No players assigned').classes('match-players')
+                approved_commentators = [c for c in (match.commentators or []) if c.approved]
+                if approved_commentators:
+                    with ui.row().classes('match-crew no-wrap'):
+                        ui.icon('mic')
+                        ui.label(', '.join(c.user.preferred_name for c in approved_commentators))
 
-                    if match.commentators:
-                        approved_commentators = [c for c in match.commentators if c.approved]
-                        if approved_commentators:
-                            with ui.row().classes('match-details-nested'):
-                                ui.icon('mic').classes('icon-spacing')
-                                commentator_names = [c.user.preferred_name for c in approved_commentators]
-                                ui.label(', '.join(commentator_names)).classes('text-success')
-
-                    if match.trackers:
-                        approved_trackers = [t for t in match.trackers if t.approved]
-                        if approved_trackers:
-                            with ui.row().classes('match-details-nested'):
-                                ui.icon('track_changes').classes('icon-spacing')
-                                tracker_names = [t.user.preferred_name for t in approved_trackers]
-                                ui.label(', '.join(tracker_names)).classes('text-success')
+                approved_trackers = [t for t in (match.trackers or []) if t.approved]
+                if approved_trackers:
+                    with ui.row().classes('match-crew no-wrap'):
+                        ui.icon('track_changes')
+                        ui.label(', '.join(t.user.preferred_name for t in approved_trackers))
 
         async def go_prev_day():
             current_date['value'] = current_date['value'] - timedelta(days=1)
@@ -205,13 +187,20 @@ async def stage_timeline_tab():
             current_date['value'] = today_local()
             await load_timeline()
 
-        async def go_to_date():
+        async def go_to_date(value: str | None):
+            if not value:
+                return
             try:
-                new_date = datetime.strptime(date_input.value or '', '%Y-%m-%d').date()
-                current_date['value'] = new_date
-                await load_timeline()
+                new_date = datetime.strptime(value or '', '%Y-%m-%d').date()
             except ValueError:
                 ui.notify('Invalid date format', color='warning')
+                return
+            date_menu.close()
+            # load_timeline writes the picker back, which fires this again.
+            if new_date == current_date['value']:
+                return
+            current_date['value'] = new_date
+            await load_timeline()
 
         # Bind button actions. Return the coroutine so NiceGUI awaits it in the
         # button's slot context — a bare background task has no slot, so
@@ -219,7 +208,7 @@ async def stage_timeline_tab():
         prev_btn.on('click', lambda: go_prev_day())
         next_btn.on('click', lambda: go_next_day())
         today_btn.on('click', lambda: go_today())
-        go_btn.on('click', lambda: go_to_date())
+        date_picker.on_value_change(lambda e: go_to_date(e.value))
         refresh_btn.on('click', lambda: load_timeline())
 
         # Live updates: reload when any match changes, debounced so a multi-step

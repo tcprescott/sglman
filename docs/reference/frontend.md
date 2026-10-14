@@ -265,10 +265,10 @@ The public event schedule with crew signup.
 
 `stage_timeline_tab()` — a per-day timeline of streamed matches grouped by stage.
 
-- Header: previous/next-day arrows, a Today button, a date input with calendar popup and Go button, plus a floating refresh button (`.refresh-button`). All handlers dispatch through `background_tasks.create`.
+- Header: one toolbar of equal-height bordered controls (`.timeline-tool`): previous/next-day arrows around the date (long form on desktop, short on a phone), **Today**, a calendar button whose `ui.date` menu jumps on pick, then refresh and the help icon. On a phone the date line takes the full width and the tools wrap under it.
 - Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stage=True)`, grouped via `MatchService.group_matches_by_stage(matches)`; stages sorted by name. The current date is the viewer's local today (see [../timezone-handling.md](../timezone-handling.md)).
-- Each stage renders a card (name, optional "Watch Stream" link, match count) and one `match-card` per match: local time, status badge, tournament, players, approved commentators/trackers. Card borders are colour-coded by state (`.border-left-*`).
-- When `AuthService.can_view_admin(user)`, each card carries an **Open in Schedule** link to `/admin/schedule?match_id=<id>` (built with `admin_url`); nobody else sees a match id at all.
+- Each stage renders a card (name and match count, then a **Watch** button for a Twitch stage or an **Open stream** link otherwise) and one `match-card` per match: local time and status chip on the top line, then players, tournament and approved commentators/trackers.
+- A match carries a ⋮ menu with **Open in Schedule** (`/admin/schedule?match_id=<id>`, built with `admin_url`) only when `AuthService.schedule_board_scope(user)` says the board can show it: staff and stream managers for every match, a TA/CC for their own tournaments' matches. Equipment managers and volunteer coordinators reach admin but have no Schedule tab, so they get no menu.
 
 ### Profile (`pages/home_tabs/player_edit_info.py`)
 

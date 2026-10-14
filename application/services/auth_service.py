@@ -210,6 +210,23 @@ class AuthService:
             return True
         return await cc_q.exists()
 
+    @staticmethod
+    async def schedule_board_scope(user: Optional[User]) -> Optional[frozenset[int]]:
+        """The tournaments whose matches ``user`` can open on the admin Schedule board.
+
+        ``None`` means every match (staff, STREAM_MANAGER); a set means only those
+        tournaments' matches, because a TA/CC's board is narrowed to what they
+        operate (``pages/admin.py``). An empty set means no board at all. A
+        per-match "Open in Schedule" link checks this so it never lands someone
+        on a board that cannot show that match.
+        """
+        if user is None:
+            return frozenset()
+        if await AuthService.is_staff(user) or await AuthService.has_role(user, Role.STREAM_MANAGER):
+            return None
+        admin_ids, cc_ids = await AuthService.tournament_scope(user)
+        return frozenset(admin_ids | cc_ids)
+
     # Roles that have something to do on the Volunteer hub; mirrors the
     # ``roles=`` list on ``@protected_tab_page('/volunteer')``.
     _VOLUNTEER_ROLES: ClassVar[set[Role]] = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
