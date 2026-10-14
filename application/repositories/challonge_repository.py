@@ -199,6 +199,12 @@ class ChallongeRepository:
         return match
 
     @staticmethod
+    async def list_matches(tournament: Tournament) -> List[ChallongeMatch]:
+        return await scoped(ChallongeMatch.filter(tournament=tournament)).prefetch_related(
+            'tournament', 'participant1__user', 'participant2__user',
+        )
+
+    @staticmethod
     async def get_match(challonge_match_id_pk: int) -> Optional[ChallongeMatch]:
         return await ChallongeMatch.get_or_none(id=challonge_match_id_pk, tenant_id=current_tenant_id()).prefetch_related(
             'tournament', 'participant1__user', 'participant2__user', 'match',

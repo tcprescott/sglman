@@ -105,3 +105,15 @@ def match_row_label(row: dict, *, with_context: bool = True) -> str:
         scheduled_at=row.get('scheduled_at') or '',
         with_context=with_context,
     )
+
+
+def challonge_round_label(round_: Optional[int]) -> str:
+    """Name a Challonge round the way the native bracket does.
+
+    Challonge numbers losers rounds as negatives, so a raw ``Round -1`` reached
+    players. Group stages and an unknown round (a freshly mirrored row) have no
+    number to show and get an empty string.
+    """
+    if not round_:
+        return ''
+    return f'Losers round {abs(round_)}' if round_ < 0 else f'Round {round_}'

@@ -106,9 +106,9 @@ requests, they can ask staff to move it.
 Either of you can book it, so talk to your opponent first. If they get there
 before you, the matchup leaves your list.
 
-In a Challonge bracket, **Schedule** is greyed out until your opponent has linked
-their Challonge account to Wizzrobe. Hover or long-press it to see why; staff can
-also link them by hand.
+In a Challonge bracket, **Schedule** is greyed out until your opponent is matched
+to a Wizzrobe account, and the reason shows under the match. Staff can match them
+by hand. The **My Schedule** tab shows a count while anything is waiting on you.
 :::
 
 ![The Waiting on you to pick a time card, listing three bracket matchups each with a Schedule button, the first one marked 1](/static/help/player/bracket-schedule-phone.webp "Bracket matchups that still need a time: tap **Schedule** (1) to pick one.")

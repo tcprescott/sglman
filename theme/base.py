@@ -11,6 +11,7 @@ from models import FeatureFlag, User
 from theme.assets import asset_url
 from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
+from theme.nav_badges import bottom_nav_tab, drawer_tab_badge
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
 from theme.usage_telemetry import install_usage_capture, record_tab_view
@@ -526,6 +527,7 @@ class BaseLayout:
                                 ui.icon(tab.get('icon', 'circle')).props('size=sm')
                             with ui.item_section():
                                 ui.item_label(tab['label'])
+                            drawer_tab_badge(tab)
                         if tab['label'] == self._default_tab:
                             tab_item.props(add='active')
                         self._tab_item_refs[tab['label']] = tab_item
@@ -705,11 +707,9 @@ class BaseLayout:
             self._bottom_tab_labels = [tab['label'] for tab in self.tabs]
             # Every tab is in the bar, so the deep-linked default always has a
             # matching child — no empty value to bind and no Quasar warning.
-            with ui.tabs(value=self._default_tab).props('dense no-caps').classes(
-                'wiz-bottom-nav'
-            ) as self._bottom_tabs:
+            with ui.tabs(value=self._default_tab).props('dense no-caps').classes('wiz-bottom-nav') as self._bottom_tabs:
                 for tab in self.tabs:
-                    ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
+                    bottom_nav_tab(tab)
             # Tapping a bottom tab drives the panel; the highlight/URL sync then
             # flows back through _handle_tab_change.
             self._bottom_tabs.on_value_change(self._on_bottom_tab)

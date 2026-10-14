@@ -12,6 +12,7 @@ from application.tenant_context import (
 from middleware.auth import bind_display_timezone, enforce_membership, record_page_view
 from pages.home_tabs.event import event_tab
 from pages.home_tabs.my_schedule import my_schedule_tab
+from pages.home_tabs.player import count_waiting_on_you
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.tournaments import tournaments_tab
 from theme.assets import asset_url
@@ -129,6 +130,7 @@ def create() -> None:
         match: str | None = None,
         hard: str | None = None,
         agree: str | None = None,
+        book: str | None = None,
         focus: str | None = None,
     ):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
@@ -141,6 +143,7 @@ def create() -> None:
             return RedirectResponse(f"{request.scope.get('root_path', '') if request else ''}/live")
         ids, malformed_link = deep_link_ids(
             schedule=schedule, reschedule=reschedule, match=match, hard=hard, agree=agree,
+            book=book,
         )
         # A bare ``ui.page`` misses the page view ``_tenant_page`` records, so
         # home records its own: every section under one path, like the hubs.
@@ -196,8 +199,8 @@ def create() -> None:
             # Brackets rather than the board.
             {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'brackets'),
              'content': (event_tab, (), {'view': section})},
-            # `schedule` is a bracket matchup id: the matches section opens its
-            # schedule dialog on arrival, so the "matchup ready" DM's button
+            # `schedule` is a bracket matchup id (`book` the same for a Challonge
+            # matchup): the matches section opens its schedule dialog on arrival, so the "matchup ready" DM's button
             # lands on the date/time picker rather than on a page about it.
             # `reschedule` is a match id doing the same job for the declined
             # reschedule DM, whose next step is asking again with a new time.
@@ -206,11 +209,14 @@ def create() -> None:
             # `hard` is a match id from the harder-settings DM, opening that
             # match's private opt-in dialog. `agree` is a reschedule request id
             # from the opponent DM, opening that request with its Agree button.
+            # `badge` counts the matches waiting on this player to pick a time.
             {'label': 'My Schedule', 'icon': 'event_available',
+             'badge': await count_waiting_on_you(user),
              'aliases': ('player', 'my-crew', 'availability', 'equipment'),
              'content': (my_schedule_tab, (),
                          {'schedule': ids['schedule'], 'reschedule': ids['reschedule'],
-                          'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree']})},
+                          'match': ids['match'], 'hard': ids['hard'], 'agree': ids['agree'],
+                          'book': ids['book']})},
             # Signing up is the step that comes before having a schedule at all,
             # and it used to be a checkbox on Profile that a player could use the
             # app for a season without ever finding. Triforce text submission

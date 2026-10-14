@@ -587,6 +587,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
         remote_matches: List[Dict[str, Any]],
         actor: User,
     ) -> Dict[str, int]:
+        bookable_before = await self._bookable_match_ids(tournament)
         # Participants -> resolve to linked wizzrobe users by Challonge account id.
         # Resolve every linked user in one query rather than per participant.
         users_by_cuid = await self.repository.resolve_users_by_challonge_ids(
@@ -634,6 +635,7 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
         await self.audit_service.write_log(
             actor, AuditActions.CHALLONGE_BRACKET_SYNCED, {'tournament_id': tournament.id, **result},
         )
+        await self._announce_newly_bookable(tournament, bookable_before)
         return result
 
     @staticmethod
