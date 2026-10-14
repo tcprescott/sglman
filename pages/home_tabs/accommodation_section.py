@@ -48,7 +48,7 @@ async def render_accommodation_section(user: User) -> None:
         except ValueError as e:
             ui.notify(str(e), color='warning')
             return
-        ui.notify('Saved', color='positive', position='bottom', timeout=1200)
+        ui.notify('Saved', color='positive', timeout=1200)
         status_row.refresh()
 
     async def apply_toggle() -> None:

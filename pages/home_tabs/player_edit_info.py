@@ -80,7 +80,7 @@ async def render_edit_info_tab(focus: str | None = None):
         status_label.classes(replace='text-muted')
         # A toast so the confirmation is visible even when the top-of-form
         # indicator has scrolled out of view (the common case on a phone).
-        ui.notify('Saved', color='positive', position='bottom', timeout=1200)
+        ui.notify('Saved', color='positive', timeout=1200)
 
     def show_error(message):
         status_icon.props('name=error').classes(replace='text-warning')

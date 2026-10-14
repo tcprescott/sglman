@@ -6,11 +6,40 @@ a user-facing ``ValueError`` (including ``NotFoundError``) becomes an amber
 (a stale/insufficient session) becomes a red ``negative`` toast. Routing every
 handler through :func:`notify_error` keeps the wording and colours consistent and
 stops the three drifting variants the audit flagged (``§3.1``).
+
+Every toast also opens at the top of the page, just under the header
+(:func:`install_toast_position`): NiceGUI's bottom default sat on top of the
+Cancel/Save footer of a phone bottom-sheet dialog, and on the keyboard.
 """
+
+from typing import Any, Callable
 
 from nicegui import ui
 
-__all__ = ['notify_error']
+__all__ = ['TOAST_POSITION', 'install_toast_position', 'notify_error']
+
+TOAST_POSITION = 'top'
+
+_installed = False
+
+
+def install_toast_position() -> None:
+    """Default every ``ui.notify`` to :data:`TOAST_POSITION`. Idempotent.
+
+    Patched at the source rather than passed per call so the ~400 existing
+    toasts, and every new one, land in the same place without anyone
+    remembering to. The header offset lives in styles.css.
+    """
+    global _installed
+    if _installed:
+        return
+    original: Callable[..., Any] = ui.notify
+
+    def notify(message: Any, *, position: str = TOAST_POSITION, **kwargs: Any) -> None:
+        original(message, position=position, **kwargs)
+
+    ui.notify = notify  # type: ignore[assignment]
+    _installed = True
 
 
 # A message past this length is one a five-second single-line toast truncates
