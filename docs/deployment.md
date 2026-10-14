@@ -77,7 +77,7 @@ Wizzrobe ships as a single application container plus PostgreSQL and a Redis ses
 
 - **Triggers:** every push to `main`, and tags matching `v*`.
 - **Gate:** the `build-and-push` job `needs` a `test` job that calls [`test.yml`](../.github/workflows/test.yml) via `workflow_call`, so an image is only built once the full CI suite passes ([development.md](development.md#continuous-integration)).
-- **Image:** `ghcr.io/<owner>/<repo>` — registry `ghcr.io`, name taken from `github.repository` (currently `ghcr.io/tcprescott/sglman`).
+- **Image:** `ghcr.io/<owner>/<repo>` — registry `ghcr.io`, name taken from `github.repository` (currently `ghcr.io/tcprescott/wizzrobe`; images published before the repository was renamed from `sglman` live under `ghcr.io/tcprescott/sglman`).
 - **Tag scheme** (`docker/metadata-action`):
 
 | Event | Resulting tags |
@@ -87,7 +87,7 @@ Wizzrobe ships as a single application container plus PostgreSQL and a Redis ses
 
 - Authenticates with the workflow `GITHUB_TOKEN` (`packages: write`); uses the GitHub Actions build cache (`cache-from`/`cache-to: type=gha`). No `platforms` are specified, so the image is built for the runner's platform (linux/amd64).
 
-The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: wizzrobe:latest` in the `wizzrobe` service with `image: ghcr.io/tcprescott/sglman:<tag>`.
+The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: wizzrobe:latest` in the `wizzrobe` service with `image: ghcr.io/tcprescott/wizzrobe:<tag>`.
 
 ## Environment variables
 
