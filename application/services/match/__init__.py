@@ -28,6 +28,11 @@ from application.services.match.match_reads import MatchReadsMixin
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_request_guard import assert_player_requests_allowed
 from application.services.match.match_review import MatchReviewMixin
+from application.services.match.match_rewind import (
+    MATCH_STEP_LABELS,
+    reached_step,
+    rewind_targets,
+)
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.match.match_service import MatchService
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
@@ -44,6 +49,7 @@ from application.services.match.match_suggestion_service import MatchSuggestionS
 from application.services.match.match_watcher_service import MatchWatcherService
 
 __all__ = [
+    'MATCH_STEP_LABELS',
     'CancellationMixin',
     'HardPresetState',
     'MatchAcknowledgmentMixin',
@@ -65,6 +71,8 @@ __all__ = [
     'assert_bracket_result_editable',
     'assert_player_requests_allowed',
     'assert_sg_fields_unchanged',
+    'reached_step',
     'resolve_matchup',
+    'rewind_targets',
     'stage_reminder',
 ]

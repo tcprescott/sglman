@@ -20,6 +20,11 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
+from application.services.match import (
+    MATCH_STEP_LABELS,
+    reached_step,
+    rewind_targets,
+)
 from application.utils.timezone import (
     format_local_date,
     format_local_time,
@@ -71,24 +76,6 @@ _TONE_CHIP = {
 }
 
 
-def acknowledgment_empty_state(player_count: int, sg_sourced: bool) -> str:
-    """What to say when a match has no acknowledgment rows.
-
-    The old copy said "No players assigned." for a match with two players and
-    zero rows — describing the wrong thing entirely, and on the exact matches a
-    SpeedGaming sync produced. Distinguish the two states, and on a sourced
-    match name the cause rather than leaving the operator to guess.
-    """
-    if player_count == 0:
-        return 'No players assigned yet.'
-    plural = 'player is' if player_count == 1 else 'players are'
-    base = (f'{player_count} {plural} assigned, but nobody has been asked to '
-            f'confirm — there are no acknowledgment rows on this match.')
-    if sg_sourced:
-        return base + ' Re-syncing this episode from SpeedGaming creates them.'
-    return base
-
-
 def enrolment_report(names: list, tournament_name: str) -> str:
     """The same fact in the past tense, for the success notification."""
     if not names:
@@ -106,11 +93,6 @@ class BaseMatchDialog:
         self.match = match
         self.on_submit = on_submit
         self.dialog = None
-        self._clear_seated = False
-        self._clear_started = False
-        self._clear_finished = False
-        self._clear_confirmed = False
-        self._clear_seed = False
         self._initial_updated_at = match.updated_at if match else None
         self.match_service = MatchService()
         self.user_service = UserService()
@@ -242,80 +224,6 @@ class BaseMatchDialog:
                 'Flagged by the proctor. Confirming the result clears the flag.'
             ).classes('text-caption st-pending')
 
-    def _render_clear_buttons(self):
-        """The five buttons that rewind a match's lifecycle on Save.
-
-        They arm rather than act, which is right — the change belongs in the one
-        transaction the Save runs. What was missing was every other half of an
-        arming mechanism: nothing said the buttons rolled the lifecycle
-        backwards, a click only greyed the button out, there was no way to
-        change your mind short of closing the dialog and losing every other
-        edit, and Save never summarised what it was about to undo. All three are
-        here now; the buttons toggle, and ``_clear_summary`` is the sentence the
-        Save confirmation reads back.
-        """
-        armed: dict = {}
-
-        def make_clear_button(label, noun, icon, attr_flag, match_attr, is_relation=False):
-            if is_relation:
-                unavailable = getattr(self.match, f'{match_attr}_id', None) is None
-            else:
-                unavailable = getattr(self.match, match_attr) is None
-
-            def toggle():
-                now_armed = not getattr(self, attr_flag)
-                setattr(self, attr_flag, now_armed)
-                armed[noun] = now_armed
-                if now_armed:
-                    btn.props(remove='outline')
-                    btn.props('color=negative')
-                    btn.set_text(f'{label} — armed')
-                else:
-                    btn.props('outline color=negative')
-                    btn.set_text(label)
-                refresh_summary()
-
-            btn = ui.button(label, icon=icon, on_click=toggle).props(
-                f"outline color={'grey-7' if unavailable else 'negative'}",
-            ).classes('ml-1')
-            if unavailable:
-                btn.disable()
-                btn.tooltip(f'{noun} is not set on this match')
-            return btn
-
-        def refresh_summary() -> None:
-            summary.text = self._clear_summary(armed)
-            summary.set_visibility(bool(summary.text))
-
-        with ui.column().classes('gap-1'):
-            ui.label('Rewind the lifecycle').classes('text-bold')
-            ui.label(
-                'Each button arms a step to be undone when you press Save. '
-                'Click it again to change your mind.'
-            ).classes('text-caption text-grey')
-            with ui.row().classes('items-center flex-wrap gap-1'):
-                make_clear_button('Clear Check In', 'Check In', 'chair', '_clear_seated', 'seated_at')
-                make_clear_button('Clear Started', 'Started', 'play_arrow', '_clear_started', 'started_at')
-                make_clear_button('Clear Finish', 'Finish', 'sports_score', '_clear_finished', 'finished_at')
-                make_clear_button('Clear Confirmed', 'Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
-                make_clear_button('Clear Seed', 'Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
-            summary = ui.label('').classes('text-caption st-pending')
-            summary.set_visibility(False)
-
-    @staticmethod
-    def _clear_summary(armed: dict) -> str:
-        """"Save will undo: X and Y." — empty when nothing is armed.
-
-        Static and dict-driven so the sentence is testable without a browser;
-        the five buttons above and the Save confirmation both read it, so they
-        cannot describe the same arming differently.
-        """
-        names = [noun for noun, is_armed in armed.items() if is_armed]
-        if not names:
-            return ''
-        listed = names[0] if len(names) == 1 else ', '.join(names[:-1]) + f' and {names[-1]}'
-        return f'Save will undo: {listed}.'
-
     async def _render_watch_switch(self, user):
         if not self.match:
             return
@@ -430,11 +338,11 @@ class BaseMatchDialog:
             await self._cancel_match(dialog)
         ConfirmationDialog(
             message=(
-                "Cancel this match? Its players and crew will be DMed, and any "
+                "Call off this match? Its players and crew will be DMed, and any "
                 "open race room will be closed."
             ),
             on_confirm=on_confirm,
-            confirm_text="Cancel match",
+            confirm_text="Call off match",
             cancel_text="Back",
         ).open()
 
@@ -443,13 +351,76 @@ class BaseMatchDialog:
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await self.match_service.cancel_match(self.match.id, actor=actor)
             with dialog:
-                ui.notify('Match cancelled — players and crew notified', color='negative')
+                ui.notify('Match called off — players and crew notified', color='negative')
                 dialog.close()
             if self.on_submit:
                 await self.on_submit(None)
         except (ValueError, PermissionError) as e:
             with dialog:
                 notify_error(e)
+
+    def _open_rewind(self, edit_dialog) -> None:
+        """The step picker behind ⋮ → Rewind…: go back to one step, clearing every later one."""
+        targets = rewind_targets(self.match)
+        if not targets:
+            return
+        current = MATCH_STEP_LABELS[reached_step(self.match)]
+        with ui.dialog() as picker, ui.card().classes('dialog-card dialog-card--sm'):
+            mobile_sheet(picker)
+            dialog_header('Rewind match', picker)
+            with ui.column().classes('q-pa-md gap-2 full-width'):
+                ui.label(f'This match is {current}. Go back to:')
+                choice = ui.radio(
+                    {step: MATCH_STEP_LABELS[step] for step, _ in targets},
+                    value=targets[0][0],
+                ).props('aria-label="Step to rewind to"')
+                explain = ui.label('').classes('text-caption text-grey-7')
+
+                def refresh_explain() -> None:
+                    explain.text = dict(targets)[choice.value]
+                    rewind_button.set_text(f'Rewind to {MATCH_STEP_LABELS[choice.value]}')
+
+            async def do_rewind() -> None:
+                try:
+                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    await self.match_service.rewind_match(self.match.id, choice.value, actor=actor)
+                    with edit_dialog:
+                        ui.notify(f'Match rewound to {MATCH_STEP_LABELS[choice.value]}', color='positive')
+                    picker.close()
+                    edit_dialog.close()
+                    if self.on_submit:
+                        await self.on_submit(self.match)
+                except (ValueError, PermissionError) as e:
+                    with picker:
+                        notify_error(e)
+
+            with dialog_actions():
+                ui.space()
+                ui.button('Cancel', on_click=picker.close).props('flat')
+                rewind_button = ui.button('Rewind', on_click=do_rewind).props('color=negative')
+            choice.on_value_change(lambda _: refresh_explain())
+            refresh_explain()
+        picker.open()
+
+    def _confirm_clear_seed(self, dialog):
+        async def on_confirm():
+            try:
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                await self.match_service.clear_match_seed(self.match.id, actor=actor)
+                with dialog:
+                    ui.notify('Seed cleared', color='positive')
+                    dialog.close()
+                if self.on_submit:
+                    await self.on_submit(self.match)
+            except (ValueError, PermissionError) as e:
+                with dialog:
+                    notify_error(e)
+        ConfirmationDialog(
+            message="Clear this match's seed? Players will need a new one rolled.",
+            on_confirm=on_confirm,
+            confirm_text="Clear seed",
+            cancel_text="Back",
+        ).open()
 
     async def _tournament_name(self, tournament_id) -> str:
         tournament = await self.tournament_service.get_tournament_by_id(tournament_id)
@@ -617,11 +588,14 @@ class BaseMatchDialog:
         with dialog_actions():
             if self.match:
                 with dialog_more_menu():
-                    # Distinct from the footer's 'Cancel' (which just closes this
-                    # dialog): calling the match off notifies everyone who committed
-                    # to it, where Delete is the silent "this shouldn't exist" path.
-                    menu_action('event_busy', 'Cancel match…', lambda: self._confirm_cancel(dialog))
+                    if rewind_targets(self.match):
+                        menu_action('history', 'Rewind…', lambda: self._open_rewind(dialog))
+                    # "Call off", not "Cancel": the footer's Cancel just closes
+                    # this dialog, where this DMs everyone who committed to it.
+                    menu_action('event_busy', 'Call off match…', lambda: self._confirm_cancel(dialog))
                     ui.separator()
+                    if getattr(self.match, 'generated_seed_id', None) is not None:
+                        menu_action('casino', 'Clear seed…', lambda: self._confirm_clear_seed(dialog), negative=True)
                     menu_action('delete', 'Delete match…', lambda: self._confirm_delete(dialog), negative=True)
             ui.space()
             ui.button('Cancel', on_click=dialog.close).props('flat')

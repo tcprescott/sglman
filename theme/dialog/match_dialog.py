@@ -9,7 +9,6 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
-from application.utils.timezone import format_local_display
 from models import FeatureFlag, RaceRoomStatus
 from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog._helpers import (
@@ -19,7 +18,6 @@ from theme.dialog._helpers import (
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.match_dialog_base import (
     BaseMatchDialog,
-    acknowledgment_empty_state,
     enrolment_preview,
 )
 from theme.help import resolve_help
@@ -407,31 +405,6 @@ class AdminMatchDialog(BaseMatchDialog):
                 )
 
                 if self.match:
-                    self._render_clear_buttons()
-
-                if self.match:
-                    acks = await self.match_service.list_acknowledgments(self.match)
-                    with ui.column():
-                        ui.label('Player Acknowledgments').classes('text-bold')
-                        if not acks:
-                            ui.label(
-                                acknowledgment_empty_state(len(players), is_sg_sourced),
-                            ).classes('text-grey-6')
-                        else:
-                            for ack in acks:
-                                with ui.row().classes('items-center'):
-                                    if ack.acknowledged_at:
-                                        ui.icon('check_circle').classes('st-ok')
-                                        suffix = ' (auto)' if ack.auto_acknowledged else ''
-                                        ui.label(
-                                            f'{ack.user.preferred_name}{suffix} — '
-                                            f'{format_local_display(ack.acknowledged_at)}'
-                                        )
-                                    else:
-                                        ui.icon('schedule').classes('st-pending')
-                                        ui.label(f'{ack.user.preferred_name} — pending').classes('text-grey-6')
-
-                if self.match:
                     await self._render_racetime_room_section()
 
             async def submit():
@@ -455,11 +428,6 @@ class AdminMatchDialog(BaseMatchDialog):
                         commentator_ids=new_commentator_ids,
                         tracker_ids=new_tracker_ids,
                         comment=comment_value,
-                        clear_seated=self._clear_seated,
-                        clear_started=self._clear_started,
-                        clear_finished=self._clear_finished,
-                        clear_confirmed=self._clear_confirmed,
-                        clear_seed=self._clear_seed,
                         actor=actor,
                     )
                     if (stage_id or None) != self.match.stage_id:
@@ -628,9 +596,6 @@ class UserMatchDialog(BaseMatchDialog):
                     placeholder='Add any notes or comments about this match...',
                 ).classes('full-width')
 
-                if self.match:
-                    self._render_clear_buttons()
-
             async def submit():
                 tournament_id = selected_tournament.value
                 opp_id = selected_opponent.value
@@ -650,11 +615,6 @@ class UserMatchDialog(BaseMatchDialog):
                         commentator_ids=[],
                         tracker_ids=[],
                         comment=comment_value,
-                        clear_seated=self._clear_seated,
-                        clear_started=self._clear_started,
-                        clear_finished=self._clear_finished,
-                        clear_confirmed=self._clear_confirmed,
-                        clear_seed=self._clear_seed,
                         actor=user,
                     )
 

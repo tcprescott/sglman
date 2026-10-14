@@ -338,6 +338,43 @@ class TestUpdateMatch:
         assert refreshed.confirmed_at is None
         assert refreshed.generated_seed_id is None
 
+    async def test_rewind_clears_every_later_step_together(self, service, db):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        match = await _seed_match(service, actor, t, [player.id])
+        match.seated_at = utc(2025, 1, 15, 18)
+        match.started_at = utc(2025, 1, 15, 18, 5)
+        match.finished_at = utc(2025, 1, 15, 18, 30)
+        await match.save()
+
+        await service.rewind_match(match.id, 'checked_in', actor=actor)
+
+        refreshed = await Match.get(id=match.id)
+        assert refreshed.seated_at is not None
+        assert refreshed.started_at is None
+        assert refreshed.finished_at is None
+
+    async def test_rewind_rejects_a_step_the_match_has_not_passed(self, service, db):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        match = await _seed_match(service, actor, t, [player.id])
+        match.seated_at = utc(2025, 1, 15, 18)
+        await match.save()
+
+        with pytest.raises(ValueError):
+            await service.rewind_match(match.id, 'started', actor=actor)
+
+    async def test_clear_seed_without_a_seed_is_refused(self, service, db):
+        actor = await make_staff()
+        t = await make_tournament()
+        player = await make_player()
+        match = await _seed_match(service, actor, t, [player.id])
+
+        with pytest.raises(ValueError):
+            await service.clear_match_seed(match.id, actor=actor)
+
     async def test_crew_removed_when_cleared(self, service, db):
         actor = await make_staff()
         t = await make_tournament()
