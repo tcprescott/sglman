@@ -91,6 +91,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StageService` | [stage_service.py](../../application/services/stage_service.py) | Stage (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `ProfileNudgeService` | [profile_nudge_service.py](../../application/services/profile_nudge_service.py) | A community's recommended profile items and which ones a member still owes | [profile-reminders.md](../features/profile-reminders.md) |
+| `WatchLayoutService` | [watch_layout_service.py](../../application/services/watch_layout_service.py) | The three Watch page layouts: assign one at random, record each browser's thumbs up/down, staff tally | [../reference/frontend.md](frontend.md) |
 | `TablePreferenceService` | [table_preference_service.py](../../application/services/table_preference_service.py) | Per-user table layouts (columns, order, widths, page size, density, wrap) | [frontend.md](frontend.md#data-tables) |
 | `PayoutService` | [payout_service.py](../../application/services/payout_service.py) | Prize pool, placement splits, and the Matcherino export | [payouts.md](../features/payouts.md), `PAYOUTS` |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
@@ -1181,6 +1182,18 @@ Two tiers. `Tenant.config['timezone']` holds `{'mode': 'pinned'|'user', 'name': 
 Every read path is **total**: an unknown mode, a missing key, or a zone this system's tzdata cannot load degrades to the defaults rather than raising, because the settings are read on every page build and a hand-edited blob must not be able to take the app down. Module constants: `MODE_PINNED`/`MODE_USER`, `DEFAULT_MODE` (`user` — new communities follow the viewer; existing ones were migrated to an explicit Eastern pin), `COMMON_TIMEZONES` (the picker shortlist; both pickers still accept any IANA name), `CONFIG_KEY`.
 
 Collaborators: `TenantRepository`, `UserRepository`, `AuthService`, `AuditService`, `timezone_context`. Bound at the edges by `middleware/auth.py` (`bind_display_timezone`, page build), `middleware/tenant.py` (the cookie), `api/dependencies.py`, `mcpserver/registry.py`, and `application/utils/background_loop.py` (worker ticks).
+
+### watch_layout_service.py — WatchLayoutService
+
+The Watch page (`/live`) offers three layouts (`WATCH_LAYOUTS`: `one_page`, `tabs`, `rail`) while the community picks one. Anonymous: a viewer is their `app.storage.browser` id. Not audited.
+
+| Method | Returns | Description |
+|---|---|---|
+| `resolve(stored)` | `str` | The remembered layout, else a random one. Static. |
+| `mark_seen(session_id, layout)` | `None` | Creates the browser's row for that layout. |
+| `votes_for(session_id)` | `dict[str, str \| None]` | That browser's votes by layout. |
+| `vote(session_id, layout, vote)` | `None` | `up`, `down` or `None`; raises `ValueError` on anything else. |
+| `tally(actor)` | `list[LayoutTally]` | Seen/up/down per layout. STAFF only (`PermissionError`). |
 
 ### profile_nudge_service.py — ProfileNudgeService
 

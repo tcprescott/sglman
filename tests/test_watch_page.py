@@ -267,3 +267,39 @@ def test_the_static_page_offers_the_dark_mode_toggle_and_honours_the_cookie():
     assert 'id="wizw-theme"' in body
     assert 'aria-label="Toggle dark mode"' in body
     assert 'wiz_dark' in body
+
+
+class TestLayoutVotes:
+    def test_a_remembered_layout_sticks_and_a_new_viewer_gets_one_of_the_three(self):
+        from application.services.watch_layout_service import WATCH_LAYOUTS, WatchLayoutService
+
+        assert WatchLayoutService.resolve('rail') == 'rail'
+        assert {WatchLayoutService.resolve(None) for _ in range(60)} == set(WATCH_LAYOUTS)
+        assert WatchLayoutService.resolve('gone') in WATCH_LAYOUTS
+
+    async def test_seen_then_rated_then_taken_back(self, db):
+        from application.services import WatchLayoutService
+
+        service = WatchLayoutService()
+        with tenant_scope(DEFAULT_TEST_TENANT_ID):
+            await service.mark_seen('b1', 'one_page')
+            await service.mark_seen('b2', 'one_page')
+            await service.vote('b1', 'one_page', 'up')
+            await service.vote('b2', 'one_page', 'down')
+            await service.vote('b2', 'one_page', None)
+            tally = {t.layout: t for t in await service.tally(await _staff())}
+            assert await service.votes_for('b1') == {'one_page': 'up'}
+        one = tally['one_page']
+        assert (one.seen, one.up, one.down) == (2, 1, 0)
+
+    async def test_bad_votes_and_non_staff_tallies_are_refused(self, db):
+        from application.services import WatchLayoutService
+
+        service = WatchLayoutService()
+        with tenant_scope(DEFAULT_TEST_TENANT_ID):
+            with pytest.raises(ValueError):
+                await service.vote('b1', 'one_page', 'sideways')
+            with pytest.raises(ValueError):
+                await service.vote(None, 'one_page', 'up')
+            with pytest.raises(PermissionError):
+                await service.tally(await make_user(discord_id=8002, username='nobody'))

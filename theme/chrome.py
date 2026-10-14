@@ -16,7 +16,7 @@ preference).
 
 from typing import Callable, Optional
 
-from nicegui import app, ui
+from nicegui import app, context, ui
 
 from theme.assets import asset_url
 
@@ -124,6 +124,15 @@ def _dark_cookie_js(dark: bool) -> str:
     toggle.
     """
     return f"document.cookie='wiz_dark={1 if dark else 0}; path=/; max-age=31536000; samesite=lax';"
+
+
+def cookie_dark_pref() -> Optional[bool]:
+    """The choice a reader made on a static page, which has no session to keep it in."""
+    try:
+        value = context.client.request.cookies.get('wiz_dark')
+    except Exception:
+        return None
+    return {'1': True, '0': False}.get(value or '')
 
 
 def dark_mode_button(dark: ui.dark_mode) -> ui.button:

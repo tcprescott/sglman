@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-from typing import Optional
 
 from nicegui import app, context, ui
 
@@ -10,7 +9,7 @@ from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.tenant_urls import login_path
 from models import FeatureFlag, User
 from theme.assets import asset_url
-from theme.chrome import apply_brand_palette, dark_mode_button, install_timezone_detection
+from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
@@ -41,14 +40,6 @@ def current_local_url() -> str:
     except Exception:
         return '/'
     return f'{url.path}?{url.query}' if url.query else url.path
-
-
-def _cookie_dark_pref() -> Optional[bool]:
-    try:
-        value = context.client.request.cookies.get('wiz_dark')
-    except Exception:
-        return None
-    return {'1': True, '0': False}.get(value or '')
 
 
 def tab_slug(label: str) -> str:
@@ -310,9 +301,7 @@ class BaseLayout:
 
         dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
         if dark_pref is None:
-            # A reader who toggled on a static page (which has no session) left
-            # the choice in this cookie; see theme.chrome._dark_cookie_js.
-            dark_pref = _cookie_dark_pref()
+            dark_pref = cookie_dark_pref()
         self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
         for font_file in (

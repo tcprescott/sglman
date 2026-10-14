@@ -79,6 +79,7 @@ from .volunteer_position_repository import VolunteerPositionRepository
 from .volunteer_qualification_repository import VolunteerQualificationRepository
 from .volunteer_role_mapping_repository import VolunteerRoleMappingRepository
 from .volunteer_shift_repository import VolunteerShiftRepository
+from .watch_layout_repository import WatchLayoutRepository
 from .web_push_repository import WebPushRepository
 from .webhook_delivery_repository import WebhookDeliveryRepository
 from .webhook_repository import WebhookRepository
@@ -152,6 +153,7 @@ __all__ = [
     'VolunteerQualificationRepository',
     'VolunteerRoleMappingRepository',
     'VolunteerShiftRepository',
+    'WatchLayoutRepository',
     'WebPushRepository',
     'WebhookDeliveryRepository',
     'WebhookRepository',
