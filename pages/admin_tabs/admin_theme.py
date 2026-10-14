@@ -9,7 +9,8 @@ never block saving. Saving reloads the page so
 the new palette (applied at chrome render) takes effect immediately.
 
 The logo section uploads through ``TenantLogoService``, which validates and
-re-encodes the image; it saves on upload rather than with the colours.
+re-encodes a bitmap or sanitises an SVG; it saves on upload rather than with the
+colours.
 """
 
 from nicegui import app, ui
@@ -45,7 +46,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
     ui.label('Logo').classes('text-subtitle1 text-weight-bold')
     ui.label(
         "Replaces the brand mark beside your community's name and becomes the browser tab icon. "
-        'Use a square PNG, JPEG or WebP, at least 64×64 and up to 1 MB. '
+        'Use an SVG, or a square PNG, JPEG or WebP at least 64×64. Up to 1 MB. '
         "A transparent background looks best, but check it's visible on the dark header too."
     ).classes('text-caption text-grey')
     with ui.row().classes('gap-3 items-center'):
@@ -56,7 +57,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
 
     async def on_upload(e) -> None:
         if e.file.size() > MAX_UPLOAD_BYTES:
-            ui.notify('Logos can be up to 1 MB. Try exporting a smaller PNG or WebP.', color='warning')
+            ui.notify('Logos can be up to 1 MB. Try exporting a smaller file.', color='warning')
             uploader.reset()
             return
         data = await e.file.read()
@@ -93,7 +94,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
         max_file_size=MAX_UPLOAD_BYTES,
         on_upload=on_upload,
         on_rejected=lambda: ui.notify(
-            'Logos can be up to 1 MB, as a PNG, JPEG or WebP.', color='warning'),
+            'Logos can be up to 1 MB, as an SVG, PNG, JPEG or WebP.', color='warning'),
     ).props(f'accept="{ACCEPT}"').classes('hidden wiz-logo-upload')
     with ui.row().classes('gap-2 items-center'):
         if logo:

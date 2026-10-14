@@ -691,6 +691,21 @@ class TestQrCodeUtil:
         assert decoded[:8] == b'\x89PNG\r\n\x1a\n'
         assert decoded == qrcode_util.asset_qr_png_bytes(url)
 
+    def test_svg_without_logo_is_plain(self):
+        svg = qrcode_util.asset_qr_svg('https://sgl.example.org/t/acme/equipment/7')
+        assert svg.startswith('<svg') and '<image' not in svg
+
+    def test_svg_with_logo_embeds_it_in_black_at_level_h(self):
+        url = 'https://sgl.example.org/t/acme/equipment/7'
+        logo = 'data:image/svg+xml;base64,PHN2Zy8+'
+        plain = qrcode_util.asset_qr_svg(url)
+        with_logo = qrcode_util.asset_qr_svg(url, logo)
+        assert f'href="{logo}"' in with_logo and 'feColorMatrix' in with_logo
+        # Level H needs more modules for the same URL.
+        assert len(with_logo) > len(plain)
+        uri = qrcode_util.asset_qr_svg_data_uri(url, logo)
+        assert base64.b64decode(uri.split(',', 1)[1]).decode() == with_logo
+
 
 class TestHardPresetOverrideCopy:
     def test_names_the_preset_staff_chose(self):

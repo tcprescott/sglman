@@ -111,7 +111,8 @@ def apply_brand_palette(colors: dict[str, str]) -> None:
         # and the browser tab icon. Declared after NiceGUI's favicon link, and
         # browsers use the last icon declared. The URL is service-built from an
         # int id and a hex hash, so it is safe inside url().
-        ui.add_head_html(f'<link rel="icon" type="image/webp" href="{logo}">')
+        mime = 'image/svg+xml' if logo.endswith('.svg') else 'image/webp'
+        ui.add_head_html(f'<link rel="icon" type="{mime}" href="{logo}">')
         ui.add_head_html(f'<style>:root{{--wiz-brand-logo:url("{logo}");}}</style>')
         ui.query('body').classes('wiz-has-logo')
 

@@ -141,7 +141,7 @@ class TenantThemeService:
         colors = TenantThemeService._merge(config.get(CONFIG_KEY))
         sha256 = TenantLogoService.logo_sha(config)
         if sha256:
-            colors['logo'] = logo_url(tenant_id, sha256)
+            colors['logo'] = logo_url(tenant_id, sha256, TenantLogoService.logo_format(config))
         return colors
 
     @staticmethod

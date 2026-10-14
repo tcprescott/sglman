@@ -4,7 +4,8 @@ Reached from the admin Equipment tab's "Print QR labels" flow (see
 ``theme/dialog/qr_label_dialog.py``) or the per-asset "Print label" button. The
 selected asset ids arrive as a comma-separated ``ids`` query param and each
 asset is rendered as a label (scannable QR + ``#number`` + name, plus any opted-
-in extra lines) laid out for the chosen ``template``:
+in extra lines) laid out for the chosen ``template``. The community logo sits in
+black in the middle of each QR unless ``logo=0``:
 
 * ``plain`` — a free grid on US Letter or A4 (``paper``), ``cols`` per row, with
   dashed cut guides. Print from the browser (Ctrl/Cmd-P).
@@ -19,11 +20,11 @@ asset page does.
 
 from nicegui import context, ui
 
-from application.services import EquipmentService, TenantService
+from application.services import EquipmentService, TenantLogoService, TenantService
 from application.tenant_context import get_current_tenant_id
 from application.utils.environment import get_base_url
 from application.utils.hostname import effective_request_host, normalize_hostname
-from application.utils.qrcode_util import asset_qr_data_uri
+from application.utils.qrcode_util import asset_qr_svg_data_uri
 from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from middleware.auth import protected_page
 from models import FeatureFlag, Role
@@ -100,7 +101,7 @@ def create() -> None:
     )
     async def equipment_qr_labels(
         ids: str = '', cols: int = _DEFAULT_COLS,
-        template: str = _PLAIN, paper: str = 'letter', show: str = '',
+        template: str = _PLAIN, paper: str = 'letter', show: str = '', logo: str = '1',
     ) -> None:
         community = await TenantService.current_community_name() or 'Wizzrobe'
         ui.page_title(f'{community} — QR labels')
@@ -120,7 +121,6 @@ def create() -> None:
 <style>
 {page_rule}
 @media print {{ .no-print {{ display: none !important; }} html, body {{ background: #fff; }} }}
-.qr-code-img img {{ image-rendering: pixelated; }}  /* crisp QR when scaled */
 /* plain free grid */
 .qr-sheet {{ display: grid; gap: 0.2in; width: 100%; box-sizing: border-box; }}
 .qr-label {{ break-inside: avoid; page-break-inside: avoid; border: 1px dashed #b0b0b0;
@@ -157,13 +157,14 @@ def create() -> None:
             return f'{get_base_url()}/equipment/{asset.id}'
 
         # Pre-render each label once (QR generation is the expensive part).
+        qr_logo = await TenantLogoService.qr_logo_data_uri() if logo != '0' else None
         labels = [
             {
                 'num': f'#{asset.asset_number}',
                 'name': asset.name or '',
                 'owner': asset.owner_label(community) if 'owner' in shown else None,
                 'desc': (asset.description or '') if 'desc' in shown else None,
-                'uri': asset_qr_data_uri(asset_link(asset)),
+                'uri': asset_qr_svg_data_uri(asset_link(asset), qr_logo),
             }
             for asset in assets
         ]
