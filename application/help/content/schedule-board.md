@@ -7,10 +7,10 @@ summary: What each line on the Schedule board tells you, what each match state t
 ---
 
 The **Schedule** view on the **Event** tab lists every match in the event. It's
-the same board for everyone: players, crew and spectators all see it. The two
-other views on that tab read the same matches differently. **On Air** lays out
-one day by stage (see [On Air and watching](/help/on-air)), and **Brackets**,
-where a community uses them, shows the tournament structure.
+the same board for everyone: players, crew and spectators all see it. The other
+view on that tab, **Brackets**, where a community uses them, shows the
+tournament structure. For what's on stream, see the Watch page
+([Watching the event](/help/on-air)).
 
 ## The columns
 
@@ -108,7 +108,7 @@ any DM it sends you.
 
 Watching a match and the community's **Watch page** are different things. The
 page is a link anyone can open to find the streams; see
-[On Air and watching](/help/on-air#the-watch-page).
+[Watching the event](/help/on-air#the-watch-page).
 
 ## On a phone
 

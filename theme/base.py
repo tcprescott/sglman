@@ -9,7 +9,7 @@ from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.tenant_urls import login_path
 from models import FeatureFlag, User
 from theme.assets import asset_url
-from theme.chrome import apply_brand_palette, dark_mode_button, install_timezone_detection
+from theme.chrome import apply_brand_palette, cookie_dark_pref, dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
 from theme.page_header import heading_fallback
@@ -276,6 +276,8 @@ class BaseLayout:
         """Assemble the header/drawer nav. Deferred out of ``__init__`` so
         ``render`` can resolve Volunteer visibility (an async access check) first."""
         self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
+        if self._tenant_id is not None:
+            self.top_menu.append({'label': 'Watch', 'icon': 'live_tv', 'url': '/live'})
         if self._show_volunteer:
             self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
         if self._show_check_in:
@@ -298,6 +300,8 @@ class BaseLayout:
         colors = self._theme_colors or DEFAULT_THEME
 
         dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
+        if dark_pref is None:
+            dark_pref = cookie_dark_pref()
         self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
         for font_file in (

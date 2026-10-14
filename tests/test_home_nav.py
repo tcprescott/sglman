@@ -21,7 +21,6 @@ LEGACY_PATHS = {
     'availability': 'My Schedule',
     'equipment': 'My Schedule',
     'schedule': 'Event',
-    'on-air': 'Event',
     'brackets': 'Event',
     'triforce-texts': 'Tournaments',
     'profile': 'Profile',
@@ -31,7 +30,7 @@ LEGACY_PATHS = {
 # page function needs a request, a tenant and a signed-in user to assemble it,
 # none of which this test has or needs.
 HOME_TABS = [
-    {'label': 'Event', 'aliases': ('schedule', 'on-air', 'brackets')},
+    {'label': 'Event', 'aliases': ('schedule', 'brackets')},
     {'label': 'My Schedule', 'aliases': ('player', 'my-crew', 'availability', 'equipment')},
     {'label': 'Tournaments', 'aliases': ('triforce-texts',)},
     {'label': 'Profile'},
@@ -89,12 +88,12 @@ class TestRetiredSlugsStillResolve:
 class TestTheEventViewSwitcher:
     def test_every_view_slug_is_an_alias_on_the_event_tab(self):
         # The switcher opens on the view the URL names, so each view's slug has
-        # to survive as a path. Miss one and /home/on-air opens the board.
+        # to survive as a path. Miss one and /home/brackets opens the board.
         event = next(t for t in HOME_TABS if t['label'] == 'Event')
         assert {v.slug for v in VIEWS} == set(event['aliases'])
 
     def test_brackets_drops_out_when_the_community_has_it_off(self):
-        assert [v.slug for v in available_views(set())] == ['schedule', 'on-air']
+        assert [v.slug for v in available_views(set())] == ['schedule']
         assert 'brackets' in [v.slug for v in available_views({FeatureFlag.BRACKETS})]
 
     def test_a_view_the_community_turned_off_opens_the_first_one(self):
@@ -104,5 +103,5 @@ class TestTheEventViewSwitcher:
 
     def test_a_named_view_wins(self):
         views = available_views({FeatureFlag.BRACKETS})
-        assert resolve_view(views, 'on-air').slug == 'on-air'
+        assert resolve_view(views, 'schedule').slug == 'schedule'
         assert resolve_view(views, 'brackets').slug == 'brackets'

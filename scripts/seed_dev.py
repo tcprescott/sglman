@@ -56,6 +56,7 @@ from models import (
     User,
     UserRole,
     VolunteerAvailabilityStatus,
+    WatchLayoutVote,
     WebPushSubscription,
 )
 from scripts.seed_access import seed_access_for_tenant
@@ -665,6 +666,19 @@ async def seed_profile_reminders(tenant: Tenant, users: dict[str, User]) -> None
     )
 
 
+async def seed_watch_layout_votes(tenant: Tenant) -> None:
+    """A few browsers' ratings of the Watch page layouts, so the tally isn't empty."""
+    for session_id, layout, vote in (
+        ('seed-browser-1', 'one_page', 'up'),
+        ('seed-browser-1', 'rail', 'down'),
+        ('seed-browser-2', 'tabs', 'up'),
+        ('seed-browser-3', 'rail', None),
+    ):
+        await WatchLayoutVote.get_or_create(
+            tenant=tenant, session_id=session_id, layout=layout, defaults={'vote': vote},
+        )
+
+
 async def seed_push_devices(users: dict[str, User]) -> None:
     """One phone with device notifications on; ``.invalid`` so a push can't land."""
     ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) Version/18.4 Mobile/15E148 Safari/604.1'
@@ -740,6 +754,7 @@ async def seed_all() -> None:
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
         await seed_profile_reminders(tenant, users)
+        await seed_watch_layout_votes(tenant)
     await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link

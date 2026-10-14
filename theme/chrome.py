@@ -16,7 +16,7 @@ preference).
 
 from typing import Callable, Optional
 
-from nicegui import app, ui
+from nicegui import app, context, ui
 
 from theme.assets import asset_url
 
@@ -116,6 +116,25 @@ def apply_brand_palette(colors: dict[str, str]) -> None:
         ui.query('body').classes('wiz-has-logo')
 
 
+def _dark_cookie_js(dark: bool) -> str:
+    """Mirror the choice into a cookie the cached static pages read in the browser.
+
+    Those pages (``/live`` in static mode, the static brackets) are shared by
+    every reader and never see the session, so this is how they follow the
+    toggle.
+    """
+    return f"document.cookie='wiz_dark={1 if dark else 0}; path=/; max-age=31536000; samesite=lax';"
+
+
+def cookie_dark_pref() -> Optional[bool]:
+    """The choice a reader made on a static page, which has no session to keep it in."""
+    try:
+        value = context.client.request.cookies.get('wiz_dark')
+    except Exception:
+        return None
+    return {'1': True, '0': False}.get(value or '')
+
+
 def dark_mode_button(dark: ui.dark_mode) -> ui.button:
     """The header's dark-mode toggle, bound to ``dark`` and the user's session.
 
@@ -124,11 +143,14 @@ def dark_mode_button(dark: ui.dark_mode) -> ui.button:
     button has not yet chosen for it.
     """
     dark_pref = app.storage.user.get('dark_mode')
+    if dark_pref is not None:
+        ui.add_head_html(f'<script>{_dark_cookie_js(dark_pref)}</script>')
     ref: dict = {'btn': None}
 
     def toggle() -> None:
         dark.value = not dark.value
         app.storage.user['dark_mode'] = dark.value
+        ui.run_javascript(_dark_cookie_js(dark.value))
         if ref['btn'] is not None:
             ref['btn'].props(f"icon={'light_mode' if dark.value else 'dark_mode'}")
             ref['btn'].update()

@@ -1,4 +1,4 @@
-"""The On Air theater: one Twitch player above the stage columns.
+"""The Watch page theater: one Twitch player above the stage columns.
 
 Nothing from Twitch loads until a viewer presses a stage's Watch button, so the
 page sets no Twitch cookies for people who only read the schedule. One player

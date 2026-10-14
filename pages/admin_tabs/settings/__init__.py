@@ -36,6 +36,7 @@ from pages.admin_tabs.settings.event import event_settings_pane
 from pages.admin_tabs.settings.members import members_settings_pane
 from pages.admin_tabs.settings.venue import venue_settings_pane
 from pages.admin_tabs.settings.volunteers import volunteers_settings_pane
+from pages.admin_tabs.settings.watch_page import watch_page_settings_pane
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.page_header import nested_page_headers, page_header
 from theme.save_footer import UnsavedChanges
@@ -112,6 +113,11 @@ def build_settings_panes(access, live: set) -> list[SettingsPane]:
             'Who can join, what everyone else sees, and what members are asked to finish.',
             native=members_settings_pane,
             embedded=(EmbeddedPage(admin_profile_reminders_page),),
+        ))
+        panes.append(SettingsPane(
+            'watch', 'Watch page', 'live_tv',
+            'Who is watching at /live, and whether it runs live or static.',
+            native=watch_page_settings_pane,
         ))
         if FeatureFlag.VOLUNTEERS in live:
             panes.append(SettingsPane(

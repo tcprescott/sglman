@@ -19,7 +19,7 @@ def _slugs(panes):
 def test_staff_sees_every_pane_in_menu_order():
     panes = build_settings_panes(STAFF, {FeatureFlag.VOLUNTEERS})
     assert _slugs(panes) == [
-        'general', 'event', 'venue', 'members', 'volunteers',
+        'general', 'event', 'venue', 'members', 'watch', 'volunteers',
         'discord', 'integrations', 'features',
     ]
 

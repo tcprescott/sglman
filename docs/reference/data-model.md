@@ -492,6 +492,23 @@ switched off; ignored while the rule is mandatory. See
 
 Constraints: `unique_together (('tenant', 'user', 'check'),)`.
 
+#### `WatchLayoutVote`
+
+One browser's view of one Watch page layout (`/live`), and its thumbs up or
+down. Created when the browser first sees the layout (`vote` null), so the
+Admin → Settings → Watch page tally counts who saw a layout as well as who
+rated it. Tenant-scoped (`WatchLayoutRepository`, `WatchLayoutService`).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='watch_layout_votes'` |
+| `session_id` | `CharField(64)` | not null | NiceGUI `app.storage.browser` id; most viewers never sign in |
+| `layout` | `CharField(16)` | not null | A `WATCH_LAYOUTS` key: `one_page`, `tabs`, `rail` |
+| `vote` | `CharField(8)` | null | `up`, `down`, or null for seen but not rated |
+| `updated_at` | `DatetimeField` | `auto_now` | |
+
+Constraints: `unique_together (('tenant', 'session_id', 'layout'),)`. Added in migration 96.
+
 #### `TenantJoinRequest`
 
 Someone asking to join a community they can see the door of — the self-serve

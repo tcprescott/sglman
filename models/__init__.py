@@ -100,7 +100,15 @@ from .preferences import UserTablePreference
 from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
 from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
 from .system import LogLevelOverride, RoomToken, SystemConfiguration
-from .tenant import ProfileNudgeDismissal, Tenant, TenantJoinRequest, TenantLogo, TenantMemberBlock, TenantMembership
+from .tenant import (
+    ProfileNudgeDismissal,
+    Tenant,
+    TenantJoinRequest,
+    TenantLogo,
+    TenantMemberBlock,
+    TenantMembership,
+    WatchLayoutVote,
+)
 from .tournament import (
     GeneratedSeeds,
     Preset,
@@ -281,6 +289,7 @@ __all__ = [
     'VolunteerQualification',
     'VolunteerRoleMapping',
     'VolunteerShift',
+    'WatchLayoutVote',
     'WebPushSubscription',
     # webhooks
     'Webhook',

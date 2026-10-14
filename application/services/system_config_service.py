@@ -26,10 +26,6 @@ KEY_COMMUNITY_EVENT_REMINDER_LEAD_MINUTES = 'community_event_reminder_lead_minut
 KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL = 'community_event_require_approval'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 KEY_STATION_FORMAT = 'station_format'
-# Whether the join page shows non-members today's match times and player names.
-# Default off: the membership gate exists precisely to keep a stranger from
-# reading a community's schedule, so publishing it again is a staff decision.
-KEY_JOIN_PREVIEW = 'join_page_match_preview'
 # Whether anyone in the community's linked Discord server gets in at the join
 # door without asking. Default off: a server is often wider than the community
 # (a shared server, a public one), so opening the door to all of it is a staff
@@ -46,6 +42,15 @@ KEY_OPEN_MEMBERSHIP = 'open_membership'
 # An invite to the linked server, offered on the join door. Typed in by staff:
 # the bot never mints one.
 KEY_DISCORD_INVITE_URL = 'discord_invite_url'
+# The Watch page (/live): 'live' (a NiceGUI page that updates itself) or
+# 'static' (one cached render shared by every reader). Default live.
+KEY_WATCH_MODE = 'watch_page_mode'
+WATCH_MODES = ('live', 'static')
+# Whether a rush of arrivals switches the page to static on its own (default
+# on), and how many arrivals in a minute count as a rush.
+KEY_WATCH_AUTO_STATIC = 'watch_page_auto_static'
+KEY_WATCH_AUTO_THRESHOLD = 'watch_page_auto_threshold'
+DEFAULT_WATCH_AUTO_THRESHOLD = 300
 
 _DISCORD_INVITE_RE = re.compile(
     r'^(?:https?://)?(?:www\.)?(?:discord\.gg|(?:discord|discordapp)\.com/invite)/([A-Za-z0-9-]{2,64})/?$'
@@ -404,6 +409,13 @@ def _bool_value(text: str) -> str:
     raise ValueError('This setting must be true or false.')
 
 
+def _watch_mode_value(text: str) -> str:
+    value = text.strip().lower() or WATCH_MODES[0]
+    if value not in WATCH_MODES:
+        raise ValueError(f'The Watch page mode must be one of: {", ".join(WATCH_MODES)}.')
+    return value
+
+
 def _comp_tiers_value(text: str) -> str:
     if not text:
         return ''
@@ -462,9 +474,11 @@ _NORMALIZERS = {
     KEY_COMMUNITY_EVENT_REQUIRE_APPROVAL: _bool_value,
     KEY_TOURNAMENT_HOURS: _tournament_hours_value,
     KEY_STATION_FORMAT: _station_format_value,
-    KEY_JOIN_PREVIEW: _bool_value,
     KEY_DISCORD_AUTO_JOIN: _bool_value,
     KEY_JOIN_REQUESTS: _bool_value,
     KEY_OPEN_MEMBERSHIP: _bool_value,
     KEY_DISCORD_INVITE_URL: SystemConfigService.normalize_discord_invite_url,
+    KEY_WATCH_MODE: _watch_mode_value,
+    KEY_WATCH_AUTO_STATIC: _bool_value,
+    KEY_WATCH_AUTO_THRESHOLD: _positive_int_value,
 }

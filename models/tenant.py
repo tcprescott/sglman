@@ -174,3 +174,30 @@ class ProfileNudgeDismissal(Model):
     class Meta:
         table = 'profilenudgedismissal'
         unique_together = (('tenant', 'user', 'check'),)
+
+
+class WatchLayoutVote(Model):
+    """One browser's view of one Watch page layout, and its thumbs up or down.
+
+    The Watch page (``/live``) offers three layouts while the community decides
+    which to keep. A viewer lands on a random one, can switch, and can rate each.
+    A row per browser per layout: created when they first see it (``vote``
+    null), so the tally can say how many saw a layout as well as how many
+    liked it. Keyed by NiceGUI's ``app.storage.browser`` id, because most
+    viewers never sign in.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='watch_layout_votes', on_delete=fields.CASCADE)
+    tenant_id: int
+    session_id = fields.CharField(max_length=64)
+    # A ``WATCH_LAYOUTS`` key (application/services/watch_layout_service.py).
+    layout = fields.CharField(max_length=16)
+    # 'up', 'down', or null for seen but not rated.
+    vote = fields.CharField(max_length=8, null=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'watchlayoutvote'
+        unique_together = (('tenant', 'session_id', 'layout'),)

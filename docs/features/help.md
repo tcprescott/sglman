@@ -20,7 +20,7 @@ own flag.
 What that leaves here: `player.md` covers My Schedule, acknowledging,
 booking a match, seeds, race rooms, change requests, availability and results; `proctor.md` covers the Proctor
 Station board, the four steps of running a match, and recording a result;
-`on-air.md` covers the stage timeline and watching a match, and defers what a
+`on-air.md` covers the Watch page and watching a match, and defers what a
 room allows in person to the event. All three carry a pointer to Event
 Information written **without a link** — a community without the flag has no
 `/event-info` for one to reach.

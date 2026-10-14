@@ -109,9 +109,6 @@ shows a *Needs review* chip. Confirming the result clears it. See
 **Offer for stream**: the item in a match's ⋮ menu on My Schedule that tells staff you'd be
 happy for a match to be streamed. A hint, not a booking.
 
-**On Air**: the Event tab view that lays one day out by stage. See
-[On Air](/help/on-air).
-
 **Par**: on an async qualifier seed, the average of the fastest approved times.
 Finishing at par scores 100, and par moves as more runs are approved. See
 [Scoring and the leaderboard](/help/qualifiers#scoring-and-the-leaderboard).

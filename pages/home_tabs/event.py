@@ -1,13 +1,13 @@
-"""Event — the community's schedule, in whichever of three readings you want.
+"""Event — the community's schedule, as the match board or the bracket browser.
 
-The match board, today's stage timeline, and the bracket browser used to be
-three sibling tabs. On a phone that spent three of the four bottom-nav slots on
+These used to be sibling tabs (with a stage timeline, On Air, which the Watch
+page at ``/live`` has replaced). On a phone that spent three of the four bottom-nav slots on
 views of the same thing and pushed the player's own matches behind **More**, so
 they are one tab now with a switcher across the top.
 
 Which view opens is driven by the incoming section slug, so the retired
-``/home/on-air`` and ``/home/brackets`` paths still land where they always did
-(see the ``aliases`` on the Event tab in :mod:`pages.home`).
+``/home/brackets`` path still lands where it always did (see the ``aliases`` on
+the Event tab in :mod:`pages.home`; ``/home/on-air`` redirects to ``/live``).
 """
 
 from typing import Awaitable, Callable, NamedTuple, Optional
@@ -18,7 +18,6 @@ from application.services import FeatureFlagService
 from models import FeatureFlag
 from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.schedule import schedule as schedule_view
-from pages.home_tabs.stage_timeline import stage_timeline_tab
 
 
 class EventView(NamedTuple):
@@ -33,11 +32,10 @@ class EventView(NamedTuple):
     flag: Optional[FeatureFlag] = None
 
 
-# Order is the reading order: the whole schedule, then the day being run, then
-# the tournament structure behind it.
+# Order is the reading order: the whole schedule, then the tournament
+# structure behind it.
 VIEWS: tuple[EventView, ...] = (
     EventView('schedule', 'Schedule', 'schedule', schedule_view),
-    EventView('on-air', 'On Air', 'live_tv', stage_timeline_tab),
     EventView('brackets', 'Brackets', 'account_tree', brackets_tab, FeatureFlag.BRACKETS),
 )
 
