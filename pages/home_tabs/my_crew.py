@@ -19,7 +19,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.services import CrewService, get_user_from_discord_id
+from application.services import CrewService, get_user_from_session
 from application.utils.app_links import HOME_MY_CREW, home_url
 from theme.dialog.match_sheet import MatchSheet
 from theme.section import section_panel
@@ -39,7 +39,7 @@ async def my_crew_tab(focus_match: Optional[int] = None) -> None:
     player section's notice.
     """
     discord_id = app.storage.user.get('discord_id')
-    user = await get_user_from_discord_id(discord_id)
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         ui.label('You must be logged in to see your crew commitments.').classes('text-error')
         return

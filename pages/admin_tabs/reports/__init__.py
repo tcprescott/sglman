@@ -61,6 +61,7 @@ def _track_report_view(report: str) -> None:
                 event_type='report.viewed',
                 path=report,
                 discord_id=app.storage.user.get('discord_id'),
+                user_id=app.storage.user.get('user_id'),
                 username=app.storage.user.get('username'),
                 session_id=app.storage.browser.get('id'),
             )

@@ -28,7 +28,7 @@ from starlette.responses import RedirectResponse
 
 from application.errors import NotFoundError
 from application.services import McpAuthService
-from application.services.auth_service import get_user_from_discord_id
+from application.services.auth_service import get_user_from_session
 from application.services.mcp_auth_service import (
     WRITE_CONFIRMATION_PHRASE,
     is_allowed_redirect_uri,
@@ -108,7 +108,7 @@ def create() -> None:
     @ui.page(CONSENT_PATH)
     async def mcp_consent(txn: str = ''):
         service = McpAuthService()
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             # AuthMiddleware normally prevents this; if the session is half-built
             # the safe move is to send them to sign in rather than render a

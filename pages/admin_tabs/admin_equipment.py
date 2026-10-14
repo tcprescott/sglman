@@ -2,7 +2,7 @@
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import EquipmentService, TenantService, get_user_from_discord_id
+from application.services import EquipmentService, TenantService, get_user_from_session
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 from theme.help import help_icon
@@ -119,11 +119,11 @@ async def admin_equipment_page() -> None:
 
         with ui.row().classes('full-width items-center equipment-toolbar'):
             async def add_asset():
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 await EquipmentDialog(actor, on_saved=_render_table.refresh).open()
 
             async def print_labels():
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 await QrLabelDialog(actor).open()
 
             refresh_context = capture_render_context()
@@ -185,17 +185,17 @@ async def admin_equipment_page() -> None:
 
             async def handle_checkout(row, client):
                 with client:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     await open_checkout(actor, row['id'], can_manage=True, on_done=_render_table.refresh)
 
             async def handle_checkin(row, client):
                 with client:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     await quick_checkin(actor, row['id'], on_done=_render_table.refresh)
 
             async def handle_edit(row, client):
                 with client:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     asset = await service.get_asset(row['id'])
                     if asset is None:
                         ui.notify("Couldn't find that asset. Try refreshing.", color='warning')
@@ -204,7 +204,7 @@ async def admin_equipment_page() -> None:
 
             async def handle_remove(row, client):
                 with client:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
 
                     async def do_delete():
                         try:

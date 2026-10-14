@@ -14,7 +14,7 @@ from typing import Optional
 
 from nicegui import app, background_tasks, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from application.tenant_context import require_tenant_id, tenant_scope
 
 
@@ -202,7 +202,7 @@ async def apply_link(
     if chosen == previous_id:
         return
 
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     if previous_id is not None:
         await bracket_service.unlink_match(actor, match_id)  # style-guide: exempt — relinking, the picker is the confirm
     if chosen is not None:

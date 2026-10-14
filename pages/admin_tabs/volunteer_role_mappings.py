@@ -5,7 +5,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import (
     VolunteerPositionService,
     VolunteerRoleMappingService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from models import Role
 from theme.dialog._helpers import dialog_actions, form_dialog
@@ -124,7 +124,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
                     ui.notify('Nothing new to add.', color='warning')
                     return
                 try:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     created, skipped = await service.add_mappings(
                         actor,
                         [int(pid) for pid in position_select.value],
@@ -152,7 +152,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
     async def delete_mapping(row: dict, client) -> None:
         async def do_remove() -> None:
             try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 await service.remove_mapping(actor, row['id'])
             except (ValueError, PermissionError) as e:
                 notify_error(e)
@@ -169,7 +169,7 @@ async def volunteer_role_mappings_section(can_manage: bool) -> None:
 
     async def remove_selected() -> None:
         try:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             removed = await service.remove_mappings(actor, [row['id'] for row in table.selected])
         except (ValueError, PermissionError) as e:
             notify_error(e)

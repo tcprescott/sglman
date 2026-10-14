@@ -9,7 +9,7 @@ be a cycle.
 
 from nicegui import app, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 
 #: Active-column icon slot (check_circle / cancel), matching the styled admin
 #: tables. Rows must carry an ``active_bool`` boolean.
@@ -23,7 +23,7 @@ ACTIVE_ICON_SLOT = '''
 
 async def current_actor():
     """The signed-in super-admin, re-read for a refresh outside a click handler."""
-    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return await get_user_from_session(app.storage.user)
 
 
 def section_intro(caption: str) -> ui.row:

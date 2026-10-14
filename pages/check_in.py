@@ -31,7 +31,7 @@ from application.services import (
     CheckInDeskService,
     CheckInService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.check_in_rules import (
     DESK_FILTERS,
@@ -422,7 +422,7 @@ def _sync_line(event: CheckInEvent) -> tuple[str, str]:
 async def _desk_page_frame(title_suffix: str):
     community = await TenantService.current_community_name() or 'Wizzrobe'
     ui.page_title(f'{community} — {title_suffix}')
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     await BaseLayout(user=user).render()
     return user
 

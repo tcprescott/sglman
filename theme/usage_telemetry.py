@@ -39,17 +39,18 @@ def normalize_path(path: str) -> str:
     return re.sub(r'/\d+(?=/|$)', '/{id}', path)
 
 
-def _identity() -> dict[str, Optional[str]]:
+def _identity() -> dict[str, Any]:
     try:
         session_id = app.storage.browser.get('id')
     except Exception:
         session_id = None
     try:
         discord_id = app.storage.user.get('discord_id')
+        user_id = app.storage.user.get('user_id')
         username = app.storage.user.get('username')
     except Exception:
-        discord_id = username = None
-    return {'discord_id': discord_id, 'username': username, 'session_id': session_id}
+        discord_id = user_id = username = None
+    return {'discord_id': discord_id, 'user_id': user_id, 'username': username, 'session_id': session_id}
 
 
 async def _in_tenant(tenant_id: Optional[int], coro) -> None:

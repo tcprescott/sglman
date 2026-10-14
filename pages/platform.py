@@ -5,11 +5,12 @@ global ``SUPER_ADMIN`` role. Manages tenant CRUD (name, slug, domain, guild id,
 active). Runs tenant-agnostically — its queries pass explicit ids, so the
 per-tenant scoping never applies.
 
-The page is five tabs (``?tab=`` opens one); this module owns the communities
+The page is six tabs (``?tab=`` opens one); this module owns the communities
 tab and builds the rest from their own modules, which is what keeps it inside the file-length
 guideline: :mod:`pages.platform_bots` (racetime bots),
 :mod:`pages.platform_feature_groups` (tiers, and one tenant's overrides),
 :mod:`pages.platform_tenant_admins` (a community's first staff member),
+:mod:`pages.platform_users` (every account, and password sign-in),
 :mod:`pages.platform_logging` (runtime log levels) and
 :mod:`pages.service_health_view` (the health board, shared with the admin tab).
 """
@@ -22,7 +23,7 @@ from application.services import (
     TablePreferenceService,
     TenantService,
     TenantSetupService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.auth_service import AuthService
 from application.table_preferences_context import table_prefs_scope
@@ -35,6 +36,7 @@ from pages.platform_feature_groups import (
 from pages.platform_logging import render_logging_section
 from pages.platform_shared import ACTIVE_ICON_SLOT, section_intro
 from pages.platform_tenant_admins import open_tenant_admins_dialog
+from pages.platform_users import render_users_section
 from theme.chrome import render_platform_chrome
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.menu import SlotItem, slot_more_menu, slot_name_link, slot_row_button
@@ -52,6 +54,7 @@ _bot_service = RacetimeBotService()
 # (key, label, icon) per tab. The key is the ``?tab=`` value a link can open.
 _SECTIONS: tuple[tuple[str, str, str], ...] = (
     ('communities', 'Communities', 'groups'),
+    ('users', 'Users', 'person'),
     ('bots', 'Racetime bots', 'smart_toy'),
     ('features', 'Feature groups', 'toggle_on'),
     ('logging', 'Logging', 'tune'),
@@ -110,7 +113,7 @@ def create() -> None:
             )
             return
 
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if not await AuthService.is_super_admin(user):
             render_error_page(
                 status_code=403, headline='Forbidden',
@@ -140,6 +143,8 @@ def create() -> None:
             with ui.tab_panels(tabs, value=current).classes('w-full'):
                 with ui.tab_panel('communities').style(_PANEL_STYLE):
                     await _render_tenants_section(user)
+                with ui.tab_panel('users').style(_PANEL_STYLE):
+                    await render_users_section(user)
                 with ui.tab_panel('bots').style(_PANEL_STYLE):
                     await render_bots_section(user)
                 with ui.tab_panel('features').style(_PANEL_STYLE):

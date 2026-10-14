@@ -35,7 +35,7 @@ from application.services import (
     EventInfoService,
     FeatureFlagService,
     HelpService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from models import FeatureFlag, User
 from theme.help.render import render_blocks
@@ -59,7 +59,7 @@ async def _event_info_snippet(snippet_name: str, user: Optional[User], user_give
     if not user_given:
         # Only for a caller that had no user to hand: role-gated snippets are the
         # minority, and this costs a lookup the flag check has already earned.
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
     return await EventInfoService.get_snippet(snippet_name, user)
 
 
@@ -99,7 +99,7 @@ async def _resolve_one(snippet_name: str, user: Optional[User]) -> Optional[Help
         # Judged as signed out, a staff snippet would vanish for staff and links
         # to gated articles would lose their anchors. Only looked up when it
         # matters.
-        viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        viewer = await get_user_from_session(app.storage.user)
     snippet = await HelpService.get_snippet(snippet_name, viewer)
     if snippet is None:
         snippet = await _event_info_snippet(snippet_name, viewer, viewer is not None)

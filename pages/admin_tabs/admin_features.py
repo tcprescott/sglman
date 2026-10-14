@@ -9,14 +9,14 @@ see) is available AND enabled. See docs/features/feature-flags.md.
 
 from nicegui import app, ui
 
-from application.services import FeatureFlagService, get_user_from_discord_id
+from application.services import FeatureFlagService, get_user_from_session
 from models import FeatureFlag
 from theme.notify import notify_error
 from theme.page_header import page_header
 
 
 async def admin_features_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     service = FeatureFlagService()
 
     async def _toggle(flag_value: str, enabled: bool) -> None:

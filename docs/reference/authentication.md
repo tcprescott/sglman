@@ -81,8 +81,10 @@ Design B's session keys and guards: `/login` on the custom domain mints a `hando
 
 | Key | Written by | Purpose |
 |---|---|---|
-| `authenticated` | callback / claim / mock login | `bool` flag that `AuthMiddleware` checks |
-| `discord_id` | callback / claim / mock login | Identity key; resolved by `get_user_from_discord_id(discord_id)` |
+| `authenticated` | every sign-in, via `pages/_session.start_session` | `bool` flag that `AuthMiddleware` checks |
+| `user_id` | every sign-in, via `start_session` | **The identity key**, resolved by `get_user_from_session(app.storage.user)`. A session from before this key existed resolves by `discord_id` and gains it |
+| `discord_id` | Discord callback / claim / mock login | The Discord identity; absent on a password session. Still read to recognise "my" rows on the player and crew boards |
+| `auth_method` / `password_stamp` | `/password-login` | Mark a password session and record the account's `password_changed_at`; a password change or removal moves it, which ends the session |
 | `username` | callback / claim / mock login | Display convenience |
 | `avatar` | callback / claim (`avatar_url`; `None` in mock mode) | Display convenience |
 | `oauth_state` | `/login`, `/oauth/start` | One-time CSRF token; popped by the callback |
@@ -308,13 +310,30 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | `ensure_can_manage_sync(user)` | `can_manage_sync` |
 | `ensure_can_admin_qualifier(user, qualifier=None)` | `can_admin_qualifier` |
 
+### `get_user_from_session`
+
+```python
+async def get_user_from_session(storage) -> Optional[User]
+```
+
+How presentation code learns who is signed in: pass `app.storage.user` (or a `dict` copy of it, for a background task). Returns `None` when signed out, when the account is gone or deactivated, or when a password session's password has since changed or been removed. `session_user_id(storage)` reads the id without a query.
+
 ### `get_user_from_discord_id`
 
 ```python
 async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]
 ```
 
-Re-exported from [`application/services`](../../application/services/__init__.py). Takes the `discord_id` read from `app.storage.user` and returns `None` when it is absent (not logged in), when the row has been deleted since login, **or** when the account has been deactivated (`is_active=False`) — so a deactivation takes effect on the user's next request, matching the REST API's rejection in [`api/dependencies.py`](../../api/dependencies.py).
+Re-exported from [`application/services`](../../application/services/__init__.py). Resolves a Discord id (a bot interaction, the Discord `/login` link) and returns `None` when it is absent (not logged in), when the row has been deleted since login, **or** when the account has been deactivated (`is_active=False`) — so a deactivation takes effect on the user's next request, matching the REST API's rejection in [`api/dependencies.py`](../../api/dependencies.py).
+
+## Password sign-in
+
+For people without Discord, or who can't use it at the event. A platform super-admin gives an account a **sign-in name** and **password** on `/platform?tab=users` ([`pages/platform_users.py`](../../pages/platform_users.py)), or creates an account with no Discord at all (**New user**). There is no self-service: nobody sets, changes or resets their own password.
+
+- **Sign-in page**: `/password-login` ([`pages/password_login.py`](../../pages/password_login.py)), unlisted and on every host (platform, `/t/<slug>`, a custom domain). Every failure shows one message. Failed attempts are limited per sign-in name and per browser ([`application/utils/login_throttle.py`](../../application/utils/login_throttle.py)), never per IP, because venue Wi-Fi shares one address.
+- **Storage**: `User.login_name` (unique, lower-cased), `User.password_hash` (scrypt, verified off the event loop), `User.password_changed_at` (the session stamp). The DB CHECK `ck_user_identity` lets an account have no `discord_id` only if it is a SpeedGaming placeholder or has a password.
+- **Service**: `PasswordAuthService` ([`application/services/password_auth_service.py`](../../application/services/password_auth_service.py)) authenticates and, for super-admins only, sets, removes, creates and (de)activates. `user.password_set` / `user.password_removed` go in the audit log without the password.
+- **Scope**: a password session gets exactly the roles and memberships of the account. A password-only account does staff and desk work; the player and crew boards still recognise "my" rows by Discord id, so playing and crew signup need Discord. DMs to an account with no Discord return `DM_NO_DISCORD` without trying.
 
 ## Mock authentication (dev)
 

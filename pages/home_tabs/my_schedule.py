@@ -21,7 +21,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.services import FeatureFlagService, TournamentService, get_user_from_discord_id
+from application.services import FeatureFlagService, TournamentService, get_user_from_session
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_checkouts_section
@@ -50,7 +50,7 @@ async def my_schedule_tab(
     # phone it pushed the crew list, and its Confirm button, below the fold.
     # Their crew comes first; the empty panel still renders after it, because
     # it is where a forwarded player link explains itself.
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     plays = bool(user and await TournamentService().get_enrolled_players_by_user(user))
 
     with ui.column().classes('page-container wiz-section-stack'):

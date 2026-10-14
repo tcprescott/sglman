@@ -24,7 +24,7 @@ from nicegui import app, ui
 from application.services import (
     SystemConfigService,
     TimezoneService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.timezone_context import get_zone
 from application.utils.timezone import (
@@ -224,7 +224,7 @@ async def render_availability_editor(
     section among several under My Schedule, where a second page-sized heading
     would compete with the tab's own.
     """
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return

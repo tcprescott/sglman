@@ -40,7 +40,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from application.services import oauth_handoff_service as handoff_service
-from application.services.auth_service import get_user_from_discord_id
+from application.services.auth_service import get_user_from_session
 from application.services.tenant_service import TenantService
 from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
 from application.utils.environment import (
@@ -449,7 +449,7 @@ def register_link_handoff_pages() -> None:
         data = payload.get('data') or {}
         provider = _HANDOFF_PROVIDERS.get(data.get('key'))
         next_path = safe_next(payload.get('next') or (provider.profile_return if provider else '/'))
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             stash_notice('Please log in and try linking again.', color='warning')
             ui.navigate.to('/login')
@@ -526,7 +526,7 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         # Initiation runs with tenant context; the callback lands on the bare
         # platform host, so pin the tenant-qualified return here.
         root_path = request.scope.get('root_path', '') or ''
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             return RedirectResponse(f'{root_path}/login')
         # Custom domain + handoff: run the provider OAuth on the platform host and
@@ -575,7 +575,7 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         # Cross-host handoff leg (platform host): exchange + mint + hand back.
         if await handle_link_handoff_callback(url):
             return
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         expected_state = app.storage.user.pop(flow.state_key, None)
         return_path = app.storage.user.pop(flow.return_key, None) or flow.profile_return
         if user is None:

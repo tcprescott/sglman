@@ -9,7 +9,7 @@ offered every account on the platform.
 
 from nicegui import app, ui
 
-from application.services import TournamentService, UserService, get_user_from_discord_id
+from application.services import TournamentService, UserService, get_user_from_session
 from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
@@ -22,7 +22,7 @@ class TournamentPlayersDialog:
 
     async def open(self):
         service = TournamentService()
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog

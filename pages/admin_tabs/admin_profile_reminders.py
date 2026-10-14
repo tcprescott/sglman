@@ -8,13 +8,13 @@ writes go through :class:`ProfileNudgeService`.
 
 from nicegui import app, ui
 
-from application.services import AuthService, ProfileNudgeService, get_user_from_discord_id
+from application.services import AuthService, ProfileNudgeService, get_user_from_session
 from application.services.profile_nudge_service import CHECKS, MAX_NOTE_LENGTH
 from theme.page_header import page_header
 
 
 async def admin_profile_reminders_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_edit = await AuthService.is_staff(actor)
     service = ProfileNudgeService()
 

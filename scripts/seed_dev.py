@@ -84,6 +84,7 @@ from scripts.seed_online import (
     seed_racetime_bots,
 )
 from scripts.seed_onsite import seed_onsite_for_tenant
+from scripts.seed_password import seed_password_sign_in
 from scripts.seed_payouts import seed_matcherino_handles, seed_payouts_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_preferences import seed_table_preferences
@@ -166,8 +167,10 @@ async def seed_users() -> dict[str, User]:
     # Before anything else writes a provider id: clicking Link as one of these
     # fixtures is what they exist for, so a re-seed restores them.
     await reset_unlinked_probe_users(users)
+    await seed_password_sign_in(users)
     print("  users ok (global)")
     return users
+
 
 
 async def seed_super_admin(users: dict[str, User]) -> None:

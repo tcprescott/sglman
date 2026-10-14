@@ -3,7 +3,7 @@
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import AuthService, StageService, get_user_from_discord_id
+from application.services import AuthService, StageService, get_user_from_session
 from application.tenant_context import require_tenant_id
 from application.utils.safe_url import http_url_or_empty
 from models import Tournament
@@ -18,7 +18,7 @@ from theme.tables.tournament import TournamentTableView
 
 
 async def admin_tournaments_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
@@ -77,7 +77,7 @@ async def admin_tournaments_page() -> None:
 
 
 async def admin_stages_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_manage = await AuthService.can_manage_stages(actor)
 
     with ui.column().classes('page-container-narrow'):

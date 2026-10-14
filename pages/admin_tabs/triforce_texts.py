@@ -2,7 +2,7 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import AuthService, TriforceTextService, get_user_from_discord_id
+from application.services import AuthService, TriforceTextService, get_user_from_session
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -23,7 +23,7 @@ def _to_status(option: str):
 
 
 async def admin_triforce_texts_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     if actor is None:
         ui.label('User not found.').classes('text-error')
         return

@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import PayoutService, TournamentService, get_user_from_discord_id
+from application.services import PayoutService, TournamentService, get_user_from_session
 from application.services.payout_service import format_percentage
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, form_dialog
@@ -90,7 +90,7 @@ async def admin_payouts_page() -> None:
         table_container = ui.column().classes('w-full')
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def refresh_table():
             actor = await _current()

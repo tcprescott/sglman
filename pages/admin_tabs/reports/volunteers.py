@@ -9,7 +9,7 @@ from typing import Optional
 
 from nicegui import app, ui
 
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, get_user_from_session
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_local_display, to_local
 from pages.admin_tabs.links import VOL_SCHEDULE, admin_url
@@ -42,7 +42,7 @@ async def volunteers_page(
     # Reading these numbers and staffing the shifts are different capabilities:
     # a crew coordinator can see the coverage report and cannot manage
     # volunteers, so they get the numbers and no link.
-    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    viewer = await get_user_from_session(app.storage.user)
     can_staff_shifts = await AuthService.can_manage_volunteers(viewer)
 
     def nav(s: date, e: date) -> None:

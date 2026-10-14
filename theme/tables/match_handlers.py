@@ -9,6 +9,7 @@ view's injected instances / lazy imports, never repositories.
 
 from nicegui import app, ui
 
+from application.services import get_user_from_session
 from application.utils.match_labels import match_row_label
 from theme.dialog import ConfirmationDialog, UserDialog
 from theme.notify import notify_error
@@ -30,13 +31,9 @@ class MatchTableHandlersMixin:
 
     async def _handle_acknowledge_match(self, row, client):
         with client:
-            discord_id = app.storage.user.get('discord_id', None)
-            if not discord_id:
-                ui.notify('You must be logged in to acknowledge.', color='warning')
-                return
-            user = await self.user_service.get_current_user_from_storage(discord_id)
+            user = await get_user_from_session(app.storage.user)
             if not user:
-                ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+                ui.notify('You must be logged in to acknowledge.', color='warning')
                 return
             match_id = row['id']
             try:
@@ -74,7 +71,7 @@ class MatchTableHandlersMixin:
             await dialog.open()
 
     async def _handle_toggle_approval(self, role, event):
-        from application.services import CrewService, get_user_from_discord_id
+        from application.services import CrewService, get_user_from_session
 
         row = event.args['row']
         idx = event.args['idx']
@@ -103,7 +100,7 @@ class MatchTableHandlersMixin:
 
         async def apply():
             try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 await CrewService().update_crew_approval(
                     crew_member=crew_member,
                     crew_type=role,
@@ -153,14 +150,9 @@ class MatchTableHandlersMixin:
     async def _handle_signup_or_undo_role(self, action, role, row):
         """Handle crew signup/undo using service layer."""
         from application.services import CrewService
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.notify(f'You must be logged in to {action}.', color='warning')
-            return
-
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
-            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            ui.notify(f'You must be logged in to {action}.', color='warning')
             return
 
         match_id = row['id']
@@ -173,7 +165,7 @@ class MatchTableHandlersMixin:
             # so rather than reusing the neutral copy.
             mine = next(
                 (c for c in (row.get(f'{role}s') or [])
-                 if isinstance(c, dict) and c.get('discord_id') == str(discord_id)),
+                 if isinstance(c, dict) and c.get('user_id') == user.id),
                 None,
             )
             was_approved = bool(mine and mine.get('approved'))
@@ -233,13 +225,9 @@ class MatchTableHandlersMixin:
                 ui.notify('Page is out of date — please refresh and try again.', color='warning')
                 return
             crew_id = items[idx]['id']
-            discord_id = app.storage.user.get('discord_id', None)
-            if not discord_id:
-                ui.notify('You must be logged in to acknowledge.', color='warning')
-                return
-            user = await self.user_service.get_current_user_from_storage(discord_id)
+            user = await get_user_from_session(app.storage.user)
             if not user:
-                ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+                ui.notify('You must be logged in to acknowledge.', color='warning')
                 return
             try:
                 await CrewService().acknowledge_crew_assignment(crew_id, role, user)
@@ -319,14 +307,9 @@ class MatchTableHandlersMixin:
         if match_id is None:
             return
 
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.notify('You must be logged in to watch a match.', color='warning')
-            return
-
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
-            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            ui.notify('You must be logged in to watch a match.', color='warning')
             return
 
         currently_watching = bool(row.get('_watching'))
@@ -362,14 +345,9 @@ class MatchTableHandlersMixin:
         if match_id is None:
             return
 
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.notify('You must be logged in to offer a match for stream.', color='warning')
-            return
-
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
-            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            ui.notify('You must be logged in to offer a match for stream.', color='warning')
             return
 
         volunteered = bool(row.get('_stream_volunteer'))
@@ -412,14 +390,9 @@ class MatchTableHandlersMixin:
         if match_id is None:
             return
 
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.notify('You must be logged in to ask for a change.', color='warning')
-            return
-
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
-            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            ui.notify('You must be logged in to ask for a change.', color='warning')
             return
 
         match = await self.service.get_by_id(match_id)
@@ -455,14 +428,9 @@ class MatchTableHandlersMixin:
         if match_id is None:
             return
 
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.notify('You must be logged in to choose your settings.', color='warning')
-            return
-
-        user = await self.user_service.get_current_user_from_storage(discord_id)
+        user = await get_user_from_session(app.storage.user)
         if not user:
-            ui.notify("We couldn't find your account. Try logging in again.", color='warning')
+            ui.notify('You must be logged in to choose your settings.', color='warning')
             return
 
         match = await self.service.get_by_id(match_id)

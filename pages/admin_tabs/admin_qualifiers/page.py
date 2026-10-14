@@ -20,7 +20,7 @@ from application.services import (
     AuthService,
     PresetService,
     UserService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.async_qualifier.async_qualifier_rules import display_name
 from application.tenant_context import require_tenant_id, tenant_scope
@@ -107,7 +107,7 @@ async def admin_qualifiers_page(
     _TAB_VIEWS: dict = {}
 
     async def _current():
-        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        return await get_user_from_session(app.storage.user)
 
     # ---------------------------------------------------------------- loaders
 

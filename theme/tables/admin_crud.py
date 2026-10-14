@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from nicegui import app, background_tasks, ui
 
-from application.services import get_user_from_discord_id
+from application.services import get_user_from_session
 from application.table_preferences_context import current_table_prefs, table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.timezone_context import current_timezone_name, tz_scope
@@ -99,7 +99,7 @@ __all__ = [
 
 async def current_actor() -> Optional[User]:
     """The logged-in ``User`` (or ``None``)."""
-    return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    return await get_user_from_session(app.storage.user)
 
 
 def wire_tab_refresh(tab_name: str, refresh: Callable[..., Awaitable[None]]) -> None:

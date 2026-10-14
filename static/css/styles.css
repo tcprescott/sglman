@@ -5941,3 +5941,7 @@ ol.wiz-help-list { list-style-type: decimal; }
     color: var(--fg);
     border-bottom-color: var(--q-primary);
 }
+
+/* Password sign-in (/password-login): one centred card, the same at every width. */
+.password-login { padding-top: 10vh; }
+.password-login__card { max-width: 380px; padding: 24px 20px; }

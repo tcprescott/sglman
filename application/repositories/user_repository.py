@@ -157,6 +157,31 @@ class UserRepository(TenantScopedRepository[User]):
         )
 
     @staticmethod
+    async def get_by_login_name(login_name: str) -> Optional[User]:
+        return await User.get_or_none(login_name=login_name)
+
+    @staticmethod
+    async def create_password_account(
+        username: str, display_name: str, login_name: str, password_hash: str, changed_at,
+    ) -> User:
+        return await User.create(
+            username=username,
+            display_name=display_name,
+            login_name=login_name,
+            password_hash=password_hash,
+            password_changed_at=changed_at,
+        )
+
+    @staticmethod
+    async def list_for_platform() -> List[User]:
+        """Every real account (no placeholders, no system actor), with roles."""
+        return await (
+            User.filter(is_placeholder=False, is_system=False)
+            .prefetch_related('tenant_memberships__tenant', 'roles')
+            .order_by('username')
+        )
+
+    @staticmethod
     async def get_or_create_by_discord_id(
         discord_id: int,
         username: str,

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from nicegui import app, ui
 
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, get_user_from_session
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
@@ -44,7 +44,7 @@ def _tier_label(summary) -> str:
 
 
 async def admin_volunteer_roster_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     if not await AuthService.can_manage_volunteers(actor):
         ui.label('You do not have permission to manage volunteers.').classes('text-error')
         return

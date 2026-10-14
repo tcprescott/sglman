@@ -12,7 +12,7 @@ from application.services import (
     AuthService,
     ReportsService,
     SystemConfigService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
@@ -99,7 +99,7 @@ async def dashboard_page(
     end: Optional[str] = None,
 ) -> None:
     reports_service = ReportsService()
-    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    viewer = await get_user_from_session(app.storage.user)
     is_staff = await AuthService.is_staff(viewer)
     live = live if live is not None else set()
 

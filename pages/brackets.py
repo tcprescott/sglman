@@ -32,7 +32,7 @@ from application.services import (
     AuthService,
     BracketService,
     TenantService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.bracket_engines.standings import (
     compute_standings,
@@ -341,7 +341,7 @@ def _share_meta(title: str, description: str) -> None:
 
 async def _viewer():
     """The signed-in viewer (or None) and whether they hold staff here."""
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     return user, await AuthService.is_staff(user)
 
 

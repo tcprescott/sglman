@@ -10,7 +10,7 @@ from application.services import (
     MatchRescheduleService,
     MatchService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.match.match_reads import (
     RELATION_CREW,
@@ -199,9 +199,8 @@ def _render_request_card(row, *, on_withdraw) -> None:
 
             async def withdraw(_=None, request_id=row.id):
                 from application.services import MatchRescheduleService
-                from application.services import get_user_from_discord_id as _get
 
-                actor = await _get(app.storage.user.get('discord_id'))
+                actor = await get_user_from_session(app.storage.user)
                 try:
                     await MatchRescheduleService().withdraw(request_id, actor)
                 except (ValueError, PermissionError) as e:
@@ -258,7 +257,7 @@ async def render_player_dashboard(
     # Resolved once for the help icons below: three of them read from the event
     # handbook, which filters by role, and each would otherwise look the viewer
     # up for itself.
-    viewer = await get_user_from_discord_id(discord_id)
+    viewer = await get_user_from_session(app.storage.user)
     match_service = MatchService()
     reschedule_service = MatchRescheduleService()
     hard_preset_service = MatchHardPresetService()
@@ -301,7 +300,7 @@ async def render_player_dashboard(
                 return
             if not await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE):
                 return
-            user = await get_user_from_discord_id(discord_id)
+            user = await get_user_from_session(app.storage.user)
             if user is None:
                 return
             matches = await challonge_service.list_unscheduled_matches_for_user(user)
@@ -327,7 +326,7 @@ async def render_player_dashboard(
                         ui.space()
                         if opponent_linked:
                             async def do_schedule(_=None, m=cm, oname=opponent_name):
-                                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                                actor = await get_user_from_session(app.storage.user)
 
                                 async def after():
                                     await table_view.refresh()
@@ -359,7 +358,7 @@ async def render_player_dashboard(
         async def bracket_section():
             if not await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
                 return
-            user = await get_user_from_discord_id(discord_id)
+            user = await get_user_from_session(app.storage.user)
             if user is None:
                 return
             matchups = await bracket_service.list_open_matches_for_user(user.id)
@@ -397,9 +396,7 @@ async def render_player_dashboard(
 
                         async def do_schedule(_=None, m=bm, oname=opponent_name,
                                               n=number, bo=best_of):
-                            actor = await get_user_from_discord_id(
-                                app.storage.user.get('discord_id')
-                            )
+                            actor = await get_user_from_session(app.storage.user)
 
                             # The board first: rebuilding the section deletes
                             # the dialog this runs from.

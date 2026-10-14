@@ -7,7 +7,7 @@ editor assigns them here; the assignment survives every re-sync.
 
 from nicegui import app, ui
 
-from application.services import ChallongeService, UserService, get_user_from_discord_id
+from application.services import ChallongeService, UserService, get_user_from_session
 from theme.dialog._helpers import dialog_header, mobile_sheet
 from theme.notify import notify_error
 
@@ -30,7 +30,7 @@ class ChallongeParticipantsDialog:
 
     async def open(self) -> None:
         service = ChallongeService()
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         members = {u.id: _person(u) for u in await UserService().get_community_people()}
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):

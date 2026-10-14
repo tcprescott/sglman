@@ -10,7 +10,7 @@ from nicegui import app, background_tasks, ui
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 
-from application.services.auth_service import AuthService, get_user_from_discord_id
+from application.services.auth_service import AuthService, get_user_from_session
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
 from application.services.tenant_membership_service import TenantMembershipService
@@ -111,6 +111,7 @@ def record_page_view(path: str, kwargs: dict) -> None:
     """
     try:
         discord_id = app.storage.user.get('discord_id')
+        user_id = app.storage.user.get('user_id')
         username = app.storage.user.get('username')
         try:
             session_id = app.storage.browser.get('id')
@@ -124,6 +125,7 @@ def record_page_view(path: str, kwargs: dict) -> None:
                 TelemetryService().track_page_view(
                     path=path,
                     discord_id=discord_id,
+                    user_id=user_id,
                     username=username,
                     session_id=session_id,
                     params=params or None,
@@ -251,7 +253,7 @@ async def _render_community_chooser() -> None:
     from theme.base import current_local_url
     from theme.error_page import prepared_layout, render_error_page
 
-    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    user = await get_user_from_session(app.storage.user)
     here = current_local_url()
     tenants = [t for t in await TenantService.list_tenants() if t.is_active]
     render_error_page(
@@ -337,7 +339,7 @@ def _tenant_page(
                 # anything more specific would say the feature exists here.
                 from theme.error_page import render_not_found
                 await render_not_found(
-                    user=await get_user_from_discord_id(app.storage.user.get('discord_id')),
+                    user=await get_user_from_session(app.storage.user),
                 )
                 return
 
@@ -347,7 +349,7 @@ def _tenant_page(
             user = None
             is_super_admin = False
             if require_auth:
-                user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                user = await get_user_from_session(app.storage.user)
                 is_super_admin = await AuthService.is_super_admin(user)
                 # Now that the viewer is known, their saved preference can
                 # outrank the browser hint the first pass used.
@@ -366,7 +368,7 @@ def _tenant_page(
                 # Resolved once, above, on every auth-requiring page; a
                 # @public_page with a role gate would still need to load it.
                 if user is None and not require_auth:
-                    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    user = await get_user_from_session(app.storage.user)
                     is_super_admin = await AuthService.is_super_admin(user)
                 allowed = is_super_admin
                 if not allowed and user is not None and role_list:
@@ -446,7 +448,7 @@ def public_page(
     authorizes anyone cannot also authorize a role.
 
     The page function must therefore tolerate ``user is None`` throughout —
-    ``get_user_from_discord_id`` returns ``None`` and every ``AuthService``
+    ``get_user_from_session`` returns ``None`` and every ``AuthService``
     predicate is ``False`` for an anonymous visitor, so signed-in affordances
     hide themselves, but any surface built this way must be safe to show the
     world.
@@ -531,9 +533,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             # Guarded on discord_id being present: str(None) would file the events
             # under a phantom 'None' user that aggregates unrelated reports.
             discord_id = app.storage.user.get('discord_id')
-            if discord_id is not None:
+            user_id = app.storage.user.get('user_id')
+            if discord_id is not None or user_id:
                 sentry_sdk.set_user({
-                    'id': str(discord_id),
+                    'id': str(discord_id) if discord_id is not None else f'user:{user_id}',
                     'username': app.storage.user.get('username'),
                 })
         return await call_next(request)

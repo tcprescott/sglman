@@ -15,7 +15,7 @@ colours.
 
 from nicegui import app, ui
 
-from application.services import AuthService, TenantLogoService, TenantThemeService, get_user_from_discord_id
+from application.services import AuthService, TenantLogoService, TenantThemeService, get_user_from_session
 from application.services.tenant_logo_service import ACCEPT, MAX_UPLOAD_BYTES
 from application.services.tenant_theme_service import DEFAULT_THEME, THEME_PRESETS
 from application.tenant_context import get_current_tenant_id, tenant_scope
@@ -62,7 +62,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
             return
         data = await e.file.read()
         with tenant_scope(tenant_id):
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             if actor is None:
                 return
             try:
@@ -76,7 +76,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
 
     async def remove() -> None:
         with tenant_scope(tenant_id):
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             if actor is None:
                 return
             try:
@@ -113,7 +113,7 @@ def _logo_section(logo: str | None, can_edit: bool) -> None:
 
 
 async def admin_theme_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_edit = await AuthService.is_staff(actor)
 
     colors = await TenantThemeService.get_current_theme()
@@ -182,7 +182,7 @@ async def admin_theme_page() -> None:
         revalidate()
 
         async def save():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             payload = {key: inp.value for key, inp in inputs.items()}
             try:
                 await TenantThemeService.set_theme(actor, payload)
@@ -205,7 +205,7 @@ async def admin_theme_page() -> None:
             ).open()
 
         async def reset():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             try:
                 await TenantThemeService.set_theme(actor, {})
             except ValueError as e:

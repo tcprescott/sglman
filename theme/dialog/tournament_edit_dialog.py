@@ -10,7 +10,7 @@ from application.services import (
     RaceRoomProfileService,
     RacetimeBotService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.services.tournament_service import DELETE_CONFIRMATION_PHRASE
 from application.tenant_context import require_tenant_id
@@ -48,7 +48,7 @@ class TournamentDialog:
     async def open(self):
         is_create = self.tournament is None
         title = 'Add Tournament' if is_create else 'Edit Tournament'
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         can_sync = await AuthService.can_manage_sync(actor)
         can_delete = not is_create and await AuthService.is_staff(actor)
         # This dialog opens from the (ungated) Tournaments tab, so its Challonge
@@ -382,7 +382,7 @@ class TournamentDialog:
                                     ui.notify('Enter a Challonge tournament ID or URL.', color='warning')
                                 return
                             try:
-                                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                                actor = await get_user_from_session(app.storage.user)
                                 await self.challonge_service.link_tournament(self.tournament.id, value, actor)
                                 await self.tournament.refresh_from_db()
                                 with self.dialog:
@@ -471,9 +471,7 @@ class TournamentDialog:
                     # The confirmation has already closed itself by now, so both
                     # notices belong to the edit dialog still standing behind it.
                     try:
-                        actor = await get_user_from_discord_id(
-                            app.storage.user.get('discord_id')
-                        )
+                        actor = await get_user_from_session(app.storage.user)
                         await self.tournament_service.delete_tournament(
                             self.tournament, actor=actor,
                             confirmation=confirm.typed_phrase,
@@ -541,7 +539,7 @@ class TournamentDialog:
                         racetime_default_goal=rt['goal_input'].value,
                     )
                 try:
-                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    actor = await get_user_from_session(app.storage.user)
                     if self.tournament:
                         with self.dialog:
                             await self.tournament_service.update_tournament(

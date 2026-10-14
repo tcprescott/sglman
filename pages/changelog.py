@@ -11,7 +11,7 @@ item of its own: the Help index links it, and it links back.
 from nicegui import app, ui
 
 from application.changelog import ChangelogEntry, ChangelogSection, all_entries
-from application.services import TenantService, get_user_from_discord_id
+from application.services import TenantService, get_user_from_session
 from middleware.auth import public_page
 from theme.base import BaseLayout
 from theme.empty_state import empty_panel
@@ -55,7 +55,7 @@ def create() -> None:
     async def changelog() -> None:
         community = await TenantService.current_community_name() or 'Wizzrobe'
         ui.page_title(f"What's new — {community}")
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         await BaseLayout(user=user).render()
 
         with ui.column().classes('page-container-narrow w-full'):

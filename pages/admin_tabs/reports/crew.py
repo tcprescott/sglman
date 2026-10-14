@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from nicegui import app, ui
 
-from application.services import AuthService, ReportsService, get_user_from_discord_id
+from application.services import AuthService, ReportsService, get_user_from_session
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.section import section_panel
@@ -49,7 +49,7 @@ async def crew_page(
     # Resolved once, not per row: this report is readable by staff, tournament
     # admins and crew coordinators, and all three also have the Schedule tab —
     # but that is the destination's predicate, so ask it rather than assume it.
-    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    viewer = await get_user_from_session(app.storage.user)
     can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     def nav(**overrides) -> None:

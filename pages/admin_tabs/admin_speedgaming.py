@@ -11,7 +11,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import (
     SpeedGamingSyncService,
     TournamentService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -68,7 +68,7 @@ async def admin_speedgaming_page() -> None:
         table_container = ui.column().classes('w-full')
 
         async def _current():
-            return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            return await get_user_from_session(app.storage.user)
 
         async def _tournament_options():
             tournaments = await tournament_service.get_all_tournaments()

@@ -11,7 +11,7 @@ from nicegui import app, ui
 from application.services import (
     AuthService,
     ReportsService,
-    get_user_from_discord_id,
+    get_user_from_session,
 )
 from application.utils.timezone import format_local_datetime, format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
@@ -52,7 +52,7 @@ async def capacity_page(
 
     start_d, end_d = await default_date_range(start, end)
     focus_dt = _parse_focus(focus)
-    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    viewer = await get_user_from_session(app.storage.user)
     can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     def nav(**overrides) -> None:

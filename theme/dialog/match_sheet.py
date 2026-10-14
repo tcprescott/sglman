@@ -19,7 +19,7 @@ from nicegui import app, ui
 
 from application.content import parse_blocks
 from application.errors import NotFoundError
-from application.services import MatchCommentService, get_user_from_discord_id
+from application.services import MatchCommentService, get_user_from_session
 from theme.clipboard import copy_to_clipboard
 from theme.dialog._helpers import dialog_actions, dialog_header
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -154,7 +154,8 @@ class MatchSheet:
         # Comments are read per viewer, so they are fetched when the sheet
         # opens rather than carried on the board's rows, which every viewer of
         # a shared board would otherwise receive.
-        self._discord_id = app.storage.user.get('discord_id')
+        # A copy, because comments can load where the session is out of reach.
+        self._session = dict(app.storage.user)
         self._viewer: Any = None
         self._comments: list = []
         # Which comment box is open: 'private' or 'players' for staff, while
@@ -459,8 +460,8 @@ class MatchSheet:
         if self.row is None:
             self._comments = []
             return
-        if self._viewer is None and self._discord_id:
-            self._viewer = await get_user_from_discord_id(self._discord_id)
+        if self._viewer is None and self._session.get('authenticated'):
+            self._viewer = await get_user_from_session(self._session)
         try:
             self._comments = await MatchCommentService().list_for_viewer(self.row['id'], self._viewer)
         except NotFoundError:

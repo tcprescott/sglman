@@ -18,7 +18,7 @@ from typing import Awaitable, Callable, Optional
 
 from nicegui import app, ui
 
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, get_user_from_session
 from application.table_preferences_context import current_table_prefs, table_prefs_scope
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.timezone_context import current_timezone_name, tz_scope
@@ -203,7 +203,7 @@ async def admin_settings_page(
         ui.notify('That settings page doesn’t exist any more. Pick one below.', color='warning')
     has_home = len(panes) > 1
     can_edit = await AuthService.is_staff(
-        await get_user_from_discord_id(app.storage.user.get('discord_id')))
+        await get_user_from_session(app.storage.user))
     # Captured now: a pane built later is built inside a click handler, which
     # has lost the tenant, the display zone and the table layouts.
     tenant_id = get_current_tenant_id()

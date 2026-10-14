@@ -12,7 +12,7 @@ screen, an online tournament wants each player's own.
 
 from nicegui import app, ui
 
-from application.services import AuthService, TimezoneService, get_user_from_discord_id
+from application.services import AuthService, TimezoneService, get_user_from_session
 from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED, MODE_USER
 from application.utils.timezone import format_local_display, now_local
 from theme.page_header import page_header
@@ -24,7 +24,7 @@ _MODE_LABELS = {
 
 
 async def admin_timezone_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     can_edit = await AuthService.is_staff(actor)
 
     settings = await TimezoneService.get_settings()
@@ -92,7 +92,7 @@ async def admin_timezone_page() -> None:
             return
 
         async def save():
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            actor = await get_user_from_session(app.storage.user)
             try:
                 await TimezoneService.set_settings(
                     actor, mode_toggle.value, zone_select.value,

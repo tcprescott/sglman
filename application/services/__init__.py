@@ -39,7 +39,7 @@ from .async_qualifier import (
     validate_window,
 )
 from .audit_service import AuditService
-from .auth_service import AuthService, get_user_from_discord_id
+from .auth_service import AuthService, get_user_from_discord_id, get_user_from_session
 from .bracket_config import BracketConfig, validate_bracket_config
 from .bracket_service import BracketService
 from .challonge_service import ChallongeService
@@ -81,6 +81,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
 from .preset_service import PresetService
@@ -185,6 +186,7 @@ __all__ = [
     'MatcherinoLoginStatus',
     'McpAuthService',
     'NotFoundError',
+    'PasswordAuthService',
     'PayoutService',
     'PlayerAvailabilityService',
     'PresetService',
@@ -249,6 +251,7 @@ __all__ = [
     'discord_event_worker',
     'discord_queue',
     'get_user_from_discord_id',
+    'get_user_from_session',
     'notification_links',
     'oauth_handoff_service',
     'race_room_worker',

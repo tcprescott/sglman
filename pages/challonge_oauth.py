@@ -25,7 +25,7 @@ from nicegui import Client, app, ui
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from application.services.auth_service import AuthService, get_user_from_discord_id
+from application.services.auth_service import AuthService, get_user_from_session
 from application.services.challonge_service import ChallongeService
 from application.services.feature_flag_service import FeatureFlagService
 from application.tenant_context import get_current_tenant_id, tenant_scope
@@ -104,7 +104,7 @@ def create() -> None:
         # Initiation runs with tenant context; the shared callback lands on the
         # bare platform host, so pin the tenant-qualified return here.
         root_path = request.scope.get('root_path', '') or ''
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             return RedirectResponse(f'{root_path}/login')
         if not await AuthService.is_staff(user):
@@ -133,7 +133,7 @@ def create() -> None:
         # hand the verified identity back to the custom domain's /oauth/link/claim.
         if await handle_link_handoff_callback(url):
             return
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         service_state = app.storage.user.pop('challonge_service_state', None)
         player_state = app.storage.user.pop('challonge_player_state', None)
         service_return = app.storage.user.pop('challonge_service_return', None) or _ADMIN_RETURN
@@ -196,7 +196,7 @@ def create() -> None:
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
         root_path = request.scope.get('root_path', '') or ''
-        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        user = await get_user_from_session(app.storage.user)
         if user is None:
             return RedirectResponse(f'{root_path}/login')
         if not await _challonge_live():

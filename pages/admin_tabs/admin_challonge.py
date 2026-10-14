@@ -6,7 +6,7 @@ tournaments linked to a Challonge bracket with a per-tournament Sync action.
 
 from nicegui import app, ui
 
-from application.services import AuthService, ChallongeService, get_user_from_discord_id
+from application.services import AuthService, ChallongeService, get_user_from_session
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_local_display
 from models import Tournament
@@ -20,7 +20,7 @@ from theme.page_header import page_header
 
 
 async def admin_challonge_page() -> None:
-    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    actor = await get_user_from_session(app.storage.user)
     is_staff = await AuthService.is_staff(actor)
     service = ChallongeService()
 

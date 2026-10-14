@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 from nicegui import app, ui
 
-from application.services import MatchService, get_user_from_discord_id
+from application.services import MatchService, get_user_from_session
 from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog._helpers import dialog_actions, form_dialog
@@ -229,7 +229,7 @@ class MatchResultDialog:
             return
         self._submitting = True
 
-        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        actor = await get_user_from_session(app.storage.user)
         if actor is None:
             ui.notify('You must be logged in to record match results.', color='negative')
             self._submitting = False
