@@ -3578,68 +3578,121 @@ td .wiz-crew-action {
 }
 
 /* ---------------------------------------------------------------------------
-   Reconnect overlay — brand NiceGUI's "Connection lost / Trying to reconnect"
-   popup (#popup.nicegui-error-popup) so a dropped socket (phone lock, network
-   flip) reads as a deliberate, on-brand moment instead of a stock gray toast.
-   This sheet loads after nicegui.css, so these override by source order; the
-   framework's [aria-hidden] show/hide transitions still drive visibility.
+   Connection card + socket-dependent controls (theme/connection.py)
+   One card, top-centre under the header where toasts open, carries the whole
+   lost-connection story. It is driven from the browser's own offline/online
+   events as well as the socket, so it shows the moment the link drops, while
+   the server still believes the client is there. Top, not bottom: on a phone a
+   bottom card covers a bottom sheet's Save button, the very control people tap
+   while offline.
 --------------------------------------------------------------------------- */
-.nicegui-error-popup {
-    background: var(--n-900) !important;
-    color: var(--n-0) !important;
+
+/* NiceGUI's "Connection lost / Trying to reconnect" popup fires on the same
+   socket disconnect the card already reads, only seconds later, so it would
+   only repeat it. Its sibling #too_long_message_popup keeps the framework look. */
+#popup.nicegui-error-popup {
+    display: none !important;
+}
+
+.wiz-connection-card {
+    position: fixed;
+    top: calc(var(--wiz-header-height, 56px) + env(safe-area-inset-top, 0px) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(440px, calc(100vw - 24px));
+    box-sizing: border-box;
+    z-index: 9500;
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--n-900);
+    color: var(--n-0);
     border: 1px solid var(--n-700);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-3);
     font-family: var(--font-body);
-    /* Clear the mobile bottom nav / home indicator when pinned to the bottom. */
-    margin-bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
 }
 
-.nicegui-error-popup > span:first-child {
-    font-family: var(--font-display);
-    font-weight: 600;
-    color: #fff;
+/* On the dark page the charcoal card would sink into the background; lift it. */
+.body--dark .wiz-connection-card {
+    background: var(--n-700);
+    border-color: var(--n-500);
 }
 
-/* ---------------------------------------------------------------------------
-   Offline banner + socket-dependent controls (theme/connection.py)
-   The framework popup above only appears once the socket reports a disconnect,
-   which lags a dead link by ping_interval + ping_timeout and then waits out a
-   2s transition-delay. This banner is the fast, honest state in front of it: it
-   is driven from the browser's own offline/online events, so it shows while the
-   server still believes the client is there.
---------------------------------------------------------------------------- */
-.wiz-connection-banner {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
-    z-index: 9500;
-    padding: 0.75em 1em;
-    text-align: center;
-    background: var(--n-900);
-    color: var(--n-0);
-    border-top: 1px solid var(--n-700);
-    box-shadow: var(--shadow-3);
-    font-family: var(--font-body);
-    font-weight: 600;
+body:not(:has(.wiz-header)) .wiz-connection-card {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
 }
 
-.wiz-connection-banner[hidden] {
-    display: none;
+.wiz-connection-card[hidden],
+.wiz-connection-card [hidden] {
+    display: none !important;
 }
 
-/* The recovery message sits on the same charcoal bar, so it takes the dark-mode
-   olive directly — light mode's --status-ok is too dark to read there. */
-.wiz-connection-banner--ok {
-    color: #A8C46B; /* style-guide: exempt — the charcoal bar is dark in both modes */
+/* The card is charcoal in both modes, so its warning and recovery tones take
+   the dark-mode values directly; light mode's are too dark to read on it. */
+.wiz-connection-card__icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    color: #F2C14E; /* style-guide: exempt — the charcoal card is dark in both modes */
 }
 
-/* The framework popup is pinned to the same corner. Both are visible during a
-   long outage (by design — it carries the about-to-reload moment), so lift it
-   clear of the banner rather than hiding it. */
-body.wiz-offline .nicegui-error-popup {
-    margin-bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom) + 4.5rem);
+.wiz-connection-card__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.wiz-connection-card__title {
+    font-weight: 700;
+    font-size: var(--text-lg);
+    line-height: 22px;
+}
+
+.wiz-connection-card__body {
+    font-size: var(--text-md);
+    line-height: 1.4;
+    color: var(--n-200);
+}
+
+.wiz-connection-card__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--text-sm);
+    color: var(--n-300);
+}
+
+.wiz-connection-card__spinner {
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid var(--n-500);
+    border-top-color: var(--n-0);
+    animation: wiz-connection-spin 0.9s linear infinite;
+}
+
+@keyframes wiz-connection-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wiz-connection-card__spinner { animation: none; }
+}
+
+.wiz-connection-card--ok .wiz-connection-card__icon,
+.wiz-connection-card--ok .wiz-connection-card__title {
+    color: #A8C46B; /* style-guide: exempt — the charcoal card is dark in both modes */
+}
+
+/* Toasts share the card's spot; while it shows, start the stack below it. */
+body.wiz-connection-card-shown .q-notifications__list--top {
+    top: calc(var(--wiz-header-height, 56px) + env(safe-area-inset-top, 0px) + 18px + var(--wiz-connection-card-h, 0px));
+}
+
+body.wiz-connection-card-shown:not(:has(.wiz-header)) .q-notifications__list--top {
+    top: calc(env(safe-area-inset-top, 0px) + 18px + var(--wiz-connection-card-h, 0px));
 }
 
 /* A control the guard will refuse looks refused. Deliberately not
