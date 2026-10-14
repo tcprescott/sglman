@@ -105,7 +105,7 @@ title on 20 pages), and don't size a title or a section heading with `text-h1`�
 | Status / count | `ui.badge(text, color='positive')`: the colour only picks the tone, CSS draws the chip. Or `.wiz-chip .wiz-chip--ok\|pending\|live\|neutral\|cancelled` in a template | `text-color=` on a solid chip, a hand-built pill |
 | Tags that only name something (a member's roles) | Neutral `.wiz-chip` tags that wrap inside their cell | `<q-chip color="primary" text-color="white">`: a solid accent pill is decoration, and five of them pushed the Members table past a 2000px window |
 | A titled block's own buttons (Export CSV on a report card) | The panel's `aside` slot: `panel = await section_panel(…)`, then `with panel.aside:` | A hand-built title row with a button beside it |
-| Filters on a page that isn't a match board | The match board's compact card: `.match-filters-card.match-filters-card--compact` with `match-filter-field` fields, plus a `.wiz-filter-toggle` Filters button whose badge counts active filters (Admin → Users, Triforce Texts; reports use `report_filter_bar`) | Caption labels over the fields, or the card without its toggle: CSS hides it below 1024px, so a phone never sees the filters |
+| Filters on a page that isn't a match board | The match board's compact card: `.match-filters-card.match-filters-card--compact` with `match-filter-field` fields, plus a `.wiz-filter-toggle` Filters button whose badge counts active filters (Admin → Members, Triforce Texts; reports use `report_filter_bar`) | Caption labels over the fields, or the card without its toggle: CSS hides it below 1024px, so a phone never sees the filters |
 | A notice across the page | `banner(message, title=, tone=)` (`theme/banner.py`; `info`/`ok`/`warning`/`danger`) | A hand-coloured row |
 | A toast (saved, failed) | `ui.notify(text, color=…)`, or `notify_error(e)` (`theme/notify.py`) for a caught service error. Every toast opens top-centre just under the header, on phone and desktop alike, so it never covers a bottom-sheet footer, a sticky action bar or the keyboard | `position=` on a toast: the spot is set once, in `install_toast_position` |
 | Flash a message across a redirect | `stash_notice` / `drain_notice` (`theme/notice.py`) | |
@@ -135,7 +135,7 @@ coloured `ui.button('Actions')` with `icon-right=expand_more`, holding one
 `menu_action(icon, label, on_click)` (`theme/menu.py`) per item. A destructive
 item goes last, under a `ui.separator()`, with `negative=True`. The menu is the same on a phone and on
 desktop. The shared refresh icon at the far right doesn't count as a second
-button. Vol. Schedule (`pages/admin_tabs/admin_volunteers.py`) is the reference;
+button. Volunteer Shifts (`pages/admin_tabs/admin_volunteers.py`) is the reference;
 its four loose buttons used to wrap onto three lines on a phone.
 
 **A row or card has one button and a ⋮ menu.** At most one action shows as a
@@ -217,7 +217,7 @@ Desktop pages use the width rather than stretching one column across it:
   On Air's stage columns (stacked one after another on a phone).
 - A page of short forms (Profile) puts them in two columns
   (`wiz-profile-sections`) rather than capping the page at a narrow column.
-- A page around a wide table (Admin → Users, `/platform`, the reports) uses
+- A page around a wide table (Admin → Members, `/platform`, the reports) uses
   `page-container-wide` (1600px). Let long cells wrap inside a bounded box
   (Users wraps roles in 9-20rem and names in 7-12rem) rather than leaving
   Quasar's `nowrap` to stretch one column: a 31-character Discord handle or six
@@ -226,7 +226,7 @@ Desktop pages use the width rather than stretching one column across it:
 
 ## Match boards
 
-Every list of matches follows the Admin → Schedule run sheet
+Every list of matches follows the Admin → Match Schedule run sheet
 (`theme/tables/match_run_sheet.py`). Proctor Station uses it too. The member
 boards (Event › Schedule, and My Schedule's Your matches and Crew you signed up
 for) use its player version, `layout='player_run_sheet'`. A personal list of

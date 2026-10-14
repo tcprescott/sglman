@@ -143,9 +143,9 @@ def build_admin_tabs(
     # with no surface that did it. What they get once here is one control:
     # ``board_access`` grants them ``assign_stream`` and nothing else.
     if is_staff or is_ta_any or is_cc_any or is_sm:
-        tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
+        tabs.append({'label': 'Match Schedule', 'icon': 'view_timeline', 'group': 'Operations', 'aliases': ('schedule',), 'content': (admin_schedule_page, (), schedule_kwargs)})
     if is_staff:
-        tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations',
+        tabs.append({'label': 'Members', 'icon': 'manage_accounts', 'group': 'Operations', 'aliases': ('users',),
                      'content': (admin_users_page, (),
                                  {'accommodations': FeatureFlag.ADA_ACCOMMODATIONS in live,
                                   'emergency_contacts': FeatureFlag.EMERGENCY_CONTACTS in live,
@@ -160,9 +160,9 @@ def build_admin_tabs(
     if (is_staff or is_ta_any) and FeatureFlag.PAYOUTS in live:
         tabs.append({'label': 'Payouts', 'icon': 'payments', 'group': 'Operations', 'content': admin_payouts_page})
     if is_staff and FeatureFlag.EVENT_CHECK_IN in live:
-        tabs.append({'label': 'Check-in', 'icon': 'how_to_reg', 'group': 'Operations', 'content': admin_check_in_page})
+        tabs.append({'label': 'Check-in Roster', 'icon': 'fact_check', 'group': 'Operations', 'aliases': ('check-in',), 'content': admin_check_in_page})
     if is_staff or access.is_preset_manager:
-        tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
+        tabs.append({'label': 'Seed Presets', 'icon': 'tune', 'group': 'Online play', 'aliases': ('presets',), 'content': admin_presets_page})
     if (is_staff or access.is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
         # The "runs are waiting" DM lands here with a qualifier and a tab, so a
         # reviewer arrives at the queue rather than at a list to go and search.
@@ -170,7 +170,7 @@ def build_admin_tabs(
                      'content': (admin_qualifiers_page, (),
                                  {'qualifier': qualifier, 'open_tab': qualifier_tab})})
     if (is_staff or access.is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
-        tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'group': 'Online play', 'content': admin_racetime_page})
+        tabs.append({'label': 'Racetime', 'icon': 'flag', 'group': 'Online play', 'content': admin_racetime_page})
     if (is_staff or access.is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
         tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'group': 'Online play', 'content': admin_speedgaming_page})
     if is_staff and FeatureFlag.CHALLONGE in live:
@@ -180,13 +180,13 @@ def build_admin_tabs(
     if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
         tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
     if (is_staff or access.is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
-        tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
-        tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
+        tabs.append({'label': 'Volunteers', 'icon': 'groups', 'group': 'Community', 'aliases': ('vol-roster',), 'content': admin_volunteer_roster_page})
+        tabs.append({'label': 'Volunteer Shifts', 'icon': 'calendar_view_week', 'group': 'Community', 'aliases': ('vol-schedule',), 'content': (admin_volunteers_page, (), {'day': day})})
     if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
     if is_staff and FeatureFlag.COMMUNITY_EVENTS in live:
         # The "event to review" DM lands here with the event's dialog open.
-        tabs.append({'label': 'Community Events', 'icon': 'groups', 'group': 'Community',
+        tabs.append({'label': 'Community Events', 'icon': 'celebration', 'group': 'Community',
                      'content': (admin_community_events_page, (), {'open_event': community_event})})
     if is_staff and FeatureFlag.FEEDBACK in live:
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})

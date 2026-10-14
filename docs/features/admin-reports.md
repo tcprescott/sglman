@@ -50,7 +50,7 @@ match. A match with no tournament falls back to the defaults.
 **Reports link out; they never act.** A report row carries an id to the surface
 that already owns the action, with that surface's own authorization, rather than
 duplicating a mutation into a read-only page. The admin tabs a report can link
-to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
+to take their focus as a query param — Schedule `?match_id=`, Volunteer Shifts
 `?day=` — and every URL is built by `admin_url`, re-exported for pages from
 [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py) (the builders live in
 [`application/utils/app_links.py`](../../application/utils/app_links.py) so
@@ -62,7 +62,7 @@ notifications can address the same routes).
 | Match Operations | the match on the board; per-tournament aggregates re-filter this report |
 | Capacity Forecast | the matches making a peak instant, on the board |
 | Stage Utilization | a stage's matches, on the board |
-| Volunteer Coverage | Vol. Schedule at the understaffed shift's local day |
+| Volunteer Coverage | Volunteer Shifts at the understaffed shift's local day |
 | Dashboard KPIs | the one report each number is computed from, over the same window |
 
 `shared.enable_drill_link(table, columns, rows, url_for, enabled=…)` builds the

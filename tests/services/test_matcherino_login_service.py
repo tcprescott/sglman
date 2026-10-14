@@ -187,7 +187,7 @@ async def test_a_refusal_dms_the_chosen_person_once_with_a_link_to_the_card(aler
 
     sent = await captured_dms()
     assert [d['to'] for d in sent] == [int(staff.discord_id)]
-    assert sent[0]['link'].url.endswith('/admin/check-in')
+    assert sent[0]['link'].url.endswith('/admin/check-in-roster')
     assert 'refused the saved' in sent[0]['text'] and TOKEN not in sent[0]['text']
 
 

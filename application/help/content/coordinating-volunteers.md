@@ -10,12 +10,12 @@ summary: Positions, shifts, the auto-scheduler, drafts and publishing, and cover
 ---
 
 This is the coordinator's side of [volunteering](/help/volunteering). It lives on
-**Admin → Vol. Schedule**, which staff and anyone with the Volunteer Coordinator
+**Admin → Volunteer Shifts**, which staff and anyone with the Volunteer Coordinator
 role can open. The roster, hour totals and the export are in
 [Volunteer roster, hours and export](/help/volunteer-hours-and-export).
 
 :::snippet vol-schedule
-**Vol. Schedule** shows one event day at a time. Pick the day at the top; the
+**Volunteer Shifts** shows one event day at a time. Pick the day at the top; the
 list comes from the event dates in Settings → Event. The **Actions** menu beside
 it holds auto-fill, positions, the export and the reset. A day runs from midnight to
 6am the next morning, so a shift that ends after midnight still shows on the day
@@ -30,7 +30,7 @@ shift's badge reads filled/needed and turns amber while it's short. On a phone,
 a position whose shifts are all filled folds away behind **Show N shift(s)**.
 :::
 
-![Vol. Schedule for one event day: the coverage chips, the day picker and the Actions menu, marked 1, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp "The **Actions** menu (1) holds auto-fill, positions, the export and the reset.")
+![Volunteer Shifts for one event day: the coverage chips, the day picker and the Actions menu, marked 1, and the Check-in Desk position with its four shifts](/static/help/coordinating-volunteers/schedule-desktop.webp "The **Actions** menu (1) holds auto-fill, positions, the export and the reset.")
 
 ## Positions
 
@@ -206,7 +206,7 @@ new time. Anyone who turned off DMs on their profile gets nothing, so the
 A volunteer can give back any shift that hasn't finished and that they haven't
 been checked in for. The slot opens immediately, and every coordinator and staff
 member gets a DM with who it was, how much notice they gave, their reason if
-they left one, and a **Find cover** button. That button opens Vol. Schedule on
+they left one, and a **Find cover** button. That button opens Volunteer Shifts on
 the day of the shift.
 
 ## Starting over

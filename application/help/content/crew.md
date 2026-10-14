@@ -169,4 +169,4 @@ the match ends.
 
 Where to be and when, who runs the countdown, and how a stage works are the
 event's to say rather than the app's. Where your community publishes them,
-they're under **Event Information** in the sidebar.
+they're under **Event Guide** in the sidebar.

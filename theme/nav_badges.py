@@ -32,9 +32,36 @@ def drawer_tab_badge(tab: dict) -> None:
             nav_count_badge(tab['label'], tab['badge'])
 
 
+def nav_icon(name: str) -> str:
+    """The navigation set's spelling of a Material icon name: outlined Material Symbols.
+
+    The drawer and the bottom bar draw outlined icons and fill the one you are
+    on (``styles.css``). The font is a subset holding only the navigation icons,
+    so a name missing from ``NAV_ICON_NAMES`` renders as its ligature text;
+    ``tests/theme/test_nav_icons.py`` checks every nav icon is in it. A Quasar
+    ``svguse:`` (Triforce Texts) or an already-prefixed name passes through.
+    """
+    if ':' in name or name.startswith('sym_'):
+        return name
+    return f'sym_o_{name}'
+
+
+#: Every icon in ``static/fonts/material-symbols-outlined-nav.woff2``. Adding a
+#: nav icon means re-downloading that subset with the new name in the list (the
+#: font file's header comment in styles.css has the URL).
+NAV_ICON_NAMES: frozenset[str] = frozenset({
+    'account_circle', 'account_tree', 'admin_panel_settings', 'analytics', 'assignment_ind',
+    'calendar_view_week', 'celebration', 'checklist', 'circle', 'edit_calendar', 'emoji_events',
+    'event_available', 'fact_check', 'feedback', 'flag', 'groups', 'help', 'home', 'how_to_reg',
+    'inventory_2', 'live_tv', 'manage_accounts', 'menu_book', 'monitor_heart', 'payments',
+    'rate_review', 'schema', 'settings', 'sports_esports', 'stadium', 'sync_alt', 'timer', 'tune',
+    'tv', 'view_timeline', 'volunteer_activism',
+})
+
+
 def bottom_nav_tab(tab: dict) -> ui.tab:
     """One bottom-bar tab, with its count floating on the icon when it declares one."""
-    with ui.tab(tab['label'], icon=tab.get('icon', 'circle')) as nav_tab:
+    with ui.tab(tab['label'], icon=nav_icon(tab.get('icon', 'circle'))) as nav_tab:
         if 'badge' in tab:
             nav_count_badge(tab['label'], tab['badge']).props('floating')
     return nav_tab

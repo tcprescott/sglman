@@ -57,17 +57,17 @@ tenant costs the button, not the DM.
 | Match scheduled (subscribers), stream candidate | View the schedule | `/home/schedule`, beside the crew buttons |
 | Seed ready | Open your seed | the randomizer — the one deliberately off-site link. A seed that isn't a URL (a Wind Waker permalink, Z1R seed and flags) rides in a code block instead, and the button reads **Copy it from Wizzrobe** and opens the match on the Player tab |
 | Crew assignment | View your crew slot | `/home/my-crew?match=<id>`, beside Acknowledge — the card that also carries Confirm and Withdraw |
-| Crew signup (to admins) | Review the signup | `/admin/schedule?match_id=<id>` — the approval toggle is on that row |
-| Crew withdrew (to admins) | Fill the slot | `/admin/schedule?match_id=<id>` |
-| Volunteer released (to coordinators) | Find cover | `/admin/vol-schedule?day=<shift day>` |
+| Crew signup (to admins) | Review the signup | `/admin/match-schedule?match_id=<id>` — the approval toggle is on that row |
+| Crew withdrew (to admins) | Fill the slot | `/admin/match-schedule?match_id=<id>` |
+| Volunteer released (to coordinators) | Find cover | `/admin/volunteer-shifts?day=<shift day>` |
 | Volunteer shift reminder | Acknowledge (only if not yet acknowledged) · Can't make it | `/volunteer/my-shifts?release=<assignment id>` — the give-back dialog for that shift, open; a gone, finished or checked-in shift says so instead |
-| Reschedule request (to staff) | Review the request | `/admin/schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
+| Reschedule request (to staff) | Review the request | `/admin/match-schedule?reschedule_request=<id>` — the decision dialog, open. Not the board filtered to the match: the proposed time and the player's reason are the whole message and live in the dialog |
 | Reschedule request (to the opponent) | Agree · Open the request | Discord's Agree button is the control; the link is `/home/player?agree=<request id>`, the same request open in a dialog with its own **Agree** — the web-push copy of this DM has no Discord button, so the tap target has to carry one |
 | Reschedule declined (to the requester) | Ask again | `/home/player?reschedule=<match id>` — the request form, open, because a different time is the real next step after a refusal |
-| Join request (to staff) | Review the request | `/admin/users` |
+| Join request (to staff) | Review the request | `/admin/members` |
 | Join declined (to requester) | Join the Discord server | the community's `discord_invite_url`, when set; otherwise no button. The date a new request opens is `<t:…:f>` (date and time); with auto-join on, the copy leads with "joining the server gets you in" |
 | Added by staff / request closed by a role grant (to the person) | Find a tournament | `/home/tournaments` |
-| ADA request opened / changed after arranging (to staff) | Open the request | `/admin/users?ada_request=<id>` — that request's dialog, open |
+| ADA request opened / changed after arranging (to staff) | Open the request | `/admin/members?ada_request=<id>` — that request's dialog, open |
 | Matcherino refused the check-in login (to the one person picked on the card) | Update the Matcherino login | `/admin/check-in` — the Matcherino login card is its first control |
 | Checked in at the desk (to the person checked in) | See the schedule | `/home/schedule` — the DM asks nothing; its job is proving the bot can reach them before their first match call |
 | Stage assigned / cleared / reminder | View your match · View your crew slot · View the schedule | per audience: players `/home/player?match=<id>`, crew `/home/my-crew?match=<id>`, watchers `/home/schedule` |

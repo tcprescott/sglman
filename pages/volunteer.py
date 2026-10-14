@@ -36,7 +36,7 @@ def create() -> None:
         # This tab is when you can *work*, and it is opt-in — the player one on
         # Home is when you can't *play*, opt-out.
         if is_volunteer or is_staff:
-            tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
+            tabs.append({'label': 'My Availability', 'icon': 'edit_calendar', 'content': availability_tab})
             # ``?release=<assignment id>`` comes from the reminder DM's "Can't
             # make it" button and opens that shift's give-back dialog.
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind',

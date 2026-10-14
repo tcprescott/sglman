@@ -97,7 +97,7 @@ async def admin_users_page(
     request's dialog.
     """
     with ui.column().classes('page-container-wide w-full'):
-        page_header('User Management')
+        page_header('Members')
 
         if not accommodations:
             if ada_request is not None:
@@ -533,4 +533,4 @@ async def _members_panel(
         # relies on that tenant to keep the roles column scoped.
         def on_tab_selected():
             table_view._bg(table_view.refresh())
-        ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Users' else None)
+        ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Members' else None)

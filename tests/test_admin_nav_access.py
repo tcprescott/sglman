@@ -103,7 +103,7 @@ class TestOnlinePlayRolesStayNarrow:
             assert await AuthService.can_view_admin(user) is False
 
     def test_a_preset_manager_sees_presets_and_settings_only(self):
-        assert _labels(Role.PRESET_MANAGER, ALL_FLAGS) == ['Presets', 'Settings']
+        assert _labels(Role.PRESET_MANAGER, ALL_FLAGS) == ['Seed Presets', 'Settings']
 
     def test_a_sync_admin_sees_the_sync_surfaces_only(self):
         assert _labels(Role.SYNC_ADMIN, ALL_FLAGS) == ['Racetime', 'SpeedGaming', 'Settings']
@@ -115,8 +115,8 @@ class TestOnlinePlayRolesStayNarrow:
     @pytest.mark.parametrize('role', ONLINE_ROLES)
     def test_none_of_them_sees_the_staff_tabs(self, role):
         labels = set(_labels(role, ALL_FLAGS))
-        assert not labels & {'Schedule', 'Users', 'Tournaments', 'Reports',
-                             'Service Health', 'Payouts', 'Check-in'}
+        assert not labels & {'Match Schedule', 'Members', 'Tournaments', 'Reports',
+                             'Service Health', 'Payouts', 'Check-in Roster'}
 
 
 class TestVolunteerCoordinatorReports:

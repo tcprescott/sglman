@@ -97,7 +97,7 @@ The Discord `access_token` is **never persisted** — not on the `User` row, not
 
 ### Coming back to the page
 
-A Discord DM's button is usually opened on a phone with no session, and the whole point of the button is the dialog or row it names (`/home/my-schedule?match=1`, `/admin/schedule?match_id=1`). Two paths carry that target through login, and both keep the query string:
+A Discord DM's button is usually opened on a phone with no session, and the whole point of the button is the dialog or row it names (`/home/my-schedule?match=1`, `/admin/match-schedule?match_id=1`). Two paths carry that target through login, and both keep the query string:
 
 - **A protected page** bounces to `/login`, and `AuthMiddleware` stores `referrer_for(root_path, path, query)` as `referrer_path`.
 - **A page anyone can open** — the join door (home applies the membership gate itself, so a signed-out *member* lands there too), the bracket views, help, the event handbook, the error pages — has a sign-in button rather than a bounce. Both the door's **Sign in** and the header's **Login with Discord** navigate to `login_path(current_local_url())`: `/login?next=<tenant-local path and query>`. The door's button used to be the relative `'login'`, which from `/home/<section>` resolved to `/home/login` — home again, so the door looped.
@@ -202,7 +202,7 @@ Signed-out readability is **not** publication: the app serves a blanket `robots.
 
 ### `protected_tab_page`
 
-`protected_tab_page(base, **kwargs)` registers a tabbed hub under **both** `base` and `base/{section}` with a shared `telemetry_path=base`, so the section slug lives in the path (`/admin/schedule`) and both routes report as one page view. It calls `protected_page` twice rather than stacking decorators, which would not work: `protected_page` returns the `ui.page` object, not the function.
+`protected_tab_page(base, **kwargs)` registers a tabbed hub under **both** `base` and `base/{section}` with a shared `telemetry_path=base`, so the section slug lives in the path (`/admin/match-schedule`) and both routes report as one page view. It calls `protected_page` twice rather than stacking decorators, which would not work: `protected_page` returns the `ui.page` object, not the function.
 
 ### Current usages
 

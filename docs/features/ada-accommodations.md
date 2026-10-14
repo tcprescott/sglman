@@ -13,7 +13,7 @@ Behind `FeatureFlag.ADA_ACCOMMODATIONS` (ships dark).
 | [`application/repositories/accommodation_repository.py`](../../application/repositories/accommodation_repository.py) | `AccommodationRepository` |
 | [`application/services/accommodation_service.py`](../../application/services/accommodation_service.py) | `AccommodationService` — lifecycle rules, STAFF gate, audit |
 | [`pages/home_tabs/accommodation_section.py`](../../pages/home_tabs/accommodation_section.py) | The profile card |
-| [`pages/admin_tabs/admin_accommodations.py`](../../pages/admin_tabs/admin_accommodations.py) | The staff queue (a sub-tab of Admin → Users) |
+| [`pages/admin_tabs/admin_accommodations.py`](../../pages/admin_tabs/admin_accommodations.py) | The staff queue (a sub-tab of Admin → Members) |
 | [`pages/admin_tabs/admin_users.py`](../../pages/admin_tabs/admin_users.py) | Sub-tabs, the "Needs ADA accommodation" filter, the ADA column |
 | [`theme/accommodation_copy.py`](../../theme/accommodation_copy.py) | Status labels/chips and the privacy disclaimer, shared by both sides |
 
@@ -67,7 +67,7 @@ request requires community membership.
 - **Profile** (`/home/profile`): an "ADA accommodation" card. The checkbox
   saves at once; details save on blur and after a pause in typing. Shows the
   staff status chip while the request is open.
-- **Admin → Users**: with the flag live the tab gains **Members** and **ADA
+- **Admin → Members**: with the flag live the tab gains **Members** and **ADA
   requests (n)** sub-tabs, where *n* counts requests needing action: New,
   Acknowledged, and Arranged-but-changed (`action_needed_count`), so it reaches
   zero once everything is arranged. The member table gains an ADA column (the
@@ -77,11 +77,11 @@ request requires community membership.
   Update dialog for status and staff notes. A changed request shows a
   "Changed since arranged" chip, and its dialog shows the arranged text beside
   the current one with a **Save and mark reviewed** button.
-  `/admin/users?ada_request=<id>` opens that request's dialog on arrival (a
+  `/admin/members?ada_request=<id>` opens that request's dialog on arrival (a
   stale id says the request no longer exists; with the feature off, the
   Users tab says ADA requests aren't turned on).
 
-- **Admin → Schedule and Volunteer → Proctor Station**: a match with a player
+- **Admin → Match Schedule and Volunteer → Proctor Station**: a match with a player
   whose request is **Arranged** shows an `ADA: <name>` line on its run-sheet
   row (`_ADA` in `theme/tables/match_run_sheet.py`, plain text, not a
   control). The match sheet's **Ready to play?** checklist adds a
@@ -97,7 +97,7 @@ request requires community membership.
 ## Notifications
 
 Staff get a DM (with an **Open the request** button to
-`/admin/users?ada_request=<id>`) when a request opens or reopens, at most once
+`/admin/members?ada_request=<id>`) when a request opens or reopens, at most once
 per request per 24 h (`staff_notified_at`, `STAFF_DM_WINDOW`) so unticking and
 re-ticking the box doesn't DM everyone again, and when a member first changes
 an Arranged request. Later autosaves of the same edit stay

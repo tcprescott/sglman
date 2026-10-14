@@ -53,13 +53,13 @@ class TestAdminUrl:
     def test_root_relative_with_no_tenant_prefix(self):
         """NiceGUI prepends the client's path prefix; a hand-built /t/<slug>
         here would double it under path-mode tenancy."""
-        assert admin_url(SCHEDULE, match_id=412) == '/admin/schedule?match_id=412'
+        assert admin_url(SCHEDULE, match_id=412) == '/admin/match-schedule?match_id=412'
 
     def test_absent_params_are_dropped(self):
-        assert admin_url(VOL_SCHEDULE, day=None, other='') == '/admin/vol-schedule'
+        assert admin_url(VOL_SCHEDULE, day=None, other='') == '/admin/volunteer-shifts'
 
     def test_bare_section(self):
-        assert admin_url(SCHEDULE) == '/admin/schedule'
+        assert admin_url(SCHEDULE) == '/admin/match-schedule'
 
     def test_dates_are_iso_formatted(self):
         assert admin_url('reports', start=date(2026, 1, 2)) == '/admin/reports?start=2026-01-02'

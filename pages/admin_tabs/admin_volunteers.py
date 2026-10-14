@@ -97,7 +97,7 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
     with ui.column().classes('page-container-wide'):
         with page_header(
-            'Volunteer Scheduling',
+            'Volunteer Shifts',
             'Build the volunteer shift grid: create positions and shifts, auto-fill '
             'from availability, and assign volunteers per shift.',
         ):

@@ -75,7 +75,7 @@ async def admin_check_in_page() -> None:
 
     with ui.column().classes('page-container-narrow w-full'):
         page_header(
-            'Check-in',
+            'Check-in Roster',
             "Each event pulls its roster from a Matcherino venue's badge sales. Open an "
             'event to put it on the check-in desk; the desk syncs on its own while it is open.',
         )

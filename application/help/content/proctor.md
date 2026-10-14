@@ -14,7 +14,7 @@ This page is the **app's** manual: the board, the steps you take in it, and what
 happens to a result. The floor standard the job is held to (looking after the
 room, who checks players in, game integrity, when to fetch an admin, handing over
 a shift) is set by the event rather than by the app, so where your community
-publishes one it lives under **Event Information** in the sidebar. Read both
+publishes one it lives under **Event Guide** in the sidebar. Read both
 before your first shift.
 
 The board is **Volunteer → Proctor Station**. If you cannot see it, you have not
@@ -43,7 +43,7 @@ each ticked or flagged, with the fix on the same line: **Assign** or
 **Change** for the stations, **Generate** or **Copy** for the seed, and the player's ADA
 accommodation if they have one.
 
-It is deliberately not the admin Schedule tab. There is no scheduling here and
+It is deliberately not the admin Match Schedule tab. There is no scheduling here and
 no crew: this board is for *running* matches, not booking them.
 
 By default the board shows matches that are still to be played or in play. Use
