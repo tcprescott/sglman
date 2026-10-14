@@ -4,6 +4,7 @@ Match Comment Repository - Data Access Layer
 Handles all database operations for the MatchComment model.
 """
 
+from datetime import datetime
 from typing import Dict, Iterable, List, Optional
 
 from application.repositories._base import TenantScopedRepository
@@ -24,6 +25,12 @@ class MatchCommentRepository(TenantScopedRepository[MatchComment]):
         if kinds is not None:
             query = query.filter(kind__in=list(kinds))
         return await scoped(query).prefetch_related('author').order_by('created_at', 'id')
+
+    @staticmethod
+    async def count_by_author_since(match_id: int, author_id: int, since: datetime) -> int:
+        return await scoped(
+            MatchComment.filter(match_id=match_id, author_id=author_id, created_at__gte=since)
+        ).count()
 
     @staticmethod
     async def counts_by_match(match_ids: List[int]) -> Dict[int, Dict[str, int]]:

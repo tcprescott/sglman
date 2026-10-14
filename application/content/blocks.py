@@ -32,6 +32,7 @@ __all__ = [
     'link_filter',
     'parse_blocks',
     'parse_inline',
+    'parse_user_blocks',
     'plain_text',
     'prune_links',
     'slugify',
@@ -57,7 +58,10 @@ _INLINE_RE = re.compile(
 
 # Link targets we will render as links. Everything else renders as plain text —
 # `javascript:` and `data:` URIs above all, but also anything unparseable.
-_SAFE_HREF_RE = re.compile(r'^(?:/[^\s]*|#[^\s]*|https://[^\s]+|mailto:[^\s]+)$')
+# An internal path must not open with a second slash or a backslash: browsers
+# read `//host` and `/\host` as another site, so the "stays in this tab" branch
+# would carry the reader off-site with nothing to warn them.
+_SAFE_HREF_RE = re.compile(r'^(?:/(?![/\\])[^\s\\]*|#[^\s]*|https://[^\s\\]+|mailto:[^\s]+)$')
 
 # A screenshot on a line of its own: ``![alt](src)`` or ``![alt](src "caption")``.
 _IMAGE_RE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"(?P<caption>[^"]*)")?\)$')
@@ -354,6 +358,76 @@ def parse_blocks(text: str) -> list[Block]:
         if cursor.index == before:
             cursor.index += 1
     return cursor.blocks
+
+
+_USER_SPAN_KINDS = frozenset({'text', 'strong', 'em', 'code', 'link'})
+
+
+def _user_spans(text: str) -> tuple[Span, ...]:
+    return tuple(
+        span if span.kind in _USER_SPAN_KINDS else Span('text', span.text)
+        for span in parse_inline(text)
+    )
+
+
+def parse_user_blocks(text: str) -> list[Block]:
+    """Parse markdown a player or volunteer wrote: paragraphs and lists only.
+
+    Their text renders where staff and other players read it, so it gets none of
+    the article furniture that could pass for the app's own chrome: no tables,
+    screenshots, status chips or state badges (those read as the characters
+    typed). A heading becomes a bold line and a quote a plain paragraph, so text
+    from the editor's heading and quote buttons still reads. Inline it keeps
+    bold, italic, code and links.
+    """
+    blocks: list[Block] = []
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if not stripped:
+            index += 1
+            continue
+        list_match = _BULLET_RE.match(stripped) or _NUMBER_RE.match(stripped)
+        if list_match:
+            pattern = _BULLET_RE if _BULLET_RE.match(stripped) else _NUMBER_RE
+            items: list[list[str]] = []
+            while index < len(lines):
+                current = lines[index]
+                item = pattern.match(current.strip())
+                if item:
+                    items.append([item.group(1).strip()])
+                elif items and current.startswith((' ', '\t')) and current.strip():
+                    items[-1].append(current.strip())
+                else:
+                    break
+                index += 1
+            blocks.append(Block(
+                'bullets' if pattern is _BULLET_RE else 'numbers',
+                items=tuple(_user_spans(' '.join(part)) for part in items),
+            ))
+            continue
+        heading = re.match(r'^#{1,6}\s+(.*)$', stripped)
+        if heading:
+            # Kept as emphasis, not a heading: a heading carries an id and the
+            # weight of the page's own section titles.
+            blocks.append(Block('para', spans=tuple(
+                Span('strong', span.text) if span.kind == 'text' else span
+                for span in _user_spans(heading.group(1).strip())
+            )))
+            index += 1
+            continue
+        parts: list[str] = []
+        while index < len(lines):
+            current = lines[index].strip()
+            if not current or _BULLET_RE.match(current) or _NUMBER_RE.match(current):
+                break
+            if parts and re.match(r'^#{1,6}\s+', current):
+                break
+            parts.append(current.lstrip('>').strip())
+            index += 1
+        blocks.append(Block('para', spans=_user_spans(' '.join(parts))))
+    return blocks
 
 
 def plain_text(blocks: list[Block]) -> str:

@@ -200,5 +200,31 @@ class TestCountsAndEvents:
         deleted = [e for e in captured_events if e.event_type == EventType.MATCH_COMMENT_DELETED]
         assert added[0].payload['kind'] == 'player'
         assert added[0].payload['tournament_id'] == m.tournament_id
-        assert added[0].payload['body'] == 'hello'
+        assert 'body' not in added[0].payload
         assert deleted[0].payload['comment_id'] == comment.id
+
+    async def test_only_messages_to_players_carry_their_text(self, db, dms, captured_events):
+        m, _, _ = await _match()
+        staff = await _with_role(8101, Role.STAFF)
+        service = MatchCommentService()
+        await service.add_staff_comment(m.id, staff, 'private', to_players=False)
+        await service.add_staff_comment(m.id, staff, 'start at 3', to_players=True)
+
+        added = [e.payload for e in captured_events if e.event_type == EventType.MATCH_COMMENT_ADDED]
+        assert [(p['kind'], p.get('body')) for p in added] == [
+            ('staff_private', None), ('staff_to_players', 'start at 3'),
+        ]
+
+    async def test_a_player_is_limited_per_minute_but_staff_are_not(self, db, dms):
+        from application.services.match.match_comment_service import PLAYER_COMMENTS_PER_MINUTE
+
+        m, p1, p2 = await _match()
+        staff = await _with_role(8102, Role.STAFF)
+        service = MatchCommentService()
+        for n in range(PLAYER_COMMENTS_PER_MINUTE):
+            await service.add_player_comment(m.id, p1, f'spam {n}')
+        with pytest.raises(ValueError, match='Slow down'):
+            await service.add_player_comment(m.id, p1, 'one more')
+        await service.add_player_comment(m.id, p2, 'the opponent is unaffected')
+        for n in range(PLAYER_COMMENTS_PER_MINUTE + 1):
+            await service.add_staff_comment(m.id, staff, f'note {n}', to_players=False)

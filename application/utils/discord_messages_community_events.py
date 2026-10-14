@@ -4,13 +4,27 @@ The DMs :mod:`application.services.community_event_service` and its reminder
 worker send. Each one is also the web-push text, so it reads on its own; the
 embed beside it carries the time as native ``<t:…>`` markup so every recipient
 sees their own clock.
+
+Titles, host names and locations are typed by members, so each passes through
+:func:`literal` first: Discord renders ``[label](url)`` as a masked link inside
+an embed, which would let a member put a disguised link in front of every
+reviewer.
 """
+
+import re
+
+_LINK_BRACKETS = re.compile(r'([\[\]])')
+
+
+def literal(text: str | None) -> str:
+    """``text`` with its square brackets escaped, so it cannot form a masked link."""
+    return _LINK_BRACKETS.sub(r'\\\1', text or '')
 
 
 def submitted_to_staff_dm(community_name: str, host_name: str, title: str) -> str:
     """DM to staff when a member submits an event, or resubmits a rejected one."""
     return (
-        f'**{host_name}** submitted **{title}** to the community events listing for '
+        f'**{literal(host_name)}** submitted **{literal(title)}** to the community events listing for '
         f'**{community_name}**. Open it to approve or reject it.'
     )
 
@@ -23,7 +37,7 @@ def approved_dm(community_name: str, title: str, rsvp_enabled: bool = False) -> 
         'Members can subscribe to it for a reminder before it starts.'
     )
     return (
-        f'**{title}** is approved and now listed in **{community_name}**\'s community '
+        f'**{literal(title)}** is approved and now listed in **{community_name}**\'s community '
         f'events. {how}'
     )
 
@@ -32,7 +46,7 @@ def rejected_dm(community_name: str, title: str, reason: str, was_listed: bool) 
     """DM to the host when staff reject their event or take a listed one down."""
     what = 'was taken off' if was_listed else "wasn't approved for"
     return (
-        f'**{title}** {what} **{community_name}**\'s community events listing.\n'
+        f'**{literal(title)}** {what} **{community_name}**\'s community events listing.\n'
         f'Reason from staff: {reason}\n'
         'You can edit it and submit it again.'
     )
@@ -40,15 +54,15 @@ def rejected_dm(community_name: str, title: str, reason: str, was_listed: bool) 
 
 def reminder_dm(title: str, starts_display: str, location: str | None) -> str:
     """DM to a subscriber shortly before an event starts."""
-    where = f' at {location}' if location else ''
-    return f'**{title}** starts {starts_display}{where}.'
+    where = f' at {literal(location)}' if location else ''
+    return f'**{literal(title)}** starts {starts_display}{where}.'
 
 
 def time_changed_dm(title: str, starts_display: str) -> str:
     """DM to subscribers when the host or staff move an approved event."""
-    return f'**{title}** has moved. It now starts {starts_display}.'
+    return f'**{literal(title)}** has moved. It now starts {starts_display}.'
 
 
 def cancelled_dm(title: str) -> str:
     """DM to subscribers when an approved event is called off or taken down."""
-    return f'**{title}** has been cancelled, so you won\'t get a reminder for it.'
+    return f'**{literal(title)}** has been cancelled, so you won\'t get a reminder for it.'
