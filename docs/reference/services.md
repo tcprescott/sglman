@@ -41,6 +41,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
 | `AccommodationService` | [accommodation_service.py](../../application/services/accommodation_service.py) | ADA accommodation requests: member self-service, STAFF queue | [ada-accommodations.md](../features/ada-accommodations.md) |
+| `EmergencyContactService` | [emergency_contact_service.py](../../application/services/emergency_contact_service.py) | Members' emergency contacts: self-service, STAFF open-one-at-a-time with an audit row per look | — |
 | `CommunityEventService` | [community_event_service.py](../../application/services/community_event_service.py) | Member-submitted community events: submit, staff review, edits, cancellation, subscriptions | [community-events.md](../features/community-events.md) |
 | `AnalyticsService` | [analytics_service.py](../../application/services/analytics_service.py) | Longitudinal trends: crew participation, volunteer hours, tournament health | — |
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Bearer credential issue/revoke/authenticate (PATs and OAuth tokens) | [rest-api.md](rest-api.md) |
@@ -595,6 +596,20 @@ Per-community ADA accommodation requests. Every public method is gated by `Featu
 | `update_request(actor, request_id, status, staff_notes)` | `AccommodationRequest` | STAFF. Sets status (not to/from `WITHDRAWN`) and notes in one save; `NotFoundError` for an unknown or other-tenant id. Saving a `changed_since_arranged` request clears the flag even with nothing else edited. Audits `accommodation.status_changed`, `.notes_updated` and/or `.change_reviewed`. |
 
 Collaborators: `AccommodationRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
+
+### emergency_contact_service.py — EmergencyContactService
+
+Per-community emergency contacts. Every public method is gated by `FeatureFlag.EMERGENCY_CONTACTS`; `open_for` also requires `AuthService.is_staff` (`PermissionError`). Audited under `emergency_contact.saved` / `.removed` / `.viewed` with ids only; no events are published and there is no list, export, REST or MCP surface. Constants: `NAME_MAX_LENGTH = 100`, `RELATIONSHIP_MAX_LENGTH = 60`, `PHONE_MAX_LENGTH = 40`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_mine(actor)` | `EmergencyContact \| None` | The actor's own contact in this community, `last_viewed_by` prefetched. |
+| `save_mine(actor, name, relationship, phone)` | `EmergencyContact` | Create (members only) or update; whitespace collapsed, name and phone required, phone validated. Identical values are a no-op. |
+| `remove_mine(actor)` | `None` | Deletes the actor's contact. |
+| `remove_for_removed_member(actor, member)` | `None` | Soft (`# feature-gate: exempt`). Deletes a removed member's contact; called by `TenantMembershipService.remove_member`. |
+| `open_for(actor, member)` | `EmergencyContact \| None` | STAFF. Writes `emergency_contact.viewed` first (also when no contact exists), then stamps `last_viewed_at`/`last_viewed_by`. |
+
+Collaborators: `EmergencyContactRepository`, `AuthService`, `AuditService`, `TenantMembershipService`.
 
 ### community_event_service.py — CommunityEventService
 
