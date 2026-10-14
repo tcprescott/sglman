@@ -1011,14 +1011,6 @@ main.q-page:focus {
     color: var(--fg);
 }
 
-.large-title {
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 1.75rem;
-    letter-spacing: -0.015em;
-    margin: 0 1em;
-}
-
 .header-row {
     width: 100%;
     align-items: center;
@@ -1944,80 +1936,123 @@ main.q-page:focus {
     grid-column: 1 / -1;
 }
 
-/* Page, stage card and match card each padded the one before, so a match got
-   two-thirds of its column. Pull the stage card in, let the player line sit
-   beside its icon instead of wrapping under it, and put the tournament on its
-   own unindented line. A stage column is phone-narrow at every width, so these
-   hold on desktop too. */
+/* A stage column is phone-narrow at every width, so one set of rules serves
+   phone and desktop: the stage card pulls in, each match is time + status + ⋮
+   on one line, then players, then tournament and crew. */
 .timeline-container > .card-full-width {
     padding: var(--space-3);
+    gap: var(--space-3);
     margin: 0;
 }
 
 .timeline-container .column-spacing {
-    padding: var(--space-2) 0 0;
+    padding: 0;
     gap: var(--space-2);
 }
 
 .timeline-container .match-card {
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
     gap: var(--space-1);
     margin: 0;
+    box-shadow: none;
+    border: 1px solid var(--border-subtle);
 }
 
-.timeline-container .match-details {
-    margin-top: 0;
+.match-card-top {
+    width: 100%;
+    gap: var(--space-2);
+    min-height: 32px;
+}
+
+.match-card .match-players {
+    font-weight: 700;
+    font-size: 1.0625rem;
+    overflow-wrap: anywhere;
 }
 
 .match-card .match-tournament {
-    flex-basis: 100%;
-    margin-left: 0;
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+    font-weight: 400;
+    margin: 0;
 }
 
-.match-card > .row > .q-space {
-    display: none;
-}
-
-.match-details,
-.match-details-nested {
-    gap: var(--space-1) var(--space-2);
+.match-crew {
+    gap: var(--space-1);
     align-items: center;
+    color: var(--status-ok);
+    font-size: 0.875rem;
 }
 
-.match-details-nested {
-    flex-wrap: nowrap;
+.match-crew > .q-icon {
+    font-size: 16px;
 }
 
-.match-details > .match-players,
-.match-details-nested > .q-icon + * {
-    flex: 1 1 0;
+.match-crew > :last-child {
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.match-details .icon-spacing {
-    margin-right: 0;
-}
-
+/* Prev, date and next on one line; the tools (Today, pick a date, refresh,
+   help) beside them on desktop and on their own line on a phone. Every
+   bordered control shares one height so the row reads as one toolbar. */
 .timeline-header {
     width: 100%;
     align-items: center;
-    margin-bottom: 1em;
+    gap: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-4);
 }
 
-/* Prev/date/next kept together so the chevrons flank the date instead of
-   splitting across lines when the header wraps on a phone. */
 .timeline-nav {
-    gap: var(--space-1);
+    gap: var(--space-2);
+}
+
+.timeline-tools {
+    flex: 1 1 auto;
+    gap: var(--space-2);
+}
+
+.timeline-date {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 1.625rem;
+    letter-spacing: -0.015em;
+    margin: 0 var(--space-2);
+    white-space: nowrap;
+}
+
+.timeline-tool.q-btn {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--fg);
+    font-weight: 700;
+}
+
+.timeline-tool.q-btn:has(.q-icon:only-child) {
+    padding: 0;
+}
+
+.timeline-tool.q-btn::before {
+    border-color: var(--border-subtle);
 }
 
 .stage-header {
     width: 100%;
     align-items: center;
+    gap: var(--space-3);
     background-color: var(--wiz-stage-header-bg);
     color: var(--wiz-stage-header-text);
-    padding: 0.5em;
-    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+}
+
+.stage-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0;
 }
 
 .stage-name {
@@ -2027,14 +2062,19 @@ main.q-page:focus {
 }
 
 .stage-link {
-    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 36px;
+    padding: 0 var(--space-2);
     color: var(--wiz-link);
-    text-decoration: underline;
+    font-weight: 700;
+    text-decoration: none;
 }
 
 .stage-match-count {
-    font-size: 0.9em;
-    opacity: 0.9;
+    font-size: 0.8125rem;
+    color: var(--fg-secondary);
 }
 
 /* On Air theater (theme/twitch_theater.py): one Twitch player above the stage
@@ -2094,8 +2134,16 @@ main.q-page:focus {
     gap: var(--space-3);
 }
 
-.stage-watch {
-    margin-left: auto;
+.stage-watch.q-btn {
+    min-height: 36px;
+    padding: 0 var(--space-3) 0 var(--space-2);
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    flex: none;
+}
+
+.stage-watch .q-icon {
+    margin-right: var(--space-1);
 }
 
 /* Phone: the player pins under the app header while the stages scroll past,
@@ -2173,25 +2221,6 @@ main.q-page:focus {
 
 .match-badge {
     margin-left: 0.5em;
-}
-
-.match-tournament {
-    margin-left: 1em;
-    font-weight: 500;
-}
-
-.match-details {
-    width: 100%;
-    margin-top: 0.5em;
-}
-
-.match-details-nested {
-    width: 100%;
-    margin-top: 0.3em;
-}
-
-.match-players {
-    font-size: 1.1em;
 }
 
 .empty-state {
@@ -2425,33 +2454,9 @@ main.q-page:focus {
     width: 400px;
 }
 
-/* Border Utilities — status rails on timeline cards */
-.border-left-green {
-    border-left: 4px solid var(--status-ok);
-}
-
-.border-left-orange {
-    border-left: 4px solid var(--status-pending);
-}
-
-.border-left-gray {
-    border-left: 4px solid var(--status-neutral);
-}
-
-.border-left-blue {
-    border-left: 4px solid var(--status-live);
-}
-
 /* Visibility Utilities */
 .hidden {
     display: none;
-}
-
-/* Refresh Button */
-.refresh-button {
-    position: fixed;
-    bottom: max(20px, env(safe-area-inset-bottom));
-    right: 20px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -3317,14 +3322,6 @@ td .wiz-crew-action {
     color: var(--wiz-dark-muted);
 }
 
-@media (max-width: 1023.98px) {
-    /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
-       above the nav (and the safe-area inset) so it stays tappable. */
-    .refresh-button {
-        bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
-    }
-}
-
 /* ---------------------------------------------------------------------------
    Mobile ergonomics (≤599.98px)
    Phone-first touch sizing: 16px form text defeats iOS focus-zoom, buttons and
@@ -3408,12 +3405,23 @@ td .wiz-crew-action {
         margin-top: 0;
     }
 
-    /* On Air date heading: the full "Friday, July 03, 2026" at 1.8em wraps and
-       shoves the nav around on a phone; scale it down and drop the wide side
-       margin so the chevrons sit snug against it. */
+    /* On Air: the date line takes the full width, the tools drop to their own
+       line, and the bordered controls meet the 44px tap floor. */
+    .timeline-nav {
+        flex: 1 1 100%;
+    }
+
     .timeline-date {
-        font-size: 1.25em;
-        margin: 0 0.25em;
+        flex: 1 1 auto;
+        text-align: center;
+        font-size: 1.25rem;
+        margin: 0;
+    }
+
+    .timeline-tool.q-btn,
+    .stage-watch.q-btn {
+        min-height: 44px;
+        min-width: 44px;
     }
 }
 

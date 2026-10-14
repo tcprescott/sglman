@@ -16,15 +16,15 @@ after another. It answers
 
 :::snippet on-air
 **On Air** shows one day at a time, split by stage, so you can see what's
-running where. Use the arrows to move a day at a time, the calendar in **Select
-Date** to jump, and **Today** to come back.
+running where. Use the arrows to move a day at a time, the calendar button to
+jump to a date, and **Today** to come back.
 
 It opens on your today, not the server's, so late in the evening it still shows
 the day you're actually in.
 :::
 
-Each stage card has the stage's name, a **Watch** button (or a **Watch Stream**
-link) where the stage is streamed, and how many matches it has left that day. Each match on it shows:
+Each stage card has the stage's name, how many matches it has left that day,
+and a **Watch** button (or an **Open stream** link) where the stage is streamed. Each match on it shows:
 
 - its start time, in your local time
 - {chip:neutral:Scheduled} until the players are checked in, then
@@ -32,6 +32,9 @@ link) where the stage is streamed, and how many matches it has left that day. Ea
 - the tournament and the players
 - the approved crew: commentators beside a microphone, trackers beside a
   target. People who've only signed up don't appear here.
+
+If you can run the match on the admin Schedule board, its ⋮ menu has **Open in
+Schedule**, which opens the board on just that match.
 
 A match leaves On Air once its result is recorded, so the view shows what's
 still to come rather than the whole day. A match with no stage isn't on it at
@@ -54,7 +57,7 @@ Twitch app on a phone.
 Nothing loads from Twitch until you press **Watch**. Once it plays, Twitch's
 own player and cookies apply.
 
-A stage streamed somewhere other than Twitch gets a **Watch Stream** link that
+A stage streamed somewhere other than Twitch gets an **Open stream** link that
 opens the stream in a new tab. The stage's name on the schedule board links to
 the stream too. A stage with no link isn't being streamed.
 

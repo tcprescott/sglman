@@ -501,6 +501,33 @@ class TestViewScheduleBoard:
         assert await AuthService.can_view_schedule_board(make_user()) is True
 
 
+class TestScheduleBoardScope:
+    """Which matches a per-match "Open in Schedule" link may be offered for."""
+
+    async def test_none_user_opens_nothing(self):
+        assert await AuthService.schedule_board_scope(None) == frozenset()
+
+    async def test_staff_opens_every_match(self, patch_roles):
+        patch_roles({Role.STAFF})
+        assert await AuthService.schedule_board_scope(make_user()) is None
+
+    async def test_stream_manager_opens_every_match(self, patch_roles):
+        patch_roles({Role.STREAM_MANAGER})
+        assert await AuthService.schedule_board_scope(make_user()) is None
+
+    async def test_operator_opens_only_their_tournaments(self, patch_roles):
+        patch_roles(set())
+        user = make_user()
+        user.admin_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True, (3,)))
+        user.crew_coordinated_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True, (9,)))
+        assert await AuthService.schedule_board_scope(user) == frozenset({3, 9})
+
+    async def test_equipment_manager_opens_nothing(self, patch_roles):
+        """An admin, but one with no Schedule tab to land on."""
+        patch_roles({Role.EQUIPMENT_MANAGER})
+        assert await AuthService.schedule_board_scope(make_user()) == frozenset()
+
+
 class TestTournamentScope:
     """The id sets a non-staff operator's surfaces narrow to."""
 
