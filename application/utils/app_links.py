@@ -107,6 +107,16 @@ def player_schedule_url(bracket_match_id: int) -> str:
     return home_url(HOME_PLAYER, schedule=bracket_match_id)
 
 
+def player_challonge_schedule_url(challonge_match_id: int) -> str:
+    """The Player tab with the schedule dialog for one Challonge matchup open.
+
+    The Challonge peer of :func:`player_schedule_url`. A separate param because
+    the two ids index different tables, and a native matchup id that happened to
+    match a Challonge row would open the wrong dialog.
+    """
+    return home_url(HOME_PLAYER, book=challonge_match_id)
+
+
 def player_match_url(match_id: int) -> str:
     """The Player tab narrowed to one match.
 

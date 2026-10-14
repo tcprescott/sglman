@@ -43,6 +43,7 @@ from application.utils.app_links import (
     crew_match_url,
     home_url,
     player_agree_url,
+    player_challonge_schedule_url,
     player_hard_preset_url,
     player_match_comments_url,
     player_match_url,
@@ -114,6 +115,13 @@ async def player_schedule(
     the DM that tells them to book it.
     """
     return await link_for(label, player_schedule_url(bracket_match_id))
+
+
+async def player_challonge_schedule(
+    challonge_match_id: int, *, label: str = 'Pick a time',
+) -> Optional[DMLink]:
+    """"Pick a time" for a Challonge matchup — its schedule dialog, already open."""
+    return await link_for(label, player_challonge_schedule_url(challonge_match_id))
 
 
 def player_qualifier(tenant: Any, qualifier_id: int, *, label: str) -> Optional[DMLink]:

@@ -134,6 +134,10 @@
     --status-live:      #0E7470;
     --status-neutral:   #6B6258;
     --status-cancelled: #B3362B;
+    /* Count on a nav item (matches waiting on you): white on the light red,
+       ink on the dark one, so both clear 4.5:1. */
+    --wiz-count-bg: var(--status-cancelled);
+    --wiz-count-fg: var(--n-0);
     --status-info:      #2F5F8A;
 
     /* Spacing scale */
@@ -194,6 +198,8 @@ body.wiz-has-bottom-nav {
     --status-live:      #52B8AE;
     --status-neutral:   var(--wiz-dark-muted);
     --status-cancelled: #E06650;
+    --wiz-count-bg: var(--status-cancelled);
+    --wiz-count-fg: var(--n-900);
     --status-info:      #7FB0DC;
 
     --page-bg: var(--wiz-dark-bg);
@@ -4426,6 +4432,47 @@ ol.wiz-help-list { list-style-type: decimal; }
 }
 
 .wiz-pick-row__title { flex: 1 1 100%; min-width: 0; }
+
+/* The Waiting-on-you rows: one column on a phone, two side by side on desktop
+   (wide lists use grids). */
+.wiz-pick-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+}
+@media (min-width: 1024px) {
+    .wiz-pick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Why a row's Schedule button is off, said on the row: a tooltip never shows
+   on a phone. */
+.wiz-pick-row__note {
+    background: var(--surface-alt);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    color: var(--fg-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+}
+
+/* A count asks for action, so it stays a solid pill rather than the tinted
+   tag every other non-floating badge becomes above. Built with color=None, so
+   no Quasar bg-* class fights the fill. */
+.wiz-nav-count.q-badge {
+    background: var(--wiz-count-bg);
+    color: var(--wiz-count-fg) !important;
+    box-shadow: none;
+    border: 0;
+    font-weight: 700;
+}
+
+/* A dialog's own error, under the fields it is about. Not a toast: on a phone
+   the toast covered the dialog's Schedule button. */
+.wiz-field-error {
+    color: var(--status-cancelled);
+    font-weight: 700;
+    font-size: var(--text-sm);
+}
 
 .wiz-subcard__title {
     font-family: var(--font-body);

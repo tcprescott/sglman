@@ -286,6 +286,49 @@ def submit_on_enter(dialog, make_coro) -> None:
     dialog.on('keydown', on_keydown)
 
 
+class FieldError:
+    """A dialog's error message, shown under the fields it is about.
+
+    Build it right after the fields. ``show`` outlines them in red and says
+    what is wrong in the line beneath; editing any of them clears it. Errors
+    used to be toasts, which on a phone covered the very button the reader had
+    to press again.
+    """
+
+    def __init__(self, *fields) -> None:
+        self.fields = fields
+        with ui.row().classes('wiz-field-error items-start no-wrap gap-1') as self.row:
+            ui.icon('error_outline', size='18px')
+            self.label = ui.label('').props('role=alert')
+        self.row.set_visibility(False)
+        for field in fields:
+            field.on_value_change(lambda _: self.clear())
+
+    def show(self, message: str) -> None:
+        self.label.set_text(message)
+        self.row.set_visibility(True)
+        for field in self.fields:
+            field.props('error hide-bottom-space')
+
+    def clear(self) -> None:
+        if not self.row.visible:
+            return
+        self.row.set_visibility(False)
+        for field in self.fields:
+            field.props(remove='error')
+
+
+def matchup_line(tournament_name: str, round_label: str) -> None:
+    """The one line under a booking dialog's title: tournament · round.
+
+    The title already names the opponent, so the body doesn't repeat it.
+    """
+    with ui.row().classes('items-baseline gap-1'):
+        ui.label(tournament_name).classes('text-bold')
+        if round_label:
+            ui.label(f'· {round_label}').classes('text-muted')
+
+
 def booked_notice(opponent_name: str, opponent_can_ask: bool) -> str:
     """What a player is told after booking their own matchup.
 

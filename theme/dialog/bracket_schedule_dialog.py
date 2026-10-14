@@ -38,9 +38,11 @@ from application.services import BracketService
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.timezone import format_local_display, next_whole_hour_local
 from theme.dialog._helpers import (
+    FieldError,
     booked_notice,
     dialog_actions,
     dialog_header,
+    matchup_line,
     mobile_sheet,
     native_date_input,
     native_time_input,
@@ -61,6 +63,7 @@ class BracketScheduleDialog:
         game_number: int = 1,
         best_of: int = 1,
         tournament_name: str = '',
+        round_label: str = '',
         tournament_id: Optional[int] = None,
         player_ids: Optional[List[int]] = None,
         tenant_id: Optional[int] = None,
@@ -74,6 +77,7 @@ class BracketScheduleDialog:
         self.game_number = game_number
         self.best_of = best_of
         self.tournament_name = tournament_name
+        self.round_label = round_label
         self.tournament_id = tournament_id
         self.player_ids = player_ids or []
         self.tenant_id = tenant_id
@@ -124,9 +128,8 @@ class BracketScheduleDialog:
             )
             with ui.column().classes('q-pa-md gap-2'):
                 if self.tournament_name:
-                    ui.label(self.tournament_name).classes('text-bold')
+                    matchup_line(self.tournament_name, self.round_label)
                 if self.opponent_name:
-                    ui.label(f'Opponent: {self.opponent_name}').classes('text-muted')
                     ui.label('Pick a time you both can play.').classes('text-caption text-grey-7')
                 elif self.matchup_label:
                     ui.label(self.matchup_label).classes('text-muted')
@@ -134,6 +137,7 @@ class BracketScheduleDialog:
                 with ui.row().classes('form-pair items-center gap-2'):
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
+                error = FieldError(date, time)
 
                 if can_suggest:
                     # Player mode only (opponent_name is set from the player
@@ -151,8 +155,7 @@ class BracketScheduleDialog:
 
             async def submit():
                 if not (date.value and time.value):
-                    with self.dialog:
-                        ui.notify('Please choose a date and time.', color='warning')
+                    error.show('Choose a date and a time.')
                     return
                 try:
                     with self._scope():
@@ -167,13 +170,8 @@ class BracketScheduleDialog:
                         ui.notify(e.describe(format_local_display(e.scheduled_at)),
                                   color='warning', multi_line=True)
                         dialog.close()
-                except PermissionError as e:
-                    with self.dialog:
-                        ui.notify(str(e), color='negative')
-                    return
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(str(e), color='warning')
+                except (PermissionError, ValueError) as e:
+                    error.show(str(e))
                     return
                 else:
                     with self.dialog:

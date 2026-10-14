@@ -12,11 +12,14 @@ from nicegui import context, ui
 
 from application.services import ChallongeService
 from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.match_labels import challonge_round_label
 from application.utils.timezone import next_whole_hour_local
 from theme.dialog._helpers import (
+    FieldError,
     booked_notice,
     dialog_actions,
     dialog_header,
+    matchup_line,
     mobile_sheet,
     native_date_input,
     native_time_input,
@@ -56,13 +59,13 @@ class ChallongeScheduleDialog:
                 help=await resolve_help(['suggest-time']),
             )
             with ui.column().classes('q-pa-md gap-2'):
-                ui.label(cm.tournament.name).classes('text-bold')
-                ui.label(f'Opponent: {self.opponent_name}').classes('text-muted')
+                matchup_line(cm.tournament.name, challonge_round_label(cm.round))
                 ui.label('Pick a time you both can play.').classes('text-caption text-grey-7')
 
                 with ui.row().classes('form-pair items-center gap-2'):
                     date = native_date_input('Date', default_date, required=True)
                     time = native_time_input('Time', default_time, required=True)
+                error = FieldError(date, time)
 
                 render_suggest_time_button(
                     dialog,
@@ -75,8 +78,7 @@ class ChallongeScheduleDialog:
 
             async def submit():
                 if not (date.value and time.value):
-                    with self.dialog:
-                        ui.notify('Please choose a date and time.', color='warning')
+                    error.show('Choose a date and a time.')
                     return
                 try:
                     await self.challonge_service.schedule_challonge_match(
@@ -85,13 +87,8 @@ class ChallongeScheduleDialog:
                         scheduled_time=time.value,
                         actor=self.actor,
                     )
-                except PermissionError as e:
-                    with self.dialog:
-                        ui.notify(str(e), color='negative')
-                    return
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(str(e), color='warning')
+                except (PermissionError, ValueError) as e:
+                    error.show(str(e))
                     return
                 with self.dialog:
                     ui.notify(
