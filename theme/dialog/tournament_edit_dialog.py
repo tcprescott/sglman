@@ -27,6 +27,7 @@ from theme.dialog._helpers import (
     submit_on_enter,
 )
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.markdown_editor import MarkdownEditor
 from theme.notify import notify_error
 
 
@@ -82,10 +83,11 @@ class TournamentDialog:
                 name_input.props(
                     'hint="Everything below has a sensible default — you can come back to it."'
                 )
-                description_input = ui.textarea(
+                description_input = MarkdownEditor(
                     'Description',
                     value=self.tournament.description if self.tournament and self.tournament.description else '',
-                ).classes('input-full-width')
+                    placeholder='What players should know: format, schedule, where to be.',
+                )
                 is_active_checkbox = ui.checkbox(
                     'Active',
                     value=self.tournament.is_active if self.tournament else True,
@@ -232,13 +234,11 @@ class TournamentDialog:
                         'Tournament Format',
                         value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '',
                     ).classes('input-full-width')
-                    randomizer_notes_input = ui.textarea(
+                    randomizer_notes_input = MarkdownEditor(
                         'Randomizer Notes',
                         value=self.tournament.randomizer_notes if self.tournament and self.tournament.randomizer_notes else '',
-                    ).classes('input-full-width')
-                    randomizer_notes_input.tooltip(
-                        'Settings, preset and build players race on. Shown on the '
-                        'Tournaments tab; supports the same formatting as the description.'
+                        placeholder='Settings, preset and build players race on. Shown on the Tournaments tab.',
+                        compact=True,
                     )
 
                     ui.separator()
@@ -341,11 +341,11 @@ class TournamentDialog:
                             'preset. Pick one to replace it — saving with None turns '
                             'seed rolling off.'
                         ).classes('text-caption text-warning')
-                    triforce_access_message_input = ui.textarea(
+                    triforce_access_message_input = MarkdownEditor(
                         'Triforce Text Access Message',
                         value=self.tournament.triforce_access_message if self.tournament and self.tournament.triforce_access_message else '',
-                    ).classes('input-full-width').props(
-                        'hint="Shown (as markdown) to users without submit access — e.g. how to purchase it."'
+                        placeholder="Shown to players who can't submit yet, e.g. how to get access.",
+                        compact=True,
                     )
 
                 with ui.expansion(

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from nicegui import app, ui
 
+from application.content import parse_blocks
 from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
 from application.services.async_qualifier.async_qualifier_rules import (
     ClaimVerdict,
@@ -28,6 +29,7 @@ from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
 from theme.help import help_icon
+from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header, page_title
 from theme.qualifier_copy import (
@@ -162,7 +164,8 @@ def create() -> None:
                         ui.label(f'Window: {_fmt(q.opens_at)} → {_fmt(q.closes_at)}').classes(
                             'text-caption text-grey')
                         if q.description:
-                            ui.label(q.description).classes('text-caption wiz-free-text')
+                            with ui.element('div').classes('wiz-help-prose'):
+                                render_blocks(parse_blocks(q.description))
 
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int, focus: str | None = None) -> None:

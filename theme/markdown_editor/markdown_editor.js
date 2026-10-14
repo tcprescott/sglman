@@ -19,11 +19,15 @@ const TOOLS = [
   { name: "redo", label: "Redo", icon: "redo", run: (c) => c.redo() },
 ];
 
+// Short fields (a line or two of notes) keep inline formatting and bullets; a
+// heading or a note block in them would outweigh the text around it.
+const COMPACT_TOOLS = ["bold", "italic", "code", "link", "bullets"];
+
 const SAFE_HREF = /^(https:\/\/\S+|mailto:\S+|\/\S*)$/;
 
 export default {
   template: `
-    <div class="wiz-md-editor" :class="{ 'wiz-md-editor--disabled': disable }">
+    <div class="wiz-md-editor" :class="{ 'wiz-md-editor--disabled': disable, 'wiz-md-editor--compact': compact }">
       <div v-if="label" :id="labelId" class="wiz-md-editor__label">{{ label }}</div>
       <div class="wiz-md-editor__toolbar" role="toolbar" :aria-label="(label || 'Text') + ' formatting'">
         <template v-for="tool in tools">
@@ -45,9 +49,13 @@ export default {
     label: String,
     placeholder: String,
     disable: Boolean,
+    compact: Boolean,
   },
   data() {
-    return { tools: TOOLS, tick: 0, labelId: `wiz-md-${Math.random().toString(36).slice(2)}` };
+    const tools = this.compact
+      ? TOOLS.filter((t) => COMPACT_TOOLS.includes(t.name)).flatMap((t) => (t.name === "bullets" ? [{ sep: true }, t] : [t]))
+      : TOOLS;
+    return { tools, tick: 0, labelId: `wiz-md-${Math.random().toString(36).slice(2)}` };
   },
   mounted() {
     this.lastEmitted = this.value || "";

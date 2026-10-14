@@ -1,6 +1,7 @@
 from nicegui import ui
 from tortoise.functions import Count
 
+from application.content import parse_blocks
 from application.tenant_context import get_current_tenant_id
 from application.utils.timezone import format_local_display
 from application.utils.tournament_signup import SignupWindow, signup_window_state
@@ -38,6 +39,19 @@ def _signup_label(tournament) -> str:
         else tournament.signups_close_at
     )
     return f'{label} — {format_local_display(boundary)}' if boundary else label
+
+
+def _description_preview(text: str | None) -> str:
+    """The description as one line of plain text, for a table cell."""
+    if not text:
+        return ''
+    lines = []
+    for block in parse_blocks(text):
+        for spans in (block.spans, *block.items):
+            line = ''.join(span.text for span in spans).strip()
+            if line:
+                lines.append(line)
+    return ' '.join(lines)
 
 
 class TournamentTableView:
@@ -184,7 +198,7 @@ class TournamentTableView:
             row = {
                 'id': t.id,
                 'name': t.name,
-                'description': t.description,
+                'description': _description_preview(t.description),
                 'seed_generator': t.seed_generator,
                 'is_active': t.is_active,
                 'players_per_match': t.players_per_match,
@@ -211,7 +225,7 @@ class TournamentTableView:
         row = {
             'id': t.id,
             'name': t.name,
-            'description': t.description,
+            'description': _description_preview(t.description),
             'seed_generator': t.seed_generator,
             'is_active': t.is_active,
             'players_per_match': t.players_per_match,
