@@ -1,6 +1,6 @@
 """Pure builders for in-app route paths.
 
-Section slugs are path segments (``/admin/schedule``, ``/home/player``); anything
+Section slugs are path segments (``/admin/match-schedule``, ``/home/player``); anything
 a surface needs to focus on — or a dialog it should open on arrival — travels as a
 query param. Root-relative on purpose: NiceGUI derives the client prefix from the
 page's ``root_path``, so a bare ``/admin/…`` resolves inside ``/t/<slug>``.
@@ -16,13 +16,13 @@ from typing import Optional
 from urllib.parse import urlencode
 
 # Admin tab slugs (theme.base.tab_slug of each tab's label).
-SCHEDULE = 'schedule'
+SCHEDULE = 'match-schedule'
 REPORTS = 'reports'
-VOL_SCHEDULE = 'vol-schedule'
+VOL_SCHEDULE = 'volunteer-shifts'
 CHALLONGE = 'challonge'
-USERS = 'users'
+USERS = 'members'
 QUALIFIERS = 'qualifiers'
-CHECK_IN = 'check-in'
+CHECK_IN = 'check-in-roster'
 COMMUNITY_EVENTS = 'community-events'
 
 # Home tab slugs.
@@ -126,7 +126,7 @@ def player_match_url(match_id: int) -> str:
     """The Player tab narrowed to one match.
 
     Where the stage DMs land: the player's own board, showing the match the
-    message is about and nothing else. ``/admin/schedule?match_id=…`` is the
+    message is about and nothing else. ``/admin/match-schedule?match_id=…`` is the
     staff equivalent and no use here, because a player cannot open the admin
     board at all.
     """

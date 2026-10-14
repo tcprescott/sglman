@@ -4,10 +4,10 @@ slug: staff-schedule
 icon: edit_calendar
 order: 200
 audience: staff
-summary: For staff. Admin → Schedule, creating and editing matches, cancelling one, rewinding a match, stages and stream candidates, and approving crew.
+summary: For staff. Admin → Match Schedule, creating and editing matches, cancelling one, rewinding a match, stages and stream candidates, and approving crew.
 ---
 
-**This one is for staff.** It covers **Admin → Schedule**, the board you book and
+**This one is for staff.** It covers **Admin → Match Schedule**, the board you book and
 run matches from. What players, crew and proctors see of the same matches is in
 [the player guide](/help/player), [crew signup](/help/crew) and
 [the proctor guide](/help/proctor).
@@ -19,7 +19,7 @@ disputes, seeds and race rooms) have their own page:
 ## The board
 
 :::snippet staff-schedule-board
-**Admin → Schedule** lists every match in the community, one line each: the
+**Admin → Match Schedule** lists every match in the community, one line each: the
 time, who's playing, the stage, the crew and where the match stands. Out of the box it
 hides {state:Confirmed} matches, because a confirmed match needs nothing more
 from you. Change that with the **State** filter, and narrow by day, tournament, stage or

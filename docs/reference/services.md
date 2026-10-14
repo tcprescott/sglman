@@ -291,11 +291,11 @@ One module rather than a private `_url` helper per service, because three mistak
 | `crew_match(match_id, *, label='View your crew slot')` | `DMLink \| None` | `/home/my-crew?match=<id>` — a crew member's own card for that match. |
 | `community_schedule(*, label='View the schedule')` | `DMLink \| None` | `/home/schedule`, for a DM about somebody *else's* match. |
 | `home_tournaments(*, label='View tournaments')` | `DMLink \| None` | `/home/tournaments`, where signup and withdrawal happen (the signup confirmation). |
-| `admin_match(match_id, *, label='Open the match')` | `DMLink \| None` | `/admin/schedule?match_id=<id>` — where crew gets refilled. |
-| `admin_reschedule_request(request_id, *, label='Review the request')` | `DMLink \| None` | `/admin/schedule?reschedule_request=<id>` — one request's decision dialog, open. |
+| `admin_match(match_id, *, label='Open the match')` | `DMLink \| None` | `/admin/match-schedule?match_id=<id>` — where crew gets refilled. |
+| `admin_reschedule_request(request_id, *, label='Review the request')` | `DMLink \| None` | `/admin/match-schedule?reschedule_request=<id>` — one request's decision dialog, open. |
 | `admin_volunteer_schedule(day=None, *, label='Open the shift')` | `DMLink \| None` | The volunteer roster on the shift's day (the community's clock, not the reader's). |
-| `admin_users(*, label='Review the request')` | `DMLink \| None` | `/admin/users`, where join requests are decided. |
-| `admin_ada_request(request_id, *, label='Open the request')` | `DMLink \| None` | `/admin/users?ada_request=<id>`, that ADA request's dialog open. |
+| `admin_users(*, label='Review the request')` | `DMLink \| None` | `/admin/members`, where join requests are decided. |
+| `admin_ada_request(request_id, *, label='Open the request')` | `DMLink \| None` | `/admin/members?ada_request=<id>`, that ADA request's dialog open. |
 | `admin_matcherino_login(*, label='Update the Matcherino login')` | `DMLink \| None` | `/admin/check-in`, whose first control is the Matcherino login card. |
 | `admin_qualifier_queue(qualifier_id, *, label='Open the review queue')` | `DMLink \| None` | `/admin/qualifiers?qualifier=<id>&tab=queue` — one qualifier's review queue, open. |
 

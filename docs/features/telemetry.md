@@ -73,7 +73,7 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    for the landing tab and every switch on a tabbed hub (Admin, Home, Volunteer).
    A switch only rewrites the URL (`ui.navigate.history.replace`), so without
    this the hub's page views say nothing past the tab someone landed on. `path`
-   is the hub plus the tab (`/admin/schedule`), `target` the tab slug.
+   is the hub plus the tab (`/admin/match-schedule`), `target` the tab slug.
 5. **In-page usage** — [`static/js/usage.js`](../../static/js/usage.js), loaded
    by `BaseLayout` through [`theme/usage_telemetry.py`](../../theme/usage_telemetry.py),
    batches four kinds of row and sends them as the `wiz_usage` event every 5s

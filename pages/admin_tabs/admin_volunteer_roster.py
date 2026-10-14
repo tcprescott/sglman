@@ -59,7 +59,7 @@ async def admin_volunteer_roster_page() -> None:
 
     with ui.column().classes('page-container-wide'):
         with page_header(
-            'Volunteer Roster',
+            'Volunteers',
             'Everyone with the Volunteer or Staff role, their qualifications, and '
             'declared availability. Manage a volunteer to edit which positions they can fill.',
         ):

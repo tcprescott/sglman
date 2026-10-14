@@ -1,0 +1,72 @@
+"""The side menu and bottom bar draw outlined icons from a subset font.
+
+``static/fonts/material-symbols-outlined-nav.woff2`` holds only the navigation
+icons, so a nav icon left out of the subset renders as its ligature text
+("view_timeline") instead of a glyph. These keep the name list, the drawer's
+sources and the font in step, and check the renamed admin tabs still answer
+their old URLs, which DM buttons already sent carry.
+"""
+
+import ast
+from pathlib import Path
+
+from theme.base import HOME_SECTIONS, BaseLayout
+from theme.nav_badges import NAV_ICON_NAMES, nav_icon
+
+ROOT = Path(__file__).resolve().parents[2]
+TAB_SOURCES = ('pages/admin.py', 'pages/home.py', 'pages/volunteer.py', 'theme/base.py')
+
+
+def _nav_icon_literals() -> set[str]:
+    """Every icon a tab or menu dict names, plus every ``nav_icon('…')`` literal."""
+    names: set[str] = set()
+    for rel in TAB_SOURCES:
+        tree = ast.parse((ROOT / rel).read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Dict):
+                for key, value in zip(node.keys, node.values, strict=True):
+                    if (isinstance(key, ast.Constant) and key.value == 'icon'
+                            and isinstance(value, ast.Constant) and isinstance(value.value, str)):
+                        names.add(value.value)
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == 'nav_icon' and node.args
+                    and isinstance(node.args[0], ast.Constant)):
+                names.add(node.args[0].value)
+    return {n for n in names if ':' not in n}
+
+
+def test_every_nav_icon_is_in_the_subset_font():
+    used = _nav_icon_literals() | {icon for _label, icon in HOME_SECTIONS}
+    assert used, 'the scan found no nav icons'
+    assert used - NAV_ICON_NAMES == set()
+
+
+def test_the_subset_font_is_shipped_and_declared():
+    assert (ROOT / 'static/fonts/material-symbols-outlined-nav.woff2').stat().st_size > 0
+    css = (ROOT / 'static/css/styles.css').read_text()
+    assert "url('/static/fonts/material-symbols-outlined-nav.woff2')" in css
+    assert '.q-drawer .q-item--active .material-symbols-outlined' in css
+
+
+def test_nav_icon_prefixes_plain_names_only():
+    assert nav_icon('home') == 'sym_o_home'
+    assert nav_icon('sym_o_home') == 'sym_o_home'
+    triforce = 'svguse:/static/triforce.svg#triforce|0 0 512 512'
+    assert nav_icon(triforce) == triforce
+
+
+def test_renamed_admin_tabs_answer_their_old_slugs():
+    tabs = [
+        {'label': 'Match Schedule', 'aliases': ('schedule',), 'content': lambda: None},
+        {'label': 'Members', 'aliases': ('users',), 'content': lambda: None},
+        {'label': 'Volunteer Shifts', 'aliases': ('vol-schedule',), 'content': lambda: None},
+    ]
+    for old, label in (('schedule', 'Match Schedule'), ('users', 'Members'),
+                       ('vol-schedule', 'Volunteer Shifts'), ('members', 'Members')):
+        assert BaseLayout(tabs=tabs, section=old)._default_tab == label
+
+
+def test_admin_aliases_cover_every_renamed_slug():
+    source = (ROOT / 'pages/admin.py').read_text()
+    for alias in ('schedule', 'users', 'check-in', 'presets', 'vol-roster', 'vol-schedule'):
+        assert f"'aliases': ('{alias}',)" in source, alias

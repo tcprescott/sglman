@@ -55,6 +55,34 @@
         U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* The navigation icon set: outlined Material Symbols, subset to the drawer and
+   bottom-bar icons (theme.nav_badges.NAV_ICON_NAMES), with the FILL axis so the
+   item you are on can fill in. To add a name, download the subset again with it
+   in the sorted list:
+   https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=<names> */
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+    src: url('/static/fonts/material-symbols-outlined-nav.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
 /* Design tokens — the "Studio" system.
 
    A neutral warm-grey shell with one accent. The accent is the community's
@@ -891,6 +919,15 @@ body:has(.wiz-header) .q-notifications__list--top {
 
 .q-drawer .q-item--active .q-icon {
     color: var(--accent);
+}
+
+.q-drawer .q-item .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+.q-drawer .q-item--active .material-symbols-outlined,
+.wiz-bottom-nav .q-tab--active .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
 .q-drawer .text-h6 {

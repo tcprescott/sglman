@@ -339,7 +339,7 @@ async def test_a_new_request_dms_staff_with_a_link_to_it_and_no_details(member, 
     assert [d['to'] for d in sent] == [501]
     assert 'wheelchair' not in sent[0]['text']
     assert sent[0]['link'] is not None
-    assert sent[0]['link'].url.endswith(f'/admin/users?ada_request={request.id}')
+    assert sent[0]['link'].url.endswith(f'/admin/members?ada_request={request.id}')
 
 
 async def test_an_arranged_edit_dms_staff_once_not_per_autosave(member, staff, captured_dms):

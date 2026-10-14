@@ -54,7 +54,7 @@ class TenantSetupService:
                 label='Give the community a staff member',
                 done=has_staff,
                 hint='Staff configure the community and grant its other roles.',
-                tab='Users',
+                tab='Members',
                 required=True,
             ),
             SetupStep(

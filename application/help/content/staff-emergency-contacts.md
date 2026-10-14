@@ -14,7 +14,7 @@ Attendees can add one emergency contact on their Profile.
 ## Opening a contact
 
 When you need it, open
-**Admin → Users**, find the person, and choose **⋮ → Emergency contact…**. The
+**Admin → Members**, find the person, and choose **⋮ → Emergency contact…**. The
 dialog shows their contact's name, relationship and phone, with **Call** (on a
 phone) and **Copy number**.
 

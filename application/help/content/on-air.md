@@ -73,7 +73,7 @@ to turn it on and off.
 Whether you can watch a match from the room it's played in, and what's expected
 of you if you can, is the event's call rather than the app's. Some events keep
 the tournament room to players and crew and point everyone else at the stream.
-Where your community publishes its rules, they're under **Event Information** in
+Where your community publishes its rules, they're under **Event Guide** in
 the sidebar.
 
 A stage is separate again: it belongs to the broadcast techs, not to a proctor,

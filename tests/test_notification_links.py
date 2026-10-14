@@ -24,7 +24,7 @@ class TestPaths:
 
     def test_the_admin_board_filters_to_one_match(self):
         assert app_links.admin_url(app_links.SCHEDULE, match_id=7) == \
-            '/admin/schedule?match_id=7'
+            '/admin/match-schedule?match_id=7'
 
     def test_empty_params_are_dropped_rather_than_sent_blank(self):
         """A shift with no start must not produce ``?day=``.
@@ -33,12 +33,12 @@ class TestPaths:
         would show nothing at all.
         """
         assert app_links.admin_url(app_links.VOL_SCHEDULE, day=None) == \
-            '/admin/vol-schedule'
+            '/admin/volunteer-shifts'
 
     def test_a_date_is_normalised_to_iso(self):
         from datetime import date
         assert app_links.admin_url(app_links.VOL_SCHEDULE, day=date(2026, 3, 4)) == \
-            '/admin/vol-schedule?day=2026-03-04'
+            '/admin/volunteer-shifts?day=2026-03-04'
 
 
 class TestLinkBuilding:
@@ -56,7 +56,7 @@ class TestLinkBuilding:
         tenant = type('T', (), {'slug': 'acme', 'domain': 'play.acme.gg'})()
         with patch.object(links, '_current_tenant', AsyncMock(return_value=tenant)):
             link = await links.admin_users()
-        assert link == DMLink('Review the request', 'https://play.acme.gg/admin/users')
+        assert link == DMLink('Review the request', 'https://play.acme.gg/admin/members')
 
     async def test_no_tenant_yields_no_link_rather_than_a_broken_one(self):
         with patch.object(links, '_current_tenant', AsyncMock(return_value=None)):

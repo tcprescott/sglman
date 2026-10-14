@@ -9,7 +9,7 @@ roles: STAFF, VOLUNTEER_COORDINATOR
 summary: Who is in the volunteer pool, qualifications, hours against reward tiers, the settings behind them, and the CSV export.
 ---
 
-**Admin → Vol. Roster** is the list of people you can schedule. Staff and
+**Admin → Volunteers** is the list of people you can schedule. Staff and
 Volunteer Coordinators can open it. Building shifts and assigning people is in
 [Building the volunteer schedule](/help/coordinating-volunteers).
 
@@ -18,7 +18,7 @@ Volunteer Coordinators can open it. Building shifts and assigning people is in
 :::snippet vol-roster
 The roster is everyone in this community holding the **Volunteer** or **Staff**
 role. That role is what puts someone in the pool, so if a volunteer is missing,
-check their roles on the Users tab or the Discord role that grants it.
+check their roles on the Members tab or the Discord role that grants it.
 
 | Column | Shows |
 |---|---|
@@ -31,7 +31,7 @@ checkbox per active position. Tick the positions they're qualified for and
 press **Save qualifications**.
 :::
 
-![Vol. Roster: each volunteer's hours with the reward tier reached, qualifications and availability windows, with the manage button on Player One's row marked 1](/static/help/volunteer-hours-and-export/roster-desktop.webp "The manage button (1) on a row opens that volunteer's availability and qualifications.")
+![Volunteers: each volunteer's hours with the reward tier reached, qualifications and availability windows, with the manage button on Player One's row marked 1](/static/help/volunteer-hours-and-export/roster-desktop.webp "The manage button (1) on a row opens that volunteer's availability and qualifications.")
 
 Qualifications change who the auto-scheduler will place. Someone with at least
 one qualification is only placed in those positions, and goes ahead of
@@ -78,7 +78,7 @@ Two things a coordinator will want changed live where only staff can reach them:
 
 ## Exporting the data
 
-**Export data** is on Vol. Roster, and in the **Actions** menu on Vol. Schedule. Pick a date range (it
+**Export data** is on Volunteers, and in the **Actions** menu on Volunteer Shifts. Pick a date range (it
 starts as the event dates) and you get a ZIP with a README and six CSV files:
 
 | File | One row per |
@@ -94,7 +94,7 @@ Times are in your own timezone, and every file also has the UTC timestamps for
 sorting. The README says which zone was used.
 
 The export is a copy. Editing the files changes nothing in the app; a schedule
-you build in a spreadsheet has to be entered back on Vol. Schedule by hand. The
+you build in a spreadsheet has to be entered back on Volunteer Shifts by hand. The
 export includes everyone's availability and notes, so treat it as private, and
 know that each export is recorded in the audit log.
 

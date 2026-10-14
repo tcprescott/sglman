@@ -202,7 +202,7 @@ def create() -> None:
             # `badge` counts the community events listed since the member last
             # opened the Community view (`/home/community`, which also answers
             # the retired `/community-events`).
-            {'label': 'Event', 'icon': 'event', 'aliases': ('schedule', 'brackets', 'community'),
+            {'label': 'Event', 'icon': 'stadium', 'aliases': ('schedule', 'brackets', 'community'),
              'badge': community_new,
              'content': (event_tab, (), {'view': section, 'community_new': community_new})},
             # `schedule` is a bracket matchup id (`book` the same for a Challonge

@@ -10,7 +10,7 @@ summary: Working the ADA request queue, what proctors see once a request is arra
 ---
 
 Attendees ask for an ADA accommodation from their Profile. Staff work the requests
-on **Admin → Users → ADA requests**. The number on that tab counts the requests
+on **Admin → Members → ADA requests**. The number on that tab counts the requests
 that still need you.
 
 ## The queue

@@ -548,6 +548,6 @@ async def admin_presets_page() -> None:
         with list_container:
             preset_list()
 
-        wire_tab_refresh('Presets', refresh_table)
+        wire_tab_refresh('Seed Presets', refresh_table)
         background_tasks.create(refresh_table())
 

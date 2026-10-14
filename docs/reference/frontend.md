@@ -361,8 +361,8 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 | Challonge | Online play | Staff | `CHALLONGE` |
 | Brackets | Online play | Staff | `BRACKETS` |
 | Triforce Texts | Community | Staff, Tournament Admin (any) | `TRIFORCE_TEXTS` |
-| Vol. Roster | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
-| Vol. Schedule | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
+| Volunteers | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
+| Volunteer Shifts | Community | Staff, Volunteer Coordinator | `VOLUNTEERS` |
 | Equipment | Community | Staff, Equipment Manager | `EQUIPMENT` |
 | Feedback | Community | Staff | `FEEDBACK` |
 | Reports | System | Staff, Tournament Admin (any), Crew Coordinator (any); a Volunteer Coordinator otherwise gets Volunteer Coverage only (`only=VOLUNTEER_REPORTS`, no dashboard) | — (Volunteer Coordinator path: `VOLUNTEERS`) |
@@ -380,7 +380,7 @@ A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `Auth
 | Reports | `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stage_id`, `state`, `approval`, `action`, `focus`, `category`, `page` |
 | Schedule | `match_id` — focuses the board on one match (suspending its State filter) with a chip back to the full board; `reschedule_request` — opens that request's decision dialog once the board renders (the staff reschedule DM's button) |
 | Qualifiers | `qualifier`, `tab` (forwarded as `open_tab`) — the "runs are waiting" DM lands on that qualifier's queue |
-| Vol. Schedule | `day` — opens on that event day, ignored unless it is one of them |
+| Volunteer Shifts | `day` — opens on that event day, ignored unless it is one of them |
 
 Every report filter change navigates to a new `/admin/reports?report=...` URL, so report state is fully URL-driven and shareable. [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py) is the only place these URLs are built — `admin_url(section, **params)` owns the slug constants and the empty-param/date normalisation, and `reports_url` is a thin wrapper over it. Params are named per destination: `state` is the Reports tab's filter and is deliberately not reused for the board's.
 
@@ -398,8 +398,8 @@ Triforce texts has no standalone route: player submission is a dialog off the to
 | [`admin_payouts.py`](../../pages/admin_tabs/admin_payouts.py) | Payouts | Prize pool and placement splits per tournament via `PayoutService` (`PAYOUTS` flag); a TA is scoped to their own events by the service |
 | [`admin_check_in.py`](../../pages/admin_tabs/admin_check_in.py) | Check-in | A **Matcherino login** card ([`theme/matcherino_login_card.py`](../../theme/matcherino_login_card.py): write-only refresh-token input that checks the token with Matcherino before saving, the saved account and when, Remove, a **DM when Matcherino refuses it** Staff picker, and a "Where do I get one?" expansion with the draggable **Copy Matcherino login** bookmarklet and the private-window steps), then the check-in events table (`TableKeys.ADMIN_CHECK_IN_EVENTS`): New/Edit via `open_event_dialog` (with a **Look up** button that confirms the Matcherino venue by title and lists its badge types, plus the event's comp rules: a comp-roles multi-select and a comp-volunteers switch naming the hour threshold, and once synced a lanyard dropdown per badge type), last-sync status, and a **Desk** shortcut per event (STAFF, `EVENT_CHECK_IN` flag) — see [../features/event-check-in.md](../features/event-check-in.md#admin) |
 | [`triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py) | Triforce Texts | Moderation queue for triforce-text submissions |
-| [`admin_volunteer_roster.py`](../../pages/admin_tabs/admin_volunteer_roster.py) | Vol. Roster | Coordinator volunteer roster |
-| [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Vol. Schedule | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
+| [`admin_volunteer_roster.py`](../../pages/admin_tabs/admin_volunteer_roster.py) | Volunteers | Coordinator volunteer roster |
+| [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Volunteer Shifts | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
 | [`reports/`](../../pages/admin_tabs/reports/__init__.py) | Reports | Read-only analytics — see [Reports subsystem](#reports-subsystem-pagesadmin_tabsreports) |
 | [`admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Presets | Seed-rolling presets as a list grouped by randomizer, each line showing how many tournaments use it (`PresetService.usage`), with Test roll, Edit and a confirmed Delete in its menu; `PRESET_MANAGER`/STAFF. Import menu for built-in `presets/` files and a randomizer's catalogue. Test roll dialog (`PresetService.test_roll`) — see [seed-generation.md](seed-generation.md#presets-db-backed) |
 | [`admin_randomizer_keys.py`](../../pages/admin_tabs/admin_randomizer_keys.py) | Settings → Integrations | This community's own randomizer API credentials (`PRESET_MANAGER`/STAFF). One card per declared credential with a **write-only** password input — the stored value is never rendered back, and a blank submit is rejected (clearing is an explicit button). Cards, not a `ui.table`, so the per-credential help text fits — see [seed-generation.md](seed-generation.md#per-tenant-credentials) |
@@ -485,16 +485,16 @@ Two tab functions live in this module.
 
 ### Admin volunteer roster (`pages/admin_tabs/admin_volunteer_roster.py`)
 
-`admin_volunteer_roster_page()` — the "Vol. Roster" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
+`admin_volunteer_roster_page()` — the "Volunteers" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
 - A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerPoolService.assignable_volunteers`): Name, **Hours**, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
 - **Hours** comes from `VolunteerHoursService.roster()`, keyed by user id, with a positive chip naming the highest comp tier cleared (`8h`, `12h`, …). The column sorts on the raw number, never the rendered string, so 10 does not fall between 1 and 2.
 - The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
-- An **Export data** button opens `VolunteerExportDialog`; the same button sits on the Vol. Schedule tab, since the coordinator may start from either.
+- An **Export data** button opens `VolunteerExportDialog`; the same button sits on the Volunteer Shifts tab, since the coordinator may start from either.
 
 ### Admin volunteers (`pages/admin_tabs/admin_volunteers.py`)
 
-`admin_volunteers_page()` — the "Vol. Schedule" tab, the coordinator scheduling grid (refuses unless `AuthService.can_manage_volunteers(actor)`).
+`admin_volunteers_page()` — the "Volunteer Shifts" tab, the coordinator scheduling grid (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
 - A `@ui.refreshable` **coverage strip** above the controls, from `VolunteerScheduleService.day_summary`: `14/20 slots filled` · `6 open` (or `Fully staffed`) · `3 awaiting acknowledgment` · `4 draft`, the last two hidden at zero. It answers the on-site question that previously took 5.8 screenfuls of adding up. The chips wrap rather than scroll — the page has no horizontal overflow and must keep it.
 - The event-day select is **sticky**, stored under the tenant-namespaced session key `volunteers:day` (the match board's `_skey` pattern, so a coordinator working two communities does not carry day 3 of one into the other) and validated against the current event window by the module-level `stored_or_default_day`. No URL parameter: `BaseLayout` owns the path segment, and a query string would be a second source of truth.
@@ -828,7 +828,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`reschedule_decision_dialog.py`](../../theme/dialog/reschedule_decision_dialog.py) | `RescheduleDecisionDialog` | Staff's answer to a reschedule request, with everything needed to decide on the card; Approve performs the change (`update_match` / `cancel_match`) | Admin schedule's reschedule queue strip; `?reschedule_request=` deep link |
 | [`hard_preset_dialog.py`](../../theme/dialog/hard_preset_dialog.py) | `HardPresetDialog` | The player's private opt-in to the tournament's harder preset; copy readable without revealing the opponent's answer | My Schedule's ⋮ menu (Harder settings); `?hard=` deep link |
 | [`table_preferences_dialog.py`](../../theme/dialog/table_preferences_dialog.py) | `open_table_preferences` | The staged Preferences modal behind every table's gear (Cancel discards); ▲/▼ and width steppers are the keyboard/touch equivalents of drag | `preferences_button` |
-| [`volunteer_autofill_dialog.py`](../../theme/dialog/volunteer_autofill_dialog.py) | `VolunteerAutofillDialog` (+ pure `build_policy`) | Collect the `DraftPolicy` for one auto-fill run | Vol. Schedule "Auto-fill from availability" |
+| [`volunteer_autofill_dialog.py`](../../theme/dialog/volunteer_autofill_dialog.py) | `VolunteerAutofillDialog` (+ pure `build_policy`) | Collect the `DraftPolicy` for one auto-fill run | Volunteer Shifts "Auto-fill from availability" |
 | [`_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py) | `render_select`, `render_matchup_panel`, `apply_link`, `matchup_label`, `linked_matchup_id` | The admin editor's bracket-matchup panel + picker | `AdminMatchDialog` |
 | [`bracket_schedule_dialog.py`](../../theme/dialog/bracket_schedule_dialog.py) | `BracketScheduleDialog` | Schedule one game of a native-bracket matchup; player mode gets the shared Suggest a time button (round-window clamped) | Home My Schedule → matches (player mode); bracket match dialog (staff mode) |
 | [`confirmation_dialog.py`](../../theme/dialog/confirmation_dialog.py) | `ConfirmationDialog` | Generic confirm/cancel; the negative-styled confirm button runs the caller's `on_confirm`. `title=` names what is being confirmed (default `'Confirm'`), and the body renders `white-space: pre-line`, so `'\n\n'`-separated paragraphs survive. `require_phrase=` adds a text box for the irreversible ones: confirm stays disabled until the reader types the phrase back, and what they typed is on `.typed_phrase` when `on_confirm` runs, so the service re-checks the real input | Start/Confirm actions, crew signup/undo, crew approve/un-approve, match/triforce-text/equipment/shift deletes |
@@ -843,7 +843,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`challonge_participants_dialog.py`](../../theme/dialog/challonge_participants_dialog.py) | `ChallongeParticipantsDialog` | A linked bracket's entrants, unlinked first, each with a status badge (Not linked / Assigned by hand / Challonge account), a member picker + Assign, and Clear on hand assignments. Flags a hand assignment that overrides a different verified account | Admin → Challonge, **Entrants** on a linked tournament |
 | [`volunteer_position_dialog.py`](../../theme/dialog/volunteer_position_dialog.py) | `VolunteerPositionDialog` | Create/edit a `VolunteerPosition` | Admin Volunteers "Manage positions" |
 | [`volunteer_shift_dialog.py`](../../theme/dialog/volunteer_shift_dialog.py) | `VolunteerShiftDialog` | Create/edit a `VolunteerShift` (end date auto-tracks the start until edited) | Admin Volunteers Add/Edit shift |
-| [`volunteer_profile_dialog.py`](../../theme/dialog/volunteer_profile_dialog.py) | `VolunteerProfileDialog` | View a volunteer's availability, edit their qualifications | Vol. Roster manage button |
+| [`volunteer_profile_dialog.py`](../../theme/dialog/volunteer_profile_dialog.py) | `VolunteerProfileDialog` | View a volunteer's availability, edit their qualifications | Volunteers manage button |
 | [`volunteer_export_dialog.py`](../../theme/dialog/volunteer_export_dialog.py) | `VolunteerExportDialog` | Date-ranged ZIP export of the volunteer bundle | Both volunteer admin tabs |
 | [`checkout_dialog.py`](../../theme/dialog/checkout_dialog.py) | `CheckoutDialog` (+ `open_checkout` / `quick_checkin`) | Check an asset out. `open_checkout` shows the borrower picker only when `can_manage`; otherwise it self-checks-out immediately. The picker lists **this community's people** (`UserService.get_community_people`, actor force-included), with an **Include people outside this community** checkbox that refills from the global list — a widening, not a filter. Either way `_borrower_options` drops the system account and deactivated users | Admin Equipment tab, asset detail page |
 | [`equipment_dialog.py`](../../theme/dialog/equipment_dialog.py) | `EquipmentDialog` | Create / edit a lending asset; create mode adds a Quantity field for bulk creation (`bulk_create_assets`). The **Owner** select uses the same per-community read (community sentinel first, actor and the stored owner force-included, and an unavailable stored owner kept selectable so saving cannot silently clear it) | Admin Equipment tab; asset detail Edit |

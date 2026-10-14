@@ -76,7 +76,7 @@ Leave the dates blank to use the community-wide hours under **Settings → Event
 Click the player count to open the tournament's entrant list. Pick someone in
 **Enrol a member** and press **Enrol** to add them. **Remove** beside a name
 takes them out, after asking first. Only staff can change entrants. The person
-has to be a member of the community already, so add them on **Admin → Users**
+has to be a member of the community already, so add them on **Admin → Members**
 first if they aren't.
 
 A match can only be scheduled between entrants, so a missing entrant is the usual
@@ -88,7 +88,7 @@ A tournament linked to Challonge takes its entrants from the bracket instead. Se
 ## Who can run it
 
 Two per-tournament jobs are set on a person, not on the tournament. On
-**Admin → Users**, open the person's **⋮** menu, choose **Edit member**, and pick
+**Admin → Members**, open the person's **⋮** menu, choose **Edit member**, and pick
 tournaments under **Tournament Admin of** or **Crew Coordinator of**. A Discord role mapping under **Settings →
 Discord** can grant either one as well.
 
@@ -100,7 +100,7 @@ Discord** can grant either one as well.
 Neither can create or delete a tournament or change its entrants. Those stay with
 staff.
 
-The **Roles** filter on Admin → Users has **Tournament Admin** and **Crew
+The **Roles** filter on Admin → Members has **Tournament Admin** and **Crew
 Coordinator** options for finding everyone who holds either job.
 
 ## Deleting a tournament

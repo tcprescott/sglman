@@ -187,7 +187,7 @@ Engagement telemetry (Staff; `TelemetryService` re-checks that itself).
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
 
 ### Join requests (`/api/join-requests`) · `memberships.py`
-The staff queue from Admin → Users. Every route is Staff (`can_grant_roles`, checked in `TenantMembershipService`).
+The staff queue from Admin → Members. Every route is Staff (`can_grant_roles`, checked in `TenantMembershipService`).
 - `GET /join-requests` — pending requests to join the token's community, oldest first.
 - `POST /join-requests/{id}/approve` · `POST /join-requests/{id}/deny` — decide one. The requester is DMed either way. `400` once it has been decided, `404` for another community's request.
 

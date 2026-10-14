@@ -14,7 +14,7 @@ of the community to send it.
 ## Sending it
 
 :::snippet feedback-send
-Open **Feedback** in the side menu, just below Help. Pick a **Category** (Bug,
+Open **Send Feedback** in the side menu, just below Help. Pick a **Category** (Bug,
 Suggestion, Praise or Other), write your **Message**, and tap **Send**.
 
 The app notes which page you were on when you sent it, so staff can find the
