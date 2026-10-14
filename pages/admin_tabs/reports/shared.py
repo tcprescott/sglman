@@ -80,9 +80,13 @@ def themed_chart_option(option: dict) -> dict:
     """Overlay the mode-neutral chrome colors onto an ECharts option in place.
 
     Sets default text, legend text, and per-axis label/name/line/split-line
-    colors without clobbering anything the chart already specifies.
+    colors, plus decal patterns and an aria description, without clobbering
+    anything the chart already specifies.
     """
     option.setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
+    # Patterned series (decals) so stacked and multi-series charts don't rely on
+    # colour alone; aria also gives screen readers a generated description.
+    option.setdefault('aria', {'enabled': True, 'decal': {'show': True}})
     if 'legend' in option:
         option['legend'].setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
     if 'toolbox' in option:
