@@ -48,8 +48,8 @@ _SIGN_IN = '''
     </div>
 '''
 _ACTIONS = slot_more_menu('props.row.display', [
-    SlotItem('key', 'Set password…', 'set_password', v_if='!props.row.login_name'),
-    SlotItem('key', 'Change password…', 'set_password', v_if='props.row.login_name'),
+    SlotItem('key', 'Set password…', 'set_password', v_if='!props.row.login_name && !props.row.super_admin'),
+    SlotItem('key', 'Change password…', 'set_password', v_if='props.row.login_name && !props.row.super_admin'),
     SlotItem('person', 'Reactivate account', 'reactivate', v_if='!props.row.active_bool'),
     SlotItem('key_off', 'Remove password…', 'remove_password', negative=True,
              v_if='props.row.login_name && props.row.has_discord'),
