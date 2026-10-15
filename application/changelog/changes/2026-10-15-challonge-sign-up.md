@@ -5,6 +5,4 @@
 
 ### Improved
 
-- Challonge tournament cards now show who's on the bracket and how many entrants it has, including people added on Challonge by name.
 - Admin → Challonge now tells staff when the Challonge connection needs reconnecting before players can sign up from Wizzrobe.
-- Admin → Challonge remembers the Challonge communities you've connected with. Reconnect asks for all of them again, so you don't retype a community, and you can remove one you no longer use.

@@ -19,7 +19,6 @@
 - Spectators get a cached Watch page, and the join page points at it.
 - Help has a new article on borrowing equipment: scanning a loaner's QR code, giving it back, and running the equipment desk. The asset page, the equipment section on My Schedule and Admin → Equipment link to it.
 - This page: What's new, at the top of Help, lists the bigger changes a week at a time.
-- Help articles can show screenshots, starting with the Tournaments tab in Getting started. Tap one to see it full size.
 - Help now covers tournament setup for staff: creating a tournament and its signup window, Challonge brackets, seed presets and test rolls, prize payouts, and the ADA queue. The Tournaments, Challonge, Presets, Payouts and ADA requests pages each have a help icon that opens the right part.
 - Help's For staff section has two articles on running match day from the Schedule tab: booking and editing matches, stages and crew approval, then reschedule requests, confirming results, disputes, seeds and race rooms. The Schedule tab's title links to them.
 
@@ -30,8 +29,6 @@
 - Crew hear about it when an admin assigns or removes them, crew signup lost several waits and taps, and the match buttons on the floor are safe against stale pages and double taps.
 - Help for crew and spectators is up to date: signing up from a Discord DM, what the names in a crew cell mean, the board's filters (finished matches are hidden by default), what On Air shows, and the public Watch page, which On Air now links from its help. On Air's Watch Stream link is readable again in the light theme.
 - Equipment checkout can't double-book a device, and equipment managers can retire assets.
-- The app's shell moved onto one neutral colour system, the first step of a wider style pass.
-- Status badges, dialogs and page titles now share one look. A badge's colour is a soft tint instead of a solid pill, dialogs come in three sizes, and every page opens with the same title and short description. Grey captions, red and green text in dark mode, and the VIP lanyard on the check-in desk are all easier to read.
 - Screen readers and keyboards get further. Icon buttons say what they do instead of just "button", every page has a title heading and a Skip to content link, filter boxes and switches are named, and Help cards, bracket matches and date pickers open with Enter. The phone tab bar and the cat facts under empty lists are darker and easier to read.
 - Admin settings live in one place. Settings in the admin menu opens its own list of sections (General, Event, Venue, Members, Volunteers, Discord, Integrations, Features), and each card saves on its own, with a Save button that only appears once you've changed something. Old links to Appearance, Timezone, Role Mappings and the rest still land on the right section.
 - The player help is rewritten for SGL 2026. It now covers joining a community, the profile reminder banner, booking a bracket match, seeds, harder settings, race rooms and change requests, and a new Help article explains ADA accommodation requests. The glossary picked up the words those screens use.
@@ -44,10 +41,6 @@
 
 - Removing someone from a community now keeps them out, even where anyone can join or Discord server members get in automatically. They can still ask to join, and staff can add them back.
 - A login only works on the site it started on, the check-in desk can only link people in its own community, staff can't change the Challonge link of someone who also plays elsewhere, names can't carry links or Discord mentions, a deactivated account's old Discord buttons stop working, and asking for a match can't sign other people up for a tournament.
-
-### Behind the scenes
-
-- Error reporting through Sentry, adjustable log levels on the platform page, and dependency updates including the MCP server's move to mcp 2.x.
 
 ## 2026-09-28/2026-10-04 Joining a community, ADA requests and boards that fit a phone
 

@@ -1,4 +1,0 @@
-### Improved
-- Short dialogs open narrower on a computer and their fields reach the edge. Pick a time, Submit Match, Edit Stage, Check out, Give this shift back and Send Feedback no longer leave a blank strip down the right side.
-- Every dialog now uses the same inset around its form, so fields no longer start further in on some dialogs than others, and the date and time share their row evenly.
-- Check in & seat and Record result now keep their buttons on the right, like every other dialog.
