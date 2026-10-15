@@ -30,6 +30,8 @@ import frontend
 # would otherwise win the race against the basicConfig below and strip the log
 # format for the whole process.
 import mcpserver
+from api.openapi_docs import api_description
+from api.openapi_docs import install as install_openapi_docs
 from application.events import dispatch_queue as event_dispatch_queue
 from application.events import event_bus
 from application.services import TelemetryService, WebhookService, web_push_service
@@ -272,32 +274,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     finally:
         await flush_sentry()
 
-API_DESCRIPTION = """
-REST API for managing tournaments, matches, players, crew, and event
-operations for Wizzrobe.
-
-## Authentication
-
-Every endpoint requires a **personal API token**. Generate one on your
-profile page (Edit Your Information -> API Tokens), then send it as a bearer
-token:
-
-    Authorization: Bearer wizzrobe_pat_xxxxxxxx...
-
-A token acts with the exact permissions and scope of the user who created it --
-the same role checks that gate the web UI apply here. A token marked
-**read-only** can call read (GET) endpoints only.
-
-Click **Authorize** and paste your token to try the endpoints below.
-"""
-
 # Initialize Sentry before the app/middleware are constructed so its
 # instrumentation wraps the request path. No-op when SENTRY_DSN is unset.
 init_sentry()
 
 app: FastAPI = FastAPI(
     title="Wizzrobe API",
-    description=API_DESCRIPTION,
+    description=api_description(),
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",
@@ -320,6 +303,7 @@ app.include_router(
     api.router,
     prefix='/api',
 )
+install_openapi_docs(app)
 
 # ORDER IS LOAD-BEARING: frontend.init() hands the app to NiceGUI, which mounts
 # itself at '/' and would swallow /mcp. Register the MCP routes first.
