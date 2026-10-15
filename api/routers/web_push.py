@@ -23,6 +23,17 @@ router = APIRouter(prefix='/web-push', tags=['Web Push'], route_class=ServiceErr
     '/rotate',
     response_model=WebPushRotateResponse,
     summary='Re-point a device subscription its push service reissued',
+    description=(
+        "Swaps a stored web-push subscription over to the one the browser's push service "
+        "reissued, so the same person keeps getting notifications on that device. The "
+        "browser's service worker calls this on its own when the subscription changes, and "
+        "the rotation is recorded in the audit log.\n\n"
+        "Fails with 400 when the new endpoint isn't an https URL on a public host or the new "
+        "keys are malformed. Answers 404 when no stored subscription matches both "
+        "`old_endpoint` and `old_auth`."
+        "\n\n**Who can call this:** Anyone; no token needed. The request proves itself by "
+        "carrying the retired subscription's auth secret, which only the subscribed browser holds."
+    ),
 )
 async def rotate(body: WebPushRotateRequest) -> WebPushRotateResponse:
     await WebPushService().rotate_subscription(

@@ -28,9 +28,14 @@ router = APIRouter(
     "",
     response_model=List[DiscordRoleMappingResponse],
     summary="List Discord role mappings (Staff only)",
+    description=(
+        "Returns the community's Discord role mappings, sorted by Discord role name. Each one says which "
+        "role or tournament authority members holding that Discord role receive.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def list_mappings(
-    guild_id: Optional[int] = Query(None, description="Filter to a single guild."),
+    guild_id: Optional[int] = Query(None, description="Only mappings for this Discord server ID."),
     actor: User = Depends(require_staff),
 ):
     service = DiscordRoleMappingService()
@@ -44,6 +49,15 @@ async def list_mappings(
     response_model=DiscordRoleMappingResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a Discord role mapping (Staff only)",
+    description=(
+        "Maps a Discord role to either a community-wide role or one tournament's admin or crew coordinator "
+        "slot, and records it in the audit log. Members pick up the grant at their next Discord role sync, "
+        "usually when they sign in.\n\n"
+        "Fails with 400 when both or neither of `app_role` and `tournament_grant` are set, `app_role` is "
+        "`super_admin`, a community-wide role names a tournament, a tournament grant has no `tournament_id`, "
+        "or the same mapping already exists.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def add_mapping(
     body: DiscordRoleMappingCreate, actor: User = Depends(require_staff_write),
@@ -63,6 +77,11 @@ async def add_mapping(
     "/{mapping_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a Discord role mapping (Staff only)",
+    description=(
+        "Removes the mapping and records it in the audit log. Members who got a role through it lose that "
+        "role at their next Discord role sync.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def remove_mapping(mapping_id: int, actor: User = Depends(require_staff_write)):
     await DiscordRoleMappingService().remove_mapping(mapping_id, actor=actor)
