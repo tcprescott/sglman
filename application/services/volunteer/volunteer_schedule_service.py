@@ -81,6 +81,23 @@ class VolunteerScheduleService:
         shifts = await self.shift_repository.list_for_window(start, end)
         return build_day_grid(shifts, midnight, viewer.id)
 
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def board_day_grid(self, actor: Optional[User], day: date) -> DayGrid:
+        """One event day for the Shift Board: drafts included, every active
+        position a column, and who has or hasn't turned up on started shifts."""
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can edit the shift board.",
+        )
+        midnight = combine_local(day, time(0))
+        start, end = day_window(midnight)
+        shifts = await self.shift_repository.list_for_window(start, end)
+        positions = [(p.id, p.name) for p in await self.position_repository.list_active()]
+        return build_day_grid(
+            shifts, midnight, actor.id if actor else 0, for_staff=True, positions=positions,
+            now=datetime.now(timezone.utc),
+        )
+
     async def get_shift(self, shift_id: int) -> Optional[VolunteerShift]:
         return await self.shift_repository.get_by_id(shift_id)
 

@@ -1,8 +1,10 @@
-"""The read-only day grid volunteers see under Volunteer → Full Schedule.
+"""The day grid behind Volunteer → Full Schedule and Admin → Shift Board.
 
 Pure layout: turns one day's shifts into role columns positioned on an hour
 scale, so the page only draws boxes and the rules (which assignments count,
 where a day starts and ends) are testable without a database or a browser.
+The volunteers' grid is read-only and published-only; the Shift Board's
+(``for_staff=True``) also carries drafts, ids and each person's arrival state.
 """
 
 import math
@@ -16,10 +18,24 @@ DAY_STARTS_AT_HOUR = 6
 DAY_LENGTH_HOURS = 24
 
 
+# A person's arrival on a shift that has started, for the Shift Board.
+ARRIVED = 'arrived'
+LATE = 'late'
+NOT_HERE = 'not_here'
+
+
 @dataclass(frozen=True)
 class GridPerson:
     name: str
     is_viewer: bool
+    assignment_id: int = 0
+    user_id: int = 0
+    draft: bool = False
+    acknowledged: bool = False
+    # ARRIVED / LATE / NOT_HERE once the shift has started, else ''.
+    arrival: str = ''
+    checked_in_at: Optional[datetime] = None
+    late_minutes: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -32,6 +48,9 @@ class GridShift:
     end_hour: float
     people: Tuple[GridPerson, ...]
     open_slots: int
+    shift_id: int = 0
+    slots_needed: int = 1
+    notes: str = ''
     # Side-by-side placement for shifts of one position that overlap (a
     # staggered position runs 08–12 beside 10–14): this shift's lane, and how
     # many lanes its overlapping group needs.
@@ -72,25 +91,65 @@ def day_window(midnight: datetime) -> Tuple[datetime, datetime]:
     return start, start + timedelta(hours=DAY_LENGTH_HOURS)
 
 
-def build_day_grid(shifts: Iterable, midnight: datetime, viewer_id: Optional[int]) -> DayGrid:
+def arrival_state(
+    assignment, starts_at: datetime, ends_at: datetime, now: Optional[datetime],
+) -> str:
+    """Where a volunteer stands on a shift in progress; '' before it starts.
+
+    Once the shift is over only a check-in is shown: "not here yet" about a
+    finished shift would be noise on a board read during the event.
+    """
+    if getattr(assignment, 'checked_in_at', None) is not None:
+        return ARRIVED
+    if now is None or not starts_at <= now < ends_at:
+        return ''
+    return LATE if getattr(assignment, 'late_minutes', None) is not None else NOT_HERE
+
+
+def _person(assignment, shift, viewer_id: Optional[int], now: Optional[datetime]) -> GridPerson:
+    draft = bool(assignment.auto_generated)
+    return GridPerson(
+        assignment.user.preferred_name, assignment.user_id == viewer_id,
+        assignment_id=getattr(assignment, 'id', 0) or 0,
+        user_id=assignment.user_id,
+        draft=draft,
+        acknowledged=getattr(assignment, 'acknowledged_at', None) is not None,
+        arrival='' if draft else arrival_state(assignment, shift.starts_at, shift.ends_at, now),
+        checked_in_at=getattr(assignment, 'checked_in_at', None),
+        late_minutes=getattr(assignment, 'late_minutes', None),
+    )
+
+
+def build_day_grid(
+    shifts: Iterable, midnight: datetime, viewer_id: Optional[int], *,
+    for_staff: bool = False,
+    positions: Iterable[Tuple[int, str]] = (),
+    now: Optional[datetime] = None,
+) -> DayGrid:
     """Columns per position, in the order ``shifts`` arrive (position order).
 
-    Draft assignments are left out: those volunteers have not been told, and
-    the grid is read by everyone on the schedule.
+    Draft assignments are left out unless ``for_staff``: those volunteers have
+    not been told, and the volunteers' grid is read by everyone on the
+    schedule. ``positions`` adds an empty column for each one with no shift
+    that day, so the Shift Board can add the first; ``now`` decides who is
+    late or missing on a shift that has started.
     """
     lo_bound = float(DAY_STARTS_AT_HOUR)
     hi_bound = float(DAY_STARTS_AT_HOUR + DAY_LENGTH_HOURS)
     by_position: dict = {}
     names: dict = {}
+    for position_id, name in positions:
+        names[position_id] = name
+        by_position[position_id] = []
     for shift in shifts:
         start_h = max(lo_bound, (shift.starts_at - midnight).total_seconds() / 3600)
         end_h = min(hi_bound, (shift.ends_at - midnight).total_seconds() / 3600)
         if end_h <= start_h:
             continue
-        published = [a for a in shift.assignments if not a.auto_generated and a.user]
+        shown = [a for a in shift.assignments if a.user and (for_staff or not a.auto_generated)]
         people = tuple(sorted(
-            (GridPerson(a.user.preferred_name, a.user_id == viewer_id) for a in published),
-            key=lambda p: p.name.casefold(),
+            (_person(a, shift, viewer_id, now) for a in shown),
+            key=lambda p: (p.draft, p.name.casefold()),
         ))
         key = shift.position_id
         names.setdefault(key, shift.position.name if shift.position else 'Volunteer')
@@ -98,6 +157,9 @@ def build_day_grid(shifts: Iterable, midnight: datetime, viewer_id: Optional[int
             starts_at=shift.starts_at, ends_at=shift.ends_at, label=shift.label or '',
             start_hour=start_h, end_hour=end_h, people=people,
             open_slots=max(0, shift.slots_needed - len(people)),
+            shift_id=getattr(shift, 'id', 0) or 0,
+            slots_needed=shift.slots_needed,
+            notes=getattr(shift, 'notes', None) or '',
         ))
     columns = tuple(
         GridColumn(key, names[key], _in_lanes(items)) for key, items in by_position.items()
@@ -105,12 +167,19 @@ def build_day_grid(shifts: Iterable, midnight: datetime, viewer_id: Optional[int
     return _framed(midnight, columns)
 
 
+# The span an empty Shift Board shows, so there is somewhere to tap.
+_EMPTY_SPAN = (8, 24)
+
+
 def _framed(midnight: datetime, columns: Tuple[GridColumn, ...]) -> DayGrid:
     """The grid's hour span: from the earliest shift shown to the latest."""
     if not columns:
         return DayGrid(midnight, DAY_STARTS_AT_HOUR, DAY_STARTS_AT_HOUR, ())
-    first = math.floor(min(s.start_hour for c in columns for s in c.shifts))
-    last = math.ceil(max(s.end_hour for c in columns for s in c.shifts))
+    shifts = [s for c in columns for s in c.shifts]
+    if not shifts:
+        return DayGrid(midnight, _EMPTY_SPAN[0], _EMPTY_SPAN[1], columns)
+    first = math.floor(min(s.start_hour for s in shifts))
+    last = math.ceil(max(s.end_hour for s in shifts))
     return DayGrid(midnight, first, last, columns)
 
 

@@ -5036,6 +5036,93 @@ ol.wiz-help-list { list-style-type: decimal; }
     pointer-events: none;
 }
 
+/* The Columns button and a page's own toolbar travel as one group, pushed to
+   the right of the day chips; on a phone they take their own line. */
+.wiz-vgrid-tools {
+    gap: var(--space-2, 8px);
+    margin-left: auto;
+}
+
+@media (max-width: 599.98px) {
+    .wiz-vgrid-tools--crowded {
+        width: 100%;
+    }
+    /* Three buttons don't fit a 360px line with Columns spelled out. */
+    .wiz-vgrid-tools--crowded .wiz-vgrid-columns__label {
+        display: none;
+    }
+}
+
+.wiz-vgrid-columns__label {
+    margin-left: 8px;
+}
+
+/* Admin → Shift Board: the same grid, where a shift opens its sheet and an
+   empty hour adds one. */
+.wiz-vgrid__body--addable {
+    cursor: copy;
+}
+
+.wiz-vgrid__shift--button {
+    cursor: pointer;
+}
+
+.wiz-vgrid__shift--button:hover {
+    border-color: var(--accent);
+}
+
+.wiz-vgrid__shift--button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.wiz-vgrid__shift--selected {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+    border: 2px solid var(--accent);
+}
+
+.wiz-vgrid__person {
+    gap: 4px;
+    min-width: 0;
+}
+
+.wiz-vgrid__person .q-icon {
+    flex: none;
+}
+
+.wiz-vgrid__name--draft {
+    font-style: italic;
+    color: var(--fg-muted);
+    text-decoration: underline dashed;
+    text-underline-offset: 3px;
+}
+
+.wiz-vgrid__gap {
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 0 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 18px;
+    color: var(--status-pending);
+    border: 1px dashed var(--status-pending);
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.shift-sheet__person {
+    gap: var(--space-2, 8px);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.shift-sheet__open {
+    padding: 8px 10px;
+    color: var(--fg-muted);
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+}
+
 .wiz-vgrid-days {
     gap: var(--space-2, 8px);
     flex-wrap: wrap;

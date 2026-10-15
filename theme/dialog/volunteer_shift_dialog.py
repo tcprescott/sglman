@@ -1,5 +1,7 @@
 """Dialog for creating/editing a VolunteerShift."""
 
+from datetime import datetime, timedelta
+
 from nicegui import app, ui
 
 from application.services import get_user_from_session
@@ -25,14 +27,19 @@ from theme.notify import notify_error
 class VolunteerShiftDialog:
     def __init__(
         self,
-        shift: VolunteerShift = None,
-        position: VolunteerPosition = None,
+        shift: VolunteerShift | None = None,
+        position: VolunteerPosition | None = None,
         default_day: str | None = None,
         on_submit=None,
+        default_start: datetime | None = None,
+        default_hours: int = 2,
     ):
         self.shift = shift
         self.position = position
         self.default_day = default_day
+        # The Shift Board's tap on an empty hour: start there, run two hours.
+        self.default_start = default_start
+        self.default_hours = default_hours
         self.on_submit = on_submit
         self.dialog = None
         self.position_service = VolunteerPositionService()
@@ -52,6 +59,16 @@ class VolunteerShiftDialog:
             default_label = self.shift.label or ''
             default_slots = self.shift.slots_needed
             default_notes = self.shift.notes or ''
+        elif self.default_start is not None:
+            default_position = self.position.id if self.position else None
+            ends = self.default_start + timedelta(hours=self.default_hours)
+            default_start_date = format_local_date(self.default_start)
+            default_start_time = format_local_time(self.default_start)
+            default_end_date = format_local_date(ends)
+            default_end_time = format_local_time(ends)
+            default_label = ''
+            default_slots = 1
+            default_notes = ''
         else:
             default_position = self.position.id if self.position else None
             default_start_date = self.default_day or ''

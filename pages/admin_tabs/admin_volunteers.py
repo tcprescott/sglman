@@ -8,10 +8,7 @@ from nicegui import app, ui
 from application.services import AuthService, SystemConfigService, get_user_from_session
 from application.services.volunteer.volunteer_arrival_service import describe_late
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer.volunteer_pool_service import VolunteerPoolService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import (
@@ -20,9 +17,10 @@ from application.utils.timezone import (
     parse_local_datetime,
     timezone_label,
 )
-from models import VolunteerAssignment, VolunteerAvailabilityStatus
+from models import VolunteerAssignment
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.volunteer_assign_dialog import VolunteerAssignDialog
 from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
@@ -63,9 +61,6 @@ async def admin_volunteers_page(day: str | None = None) -> None:
     position_service = VolunteerPositionService()
     schedule_service = VolunteerScheduleService()
     autoschedule_service = VolunteerAutoscheduleService()
-    availability_service = VolunteerAvailabilityService()
-    pool_service = VolunteerPoolService()
-    qualification_service = VolunteerQualificationService()
 
     event_start, event_end = await SystemConfigService.get_event_window()
     day_options = []
@@ -464,101 +459,18 @@ async def admin_volunteers_page(day: str | None = None) -> None:
 
         # --- Assignment picker ------------------------------------------
         async def open_assign_dialog(shift) -> None:
-            pool = await pool_service.assignable_volunteers()
-            avail_map = await availability_service.availability_map(
-                [u.id for u in pool], shift.starts_at, shift.ends_at,
-            )
-            assigned_ids = {a.user_id for a in shift.assignments}
-            qualified_ids = await qualification_service.get_qualified_user_ids_for_position(shift.position_id)
-            # If no qualifications are defined for this position, treat everyone as eligible.
-            has_qualifications = bool(qualified_ids)
-            picker_state = {'show_all': not has_qualifications}
-            search_state = {'text': ''}
-
-            title = shift.position.name if shift.position else 'Shift'
-            with form_dialog(
-                f'Assign to {title} ({format_local_time_range(shift.starts_at, shift.ends_at)})',
-            ) as dialog:
-                if not pool:
-                    ui.label('No volunteers in pool. Users must have the Volunteer or Staff role assigned.') \
-                        .classes('italic-note q-pa-md')
-
-                if pool:
-                    def on_search_change(e) -> None:
-                        search_state['text'] = (e.value or '').strip().lower()
-                        picker_list.refresh()
-                    ui.input('Search by name', on_change=on_search_change) \
-                        .props('dense clearable debounce=200 autofocus') \
-                        .classes('full-width q-px-sm q-pt-xs')
-
-                if has_qualifications:
-                    with ui.row().classes('items-center q-px-sm q-pt-xs'):
-                        def on_show_all_change(e) -> None:
-                            picker_state['show_all'] = e.value
-                            picker_list.refresh()
-                        ui.checkbox('Show unqualified volunteers', value=False,
-                                    on_change=on_show_all_change)
-
-                @ui.refreshable
-                def picker_list() -> None:
-                    visible = [v for v in pool if v.id not in assigned_ids]
-                    if not picker_state['show_all']:
-                        visible = [v for v in visible if v.id in qualified_ids]
-                    if search_state['text']:
-                        visible = [v for v in visible if search_state['text'] in v.preferred_name.lower()]
-                    with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
-                        if not visible:
-                            empty = ('No one matches that search.' if search_state['text']
-                                     else 'No qualified volunteers available.')
-                            ui.label(empty).classes('italic-note')
-                        for volunteer in visible:
-                            is_qualified = volunteer.id in qualified_ids
-                            status = VolunteerAvailabilityService.covers(
-                                avail_map.get(volunteer.id, []), shift.starts_at, shift.ends_at,
-                            )
-                            _render_picker_row(
-                                dialog, shift, volunteer, status,
-                                show_qualification=picker_state['show_all'] and has_qualifications,
-                                is_qualified=is_qualified,
-                            )
-
-                picker_list()
-
-                dialog.open()
-
-        def _render_picker_row(
-            dialog, shift, volunteer, status,
-            show_qualification: bool = False,
-            is_qualified: bool = True,
-        ) -> None:
-            with ui.row().classes('items-center justify-between full-width'):
-                with ui.row().classes('items-center gap-2'):
-                    ui.label(volunteer.preferred_name)
-                    if show_qualification:
-                        if is_qualified:
-                            ui.badge('Qualified', color='primary')
-                    if status == VolunteerAvailabilityStatus.PREFERRED:
-                        ui.badge('Preferred', color='positive')
-                    elif status == VolunteerAvailabilityStatus.AVAILABLE:
-                        ui.badge('Available', color='positive').props('outline')
-                    elif status == VolunteerAvailabilityStatus.UNAVAILABLE:
-                        ui.badge('Unavailable', color='negative')
-                    else:
-                        ui.badge('Not stated', color='grey').props('outline') \
-                            .tooltip('No availability window covers this shift')
-
-                async def do_assign(u=volunteer) -> None:
-                    try:
-                        _, warnings = await schedule_service.assign(actor, shift, u)
-                    except (ValueError, PermissionError) as e:
-                        notify_error(e)
-                        return
-                    for w in warnings:
-                        ui.notify(w, color='warning')
-                    ui.notify(f'Assigned {u.preferred_name}.', color='positive')
-                    dialog.close()
-                    refresh_all()
-                ui.button('Assign', on_click=do_assign).props('dense flat color=primary')
+            async def do_assign(u) -> bool:
+                try:
+                    _, warnings = await schedule_service.assign(actor, shift, u)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return False
+                for w in warnings:
+                    ui.notify(w, color='warning')
+                ui.notify(f'Assigned {u.preferred_name}.', color='positive')
+                refresh_all()
+                return True
+            await VolunteerAssignDialog(shift, do_assign).open()
 
         # --- Actions -----------------------------------------------------
         async def generate_shifts(position) -> None:
