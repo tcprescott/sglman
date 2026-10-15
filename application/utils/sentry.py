@@ -169,6 +169,21 @@ def _traces_sample_rate() -> float:
         return 0.0
 
 
+def _profiles_sample_rate() -> float:
+    """Share of *traced* requests that are also profiled.
+
+    A trace says which page was slow; the profile says which function burned
+    the CPU, which is what a fix needs on a CPU-bound single-loop app.
+    """
+    raw = (os.environ.get('SENTRY_PROFILES_SAMPLE_RATE') or '').strip()
+    if not raw:
+        return 1.0 if is_production() else 0.0
+    try:
+        return min(max(float(raw), 0.0), 1.0)
+    except ValueError:
+        return 0.0
+
+
 def _sentry_logs_level() -> Optional[int]:
     """The minimum level shipped to Sentry Logs; ``None`` turns them off."""
     raw = (os.environ.get('SENTRY_LOGS_LEVEL') or 'INFO').strip()
@@ -210,6 +225,7 @@ def init_sentry() -> None:
         send_default_pii=False,
         before_send=_before_send,  # type: ignore[arg-type]
         traces_sample_rate=_traces_sample_rate(),
+        profiles_sample_rate=_profiles_sample_rate(),
         enable_logs=logs_level is not None,
         before_send_log=_before_send_log,  # type: ignore[arg-type]
         integrations=[
@@ -221,8 +237,8 @@ def init_sentry() -> None:
         ],
     )
     logger.info(
-        'Sentry initialized (environment=%s, release=%s, traces=%s, logs=%s).',
-        get_environment(), _release() or 'unset', _traces_sample_rate(),
+        'Sentry initialized (environment=%s, release=%s, traces=%s, profiles=%s, logs=%s).',
+        get_environment(), _release() or 'unset', _traces_sample_rate(), _profiles_sample_rate(),
         logging.getLevelName(logs_level) if logs_level is not None else 'off',
     )
 

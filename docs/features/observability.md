@@ -15,7 +15,9 @@ SDK once, before the FastAPI app is built, and only when `SENTRY_DSN` is set.
 | **Error events** | any `logger.error` / `logger.exception`, plus unhandled exceptions the FastAPI/Starlette integration sees | `LoggingIntegration(event_level=ERROR)`. A `logger.warning` is a breadcrumb only, so a failure someone relied on must log at ERROR. |
 | **Breadcrumbs** | every INFO+ record before an event | Attached to the next event in the same scope. |
 | **Sentry Logs** | every INFO+ record (`SENTRY_LOGS_LEVEL`) | Searchable alongside events. `uvicorn.access`, `httpx` and `httpcore` are excluded (one line per request). DEBUG/TRACE never ship, whatever a logger is set to. |
-| **Traces** | `SENTRY_TRACES_SAMPLE_RATE`, default `0.1` in production and `0` elsewhere | Slow pages, slow DB and outbound HTTP calls. |
+| **Traces** | `SENTRY_TRACES_SAMPLE_RATE`, default `0.1` in production and `0` elsewhere | Slow pages, slow DB and outbound HTTP calls. HTTP only: a NiceGUI button click arrives over the websocket and is never traced, which is what the [watchdog](#blocked-event-loop-watchdog) covers. |
+| **Profiles** | `SENTRY_PROFILES_SAMPLE_RATE`, default `1.0` (of traced requests) in production | Which functions a slow traced request spent its CPU in. |
+| **Loop stalls** | the [watchdog](#blocked-event-loop-watchdog) | WARNING from 0.5s, an ERROR issue from 2s, grouped by the blocking line. |
 | **Health alerts** | `ServiceHealthService._alert` → `capture_message` | Fingerprinted on probe + status, tagged `health_probe` / `health_status`, so one outage is one issue. |
 
 Every event carries `environment`, `release` (`SENTRY_RELEASE`, else
@@ -104,12 +106,56 @@ Code: [`application/utils/log_levels.py`](../../application/utils/log_levels.py)
 [`LogLevelService`](../reference/services.md#log_level_servicepy--loglevelservice),
 [`pages/platform_logging.py`](../../pages/platform_logging.py).
 
+## Blocked event loop (watchdog)
+
+Every page, socket, worker and bot handler shares one asyncio loop, and render
+cost is CPU-bound ([scaling-roadmap.md](../scaling-roadmap.md)), so the failure
+that hurts most is one synchronous stretch that freezes everyone. The request
+that caused it finishes normally and the starved ones only look slow, so nothing
+used to log it.
+
+[`application/utils/loop_watchdog.py`](../../application/utils/loop_watchdog.py)
+runs a daemon thread, started at the end of boot, that posts a heartbeat onto the
+loop four times a second. A heartbeat late by 0.5s makes the thread sample the
+loop thread's stack while it is still blocked, which is what names the culprit:
+the innermost frame in this repo (`pages/admin.py:412 in _render_rows`, say),
+not the library line underneath it.
+
+| Stall | Goes to |
+|---|---|
+| 0.5s to 2s | WARNING on `application.utils.loop_watchdog` (Sentry Logs) |
+| 2s or more | ERROR, so a Sentry issue fingerprinted `event-loop-blocked` + culprit and tagged `loop_blocked_in` |
+| still blocked at 10s | reported immediately, since it may never return |
+
+Each log line carries the sampled stack. `LOOP_WATCHDOG_ENABLED=false` turns it
+off. `BackgroundLoop` also times every worker tick and logs a tick over 30s at
+WARNING.
+
+## Live load (`runtime_stats`)
+
+The super-admin MCP tool `runtime_stats` reads the process without shell access:
+uptime and release, RSS, asyncio task count, NiceGUI clients (held and with a
+live socket), the DB pool, the watchdog's last minute (lag p50/p95/max, process
+CPU where 100 is one core, the last 20 stalls with their culprit), every worker's
+tick count, failures and last/max tick time, and each community's Watch-page
+audience. Healthy at rest is a p95 lag of a few milliseconds and no stalls; CPU
+pinned near 100 with a rising p95 is the admission ceiling the scaling roadmap
+describes. Code: [`application/utils/runtime_stats.py`](../../application/utils/runtime_stats.py).
+
 ## During the event
+
+A Claude session handed a production problem should follow the
+[`incident` skill](../../.claude/skills/incident/SKILL.md); the steps below are
+its short form.
+
 
 1. Filter Sentry by `release` to see what a deploy changed, and by `tenant_id`
    or `worker` to narrow a spike.
 2. For a quiet failure, search Sentry Logs around the time for the tenant; the
    INFO trail is there even when nothing errored.
-3. Need more detail from one module? Set it to DEBUG on `/platform`, read the
+3. "It's slow": read `runtime_stats` first. Stalls name the code to fix; a high
+   p95 with no stalls and CPU near 100 is load, not a bug; neither points at the
+   DB or an outbound call, so look at Sentry traces for that page.
+4. Need more detail from one module? Set it to DEBUG on `/platform`, read the
    container log, then Reset. Don't leave `tortoise` at DEBUG: it logs every
    query.

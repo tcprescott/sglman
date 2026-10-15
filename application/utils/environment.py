@@ -97,6 +97,15 @@ def racetime_bot_enabled() -> bool:
     return os.environ.get('RACETIME_BOT_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def loop_watchdog_enabled() -> bool:
+    """Whether the event-loop watchdog thread runs (default: on).
+
+    ``LOOP_WATCHDOG_ENABLED=false`` is a kill switch, not a tuning knob: the
+    watchdog is one thread waking four times a second.
+    """
+    return os.environ.get('LOOP_WATCHDOG_ENABLED', '').strip().lower() not in ('0', 'false', 'no', 'off')
+
+
 def speedgaming_sync_enabled() -> bool:
     """Master switch for the SpeedGaming ETL sync worker (default: off).
 

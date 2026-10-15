@@ -17,7 +17,7 @@ in the server instructions, rather than per field.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, List, Optional
+from typing import Annotated, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -491,6 +491,73 @@ class ServiceHealthProbe(BaseModel):
     status: str
     message: str
     checked_at: datetime
+
+
+class LoopStall(BaseModel):
+    """One time the event loop was blocked long enough to freeze every user."""
+
+    started_at: float = Field(description='Unix time, UTC')
+    seconds: float
+    culprit: str = Field(description='Innermost app frame on the loop thread while it was blocked')
+
+
+class EventLoopStats(BaseModel):
+    """Heartbeat lag over the last minute. Healthy is a p95 in the low milliseconds."""
+
+    running: bool
+    lag_ms_p50: Optional[float]
+    lag_ms_p95: Optional[float]
+    lag_ms_max: Optional[float]
+    cpu_percent: Optional[float] = Field(description='Process CPU over the last minute; 100 is one core')
+    stalls_since_start: int
+    recent_stalls: List[LoopStall]
+
+
+class WorkerStats(BaseModel):
+    """Timing of one background worker loop."""
+
+    name: str
+    running: bool
+    interval_seconds: float
+    ticks: int
+    failures: int
+    last_started_at: Optional[float]
+    last_tick_seconds: Optional[float]
+    max_tick_seconds: float
+    last_failed_at: Optional[float]
+
+
+class ClientCounts(BaseModel):
+    total: Optional[int] = Field(description='NiceGUI page instances held in memory')
+    connected: Optional[int] = Field(description='Of those, with a live websocket')
+
+
+class DbPoolStats(BaseModel):
+    size: Optional[int]
+    idle: Optional[int]
+    max: Optional[int]
+
+
+class WatchPageAudience(BaseModel):
+    live_viewers: int
+    static_readers: int
+    arrivals_last_minute: int
+    static_mode_tripped: bool
+
+
+class RuntimeStats(BaseModel):
+    """A point-in-time picture of the app process's load."""
+
+    collected_at: float = Field(description='Unix time, UTC')
+    uptime_seconds: int
+    release: Optional[str]
+    rss_mb: Optional[float]
+    asyncio_tasks: Optional[int]
+    clients: ClientCounts
+    db_pool: DbPoolStats
+    event_loop: EventLoopStats
+    workers: List[WorkerStats]
+    watch_pages_by_tenant_id: Dict[str, WatchPageAudience]
 
 
 class WebhookInfo(BaseModel):
