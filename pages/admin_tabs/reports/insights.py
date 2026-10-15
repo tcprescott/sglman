@@ -12,6 +12,7 @@ from typing import List, Optional
 from nicegui import ui
 
 from application.services import AnalyticsService
+from application.timezone_context import pin_client_context
 from application.utils.timezone import now_local
 from theme.section import section_panel
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -154,12 +155,13 @@ async def insights_page(
 
 
 async def _load(analytics, start, end, bucket, tournament_id):
-    return await asyncio.gather(
-        analytics.crew_participation_trends(start, end, bucket, tournament_id=tournament_id),
-        analytics.volunteer_hour_trends(start, end, bucket),
-        analytics.tournament_health(start, end, tournament_id=tournament_id),
-        analytics.activity_trends(start, end, bucket),
-    )
+    with pin_client_context():
+        return await asyncio.gather(
+            analytics.crew_participation_trends(start, end, bucket, tournament_id=tournament_id),
+            analytics.volunteer_hour_trends(start, end, bucket),
+            analytics.tournament_health(start, end, tournament_id=tournament_id),
+            analytics.activity_trends(start, end, bucket),
+        )
 
 
 # --- KPI strip ------------------------------------------------------------

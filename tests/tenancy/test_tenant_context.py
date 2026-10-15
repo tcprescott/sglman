@@ -104,3 +104,53 @@ async def test_scopes_isolated_between_concurrent_tasks():
 
     await asyncio.gather(worker(100), worker(200), worker(300))
     assert seen == {100: 100, 200: 200, 300: 300}
+
+
+class _FakeSlot:
+    def __init__(self, storage=None):
+        self._storage = storage
+
+    def _parent(self):
+        return self.parent if self._storage is not None else None
+
+    @property
+    def parent(self):
+        if self._storage is None:
+            raise RuntimeError('The parent element this slot belongs to has been deleted.')
+        client = type('C', (), {'storage': self._storage})()
+        return type('E', (), {'client': client})()
+
+
+def test_client_stash_skips_a_deleted_slot(monkeypatch):
+    """A handler whose button was refreshed away still finds its client (SGLMAN-10)."""
+    from nicegui.slot import Slot
+
+    stack = [_FakeSlot({'tenant_id': 5}), _FakeSlot(None)]
+    monkeypatch.setattr(Slot, 'get_stack', classmethod(lambda cls: stack))
+    assert tenant_context._client_stash_tenant_id() == 5
+    assert require_tenant_id() == 5
+
+
+async def test_pin_client_context_carries_tenant_into_gather(monkeypatch):
+    """Child tasks can't see the client stash, so the pin must carry it (SGLMAN-Z)."""
+    from application import timezone_context
+    from application.timezone_context import get_current_timezone_name, pin_client_context
+
+    parent = asyncio.current_task()
+    monkeypatch.setattr(
+        tenant_context, '_client_stash_tenant_id',
+        lambda: 7 if asyncio.current_task() is parent else None,
+    )
+    monkeypatch.setattr(
+        timezone_context, '_client_stash_timezone',
+        lambda: 'Europe/London' if asyncio.current_task() is parent else None,
+    )
+
+    async def read():
+        return get_current_tenant_id(), get_current_timezone_name()
+
+    assert await asyncio.gather(read()) == [(None, None)]
+    with pin_client_context():
+        assert await asyncio.gather(read(), read()) == [(7, 'Europe/London')] * 2
+    assert get_current_tenant_id() == 7
+    assert tenant_context._tenant_id_var.get() is None
