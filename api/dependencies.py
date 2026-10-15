@@ -222,6 +222,7 @@ def require_feature(flag: FeatureFlag):
                 detail="This feature is not enabled for this community.",
             )
 
+    _require_feature.feature_flag = flag  # type: ignore[attr-defined]  # read by api.openapi_docs
     return _require_feature
 
 

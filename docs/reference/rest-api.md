@@ -15,6 +15,15 @@ _Reference for Wizzrobe's REST API: the router package in [`api/`](../../api/) a
 
 The API is served by the same Uvicorn process as the NiceGUI frontend. The interactive Swagger UI at `/api/docs` is the authoritative, always-current catalogue (every endpoint, schema, and example); this page summarises the model.
 
+### Documenting an endpoint
+
+`/api/docs` is public and is the only documentation an API user sees, so it carries what a caller needs and nothing internal. The document is built by [`api/openapi_docs.py`](../../api/openapi_docs.py), which splits the work in two:
+
+- **Written by hand on each route:** `summary=` (a few words) and `description=`, which says what the call does, any side effect a caller should know about (who gets a Discord DM, what gets cleared), the specific reasons it answers `400`, and ends with a paragraph `**Who can call this:** <who>.` Check "who" against both the route's dependency and the service checks behind it. Always pass `description=`: without it FastAPI publishes the handler's docstring, which is written for developers. Request and response fields get `Field(description=...)`; say times are UTC and list enum values. A route that returns only `{"detail": "..."}` uses `response_model=DetailResponse` ([`api/schemas/detail.py`](../../api/schemas/detail.py)).
+- **Derived from the route's dependencies, never written by hand:** the token note (no token needed, or read-only tokens refused), the feature-flag note (from `require_feature`, which tags its dependency with the flag), the shared `400`/`401`/`403`/`404`/`429` responses with the `ErrorResponse` body, section names and order (`TAG_GROUPS`, plus `TAG_RENAMES` for older router tags), and the **Webhooks** section, one entry per event family built from `EventType.ALL` and `WebhookService.format_reference()`.
+
+The intro, including the getting-started recipes, is `api_description()` in the same module. [`tests/api/test_openapi_docs.py`](../../tests/api/test_openapi_docs.py) fails when a route has no `**Who can call this:**` line, a JSON response has no schema, or a router tag isn't in `TAG_GROUPS`.
+
 ## Authentication
 
 **Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth--healthpy)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push--web_pushpy)), whose only caller is a service worker with no session to present.

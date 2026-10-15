@@ -20,7 +20,7 @@ from fastapi import HTTPException, Request, status
 from application.services.api_token_service import BEARER_PREFIXES
 
 
-def _limit_per_minute() -> int:
+def limit_per_minute() -> int:
     try:
         return max(1, int(os.environ.get('API_RATE_LIMIT_PER_MIN', '120')))
     except ValueError:
@@ -107,7 +107,7 @@ async def rate_limit(request: Request) -> None:
     A well-formed token additionally gets its own bucket so one client's traffic
     is throttled independently below the shared IP ceiling.
     """
-    limit = _limit_per_minute()
+    limit = limit_per_minute()
     now = time.monotonic()
     _sweep(now)
     window_start = now - _WINDOW_SECONDS
