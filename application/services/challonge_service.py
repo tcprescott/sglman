@@ -652,6 +652,7 @@ class ChallongeService(
         removed_p, removed_m = await self.repository.prune_mirror(
             tournament, set(participant_by_cid), {rm['match_id'] for rm in remote_matches},
         )
+        await self._mirror_players(tournament, actor)
         result = {'participants': len(remote_participants), 'matches': len(remote_matches)}
         await self.audit_service.write_log(actor, AuditActions.CHALLONGE_BRACKET_SYNCED, {
             'tournament_id': tournament.id, **result,

@@ -30,6 +30,11 @@ class TournamentPlayersDialog:
             dialog_header(f'Players — {self.tournament.name}', dialog)
 
             with ui.column().classes('q-pa-md w-full gap-2'):
+                if self.tournament.challonge_tournament_id:
+                    ui.label(
+                        "This list follows the Challonge bracket. Each sync adds its "
+                        "linked entrants and removes anyone who isn't on it."
+                    ).classes('text-caption text-muted')
 
                 @ui.refreshable
                 async def roster() -> None:

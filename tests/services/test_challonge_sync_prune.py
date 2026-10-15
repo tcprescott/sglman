@@ -53,3 +53,40 @@ async def test_drops_entrants_and_matches_challonge_no_longer_has(db):
     full['participants'] = []
     await service.sync_bracket(tournament.id, actor, force=True)
     assert not await ChallongeParticipant.filter(tournament=tournament).exists()
+
+
+async def test_players_list_follows_the_bracket(db):
+    from models import TenantMembership, TournamentPlayers
+    from tests.conftest import DEFAULT_TEST_TENANT_ID
+    actor = await make_user(1, 'admin')
+    alice = await make_user(2, 'alice', challonge_user_id='1001')
+    leftover = await make_user(3, 'leftover')
+    guest = await make_user(4, 'guest')
+    await TenantMembership.create(user=guest, tenant_id=DEFAULT_TEST_TENANT_ID)
+    tournament = await Tournament.create(name='T', challonge_tournament_id='T1')
+    await TournamentPlayers.create(tournament=tournament, user=leftover)
+    full = {
+        'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'pending'},
+        'participants': [
+            {'participant_id': '9001', 'name': 'Alice', 'challonge_user_id': '1001', 'username': 'alice'},
+            {'participant_id': '9002', 'name': 'Guest', 'challonge_user_id': None, 'username': None},
+        ],
+        'matches': [],
+    }
+    api = MagicMock()
+    api.get_tournament_full = AsyncMock(return_value=full)
+    service = make_service(api=api)
+
+    async def enrolled():
+        return set(await TournamentPlayers.filter(tournament=tournament).values_list('user_id', flat=True))
+
+    await service.sync_bracket(tournament.id, actor)
+    assert await enrolled() == {alice.id}
+
+    guest_p = await ChallongeParticipant.get(tournament=tournament, challonge_participant_id='9002')
+    await service.assign_participant_user(guest_p.id, guest.id, actor)
+    assert await enrolled() == {alice.id, guest.id}
+
+    full['participants'] = []
+    await service.sync_bracket(tournament.id, actor, force=True)
+    assert await enrolled() == set()
