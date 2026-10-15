@@ -21,7 +21,7 @@ The tournament room and the stage keep the same hours:
 | Day | Open |
 |---|---|
 | Wednesday 21 | Check-in desk only, no play |
-| Thursday 22 | 9:00 to midnight |
+| Thursday 22 | 8:00 to midnight |
 | Friday 23 | 8:00 to midnight |
 | Saturday 24 | 8:00 to midnight |
 | Sunday 25 | 8:00 until the last match finishes |
