@@ -365,6 +365,7 @@ class AdminMatchDialog(BaseMatchDialog):
                     date=date,
                     time=time,
                     missing_message='Select a tournament and at least one player first.',
+                    exclude_match_id=self.match.id if self.match else None,
                 )
 
                 comment_input = ui.textarea(

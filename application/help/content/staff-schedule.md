@@ -79,9 +79,10 @@ press **Create**. Everything else is optional.
   players not enrolled in this tournament** to pick anyone in the community.
   Doing that enrols them, and the dialog names who it's about to enrol before
   you save.
-- **Suggest a time** fills in the date and time for you. It picks a quiet slot
-  in the tournament room over the next few hours that none of the players has
-  blocked out, so it also spreads the load across the room.
+- **Suggest a time** fills in the date and time for you. It picks the earliest
+  slot none of the players has blocked out or is already playing in, and never
+  pushes the room past **Players at once** (Admin → Settings → Event). It fills the
+  room to about three quarters first, so walk-ups still fit.
 - **Commentators** and **Trackers** you add here are approved on the spot. They
   get a DM asking them to acknowledge.
 - **Stage** puts it on a stream straight away. **Stream candidate** marks it as

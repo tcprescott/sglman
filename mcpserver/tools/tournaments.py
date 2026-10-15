@@ -169,8 +169,9 @@ async def suggest_match_time(
 ) -> MatchTimeSuggestion:
     """Suggest a UTC start time for a match between the given players.
 
-    Searches the tournament's configured hours for the slot that fits everyone's
-    declared availability and adds least to the venue's concurrent load. Pass
+    Searches the tournament's configured hours for the earliest slot where every
+    player is free (by declared availability and their other matches) and the
+    room stays under its concurrent-player cap. Pass
     `bracket_match_id` to confine the search to that matchup's round window.
     Errors with `invalid_request` when no slot fits at all.
     """

@@ -235,28 +235,25 @@ class TestCovers:
         assert _covers([avail, unavail], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.UNAVAILABLE
 
 
-class TestCountOccupancy:
+class TestBookings:
     def test_skips_matches_without_scheduled_at(self):
         from types import SimpleNamespace
 
-        match = SimpleNamespace(scheduled_at=None, players=[SimpleNamespace()], tournament=None)
-        count = MatchSuggestionService._count_occupancy(
-            [match], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12), timedelta(hours=2),
-        )
-        assert count == 0
+        match = SimpleNamespace(scheduled_at=None, players=[SimpleNamespace(user_id=1)], tournament=None)
+        assert MatchSuggestionService._bookings([match], timedelta(hours=2)) == []
 
-    def test_counts_players_of_overlapping_match(self):
+    def test_uses_the_tournament_length_and_player_ids(self):
         from types import SimpleNamespace
 
         match = SimpleNamespace(
             scheduled_at=to_display(2026, 1, 15, 10).astimezone(UTC),
-            players=[SimpleNamespace(), SimpleNamespace()],
-            tournament=SimpleNamespace(average_match_duration=90),
+            players=[SimpleNamespace(user_id=1), SimpleNamespace(user_id=2)],
+            tournament=SimpleNamespace(average_match_duration=45),
         )
-        count = MatchSuggestionService._count_occupancy(
-            [match], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12), timedelta(minutes=90),
-        )
-        assert count == 2
+        [booking] = MatchSuggestionService._bookings([match], timedelta(minutes=90))
+        assert booking.end - booking.start == timedelta(minutes=45)
+        assert booking.player_count == 2
+        assert booking.user_ids == frozenset({1, 2})
 
 
 class TestGenerateCandidatesCeiling:

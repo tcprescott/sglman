@@ -15,16 +15,14 @@ def _local(hour, day=15, month=1):
     return datetime(2026, month, day, hour, 0, tzinfo=EASTERN_TZ)
 
 
-def make_match(scheduled_hour=10, player_count=2, duration_min=90, tournament_duration=None):
-    t = SimpleNamespace(
-        average_match_duration=tournament_duration,
-        name='Test',
-    ) if tournament_duration is not None else SimpleNamespace(
-        average_match_duration=None, name='Test',
-    )
+def make_match(scheduled_hour=10, player_count=2, duration_min=90, tournament_duration=None,
+               user_ids=None, match_id=None, day=15):
+    t = SimpleNamespace(average_match_duration=tournament_duration, name='Test')
+    ids = list(user_ids) if user_ids is not None else [None] * player_count
     return SimpleNamespace(
-        scheduled_at=_local(scheduled_hour).astimezone(timezone.utc),
-        players=[SimpleNamespace() for _ in range(player_count)],
+        id=match_id,
+        scheduled_at=_local(scheduled_hour, day).astimezone(timezone.utc),
+        players=[SimpleNamespace(user_id=uid) for uid in ids],
         tournament=t,
     )
 
@@ -66,44 +64,31 @@ class TestRoundUpToInterval:
 
 
 # ---------------------------------------------------------------------------
-# _count_occupancy (static)
+# _peak_load (static)
 # ---------------------------------------------------------------------------
 
 
-class TestCountOccupancy:
-    def test_counts_overlapping_match_players(self):
-        slot_start = _local(10)
-        slot_end = _local(12)
-        match = make_match(scheduled_hour=10, player_count=2)
-        count = MatchSuggestionService._count_occupancy(
-            [match], slot_start, slot_end, timedelta(minutes=90),
-        )
-        assert count == 2
+def _bookings(*matches, duration=timedelta(minutes=90)):
+    return MatchSuggestionService._bookings(list(matches), duration)
 
-    def test_non_overlapping_match_not_counted(self):
-        slot_start = _local(14)
-        slot_end = _local(16)
-        match = make_match(scheduled_hour=10, player_count=3)
-        count = MatchSuggestionService._count_occupancy(
-            [match], slot_start, slot_end, timedelta(minutes=90),
-        )
-        assert count == 0
 
-    def test_no_matches_returns_zero(self):
-        count = MatchSuggestionService._count_occupancy(
-            [], _local(10), _local(12), timedelta(minutes=90),
-        )
-        assert count == 0
+class TestPeakLoad:
+    def test_overlapping_matches_add_up(self):
+        bookings = _bookings(make_match(10, player_count=2), make_match(11, player_count=4))
+        assert MatchSuggestionService._peak_load(bookings, _local(10)) == 6
 
-    def test_tournament_duration_used_for_match_end(self):
-        # Tournament sets 30-min match duration; if it ends before slot, no count
-        slot_start = _local(11)
-        slot_end = _local(13)
-        match = make_match(scheduled_hour=10, player_count=2, tournament_duration=30)
-        count = MatchSuggestionService._count_occupancy(
-            [match], slot_start, slot_end, timedelta(minutes=90),
-        )
-        assert count == 0
+    def test_sequential_matches_count_once(self):
+        first = make_match(10, player_count=4, tournament_duration=60)
+        second = make_match(11, player_count=4, tournament_duration=60)
+        assert MatchSuggestionService._peak_load(_bookings(first, second), _local(10)) == 4
+
+    def test_no_matches_is_zero(self):
+        assert MatchSuggestionService._peak_load([], _local(10)) == 0
+
+    def test_skips_unscheduled_matches(self):
+        match = make_match(10)
+        match.scheduled_at = None
+        assert _bookings(match) == []
 
 
 # ---------------------------------------------------------------------------
@@ -270,21 +255,69 @@ class TestBestCandidate:
         result = service._best_candidate([], [], {}, [], timedelta(hours=2))
         assert result is None
 
-    def test_prefers_lower_occupancy(self, service):
-        slot_busy = _local(10)
-        slot_free = _local(12)
+    def test_takes_the_earliest_slot_with_room(self, service):
         duration = timedelta(hours=2)
+        candidates = [(_local(h), _local(h) + duration) for h in (10, 12, 14)]
         match = make_match(scheduled_hour=10, player_count=4)
+        result = service._best_candidate(candidates, [1, 2], {}, [match], duration, capacity=40)
+        assert result.astimezone(EASTERN_TZ).hour == 10
 
-        candidates = [
-            (slot_busy, slot_busy + duration),
-            (slot_free, slot_free + duration),
-        ]
-        result = service._best_candidate(candidates, [], {}, [match], duration)
-        # Should pick slot_free (lower occupancy)
+    def test_keeps_headroom_before_filling_to_the_cap(self, service):
+        # 28 players on the floor at 10:00. Two more is 30, at the 75% line of
+        # a 40 cap, so 10:00 is fine; 30 already there pushes to the free 12:00.
+        duration = timedelta(hours=2)
+        candidates = [(_local(10), _local(12)), (_local(12), _local(14))]
+        at_line = [make_match(10, player_count=28)]
+        over_line = [make_match(10, player_count=30)]
+        assert service._best_candidate(
+            candidates, [1, 2], {}, at_line, duration, capacity=40,
+        ).astimezone(EASTERN_TZ).hour == 10
+        assert service._best_candidate(
+            candidates, [1, 2], {}, over_line, duration, capacity=40,
+        ).astimezone(EASTERN_TZ).hour == 12
+
+    def test_fills_past_headroom_when_nothing_else_fits(self, service):
+        duration = timedelta(hours=2)
+        candidates = [(_local(10), _local(12)), (_local(12), _local(14))]
+        busy = [make_match(10, player_count=34), make_match(12, player_count=36)]
+        result = service._best_candidate(candidates, [1, 2], {}, busy, duration, capacity=40)
+        assert result.astimezone(EASTERN_TZ).hour == 10
+
+    def test_never_goes_past_the_cap(self, service):
+        duration = timedelta(hours=2)
+        full = [make_match(10, player_count=39)]
+        result = service._best_candidate(
+            [(_local(10), _local(12))], [1, 2], {}, full, duration, capacity=40,
+        )
+        assert result is None
+
+    def test_never_double_books_a_player(self, service):
+        duration = timedelta(minutes=90)
+        candidates = [(_local(10), _local(10) + duration), (_local(13), _local(13) + duration)]
+        other_match = make_match(11, user_ids=[1, 99])
+        result = service._best_candidate(candidates, [1, 2], {}, [other_match], duration)
+        assert result.astimezone(EASTERN_TZ).hour == 13
+
+    def test_a_players_back_to_back_match_is_not_a_clash(self, service):
+        duration = timedelta(minutes=90)
+        before = make_match(8, user_ids=[1, 99], tournament_duration=120)
+        result = service._best_candidate(
+            [(_local(10), _local(10) + duration)], [1, 2], {}, [before], duration,
+        )
         assert result is not None
-        result_eastern_hour = result.astimezone(EASTERN_TZ).hour
-        assert result_eastern_hour == 12
+
+    def test_preferred_beats_earlier_slot_only_on_the_same_day(self, service):
+        from models import VolunteerAvailabilityStatus
+
+        duration = timedelta(hours=2)
+        avail_map = {1: [SimpleNamespace(
+            starts_at=_local(14, 16), ends_at=_local(18, 16),
+            status=VolunteerAvailabilityStatus.PREFERRED,
+        )]}
+        today = (_local(10), _local(12))
+        tomorrow_preferred = (_local(14, 16), _local(16, 16))
+        result = service._best_candidate([today, tomorrow_preferred], [1], avail_map, [], duration)
+        assert result.astimezone(EASTERN_TZ).day == 15
 
     def test_skips_slots_a_player_blocked_out(self, service):
         from models import VolunteerAvailabilityStatus
