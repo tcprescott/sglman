@@ -16,6 +16,7 @@ from application.repositories import (
     UserRepository,
 )
 from application.services._challonge_notifications import ChallongeNotificationMixin
+from application.services._tournament_signup import record_enrolment_change
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
@@ -99,6 +100,7 @@ class ChallongeParticipantAssignmentMixin(ChallongeNotificationMixin):
              'challonge_participant_id': participant.challonge_participant_id,
              'user_id': user.id},
         )
+        await self._mirror_players(participant.tournament, actor)
         await self._announce_newly_bookable(participant.tournament, bookable_before)
         return participant
 
@@ -121,7 +123,30 @@ class ChallongeParticipantAssignmentMixin(ChallongeNotificationMixin):
             {'tournament_id': participant.tournament.id, 'participant_id': participant.id,
              'challonge_participant_id': participant.challonge_participant_id},
         )
+        await self._mirror_players(participant.tournament, actor)
         return participant
+
+    async def _mirror_players(self, tournament: Tournament, actor: User) -> None:
+        """Make the tournament's Players list the bracket's mapped entrants.
+
+        Challonge owns a linked tournament's roster, so a player dropped there
+        (or a whole reset) leaves the list too. Their scheduled matches stay.
+        """
+        wanted = {
+            p.user.id: p.user for p in await self.repository.list_participants(tournament)
+            if p.user is not None
+        }
+        enrolled = {tp.user.id: tp.user for tp in await self.tournament_repository.get_enrolled_players(tournament)}
+        for user_id in wanted.keys() - enrolled.keys():
+            await self.tournament_repository.enroll_player(tournament, wanted[user_id])
+            await record_enrolment_change(
+                self.audit_service, actor, wanted[user_id], tournament.id, added=True,
+            )
+        for user_id in enrolled.keys() - wanted.keys():
+            await self.tournament_repository.unenroll_player(tournament, enrolled[user_id])
+            await record_enrolment_change(
+                self.audit_service, actor, enrolled[user_id], tournament.id, added=False,
+            )
 
     async def _editable_tournament(self, tournament_id: int, actor: User) -> Tournament:
         tournament = require_found(

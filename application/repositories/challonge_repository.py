@@ -279,6 +279,25 @@ class ChallongeRepository:
         return participants, matches
 
     @staticmethod
+    async def prune_mirror(
+        tournament: Tournament, keep_participant_ids: Set[str], keep_match_ids: Set[str],
+    ) -> tuple:
+        """Drop mirrored participants and matches Challonge no longer has. Returns counts.
+
+        As with ``delete_mirror``, a scheduled ``Match`` a dropped
+        ``ChallongeMatch`` pointed at stays on the schedule.
+        """
+        matches = await scoped(
+            ChallongeMatch.filter(tournament=tournament)
+            .exclude(challonge_match_id__in=list(keep_match_ids))
+        ).delete()
+        participants = await scoped(
+            ChallongeParticipant.filter(tournament=tournament)
+            .exclude(challonge_participant_id__in=list(keep_participant_ids))
+        ).delete()
+        return participants, matches
+
+    @staticmethod
     async def record_sync(
         tournament: Tournament, when: datetime, state: Optional[str], group_stage: bool,
     ) -> None:
