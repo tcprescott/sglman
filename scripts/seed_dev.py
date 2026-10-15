@@ -333,6 +333,12 @@ async def seed_for_tenant(
             },
         )
         await backfill(tournament, **dev_tournament_meta)
+        # An inactive tournament, so the Tournaments board shows its Inactive chip
+        # and the row menu's Delete (offered only once a tournament is inactive).
+        await Tournament.get_or_create(
+            name="Wizzrobe Archive Cup", tenant=tenant,
+            defaults={"is_active": False, "players_per_match": 2},
+        )
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
         await tournament.crew_coordinators.add(users["cc_user"])

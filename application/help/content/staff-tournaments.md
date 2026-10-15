@@ -13,13 +13,14 @@ thing to get right before an event. Tournaments live on **Admin → Tournaments*
 ## Creating one
 
 :::snippet admin-tournaments
-**Add Tournament** opens the editor. Only the name is required. Everything else
+**Add tournament** opens the editor. Only the name is required. Everything else
 starts collapsed with a working default, so you can save a name now and come back
 to the rest. When you reopen a tournament to edit it, every section starts
 expanded.
 
 Click a tournament's name in the table to edit it. Click its player count to
-manage who is entered.
+manage who is entered. The ⋮ at the end of each row also opens its bracket and
+rules links, and deletes it once it's inactive.
 :::
 
 Leave **Active** ticked while the tournament is running. Unticking it keeps the

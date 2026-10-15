@@ -89,7 +89,9 @@ class TableKeys:
 
     # Admin
     ADMIN_USERS = 'admin.users'
-    ADMIN_TOURNAMENTS = 'admin.tournaments'
+    # _v2 since the board became six short columns with the description hidden:
+    # rule 3 would have kept every v1 layout's Description and duration columns.
+    ADMIN_TOURNAMENTS = 'admin.tournaments_v2'
     ADMIN_BRACKETS = 'admin.brackets'
     ADMIN_CHECK_IN_EVENTS = 'admin.check_in_events'
     ADMIN_DISCORD_EVENTS = 'admin.discord_events'
