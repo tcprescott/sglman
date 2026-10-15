@@ -15,10 +15,12 @@ rules written down in [docs/reference/dev-seed.md](../docs/reference/dev-seed.md
 * the fixtures defined by an absence still have one.
 """
 
+from datetime import datetime, timedelta
+
 from tortoise.models import Model
 
 import models as _models
-from models import Role, TenantMembership, User, UserRole
+from models import Role, TenantMembership, User, UserRole, VolunteerShift
 from scripts.seed_support import ALL_FIXTURE_USERNAMES, fixture_discord_id
 from tests.conftest import DEFAULT_TEST_TENANT_ID, _scoped_models
 
@@ -223,3 +225,27 @@ async def test_the_dev_tournament_keeps_its_prize_pool(seeded_db):
         name='Wizzrobe Dev Tournament', tenant_id=DEFAULT_TEST_TENANT_ID,
     )
     assert tournament.prize_pool == Decimal('500.00')
+
+
+async def test_seed_is_idempotent_when_arrival_demo_meets_a_shift_block(db, monkeypatch):
+    """The arrival demo starts 15 minutes from now, so at quarter to a block
+    boundary it lands on a fixed block's start time. Re-seeding must still match
+    each row to itself rather than both."""
+    import scripts.seed_dev as seed_dev
+    from application.tenant_context import tenant_scope
+    from application.utils.timezone import parse_local_datetime, today_local
+
+    with tenant_scope(DEFAULT_TEST_TENANT_ID):
+        frozen = parse_local_datetime(today_local().isoformat(), "16:00") - timedelta(minutes=15)
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen if tz is not None else frozen.replace(tzinfo=None)
+
+    monkeypatch.setattr(seed_dev, 'datetime', FrozenDatetime)
+
+    await seed_dev.seed_all()
+    before = await VolunteerShift.filter(tenant_id=DEFAULT_TEST_TENANT_ID).count()
+    await seed_dev.seed_all()
+    assert await VolunteerShift.filter(tenant_id=DEFAULT_TEST_TENANT_ID).count() == before
