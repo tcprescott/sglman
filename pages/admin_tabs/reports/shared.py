@@ -568,7 +568,7 @@ _EVENT_LOG_DETAILS_CELL = r'''
                     :label="props.row.details"
                     class="text-body2"
                 >
-                    <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
+                    <pre class="q-mt-xs wiz-json-block">{{ props.row.full_details }}</pre>
                 </q-expansion-item>
                 <span v-else class="text-grey-7">—</span>
             </div>

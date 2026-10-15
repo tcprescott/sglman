@@ -10,12 +10,16 @@ the viewer can render them structurally and so they remain queryable.
 
 import json
 from datetime import datetime
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 from application.events import Event, event_bus
 from application.repositories.audit_repository import AuditRepository
+from application.repositories.stage_repository import StageRepository
+from application.repositories.tournament_repository import TournamentRepository
+from application.repositories.user_repository import UserRepository
 from application.services.auth_service import AuthService
 from application.tenant_context import get_current_tenant_id
+from application.utils.audit_display import AuditNames, actions_matching, area_by_key, referenced_ids
 from models import AuditLog, User
 
 
@@ -474,6 +478,26 @@ class AuditService:
         if actor is not None and not await AuthService.is_staff(actor):
             raise PermissionError('Only Staff can read the audit log.')
 
+    @staticmethod
+    def _query_filters(
+        action_contains: Optional[str], area: Optional[str], search: Optional[str],
+    ) -> dict[str, Any]:
+        """Repository filters for the report's Area and plain-language search.
+
+        ``search`` matches the action key or any action whose plain label
+        contains the text, so "stage" finds ``match.stage_assigned`` and
+        "reminder" finds ``profile_nudge.dismissed``. An unknown ``area`` key
+        matches nothing rather than silently widening to every row.
+        """
+        filters: dict[str, Any] = {'action_contains': action_contains or None}
+        if area:
+            found = area_by_key(area)
+            filters['action_prefixes'] = found.prefixes if found else ()
+        if search and search.strip():
+            filters['action_contains'] = search.strip()
+            filters['actions_in'] = actions_matching(search)
+        return filters
+
     async def list_logs(
         self,
         *,
@@ -482,6 +506,8 @@ class AuditService:
         end: Optional[datetime] = None,
         user_id: Optional[int] = None,
         action_contains: Optional[str] = None,
+        area: Optional[str] = None,
+        search: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AuditLog]:
@@ -490,9 +516,9 @@ class AuditService:
             start=start,
             end=end,
             user_id=user_id,
-            action_contains=action_contains,
             limit=limit,
             offset=offset,
+            **self._query_filters(action_contains, area, search),
         )
 
     async def count_logs(
@@ -503,13 +529,32 @@ class AuditService:
         end: Optional[datetime] = None,
         user_id: Optional[int] = None,
         action_contains: Optional[str] = None,
+        area: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> int:
         await self._ensure_can_read(actor)
         return await self.repository.count(
             start=start,
             end=end,
             user_id=user_id,
-            action_contains=action_contains,
+            **self._query_filters(action_contains, area, search),
+        )
+
+    async def reference_names(self, *, actor: User, details: Sequence[Any]) -> AuditNames:
+        """Names for the members, stages and tournaments a page of rows mentions.
+
+        Stages and tournaments resolve within the current community only, so a
+        stray id from elsewhere renders as ``Stage #7`` rather than leaking a name.
+        """
+        await self._ensure_can_read(actor)
+        user_ids, stage_ids, tournament_ids = referenced_ids(details)
+        users = await UserRepository.get_by_ids(list(user_ids))
+        stages = await StageRepository.get_all_as_dict() if stage_ids else {}
+        tournaments = await TournamentRepository.get_all_as_dict() if tournament_ids else {}
+        return AuditNames(
+            users={uid: u.preferred_name for uid, u in users.items()},
+            stages={k: v for k, v in stages.items() if k in stage_ids},
+            tournaments={k: v for k, v in tournaments.items() if k in tournament_ids},
         )
 
     async def write_log(

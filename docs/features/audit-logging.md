@@ -67,5 +67,18 @@ community the requester happened to be looking at.
 ## Viewing the log
 
 Admin dashboard → **Reports → Audit Log**: server-paginated newest-first, with a
-date range, a user filter (click through from another report), a substring match
-on the action name, and expandable decoded `details`.
+date range, an **Area** filter, a search box and a person filter ("More by …" in
+an entry, or click through from another report).
+
+Rows render in plain language through `application/utils/audit_display.py`:
+`ACTION_LABELS` gives every action a label ("Put a match on a stage"), `AREAS`
+groups actions by key prefix for the Area filter, and `describe()` turns a row's
+`details` into a summary line, before → after changes (an `old_value`/`new_value`
+pair, a `previous_X`/`X` pair, or a `changed` dict) and labelled facts, with
+member, stage and tournament ids resolved by `AuditService.reference_names`
+(scoped to the current community). Search matches the action key or any label
+containing the text.
+
+**Adding an action:** add its `AuditActions` constant *and* a label in
+`ACTION_LABELS`; give a new object prefix an Area. `tests/test_audit_display.py`
+fails until both exist.

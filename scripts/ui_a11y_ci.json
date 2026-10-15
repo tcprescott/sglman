@@ -52,6 +52,7 @@
     { "name": "admin-equipment", "path": "/admin/equipment" },
     { "name": "admin-reports", "path": "/admin/reports" },
     { "name": "admin-reports-capacity", "path": "/admin/reports?report=capacity" },
+    { "name": "admin-reports-audit", "path": "/admin/reports?report=audit" },
     { "name": "settings-home", "path": "/admin/settings" },
     { "name": "settings-general", "path": "/admin/settings/general" },
     { "name": "settings-event", "path": "/admin/settings/event" },
