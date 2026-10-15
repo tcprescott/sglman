@@ -539,7 +539,7 @@ def _flatten(value: Any, prefix: tuple[str, ...] = ()) -> dict[tuple[str, ...], 
     if isinstance(value, dict) and value:
         out: dict[tuple[str, ...], Any] = {}
         for k, v in value.items():
-            out.update(_flatten(v, prefix + (str(k),)))
+            out.update(_flatten(v, (*prefix, str(k))))
         return out
     return {prefix: value}
 

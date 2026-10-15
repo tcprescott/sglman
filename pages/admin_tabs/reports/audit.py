@@ -120,7 +120,7 @@ async def audit_page(
             view=describe(log.action, details if details is not None else log.details, names,
                           actor_id=log.user_id),
         )
-        for log, details in zip(logs, parsed)
+        for log, details in zip(logs, parsed, strict=True)
     ]
     person_name = next((e.actor_name for e in entries if e.actor_id == user_id_int), None)
 
