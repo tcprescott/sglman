@@ -100,7 +100,7 @@ async def audit_page(
     )
     service = AuditService()
     bounds_start, bounds_end = display_bounds(start_d, end_d)
-    query = dict(
+    query: dict[str, Any] = dict(
         actor=actor, start=bounds_start, end=bounds_end,
         user_id=user_id_int, area=area_key, search=search or None,
     )
