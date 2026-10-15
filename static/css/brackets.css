@@ -310,13 +310,7 @@ body {
 
 .bracket-you {
   flex: 0 0 auto;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: var(--bracket-accent);
-  color: var(--bracket-accent-text);
+  color: var(--bracket-muted);
 }
 
 /* The next booked time of an unfinished matchup, on the card's bottom edge —

@@ -189,7 +189,7 @@ _CREW_ROLES = (('commentators', 'Commentary'), ('trackers', 'Tracking'))
 def crew_people(people: list, discord_id=None, *, waiting_note: str = 'to approve') -> list[dict]:
     """The names in one crew role, approved first, as the boards print them.
 
-    ``me`` marks the viewer, whose name the player board prints as "You";
+    ``me`` marks the viewer, whose name the player board follows with "(you)";
     ``note`` is what an unapproved name carries after it.
     """
     ordered = sorted(people, key=lambda p: not p.get('approved'))
@@ -315,7 +315,7 @@ _CREW_COUNT = r"""<span class="run-sheet__crew" :class="c.short ? 'st-pending' :
 # Who signed up: a tick for approved, a clock and a note for the rest.
 CREW_NAMES = r"""<span class="run-sheet__people">
     <span v-for="(p, i) in c.people" :key="i" class="run-sheet__person" :class="p.approved ? '' : 'st-pending'">
-        <q-icon :name="p.approved ? 'check_circle' : 'schedule'" size="14px" :class="p.approved ? 'st-ok' : 'st-pending'" aria-hidden="true" /><span class="run-sheet__person-name">{{ p.me ? 'You' : p.name }}</span><span v-if="p.note" class="run-sheet__person-note"> · {{ p.note }}</span>
+        <q-icon :name="p.approved ? 'check_circle' : 'schedule'" size="14px" :class="p.approved ? 'st-ok' : 'st-pending'" aria-hidden="true" /><span class="run-sheet__person-name">{{ p.name }}<span v-if="p.me" class="wiz-you"> (you)</span></span><span v-if="p.note" class="run-sheet__person-note"> · {{ p.note }}</span>
     </span>
 </span>
 <span v-if="c.empty" class="wiz-crew-empty st-neutral italic-note">No signups yet</span>"""

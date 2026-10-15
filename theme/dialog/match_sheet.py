@@ -503,11 +503,12 @@ class MatchSheet:
             self._player_composer()
 
     def _comment(self, comment: dict, staff: bool) -> None:
-        name = 'You' if comment['own'] and not staff else comment['author']
         with ui.column().classes('match-sheet__comment full-width gap-1'):
             with ui.row().classes('match-sheet__comment-head items-center no-wrap full-width'):
                 with ui.row().classes('match-sheet__comment-byline items-center'):
-                    ui.label(name).classes('match-sheet__comment-author')
+                    ui.label(comment['author']).classes('match-sheet__comment-author')
+                    if comment['own']:
+                        ui.label('(you)').classes('wiz-you')
                     self._comment_tag(comment['kind'], staff, comment['own'])
                     ui.label(comment['when']).classes('match-sheet__note match-sheet__comment-when')
                 if comment['can_delete']:
