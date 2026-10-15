@@ -123,13 +123,13 @@ class CancellationMixin:
             _match_descriptor,
             _match_embed_kwargs,
             bracket_dm_context,
-            collect_match_recipients,
+            collect_match_audience,
         )
         from application.utils.discord_embeds import COLOR_CANCELLED, match_embed
         from application.utils.discord_messages import cancelled_dm
 
         await match.fetch_related('tournament', 'players__user', 'stage')
-        recipients = await collect_match_recipients(match)
+        recipients = await collect_match_audience(match)
         community = await _community_name()
         # Both bracket facts are resolved here, before the delete, for the same
         # reason the recipients are: the game row is reachable from this match

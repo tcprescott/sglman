@@ -44,7 +44,9 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hello crew")
 
-        service.discord_service.send_dm.assert_awaited_once_with(111, "hello crew", embed=None, link=ANY)
+        service.discord_service.send_dm.assert_awaited_once_with(
+            111, "hello crew\n\nYou're on this match as commentator.", embed=None, link=ANY,
+        )
         link = service.discord_service.send_dm.await_args.kwargs['link']
         # Their crew slot, not the player filter that is empty for them.
         assert link.url.endswith(f'/home/my-crew?match={m.id}')
@@ -57,7 +59,30 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(112, "hi", embed=None, link=ANY)
+        service.discord_service.send_dm.assert_awaited_once_with(
+            112, "hi\n\nYou're on this match as tracker.", embed=None, link=ANY,
+        )
+
+    async def test_crew_on_both_slots_reads_both_in_text_and_title(self, service, db):
+        from application.utils.discord_embeds import COLOR_SCHEDULED, match_embed
+
+        t = await Tournament.create(name="T")
+        m = await Match.create(tournament=t)
+        u = await make_dm_user(113, name="both")
+        await Commentator.create(match=m, user=u, approved=True)
+        await Tracker.create(match=m, user=u, approved=True)
+        embed = match_embed(title='📣 Match scheduled', color=COLOR_SCHEDULED, tournament='T')
+
+        await service.notify_match_crew(
+            m, "hi", embed, crew_message=lambda roles: f"slot={'+'.join(roles)}",
+        )
+
+        service.discord_service.send_dm.assert_awaited_once()
+        args, kwargs = service.discord_service.send_dm.await_args
+        assert args == (113, 'slot=commentator+tracker')
+        assert kwargs['embed'].title == '📣 Match scheduled · your commentator and tracker slot'
+        # The shared card is copied per recipient, never retitled in place.
+        assert embed.title == '📣 Match scheduled'
 
     async def test_watcher_gets_unwatch_button_dm(self, service, db):
         t = await Tournament.create(name="T")
@@ -80,7 +105,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "crew msg", watcher_message="watch msg")
 
         service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(
-            223, "crew msg", m.id, embed=None, link=ANY,
+            223, "crew msg\n\nYou're on this match as commentator.", m.id, embed=None, link=ANY,
         )
 
     async def test_player_who_is_crew_is_excluded(self, service, db):
@@ -218,7 +243,9 @@ class TestNotifyMatchParticipantsBranches:
 
         await service.notify_match_participants(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(444, "hi", embed=None, link=None)
+        service.discord_service.send_dm.assert_awaited_once_with(
+            444, "hi\n\nYou're on this match as tracker.", embed=None, link=None,
+        )
 
     async def test_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
@@ -281,7 +308,9 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
 
         await service.notify_match_participants(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(211, "hi", embed=None, link=None)
+        service.discord_service.send_dm.assert_awaited_once_with(
+            211, "hi\n\nYou're on this match as commentator.", embed=None, link=None,
+        )
 
     async def test_watcher_receives_unwatch_button(self, service, db):
         t = await Tournament.create(name="T")

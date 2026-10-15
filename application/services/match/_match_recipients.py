@@ -108,7 +108,7 @@ async def collect_match_audience(
         if held is None:
             recipients[user.discord_id] = MatchRecipient(AUDIENCE_CREW, False, (role,))
         elif held.audience == AUDIENCE_CREW:
-            recipients[user.discord_id] = held._replace(crew_roles=held.crew_roles + (role,))
+            recipients[user.discord_id] = held._replace(crew_roles=(*held.crew_roles, role))
 
     commentators = await Commentator.filter(
         match=match, approved=True, tenant_id=tenant_id

@@ -119,9 +119,33 @@ CREW_COMMENTATOR = 'commentator'
 CREW_TRACKER = 'tracker'
 
 
+_CREW_VERB = {CREW_COMMENTATOR: 'commentating', CREW_TRACKER: 'tracking'}
+
+
 def crew_slot_label(crew_roles: Sequence[str]) -> str:
     """The slot(s) a crew member holds, as prose: "tracker", "commentator and tracker"."""
     return ' and '.join(crew_roles)
+
+
+def crew_slot_title(title: str, crew_roles: Sequence[str]) -> str:
+    """A crew card's title naming their slot: "Your commentator slot is on stage".
+
+    Titles written for crew say "crew slot", which becomes the slot itself; a
+    title shared with every audience ("Match started") gains the slot after it.
+    """
+    if not crew_roles:
+        return title
+    label = crew_slot_label(crew_roles)
+    if 'crew slot' in title:
+        return title.replace('crew slot', f'{label} slot')
+    return f'{title} · your {label} slot'
+
+
+def crew_slot_line(message: str, crew_roles: Sequence[str]) -> str:
+    """Shared match copy with the reader's slot added, for the web-push text."""
+    if not crew_roles:
+        return message
+    return _join_blocks(message, f"You're on this match as {crew_slot_label(crew_roles)}.")
 
 # The subject of a sentence about the match, per audience.
 _MATCH_SUBJECT = {
@@ -132,7 +156,10 @@ _MATCH_SUBJECT = {
 }
 
 
-def _subject(audience: str) -> str:
+def _subject(audience: str, crew_roles: Sequence[str] = ()) -> str:
+    if audience == AUDIENCE_CREW and crew_roles:
+        verbs = ' and '.join(_CREW_VERB.get(r, r) for r in crew_roles)
+        return f"A match you're {verbs}"
     return _MATCH_SUBJECT.get(audience, _MATCH_SUBJECT[AUDIENCE_SUBSCRIBER])
 
 
@@ -148,6 +175,7 @@ def scheduled_dm(
     stage_name: str = '',
     bracket_line: str = '',
     audience: str = AUDIENCE_SUBSCRIBER,
+    crew_roles: Sequence[str] = (),
 ) -> str:
     """A new match, told to someone who is not playing it.
 
@@ -168,7 +196,7 @@ def scheduled_dm(
     if audience == AUDIENCE_SUBSCRIBER:
         intro = f"A match was just scheduled in **{tournament_name}**."
     else:
-        intro = f"{_subject(audience)} in **{tournament_name}** is scheduled."
+        intro = f"{_subject(audience, crew_roles)} in **{tournament_name}** is scheduled."
     return _join_blocks(intro, "\n".join(info), tail)
 
 
@@ -180,6 +208,7 @@ def rescheduled_dm(
     stage_name: str = '',
     bracket_line: str = '',
     audience: str = AUDIENCE_SUBSCRIBER,
+    crew_roles: Sequence[str] = (),
 ) -> str:
     """A match moved, told to someone who is not playing it."""
     info = _match_info_lines(
@@ -196,7 +225,7 @@ def rescheduled_dm(
         ),
         AUDIENCE_WATCHER: '',
     }.get(audience, "Want to commentate or track it? Use the buttons below.")
-    intro = f"{_subject(audience)} in **{tournament_name}** has moved. Here's the new time."
+    intro = f"{_subject(audience, crew_roles)} in **{tournament_name}** has moved. Here's the new time."
     return _join_blocks(intro, "\n".join(info), tail)
 
 
@@ -277,6 +306,7 @@ def stage_assigned_dm(
     *,
     player_names: Optional[list[str]] = None,
     audience: str = AUDIENCE_PLAYER,
+    crew_roles: Sequence[str] = (),
 ) -> str:
     """"You're on Kraid" — sent the moment a stage is assigned.
 
@@ -289,7 +319,7 @@ def stage_assigned_dm(
         AUDIENCE_WATCHER: "It'll be played at the stage.",
     }.get(audience, "Play it at the stage rather than in the tournament room.")
     return _join_blocks(
-        f"{_subject(audience)} in **{tournament_name}** is on **{stage_name}**.",
+        f"{_subject(audience, crew_roles)} in **{tournament_name}** is on **{stage_name}**.",
         _stage_info_lines(player_names, scheduled_at_display),
         tail,
     )
@@ -301,6 +331,7 @@ def stage_cleared_dm(
     *,
     player_names: Optional[list[str]] = None,
     audience: str = AUDIENCE_PLAYER,
+    crew_roles: Sequence[str] = (),
 ) -> str:
     """The retraction. Telling someone they're on a stage and never taking it
     back sends them to an empty one."""
@@ -309,7 +340,7 @@ def stage_cleared_dm(
         AUDIENCE_WATCHER: "It'll be played in the tournament room.",
     }.get(audience, "Play it in the tournament room as usual.")
     return _join_blocks(
-        f"{_subject(audience)} in **{tournament_name}** is off the stage.",
+        f"{_subject(audience, crew_roles)} in **{tournament_name}** is off the stage.",
         _stage_info_lines(player_names, scheduled_at_display),
         tail,
     )
@@ -322,6 +353,7 @@ def stage_reminder_dm(
     *,
     player_names: Optional[list[str]] = None,
     audience: str = AUDIENCE_PLAYER,
+    crew_roles: Sequence[str] = (),
 ) -> str:
     """The nudge shortly before the match, naming the stage and the time again.
 
@@ -332,7 +364,7 @@ def stage_reminder_dm(
         AUDIENCE_WATCHER: '',
     }.get(audience, "Head to the stage rather than the tournament room.")
     return _join_blocks(
-        f"{_subject(audience)} in **{tournament_name}** is coming up on **{stage_name}**.",
+        f"{_subject(audience, crew_roles)} in **{tournament_name}** is coming up on **{stage_name}**.",
         _stage_info_lines(player_names, scheduled_at_display),
         tail,
     )

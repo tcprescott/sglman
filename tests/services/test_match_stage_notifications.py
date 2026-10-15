@@ -174,9 +174,9 @@ async def test_each_audience_gets_its_own_copy_and_button(
         assert by_id[player_id]['message'].startswith('Your match in **Cup**')
         assert by_id[player_id]['link'].url.endswith(f'/home/player?match={match_id}')
     crew = by_id[fixture['approved'].discord_id]
-    assert crew['message'].startswith("A match you're on crew for in **Cup**")
+    assert crew['message'].startswith("A match you're commentating in **Cup**")
     assert crew['link'].url.endswith(f'/home/my-crew?match={match_id}')
-    assert crew['embed'].title == '📺 Your crew slot is on stage'
+    assert crew['embed'].title == '📺 Your commentator slot is on stage'
     watching = by_id[6]
     assert watching['message'].startswith("A match you're watching in **Cup**")
     assert watching['link'].url.endswith('/home/schedule')
@@ -196,7 +196,8 @@ async def test_reminder_dm_names_the_stage_and_the_time(
         assert 'coming up on **Kraid**' in call['message']
         # The commentator is reminded about their slot, not told to play.
         if call['discord_id'] == fixture['approved'].discord_id:
-            assert call['message'].startswith("A match you're on crew for")
+            assert call['message'].startswith("A match you're commentating")
+            assert call['embed'].title == '⏰ Your commentator slot on stage is coming up'
         assert '<t:' in call['message']
 
 
