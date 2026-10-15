@@ -18,7 +18,7 @@ own, all of them moved out as this module kept crossing the 800-line budget:
 :mod:`~application.utils.discord_messages_tenant` (community join requests).
 """
 
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Sequence
 
 from application.utils.match_labels import players_label
 
@@ -114,6 +114,14 @@ AUDIENCE_PLAYER = 'player'
 AUDIENCE_CREW = 'crew'
 AUDIENCE_WATCHER = 'watcher'
 AUDIENCE_SUBSCRIBER = 'subscriber'
+
+CREW_COMMENTATOR = 'commentator'
+CREW_TRACKER = 'tracker'
+
+
+def crew_slot_label(crew_roles: Sequence[str]) -> str:
+    """The slot(s) a crew member holds, as prose: "tracker", "commentator and tracker"."""
+    return ' and '.join(crew_roles)
 
 # The subject of a sentence about the match, per audience.
 _MATCH_SUBJECT = {

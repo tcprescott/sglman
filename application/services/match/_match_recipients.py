@@ -12,6 +12,8 @@ from application.utils.discord_messages import (
     AUDIENCE_CREW,
     AUDIENCE_PLAYER,
     AUDIENCE_WATCHER,
+    CREW_COMMENTATOR,
+    CREW_TRACKER,
 )
 from models import Commentator, Match, MatchPlayers, MatchWatcher, Tracker, User
 
@@ -23,11 +25,14 @@ class MatchRecipient(NamedTuple):
     watcher — because that decides what the copy can truthfully say ("your
     match" is only true for a player) and where its button can send them.
     ``is_watcher`` is independent: a player who also watches still gets the
-    Unwatch button they asked for.
+    Unwatch button they asked for. ``crew_roles`` names the slots a crew
+    recipient holds (``'commentator'``, ``'tracker'``, or both), so their copy
+    can say which one is theirs.
     """
 
     audience: str
     is_watcher: bool
+    crew_roles: tuple[str, ...] = ()
 
 
 def _dm_opt_ok(user: User) -> bool:
@@ -96,19 +101,26 @@ async def collect_match_audience(
                     mp.user.discord_id, MatchRecipient(AUDIENCE_PLAYER, False),
                 )
 
+    def _add_crew(user: User, role: str) -> None:
+        if not _dm_opt_ok(user) or _blocked(user):
+            return
+        held = recipients.get(user.discord_id)
+        if held is None:
+            recipients[user.discord_id] = MatchRecipient(AUDIENCE_CREW, False, (role,))
+        elif held.audience == AUDIENCE_CREW:
+            recipients[user.discord_id] = held._replace(crew_roles=held.crew_roles + (role,))
+
     commentators = await Commentator.filter(
         match=match, approved=True, tenant_id=tenant_id
     ).prefetch_related('user')
     for c in commentators:
-        if _dm_opt_ok(c.user) and not _blocked(c.user):
-            recipients.setdefault(c.user.discord_id, MatchRecipient(AUDIENCE_CREW, False))
+        _add_crew(c.user, CREW_COMMENTATOR)
 
     trackers = await Tracker.filter(
         match=match, approved=True, tenant_id=tenant_id
     ).prefetch_related('user')
     for t in trackers:
-        if _dm_opt_ok(t.user) and not _blocked(t.user):
-            recipients.setdefault(t.user.discord_id, MatchRecipient(AUDIENCE_CREW, False))
+        _add_crew(t.user, CREW_TRACKER)
 
     if include_watchers:
         watchers = await MatchWatcher.filter(
@@ -117,8 +129,9 @@ async def collect_match_audience(
         for w in watchers:
             if _dm_opt_ok(w.user) and not _blocked(w.user):
                 held = recipients.get(w.user.discord_id)
-                recipients[w.user.discord_id] = MatchRecipient(
-                    held.audience if held else AUDIENCE_WATCHER, True,
+                recipients[w.user.discord_id] = (
+                    held._replace(is_watcher=True) if held
+                    else MatchRecipient(AUDIENCE_WATCHER, True)
                 )
 
     return recipients
