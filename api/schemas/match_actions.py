@@ -7,40 +7,63 @@ from pydantic import BaseModel, Field
 
 
 class MatchCreateRequest(BaseModel):
-    tournament_id: int
+    tournament_id: int = Field(..., description="The tournament the match belongs to.")
     scheduled_date: str = Field(..., description="Date in the community's timezone, YYYY-MM-DD")
     scheduled_time: str = Field(..., description="Time in the community's timezone, HH:MM")
     player_ids: List[int] = Field(..., min_length=1, description="User IDs of the players")
-    comment: Optional[str] = None
-    stage_id: Optional[int] = None
-    commentator_ids: Optional[List[int]] = None
-    tracker_ids: Optional[List[int]] = None
-    is_stream_candidate: bool = False
+    comment: Optional[str] = Field(None, description="Free-text note shown on the match.")
+    stage_id: Optional[int] = Field(None, description="Stage to put the match on, or null for none.")
+    commentator_ids: Optional[List[int]] = Field(
+        None, description="User IDs to assign as commentators, already approved. Each is DMed to confirm."
+    )
+    tracker_ids: Optional[List[int]] = Field(
+        None, description="User IDs to assign as trackers, already approved. Each is DMed to confirm."
+    )
+    is_stream_candidate: bool = Field(
+        False, description="Mark the match as a candidate for stream, which alerts people who follow stream candidates."
+    )
 
 
 class MatchRequestCreate(BaseModel):
     """Player-initiated match request. The caller must be among ``player_ids``."""
 
-    tournament_id: int
+    tournament_id: int = Field(..., description="The tournament the match belongs to.")
     scheduled_date: str = Field(..., description="Date in the community's timezone, YYYY-MM-DD")
     scheduled_time: str = Field(..., description="Time in the community's timezone, HH:MM")
-    player_ids: List[int] = Field(..., min_length=1)
-    comment: Optional[str] = None
+    player_ids: List[int] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "User IDs of the players, including your own. Everyone else must "
+            "already be signed up for the tournament."
+        ),
+    )
+    comment: Optional[str] = Field(None, description="Free-text note shown on the match.")
 
 
 class MatchUpdateRequest(BaseModel):
-    tournament_id: Optional[int] = None
-    scheduled_date: Optional[str] = None
-    scheduled_time: Optional[str] = None
-    player_ids: Optional[List[int]] = None
-    commentator_ids: Optional[List[int]] = None
-    tracker_ids: Optional[List[int]] = None
-    comment: Optional[str] = None
-    clear_seated: bool = False
-    clear_started: bool = False
-    clear_finished: bool = False
-    clear_confirmed: bool = False
-    clear_seed: bool = False
+    tournament_id: Optional[int] = Field(None, description="Move the match to this tournament. Omit to keep it.")
+    scheduled_date: Optional[str] = Field(
+        None, description="New date in the community's timezone, YYYY-MM-DD. Send with `scheduled_time`."
+    )
+    scheduled_time: Optional[str] = Field(
+        None, description="New time in the community's timezone, HH:MM. Send with `scheduled_date`."
+    )
+    player_ids: Optional[List[int]] = Field(
+        None, description="The full new list of player user IDs, replacing the current one. Omit to keep it."
+    )
+    commentator_ids: Optional[List[int]] = Field(
+        None, description="The full new list of commentator user IDs, replacing the current one. Omit to keep it."
+    )
+    tracker_ids: Optional[List[int]] = Field(
+        None, description="The full new list of tracker user IDs, replacing the current one. Omit to keep it."
+    )
+    comment: Optional[str] = Field(None, description="New free-text note. Omit to keep the current one.")
+    clear_seated: bool = Field(False, description="Clear the check-in time.")
+    clear_started: bool = Field(False, description="Clear the start time.")
+    clear_finished: bool = Field(False, description="Clear the finish time.")
+    clear_confirmed: bool = Field(False, description="Clear the confirmation time.")
+    clear_seed: bool = Field(False, description="Remove the rolled seed so a new one can be rolled.")
 
 
 class StreamCandidateRequest(BaseModel):
@@ -53,13 +76,18 @@ class AssignStageRequest(BaseModel):
 
 class AssignStationsRequest(BaseModel):
     assignments: Dict[int, Optional[str]] = Field(
-        ..., description="Map of MatchPlayers id -> station label (or null to clear)"
+        ...,
+        description=(
+            "Map of player slot id (`players[].id` on the match) to station "
+            "label, or null to clear that player's station."
+        ),
     )
 
 
 class StationSuggestionResponse(BaseModel):
     assignments: Dict[int, str] = Field(
-        ..., description="Map of MatchPlayers id -> suggested station label"
+        ...,
+        description="Map of player slot id (`players[].id` on the match) to suggested station label.",
     )
     relaxations: List[str] = Field(
         default_factory=list,
@@ -72,7 +100,9 @@ class StationSuggestionResponse(BaseModel):
 
 
 class RecordResultRequest(BaseModel):
-    winner_id: int = Field(..., description="The MatchPlayers row id of the winner")
+    winner_id: int = Field(
+        ..., description="The winner's player slot id (`players[].id` on the match), not their user id."
+    )
 
 
 class SetReviewRequest(BaseModel):
@@ -82,12 +112,18 @@ class SetReviewRequest(BaseModel):
 
 
 class CrewSignupRequest(BaseModel):
-    role: str = Field(..., description="'commentator' or 'tracker'")
+    role: str = Field(..., description="The crew role to sign up for: 'commentator' or 'tracker'.")
 
 
 class SeedResultResponse(BaseModel):
-    message: str
-    seed_url: Optional[str] = None
+    message: str = Field(..., description="What happened, in a sentence to show the caller.")
+    seed_url: Optional[str] = Field(
+        None,
+        description=(
+            "Link to the new seed. Null when the randomizer rolls in the "
+            "background, in which case the players are DMed when it lands."
+        ),
+    )
 
 
 class MatchSuggestionResponse(BaseModel):

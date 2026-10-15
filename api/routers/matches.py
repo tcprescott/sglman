@@ -27,9 +27,11 @@ router = APIRouter(
     response_model=List[MatchResponse],
     summary="List matches",
     description=(
-        "Retrieve matches with optional filtering by match, stage, or "
-        "tournament id and a scheduled-time range. Includes tournament, stream "
-        "stage, generated seed, players, and approved commentators/trackers."
+        "Matches in this community, soonest first, filtered by match, stage or "
+        "tournament id and a scheduled-time range. Each match carries its "
+        "tournament, stage, seed, players and approved crew; pending crew "
+        "signups are left out.\n\n"
+        "**Who can call this:** Any member."
     ),
 )
 async def get_matches(
@@ -62,7 +64,12 @@ async def get_matches(
     "/watching",
     response_model=List[MatchResponse],
     summary="List matches you are watching",
-    description="Matches the authenticated user has opted in to receive Discord updates for.",
+    description=(
+        "Matches you are watching, soonest first. Watching a match sends you a "
+        "Discord DM at each step of its run (checked in, started, finished, "
+        "confirmed).\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def get_watched_matches(actor: User = Depends(require_api_actor)):
     match_ids = await MatchWatcherService().list_watched_match_ids(actor)
@@ -80,6 +87,12 @@ async def get_watched_matches(actor: User = Depends(require_api_actor)):
     "/{match_id}",
     response_model=MatchResponse,
     summary="Get a single match",
+    description=(
+        "One match with its tournament, stage, seed, players and approved crew. "
+        "Pending crew signups are left out; `GET /matches/{match_id}/crew` lists "
+        "them.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def get_match(match_id: int):
     match = require_found(
@@ -96,9 +109,10 @@ async def get_match(match_id: int):
     response_model=MatchCrewResponse,
     summary="List a match's crew, including pending signups (admin only)",
     description=(
-        "The coordinator's view of who has actually volunteered. `GET "
-        "/matches/{id}` hides unapproved crew from everyone, so this sits "
-        "behind a higher gate than the match itself."
+        "Every commentator and tracker signup on a match, approved or not, with "
+        "when each approved crew member confirmed. `GET /matches/{match_id}` "
+        "shows approved crew only.\n\n"
+        "**Who can call this:** Admins (any admin role, tournament admin or crew coordinator)."
     ),
 )
 async def get_match_crew(match_id: int, actor: User = Depends(require_admin)):

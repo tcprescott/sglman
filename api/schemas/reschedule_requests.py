@@ -9,23 +9,44 @@ from models import MatchRescheduleRequest, RescheduleRequestKind
 
 
 class RescheduleRequestResponse(BaseModel):
-    id: int
-    match_id: int
-    kind: str
-    status: str
-    reason: str
+    id: int = Field(..., description="The request's id.")
+    match_id: int = Field(..., description="The match the request is about.")
+    kind: str = Field(..., description="What was asked for: 'reschedule' to move the match, 'cancel' to call it off.")
+    status: str = Field(
+        ...,
+        description=(
+            "Where the request stands: 'pending', 'approved', 'declined', "
+            "'withdrawn' (the requester took it back) or 'superseded' (another "
+            "request on the same match was approved first)."
+        ),
+    )
+    reason: str = Field(..., description="The requester's own words on why they need the change.")
     # UTC, like every other timestamp the REST layer emits. Only Discord gets
     # per-viewer rendering; an API consumer converts for itself.
-    proposed_at: Optional[datetime] = None
-    original_scheduled_at: Optional[datetime] = None
-    opponent_agreed_at: Optional[datetime] = None
-    requested_by_id: int
-    requested_by_name: Optional[str] = None
-    decided_by_id: Optional[int] = None
-    decided_by_name: Optional[str] = None
-    decided_at: Optional[datetime] = None
-    decision_note: Optional[str] = None
-    created_at: datetime
+    proposed_at: Optional[datetime] = Field(
+        None, description="The time the requester asked for, in UTC, or null when they left it to staff."
+    )
+    original_scheduled_at: Optional[datetime] = Field(
+        None, description="When the match was scheduled at the time of asking, in UTC."
+    )
+    opponent_agreed_at: Optional[datetime] = Field(
+        None, description="When the other player agreed to the request, in UTC, or null if they haven't."
+    )
+    requested_by_id: int = Field(..., description="User id of the player who asked.")
+    requested_by_name: Optional[str] = Field(None, description="Display name of the player who asked.")
+    decided_by_id: Optional[int] = Field(
+        None,
+        description=(
+            "User id of whoever decided it (for 'superseded', whoever approved "
+            "the other request). Null while pending or once withdrawn."
+        ),
+    )
+    decided_by_name: Optional[str] = Field(None, description="Display name of whoever decided it.")
+    decided_at: Optional[datetime] = Field(
+        None, description="When the request stopped being pending, for any reason, in UTC."
+    )
+    decision_note: Optional[str] = Field(None, description="The note staff left with their decision, shown to the requester.")
+    created_at: datetime = Field(..., description="When the request was raised, in UTC.")
 
     @classmethod
     def from_row(cls, row: MatchRescheduleRequest) -> 'RescheduleRequestResponse':
