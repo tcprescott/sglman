@@ -88,7 +88,16 @@ async def _load_asset(equipment_id: int) -> Equipment:
 # --- Reads ----------------------------------------------------------------
 # Literal single-segment routes are declared before parameterized ones.
 
-@router.get("", response_model=List[EquipmentResponse], summary="List the equipment inventory")
+@router.get(
+    "",
+    response_model=List[EquipmentResponse],
+    summary="List the equipment inventory",
+    description=(
+        "Lists every asset in the community, ordered by asset number, with who currently "
+        "holds each one. `private_notes` is filled in only for Staff and Equipment managers."
+        "\n\n**Who can call this:** Any member."
+    ),
+)
 async def list_equipment(
     status_filter: Optional[EquipmentStatus] = Query(
         None, alias="status", description="Filter to one asset status."
@@ -115,6 +124,11 @@ async def list_equipment(
     "/me/checkouts",
     response_model=List[MyCheckoutResponse],
     summary="List the assets you currently hold",
+    description=(
+        "Lists the assets checked out to you that haven't been returned yet, most recent "
+        "checkout first."
+        "\n\n**Who can call this:** Any member; it only ever returns your own loans."
+    ),
 )
 async def my_checkouts(actor: User = Depends(require_api_actor)):
     return [
@@ -129,7 +143,16 @@ async def my_checkouts(actor: User = Depends(require_api_actor)):
     ]
 
 
-@router.get("/{equipment_id}", response_model=EquipmentDetailResponse, summary="Get one asset")
+@router.get(
+    "/{equipment_id}",
+    response_model=EquipmentDetailResponse,
+    summary="Get one asset",
+    description=(
+        "Returns one asset and, while it's checked out, the open loan. `private_notes` is "
+        "filled in only for Staff and Equipment managers."
+        "\n\n**Who can call this:** Any member."
+    ),
+)
 async def get_equipment(equipment_id: int, actor: User = Depends(require_api_actor)):
     service = EquipmentService()
     asset = await _load_asset(equipment_id)
@@ -152,6 +175,11 @@ async def get_equipment(equipment_id: int, actor: User = Depends(require_api_act
     "/{equipment_id}/loans",
     response_model=List[LoanResponse],
     summary="List an asset's checkout history",
+    description=(
+        "Lists the asset's loans, newest first, including the one still open if it's "
+        "checked out. Use `limit` to page through a long history."
+        "\n\n**Who can call this:** Any member."
+    ),
 )
 async def list_loans(
     equipment_id: int,
@@ -171,6 +199,12 @@ async def list_loans(
     response_model=EquipmentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create an asset",
+    description=(
+        "Adds one asset with the next free asset number and records it in the audit log.\n\n"
+        "Fails with 400 when the name is blank, the owner isn't a member of this community, "
+        "or someone else took the same asset number at the same moment (save again)."
+        "\n\n**Who can call this:** Staff or Equipment manager."
+    ),
 )
 async def create_equipment(
     body: EquipmentCreateRequest, actor: User = Depends(require_write_actor)
@@ -190,6 +224,13 @@ async def create_equipment(
     response_model=List[EquipmentResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Create several identical assets at once",
+    description=(
+        "Adds `count` assets that share a name and details, numbered consecutively from the "
+        "next free asset number, in one all-or-nothing step. One audit entry covers the block.\n\n"
+        "Fails with 400 when the name is blank, the owner isn't a member of this community, "
+        "or the number range clashed with an asset added at the same moment (save again)."
+        "\n\n**Who can call this:** Staff or Equipment manager."
+    ),
 )
 async def bulk_create_equipment(
     body: EquipmentBulkCreateRequest, actor: User = Depends(require_write_actor)
@@ -218,9 +259,13 @@ async def bulk_create_equipment(
     response_model=EquipmentResponse,
     summary="Replace an asset's details",
     description=(
-        "A full replace, not a partial edit: `description`, `private_notes` and "
-        "`owner_user_id` are cleared when omitted. `status` is the exception — "
-        "omit it to leave the status alone."
+        "Replaces the asset's details and records the change in the audit log. This is a full "
+        "replace, so `description`, `private_notes` and `owner_user_id` are cleared when "
+        "omitted; leave out `status` to keep the current one.\n\n"
+        "Fails with 400 when the name is blank, the owner isn't a member of this community, "
+        "or the status change would move the asset into or out of `checked_out` (use check "
+        "out and check in for that)."
+        "\n\n**Who can call this:** Staff or Equipment manager."
     ),
 )
 async def update_equipment(
@@ -244,6 +289,11 @@ async def update_equipment(
     "/{equipment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an asset",
+    description=(
+        "Deletes the asset and its loan history, and records the deletion in the audit log.\n\n"
+        "Fails with 400 when the asset is checked out; check it in first."
+        "\n\n**Who can call this:** Staff or Equipment manager."
+    ),
 )
 async def delete_equipment(equipment_id: int, actor: User = Depends(require_write_actor)):
     await EquipmentService().delete_asset(actor, equipment_id)
@@ -256,6 +306,15 @@ async def delete_equipment(equipment_id: int, actor: User = Depends(require_writ
     response_model=LoanResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Check an asset out",
+    description=(
+        "Opens a loan on the asset and marks it checked out. Without `borrower_id` (or with "
+        "your own id) the asset goes to you; naming anyone else is refused unless you're Staff "
+        "or an Equipment manager. The checkout is recorded in the audit log.\n\n"
+        "Fails with 400 when the asset is retired or already checked out, or the named "
+        "borrower doesn't exist or is an account that can't borrow."
+        "\n\n**Who can call this:** Any member, to themselves; Staff or Equipment manager "
+        "to check out to someone else."
+    ),
 )
 async def checkout_equipment(
     equipment_id: int,
@@ -276,6 +335,12 @@ async def checkout_equipment(
     "/{equipment_id}/checkin",
     response_model=EquipmentDetailResponse,
     summary="Check an asset back in",
+    description=(
+        "Closes the open loan, marks the asset available again and records the return in the "
+        "audit log. The response has no `current_loan`.\n\n"
+        "Fails with 400 when the asset isn't checked out."
+        "\n\n**Who can call this:** Staff or Equipment manager."
+    ),
 )
 async def checkin_equipment(equipment_id: int, actor: User = Depends(require_write_actor)):
     asset = await EquipmentService().checkin(actor, equipment_id)

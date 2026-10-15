@@ -6,9 +6,8 @@ Gated by the ``FEEDBACK`` feature flag at the router and again inside
 Submitting and reading your own submissions take any token: the web form is
 open to every signed-in member, and a person's own feedback is theirs to read
 back. The queue (``GET /feedback``) is staff, mirroring the Admin → Feedback
-tab. Marking a submission reviewed is re-gated by the service at
-``can_view_admin``, which is a wider set than STAFF, so the HTTP layer takes the
-coarse write gate and lets the service answer.
+tab. Marking a submission reviewed is re-gated to STAFF by the service, so the
+HTTP layer takes the coarse write gate and lets the service answer.
 """
 
 from typing import List, Optional
@@ -54,6 +53,11 @@ def _serialize(row: Feedback, submitter: Optional[User]) -> FeedbackResponse:
     "/mine",
     response_model=List[FeedbackResponse],
     summary="List your own feedback and what happened to it",
+    description=(
+        "Lists the feedback you've sent, newest first, with each item's status so you can "
+        "see whether Staff have reviewed it."
+        "\n\n**Who can call this:** Any member; it only ever returns your own feedback."
+    ),
 )
 async def list_mine(
     limit: int = Query(25, ge=1, le=MAX_ROWS, description="Maximum rows to return."),
@@ -67,6 +71,11 @@ async def list_mine(
     "",
     response_model=List[FeedbackResponse],
     summary="List recent feedback (Staff only)",
+    description=(
+        "Lists the community's feedback queue, newest first, with each submitter's name and "
+        "message, whether or not it has been reviewed."
+        "\n\n**Who can call this:** Staff."
+    ),
 )
 async def list_feedback(
     limit: int = Query(50, ge=1, le=MAX_ROWS, description="Maximum rows to return."),
@@ -81,6 +90,12 @@ async def list_feedback(
     response_model=FeedbackResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Submit feedback",
+    description=(
+        "Sends feedback to the community's Staff and records it in the audit log. It lands in "
+        "the queue as `new`.\n\n"
+        "Fails with 400 when the message is blank."
+        "\n\n**Who can call this:** Any member."
+    ),
 )
 async def submit_feedback(
     body: FeedbackCreateRequest, actor: User = Depends(require_write_actor)
@@ -95,6 +110,12 @@ async def submit_feedback(
     "/{feedback_id}/reviewed",
     response_model=FeedbackResponse,
     summary="Mark a submission reviewed, or put it back in the queue",
+    description=(
+        "Sets the submission's status to `reviewed`, or back to `new` when `reviewed` is "
+        "false, and records the change in the audit log. The submitter sees the new status "
+        "on their own list."
+        "\n\n**Who can call this:** Staff."
+    ),
 )
 async def set_reviewed(
     feedback_id: int,
