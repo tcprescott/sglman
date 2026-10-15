@@ -18,10 +18,16 @@ has already fanned the reschedule out to both players.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Sequence
 
-from models import Match, MatchRescheduleRequest, RescheduleRequestKind, User
+from models import (
+    Match,
+    MatchRescheduleRequest,
+    RescheduleRequestKind,
+    StaffRequestKind,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +55,7 @@ class RescheduleNotificationMixin:
         tournament_name: str,
         requester: User,
     ) -> None:
-        from application.services import notification_links
+        from application.services import notification_links, staff_request_dms
         from application.services.discord import DiscordService, discord_queue
         from application.services.tenant_service import TenantService
         from application.utils.discord_embeds import (
@@ -84,12 +90,10 @@ class RescheduleNotificationMixin:
         # The decision dialog itself, not the board: the reason and the proposed
         # time are the whole message and they live in the dialog.
         staff_link = await notification_links.admin_reschedule_request(request.id)
-        for member in await self._deciders(match):
-            if member.discord_id:
-                discord_queue.enqueue(service.send_dm(
-                    int(member.discord_id), staff_body,
-                    embed=staff_embed, link=staff_link,
-                ))
+        await staff_request_dms.send(
+            StaffRequestKind.RESCHEDULE_REQUEST, request.id, await self._deciders(match),
+            staff_body, embed=staff_embed, link=staff_link,
+        )
 
         opponents = self._opponents(match, requester)
         # One column records agreement, so it can only mean "the other player".
@@ -119,6 +123,62 @@ class RescheduleNotificationMixin:
             embed=opponent_embed,
             link=await notification_links.player_agree(request.id),
         ))
+
+    async def _mark_staff_dms(
+        self,
+        request: MatchRescheduleRequest,
+        outcome: str,
+        *,
+        actor: User,
+        tournament_name: str,
+    ) -> None:
+        """Edit the DMs the deciders got to say this request is settled.
+
+        ``outcome`` is ``approved``, ``declined``, ``withdrawn`` (``actor`` is
+        the requester) or ``superseded`` (``actor`` approved a different
+        request on the same match).
+        """
+        try:
+            from application.services import notification_links, staff_request_dms
+            from application.services.tenant_service import TenantService
+            from application.utils import discord_messages_staff_requests as copy
+            from application.utils.discord_embeds import (
+                COLOR_CANCELLED,
+                COLOR_CONFIRMED,
+                COLOR_FINISHED,
+            )
+
+            community = await TenantService.current_community_name()
+            cancel = request.kind is RescheduleRequestKind.CANCEL
+            requester = request.requested_by.preferred_name
+            staff_name = actor.preferred_name
+            when = request.decided_at or datetime.now(timezone.utc)
+            color = {
+                'approved': COLOR_CONFIRMED, 'superseded': COLOR_CONFIRMED,
+                'declined': COLOR_CANCELLED,
+            }.get(outcome, COLOR_FINISHED)
+
+            def build(you: bool):
+                if outcome == 'approved':
+                    card = copy.reschedule_approved(you, staff_name, requester, tournament_name, cancel, when)
+                elif outcome == 'declined':
+                    card = copy.reschedule_declined(you, staff_name, requester, tournament_name, cancel, when)
+                elif outcome == 'superseded':
+                    card = copy.reschedule_superseded(you, staff_name, requester, tournament_name, cancel, when)
+                else:
+                    card = copy.reschedule_withdrawn(requester, tournament_name, cancel, when)
+                return staff_request_dms.card(card, color=color, community_name=community)
+
+            # An approved cancellation deleted the match, so there's nothing to open.
+            link = (
+                None if outcome == 'approved' and cancel
+                else await notification_links.admin_match(request.match_id)  # type: ignore[attr-defined]
+            )
+            staff_request_dms.mark_handled(
+                StaffRequestKind.RESCHEDULE_REQUEST, request.id, build, link, actor_id=actor.id,
+            )
+        except Exception:
+            logger.exception('reschedule request %s: staff DM edit failed', request.id)
 
     @staticmethod
     async def _deciders(match: Match) -> Sequence[User]:

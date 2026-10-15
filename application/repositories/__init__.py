@@ -61,6 +61,7 @@ from .reschedule_request_repository import RescheduleRequestRepository
 from .room_token_repository import RoomTokenRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
+from .staff_request_dm_repository import StaffRequestDMRepository
 from .stage_repository import StageRepository
 from .station_repository import StationRepository
 from .table_preference_repository import TablePreferenceRepository
@@ -137,6 +138,7 @@ __all__ = [
     'RoomTokenRepository',
     'SpeedGamingEpisodeRepository',
     'SpeedGamingEventLinkRepository',
+    'StaffRequestDMRepository',
     'StageRepository',
     'StationRepository',
     'TablePreferenceRepository',

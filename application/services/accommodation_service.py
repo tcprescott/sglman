@@ -31,7 +31,14 @@ from application.utils.discord_messages_accommodation import (
     accommodation_changed_dm,
     accommodation_requested_dm,
 )
-from models import AccommodationRequest, AccommodationStatus, FeatureFlag, Role, User
+from models import (
+    AccommodationRequest,
+    AccommodationStatus,
+    FeatureFlag,
+    Role,
+    StaffRequestKind,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +110,7 @@ class AccommodationService:
                 changed_since_arranged=False, arranged_details=None,
             )
             await self._audit(actor, AuditActions.ACCOMMODATION_WITHDRAWN, existing)
+            await self._mark_staff_dms(actor, existing, withdrawn=True)
             return existing
 
         details = _clean(details, DETAILS_MAX_LENGTH, 'Accommodation details')
@@ -139,8 +147,11 @@ class AccommodationService:
                 await self._notify_staff(actor, existing, changed=True)
             return existing
 
+        reopened = existing.status is not AccommodationStatus.NEW
         await self.repository.update(existing, status=AccommodationStatus.NEW, details=details)
         await self._audit(actor, AuditActions.ACCOMMODATION_UPDATED, existing)
+        if reopened:
+            await self._restore_staff_dms(actor, existing)
         return existing
 
     # feature-gate: exempt — soft integration point called from removing a member.
@@ -162,6 +173,7 @@ class AccommodationService:
         await self._audit(
             actor, AuditActions.ACCOMMODATION_WITHDRAWN, request, source='member_removed',
         )
+        await self._mark_staff_dms(member, request, withdrawn=True)
 
     # --- staff side -------------------------------------------------------
 
@@ -285,6 +297,12 @@ class AccommodationService:
             )
         if notes_changed:
             await self._audit(actor, AuditActions.ACCOMMODATION_NOTES_UPDATED, request)
+        if status_changed and status is AccommodationStatus.NEW:
+            await self._restore_staff_dms(request.user, request)
+        elif status_changed:
+            await self._mark_staff_dms(actor, request)
+        elif reviewed:
+            await self._mark_staff_dms(actor, request, reviewed=True)
         return request
 
     async def _notify_staff(
@@ -303,39 +321,98 @@ class AccommodationService:
             and request.staff_notified_at is not None
             and now - request.staff_notified_at < STAFF_DM_WINDOW
         ):
+            # Reopened inside the window: no new DM, so the copies staff
+            # already have must stop saying it was withdrawn.
+            await self._restore_staff_dms(member, request)
             return
         try:
             from application.repositories.user_role_repository import UserRoleRepository
-            from application.services import notification_links
-            from application.services.discord import DiscordService, discord_queue
-            from application.services.tenant_service import TenantService
-            from application.utils.discord_embeds import (
-                COLOR_JOIN_REQUEST,
-                COLOR_RESCHEDULED,
-                notification_embed,
-            )
+            from application.services import notification_links, staff_request_dms
 
-            community = await TenantService.current_community_name()
-            name = member.preferred_name
-            if changed:
-                body = accommodation_changed_dm(community, name)
-                title, color = '♿ ADA request changed', COLOR_RESCHEDULED
-            else:
-                body = accommodation_requested_dm(community, name)
-                title, color = '♿ ADA request', COLOR_JOIN_REQUEST
-            embed = notification_embed(
-                title=title, color=color, community_name=community, description=body,
-            )
+            body, embed = await self._staff_card(member, changed=changed)
             link = await notification_links.admin_ada_request(request.id)
-            service = DiscordService()
-            for staff in await UserRoleRepository.list_users_with_role(Role.STAFF):
-                if staff.discord_id and staff.id != member.id:
-                    discord_queue.enqueue(
-                        service.send_dm(int(staff.discord_id), body, embed=embed, link=link)
-                    )
+            staff = [
+                u for u in await UserRoleRepository.list_users_with_role(Role.STAFF)
+                if u.id != member.id
+            ]
+            await staff_request_dms.send(
+                StaffRequestKind.ADA_REQUEST, request.id, staff, body, embed=embed, link=link,
+            )
             await self.repository.update(request, staff_notified_at=now)
         except Exception:
             logger.exception('ADA request %s: staff notification failed', request.id)
+
+    @staticmethod
+    async def _staff_card(member: User, *, changed: bool):
+        """The staff DM's text and card: a new request, or a change to an arranged one."""
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import (
+            COLOR_JOIN_REQUEST,
+            COLOR_RESCHEDULED,
+            notification_embed,
+        )
+
+        community = await TenantService.current_community_name()
+        name = member.preferred_name
+        if changed:
+            body = accommodation_changed_dm(community, name)
+            title, color = '♿ ADA request changed', COLOR_RESCHEDULED
+        else:
+            body = accommodation_requested_dm(community, name)
+            title, color = '♿ ADA request', COLOR_JOIN_REQUEST
+        embed = notification_embed(
+            title=title, color=color, community_name=community, description=body,
+        )
+        return body, embed
+
+    async def _mark_staff_dms(
+        self, actor: User, request: AccommodationRequest, *,
+        reviewed: bool = False, withdrawn: bool = False,
+    ) -> None:
+        """Edit the DMs staff got so they can see someone already picked it up."""
+        try:
+            from application.services import notification_links, staff_request_dms
+            from application.services.tenant_service import TenantService
+            from application.utils import discord_messages_staff_requests as copy
+            from application.utils.discord_embeds import COLOR_CONFIRMED, COLOR_FINISHED
+
+            community = await TenantService.current_community_name()
+            member_name = (await request.user).preferred_name
+            when = datetime.now(timezone.utc)
+            staff_name = actor.preferred_name
+            label = request.status.value.title()
+
+            def build(you: bool):
+                if withdrawn:
+                    card = copy.ada_withdrawn(member_name, when)
+                elif reviewed:
+                    card = copy.ada_reviewed(you, staff_name, member_name, when)
+                else:
+                    card = copy.ada_status(you, staff_name, member_name, label, when)
+                return staff_request_dms.card(
+                    card, color=COLOR_FINISHED if withdrawn else COLOR_CONFIRMED,
+                    community_name=community,
+                )
+
+            link = await notification_links.admin_ada_request(request.id)
+            staff_request_dms.mark_handled(
+                StaffRequestKind.ADA_REQUEST, request.id, build, link, actor_id=actor.id,
+            )
+        except Exception:
+            logger.exception('ADA request %s: staff DM edit failed', request.id)
+
+    async def _restore_staff_dms(self, member: User, request: AccommodationRequest) -> None:
+        """Put the staff DMs back to "needs looking at" when a request opens again."""
+        try:
+            from application.services import notification_links, staff_request_dms
+
+            _body, embed = await self._staff_card(member, changed=False)
+            link = await notification_links.admin_ada_request(request.id)
+            staff_request_dms.mark_handled(
+                StaffRequestKind.ADA_REQUEST, request.id, lambda _you: embed, link,
+            )
+        except Exception:
+            logger.exception('ADA request %s: staff DM restore failed', request.id)
 
     async def _audit(
         self, actor: User, action: str, request: AccommodationRequest, **extra: str,

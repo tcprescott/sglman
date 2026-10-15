@@ -325,6 +325,12 @@ What Wizzrobe schedule row a mirrored Discord event came from
 `(source_type, source_id)` link is polymorphic so qualifier windows / live races
 join later without a schema change.
 
+### `StaffRequestKind`
+
+Which request a [`StaffRequestDM`](#staffrequestdm) asked staff to decide:
+`COMMUNITY_EVENT`, `ADA_REQUEST`, `JOIN_REQUEST`, `RESCHEDULE_REQUEST` (values are
+the snake_case names).
+
 ### `AsyncQualifierRunStatus` / `AsyncQualifierReviewStatus`
 
 Async-qualifier run + review state. Web-first collapses reveal and start, so a run
@@ -1784,6 +1790,22 @@ a sibling's event cancelled.
 
 Constraints: `discord_event_id` unique; unique `(tenant, source_type, source_id)` (idempotency); indexes on `tenant`, `guild_id`.
 
+#### `StaffRequestDM`
+
+One staff member's Discord DM about a pending request, kept so it can be edited
+to say who decided it ([`staff_request_dms`](services.md#staff_request_dmspy--module-functions)).
+Tenant-scoped (migration 103).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `kind` | `CharEnumField(StaffRequestKind)` | not null | Which request table `object_id` points at |
+| `object_id` | `IntField` | not null | The request's id. Not a FK: an approved match cancellation deletes its reschedule request, and the DMs still need their edit |
+| `user` | FK → `User` | not null, cascade | The staff member the DM went to |
+| `channel_id` / `message_id` | `BigIntField` | not null | Where Discord put the message |
+| `created_at` | | auto | |
+
+Index on `(tenant, kind, object_id)`. A new round of DMs for the same request (a resubmitted event) deletes the old round's rows first.
+
 ### Async Qualifiers
 
 A **peer aggregate of `Tournament`** — created/administered like a tournament
@@ -2111,6 +2133,7 @@ Consult the source for full signatures.
 | `RaceRoomProfileRepository` | [`race_room_profile_repository.py`](../../application/repositories/race_room_profile_repository.py) | `RaceRoomProfile` | `list_all`, `get_by_id`, `get_by_name`, `create`, `update`, `delete` |
 | `SpeedGamingEventLinkRepository` | [`speedgaming_event_link_repository.py`](../../application/repositories/speedgaming_event_link_repository.py) | `SpeedGamingEventLink` | Scoped CRUD `list_all`, `get_by_id`, `get_by_natural_key`, `create`, `update`, `delete`; **unscoped** `list_active_all` (cross-tenant due-for-sync worker scan) |
 | `SpeedGamingEpisodeRepository` | [`speedgaming_episode_repository.py`](../../application/repositories/speedgaming_episode_repository.py) | `SpeedGamingEpisode` | ETL staging. `get_by_sg_id`, `get_by_id`, `list_for_link`, `list_all`, `create`, `update` (upsert keyed on unique `(tenant, sg_episode_id)`) |
+| `StaffRequestDMRepository` | [`staff_request_dm_repository.py`](../../application/repositories/staff_request_dm_repository.py) | `StaffRequestDM` | `record`, `list_for(kind, object_id)`, `forget(kind, object_id)` |
 | `DiscordScheduledEventRepository` | [`discord_scheduled_event_repository.py`](../../application/repositories/discord_scheduled_event_repository.py) | `DiscordScheduledEvent` | Reconciliation links — shared-guild safety is enforced here (a query never sees a sibling tenant's mirrored event). `list_all`, `get_by_id`, `get_by_source`, `list_for_source_type`, `create`, `update`, `delete` (upsert key `(tenant, source_type, source_id)`) |
 | `RoomTokenRepository` | [`room_token_repository.py`](../../application/repositories/room_token_repository.py) | `RoomToken` | Venue-kiosk tokens for the read-only seeds view. `get_by_hash` (**scoped** — unlike the API-token lookup, a room token is only ever presented inside its own community, so a sibling tenant's token simply is not found), `list_all` (live before revoked, newest first within each group; the live-first half is sorted in Python because Postgres and SQLite disagree on NULL ordering), `touch_last_used`, `revoke` |
 | `ProviderTaskRepository` | [`provider_task_repository.py`](../../application/repositories/provider_task_repository.py) | `ProviderTask` | The submit→poll→result queue behind async seed rolls (DK64R). Scoped reads `get_with_relations`, `active_for_match`, `latest_failure_for_match`, `board_state_for_matches` (returns `(rolling, failed)` newest-per-match in **one** query — the ceiling `tests/test_query_budget.py` holds), `create_queued`; **deliberately unscoped** worker scans `due_for_poll` (all tenants, oldest first; skips a task with no `provider_task_id`, which is a submit still in flight) and `stale`, plus `claim`, a compare-and-swap on the current status so a duplicate tick loses the race instead of completing twice |

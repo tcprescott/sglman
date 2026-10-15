@@ -23,6 +23,7 @@ from . import (
     seed_roll_worker,
     service_health_worker,
     speedgaming_sync_worker,
+    staff_request_dms,
 )
 from .accommodation_service import AccommodationService
 from .analytics_service import AnalyticsService
@@ -266,6 +267,7 @@ __all__ = [
     'seed_roll_worker',
     'service_health_worker',
     'speedgaming_sync_worker',
+    'staff_request_dms',
     'validate_async_qualifier_config',
     'validate_bracket_config',
     'validate_counts',

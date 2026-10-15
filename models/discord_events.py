@@ -1,7 +1,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
-from .enums import DiscordEventSource
+from .enums import DiscordEventSource, StaffRequestKind
 
 
 class DiscordScheduledEvent(Model):
@@ -37,3 +37,31 @@ class DiscordScheduledEvent(Model):
         table = 'discordscheduledevent'
         unique_together = (('tenant', 'source_type', 'source_id'),)
         indexes = (('tenant',), ('guild_id',))
+
+
+class StaffRequestDM(Model):
+    """One staff member's Discord DM about a request someone has to decide.
+
+    Kept so the DM can be edited once anyone decides it: every staff member is
+    DM'd, and without the edit they all open the request to check. ``object_id``
+    is a bare id, not a foreign key, because an approved match cancellation
+    deletes the request it came from and the DMs still need their edit.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.Tenant', related_name='staff_request_dms', on_delete=fields.CASCADE)
+    tenant_id: int
+    kind = fields.CharEnumField(StaffRequestKind, max_length=32)
+    object_id = fields.IntField()
+    user: fields.ForeignKeyRelation = fields.ForeignKeyField(
+        'models.User', related_name='staff_request_dms', on_delete=fields.CASCADE)
+    user_id: int
+    channel_id = fields.BigIntField()
+    message_id = fields.BigIntField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'staff_request_dm'
+        table_description = 'Staff DMs about a pending request, edited once someone decides it.'
+        indexes = (('tenant', 'kind', 'object_id'),)

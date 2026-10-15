@@ -89,6 +89,7 @@ from scripts.seed_password import seed_password_sign_in
 from scripts.seed_payouts import seed_matcherino_handles, seed_payouts_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_preferences import seed_table_preferences
+from scripts.seed_staff_requests import seed_staff_request_dms
 from scripts.seed_support import (
     RACER_SPECS,
     USER_SPECS,
@@ -829,6 +830,7 @@ async def seed_all() -> None:
         await seed_profile_reminders(tenant, users)
         await seed_watch_layout_votes(tenant)
         await seed_match_comments(tenant, users)
+        await seed_staff_request_dms(tenant, users)
     await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link
