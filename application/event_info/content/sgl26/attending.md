@@ -16,7 +16,30 @@ requesting one, is covered in Help instead.
 13869 Park Center Road, Herndon, VA 20171
 +1 703-478-2900
 
-The event runs Thursday 22 to Sunday 25 October 2026, in the hotel.
+The event runs Thursday 22 to Sunday 25 October 2026, in the hotel. Every time
+on these pages is the venue's, Eastern Daylight Time (EDT, UTC−4).
+
+**By plane.** The closest airport is **Washington Dulles (IAD)**, and the hotel
+runs a free shuttle to and from it. Call the hotel on the number above to
+confirm a pickup time. **Reagan National (DCA)** is about 30 miles east and has
+no shuttle; from there, take the Metro **Blue Line** towards Largo to Rosslyn,
+then the **Silver Line** towards Ashburn.
+
+**By train.** The nearest Amtrak station is **Washington Union Station (WAS)**.
+Take the Metro **Red Line** towards Shady Grove three stops to Metro Center, then
+the **Silver Line** towards Ashburn.
+
+From the Silver Line, either get off at **Innovation Center** and take
+[Fairfax County Bus 983](https://www.fairfaxcounty.gov/connector/schedules/983),
+which goes past the hotel, or ride on to **Dulles International Airport** and
+take the hotel shuttle. The [Metro map](https://www.wmata.com/schedules/maps/wmata-system-map.cfm)
+has every line.
+
+**By car.** The hotel is about 25 miles west of Washington, D.C. Leave Virginia
+Route 28 at the **McLearen Road** exit (two exits south of the Dulles Toll Road,
+two north of US 50), turn left at the first light onto Towerview Road (there's a
+Sheetz on the corner), then left onto Park Center Road. The hotel is on your
+left.
 
 **Staying there.** There is a room block at **$129/night**, either two double
 beds or one king, bookable through
@@ -24,6 +47,9 @@ beds or one king, bookable through
 Check-in from Wednesday the 21st is what the organisers recommend, so you are
 there before the first day rather than travelling into it, and out on Monday the
 26th. The last night of the block is Sunday the 25th.
+
+The hotel takes no deposit when you book, but **charges $50 a night for
+incidentals when you check in**. It's refunded when you check out.
 
 **Change the dates before you reserve.** The booking link defaults to arriving
 the 20th and leaving the 25th, which is a day early at both ends: you would miss
@@ -34,8 +60,12 @@ If the block rate isn't showing, tell a staff member rather than booking at full
 price. The hotel will usually add rooms on request, and did so once already for
 this event.
 
-> **TODO:** which room the tournament room is, and where the stage is. Add the
-> room names and the floor once the venue map is settled.
+**Where things are.** The tournament room is **Sully**, on the 1st floor near
+check-in. The stages are in the broadcast room, **Piedmont I + II**, on the 2nd
+floor above the fitness center. The casual room is **Corcoran / Veritas /
+Chrysalis** on the lower level, and board games are in **Tarara** in the
+basement. Opening hours for each are on
+[What's on, and when](/event-info/schedule#hours).
 
 ## Tickets and badges
 
@@ -55,15 +85,16 @@ collecting yours is the first thing to do when you arrive.
 **The check-in desk opens on Wednesday**, the day before play starts, so you can
 collect your badge the evening before rather than queueing on Thursday morning.
 
-The desk runs **6–10 PM on Wednesday**, then **until 8 PM on Thursday and
-Friday**.
+The desk is on the **1st floor, outside the fitness center**. It runs
+**4–10 PM on Wednesday**, **10 AM–8 PM on Thursday and Friday**, and
+**10 AM–4 PM on Saturday**. Show the QR code Matcherino emailed you when you
+bought your ticket, or your photo ID. If you haven't bought one, the desk sells
+them, **cash only**: $40 for a day or $80 for the whole event.
 
-**If the desk is closed, ping @Staff in the
-[event Discord](https://discord.com/invite/T6qzxNJ).** Someone will come and
-check you in. You do not have to wait until the next morning to get your badge.
-
-> **TODO:** where in the hotel the desk is. Add it with the rest of the venue
-> map.
+**If the desk is closed, go to the admin desk in the tournament room (Sully)**,
+or ping @Staff in the [event Discord](https://discord.com/invite/T6qzxNJ).
+Someone will check you in. You do not have to wait until the next morning to
+get your badge, and it has to be visible the whole time you're at the event.
 
 **Your lanyard says what you are.** Attendee, volunteer and staff lanyards are
 different, which is how you pick a staff member out of a room when you need one.
@@ -92,9 +123,11 @@ proctor's.
 You do not check yourself in and you do not pick your own station.
 :::
 
-> **TODO:** where the admin desk is. Worth naming precisely, since the
-> **check-in desk** above is where you collect your badge and these are two
-> different places.
+The **admin desk** is just inside the tournament room (Sully), to the left of
+the doors. It's a different place from the **check-in desk** outside the fitness
+center, where you collect your badge. There's also a PC by the admin desk for
+putting a match on the schedule or signing up to volunteer, if you'd rather not
+use your phone.
 
 ## In the tournament room
 
@@ -107,6 +140,11 @@ modern console, a laptop. The venue provides the display, the seat and the
 power, but the machine itself is yours to bring and yours to set up, so pack
 accordingly, including whatever you need to get a seed onto it. There are no
 restrictions on what you have at your station.
+
+Every display in the tournament and casual rooms is an **LCD monitor fed through
+a RetroTINK** (composite, component or S-Video). If you want to play on a
+different kind of screen, bring it, and ask a staff member if you need
+somewhere to store it.
 
 **RetroTINK 2X upscalers are available to borrow** if you need one to get your
 setup onto the room's displays. **Every loaner device carries a QR code: scan
@@ -126,8 +164,19 @@ checking yourself, before the countdown rather than after, is **audio: make sure
 sound is actually reaching your headphones**, whatever it is coming out of.
 Discovering that mid-race costs you time nobody can give back.
 
-There is a PC in the room for getting seed data onto an SD card or another
-device. Ask the proctor where it is rather than hunting for a spare laptop.
+There is a self-service PC in the room for getting your seed onto an SD card or
+another device (or your seed number, for Zelda 1 Randomizer). Ask the proctor
+where it is rather than hunting for a spare laptop. Once you're seated, the
+proctor checks both players' hash codes to make sure you're on the same seed.
+
+**If you play on an emulator, bring the laptop or PC you play on.** If you can't
+bring or borrow one, contact the organisers before the event; there may be a few
+setups to lend, but don't count on it.
+
+**Tracking rules are each tournament's.** Pencil and paper are provided. If you
+use a tracking program where it's allowed, bring the device it runs on. Got a
+good paper tracker or map you'd like printed for everyone? Send it to a staff
+member.
 
 Unplugging your *own* equipment is fine, but be as careful about it as the
 proctors are with their own gear. Cables in a tournament room are not always
@@ -136,12 +185,16 @@ station that is mid-match, so trace it to the thing it actually powers, check
 twice that it is yours, and only then unplug it. If you are not sure, ask the
 proctor: that is a much better question to ask than to find out the hard way.
 
+Any kind of headphones is fine for a match in the tournament room; plug them
+into the monitor's 1/8" jack or straight into your console or PC.
+
 Your phone, notes, trackers, your own headphones or earbuds, and a capture of
 your own POV if you want to stream yourself are all fine. Nothing on this list
 needs clearing with anyone first.
 
 Several matches share the room and everyone in it is concentrating, so keep it
-quiet. That applies to you between your own matches as much as to anyone else,
+quiet. **The room and the hallway outside it are a quiet zone**: once you've
+finished, head down the hall before you start talking it over. That applies to you between your own matches as much as to anyone else,
 and to whatever you are streaming or talking into.
 
 The room is not open to spectators. Friends who want to watch you play should
@@ -161,10 +214,16 @@ match has one, and the same thing shows in the *Stage* column on the schedule
 board, so a stage match is not a surprise on the day. It is on the notification
 you already have.
 
-Bring earbuds. Any game that requires player isolation, randomizers for
+**Report to the broadcast room first** (Piedmont I + II, 2nd floor). The
+broadcast tech shows you where to sit and set up. For a randomizer, you then go
+down to the tournament room to get your seed; a vanilla game skips that step.
+When the broadcast starts, tell the tech you're ready and they count you down.
+
+Bring 1/8" wired earbuds. Any game that requires player isolation, randomizers for
 instance, is played on stage with white-noise headphones over the top of your
 own earbuds. The headphones are the isolation, and the earbuds underneath are
-how you hear your game, and they are yours to bring. Pack a pair for the event,
+how you hear your game, and they are yours to bring. There are a few spares,
+but bring your own if you can, for hygiene's sake. Pack a pair for the event,
 and once you have seen a Stage on a match of yours, keep them on you rather than
 in a bag in another room.
 
@@ -218,8 +277,9 @@ releases itself once the proctor records the result.
 
 ## Board game room
 
-There is one, and it runs the whole event. It has no scheduled closing time; it
-stays open as long as people are playing, and gets torn down on the Monday.
+It's in **Tarara**, in the basement, open daily from 11 AM until about
+midnight. Blood on the Clocktower and Crokinole sessions run there, and the
+times for those go up in `#board-game-room` on the event Discord.
 
 **The library is whatever people bring.** Attendees leave their own games out for
 anyone to pick up, so the shelf is different every year. Put your name on
@@ -227,8 +287,37 @@ anything you bring and collect it before teardown, or it ends up at the check-in
 desk. There are usually jigsaw puzzles going as well, which are a good way to
 kill an hour between races.
 
-> **TODO:** which room it is and what floor. Add it with the rest of the venue
-> map.
+## Food and breakfast
+
+**Breakfast is a buffet, daily from 6:30 to about 10 AM**: in **Old Ox** on
+Wednesday, then **Colvin** from Thursday to Monday. Expect things like eggs,
+bagels, muffins, cereal, fruit and pancakes or waffles, with coffee, tea, juice
+and milk. The menu changes from day to day, and any change to the times goes up
+on the event Discord.
+
+The hotel also has the Cardinal Lounge and the Old Ox Grille, plus a gym and an
+indoor pool. They aren't part of SGLive, and anything you spend there is between
+you and the hotel.
+
+Nearby, off the hotel's own block:
+
+- **Sheetz**, round the corner at Towerview Road and McLearen Road, with
+  made-to-order food.
+- **About ¾ mile away**, at Centreville Road and McLearen Road: Taco Bell,
+  Burger King, Popeyes, a Food Lion supermarket, a CVS, an Indian restaurant, a
+  breakfast place and two pizza chains.
+- **A mile south** (the next exit on Route 28): Wawa and Chick-fil-A.
+- **About 3 miles south** in Chantilly: Walmart, Costco and plenty more, and
+  Reston Town Center a short drive north.
+
+Attendee MisterAngryPants keeps a list of restaurants around Herndon, Reston and
+Chantilly: [MAP's SGL Restaurant Big Board](https://docs.google.com/spreadsheets/d/10PKJV1Y62e3ZnFXR3s349YBm9H6GSkyrKDOe4s8puHw/edit?usp=sharing).
+
+## Medical
+
+The nearest hospital is **Reston Hospital Center**, 1850 Town Center Parkway.
+For urgent care, **CareNow Urgent Care** is at 3456 Historic Sully Way,
+Chantilly, about a mile south near the Wawa.
 
 ## Conduct
 
@@ -238,6 +327,10 @@ Read the
 if you read one thing; the
 [full version](https://docs.google.com/document/d/1ROnq2Iu1shplVljjqljK0WjrV3OWLWILRnA1awPAVG8/edit)
 is the official one.
+
+SGLive also has its own
+[safety and security policy](https://docs.google.com/document/d/1ijdnmjl-s1tEvTpergVNKKAECAntnml-_FjhIQpOPOU/edit#heading=h.tb9nufn3z8e1),
+covering what to do if something goes wrong. Please read it in full.
 
 **Report a breach to an admin.** Conduct is an admin's call, the same as a match
 dispute, so the route is the one on [Who to ask](/event-info/who-to-ask): tell
