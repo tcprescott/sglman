@@ -241,6 +241,20 @@ The Wind Waker Randomizer has no hosted generator: each player builds their own 
 - **No seed hash.** The two names on the in-game file select would be the natural "same seed?" check, but with "do not generate spoiler log" on (as SGL 2026's preset has it) wwrando derives them from `md5(permalink + SEED_KEY)`, where `SEED_KEY` is a secret baked into official builds. A hash computed here would disagree with the players' screens. Spoiler-on presets could be computed; that's left for a future event that wants it.
 - `settings_snapshot` records `{reference_permalink, version, seed_name}`.
 
+### Seed codes
+
+The file-select symbols racers compare before starting ("Code: Bow · Hookshot · Bombs · Lamp · Cape"). A generator sets `RolledSeed.code` (a list of names) when its upstream hands one back; `complete_seed_roll` stores it on `GeneratedSeeds.seed_code`, the match row carries it as one line (`seed_code`, built by `discord_messages.seed_code_line`), and it shows under the seed in `seed_value_template`, the match sheet and the seed DM (embed description and push text). Readers live in [`_seedgen_codes.py`](../../application/services/_seedgen_codes.py) and return `None` rather than raise: a missing code must never fail or retry a roll.
+
+| Key | Source | Format |
+|---|---|---|
+| `alttpr` | five bytes at `0x180215` in the customizer response's `patch` | 5 of 32 item names |
+| `dk64r` | the finished task's `result.hash` (0–9 digits) | 5 icon names (Bongos … Saxophone, as DK64R's racetime bot names them) |
+| `smmap` | `seed_hash` beside `seed_url` in the `/randomize` response | 4 enemy names |
+| `smdash` | the `signature` in the `/seed/<key>` page's Next.js payload (one extra GET, no API) | 4 enemy names |
+| `ootr` | `settingsLog.file_hash` from `GET /api/v2/seed/details`; for an encrypted seed only a key with `locked_encrypt_spoiler_access` gets it, and a seed still generating answers 204 | 5 item names |
+
+`ff1r` (hashed in the browser from the RNG state after the whole randomization), `z1r` (closed-source tool) and `wwr` (see above) have none. `MOCK_SEEDGEN` returns a believable code for the randomizers that have one.
+
 ### Pasted seeds (the copy card)
 
 Most randomizers return a URL. `wwr` (a permalink) and `z1r` (`"<seed> - <flags>"`) return a string the player pastes into their own randomizer, and every surface checks which it has (`discord_messages.is_seed_link`, or `^https?://` in a slot template):

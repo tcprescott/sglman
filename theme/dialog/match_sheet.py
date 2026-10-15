@@ -378,6 +378,8 @@ class MatchSheet:
             elif not row.get('seed_rolling_since') and self.access.run and seed_rollable(row):
                 ui.button('Generate', on_click=lambda: self._run(self.handlers.on_generate_seed, row['id'])) \
                     .props('outline dense no-caps color=primary').classes('match-sheet__check-act')
+        if seed and row.get('seed_code'):
+            ui.label(row['seed_code']).classes('seed-code')
         blocked = row.get('seed_dm_blocked') or []
         if seed and blocked:
             ui.label("Couldn't DM " + ', '.join(str(b) for b in blocked) + '. Hand them the seed.') \

@@ -116,7 +116,7 @@ class TestGenerateSeedPreset:
         from unittest.mock import AsyncMock, patch
 
         preset = SimpleNamespace(randomizer='alttpr', settings={'mode': 'open', 'goal': 'ganon'})
-        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/seed'))
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/seed', data={}))
         with patch('application.services.seedgen_service.ALTTPR.generate', gen):
             url = await service.generate_seed('alttpr', preset)
 
@@ -128,7 +128,7 @@ class TestGenerateSeedPreset:
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
-        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/builtin'))
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/builtin', data={}))
         with patch('application.services.seedgen_service.ALTTPR.generate', gen):
             url = await service.generate_seed('alttpr')
 
@@ -142,7 +142,7 @@ class TestGenerateSeedPreset:
         from unittest.mock import AsyncMock, patch
 
         preset = SimpleNamespace(randomizer='alttpr', settings={'mode': 'open'})
-        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/tf'))
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/tf', data={}))
         with patch('application.services.seedgen_service.ALTTPR.generate', gen):
             call = await service.generate_seed_call('alttpr', preset, triforce_text='hello')
 
@@ -198,7 +198,7 @@ class TestMockSeedgen:
         from unittest.mock import AsyncMock, patch
 
         monkeypatch.delenv('MOCK_SEEDGEN', raising=False)
-        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/real'))
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/real', data={}))
         with patch('application.services.seedgen_service.ALTTPR.generate', gen):
             url = await service.generate_seed('alttpr')
         assert url == 'https://alttpr.com/h/real'

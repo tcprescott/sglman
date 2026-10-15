@@ -17,6 +17,7 @@ from typing import List, Optional
 
 import aiohttp
 
+import application.services._seedgen_codes as seed_codes
 from application.services._seedgen_types import RemotePreset, RolledSeed
 from application.utils.mocks.mock_dk64 import MockDK64Session, is_mock_dk64
 from application.utils.seed_provider import SeedProviderBadResponse
@@ -89,6 +90,7 @@ class DK64RBackend:
         return RolledSeed(
             url=f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}",
             settings=settings or None,
+            code=seed_codes.dk64r_code(result.get('hash')),
         )
 
     async def _dk64r_prepare(self, preset: Optional[Preset]) -> tuple:

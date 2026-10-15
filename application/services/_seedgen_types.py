@@ -19,10 +19,14 @@ class RolledSeed:
     and the question a disputed result actually asks — "what settings did this
     seed use?" — has no answer. ``None`` where the generator has no settings to
     speak of (the test stub).
+
+    ``code`` is the file-select seed code (see ``_seedgen_codes``), ``None`` for
+    a randomizer that doesn't hand one back.
     """
 
     url: str
     settings: Optional[dict] = None
+    code: Optional[list[str]] = None
 
 
 @dataclass

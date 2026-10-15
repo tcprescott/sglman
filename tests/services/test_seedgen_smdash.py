@@ -59,10 +59,14 @@ class TestGenerateSmdash:
         call = await service.generate_seed_call('smdash')
         assert call.value.url == 'https://www.dashrando.net/seed/abc123'
         assert call.value.settings == {'preset': 'sgl26', 'race': True}
-        [sent] = dash.calls
+        sent, code_fetch = dash.calls
         assert sent['url'] == 'https://www.dashrando.net/generate/sgl26'
         assert sent['params'] == {'race': '1'}
         assert sent['allow_redirects'] is False
+        # The seed page is read once for its code; this stub answers 307 again,
+        # so there is none and the roll still succeeds.
+        assert code_fetch['url'] == 'https://www.dashrando.net/seed/abc123'
+        assert call.value.code is None
 
     async def test_uses_the_preset_tag(self, service, dash):
         preset = Preset(name='classic', randomizer='smdash', settings={'preset': 'classic_mm'})
