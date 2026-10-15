@@ -1439,6 +1439,14 @@ Runtime per-logger levels behind `/platform` → Logging ([observability.md](../
 
 Collaborators: `AuditService`, `LogLevelOverrideRepository`, [`log_levels.py`](#log_levelspy).
 
+### runtime_stats_service.py — RuntimeStatsService
+
+Live process load for the super-admin `runtime_stats` MCP tool ([observability.md](../features/observability.md#live-load-runtime_stats)). Stateless; no tenant context.
+
+| Method | Returns | Description |
+|---|---|---|
+| `snapshot(actor)` (static) | `dict` | `ensure_super_admin`, then `application/utils/runtime_stats.collect()`: uptime, release, RSS, asyncio task count, NiceGUI clients, DB pool, the loop watchdog's last minute, every `BackgroundLoop`'s timing, and Watch-page audiences. |
+
 ### racetime_bot_service.py — RacetimeBotService
 
 Platform administration of the shared, **global** racetime bots (one per game category, each holding that category's OAuth credentials). All mutations are SUPER_ADMIN-gated and run on `/platform` with no tenant context, so their audit rows are platform-level (`tenant=NULL`). The `client_secret` is a privileged secret: `serialize()` omits it, `update_bot` only rewrites it when a new value is supplied (blank = unchanged), and the audit log records only that the field changed — never its value.

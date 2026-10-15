@@ -17,7 +17,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Deque, Dict, Optional, Set
+from typing import Deque, Dict, List, Optional, Set
 
 #: How long the page stays static after arrivals were last over the threshold.
 TRIP_MINUTES = 10
@@ -113,6 +113,11 @@ def snapshot(tenant_id: int) -> AudienceSnapshot:
         tripped=tripped,
         tripped_at=audience.tripped_at if tripped else None,
     )
+
+
+def tenant_ids() -> List[int]:
+    """Communities whose Watch page has had a visitor since this process started."""
+    return list(_audiences)
 
 
 def reset() -> None:

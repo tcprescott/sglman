@@ -12,7 +12,7 @@ from tests.mcp.conftest import create_oauth_token, list_tools, mcp_session
 
 # Tools that legitimately take no community, because they are how a caller
 # discovers which communities exist.
-GLOBAL_TOOLS = {'whoami', 'list_tenants'}
+GLOBAL_TOOLS = {'whoami', 'list_tenants', 'runtime_stats'}
 
 # A snapshot, so adding or renaming a tool is a deliberate diff rather than an
 # invisible change to a published contract.
@@ -58,6 +58,7 @@ READ_TOOLS = {
     'list_speedgaming_links',
     'list_stages',
     'list_tenants',
+    'runtime_stats',
     'list_tournament_signups',
     'list_tournaments',
     'list_triforce_texts',

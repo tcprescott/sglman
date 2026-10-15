@@ -218,3 +218,20 @@ class TestSuperAdmin:
             )
         assert is_error
         assert 'not_found:' in payload
+
+
+class TestRuntimeStats:
+    async def test_super_admin_reads_live_load(self, db):
+        _, raw = await create_oauth_token(roles=[Role.SUPER_ADMIN])
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(client, raw, 'runtime_stats')
+        assert not is_error, payload
+        assert 'event_loop' in payload
+
+    async def test_community_staff_are_refused(self, db):
+        """The figures cover every community's sockets, so a community role is not enough."""
+        _, raw = await create_oauth_token(roles=[Role.STAFF])
+        async with mcp_session() as client:
+            is_error, payload = await call_tool(client, raw, 'runtime_stats')
+        assert is_error
+        assert 'event_loop' not in payload

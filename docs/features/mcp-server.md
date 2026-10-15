@@ -15,7 +15,7 @@ logic of its own.
 | Transport | Streamable HTTP, **stateless**, JSON responses (no SSE on POST) |
 | Auth | OAuth 2.1 (RFC 7591 dynamic registration + PKCE). **Personal access tokens are refused.** |
 | Writes | 21 tools (19 match-management, plus tournament self-signup and withdrawal), served only to a connection the consent screen approved for writing. Everything else is a read annotated `readOnlyHint`. |
-| Reads | 56 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
+| Reads | 57 tools. Each mirrors the gate of its REST counterpart in `api/routers/`. |
 | Feature flag | None — the server is always on. `MCP_ENABLED=false` is an operational kill switch. |
 | Rate limit | Shares `/api`'s buckets and `API_RATE_LIMIT_PER_MIN` (default 120). Covers `/mcp` **and** the unauthenticated authorization-server routes (`/authorize`, `/token`, `/register`, `/revoke`, and the AS metadata document). |
 | Code | [`mcpserver/`](../../mcpserver), consent page [`pages/mcp_consent.py`](../../pages/mcp_consent.py) |
@@ -140,7 +140,7 @@ leaves the screen usable and no other caller can grant write without it.
 
 ## Choosing a community
 
-Every tool except `whoami` and `list_tenants` takes a required `tenant` argument
+Every tool except `whoami`, `list_tenants` and `runtime_stats` takes a required `tenant` argument
 — a community slug. `list_tenants` returns the slugs the caller may use.
 
 **Membership floor.** A tool reaches a community only where its user actually
@@ -188,7 +188,7 @@ a role — and the connection one is both cheaper and the common case.
 
 ## Tool catalogue
 
-`tenant` is required on every tool below except the two orientation tools.
+`tenant` is required on every tool below except the two orientation tools and `runtime_stats`.
 
 ### Orientation
 | Tool | Gate | Notes |
@@ -305,6 +305,13 @@ model needs in one call to find one person.
 | `telemetry_summary`, `telemetry_top`, `get_system_config` | STAFF |
 | `list_service_health`, `list_webhooks`, `list_webhook_deliveries` | STAFF |
 | `list_feedback` | STAFF | `FEEDBACK` |
+| `runtime_stats` | GLOBAL, then SUPER_ADMIN in `RuntimeStatsService` |
+
+`runtime_stats` is the live load on the process (event-loop lag and stalls,
+CPU, memory, connected tabs, DB pool, worker timing; see
+[observability.md](observability.md#live-load-runtime_stats)). It names no
+community because the figures cover all of them, which is also why a community
+role cannot read it.
 
 `list_webhooks` never returns the signing secret, and `list_service_health` is
 the **tenant subset** only — the platform-wide board is a super-admin surface and

@@ -100,6 +100,22 @@ class TestConfig:
         monkeypatch.setenv('SENTRY_TRACES_SAMPLE_RATE', 'lots')
         assert wiring._traces_sample_rate() == 0.0
 
+    def test_profiles_every_trace_in_production_only(self, monkeypatch):
+        monkeypatch.delenv('SENTRY_PROFILES_SAMPLE_RATE', raising=False)
+        monkeypatch.setattr(wiring, 'is_production', lambda: True)
+        assert wiring._profiles_sample_rate() == 1.0
+        monkeypatch.setattr(wiring, 'is_production', lambda: False)
+        assert wiring._profiles_sample_rate() == 0.0
+
+    def test_profiles_env_wins_and_is_clamped(self, monkeypatch):
+        monkeypatch.setattr(wiring, 'is_production', lambda: True)
+        monkeypatch.setenv('SENTRY_PROFILES_SAMPLE_RATE', '0.25')
+        assert wiring._profiles_sample_rate() == 0.25
+        monkeypatch.setenv('SENTRY_PROFILES_SAMPLE_RATE', '-1')
+        assert wiring._profiles_sample_rate() == 0.0
+        monkeypatch.setenv('SENTRY_PROFILES_SAMPLE_RATE', 'lots')
+        assert wiring._profiles_sample_rate() == 0.0
+
     def test_logs_level(self, monkeypatch):
         monkeypatch.delenv('SENTRY_LOGS_LEVEL', raising=False)
         assert wiring._sentry_logs_level() == logging.INFO

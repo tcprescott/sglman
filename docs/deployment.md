@@ -131,6 +131,7 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `SENTRY_DSN` | no | `''` | `application/utils/sentry.py` | Enables Sentry error reporting; events tagged with `ENVIRONMENT`, the release, the tenant and the logged-in user. No-op when blank. See [observability.md](features/observability.md). |
 | `SENTRY_TRACES_SAMPLE_RATE` | no | `0.1` in production, else `0` | `application/utils/sentry.py` | Fraction (`0`–`1`) of requests traced for performance. Only read when `SENTRY_DSN` is set. |
 | `SENTRY_LOGS_LEVEL` | no | `INFO` | `application/utils/sentry.py` | Minimum level shipped to Sentry Logs; `off` disables them. Access and outbound-HTTP lines are never shipped. |
+| `SENTRY_PROFILES_SAMPLE_RATE` | no | `1.0` in production, else `0` | `application/utils/sentry.py` | Share of *traced* requests also profiled, so a slow trace shows which functions burned the CPU. Relative to `SENTRY_TRACES_SAMPLE_RATE`: the defaults profile 10% of requests. |
 | `SENTRY_RELEASE` | no | `wizzrobe@<GIT_SHA>` | `application/utils/sentry.py` | Release name on every Sentry event. Defaults from `GIT_SHA`; unset when neither is present. |
 | `GIT_SHA` | no | baked in by `publish.yml` | `Dockerfile` | The commit the image was built from (a build arg). Feeds the Sentry release. |
 | `TELEMETRY_ENABLED` | no | `true` | `application/utils/environment.py` | Runtime kill-switch for telemetry **capture**; reads and reports are unaffected. See [telemetry.md](features/telemetry.md). |
@@ -151,6 +152,7 @@ Every boolean variable below uses one grammar (`env_flag` in `application/utils/
 | `TWITCH_REDIRECT_URI` | no | `{BASE_URL}/twitch/oauth/callback` | `application/services/twitch_service.py` | Must match the URI registered with the Twitch app. |
 | `MOCK_TWITCH` | no | off | `application/utils/mocks/mock_twitch.py` | Records a fake verified Twitch identity so link/unlink works without a real OAuth app. **Refused in production.** |
 | `MOCK_TWITCH_IDENTITY` | no | `1` | `application/utils/clients/twitch_client.py` | Which canned mock identity the mock link flow returns. Only read under `MOCK_TWITCH`. |
+| `LOOP_WATCHDOG_ENABLED` | no | on | `application/utils/environment.py`, `main.py` | Kill switch for the event-loop watchdog thread ([observability.md](features/observability.md#blocked-event-loop-watchdog)). |
 | `SPEEDGAMING_SYNC_ENABLED` | no | off | `application/utils/environment.py` | Master switch for the SpeedGaming ETL sync worker. Off → no outbound polls. On → each active `SpeedGamingEventLink` is polled on its cadence and materialized into `Match` rows. |
 | `MOCK_SPEEDGAMING` | no | off | `application/utils/clients/speedgaming_client.py` | Scripted fake returning canned episodes, so the ETL is exercisable without speedgaming.org. **Refused in production.** |
 | `MOCK_MATCHERINO` | no | off | `application/utils/clients/matcherino_client.py` | Dev only. Swaps in `MockMatcherinoClient`, whose canned venue badge sales line up with the dev-seed fixtures, so event check-in syncs without calling Matcherino's unofficial API. Set by `./start.sh mock` and `validate`. **Refused in production.** |

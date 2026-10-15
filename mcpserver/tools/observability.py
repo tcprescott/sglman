@@ -3,6 +3,8 @@
 Gates mirror ``api/routers/audit.py`` (staff), ``api/routers/system_config.py``
 (staff), ``api/routers/webhooks.py`` (staff), ``api/routers/service_health.py``
 (staff for the tenant subset), and the telemetry service's own staff check.
+``runtime_stats`` describes the whole process, so it names no community and
+``RuntimeStatsService`` refuses anyone but a super admin.
 
 ``list_feedback`` mirrors ``api/routers/feedback.py``'s staff queue and carries
 that router's ``FEEDBACK`` flag. ``FeedbackService`` refuses a community with
@@ -17,6 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from application.services import (
     AuditService,
     FeedbackService,
+    RuntimeStatsService,
     ServiceHealthService,
     TelemetryService,
     WebhookService,
@@ -29,6 +32,7 @@ from mcpserver.schemas import (
     AuditEntry,
     AuditPage,
     FeedbackEntry,
+    RuntimeStats,
     ServiceHealthProbe,
     TenantArg,
     WebhookDeliveryInfo,
@@ -233,12 +237,27 @@ async def list_feedback(
     ]
 
 
+async def runtime_stats() -> RuntimeStats:
+    """Live load on the Wizzrobe process: event-loop lag and stalls, CPU,
+    memory, connected tabs, DB pool and background worker timing.
+
+    Requires super admin. Start here when the app feels slow: a high
+    `lag_ms_p95` or any `recent_stalls` means something is blocking the one
+    event loop every user shares, and each stall names the code that did it.
+    Times are Unix seconds, UTC.
+    """
+    return RuntimeStats.model_validate(
+        await RuntimeStatsService.snapshot(current_actor().user)
+    )
+
+
 def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_audit_log, gate=Gate.STAFF, title='Search audit log')
     register(mcp, telemetry_summary, gate=Gate.STAFF, title='Telemetry summary')
     register(mcp, telemetry_top, gate=Gate.STAFF, title='Telemetry leaderboards')
     register(mcp, get_system_config, gate=Gate.STAFF, title='Get system config')
     register(mcp, list_service_health, gate=Gate.STAFF, title='Service health')
+    register(mcp, runtime_stats, gate=Gate.GLOBAL, title='Runtime stats')
     register(mcp, list_webhooks, gate=Gate.STAFF, title='List webhooks')
     register(
         mcp, list_webhook_deliveries, gate=Gate.STAFF,

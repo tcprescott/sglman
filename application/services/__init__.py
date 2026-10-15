@@ -96,6 +96,7 @@ from .racetime_service import RacetimeService
 from .randomizer_credential_service import RandomizerCredentialService
 from .reports_service import ReportsService
 from .room_token_service import RoomTokenService
+from .runtime_stats_service import RuntimeStatsService
 from .seed_roll_service import SeedRollService
 from .seedgen_service import SeedGenerationService
 from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
@@ -204,6 +205,7 @@ __all__ = [
     'RandomizerCredentialService',
     'ReportsService',
     'RoomTokenService',
+    'RuntimeStatsService',
     'SeedGenerationService',
     'SeedRollService',
     'ServiceHealthService',

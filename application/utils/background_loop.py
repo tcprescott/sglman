@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable, Iterable, Optional, TypeVar
+import time
+import weakref
+from typing import Awaitable, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
@@ -28,6 +30,17 @@ _default_logger = logging.getLogger(__name__)
 T = TypeVar('T')
 
 TickFn = Callable[[], Awaitable[None]]
+
+#: A tick longer than this is logged at WARNING: it delays the worker's next
+#: run, and any synchronous stretch inside it delays every user.
+SLOW_TICK_SECONDS = 30.0
+
+_loops: 'weakref.WeakSet[BackgroundLoop]' = weakref.WeakSet()
+
+
+def worker_stats() -> List[Dict[str, object]]:
+    """Timing of every live worker loop, for the ``runtime_stats`` MCP tool."""
+    return sorted((loop.stats() for loop in list(_loops)), key=lambda s: str(s['name']))
 
 
 class BackgroundLoop:
@@ -52,15 +65,46 @@ class BackgroundLoop:
         self.name = name
         self._logger = logger or _default_logger
         self._task: Optional[asyncio.Task] = None
+        self._last_started: Optional[float] = None
+        self._last_seconds: Optional[float] = None
+        self._max_seconds = 0.0
+        self._ticks = 0
+        self._failures = 0
+        self._last_failed_at: Optional[float] = None
+        _loops.add(self)
 
     async def _loop(self) -> None:
         while True:
             with sentry_tags(worker=self.name):
+                self._last_started = time.time()
+                began = time.monotonic()
                 try:
                     await self._tick()
                 except Exception as e:  # never let the loop die
+                    self._failures += 1
+                    self._last_failed_at = time.time()
                     self._logger.exception('%s tick failed: %s', self.name, e)
+                finally:
+                    elapsed = time.monotonic() - began
+                    self._ticks += 1
+                    self._last_seconds = elapsed
+                    self._max_seconds = max(self._max_seconds, elapsed)
+                if elapsed >= SLOW_TICK_SECONDS:
+                    self._logger.warning('%s tick took %.1fs', self.name, elapsed)
             await asyncio.sleep(self._interval)
+
+    def stats(self) -> Dict[str, object]:
+        return {
+            'name': self.name,
+            'running': self._task is not None and not self._task.done(),
+            'interval_seconds': self._interval,
+            'ticks': self._ticks,
+            'failures': self._failures,
+            'last_started_at': self._last_started,
+            'last_tick_seconds': None if self._last_seconds is None else round(self._last_seconds, 3),
+            'max_tick_seconds': round(self._max_seconds, 3),
+            'last_failed_at': self._last_failed_at,
+        }
 
     def start(self) -> None:
         if self._task is None:

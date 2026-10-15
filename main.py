@@ -40,8 +40,10 @@ from application.services.discord.discord_service import get_discord_bot
 from application.services.match import stage_reminder
 from application.services.volunteer import volunteer_reminder
 from application.utils.easter_eggs import random_fact
+from application.utils.environment import loop_watchdog_enabled
 from application.utils.http_headers import header_safe
 from application.utils.log_levels import default_root_level, register_trace_level
+from application.utils.loop_watchdog import watchdog as loop_watchdog
 from application.utils.migration_lock import migration_lock
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import flush_sentry, init_sentry
@@ -246,6 +248,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # TelemetryEvent log (page views / interactions are captured separately from
         # the presentation layer). No event_types filter — record them all.
         event_bus.subscribe_async(TelemetryService().record_event)
+    # Started after boot so migrations and the first imports don't read as stalls.
+    if loop_watchdog_enabled():
+        loop_watchdog.start()
     # The MCP transport's session manager owns a task group that each per-request
     # server task is started on; entering it here (and exiting it around the
     # yield) means /mcp stops accepting calls before the workers below tear down,
@@ -272,6 +277,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_discord_bot()
         await close_db()
     finally:
+        loop_watchdog.stop()
         await flush_sentry()
 
 # Initialize Sentry before the app/middleware are constructed so its
