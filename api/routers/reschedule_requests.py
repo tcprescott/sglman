@@ -46,6 +46,12 @@ async def _reload(service: MatchRescheduleService, request_id: int, fallback):
     "/reschedule-requests/mine",
     response_model=List[RescheduleRequestResponse],
     summary="List your own reschedule requests and what happened to them",
+    description=(
+        "Requests you raised, newest first, with their outcome and any note "
+        "staff left."
+        "\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def list_mine(
     limit: int = Query(25, ge=1, le=MAX_ROWS, description="Maximum rows to return."),
@@ -59,6 +65,12 @@ async def list_mine(
     "/reschedule-requests",
     response_model=List[RescheduleRequestResponse],
     summary="List reschedule requests waiting on a decision (admin)",
+    description=(
+        "Pending requests in this community, oldest first. A tournament admin "
+        "without Staff sees only their own tournaments' requests."
+        "\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def list_pending(actor: User = Depends(require_api_actor)):
     """The staff queue. Gated in the service to Staff, or a tournament admin
@@ -74,6 +86,18 @@ async def list_pending(actor: User = Depends(require_api_actor)):
     response_model=RescheduleRequestResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Ask staff to move or call off a match you are playing in",
+    description=(
+        "Raises a request to move the match or call it off. Staff and the "
+        "tournament's admins are DMed, and in a two-player match so is your "
+        "opponent, who can agree. Fails with 400 when the match has no time "
+        "yet, is already under way, is synced from SpeedGaming, you already "
+        "have a request waiting on it, the reason is empty or too long, or the "
+        "proposed time is in the past or outside the tournament's hours. Fails "
+        "with 403 when you don't play in the match or the tournament doesn't "
+        "take requests."
+        "\n\n"
+        "**Who can call this:** Any member who plays in the match."
+    ),
 )
 async def submit_request(
     match_id: int,
@@ -92,6 +116,11 @@ async def submit_request(
     "/matches/{match_id}/reschedule-requests",
     response_model=List[RescheduleRequestResponse],
     summary="List the reschedule requests raised against a match",
+    description=(
+        "Every request on one match, newest first, whatever its status."
+        "\n\n"
+        "**Who can call this:** Staff, Admins of this tournament or the match's players."
+    ),
 )
 async def list_for_match(match_id: int, actor: User = Depends(require_api_actor)):
     """Whoever could decide these, or a player in the match reading their own."""
@@ -103,6 +132,14 @@ async def list_for_match(match_id: int, actor: User = Depends(require_api_actor)
     "/reschedule-requests/{request_id}/agree",
     response_model=RescheduleRequestResponse,
     summary="Agree with your opponent's request (advisory; staff still decide)",
+    description=(
+        "Records that the other player is fine with the change. Staff see it, "
+        "but it doesn't decide anything. Agreeing twice is harmless. Fails "
+        "with 400 when the request is already decided or the match doesn't "
+        "have exactly two players."
+        "\n\n"
+        "**Who can call this:** The other player in the match."
+    ),
 )
 async def agree(request_id: int, actor: User = Depends(require_write_actor)):
     service = MatchRescheduleService()
@@ -114,6 +151,12 @@ async def agree(request_id: int, actor: User = Depends(require_write_actor)):
     "/reschedule-requests/{request_id}/withdraw",
     response_model=RescheduleRequestResponse,
     summary="Take back a request you raised",
+    description=(
+        "Withdraws a pending request. Nobody is DMed. Fails with 400 when the "
+        "request is already decided."
+        "\n\n"
+        "**Who can call this:** Yourself only."
+    ),
 )
 async def withdraw(request_id: int, actor: User = Depends(require_write_actor)):
     service = MatchRescheduleService()
@@ -125,6 +168,18 @@ async def withdraw(request_id: int, actor: User = Depends(require_write_actor)):
     "/reschedule-requests/{request_id}/approve",
     response_model=RescheduleRequestResponse,
     summary="Approve a request, performing the reschedule or cancellation",
+    description=(
+        "Approves the request and makes the change. A reschedule moves the "
+        "match to `scheduled_at` if given, else the proposed time, with the "
+        "usual reschedule DMs, and closes the match's other pending requests as "
+        "superseded. A cancellation deletes the match and DMs everyone who was "
+        "expecting it; the response is then the request as it was just before. "
+        "The requester is DMed the outcome. The body is optional. Fails with "
+        "400 when the request is already decided, no time was proposed and "
+        "none is given, or the new time is outside the tournament's hours."
+        "\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def approve(
     request_id: int,
@@ -143,6 +198,13 @@ async def approve(
     "/reschedule-requests/{request_id}/decline",
     response_model=RescheduleRequestResponse,
     summary="Decline a request, in your own words",
+    description=(
+        "Declines the request. The requester is DMed your note, which is "
+        "required. Fails with 400 when the request is already decided or the "
+        "note is empty."
+        "\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def decline(
     request_id: int,
