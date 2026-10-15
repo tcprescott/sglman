@@ -37,8 +37,6 @@ from models import (
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
-    CommunityEvent,
-    CommunityEventStatus,
     EmergencyContact,
     FeatureFlag,
     FeatureFlagGroup,
@@ -47,14 +45,11 @@ from models import (
     Match,
     MatchComment,
     MatchCommentKind,
-    MatchRescheduleRequest,
     McpOAuthClient,
     PlayerAvailability,
     ProfileNudgeDismissal,
     RacetimeBot,
     Role,
-    StaffRequestDM,
-    StaffRequestKind,
     Stage,
     Tenant,
     TenantFeatureFlag,
@@ -94,6 +89,7 @@ from scripts.seed_password import seed_password_sign_in
 from scripts.seed_payouts import seed_matcherino_handles, seed_payouts_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_preferences import seed_table_preferences
+from scripts.seed_staff_requests import seed_staff_request_dms
 from scripts.seed_support import (
     RACER_SPECS,
     USER_SPECS,
@@ -754,30 +750,6 @@ async def seed_match_comments(tenant: Tenant, users: dict[str, User]) -> None:
     ):
         await MatchComment.get_or_create(
             tenant=tenant, match=match, author=users[author], kind=kind, body=body,
-        )
-
-
-async def seed_staff_request_dms(tenant: Tenant, users: dict[str, User]) -> None:
-    """One remembered staff DM per request kind, so deciding a seeded request in
-    mock mode prints the ``[MOCK Discord DM edit]`` line. The ids are made up:
-    a mock edit never reaches Discord."""
-    staff = users['staff_user']
-    targets = (
-        (StaffRequestKind.COMMUNITY_EVENT, CommunityEvent.filter(
-            tenant=tenant, status=CommunityEventStatus.PENDING)),
-        (StaffRequestKind.ADA_REQUEST, AccommodationRequest.filter(
-            tenant=tenant, status=AccommodationStatus.NEW)),
-        (StaffRequestKind.JOIN_REQUEST, TenantJoinRequest.filter(tenant=tenant)),
-        (StaffRequestKind.RESCHEDULE_REQUEST, MatchRescheduleRequest.filter(tenant=tenant)),
-    )
-    for n, (kind, query) in enumerate(targets, start=1):
-        target = await query.order_by('id').first()
-        if target is None:
-            continue
-        await StaffRequestDM.get_or_create(
-            tenant=tenant, kind=kind, object_id=target.id, user=staff,
-            defaults={'channel_id': int(staff.discord_id or 0),
-                      'message_id': 900_000_000 + tenant.id * 10 + n},
         )
 
 
