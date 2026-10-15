@@ -13,19 +13,12 @@ from tests.api_helpers import build_api_app
 # Routers still waiting on their write-up (done area by area in separate PRs).
 # Remove each as it lands; delete the set and its two checks once it is empty.
 PENDING_MODULES = {
-    'api.routers.async_qualifier_live_races', 'api.routers.async_qualifiers',
-    'api.routers.audit', 'api.routers.brackets', 'api.routers.check_in',
-    'api.routers.crew', 'api.routers.discord_events', 'api.routers.discord_role_mappings',
+    # event operations, reports and platform upkeep
+    'api.routers.audit', 'api.routers.check_in', 'api.routers.discord_role_mappings',
     'api.routers.equipment', 'api.routers.feedback', 'api.routers.health',
-    'api.routers.match_actions', 'api.routers.matches', 'api.routers.memberships',
-    'api.routers.notifications', 'api.routers.payouts', 'api.routers.player_availability',
-    'api.routers.presets', 'api.routers.race_room_profiles', 'api.routers.race_rooms',
-    'api.routers.racetime_bots', 'api.routers.reports', 'api.routers.reschedule_requests',
-    'api.routers.seeds', 'api.routers.service_health', 'api.routers.speedgaming',
-    'api.routers.stage_actions', 'api.routers.stages', 'api.routers.system_config',
-    'api.routers.telemetry', 'api.routers.tokens', 'api.routers.tournament_actions',
-    'api.routers.tournaments', 'api.routers.triforce', 'api.routers.users',
-    'api.routers.volunteers', 'api.routers.web_push', 'api.routers.webhooks',
+    'api.routers.reports', 'api.routers.system_config', 'api.routers.telemetry',
+    'api.routers.triforce', 'api.routers.volunteers', 'api.routers.web_push',
+    'api.routers.webhooks',
 }
 
 
