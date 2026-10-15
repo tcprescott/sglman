@@ -116,9 +116,11 @@ by hand. The **My Schedule** tab shows a count while anything is waiting on you.
 ### Suggest a time
 
 :::snippet suggest-time
-**Suggest a time** fills in a slot for you. It looks for a time neither player
-has blocked out, falls within the event's operating hours, and avoids a moment
-the venue is already busy. A time either of you marked *Prefer* wins ties.
+**Suggest a time** fills in a slot for you. It picks the earliest time that
+neither player has blocked out, that doesn't clash with another match either of
+you is in, that falls within the event's operating hours, and that the room has
+space for. A time either of you marked *Prefer* wins over an earlier one on the
+same day.
 
 It fills the fields in but doesn't book anything. Review what it picked and
 change it if it doesn't suit.

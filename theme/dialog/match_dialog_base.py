@@ -4,7 +4,7 @@ Split out of ``match_dialog.py`` when that module reached the 800-line
 guideline; the two concrete dialogs still live there.
 """
 
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Optional
 
 from nicegui import app, background_tasks, context, ui
 
@@ -170,6 +170,7 @@ class BaseMatchDialog:
         date,
         time,
         missing_message: str,
+        exclude_match_id: Optional[int] = None,
     ) -> None:
         """Render the 'Suggest a time' button shared by every scheduling dialog.
 
@@ -185,6 +186,7 @@ class BaseMatchDialog:
             date=date,
             time=time,
             missing_message=missing_message,
+            exclude_match_id=exclude_match_id,
         )
 
     def _render_state_summary(self, players) -> None:

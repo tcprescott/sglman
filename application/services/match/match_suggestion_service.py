@@ -1,12 +1,18 @@
 """
 Match Suggestion Service - Business Logic Layer
 
-Suggests an optimal match start time by finding occupancy troughs across the
-tournament room in the next 4 hours, falling back to the full event window when
-no suitable slot exists in that range.
+Suggests a match start time: the earliest slot in the next 4 hours where both
+players are free and the room has space, falling back to the rest of the event
+when nothing in that range fits.
+
+The room is filled early rather than spread thin: a slot that keeps concurrent
+players within ``_HEADROOM`` of ``max_concurrent_players`` beats any later one,
+and the cap itself is never crossed. Spreading evenly across the event pushed
+group matches to its last night and left no room for later rounds. A slot that
+overlaps any of the players' other matches is never offered.
 
 Capacity information is never surfaced to callers — the suggestion appears as a
-neutral "best time," invisibly spreading load across the venue.
+neutral "best time".
 
 Player availability is read opt-out: a slot is eligible unless a player has
 blocked it, and a slot inside a player's PREFERRED window scores higher. A
@@ -23,7 +29,7 @@ working.
 
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
-from typing import List, Optional, Sequence, Tuple
+from typing import FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
 
 from application.repositories.bracket_repository import BracketRepository
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
@@ -38,10 +44,21 @@ from models import Match, PlayerAvailability, Tournament, User, VolunteerAvailab
 
 _SLOT_INTERVAL_MIN = 30
 _PRIMARY_WINDOW_HOURS = 4
+# Fill the room to this share of its cap before going any fuller, so walk-ups
+# and overruns still have somewhere to go.
+_HEADROOM = 0.75
+_DEFAULT_CAPACITY = 60
+
+
+class _Booking(NamedTuple):
+    start: datetime
+    end: datetime
+    player_count: int
+    user_ids: FrozenSet[int]
 
 
 class MatchSuggestionService:
-    """Suggests match start times that minimise venue occupancy."""
+    """Suggests match start times that fit the players and the room."""
 
     def __init__(self) -> None:
         self.availability_repository = PlayerAvailabilityRepository()
@@ -64,6 +81,7 @@ class MatchSuggestionService:
         player_ids: List[int],
         bracket_match_id: Optional[int] = None,
         *,
+        exclude_match_id: Optional[int] = None,
         actor: Optional[User] = None,
     ) -> datetime:
         """Return a UTC datetime representing the best slot for the match.
@@ -73,6 +91,9 @@ class MatchSuggestionService:
 
         ``bracket_match_id`` clamps both searches to the matchup's round window,
         as a hard bound: the match must fit inside it end to end.
+
+        ``exclude_match_id`` is the match being rescheduled, whose current slot
+        must not count against its own players or the room.
 
         Raises ValueError if no eligible slot is found at all.
 
@@ -112,6 +133,8 @@ class MatchSuggestionService:
             scheduled_at__isnull=False, confirmed_at__isnull=True,
             tenant_id=require_tenant_id(),
         ).prefetch_related('tournament', 'players')
+        existing_matches = [m for m in existing_matches if m.id != exclude_match_id]
+        capacity = await SystemConfigService.get_max_concurrent_players(_DEFAULT_CAPACITY)
 
         event_start_dt = parse_local_datetime(event_start.isoformat(), '00:00', tz)
         event_end_dt = parse_local_datetime(event_end.isoformat(), '23:59', tz)
@@ -123,7 +146,7 @@ class MatchSuggestionService:
             now, primary_end, hours_map, duration, event_start, event_end, tz, round_end,
         )
         result = self._best_candidate(
-            primary_candidates, player_ids, avail_map, existing_matches, duration,
+            primary_candidates, player_ids, avail_map, existing_matches, duration, capacity,
         )
         if result is not None:
             return result
@@ -135,7 +158,7 @@ class MatchSuggestionService:
         primary_set = {s for s, _ in primary_candidates}
         fallback_candidates = [(s, e) for s, e in fallback_candidates if s not in primary_set]
         result = self._best_candidate(
-            fallback_candidates, player_ids, avail_map, existing_matches, duration,
+            fallback_candidates, player_ids, avail_map, existing_matches, duration, capacity,
         )
         if result is not None:
             return result
@@ -247,9 +270,22 @@ class MatchSuggestionService:
         avail_map,
         existing_matches: List[Match],
         duration: timedelta,
+        capacity: int = _DEFAULT_CAPACITY,
     ) -> Optional[datetime]:
-        """Score candidates and return the best UTC start time, or None."""
-        scored: List[Tuple[int, int, datetime]] = []  # (occupancy, -preferred, slot_utc)
+        """Score candidates and return the best UTC start time, or None.
+
+        A slot is out when a player blocked it, when a player is already in a
+        match that overlaps it, or when adding this match would take the room
+        past ``capacity`` concurrent players at any moment of the slot.
+
+        Of the rest, the earliest slot that keeps the room within its headroom
+        wins; only when none does is the room filled up to the cap. A player's
+        PREFERRED window can win over an earlier slot on the same day, never
+        over an earlier day.
+        """
+        bookings = self._bookings(existing_matches, duration)
+        wanted = frozenset(player_ids)
+        scored: List[Tuple] = []
 
         for slot_start, slot_end in candidates:
             preferred_count = 0
@@ -266,37 +302,51 @@ class MatchSuggestionService:
             if not eligible:
                 continue
 
-            occupancy = self._count_occupancy(existing_matches, slot_start, slot_end, duration)
-            scored.append((occupancy, -preferred_count, slot_start))
+            overlapping = [b for b in bookings if b.start < slot_end and b.end > slot_start]
+            if any(b.user_ids & wanted for b in overlapping):
+                continue
+            load = self._peak_load(overlapping, slot_start) + len(player_ids)
+            if load > capacity:
+                continue
+            band = 0 if load <= capacity * _HEADROOM else 1
+            scored.append((band, slot_start.date(), -preferred_count, slot_start))
 
         if not scored:
             return None
 
         scored.sort()
-        best_eastern = scored[0][2]
-        from datetime import timezone
-        return best_eastern.astimezone(timezone.utc)
+        return scored[0][-1].astimezone(dt_timezone.utc)
 
     @staticmethod
-    def _count_occupancy(
-        matches: List[Match],
-        slot_start: datetime,
-        slot_end: datetime,
-        duration: timedelta,
-    ) -> int:
-        """Count distinct players in matches whose window overlaps [slot_start, slot_end)."""
-        count = 0
+    def _bookings(matches: List[Match], duration: timedelta) -> List[_Booking]:
+        """Each scheduled match as its occupied window and who is in it."""
+        out: List[_Booking] = []
         for m in matches:
             if not m.scheduled_at:
                 continue
-            m_start = to_local(m.scheduled_at)
+            start = to_local(m.scheduled_at)
             dur = duration
             if m.tournament and m.tournament.average_match_duration:
                 dur = timedelta(minutes=m.tournament.average_match_duration)
-            m_end = m_start + dur
-            if m_start < slot_end and m_end > slot_start:
-                count += len(list(m.players))
-        return count
+            players = list(m.players)
+            out.append(_Booking(
+                start, start + dur, len(players),
+                frozenset(uid for uid in (getattr(p, 'user_id', None) for p in players) if uid is not None),
+            ))
+        return out
+
+    @staticmethod
+    def _peak_load(overlapping: Sequence[_Booking], slot_start: datetime) -> int:
+        """The most players on the floor at once during the slot.
+
+        Load only rises when a match starts, so the slot's own start and every
+        overlapping match's start inside it are the only moments to check.
+        """
+        moments = [slot_start] + [b.start for b in overlapping if b.start > slot_start]
+        return max(
+            (sum(b.player_count for b in overlapping if b.start <= t < b.end) for t in moments),
+            default=0,
+        )
 
     @staticmethod
     def _round_up_to_interval(dt: datetime) -> datetime:
