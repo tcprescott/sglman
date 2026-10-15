@@ -15,7 +15,12 @@ from typing import Awaitable, Callable, List, Optional, Tuple
 from nicegui import app, ui
 
 from application.services import get_user_from_session
-from application.services.volunteer import GridPerson, GridShift, VolunteerScheduleService
+from application.services.volunteer import (
+    GridPerson,
+    GridShift,
+    VolunteerScheduleService,
+    VolunteerShiftMoveService,
+)
 from application.utils.timezone import timezone_label, to_local
 from models import User
 from theme.dialog._helpers import dialog_actions, dialog_header, dialog_more_menu, form_dialog
@@ -51,6 +56,7 @@ class VolunteerShiftSheet:
         self.on_changed = on_changed
         self.on_closed = on_closed
         self.service = VolunteerScheduleService()
+        self.moves = VolunteerShiftMoveService()
         self.shift_id = 0
         # mobile_sheet's own breakpoint, but a side sheet rather than a centred
         # card above it: the grid stays readable beside the open shift.
@@ -189,7 +195,7 @@ class VolunteerShiftSheet:
 
         async def do_swap(user: User) -> bool:
             try:
-                _, warnings = await self.service.replace_assignment(await self._actor(), assignment, user)
+                _, warnings = await self.moves.replace_assignment(await self._actor(), assignment, user)
             except (ValueError, PermissionError) as e:
                 notify_error(e)
                 return False
@@ -233,7 +239,7 @@ class VolunteerShiftSheet:
             await self._stale()
             return False
         try:
-            _, warnings = await self.service.move_assignment(await self._actor(), assignment, model)
+            _, warnings = await self.moves.move_assignment(await self._actor(), assignment, model)
         except (ValueError, PermissionError) as e:
             notify_error(e)
             return False

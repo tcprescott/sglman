@@ -13,6 +13,7 @@ from application.services.volunteer.volunteer_schedule_grid import (
     build_day_grid,
 )
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_shift_move_service import VolunteerShiftMoveService
 from models import VolunteerAssignment, VolunteerPosition, VolunteerShift
 from pages.admin_tabs.admin_shift_board import coverage_chips
 from tests.services.test_volunteer_scheduling import _at, _staff, _volunteer
@@ -122,7 +123,7 @@ async def test_move_to_an_overlapping_shift_on_another_position(db):
     svc = VolunteerScheduleService()
     assignment, _ = await svc.assign(staff, old, vol)
 
-    moved, _ = await svc.move_assignment(staff, await svc.get_assignment(assignment.id), new)
+    moved, _ = await VolunteerShiftMoveService().move_assignment(staff, await svc.get_assignment(assignment.id), new)
 
     assert moved.shift_id == new.id
     assert not await VolunteerAssignment.filter(shift=old).exists()
@@ -140,7 +141,7 @@ async def test_move_that_clashes_leaves_them_where_they_were(db):
     await svc.assign(staff, busy, vol)
 
     with pytest.raises(ValueError, match='overlapping'):
-        await svc.move_assignment(staff, await svc.get_assignment(assignment.id), target)
+        await VolunteerShiftMoveService().move_assignment(staff, await svc.get_assignment(assignment.id), target)
     assert await VolunteerAssignment.filter(shift=old, user=vol).exists()
 
 
@@ -153,7 +154,7 @@ async def test_a_moved_draft_stays_a_draft(db):
     draft = await VolunteerAssignment.create(shift=old, user=vol, auto_generated=True)
     svc = VolunteerScheduleService()
 
-    moved, _ = await svc.move_assignment(staff, await svc.get_assignment(draft.id), new)
+    moved, _ = await VolunteerShiftMoveService().move_assignment(staff, await svc.get_assignment(draft.id), new)
     assert moved.auto_generated is True
 
 
@@ -166,7 +167,7 @@ async def test_swap_puts_the_new_person_in_the_same_place(db):
     svc = VolunteerScheduleService()
     assignment, _ = await svc.assign(staff, shift, out)
 
-    swapped, warnings = await svc.replace_assignment(staff, await svc.get_assignment(assignment.id), cover)
+    swapped, warnings = await VolunteerShiftMoveService().replace_assignment(staff, await svc.get_assignment(assignment.id), cover)
 
     assert swapped.user_id == cover.id and swapped.shift_id == shift.id
     assert not any('slots filled' in w for w in warnings)
@@ -185,7 +186,7 @@ async def test_swap_with_someone_busy_removes_nobody(db):
     await svc.assign(staff, elsewhere, busy)
 
     with pytest.raises(ValueError, match='overlapping'):
-        await svc.replace_assignment(staff, await svc.get_assignment(assignment.id), busy)
+        await VolunteerShiftMoveService().replace_assignment(staff, await svc.get_assignment(assignment.id), busy)
     assert await VolunteerAssignment.filter(shift=shift, user=out).exists()
 
 
@@ -200,6 +201,6 @@ async def test_only_coordinators_move_or_swap(db):
     loaded = await svc.get_assignment(assignment.id)
 
     with pytest.raises(PermissionError):
-        await svc.move_assignment(vol, loaded, other)
+        await VolunteerShiftMoveService().move_assignment(vol, loaded, other)
     with pytest.raises(PermissionError):
-        await svc.replace_assignment(vol, loaded, staff)
+        await VolunteerShiftMoveService().replace_assignment(vol, loaded, staff)

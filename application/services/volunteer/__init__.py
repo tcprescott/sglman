@@ -49,6 +49,7 @@ from application.services.volunteer.volunteer_schedule_grid import (
     roles_config,
 )
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_shift_move_service import VolunteerShiftMoveService
 
 __all__ = [
     'CHECK_IN_LEAD',
@@ -70,6 +71,7 @@ __all__ = [
     'VolunteerQualificationService',
     'VolunteerRoleMappingService',
     'VolunteerScheduleService',
+    'VolunteerShiftMoveService',
     'apply_roles',
     'arrange_roles',
     'build_day_grid',
