@@ -5,11 +5,12 @@ HTTP dependency here is defence in depth rather than the only gate.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 
 from api.dependencies import ServiceErrorRoute, require_staff
+from api.schemas.telemetry import TelemetrySummaryResponse, TelemetryTopRow
 from application.services import TelemetryService
 from models import User
 
@@ -23,8 +24,13 @@ EndQuery = Query(None, description="Window end (UTC ISO 8601). Unbounded when om
 
 @router.get(
     "/summary",
-    response_model=Dict[str, Any],
+    response_model=TelemetrySummaryResponse,
     summary="Engagement totals for a window (Staff only)",
+    description=(
+        "Counts telemetry rows, distinct people, distinct sessions and page loads recorded in the "
+        "window. Leave `start` or `end` out to leave that side open.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def summary(
     start: Optional[datetime] = StartQuery,
@@ -36,11 +42,17 @@ async def summary(
 
 @router.get(
     "/top",
-    response_model=List[Dict[str, Any]],
+    response_model=List[TelemetryTopRow],
     summary="Top engagement rows for one dimension (Staff only)",
+    description=(
+        "Returns the busiest rows for one dimension, busiest first. The row shape depends on "
+        "`dimension`: `paths` gives the most-loaded pages, `event_types` the most frequent event names, "
+        "`users` the most active people and `controls` the most-used tabs, buttons, dialogs and fields.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def top(
-    dimension: Dimension = Query(..., description="Which leaderboard to return."),
+    dimension: Dimension = Query(..., description="Which leaderboard to return: `paths`, `event_types`, `users` or `controls`."),
     start: Optional[datetime] = StartQuery,
     end: Optional[datetime] = EndQuery,
     limit: int = Query(15, ge=1, le=100, description="Maximum rows to return."),

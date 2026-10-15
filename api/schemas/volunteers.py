@@ -15,51 +15,51 @@ from models import VolunteerAvailabilityStatus
 class VolunteerPositionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    name: str
-    description: Optional[str] = None
-    color: Optional[str] = None
-    display_order: int
-    is_active: bool
-    shift_length_minutes: Optional[int] = None
-    stagger_minutes: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
+    id: int = Field(..., description="Position id.")
+    name: str = Field(..., description="Position name, such as \"Runner\" or \"Info desk\".")
+    description: Optional[str] = Field(None, description="What the role involves, shown to volunteers.")
+    color: Optional[str] = Field(None, description="Display colour for the position on schedules.")
+    display_order: int = Field(..., description="Sort key; lower numbers list first.")
+    is_active: bool = Field(..., description="Whether the position is in use. `active_only` on the list hides inactive ones.")
+    shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes when shifts are staggered; empty for back-to-back blocks.")
+    stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts; empty for back-to-back blocks.")
+    created_at: datetime = Field(..., description="When the position was created (UTC).")
+    updated_at: datetime = Field(..., description="When the position was last changed (UTC).")
 
 
 class VolunteerPositionCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    color: Optional[str] = None
-    display_order: int = 0
-    is_active: bool = True
-    shift_length_minutes: Optional[int] = None
-    stagger_minutes: Optional[int] = None
+    name: str = Field(..., description="Position name. Must be unique in the community.")
+    description: Optional[str] = Field(None, description="What the role involves, shown to volunteers.")
+    color: Optional[str] = Field(None, description="Display colour for the position on schedules.")
+    display_order: int = Field(0, description="Sort key; lower numbers list first.")
+    is_active: bool = Field(True, description="Whether the position is in use.")
+    shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes. Set together with `stagger_minutes`, or leave both empty.")
+    stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts. Positive and no longer than `shift_length_minutes`.")
 
 
 class VolunteerPositionUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
-    display_order: Optional[int] = None
-    is_active: Optional[bool] = None
-    shift_length_minutes: Optional[int] = None
-    stagger_minutes: Optional[int] = None
+    name: Optional[str] = Field(None, description="New position name. Must be unique in the community and not empty.")
+    description: Optional[str] = Field(None, description="What the role involves, shown to volunteers.")
+    color: Optional[str] = Field(None, description="Display colour for the position on schedules.")
+    display_order: Optional[int] = Field(None, description="Sort key; lower numbers list first.")
+    is_active: Optional[bool] = Field(None, description="Whether the position is in use.")
+    shift_length_minutes: Optional[int] = Field(None, description="Length of each generated shift in minutes. Set together with `stagger_minutes`, or leave both empty.")
+    stagger_minutes: Optional[int] = Field(None, description="Minutes between the start times of overlapping generated shifts. Positive and no longer than `shift_length_minutes`.")
 
 
 # --- Assignments ----------------------------------------------------------
 
 class VolunteerAssignmentResponse(BaseModel):
-    id: int
-    shift_id: int
-    user_id: int
-    user_name: Optional[str] = None
-    auto_generated: bool
-    acknowledged_at: Optional[datetime] = None
-    reminder_sent_at: Optional[datetime] = None
-    checked_in_at: Optional[datetime] = None
-    checked_in_by_id: Optional[int] = None
-    created_at: datetime
+    id: int = Field(..., description="Assignment id.")
+    shift_id: int = Field(..., description="The shift this assignment is on.")
+    user_id: int = Field(..., description="The assigned volunteer.")
+    user_name: Optional[str] = Field(None, description="The volunteer's display name.")
+    auto_generated: bool = Field(..., description="True for a draft from auto-fill that a coordinator hasn't published yet. The volunteer hasn't been told about a draft.")
+    acknowledged_at: Optional[datetime] = Field(None, description="When the volunteer acknowledged the assignment (UTC); empty if they haven't.")
+    reminder_sent_at: Optional[datetime] = Field(None, description="When the pre-shift reminder DM went out (UTC); empty if it hasn't.")
+    checked_in_at: Optional[datetime] = Field(None, description="When the volunteer arrived for the shift (UTC); empty until they check in or are checked in.")
+    checked_in_by_id: Optional[int] = Field(None, description="Who recorded the arrival: the volunteer themselves or a coordinator.")
+    created_at: datetime = Field(..., description="When the assignment was made (UTC).")
 
     @classmethod
     def from_row(cls, a) -> 'VolunteerAssignmentResponse':
@@ -80,47 +80,47 @@ class VolunteerAssignmentResponse(BaseModel):
 
 
 class AssignRequest(BaseModel):
-    user_id: int
+    user_id: int = Field(..., description="The member to put on the shift. Must belong to this community.")
 
 
 class AssignResponse(BaseModel):
-    assignment: VolunteerAssignmentResponse
-    warnings: List[str] = Field(default_factory=list)
+    assignment: VolunteerAssignmentResponse = Field(..., description="The new assignment.")
+    warnings: List[str] = Field(default_factory=list, description="Soft problems that didn't block the assignment, such as an already full shift or the volunteer's availability.")
 
 
 # --- Shifts ---------------------------------------------------------------
 
 class VolunteerShiftResponse(BaseModel):
-    id: int
-    position_id: int
-    position_name: Optional[str] = None
-    starts_at: datetime
-    ends_at: datetime
-    label: Optional[str] = None
-    slots_needed: int
-    notes: Optional[str] = None
-    filled: int
-    assignments: List[VolunteerAssignmentResponse] = Field(default_factory=list)
+    id: int = Field(..., description="Shift id.")
+    position_id: int = Field(..., description="The position this shift belongs to.")
+    position_name: Optional[str] = Field(None, description="The position's name.")
+    starts_at: datetime = Field(..., description="When the shift starts (UTC).")
+    ends_at: datetime = Field(..., description="When the shift ends (UTC).")
+    label: Optional[str] = Field(None, description="Optional short name for the shift, such as \"Opening\".")
+    slots_needed: int = Field(..., description="How many volunteers the shift needs.")
+    notes: Optional[str] = Field(None, description="Notes for the volunteers on this shift.")
+    filled: int = Field(..., description="How many assignments are listed in `assignments`. Drafts count only when you can see them.")
+    assignments: List[VolunteerAssignmentResponse] = Field(default_factory=list, description="Volunteers on the shift. Drafts are included only for callers who manage volunteers.")
 
 
 class VolunteerShiftCreate(BaseModel):
-    position_id: int
-    starts_at: datetime
-    ends_at: datetime
-    label: Optional[str] = None
-    slots_needed: int = 1
-    notes: Optional[str] = None
+    position_id: int = Field(..., description="The position to add the shift under.")
+    starts_at: datetime = Field(..., description="When the shift starts (UTC).")
+    ends_at: datetime = Field(..., description="When the shift ends (UTC). Must be after `starts_at`.")
+    label: Optional[str] = Field(None, description="Optional short name for the shift, such as \"Opening\".")
+    slots_needed: int = Field(1, description="How many volunteers the shift needs. At least 1.")
+    notes: Optional[str] = Field(None, description="Notes for the volunteers on this shift.")
 
 
 # --- Availability ---------------------------------------------------------
 
 class VolunteerAvailabilityResponse(BaseModel):
-    id: int
-    user_id: int
-    starts_at: datetime
-    ends_at: datetime
-    status: VolunteerAvailabilityStatus
-    note: Optional[str] = None
+    id: int = Field(..., description="Availability window id.")
+    user_id: int = Field(..., description="The volunteer the window belongs to.")
+    starts_at: datetime = Field(..., description="When the window starts (UTC).")
+    ends_at: datetime = Field(..., description="When the window ends (UTC).")
+    status: VolunteerAvailabilityStatus = Field(..., description="One of `available`, `unavailable` or `preferred`.")
+    note: Optional[str] = Field(None, description="Optional note from the volunteer.")
 
 
 # --- Profile / coverage ---------------------------------------------------
@@ -128,18 +128,18 @@ class VolunteerAvailabilityResponse(BaseModel):
 class ReleaseAssignmentRequest(BaseModel):
     """Why you can no longer cover a shift. The coordinators see it."""
 
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(None, description="Why you can no longer cover the shift. The coordinators see it; up to 500 characters are kept.")
 
 
 class CoverageRow(BaseModel):
-    shift_id: int
-    position: str
-    label: str
-    starts_at: datetime
-    ends_at: datetime
-    filled: int
-    needed: int
-    understaffed: bool
+    shift_id: int = Field(..., description="Shift id.")
+    position: str = Field(..., description="The position's name.")
+    label: str = Field(..., description="The shift's label, or an empty string.")
+    starts_at: datetime = Field(..., description="When the shift starts (UTC).")
+    ends_at: datetime = Field(..., description="When the shift ends (UTC).")
+    filled: int = Field(..., description="Assignments on the shift, drafts included.")
+    needed: int = Field(..., description="How many volunteers the shift needs.")
+    understaffed: bool = Field(..., description="True when `filled` is below `needed`.")
 
 
 class VolunteerHoursResponse(BaseModel):
@@ -149,9 +149,9 @@ class VolunteerHoursResponse(BaseModel):
     event window unless ``start``/``end`` narrow it.
     """
 
-    user_id: int
-    user_name: str
-    hours: float
-    tier_cleared: Optional[float] = None
-    next_tier: Optional[float] = None
-    hours_to_next: Optional[float] = None
+    user_id: int = Field(..., description="The volunteer.")
+    user_name: str = Field(..., description="The volunteer's display name.")
+    hours: float = Field(..., description="Hours served on published assignments, rounded to two decimals. Overlapping shifts count once.")
+    tier_cleared: Optional[float] = Field(None, description="The highest comp tier reached, in hours; empty if none.")
+    next_tier: Optional[float] = Field(None, description="The next comp tier, in hours; empty when every tier is cleared.")
+    hours_to_next: Optional[float] = Field(None, description="Hours still needed to reach `next_tier`; empty when there is none.")
