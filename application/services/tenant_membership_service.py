@@ -29,6 +29,7 @@ from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id, tenant_scope
 from application.utils.discord_embeds import (
     COLOR_CANCELLED,
+    COLOR_CONFIRMED,
     COLOR_JOIN_REQUEST,
     notification_embed,
 )
@@ -42,6 +43,7 @@ from models import (
     JoinRequestStatus,
     MembershipSource,
     Role,
+    StaffRequestKind,
     TenantJoinRequest,
     TenantMembership,
     User,
@@ -119,7 +121,45 @@ async def _close_pending_request(
         {'target_user_id': user.id, 'request_id': request.id, 'closed_by_membership': True},
         decided_by,
     ))
+    with tenant_scope(tenant_id):
+        await _mark_staff_dms(request, user, decided_by, approved=True)
     return request
+
+
+async def _mark_staff_dms(
+    request: TenantJoinRequest, requester: User, decided_by: Optional[User], *, approved: bool,
+) -> None:
+    """Edit the join-request DMs every staff member got to say it's been decided.
+
+    ``decided_by`` is ``None`` when the requester got in some other way.
+    """
+    try:
+        from application.services import notification_links, staff_request_dms
+        from application.services.tenant_service import TenantService
+        from application.utils import discord_messages_staff_requests as copy
+
+        community = await TenantService.current_community_name()
+        name = requester.display_name or requester.username
+        staff_name = decided_by.preferred_name if decided_by else None
+        when = datetime.now(timezone.utc)
+
+        def build(you: bool):
+            if approved:
+                card = copy.join_approved(you, staff_name, name, community, when)
+            else:
+                card = copy.join_declined(you, staff_name or '', name, when)
+            return staff_request_dms.card(
+                card, color=COLOR_CONFIRMED if approved else COLOR_CANCELLED,
+                community_name=community,
+            )
+
+        link = await notification_links.admin_users(label='Open the Users tab')
+        staff_request_dms.mark_handled(
+            StaffRequestKind.JOIN_REQUEST, request.id, build, link,
+            actor_id=decided_by.id if decided_by else None,
+        )
+    except Exception:
+        logger.exception('join request %s: staff DM edit failed', request.id)
 
 
 class TenantMembershipService:
@@ -288,7 +328,7 @@ class TenantMembershipService:
                 {'target_user_id': user.id, 'request_id': request.id},
                 EventType.TENANT_JOIN_REQUESTED,
             )
-            await self._notify_staff_of_request(user, tenant_id, text)
+            await self._notify_staff_of_request(user, request, tenant_id, text)
         return request
 
     # ---- how people get in ----------------------------------------------
@@ -517,6 +557,7 @@ class TenantMembershipService:
             EventType.TENANT_JOIN_APPROVED,
         )
         await self._notify_requester(request.user, approved=True)
+        await _mark_staff_dms(request, request.user, actor, approved=True)
         return request
 
     async def deny_request(self, actor: User, request_id: int) -> TenantJoinRequest:
@@ -539,15 +580,16 @@ class TenantMembershipService:
         # Both outcomes, not just the happy one: notification that only fires on
         # success leaves everyone else wondering whether anyone saw it.
         await self._notify_requester(request.user, approved=False)
+        await _mark_staff_dms(request, request.user, actor, approved=False)
         return request
 
     # ---- notification (best-effort; a DM failure never blocks a decision) --
 
     async def _notify_staff_of_request(
-        self, requester: User, tenant_id: int, message: Optional[str],
+        self, requester: User, request: TenantJoinRequest, tenant_id: int,
+        message: Optional[str],
     ) -> None:
         """DM the community's staff. A request nobody sees is worse than none."""
-        from application.services.discord import DiscordService, discord_queue
         from application.services.tenant_service import TenantService
 
         community = await TenantService.community_name(tenant_id)
@@ -563,16 +605,11 @@ class TenantMembershipService:
         )
         # "Approve or deny it on the Users tab" was the whole call to action and
         # named a page without linking it; the button is now the tab itself.
-        from application.services import notification_links
+        from application.services import notification_links, staff_request_dms
         link = await notification_links.admin_users()
-        service = DiscordService()
-        for member in staff:
-            if member.discord_id:
-                discord_queue.enqueue(
-                    service.send_dm(
-                        int(member.discord_id), body, embed=embed, link=link,
-                    )
-                )
+        await staff_request_dms.send(
+            StaffRequestKind.JOIN_REQUEST, request.id, staff, body, embed=embed, link=link,
+        )
 
     async def _notify_requester(self, requester: User, *, approved: bool) -> None:
         from application.services.discord import DiscordService, discord_queue

@@ -315,8 +315,11 @@ def captured_dms(monkeypatch):
     from application.services import discord as discord_pkg
     from application.services.discord import DiscordService
 
-    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None,
+                        on_sent=None):
         sent.append({'to': user_id, 'text': message, 'link': link})
+        if on_sent is not None:
+            await on_sent(user_id, 1000 + len(sent))
         return True, ''
 
     monkeypatch.setattr(DiscordService, 'send_dm', fake_send)

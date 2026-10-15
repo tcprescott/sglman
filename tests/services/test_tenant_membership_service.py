@@ -152,7 +152,9 @@ def captured_dms(monkeypatch):
 
     def _enqueue(coro):
         coro.close()  # never awaited; we only care that it was queued
-        sent.append(True)
+        # Editing staff's earlier DMs once a request is decided isn't a new DM.
+        if coro.__name__ != '_edit_all':
+            sent.append(True)
 
     monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', _enqueue)
     return sent
@@ -372,8 +374,11 @@ def dm_log(monkeypatch):
     from application.services import discord as discord_pkg
     from application.services.discord import DiscordService
 
-    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None):
+    async def fake_send(self, user_id, message, view_factory=None, embed=None, link=None,
+                        on_sent=None):
         sent.append({'to': user_id, 'text': message, 'link': link})
+        if on_sent is not None:
+            await on_sent(user_id, 1000 + len(sent))
         return True, ''
 
     monkeypatch.setattr(DiscordService, 'send_dm', fake_send)

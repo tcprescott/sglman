@@ -469,6 +469,9 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         )
         # The strip shrinks for the same reason it grew.
         match_live.publish(request.match_id, match_live.CHANGED)  # type: ignore[attr-defined]
+        await self._mark_staff_dms(
+            request, 'withdrawn', actor=actor, tournament_name=request.match.tournament.name,
+        )
         return request
 
     # ---- the decision --------------------------------------------------
@@ -514,7 +517,7 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         tournament_id = request.match.tournament_id
         match_service = MatchService()
 
-        superseded: List[int] = []
+        superseded_requests: List[MatchRescheduleRequest] = []
         if request.kind is RescheduleRequestKind.CANCEL:
             await match_service.cancel_match(
                 match_id, actor=actor, reason=note or request.reason,
@@ -536,7 +539,7 @@ class MatchRescheduleService(RescheduleNotificationMixin):
                 decided_at=datetime.now(timezone.utc),
                 decision_note=(note or '').strip() or None,
             )
-            superseded = await self._supersede_others(request, actor)
+            superseded_requests = await self._supersede_others(request, actor)
             # update_match already published, but *before* the request was
             # marked approved, so an open board re-read it as still pending
             # (no chip, no Ask to change). Publish again now the decision is
@@ -560,13 +563,21 @@ class MatchRescheduleService(RescheduleNotificationMixin):
                 'reason': request.reason,
                 'note': (note or '').strip() or None,
                 # Requests this approval closed out without anyone deciding them.
-                'superseded_request_ids': superseded,
+                'superseded_request_ids': [other.id for other in superseded_requests],
             },
             EventType.MATCH_RESCHEDULE_APPROVED,
             event_extra={'tournament_id': tournament_id},
         )
 
         await self._notify_decided(request, approved=True, new_at=final_at, note=note)
+        tournament_name = request.match.tournament.name
+        await self._mark_staff_dms(
+            request, 'approved', actor=actor, tournament_name=tournament_name,
+        )
+        for other in superseded_requests:
+            await self._mark_staff_dms(
+                other, 'superseded', actor=actor, tournament_name=tournament_name,
+            )
         return request
 
     async def decline(
@@ -600,18 +611,21 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         # publishes once more after recording the decision, see ``approve``).
         match_live.publish(request.match_id, match_live.CHANGED)  # type: ignore[attr-defined]
         await self._notify_decided(request, approved=False, new_at=None, note=note)
+        await self._mark_staff_dms(
+            request, 'declined', actor=actor, tournament_name=request.match.tournament.name,
+        )
         return request
 
     async def _supersede_others(
         self, approved: MatchRescheduleRequest, actor: User,
-    ) -> List[int]:
+    ) -> List[MatchRescheduleRequest]:
         """Close out the match's other open requests once one has settled it.
 
         Marked ``SUPERSEDED`` rather than declined: staff did not refuse them,
         and a queue entry pointing at a time that has already moved is worse
         than no entry. No DM — everyone involved is a player in the match and
-        has just had the reschedule notification. Returns the ids closed, which
-        the approval audit records.
+        has just had the reschedule notification. Returns the requests closed,
+        whose ids the approval audit records.
         """
         others = [
             r for r in await self.repository.list_pending_for_match(approved.match_id)  # type: ignore[attr-defined]
@@ -627,4 +641,4 @@ class MatchRescheduleService(RescheduleNotificationMixin):
         # Returned rather than audited per row: these are a consequence of the
         # one decision, and the approval's own audit entry is where "what did
         # this close?" is answered.
-        return [other.id for other in others]
+        return others

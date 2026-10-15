@@ -468,7 +468,8 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 
 | Method | Returns | Description |
 |---|---|---|
-| `send_dm(user_id, message, view_factory=None, embed=None, link=None)` | `(bool, str)` | DM to a Discord user id. `embed`, when given, is sent *instead of* `message` as the Discord content (the text then only feeds web push); `link` (a `DMLink` from [`notification_links`](#notification_linkspy--module-functions)) renders as a link button beside any `view_factory` buttons and is the web-push tap target. Also enqueues a fire-and-forget mirror of the message to the recipient's web-push devices (real service only; the mock skips it) — see [web-push.md](../features/web-push.md). |
+| `send_dm(user_id, message, view_factory=None, embed=None, link=None, on_sent=None)` | `(bool, str)` | DM to a Discord user id. `on_sent(channel_id, message_id)` is awaited once Discord accepts the message (a failure inside it is logged, not reported as a failed send); [`staff_request_dms`](#staff_request_dmspy--module-functions) uses it to find the message again. `embed`, when given, is sent *instead of* `message` as the Discord content (the text then only feeds web push); `link` (a `DMLink` from [`notification_links`](#notification_linkspy--module-functions)) renders as a link button beside any `view_factory` buttons and is the web-push tap target. Also enqueues a fire-and-forget mirror of the message to the recipient's web-push devices (real service only; the mock skips it) — see [web-push.md](../features/web-push.md). |
+| `edit_dm(channel_id, message_id, embed, link=None)` | `(bool, str)` | Replace a sent DM's card and buttons (`link` is the only button left). Silent: Discord doesn't notify on an edit, and the web-push copy can't change. The mock prints `[MOCK Discord DM edit]`. |
 | `send_dm_with_crew_buttons(user_id, message, match_id)` | `(bool, str)` | DM with commentator/tracker signup buttons. |
 | `send_dm_with_acknowledgment_button(user_id, message, match_id)` | `(bool, str)` | DM with a match Acknowledge button. |
 | `send_dm_with_crew_acknowledgment_button(user_id, message, crew_type, crew_id)` | `(bool, str)` | DM with a crew-assignment Acknowledge button. |
@@ -494,6 +495,18 @@ Every `send_dm_with_*` also takes the optional `embed=None, link=None` pair and 
 The methods from `list_guilds` down live in **`discord_guild_ops.py`** (`GuildOpsMixin`) and the scheduled-event wrappers in **`discord_scheduled_events.py`** (`ScheduledEventsMixin`), both composed into `DiscordService` the way `StationAssignmentMixin` is composed into `MatchService`; `discord_service.py` itself keeps the DM surface and the bot singleton. Each module carries its own mock mixin (`MockGuildOpsMixin`, `MockScheduledEventsMixin`) beside the real one — a mirror kept in another file drifts, and it drifts in the one mode nobody runs the tests in.
 
 **`MockDiscordService`** composes those mock mixins and mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/discord.md#mock-mode) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
+
+### staff_request_dms.py — module functions
+
+The staff DMs about a request someone has to decide (a community event to review, an ADA request, a join request, a reschedule request), and the edit once someone has. Every staff member is DM'd, so each copy that lands is recorded in [`StaffRequestDM`](data-model.md#staffrequestdm) and rewritten when the request is decided, so the others needn't open it to check. Both halves go through `discord_queue`, whose single worker keeps an edit behind the sends it edits.
+
+| Function | Description |
+|---|---|
+| `send(kind, object_id, recipients, message, *, embed, link)` (async) | Forgets the previous round's records for this request, then queues one DM per recipient with a `discord_id`, each recording itself through `send_dm(on_sent=...)`. |
+| `mark_handled(kind, object_id, build, link, *, actor_id=None)` | Queues the edit of every recorded copy. `build(you: bool)` returns the card, so the decider's own copy reads "You". Called again on a later decision (approved, then taken down), it edits the same copies. |
+| `card(title_and_description, *, color, community_name, fields=None)` | `notification_embed` from a `(title, description)` pair out of [`discord_messages_staff_requests.py`](../../application/utils/discord_messages_staff_requests.py). |
+
+Callers: `_community_event_notifications` (approve, reject, a pending event cancelled), `AccommodationService` (moved off New, a change reviewed, withdrawn; a request that goes back to New gets its original card back), `TenantMembershipService` (approved, declined, let in another way) and the reschedule notifications mixin (approved, declined, withdrawn, superseded).
 
 ### discord_member_events.py — module functions
 

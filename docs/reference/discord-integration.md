@@ -138,7 +138,8 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 
 | Method | Signature | Behavior |
 |---|---|---|
-| `send_dm` | `(user_id: int, message: str, view_factory=None, embed=None, link: DMLink = None)` | Plain DM via `fetch_user(user_id)` + `user.send(...)`. `view_factory` is a zero-arg callable invoked just before the send; `embed`, when present, is sent **instead of** the plain content (Discord would otherwise show both) while `message` stays the web-push/fallback text. `link` is appended to the view as a Discord link button (`_with_link_button`; a blank URL adds nothing) and becomes the web-push mirror's tap target. |
+| `send_dm` | `(user_id: int, message: str, view_factory=None, embed=None, link: DMLink = None, on_sent=None)` | Plain DM via `fetch_user(user_id)` + `user.send(...)`. `view_factory` is a zero-arg callable invoked just before the send; `embed`, when present, is sent **instead of** the plain content (Discord would otherwise show both) while `message` stays the web-push/fallback text. `link` is appended to the view as a Discord link button (`_with_link_button`; a blank URL adds nothing) and becomes the web-push mirror's tap target. `on_sent(channel_id, message_id)` is awaited once Discord accepts the DM; see [Edited staff DMs](#edited-staff-dms). |
+| `edit_dm` | `(channel_id: int, message_id: int, embed, link: DMLink = None)` | Rewrites a sent DM in place through `get_partial_messageable(...).get_partial_message(...).edit(...)`; `link` becomes the only button. Discord doesn't notify on an edit. |
 | `send_dm_with_crew_buttons` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the two crew signup buttons (`VIEW_CREW_SIGNUP`). |
 | `send_dm_with_acknowledgment_button` | `(user_id, message, match_id: int, embed=None, link=None)` | DM with the player Acknowledge button (`VIEW_MATCH_ACK`). |
 | `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int, embed=None, link=None)` | DM with the crew Acknowledge button (`VIEW_CREW_ACK`). `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
@@ -220,6 +221,10 @@ What gets enqueued is usually a `MatchScheduleService.notify_*` fan-out coroutin
 Deliberate exception to the queue rule: the admin Send message dialog ([`theme/dialog/send_message_dialog.py`](../../theme/dialog/send_message_dialog.py)) awaits `DiscordService.send_dm()` directly so the admin sees the result immediately in a `ui.notify`.
 
 Because `stop()` cancels the worker without draining, anything still queued at shutdown is dropped (the logged count is the only trace).
+
+## Edited staff DMs
+
+A community event to review, an ADA request, a join request and a reschedule request each DM every staff member (reschedules: every decider). Once one decides it, [`staff_request_dms`](../../application/services/staff_request_dms.py) edits every copy to say who and when ("✅ Approved by Hurfy", "You" on the decider's own copy), recolours it, and swaps the button for one that opens the thing. Each landed copy is recorded in `StaffRequestDM` via `send_dm(on_sent=...)`; the edit runs on the same serial queue, so it always sees the records of sends queued before it. Only DMs sent after this shipped can be edited, and the web-push copy is never changed.
 
 ## Interaction handlers (`discordbot/`)
 

@@ -456,6 +456,18 @@ class DiscordEventSource(str, Enum):
     MATCH = 'match'
 
 
+class StaffRequestKind(str, Enum):
+    """Which request a :class:`StaffRequestDM` asked staff to decide.
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings.
+    """
+
+    COMMUNITY_EVENT = 'community_event'
+    ADA_REQUEST = 'ada_request'
+    JOIN_REQUEST = 'join_request'
+    RESCHEDULE_REQUEST = 'reschedule_request'
+
+
 class AsyncQualifierRunStatus(str, Enum):
     """Execution state of a single async-qualifier run (PR 9).
 

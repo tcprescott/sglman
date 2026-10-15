@@ -37,6 +37,8 @@ from models import (
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
+    CommunityEvent,
+    CommunityEventStatus,
     EmergencyContact,
     FeatureFlag,
     FeatureFlagGroup,
@@ -45,11 +47,14 @@ from models import (
     Match,
     MatchComment,
     MatchCommentKind,
+    MatchRescheduleRequest,
     McpOAuthClient,
     PlayerAvailability,
     ProfileNudgeDismissal,
     RacetimeBot,
     Role,
+    StaffRequestDM,
+    StaffRequestKind,
     Stage,
     Tenant,
     TenantFeatureFlag,
@@ -752,6 +757,30 @@ async def seed_match_comments(tenant: Tenant, users: dict[str, User]) -> None:
         )
 
 
+async def seed_staff_request_dms(tenant: Tenant, users: dict[str, User]) -> None:
+    """One remembered staff DM per request kind, so deciding a seeded request in
+    mock mode prints the ``[MOCK Discord DM edit]`` line. The ids are made up:
+    a mock edit never reaches Discord."""
+    staff = users['staff_user']
+    targets = (
+        (StaffRequestKind.COMMUNITY_EVENT, CommunityEvent.filter(
+            tenant=tenant, status=CommunityEventStatus.PENDING)),
+        (StaffRequestKind.ADA_REQUEST, AccommodationRequest.filter(
+            tenant=tenant, status=AccommodationStatus.NEW)),
+        (StaffRequestKind.JOIN_REQUEST, TenantJoinRequest.filter(tenant=tenant)),
+        (StaffRequestKind.RESCHEDULE_REQUEST, MatchRescheduleRequest.filter(tenant=tenant)),
+    )
+    for n, (kind, query) in enumerate(targets, start=1):
+        target = await query.order_by('id').first()
+        if target is None:
+            continue
+        await StaffRequestDM.get_or_create(
+            tenant=tenant, kind=kind, object_id=target.id, user=staff,
+            defaults={'channel_id': int(staff.discord_id or 0),
+                      'message_id': 900_000_000 + tenant.id * 10 + n},
+        )
+
+
 async def seed_push_devices(users: dict[str, User]) -> None:
     """One phone with device notifications on; ``.invalid`` so a push can't land."""
     ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) Version/18.4 Mobile/15E148 Safari/604.1'
@@ -829,6 +858,7 @@ async def seed_all() -> None:
         await seed_profile_reminders(tenant, users)
         await seed_watch_layout_votes(tenant)
         await seed_match_comments(tenant, users)
+        await seed_staff_request_dms(tenant, users)
     await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link

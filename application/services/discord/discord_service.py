@@ -40,6 +40,10 @@ DM_UNREACHABLE = frozenset({DM_USER_NOT_FOUND, DM_REFUSED})
 # device notifications still went out through the mirror.
 DM_DISCORD_OFF = "Discord DMs are turned off for this user"
 
+# Called with ``(channel_id, message_id)`` once Discord has accepted a DM, so a
+# sender can find the message again to edit it.
+DMSentHook = Callable[[int, int], Awaitable[None]]
+
 
 async def discord_dms_enabled(discord_id: int) -> bool:
     """Whether the user behind ``discord_id`` still wants the Discord copy.
@@ -97,6 +101,15 @@ def _with_link_button(
         label=link.label, style=discord.ButtonStyle.link, url=link.url,
     ))
     return view
+
+
+async def _run_sent_hook(hook: Optional[DMSentHook], channel_id: int, message_id: int) -> None:
+    if hook is None:
+        return
+    try:
+        await hook(channel_id, message_id)
+    except Exception:
+        logger.exception('Discord DM %s: sent hook failed', message_id)
 
 
 # Shared bot instance (singleton pattern)
@@ -254,6 +267,7 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
         view_factory: Optional[Callable[[], discord.ui.View]] = None,
         embed: Optional[discord.Embed] = None,
         link: Optional[DMLink] = None,
+        on_sent: Optional[DMSentHook] = None,
     ) -> Tuple[bool, str]:
         """
         Send a direct message to a Discord user, optionally with attached buttons.
@@ -275,6 +289,9 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
                 mirror's tap target. Every DM that asks for an action should
                 carry one — a markdown link in ``message`` is **not** a
                 substitute, because an embed suppresses the content entirely.
+            on_sent: Optional :data:`DMSentHook`, awaited only when Discord
+                accepted the message. A failure inside it is logged, never
+                reported as a failed send.
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -314,9 +331,10 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
             if embed is not None:
                 # Embed is the Discord representation; content omitted to avoid
                 # showing the plain text above the card.
-                await user.send(embed=embed, **kwargs)
+                sent = await user.send(embed=embed, **kwargs)
             else:
-                await user.send(message, **kwargs)
+                sent = await user.send(message, **kwargs)
+            await _run_sent_hook(on_sent, sent.channel.id, sent.id)
             return True, "Message sent successfully."
         except discord.NotFound:
             return False, DM_USER_NOT_FOUND
@@ -330,6 +348,36 @@ class DiscordService(GuildOpsMixin, ScheduledEventsMixin):
             # unregistered view). Callers only see the tuple, so log it here.
             logger.exception('Discord DM to %s crashed', user_id)
             return False, f"Discord bot error: {e!s}"
+
+    async def edit_dm(
+        self,
+        channel_id: int,
+        message_id: int,
+        embed: discord.Embed,
+        link: Optional[DMLink] = None,
+    ) -> Tuple[bool, str]:
+        """Replace the card and buttons of a DM the bot sent earlier.
+
+        Discord doesn't notify anyone about an edit, and the web-push copy of
+        the original can't be changed: this updates the message in place and
+        nothing else. Any old buttons go, and ``link`` is the only one left.
+        """
+        if self._bot is None or not self._bot.is_ready():
+            logger.error('Discord DM %s not edited: bot is not connected', message_id)
+            return False, "Discord bot is not connected. Please try again in a moment."
+        try:
+            channel = self._bot.get_partial_messageable(
+                channel_id, type=discord.ChannelType.private,
+            )
+            await channel.get_partial_message(message_id).edit(
+                embed=embed, view=_with_link_button(None, link),
+            )
+            return True, "Message edited."
+        except discord.NotFound:
+            return False, "Message not found"
+        except discord.HTTPException as e:
+            logger.warning('Discord DM %s edit failed with HTTP %s: %s', message_id, e.status, e)
+            return False, f"Failed to edit message: {e!s}"
 
     # The five view-bearing senders below are thin wrappers over send_dm: each
     # resolves its registered view factory by kind (populated by the bot package
@@ -430,6 +478,8 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
     notification code paths can be exercised end-to-end.
     """
 
+    _mock_message_id = 0
+
     def __init__(self) -> None:
         self._bot = None
 
@@ -440,6 +490,7 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         view_factory: Optional[Callable[[], "discord.ui.View"]] = None,
         embed: Optional["discord.Embed"] = None,
         link: Optional[DMLink] = None,
+        on_sent: Optional[DMSentHook] = None,
     ) -> Tuple[bool, str]:
         # Deliberately no web-push mirror: mock mode must have no external side
         # effects (a dev with a prod DB snapshot + prod VAPID keys would push
@@ -454,7 +505,21 @@ class MockDiscordService(MockGuildOpsMixin, MockScheduledEventsMixin):
         if link is not None and link.url:
             suffix += f" [button: {link.label} -> {link.url}]"
         print(f"[MOCK Discord DM] -> {user_id}: {message}{suffix}")
+        # Made-up ids, so a later edit_dm has something to print against.
+        self.__class__._mock_message_id += 1
+        await _run_sent_hook(on_sent, int(user_id), self.__class__._mock_message_id)
         return True, "Message sent (mock)"
+
+    async def edit_dm(
+        self,
+        channel_id: int,
+        message_id: int,
+        embed: "discord.Embed",
+        link: Optional[DMLink] = None,
+    ) -> Tuple[bool, str]:
+        suffix = f" [button: {link.label} -> {link.url}]" if link is not None and link.url else ""
+        print(f"[MOCK Discord DM edit] {channel_id}/{message_id}: {embed.title}{suffix}")
+        return True, "Message edited (mock)"
 
     # Thin wrappers matching DiscordService's public surface; all defer to the
     # single send_dm stub above (the buttons are irrelevant in mock mode).

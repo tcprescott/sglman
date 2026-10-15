@@ -7,9 +7,11 @@ subscribers), and each is skipped for anyone who has turned DMs off.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
-from models import CommunityEvent, Role, User
+from application.services import staff_request_dms
+from models import CommunityEvent, Role, StaffRequestKind, User
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +71,62 @@ async def notify_staff_of_submission(event: CommunityEvent, host: User) -> None:
                             community_name=community, description=message)
         link = await notification_links.admin_community_event(event.id)
         staff = [u for u in await UserRoleRepository.list_users_with_role(Role.STAFF) if u.id != host.id]
-        await _send(staff, message, embed, link)
+        await staff_request_dms.send(StaffRequestKind.COMMUNITY_EVENT, event.id, staff, message,
+                                     embed=embed, link=link)
     except Exception:
         logger.exception('community event %s: staff notification failed', event.id)
+
+
+async def mark_staff_dms_decided(event: CommunityEvent, actor: User, *, approved: bool,
+                                 was_listed: bool = False) -> None:
+    """Edit the review DMs every staff member got to say who decided it."""
+    try:
+        from application.services import notification_links
+        from application.services.tenant_service import TenantService
+        from application.utils import discord_messages_staff_requests as copy
+        from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CONFIRMED
+
+        community = await TenantService.current_community_name()
+        when = event.reviewed_at or datetime.now(timezone.utc)
+        name = actor.preferred_name
+
+        def build(you: bool):
+            if approved:
+                title, desc = copy.event_approved(you, name, event.title, when)
+            else:
+                title, desc = copy.event_rejected(you, name, event.title, when,
+                                                  event.review_note or '', was_listed)
+            return event_embed(event, title=title, color=COLOR_CONFIRMED if approved else COLOR_CANCELLED,
+                               community_name=community, description=desc)
+
+        link = await notification_links.community_event(event.id, label='View the event')
+        staff_request_dms.mark_handled(StaffRequestKind.COMMUNITY_EVENT, event.id, build, link,
+                                       actor_id=actor.id)
+    except Exception:
+        logger.exception('community event %s: staff DM edit failed', event.id)
+
+
+async def mark_staff_dms_cancelled(event: CommunityEvent, actor: User) -> None:
+    """Edit the review DMs once the event is called off before anyone decided it."""
+    try:
+        from application.services import notification_links
+        from application.services.tenant_service import TenantService
+        from application.utils import discord_messages_staff_requests as copy
+        from application.utils.discord_embeds import COLOR_FINISHED
+
+        community = await TenantService.current_community_name()
+        when = datetime.now(timezone.utc)
+
+        def build(you: bool):
+            title, desc = copy.event_cancelled(you, actor.preferred_name, event.title, when)
+            return event_embed(event, title=title, color=COLOR_FINISHED,
+                               community_name=community, description=desc)
+
+        link = await notification_links.community_event(event.id, label='View the event')
+        staff_request_dms.mark_handled(StaffRequestKind.COMMUNITY_EVENT, event.id, build, link,
+                                       actor_id=actor.id)
+    except Exception:
+        logger.exception('community event %s: staff DM edit failed', event.id)
 
 
 async def notify_host_of_decision(event: CommunityEvent, host: User, *, approved: bool,

@@ -331,10 +331,13 @@ class CommunityEventService:
         event = await self._load_managed(actor, event_id)
         if event.status is CommunityEventStatus.CANCELLED:
             return event
+        was_pending = event.status is CommunityEventStatus.PENDING
         was_listed = event.status is CommunityEventStatus.APPROVED
         await self.repository.update(event, status=CommunityEventStatus.CANCELLED)
         await self._record(actor, AuditActions.COMMUNITY_EVENT_CANCELLED,
                            EventType.COMMUNITY_EVENT_CANCELLED, event)
+        if was_pending:
+            await notify.mark_staff_dms_cancelled(event, actor)
         if was_listed and ends_at(event) > _now():
             await notify.notify_subscribers(event, await self._subscribers(event), cancelled=True)
         return event
@@ -447,6 +450,7 @@ class CommunityEventService:
         await self._record(actor, AuditActions.COMMUNITY_EVENT_APPROVED,
                            EventType.COMMUNITY_EVENT_APPROVED, event)
         await notify.notify_host_of_decision(event, event.host, approved=True)
+        await notify.mark_staff_dms_decided(event, actor, approved=True)
         return event
 
     @requires_feature(FeatureFlag.COMMUNITY_EVENTS)
@@ -475,6 +479,7 @@ class CommunityEventService:
         await self._record(actor, AuditActions.COMMUNITY_EVENT_REJECTED,
                            EventType.COMMUNITY_EVENT_REJECTED, event, was_listed=was_listed)
         await notify.notify_host_of_decision(event, event.host, approved=False, was_listed=was_listed)
+        await notify.mark_staff_dms_decided(event, actor, approved=False, was_listed=was_listed)
         if subscribers and ends_at(event) > _now():
             await notify.notify_subscribers(event, subscribers, cancelled=True)
         return event
