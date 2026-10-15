@@ -25,21 +25,28 @@ _CREW_DESC = (
     'as covered. 0 means this tournament does not use the role. Does not '
     'restrict signups.'
 )
+_UPDATE_NOTE = ' Omit to leave it unchanged.'
 
 
 class TournamentCreateRequest(BaseModel):
-    name: str
-    description: Optional[str] = None
-    seed_generator: Optional[str] = None
-    bracket_url: Optional[str] = None
-    rules_url: Optional[str] = None
-    tournament_format: Optional[str] = None
-    triforce_access_message: Optional[str] = None
-    randomizer_notes: Optional[str] = None
-    average_match_duration: Optional[int] = None
-    max_match_duration: Optional[int] = None
-    is_active: bool = True
-    players_per_match: int = 2
+    name: str = Field(..., description="The tournament's name. Can't be blank.")
+    description: Optional[str] = Field(None, description="Long description shown to players, as markdown.")
+    seed_generator: Optional[str] = Field(
+        None, description="Key of the randomizer that rolls this tournament's seeds, or null for none.",
+    )
+    bracket_url: Optional[str] = Field(None, description="Link to the external bracket page. Must be http or https.")
+    rules_url: Optional[str] = Field(None, description="Link to the rules. Must be http or https.")
+    tournament_format: Optional[str] = Field(None, description="Short free-text format label, such as \"Double elimination\".")
+    triforce_access_message: Optional[str] = Field(
+        None, description="Markdown shown to players who may not submit triforce texts.",
+    )
+    randomizer_notes: Optional[str] = Field(
+        None, description="The randomizer settings, preset and build the tournament races on, as markdown.",
+    )
+    average_match_duration: Optional[int] = Field(None, description="Typical match length in minutes.")
+    max_match_duration: Optional[int] = Field(None, description="Longest a match is expected to run, in minutes.")
+    is_active: bool = Field(True, description="Whether the tournament starts out active.")
+    players_per_match: int = Field(2, description="How many players a match in this tournament has.")
     required_commentators: int = Field(default=1, ge=0, description=_CREW_DESC)
     required_trackers: int = Field(default=1, ge=0, description=_CREW_DESC)
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
@@ -52,20 +59,34 @@ class TournamentCreateRequest(BaseModel):
 
 
 class TournamentUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    seed_generator: Optional[str] = None
-    bracket_url: Optional[str] = None
-    rules_url: Optional[str] = None
-    tournament_format: Optional[str] = None
-    triforce_access_message: Optional[str] = None
-    randomizer_notes: Optional[str] = None
-    average_match_duration: Optional[int] = None
-    max_match_duration: Optional[int] = None
-    is_active: Optional[bool] = None
-    players_per_match: Optional[int] = None
-    required_commentators: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
-    required_trackers: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
+    name: Optional[str] = Field(None, description="New name. Can't be blank." + _UPDATE_NOTE)
+    description: Optional[str] = Field(
+        None, description="Long description, as markdown. An empty string clears it." + _UPDATE_NOTE,
+    )
+    seed_generator: Optional[str] = Field(
+        None, description="Key of the randomizer that rolls this tournament's seeds." + _UPDATE_NOTE,
+    )
+    bracket_url: Optional[str] = Field(
+        None, description="Link to the external bracket page. Must be http or https." + _UPDATE_NOTE,
+    )
+    rules_url: Optional[str] = Field(None, description="Link to the rules. Must be http or https." + _UPDATE_NOTE)
+    tournament_format: Optional[str] = Field(None, description="Short free-text format label." + _UPDATE_NOTE)
+    triforce_access_message: Optional[str] = Field(
+        None, description="Markdown shown to players who may not submit triforce texts." + _UPDATE_NOTE,
+    )
+    randomizer_notes: Optional[str] = Field(
+        None, description="The randomizer settings, preset and build, as markdown." + _UPDATE_NOTE,
+    )
+    average_match_duration: Optional[int] = Field(None, description="Typical match length in minutes." + _UPDATE_NOTE)
+    max_match_duration: Optional[int] = Field(
+        None, description="Longest a match is expected to run, in minutes." + _UPDATE_NOTE,
+    )
+    is_active: Optional[bool] = Field(
+        None, description="Set false to deactivate, which hides the tournament from players." + _UPDATE_NOTE,
+    )
+    players_per_match: Optional[int] = Field(None, description="How many players a match has." + _UPDATE_NOTE)
+    required_commentators: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC + _UPDATE_NOTE)
+    required_trackers: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC + _UPDATE_NOTE)
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     event_end_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     tournament_hours: Optional[Dict[date, Tuple[str, str]]] = Field(
@@ -76,4 +97,4 @@ class TournamentUpdateRequest(BaseModel):
 
 
 class MembershipRequest(BaseModel):
-    user_id: int = Field(..., description="User to add as admin / crew coordinator")
+    user_id: int = Field(..., description="ID of the user to add as tournament admin or crew coordinator.")

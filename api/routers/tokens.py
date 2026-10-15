@@ -30,6 +30,11 @@ router = APIRouter(prefix="/tokens", tags=["API Tokens"], route_class=ServiceErr
     "",
     response_model=List[ApiTokenResponse],
     summary="List your API tokens",
+    description=(
+        "Returns your tokens that haven't been revoked: the ones made in this community plus any "
+        "app connections that work across communities. The secret is never included.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def list_tokens(actor: User = Depends(require_api_actor)):
     return await ApiTokenService().list_tokens(actor)
@@ -40,7 +45,12 @@ async def list_tokens(actor: User = Depends(require_api_actor)):
     response_model=ApiTokenCreatedResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create an API token",
-    description="Returns the secret token once. Copy it now — it cannot be retrieved later.",
+    description=(
+        "Creates a token that acts as you in this community. The response carries the secret "
+        "once; copy it then, because it can't be shown again. Fails with 400 when the name is "
+        "blank or the expiry isn't in the future.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def create_token(
     body: ApiTokenCreateRequest,
@@ -73,6 +83,11 @@ async def create_token(
     "/{token_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Revoke an API token",
+    description=(
+        "Stops the token working straight away. You can revoke only your own tokens, including "
+        "the one making this call.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def revoke_token(
     token_id: int,

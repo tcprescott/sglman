@@ -23,6 +23,10 @@ router = APIRouter(
     "/preferences",
     response_model=List[NotificationPreferenceResponse],
     summary="List your tournament notification preferences",
+    description=(
+        "Returns each tournament you follow and how much you hear about its matches.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def list_preferences(actor: User = Depends(require_api_actor)):
     return await TournamentNotificationService().get_user_preferences(actor)
@@ -32,6 +36,12 @@ async def list_preferences(actor: User = Depends(require_api_actor)):
     "/preferences",
     response_model=NotificationPreferenceResponse,
     summary="Set your notification preference for a tournament",
+    description=(
+        "Creates or changes how much you hear about one tournament's matches. Following "
+        "doesn't need you to be signed up. Notifications go to your devices, and as Discord DMs "
+        "when your DM setting is on. Fails with 400 for an unknown level.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def upsert_preference(
     body: NotificationPreferenceUpdate, actor: User = Depends(require_write_actor),

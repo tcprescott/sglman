@@ -25,6 +25,11 @@ async def _load_or_404(stage_id: int) -> Stage:
     response_model=StageResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a stage",
+    description=(
+        "Adds a stage to this community. Fails with 400 when the name is blank or the stream "
+        "link isn't http or https.\n\n"
+        "**Who can call this:** Staff or Stream manager."
+    ),
 )
 async def create_stage(body: StageCreateRequest, actor: User = Depends(require_write_actor)):
     return await StageService().create_stage(
@@ -32,7 +37,16 @@ async def create_stage(body: StageCreateRequest, actor: User = Depends(require_w
     )
 
 
-@router.patch("/{stage_id}", response_model=StageResponse, summary="Update a stage")
+@router.patch(
+    "/{stage_id}",
+    response_model=StageResponse,
+    summary="Update a stage",
+    description=(
+        "Changes only the fields you send. Fails with 400 when the name is blank or the stream "
+        "link isn't http or https.\n\n"
+        "**Who can call this:** Staff or Stream manager."
+    ),
+)
 async def update_stage(
     stage_id: int, body: StageUpdateRequest, actor: User = Depends(require_write_actor),
 ):
@@ -47,6 +61,11 @@ async def update_stage(
     "/{stage_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a stage",
+    description=(
+        "Permanently deletes a stage. Fails with 400 when any match is assigned to it; mark it "
+        "inactive instead.\n\n"
+        "**Who can call this:** Staff or Stream manager."
+    ),
 )
 async def delete_stage(stage_id: int, actor: User = Depends(require_write_actor)):
     stage = await _load_or_404(stage_id)

@@ -44,6 +44,11 @@ router = APIRouter(
     "",
     response_model=List[PlayerAvailabilityResponse],
     summary="List your availability windows",
+    description=(
+        "Returns the times you've said you can't play or would rather play. Any time not "
+        "covered by a window counts as available.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def list_availability(actor: User = Depends(require_api_actor)):
     return await PlayerAvailabilityService().availability_for(actor)
@@ -53,6 +58,13 @@ async def list_availability(actor: User = Depends(require_api_actor)):
     "",
     response_model=List[PlayerAvailabilityResponse],
     summary="Replace your blocked-out windows",
+    description=(
+        "Replaces all your windows with the ones you send and returns what was saved. Windows "
+        "marked available are dropped, since every time you don't block out already counts as "
+        "available. Schedulers and match-time suggestions read these windows. Fails with 400 "
+        "when a window ends at or before its start.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def set_availability(
     body: SetPlayerAvailabilityRequest, actor: User = Depends(require_write_actor),
@@ -65,6 +77,10 @@ async def set_availability(
     "",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Clear all your windows (back to available all event)",
+    description=(
+        "Deletes every window you've posted, so you read as available for the whole event.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def clear_availability(actor: User = Depends(require_write_actor)):
     await PlayerAvailabilityService().clear(actor)
@@ -81,6 +97,11 @@ other_players_router = APIRouter(
     "/{user_id}/availability",
     response_model=List[PlayerAvailabilityResponse],
     summary="List another player's availability windows (self or Staff)",
+    description=(
+        "Returns a member's windows, optionally only those overlapping start and end. Someone "
+        "outside the community reads as not found.\n\n"
+        "**Who can call this:** Yourself or Staff."
+    ),
 )
 async def list_availability_for(
     user_id: int,
