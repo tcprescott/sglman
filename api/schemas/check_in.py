@@ -14,13 +14,13 @@ def _value(enum_or_none) -> Optional[str]:
 
 
 class CheckInEventResponse(BaseModel):
-    id: int
-    name: str
-    status: str
-    matcherino_venue_id: Optional[int] = None
-    last_synced_at: Optional[datetime] = None
-    last_sync_error: Optional[str] = None
-    last_sync_count: Optional[int] = None
+    id: int = Field(..., description="Check-in event id.")
+    name: str = Field(..., description="Event name.")
+    status: str = Field(..., description="`draft`, `open` or `closed`. Only open events are synced automatically and shown to Check-in desk volunteers.")
+    matcherino_venue_id: Optional[int] = Field(None, description="The Matcherino venue badges are sold under; empty for an event that only comps people.")
+    last_synced_at: Optional[datetime] = Field(None, description="When the roster last synced (UTC).")
+    last_sync_error: Optional[str] = Field(None, description="Why the last sync failed; empty when it succeeded.")
+    last_sync_count: Optional[int] = Field(None, description="How many people the last sync covered.")
 
     @classmethod
     def from_row(cls, event: CheckInEvent) -> 'CheckInEventResponse':
@@ -36,13 +36,13 @@ class CheckInEventResponse(BaseModel):
 
 
 class CheckInEntrantResponse(BaseModel):
-    id: int
-    event_id: int
-    display_name: str
+    id: int = Field(..., description="Roster entry id.")
+    event_id: int = Field(..., description="The check-in event this row is on.")
+    display_name: str = Field(..., description="The name the desk shows.")
     source: str = Field(description="`matcherino`, `walk_up` or `comp`.")
-    user_id: Optional[int] = None
-    user_name: Optional[str] = None
-    link_method: Optional[str] = None
+    user_id: Optional[int] = Field(None, description="The linked member account; empty when no account is linked.")
+    user_name: Optional[str] = Field(None, description="The linked member's display name.")
+    link_method: Optional[str] = Field(None, description="How the account was linked: `matcherino_id`, `discord_id`, `twitch_id`, `matcherino_handle`, `manual`, `walk_up` or `comp`. `manual` with no account means someone unlinked it by hand.")
     badges: List[str] = Field(
         default_factory=list,
         description="Badge types they still hold, most expensive first. Empty for a walk-up or a comp.",
@@ -51,13 +51,13 @@ class CheckInEntrantResponse(BaseModel):
         default=None,
         description="The lanyard the desk hands over (`staff`, `volunteer`, or a badge type's), or null.",
     )
-    comp_reasons: List[str] = Field(default_factory=list)
+    comp_reasons: List[str] = Field(default_factory=list, description="Why the person is comped: role names and `volunteer`. Empty when they aren't comped.")
     withdrawn_at: Optional[datetime] = Field(
         default=None,
         description="Set when they no longer hold a badge. Only staff can check them in anyway.",
     )
-    checked_in_at: Optional[datetime] = None
-    checked_in_by_name: Optional[str] = None
+    checked_in_at: Optional[datetime] = Field(None, description="When they were checked in (UTC); empty if they haven't been.")
+    checked_in_by_name: Optional[str] = Field(None, description="Who checked them in.")
     dm_status: Optional[str] = Field(
         default=None,
         description=(
@@ -101,12 +101,12 @@ class CheckInRequest(BaseModel):
 
 
 class CheckInResultResponse(BaseModel):
-    entrant: CheckInEntrantResponse
+    entrant: CheckInEntrantResponse = Field(..., description="The roster row after the check-in.")
     already: bool = Field(description="True when someone had already checked them in; nothing changed.")
 
 
 class LinkEntrantRequest(BaseModel):
-    user_id: int
+    user_id: int = Field(..., description="The member account to link. Must be an active member of this community.")
 
 
 class WalkUpRequest(BaseModel):
@@ -116,11 +116,11 @@ class WalkUpRequest(BaseModel):
 
 
 class CheckInSyncResponse(BaseModel):
-    added: int
-    updated: int
-    withdrawn: int
-    rejoined: int
-    auto_linked: int
-    total: int
-    badges: int
-    comped: int
+    added: int = Field(..., description="People added to the roster.")
+    updated: int = Field(..., description="Existing rows whose badges or details changed.")
+    withdrawn: int = Field(..., description="People marked withdrawn because they no longer hold a badge or a comp.")
+    rejoined: int = Field(..., description="Previously withdrawn people who hold a badge or comp again.")
+    auto_linked: int = Field(..., description="Rows matched to a member account automatically.")
+    total: int = Field(..., description="Buyers who currently hold at least one badge.")
+    badges: int = Field(..., description="Active (unrefunded) badges in the sales.")
+    comped: int = Field(..., description="Members the comp rules cover.")
