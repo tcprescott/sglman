@@ -17,14 +17,30 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=List[TournamentResponse], summary="List tournaments")
+@router.get(
+    "",
+    response_model=List[TournamentResponse],
+    summary="List tournaments",
+    description=(
+        "Returns this community's tournaments, active and inactive unless you ask for active only.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def list_tournaments(
     active_only: bool = Query(False, description="Return only active tournaments"),
 ):
     return await TournamentService().get_all_tournaments(active_only=active_only)
 
 
-@router.get("/{tournament_id}", response_model=TournamentResponse, summary="Get a tournament")
+@router.get(
+    "/{tournament_id}",
+    response_model=TournamentResponse,
+    summary="Get a tournament",
+    description=(
+        "Returns one of this community's tournaments.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def get_tournament(tournament_id: int):
     return require_found(
         await TournamentService().get_tournament_by_id(tournament_id), "Tournament"

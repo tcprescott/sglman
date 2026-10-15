@@ -43,7 +43,11 @@ def _to_response(tournament_id: int, split: PayoutSplit) -> PayoutSplitResponse:
     "/{tournament_id}/payouts",
     response_model=PayoutSplitResponse,
     summary="Get a tournament's prize split, with the amounts worked out",
-    description="Requires Staff or Tournament Admin of the given tournament.",
+    description=(
+        "Returns the prize pool, the bonus and each place's share, with the money worked out "
+        "from the percentages and rounded to the cent. Amounts are strings so no cents are lost.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def get_payouts(tournament_id: int, actor: User = Depends(require_api_actor)):
     split = await PayoutService().get_split(tournament_id, actor)
@@ -54,6 +58,13 @@ async def get_payouts(tournament_id: int, actor: User = Depends(require_api_acto
     "/{tournament_id}/payouts",
     response_model=PayoutSplitResponse,
     summary="Replace a tournament's prize split",
+    description=(
+        "Replaces every line of the split with the ones you send, then returns the split with "
+        "the amounts worked out. Every entrant must be a member of this community. Fails with "
+        "400 when the percentages add up to more than 100 or one person is paid twice at the "
+        "same place.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def replace_payouts(
     tournament_id: int,
@@ -70,6 +81,12 @@ async def replace_payouts(
     "/{tournament_id}/prize-pool",
     response_model=PayoutSplitResponse,
     summary="Set a tournament's prize pool and bonus",
+    description=(
+        "Sets both values at once; null clears one, which isn't the same as zero. Every "
+        "place's amount moves with the new total. Returns the split with the amounts worked "
+        "out.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def set_prize_pool(
     tournament_id: int,

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from api._helpers import load_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
+from api.schemas.detail import DetailResponse
 from api.schemas.match_actions import MatchSuggestionResponse
 from api.schemas.tournament_actions import (
     MembershipRequest,
@@ -33,6 +34,12 @@ async def _load_tournament_or_404(tournament_id: int) -> Tournament:
     response_model=TournamentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a tournament (Staff only)",
+    description=(
+        "Creates a tournament in this community. Fails with 400 when the name is blank, a link "
+        "isn't http or https, the event end date is before its start, or signups close before "
+        "they open.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def create_tournament(body: TournamentCreateRequest, actor: User = Depends(require_write_actor)):
     return await TournamentService().create_tournament(actor=actor, **body.model_dump())
@@ -42,6 +49,11 @@ async def create_tournament(body: TournamentCreateRequest, actor: User = Depends
     "/{tournament_id}",
     response_model=TournamentResponse,
     summary="Update a tournament (Staff or Tournament Admin)",
+    description=(
+        "Changes only the fields you send; sending null for a date, the hours or a signup "
+        "bound clears it. Fails with 400 for the same reasons as creating one.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
 )
 async def update_tournament(
     tournament_id: int, body: TournamentUpdateRequest, actor: User = Depends(require_write_actor),
@@ -59,6 +71,12 @@ async def update_tournament(
     "/{tournament_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Permanently delete an inactive tournament (Staff only)",
+    description=(
+        "Deletes the tournament along with its matches, entrants, brackets and triforce texts. "
+        "This can't be undone. Fails with 400 when the tournament is still active or the "
+        "confirmation phrase doesn't match.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def delete_tournament(
     tournament_id: int,
@@ -82,6 +100,13 @@ async def delete_tournament(
     "/{tournament_id}/match-suggestion",
     response_model=MatchSuggestionResponse,
     summary="Suggest a match start time for the given players",
+    description=(
+        "Picks the start time (UTC) that best fits the players' availability, the tournament's "
+        "hours and the matches already on the schedule. It looks at the next four hours first, "
+        "then the rest of the event. Nothing is booked. Fails with 400 when no slot fits.\n\n"
+        "**Who can call this:** Any member who is one of the players, or Staff, or Admins of "
+        "this tournament."
+    ),
 )
 async def suggest_match_time(
     tournament_id: int,
@@ -101,7 +126,17 @@ async def suggest_match_time(
     return MatchSuggestionResponse(suggested_at=suggested_at)
 
 
-@router.post("/{tournament_id}/admins", summary="Add a tournament admin (Staff only)")
+@router.post(
+    "/{tournament_id}/admins",
+    response_model=DetailResponse,
+    summary="Add a tournament admin (Staff only)",
+    description=(
+        "Makes the person an admin of this tournament, so they can edit it and run its "
+        "matches. A grant made here counts as made by hand, so Discord role sync won't take it "
+        "away.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
 async def add_admin(tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor)):
     tournament = await _load_tournament_or_404(tournament_id)
     target = await load_user_or_404(body.user_id)
@@ -113,6 +148,10 @@ async def add_admin(tournament_id: int, body: MembershipRequest, actor: User = D
     "/{tournament_id}/admins/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a tournament admin (Staff only)",
+    description=(
+        "Takes the person off this tournament's admins.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def remove_admin(tournament_id: int, user_id: int, actor: User = Depends(require_write_actor)):
     tournament = await _load_tournament_or_404(tournament_id)
@@ -120,7 +159,17 @@ async def remove_admin(tournament_id: int, user_id: int, actor: User = Depends(r
     await TournamentService().remove_admin(tournament, target, actor=actor)
 
 
-@router.post("/{tournament_id}/crew-coordinators", summary="Add a crew coordinator (Staff only)")
+@router.post(
+    "/{tournament_id}/crew-coordinators",
+    response_model=DetailResponse,
+    summary="Add a crew coordinator (Staff only)",
+    description=(
+        "Makes the person a crew coordinator for this tournament, so they can approve crew "
+        "signups for its matches. A grant made here counts as made by hand, so Discord role "
+        "sync won't take it away.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
 async def add_crew_coordinator(
     tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor),
 ):
@@ -134,6 +183,10 @@ async def add_crew_coordinator(
     "/{tournament_id}/crew-coordinators/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a crew coordinator (Staff only)",
+    description=(
+        "Takes the person off this tournament's crew coordinators.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def remove_crew_coordinator(
     tournament_id: int, user_id: int, actor: User = Depends(require_write_actor),
@@ -145,14 +198,17 @@ async def remove_crew_coordinator(
 
 @router.post(
     "/{tournament_id}/signup",
+    response_model=DetailResponse,
     summary="Sign yourself up for a tournament",
     description=(
-        "Self-service enrolment, the same act the Tournaments tab performs. "
-        "Refused outside the tournament's signup window and for a non-member. For "
-        "a tournament linked to Challonge it adds you to the Challonge bracket "
-        "under your linked Challonge account (link one first), until the bracket "
-        "starts. Staff enrolling "
-        "someone else use PUT /users/{user_id}/tournaments, which ignores the window."
+        "Signs you up, the same as the Tournaments tab does, and sends you a Discord DM "
+        "confirming it. For a tournament linked to Challonge it adds you to the Challonge "
+        "bracket under your linked Challonge account, until the bracket starts. Staff enrolling "
+        "someone else use PUT /users/{user_id}/tournaments, which ignores the signup window.\n\n"
+        "Fails with 400 when the tournament is inactive, signups haven't opened or have closed, "
+        "you're already signed up, or a Challonge tournament needs a linked Challonge account "
+        "you don't have.\n\n"
+        "**Who can call this:** Any member."
     ),
 )
 async def sign_up_for_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
@@ -162,12 +218,15 @@ async def sign_up_for_tournament(tournament_id: int, actor: User = Depends(requi
 
 @router.delete(
     "/{tournament_id}/signup",
+    response_model=DetailResponse,
     summary="Withdraw yourself from a tournament",
     description=(
-        "Allowed while the signup window is open (and, for a Challonge bracket, "
-        "until it starts). Once it closes, withdrawing is "
-        "staff's call — a roster a bracket was seeded from should not lose an "
-        "entrant silently."
+        "Takes you off the tournament's roster, and off its Challonge bracket when it has one. "
+        "Allowed until the signup window closes (and, for a Challonge bracket, until it "
+        "starts); after that, withdrawing is staff's call, so a seeded bracket never loses an "
+        "entrant silently. Fails with 400 when the tournament is inactive, signups have closed "
+        "or you aren't signed up.\n\n"
+        "**Who can call this:** Any member."
     ),
 )
 async def withdraw_from_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):

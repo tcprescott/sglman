@@ -11,6 +11,7 @@ from api.dependencies import (
     require_staff,
     require_write_actor,
 )
+from api.schemas.detail import DetailResponse
 from api.schemas.user_actions import (
     RoleRequest,
     TournamentEnrollmentUpdate,
@@ -48,8 +49,9 @@ async def _to_detail(user: User) -> UserDetailResponse:
     response_model=List[UserListItem],
     summary="List users",
     description=(
-        "Staff only. Returns the members of the token's community — identity is "
-        "global but this list is not. Optionally filter by role held here."
+        "Returns the members of this community, not every account on the platform. Filter by "
+        "a role held here with role.\n\n"
+        "**Who can call this:** Staff."
     ),
 )
 async def list_users(
@@ -62,7 +64,15 @@ async def list_users(
     return await UserService().get_community_people(role=role)
 
 
-@router.get("/me", response_model=UserDetailResponse, summary="Get the current user")
+@router.get(
+    "/me",
+    response_model=UserDetailResponse,
+    summary="Get the current user",
+    description=(
+        "Returns the account the token belongs to, with the roles it holds in this community.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def get_me(actor: User = Depends(require_api_actor)):
     return await _to_detail(actor)
 
@@ -71,7 +81,11 @@ async def get_me(actor: User = Depends(require_api_actor)):
     "/{user_id}",
     response_model=UserDetailResponse,
     summary="Get a user",
-    description="Allowed for the user themselves or for Staff.",
+    description=(
+        "Returns one member of this community, with the roles they hold here. Someone outside "
+        "the community reads as not found.\n\n"
+        "**Who can call this:** Yourself or Staff."
+    ),
 )
 async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     if actor.id != user_id and not await AuthService.is_staff(actor):
@@ -87,6 +101,12 @@ async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     response_model=UserDetailResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a user (Staff only)",
+    description=(
+        "Creates an account and makes it a member of this community, ready for the person to "
+        "sign in with Discord. Fails with 400 when the username is blank, a name contains links "
+        "or Discord mentions, or the Discord ID already has an account.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def create_user(body: UserCreateRequest, actor: User = Depends(require_write_actor)):
     user = await UserService().create_user(
@@ -99,7 +119,16 @@ async def create_user(body: UserCreateRequest, actor: User = Depends(require_wri
     return await _to_detail(user)
 
 
-@router.patch("/me", response_model=UserDetailResponse, summary="Update your own profile")
+@router.patch(
+    "/me",
+    response_model=UserDetailResponse,
+    summary="Update your own profile",
+    description=(
+        "Changes only the fields you send. Fails with 400 when a name contains links or Discord "
+        "mentions.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def update_me(body: UserSelfUpdate, actor: User = Depends(require_write_actor)):
     await UserService().update_user_personal_info(
         user=actor,
@@ -115,6 +144,13 @@ async def update_me(body: UserSelfUpdate, actor: User = Depends(require_write_ac
     "/{user_id}",
     response_model=UserDetailResponse,
     summary="Update a user's profile (self or Staff)",
+    description=(
+        "Changes the person's display name and pronouns, which show in every community they "
+        "belong to. So Staff may only change someone who belongs to no other community, and "
+        "only a super admin may change a super admin. Fails with 400 when a name contains links "
+        "or Discord mentions.\n\n"
+        "**Who can call this:** Yourself or Staff."
+    ),
 )
 async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depends(require_write_actor)):
     target = await load_community_user_or_404(user_id, actor)
@@ -128,6 +164,13 @@ async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depen
     "/{user_id}/admin",
     response_model=UserDetailResponse,
     summary="Update admin-managed fields (Staff only)",
+    description=(
+        "Activates or deactivates the account. Deactivating locks the person out of every "
+        "community, so Staff may only do it to someone who belongs to no other community; for "
+        "anyone else, remove them from this community instead. Only a super admin may change "
+        "a super admin.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def update_user_admin(user_id: int, body: UserAdminUpdate, actor: User = Depends(require_write_actor)):
     target = await load_community_user_or_404(user_id, actor)
@@ -137,7 +180,15 @@ async def update_user_admin(user_id: int, body: UserAdminUpdate, actor: User = D
 
 @router.put(
     "/{user_id}/tournaments",
+    response_model=DetailResponse,
     summary="Replace a user's tournament enrollments (self or Staff)",
+    description=(
+        "Sets the full list of tournaments the person is signed up for, adding and removing as "
+        "needed. Staff editing anyone skip the signup window. When you edit your own list, "
+        "each change follows the same rules as POST and DELETE /tournaments/{id}/signup, "
+        "including the window, a Challonge bracket and the confirmation DM.\n\n"
+        "**Who can call this:** Yourself or Staff."
+    ),
 )
 async def update_user_tournaments(
     user_id: int, body: TournamentEnrollmentUpdate, actor: User = Depends(require_write_actor),
@@ -165,7 +216,18 @@ async def update_user_tournaments(
     return {"detail": "Enrollments updated"}
 
 
-@router.post("/{user_id}/roles", summary="Grant a community role (Staff only)")
+@router.post(
+    "/{user_id}/roles",
+    response_model=DetailResponse,
+    summary="Grant a community role (Staff only)",
+    description=(
+        "Gives the person a role in this community and makes them a member if they weren't "
+        "one. A join request they have waiting is closed as approved, and they get a DM saying "
+        "they're in. super_admin is refused with 403: it's a platform role, granted only on "
+        "the platform.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
 async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(require_write_actor)):
     target = await load_user_or_404(user_id)
     await UserService().grant_role(target, body.role, actor=actor)
@@ -176,6 +238,11 @@ async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(requ
     "/{user_id}/roles/{role}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Revoke a community role (Staff only)",
+    description=(
+        "Takes a role away in this community. The person stays a member. super_admin is "
+        "refused with 403: it's a platform role, revoked only on the platform.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def revoke_role(user_id: int, role: Role, actor: User = Depends(require_write_actor)):
     target = await load_user_or_404(user_id)

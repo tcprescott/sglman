@@ -17,14 +17,30 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=List[StageResponse], summary="List stages")
+@router.get(
+    "",
+    response_model=List[StageResponse],
+    summary="List stages",
+    description=(
+        "Returns this community's stages, the streams and setups matches are played on.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def list_stages(
     active_only: bool = Query(False, description="Return only active stages"),
 ):
     return await StageService().get_all_stages(active_only=active_only)
 
 
-@router.get("/{stage_id}", response_model=StageResponse, summary="Get a stage")
+@router.get(
+    "/{stage_id}",
+    response_model=StageResponse,
+    summary="Get a stage",
+    description=(
+        "Returns one of this community's stages.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def get_stage(stage_id: int):
     return require_found(
         await StageService().get_stage_by_id(stage_id), "Stage"

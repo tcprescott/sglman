@@ -21,6 +21,11 @@ router = APIRouter(prefix="/join-requests", tags=["Membership"], route_class=Ser
     "",
     response_model=List[JoinRequestResponse],
     summary="List requests to join this community that are waiting on a decision (Staff only)",
+    description=(
+        "Returns the pending requests to join this community, the same queue as the join "
+        "requests list on the Users admin page.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def list_pending(actor: User = Depends(require_api_actor)):
     rows = await TenantMembershipService().list_pending_for(actor)
@@ -31,6 +36,11 @@ async def list_pending(actor: User = Depends(require_api_actor)):
     "/{request_id}/approve",
     response_model=JoinRequestResponse,
     summary="Let them in (Staff only)",
+    description=(
+        "Makes the person a member of this community, lifting any earlier removal, and DMs "
+        "them that they're in. Fails with 400 when the request has already been decided.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def approve(request_id: int, actor: User = Depends(require_write_actor)):
     return JoinRequestResponse.from_row(
@@ -42,6 +52,12 @@ async def approve(request_id: int, actor: User = Depends(require_write_actor)):
     "/{request_id}/deny",
     response_model=JoinRequestResponse,
     summary="Decline the request (Staff only)",
+    description=(
+        "Declines the request and DMs the person that it wasn't approved. They can ask again "
+        "after seven days. Fails with 400 when the request has already been decided or the "
+        "person is already a member (approve it to clear the request).\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def deny(request_id: int, actor: User = Depends(require_write_actor)):
     return JoinRequestResponse.from_row(
