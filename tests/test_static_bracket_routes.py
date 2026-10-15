@@ -200,3 +200,22 @@ class TestNotFound:
         """Some link unfurlers probe with HEAD first; a 405 reads as dead."""
         assert _endpoint('/live/brackets/{bracket_id}', 'HEAD')
         assert _endpoint('/live/tournament/{tournament_id}/brackets', 'HEAD')
+
+
+class TestRootPathCaching:
+    """One community is served both on its own domain and under /t/<slug>."""
+
+    async def test_each_root_gets_its_own_links(self, db):
+        from models import Bracket, BracketFormat, BracketState, Tournament
+
+        tournament = await Tournament.create(name='Open')
+        await Bracket.create(
+            tournament=tournament, name='Main', format=BracketFormat.SINGLE_ELIM,
+            state=BracketState.ACTIVE,
+        )
+        index = _endpoint('/live/tournament/{tournament_id}/brackets')
+        path = f'/live/tournament/{tournament.id}/brackets'
+        prefixed = bytes((await index(str(tournament.id), _request(path))).body).decode()
+        bare = bytes((await index(str(tournament.id), _request(path, root_path=''))).body).decode()
+        assert 'href="/t/default/live/brackets/' in prefixed
+        assert '/t/default' not in bare

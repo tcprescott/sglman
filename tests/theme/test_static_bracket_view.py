@@ -178,6 +178,13 @@ class TestEliminationMarkup:
         assert 'href="https://twitch.tv/x"' in html
         assert 'rel="noopener noreferrer"' in html
 
+    def test_a_watch_url_that_is_not_http_is_not_linked(self):
+        html = render_bracket_document(_elim_view(live_state={
+            2: {'status': MatchStatus.LIVE, 'watch_url': 'javascript:alert(1)'},
+        }))
+        assert 'bracket-live-pill' in html
+        assert 'javascript:' not in html
+
     def test_a_draft_stage_shows_the_seeded_field_not_a_bracket(self):
         html = render_bracket_document(_elim_view(
             bracket=_bracket(state=BracketState.DRAFT),
@@ -270,3 +277,8 @@ class TestTenantTheme:
     def test_no_palette_block_without_a_configured_primary(self):
         html = render_bracket_document(_elim_view(primary_color=None))
         assert '--q-primary' not in html
+
+    def test_a_primary_that_is_not_a_hex_colour_is_dropped(self):
+        html = render_bracket_document(_elim_view(primary_color='red;}body{background:url(x)}'))
+        assert '--q-primary' not in html
+        assert 'background:url' not in html

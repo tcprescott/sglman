@@ -24,6 +24,7 @@ mirror ``static/css/brackets.css``; changing one means changing both.
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -311,7 +312,7 @@ def avatar_img_html(url: str) -> str:
     if not url.startswith('https://') or '"' in url or '<' in url:
         return ''
     return (
-        f'<img class="bracket-avatar-img" src="{url}" alt="" '
+        f'<img class="bracket-avatar-img" src="{html.escape(url, quote=True)}" alt="" '
         'loading="lazy" decoding="async" onerror="this.remove()">'
     )
 
