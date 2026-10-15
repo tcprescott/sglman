@@ -1,4 +1,5 @@
 ### New
+
 - You can now sign in from Discord. Type `/login` in your community's Discord
   server and the bot sends you a private link that signs you straight in, with
   no Discord login page in your browser. Each link works once and expires after
@@ -7,6 +8,5 @@
   `/wizzrobe login-panel`. Anyone who presses it gets the same private link.
 
 ### Improved
-- Signing in through the website skips Discord's **Authorize** screen if
-  you've approved Wizzrobe before.
+
 - You stay signed in for 90 days after your last visit, up from two weeks.

@@ -1,2 +1,0 @@
-### Fixed
-- Fixed the community event submit form, which showed up mostly blank with no description editor.

@@ -1,4 +1,5 @@
 ### New
+
 - Communities can turn on Community Events: a listing of the meetups, panels
   and side events members are running during the event. It's off until a
   community has it switched on.
@@ -12,5 +13,3 @@
   before it starts (30 minutes by default; staff can change this under
   Settings → Community Events). Subscribers also hear if it moves or is
   cancelled.
-- The listing says plainly that these events are run by members and aren't
-  endorsed by event staff.
