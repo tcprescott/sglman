@@ -195,6 +195,31 @@ out.
 
 Publishing works one day at a time, so check the day picker before you press it.
 
+## The Shift Board
+
+:::snippet shift-board
+**Admin → Shift Board** is the same day as Volunteer Shifts, drawn the way
+volunteers see their Full Schedule: a column per position and a row per hour,
+with everyone's name in their shift. It's built for the event itself, when you
+need to see the whole day at once and fix a gap fast. Volunteer Shifts is still
+there for building the schedule and running auto-fill.
+
+Each shift shows who's on it. Once a shift has started, a tick means the person
+checked in, a clock means they said they're running late, and an empty circle
+means they haven't turned up yet. Draft assignments show in italics with a
+dashed underline, and a shift that's short says how many places are open.
+
+Tap a shift to open its details. From there, **Assign volunteer** adds someone,
+and each person's ⋮ menu can check them in, swap someone else in, move them to
+another shift that day, or take them off. The ⋮ at the bottom edits or deletes
+the shift. Tap an empty hour in a column to add a shift there, or use **Add
+shift** at the top. **Columns** hides and reorders positions, just for you.
+:::
+
+Swapping and moving tell people the same way doing it by hand does: whoever
+comes off gets a DM that they're off, and whoever goes on is asked to
+acknowledge. A draft stays a draft and nobody is told.
+
 ## Reminders
 
 Every published assignment gets one reminder DM before the shift starts. Staff

@@ -1607,9 +1607,11 @@ The onsite volunteer subsystem is one service per concern plus a background remi
 
 A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
 
-### volunteer_schedule_grid.py — the Full Schedule day grid
+### volunteer_schedule_grid.py — the Full Schedule and Shift Board day grid
 
 `VolunteerScheduleService.day_grid(viewer, day)` (gated on `VOLUNTEERS`, refuses anyone `AuthService.can_view_volunteer` rejects with `PermissionError`) loads the shifts overlapping one event day, 06:00 to 06:00 local so a late shift stays on the evening it starts, and hands them to the pure `build_day_grid(shifts, midnight, viewer_id)`. That returns a `DayGrid`: one `GridColumn` per position in repository order, each `GridShift` carrying its hours from local midnight (clipped to the day), the published names (draft assignments are left out), open slots, whether the viewer is on it, and a `lane`/`lanes` pair that puts overlapping shifts of one position side by side.
+
+`board_day_grid(actor, day)` is the Shift Board's version (gated on `VOLUNTEERS`, coordinator-only): `build_day_grid(..., for_staff=True, positions=..., now=...)` keeps drafts (sorted after published names), gives every active position a column even with no shifts, and stamps each `GridPerson` with its `assignment_id`, `draft`, `acknowledged` and an `arrival` of `ARRIVED`, `LATE` or `NOT_HERE` once the shift has started (`arrival_state`). Each `GridShift` also carries `shift_id`, `slots_needed` and `notes`.
 
 Per-viewer columns: `grid_roles(viewer)` (same gate) lists the community's active positions as `(id, name)`; `arrange_roles(positions, saved)` turns the stored column list into `GridRole`s in the viewer's order (unknown ids skipped, new positions appended shown); `apply_roles(grid, roles)` drops hidden columns, reorders the rest and re-fits the hour span; `roles_config(roles, saved, limit)` builds the list to store, keeping entries for other communities' positions since the preference is per user, not per tenant.
 
@@ -1705,6 +1707,8 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 | `get_assignment(assignment_id)` | `VolunteerAssignment \| None` | Read-only lookup for entry surfaces (`api/`, `discordbot/`). |
 | `find_assignment(shift_id, user_id)` | `VolunteerAssignment \| None` | This volunteer's assignment on this shift, if they hold one. |
 | `check_in(assignment_id, actor)` | `VolunteerAssignment` | Coordinator-only (`PermissionError` otherwise); stamp `checked_in_at`/`checked_in_by` once (idempotent). Audits `volunteer.checked_in`. |
+| `move_assignment(actor, assignment, shift)` | `(VolunteerAssignment, list[str])` | Coordinator-only. Runs `assign`'s hard checks first (ignoring the shift they're leaving, so a same-hours move to another position works), then `unassign` + `assign`: a published one gets the off-shift DM and a new acknowledgment request, a draft moves silently as a draft. |
+| `replace_assignment(actor, assignment, user)` | `(VolunteerAssignment, list[str])` | Coordinator-only swap: checks `user` can take the shift, then removes the old person and assigns the new one in the same place, keeping draft status. |
 
 `VolunteerArrivalService` ([volunteer_arrival_service.py](../../application/services/volunteer/volunteer_arrival_service.py)) is the volunteer's own side of `check_in`, writing the same `checked_in_at`/`checked_in_by`. Every method is `VOLUNTEERS`-gated and refuses someone else's assignment or a draft (`ValueError`). The window is `CHECK_IN_LEAD` (30 minutes) before the start until the end; `can_self_check_in`, `can_undo_check_in` and `describe_late` are the pure rules the UI reads.
 

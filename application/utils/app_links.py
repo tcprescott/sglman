@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 SCHEDULE = 'match-schedule'
 REPORTS = 'reports'
 VOL_SCHEDULE = 'volunteer-shifts'
+SHIFT_BOARD = 'shift-board'
 CHALLONGE = 'challonge'
 USERS = 'members'
 QUALIFIERS = 'qualifiers'

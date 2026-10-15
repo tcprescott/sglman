@@ -81,6 +81,23 @@ class VolunteerScheduleService:
         shifts = await self.shift_repository.list_for_window(start, end)
         return build_day_grid(shifts, midnight, viewer.id)
 
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def board_day_grid(self, actor: Optional[User], day: date) -> DayGrid:
+        """One event day for the Shift Board: drafts included, every active
+        position a column, and who has or hasn't turned up on started shifts."""
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can edit the shift board.",
+        )
+        midnight = combine_local(day, time(0))
+        start, end = day_window(midnight)
+        shifts = await self.shift_repository.list_for_window(start, end)
+        positions = [(p.id, p.name) for p in await self.position_repository.list_active()]
+        return build_day_grid(
+            shifts, midnight, actor.id, for_staff=True, positions=positions,
+            now=datetime.now(timezone.utc),
+        )
+
     async def get_shift(self, shift_id: int) -> Optional[VolunteerShift]:
         return await self.shift_repository.get_by_id(shift_id)
 
@@ -361,6 +378,66 @@ class VolunteerScheduleService:
                 'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
             }, actor))
         return assignment, warnings
+
+    async def _require_free_for(
+        self, user: User, shift: VolunteerShift, *, leaving_shift_id: Optional[int] = None,
+    ) -> None:
+        """The hard checks ``assign`` makes, run before a move or swap removes anyone,
+        so a refusal leaves the schedule as it was. ``leaving_shift_id`` is the
+        shift the person is coming off, which can't clash with where they're going."""
+        if await self.assignment_repository.exists(shift.id, user.id):
+            raise ValueError(f"{user.preferred_name} is already on this shift.")
+        overlapping = await self.assignment_repository.overlapping_for_user(
+            user.id, shift.starts_at, shift.ends_at, exclude_shift_id=shift.id,
+        )
+        if any(a.shift_id != leaving_shift_id for a in overlapping):  # type: ignore[attr-defined]
+            raise ValueError(
+                f"{user.preferred_name} is already assigned to an overlapping shift."
+            )
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def move_assignment(
+        self, actor: User, assignment: VolunteerAssignment, shift: VolunteerShift,
+    ) -> Tuple[VolunteerAssignment, List[str]]:
+        """Take a volunteer off their shift and put them on ``shift``.
+
+        A draft moves as a draft and tells nobody. A published one gets the
+        usual pair of DMs: off the old shift, and asked to confirm the new one.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can move volunteers.",
+        )
+        if shift.id == assignment.shift_id:  # type: ignore[attr-defined]
+            raise ValueError("Pick a different shift to move them to.")
+        user = assignment.user
+        await TenantMembershipService.require_community_users([user.id], actor)
+        await self._require_free_for(user, shift, leaving_shift_id=assignment.shift_id)  # type: ignore[attr-defined]
+        draft = assignment.auto_generated
+        await self.unassign(actor, assignment)
+        return await self.assign(actor, shift, user, auto_generated=draft)
+
+    @requires_feature(FeatureFlag.VOLUNTEERS)
+    async def replace_assignment(
+        self, actor: User, assignment: VolunteerAssignment, user: User,
+    ) -> Tuple[VolunteerAssignment, List[str]]:
+        """Swap ``user`` into the place ``assignment`` holds on its shift.
+
+        The person coming off is told, the person going on is asked to confirm,
+        and a draft place stays a draft.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can swap volunteers.",
+        )
+        if user.id == assignment.user_id:  # type: ignore[attr-defined]
+            raise ValueError(f"{user.preferred_name} is already on this shift.")
+        await TenantMembershipService.require_community_users([user.id], actor)
+        shift = assignment.shift
+        await self._require_free_for(user, shift)
+        draft = assignment.auto_generated
+        await self.unassign(actor, assignment)
+        return await self.assign(actor, shift, user, auto_generated=draft)
 
     async def confirm_assignment(
         self, actor: User, assignment: VolunteerAssignment, *, notify: bool = True,

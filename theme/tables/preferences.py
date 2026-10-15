@@ -84,6 +84,8 @@ class TableKeys:
     PROCTOR_STATION = 'volunteer.proctor_station_v2'
     # Not a ui.table: the Full Schedule grid's role columns, keyed by position id.
     VOLUNTEER_FULL_SCHEDULE = 'volunteer.full_schedule'
+    # Not a ui.table either: Admin → Shift Board's role columns, as above.
+    ADMIN_SHIFT_BOARD = 'admin.shift_board'
 
     # Admin
     ADMIN_USERS = 'admin.users'

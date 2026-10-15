@@ -30,6 +30,7 @@ from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_service_health import admin_service_health_page
 from pages.admin_tabs.admin_settings import admin_stages_page, admin_tournaments_page
 from pages.admin_tabs.admin_setup import admin_setup_page
+from pages.admin_tabs.admin_shift_board import admin_shift_board_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
@@ -182,6 +183,7 @@ def build_admin_tabs(
     if (is_staff or access.is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
         tabs.append({'label': 'Volunteers', 'icon': 'groups', 'group': 'Community', 'aliases': ('vol-roster',), 'content': admin_volunteer_roster_page})
         tabs.append({'label': 'Volunteer Shifts', 'icon': 'calendar_view_week', 'group': 'Community', 'aliases': ('vol-schedule',), 'content': (admin_volunteers_page, (), {'day': day})})
+        tabs.append({'label': 'Shift Board', 'icon': 'edit_calendar', 'group': 'Community', 'content': (admin_shift_board_page, (), {'day': day})})
     if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
     if is_staff and FeatureFlag.COMMUNITY_EVENTS in live:

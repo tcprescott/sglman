@@ -49,6 +49,7 @@
     { "name": "admin-brackets", "path": "/admin/brackets" },
     { "name": "admin-vol-roster", "path": "/admin/vol-roster" },
     { "name": "admin-vol-schedule", "path": "/admin/vol-schedule" },
+    { "name": "admin-shift-board", "path": "/admin/shift-board" },
     { "name": "admin-equipment", "path": "/admin/equipment" },
     { "name": "admin-reports", "path": "/admin/reports" },
     { "name": "admin-reports-capacity", "path": "/admin/reports?report=capacity" },
