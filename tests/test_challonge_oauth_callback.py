@@ -7,6 +7,8 @@ callback must re-enter the community the flow started in — otherwise the real
 (non-mock) flow always ends in "feature is not enabled for this community".
 """
 
+from typing import ClassVar
+
 import pytest
 from nicegui import app
 
@@ -71,7 +73,7 @@ def callback(monkeypatch, storage):
 def seen(monkeypatch):
     calls = []
 
-    async def finish_service(user, code, return_path):
+    async def finish_service(user, code, return_path, grant):
         calls.append(('service', code, get_current_tenant_id()))
 
     async def finish_player(user, code, return_path):
@@ -108,3 +110,81 @@ async def test_a_failed_service_redirect_still_reports_in_its_tenant(callback, s
     storage.update({'challonge_service_state': 'st', 'challonge_service_tenant': 7})
     await callback('https://wizzrobe.test/challonge/oauth/callback?error=access_denied')
     assert seen == [('service', None, 7)]
+
+
+async def test_the_callback_carries_the_reconnect_queue(callback, storage, monkeypatch):
+    grants = []
+
+    async def finish_service(user, code, return_path, grant):
+        grants.append(grant)
+
+    monkeypatch.setattr(ch, '_finish_service_connect', finish_service)
+    storage.update({
+        'challonge_service_state': 'st', 'challonge_service_tenant': 7,
+        'challonge_service_community': 'speedgaming',
+        'challonge_service_queue': ['alttprleague'],
+        'challonge_service_granted': ['first'],
+    })
+    await callback('https://wizzrobe.test/challonge/oauth/callback?code=abc&state=st')
+    assert grants == [ch._ServiceGrant('speedgaming', ['alttprleague'], ['first'], 7)]
+    assert 'challonge_service_queue' not in storage
+
+
+class _FakeService:
+    saved: ClassVar[list] = []
+
+    async def exchange_service_code(self, code):
+        return {'access_token': code}
+
+    async def save_service_connection(self, payload, user, community=None):
+        self.saved.append(community)
+
+    @staticmethod
+    def service_authorize_url(state, community=None):
+        return f'https://challonge.test/authorize?community_id={community}&state={state}'
+
+
+@pytest.fixture
+def walk(monkeypatch, storage):
+    navigated, notices = [], []
+    _FakeService.saved = []
+    monkeypatch.setattr(ch, 'ChallongeService', _FakeService)
+    monkeypatch.setattr(ch.ui.navigate, 'to', lambda target: navigated.append(target))
+    monkeypatch.setattr(ch, 'stash_notice', lambda text, color=None: notices.append(text))
+    return navigated, notices
+
+
+async def test_a_grant_with_more_queued_asks_challonge_for_the_next(walk, storage):
+    navigated, notices = walk
+    await ch._finish_service_connect(
+        object(), 'code', '/t/demo/admin/challonge',
+        ch._ServiceGrant('speedgaming', ['alttprleague', 'zsr'], [], 7),
+    )
+    assert _FakeService.saved == ['speedgaming']
+    assert navigated[0].startswith('https://challonge.test/authorize?community_id=alttprleague')
+    assert storage['challonge_service_queue'] == ['zsr']
+    assert storage['challonge_service_community'] == 'alttprleague'
+    assert storage['challonge_service_granted'] == ['speedgaming']
+    assert storage['challonge_service_tenant'] == 7
+    assert notices == []
+
+
+async def test_the_last_grant_returns_to_admin_naming_every_community(walk):
+    navigated, notices = walk
+    await ch._finish_service_connect(
+        object(), 'code', '/t/demo/admin/challonge',
+        ch._ServiceGrant('zsr', [], ['speedgaming', 'alttprleague'], 7),
+    )
+    assert navigated == ['/t/demo/admin/challonge']
+    assert notices == ['Challonge connected for speedgaming, alttprleague and zsr.']
+
+
+async def test_cancelling_midway_says_which_community_was_left_out(walk):
+    navigated, notices = walk
+    await ch._finish_service_connect(
+        object(), None, '/t/demo/admin/challonge',
+        ch._ServiceGrant('zsr', [], ['speedgaming'], 7),
+    )
+    assert _FakeService.saved == []
+    assert navigated == ['/t/demo/admin/challonge']
+    assert notices == ['Challonge connected for speedgaming. Challonge access for zsr was cancelled.']

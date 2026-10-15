@@ -192,6 +192,7 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Challonge integration side-effects (result_pushed mirrors match.result_recorded).
     AuditActions.CHALLONGE_CONNECTED,
     AuditActions.CHALLONGE_DISCONNECTED,
+    AuditActions.CHALLONGE_COMMUNITY_REMOVED,
     AuditActions.CHALLONGE_PLAYER_LINKED,
     AuditActions.CHALLONGE_PLAYER_UNLINKED,
     AuditActions.CHALLONGE_PLAYER_USERNAME_UPDATED,

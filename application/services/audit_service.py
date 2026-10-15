@@ -226,6 +226,7 @@ class AuditActions:
     # Challonge integration
     CHALLONGE_CONNECTED = 'challonge.connected'
     CHALLONGE_DISCONNECTED = 'challonge.disconnected'
+    CHALLONGE_COMMUNITY_REMOVED = 'challonge.community_removed'
     CHALLONGE_PLAYER_LINKED = 'challonge.player_linked'
     CHALLONGE_PLAYER_UNLINKED = 'challonge.player_unlinked'
     CHALLONGE_PLAYER_USERNAME_UPDATED = 'challonge.player_username_updated'

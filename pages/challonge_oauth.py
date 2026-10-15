@@ -20,6 +20,8 @@ locally without contacting Challonge.
 
 import logging
 import secrets
+from dataclasses import dataclass
+from typing import List, Optional
 
 from nicegui import Client, app, ui
 from starlette.requests import Request
@@ -116,18 +118,22 @@ def create() -> None:
             return RedirectResponse(f'{root_path}/admin')
         if not await _challonge_live():
             return RedirectResponse(f'{root_path}/admin')
-        if is_mock_challonge():
-            service = ChallongeService()
-            payload = await service.exchange_service_code('mock')
-            await service.save_service_connection(payload, user)
+        service = ChallongeService()
+        try:
+            queue = await service.communities_to_grant(request.query_params.get('community'))
+        except ValueError as e:
+            stash_notice(str(e), color='warning')
             return RedirectResponse(f'{root_path}{_ADMIN_RETURN}')
-        state = secrets.token_urlsafe(32)
-        app.storage.user['challonge_service_state'] = state
+        if is_mock_challonge():
+            for community in queue or [None]:
+                payload = await service.exchange_service_code('mock')
+                await service.save_service_connection(payload, user, community=community)
+            stash_notice(_connected_notice(queue), color='positive')
+            return RedirectResponse(f'{root_path}{_ADMIN_RETURN}')
         app.storage.user['challonge_service_return'] = f'{root_path}{_ADMIN_RETURN}'
         app.storage.user['challonge_service_tenant'] = get_current_tenant_id()
-        return RedirectResponse(ChallongeService.service_authorize_url(
-            state, community=request.query_params.get('community'),
-        ))
+        app.storage.user['challonge_service_granted'] = []
+        return RedirectResponse(_next_service_grant(queue))
 
     @ui.page('/challonge/oauth/callback')
     async def challonge_callback(client: Client) -> None:
@@ -147,6 +153,9 @@ def create() -> None:
         # the feature gate and the tenant-scoped writes need the community the
         # flow started in, pinned server-side at initiation.
         service_tenant = app.storage.user.pop('challonge_service_tenant', None)
+        service_community = app.storage.user.pop('challonge_service_community', None)
+        service_queue = app.storage.user.pop('challonge_service_queue', None) or []
+        service_granted = app.storage.user.pop('challonge_service_granted', None) or []
         player_tenant = app.storage.user.pop('challonge_player_tenant', None)
         if user is None:
             # Not authenticated: bounce to the originating tenant's login rather
@@ -170,6 +179,7 @@ def create() -> None:
             with tenant_scope(service_tenant):
                 await _finish_service_connect(
                     user, read_callback_code(url, service_state, _PROVIDER_LABEL), service_return,
+                    _ServiceGrant(service_community, service_queue, service_granted, service_tenant),
                 )
         elif (player_state is None) != (service_state is None):
             # Exactly one flow pending and the state did not match it: a provider
@@ -181,7 +191,10 @@ def create() -> None:
                     await _finish_player_link(user, None, player_return)
             else:
                 with tenant_scope(service_tenant):
-                    await _finish_service_connect(user, None, service_return)
+                    await _finish_service_connect(
+                        user, None, service_return,
+                        _ServiceGrant(service_community, service_queue, service_granted, service_tenant),
+                    )
         else:
             # Nothing pending, or both pending and neither matched: this callback
             # belongs to neither flow, so complete neither. Return to the profile,
@@ -241,20 +254,73 @@ def create() -> None:
         return RedirectResponse(ChallongeService.player_authorize_url(state))
 
 
-async def _finish_service_connect(user, code: str | None, return_path: str) -> None:
+@dataclass
+class _ServiceGrant:
+    """Where a reconnect is in its walk through the remembered communities."""
+
+    community: Optional[str]
+    queue: List[str]
+    granted: List[str]
+    tenant_id: Optional[int]
+
+
+def _connected_notice(communities: List[str]) -> str:
+    if not communities:
+        return 'Challonge account connected.'
+    if len(communities) == 1:
+        return f'Challonge connected for {communities[0]}.'
+    return f"Challonge connected for {', '.join(communities[:-1])} and {communities[-1]}."
+
+
+def _next_service_grant(queue: List[str]) -> str:
+    """Pin the next community's state in the session and return Challonge's consent URL.
+
+    Each grant names one community, so a reconnect asks once per remembered
+    community. The rest of the queue rides the session to the callback.
+    """
+    community, rest = (queue[0], queue[1:]) if queue else (None, [])
+    state = secrets.token_urlsafe(32)
+    app.storage.user['challonge_service_state'] = state
+    app.storage.user['challonge_service_community'] = community
+    app.storage.user['challonge_service_queue'] = rest
+    return ChallongeService.service_authorize_url(state, community=community)
+
+
+async def _finish_service_connect(user, code: str | None, return_path: str, grant: _ServiceGrant) -> None:
+    granted = list(grant.granted)
     if code is None:
-        stash_notice('Challonge connection was cancelled or failed.', color='warning')
-    else:
-        try:
-            service = ChallongeService()
-            payload = await service.exchange_service_code(code)
-            await service.save_service_connection(payload, user)
-            stash_notice('Challonge account connected.', color='positive')
-        except ValueError as e:
-            stash_notice(str(e), color='warning')
-        except Exception:
-            logger.exception('Challonge service connection failed')
-            stash_notice('Could not connect Challonge. Please try again.', color='negative')
+        if granted:
+            stash_notice(
+                f'{_connected_notice(granted)} Challonge access for '
+                f'{grant.community or "the next community"} was cancelled.',
+                color='warning',
+            )
+        else:
+            stash_notice('Challonge connection was cancelled or failed.', color='warning')
+        ui.navigate.to(return_path)
+        return
+    try:
+        service = ChallongeService()
+        payload = await service.exchange_service_code(code)
+        await service.save_service_connection(payload, user, community=grant.community)
+    except ValueError as e:
+        stash_notice(str(e), color='warning')
+        ui.navigate.to(return_path)
+        return
+    except Exception:
+        logger.exception('Challonge service connection failed')
+        stash_notice('Could not connect Challonge. Please try again.', color='negative')
+        ui.navigate.to(return_path)
+        return
+    if grant.community:
+        granted.append(grant.community)
+    if grant.queue:
+        app.storage.user['challonge_service_return'] = return_path
+        app.storage.user['challonge_service_tenant'] = grant.tenant_id
+        app.storage.user['challonge_service_granted'] = granted
+        ui.navigate.to(_next_service_grant(grant.queue))
+        return
+    stash_notice(_connected_notice(granted), color='positive')
     ui.navigate.to(return_path)
 
 

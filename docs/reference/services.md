@@ -311,7 +311,10 @@ Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth
 | `service_authorize_url(state)` / `player_authorize_url(state)` (static) | `str` | Challonge OAuth authorize URL for the service-account / per-player flow. |
 | `redirect_uri()` (static) | `str` | The single registered OAuth redirect URI (both flows). |
 | `get_valid_access_token(force_refresh=False)` | `str` | Live service access token, refreshing when expiring/forced; `ValueError` when not connected or no refresh token is available. |
-| `save_service_connection(token_payload, actor)` | `ChallongeConnection` | Staff-only; stores the service-account tokens and connected username; audits `challonge.connected`. |
+| `save_service_connection(token_payload, actor, community=None)` | `ChallongeConnection` | Staff-only; stores the service-account tokens and connected username, adds `community` to the remembered list; audits `challonge.connected`. |
+| `remembered_communities()` | `list[ChallongeCommunity]` | `_challonge_communities.py`. The communities the connection should cover: those saved in `Tenant.config['challonge_communities']` (kept across a disconnect), then any a linked tournament's `challonge_community` names, each with its tournament count. |
+| `communities_to_grant(extra=None)` | `list[str]` | The remembered slugs plus a typed one (`ValueError` if it isn't a subdomain). `/challonge/connect` asks Challonge for each in turn, one consent per community, because a grant names one `community_id`. |
+| `remove_community(actor, community)` | `None` | Staff-only; drops a saved community. Refuses (`ValueError`) while linked tournaments use it. Audits `challonge.community_removed`. |
 | `disconnect(actor)` | `None` | Staff-only; clears the connection; audits `challonge.disconnected`. |
 | `get_connection_status()` | `dict` | `{connected, configured, request_usage, request_quota, ...}` for the admin UI. |
 | `record_player_link(user, challonge_user_id, challonge_username, actor)` | `None` | Persist a player's linked Challonge identity (OAuth path); audits `challonge.player_linked`. |

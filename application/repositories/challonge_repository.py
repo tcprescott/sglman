@@ -100,6 +100,18 @@ class ChallongeRepository:
         await connection.save()
 
     @staticmethod
+    async def linked_tournament_communities() -> Dict[str, int]:
+        """How many of this tenant's linked tournaments live on each Challonge community."""
+        rows = await scoped(Tournament.filter(
+            challonge_tournament_id__isnull=False, challonge_community__isnull=False,
+        )).values_list('challonge_community', flat=True)
+        counts: Dict[str, int] = {}
+        for community in rows:
+            if isinstance(community, str) and community:
+                counts[community] = counts.get(community, 0) + 1
+        return counts
+
+    @staticmethod
     async def clear_connection() -> int:
         return await scoped(ChallongeConnection.all()).delete()
 

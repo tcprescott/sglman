@@ -24,7 +24,7 @@ async def admin_challonge_page() -> None:
     is_staff = await AuthService.is_staff(actor)
     service = ChallongeService()
 
-    with ui.column().classes('page-container-narrow'):
+    with ui.column().classes('page-container-narrow') as page_root:
         with page_header('Challonge Integration'):
             await help_icon('admin-challonge-sync', user=actor)
 
@@ -45,6 +45,7 @@ async def admin_challonge_page() -> None:
                     with ui.row().classes('items-center'):
                         ui.icon('link', color='positive')
                         ui.label(f"Connected as {status.get('challonge_username') or 'unknown'}").classes('text-bold')
+                    await communities_row()
                     if status.get('scopes'):
                         ui.label(f"Scopes: {status['scopes']}").classes('text-caption text-muted')
                     if not await service.can_add_participants():
@@ -68,18 +69,56 @@ async def admin_challonge_page() -> None:
                         ui.button('Disconnect', icon='link_off', on_click=disconnect).props('flat color=negative')
                 else:
                     ui.label('The Wizzrobe Challonge account is not connected.').classes('text-muted')
+                    await communities_row()
                     if is_staff:
                         connect_controls('Connect Challonge')
+
+        async def communities_row() -> None:
+            communities = await service.remembered_communities()
+            if not communities:
+                return
+            with ui.row().classes('items-center gap-1'):
+                ui.label('Communities').classes('text-caption text-muted q-mr-xs')
+                for c in communities:
+                    count = f'{c.tournament_count} tournament' + ('' if c.tournament_count == 1 else 's')
+                    chip = ui.chip(
+                        f'{c.slug} · {count}' if c.tournament_count else c.slug,
+                        removable=is_staff and c.removable, color=None,
+                    ).props('dense').classes('wiz-chip wiz-chip--neutral')
+                    if is_staff and not c.removable:
+                        chip.tooltip('Linked tournaments use this community, so it stays.')
+                    chip.on('remove', lambda _, slug=c.slug: remove_community(slug))
+
+        def remove_community(slug: str) -> None:
+            async def do_remove() -> None:
+                try:
+                    await service.remove_community(actor, slug)
+                    ui.notify(f'Removed {slug}.', color='info')
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                await connection_card.refresh()
+
+            # Opened outside the card: the refresh below would delete a dialog
+            # built inside it. The chip hides itself client-side on tap, so the
+            # refresh puts it back for a cancelled dialog.
+            with page_root:
+                ConfirmationDialog(
+                    message=f'Stop asking Challonge for {slug} when you reconnect? '
+                            'You can add it again by typing it in.',
+                    on_confirm=do_remove, confirm_text='Remove', title=f'Remove {slug}?',
+                ).open()
+            connection_card.refresh()
 
         def connect_controls(label: str) -> None:
             with ui.row().classes('items-center w-full'):
                 community = ui.input(
-                    'Community (optional)',
+                    'Add a community (optional)',
                     placeholder='speedgaming',
                 ).props('dense outlined clearable').classes('grow').tooltip(
                     'The subdomain of an organization Challonge page, e.g. '
                     'speedgaming for speedgaming.challonge.com. Needed to link '
-                    'its tournaments; sign in as one of its admins.'
+                    'its tournaments; sign in as one of its admins. Communities '
+                    'you have connected before are asked for again automatically.'
                 )
 
                 def go() -> None:

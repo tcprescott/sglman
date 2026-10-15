@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 from application.errors import require_found
 from application.feature_flags import requires_feature
 from application.repositories import ChallongeRepository, TournamentRepository, UserRepository
+from application.services._challonge_communities import ChallongeCommunitiesMixin
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
 from application.services._challonge_signup import ChallongeSignupMixin, misc_user_id
 from application.services._challonge_stages import ChallongeStageMixin
@@ -84,6 +85,7 @@ def _as_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
 
 class ChallongeService(
     ChallongeParticipantAssignmentMixin, ChallongeStageMixin, ChallongeSignupMixin,
+    ChallongeCommunitiesMixin,
 ):
     """Business logic for the Challonge integration."""
 
@@ -199,7 +201,9 @@ class ChallongeService(
     # Connection lifecycle (called by OAuth middleware)
     # ------------------------------------------------------------------
     @requires_feature(FeatureFlag.CHALLONGE)
-    async def save_service_connection(self, token_payload: Dict[str, Any], actor: User) -> ChallongeConnection:
+    async def save_service_connection(
+        self, token_payload: Dict[str, Any], actor: User, community: Optional[str] = None,
+    ) -> ChallongeConnection:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only staff can connect the Wizzrobe Challonge account",
@@ -219,8 +223,10 @@ class ChallongeService(
             challonge_username=username,
             connected_by=actor,
         )
+        await self._remember_community(community)
         await self.audit_service.write_log(
-            actor, AuditActions.CHALLONGE_CONNECTED, {'challonge_username': username},
+            actor, AuditActions.CHALLONGE_CONNECTED,
+            {'challonge_username': username, 'community': self.normalize_community(community)},
         )
         return connection
 
