@@ -2,7 +2,8 @@
 
 An entrant added to the bracket by name has no Challonge account, so sync can't
 resolve them to anyone and none of their matches can be scheduled. A tournament
-editor assigns them here; the assignment survives every re-sync.
+editor assigns them here; the assignment survives a re-sync for as long as
+the entrant stays on Challonge.
 """
 
 from nicegui import app, ui
@@ -41,7 +42,8 @@ class ChallongeParticipantsDialog:
                 ui.label(
                     "Entrants added by name on Challonge can't be matched to anyone "
                     "automatically, and their matches can't be scheduled until "
-                    "they're assigned. Re-syncing keeps what you set here."
+                    "they're assigned. Re-syncing keeps what you set here unless the "
+                    "entrant is removed on Challonge."
                 ).classes('text-caption text-muted')
 
                 @ui.refreshable
