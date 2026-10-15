@@ -20,8 +20,10 @@ from urllib.parse import urlparse
 
 from application.errors import require_found
 from application.feature_flags import requires_feature
-from application.repositories import ChallongeRepository, TournamentRepository
+from application.repositories import ChallongeRepository, TournamentRepository, UserRepository
+from application.services._challonge_communities import ChallongeCommunitiesMixin
 from application.services._challonge_participants import ChallongeParticipantAssignmentMixin
+from application.services._challonge_signup import ChallongeSignupMixin, misc_user_id
 from application.services._challonge_stages import ChallongeStageMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -59,7 +61,7 @@ CHALLONGE_MONTHLY_QUOTA = 500
 
 _DEFAULT_SERVICE_SCOPES = (
     'me tournaments:read tournaments:write matches:read matches:write '
-    'participants:read communities:manage'
+    'participants:read participants:write communities:manage'
 )
 _PLAYER_SCOPES = 'me'
 
@@ -81,7 +83,10 @@ def _as_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
-class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin):
+class ChallongeService(
+    ChallongeParticipantAssignmentMixin, ChallongeStageMixin, ChallongeSignupMixin,
+    ChallongeCommunitiesMixin,
+):
     """Business logic for the Challonge integration."""
 
     def __init__(self) -> None:
@@ -196,7 +201,9 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
     # Connection lifecycle (called by OAuth middleware)
     # ------------------------------------------------------------------
     @requires_feature(FeatureFlag.CHALLONGE)
-    async def save_service_connection(self, token_payload: Dict[str, Any], actor: User) -> ChallongeConnection:
+    async def save_service_connection(
+        self, token_payload: Dict[str, Any], actor: User, community: Optional[str] = None,
+    ) -> ChallongeConnection:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only staff can connect the Wizzrobe Challonge account",
@@ -216,8 +223,10 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
             challonge_username=username,
             connected_by=actor,
         )
+        await self._remember_community(community)
         await self.audit_service.write_log(
-            actor, AuditActions.CHALLONGE_CONNECTED, {'challonge_username': username},
+            actor, AuditActions.CHALLONGE_CONNECTED,
+            {'challonge_username': username, 'community': self.normalize_community(community)},
         )
         return connection
 
@@ -600,6 +609,11 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
             for p in await self.repository.list_participants(tournament)
             if p.user_assigned_manually
         }
+        # An entrant a player added from the Tournaments tab carries no account
+        # id until they accept Challonge's invite; its ``misc`` names them.
+        users_by_misc = await UserRepository.get_by_ids([
+            uid for uid in (misc_user_id(rp.get('misc')) for rp in remote_participants) if uid
+        ])
         participant_by_cid: Dict[str, Any] = {}
         for rp in remote_participants:
             cuid = rp.get('challonge_user_id')
@@ -607,6 +621,9 @@ class ChallongeService(ChallongeParticipantAssignmentMixin, ChallongeStageMixin)
                 user = manual[rp['participant_id']]
             else:
                 user = users_by_cuid.get(cuid) if cuid else None
+                misc_uid = misc_user_id(rp.get('misc'))
+                if user is None and misc_uid is not None:
+                    user = users_by_misc.get(misc_uid)
             participant = await self.repository.upsert_participant(
                 tournament=tournament,
                 challonge_participant_id=rp['participant_id'],

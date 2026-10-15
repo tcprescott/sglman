@@ -48,6 +48,8 @@ def test_default_service_scopes_include_communities_manage(monkeypatch):
     assert 'communities:manage' in _service_scopes().split()
     # change_state (stage control) needs it.
     assert 'tournaments:write' in _service_scopes().split()
+    # Players signing themselves up for a bracket needs it.
+    assert 'participants:write' in _service_scopes().split()
 
 
 class TestServiceAuthorizeUrl:
@@ -175,6 +177,28 @@ class TestSyncBracket:
         assert cmatch.state == ChallongeMatchState.OPEN
         assert cmatch.participant1_id == alice_p.id
         assert cmatch.participant2_id == bob_p.id
+
+    async def test_an_entrant_added_from_wizzrobe_maps_before_the_invite_is_accepted(self, db):
+        actor = await make_user(1, 'admin')
+        player = await make_user(2, 'alice', challonge_user_id='1001')
+        tournament = await Tournament.create(name='T', challonge_tournament_id='T1')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'pending'},
+            'participants': [
+                {'participant_id': '9001', 'name': 'alice', 'challonge_user_id': None,
+                 'username': 'alice', 'misc': f'wizzrobe-user:{player.id}'},
+                {'participant_id': '9002', 'name': 'Bob', 'challonge_user_id': None,
+                 'username': None, 'misc': 'wizzrobe-user:999999'},
+            ],
+            'matches': [],
+        })
+        await make_service(api=api).sync_bracket(tournament.id, actor)
+        alice_p = await ChallongeParticipant.get(tournament=tournament, challonge_participant_id='9001')
+        assert alice_p.user_id == player.id
+        assert not alice_p.user_assigned_manually
+        bob_p = await ChallongeParticipant.get(tournament=tournament, challonge_participant_id='9002')
+        assert bob_p.user_id is None
 
     async def test_community_tournament_syncs_under_its_community(self, db):
         actor = await make_user(1, 'admin')

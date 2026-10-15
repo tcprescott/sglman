@@ -7,7 +7,7 @@ No business logic.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from tortoise.expressions import Q
 
@@ -100,6 +100,18 @@ class ChallongeRepository:
         await connection.save()
 
     @staticmethod
+    async def linked_tournament_communities() -> Dict[str, int]:
+        """How many of this tenant's linked tournaments live on each Challonge community."""
+        rows = await scoped(Tournament.filter(
+            challonge_tournament_id__isnull=False, challonge_community__isnull=False,
+        )).values_list('challonge_community', flat=True)
+        counts: Dict[str, int] = {}
+        for community in rows:
+            if isinstance(community, str) and community:
+                counts[community] = counts.get(community, 0) + 1
+        return counts
+
+    @staticmethod
     async def clear_connection() -> int:
         return await scoped(ChallongeConnection.all()).delete()
 
@@ -165,6 +177,30 @@ class ChallongeRepository:
         participant.user = user
         participant.user_assigned_manually = manual
         await participant.save(update_fields=['user_id', 'user_assigned_manually', 'updated_at'])
+
+    @staticmethod
+    async def get_participant_for_user(
+        tournament: Tournament, user: User,
+    ) -> Optional[ChallongeParticipant]:
+        return await scoped(
+            ChallongeParticipant.filter(tournament=tournament, user=user)
+        ).first()
+
+    @staticmethod
+    async def participants_by_tournament(
+        tournament_ids: List[int],
+    ) -> Dict[int, List[ChallongeParticipant]]:
+        rows = await scoped(
+            ChallongeParticipant.filter(tournament_id__in=tournament_ids)
+        ).prefetch_related('user')
+        grouped: Dict[int, List[ChallongeParticipant]] = {tid: [] for tid in tournament_ids}
+        for row in rows:
+            grouped.setdefault(row.tournament_id, []).append(row)
+        return grouped
+
+    @staticmethod
+    async def delete_participant(participant: ChallongeParticipant) -> None:
+        await participant.delete()
 
     @staticmethod
     async def participant_tournament_ids_for_user(user: User) -> Set[int]:

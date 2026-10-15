@@ -46,10 +46,21 @@ the card says *Signups have closed — ask staff if you need to drop out*.
 Withdrawing is staff's call by then, because a bracket may already have been
 seeded from the roster.
 
-## Brackets synced from Challonge
+## Brackets on Challonge
 
-If your community runs a tournament through Challonge, its roster comes from the
-bracket rather than from this tab. The card says *Enrolment follows the Challonge
-bracket* instead of offering a Sign up button. Link your Challonge account under
-**Connected accounts** on your Profile and you're entered automatically, and
-your bracket matches show up on My Schedule ready for you to pick a time.
+Some tournaments run their bracket on Challonge. Those cards carry a
+**Challonge** tag, and **Sign up** adds you to the Challonge bracket itself under
+the Challonge account linked on your Profile. Before anything is sent, a short
+sheet shows the bracket and the Challonge name you'll join as. Challonge then
+emails that account an invite to confirm the entry is yours.
+
+Haven't linked Challonge yet? The button reads **Link Challonge to sign up**. It
+takes you through Challonge's sign-in and brings you back to the card to finish.
+
+You can **Withdraw** from a Challonge bracket while signups are open and the
+bracket hasn't started. Once it starts, Challonge locks the roster, so the card
+says *Bracket started* and dropping out is staff's call.
+
+If staff added you on Challonge directly, link your Challonge account under
+**Connected accounts** on your Profile and the card shows you as signed up. Your
+bracket matches show up on My Schedule ready for you to pick a time.

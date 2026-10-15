@@ -22,9 +22,15 @@ how many API requests it has used this month. The count turns red at 80% of the
 quota.
 
 If the brackets belong to a Challonge community (a page like
-`speedgaming.challonge.com`), type its subdomain in **Community** before you press
-**Connect Challonge**, and sign in as one of that community's admins. Without it,
-Challonge refuses to show Wizzrobe the community's tournaments.
+`speedgaming.challonge.com`), type its subdomain in **Add a community** before you
+press **Connect Challonge**, and sign in as one of that community's admins.
+Without it, Challonge refuses to show Wizzrobe the community's tournaments.
+
+Wizzrobe remembers every community you've connected with, plus any community a
+linked tournament lives on, and lists them on the card. **Reconnect** asks
+Challonge for each of them again, one approval screen per community, so you only
+type a community once. Remove one with its ×. A community that linked
+tournaments still use can't be removed.
 
 If the stage changes in a linked tournament's ⋮ menu are greyed out, press
 **Reconnect**. Older connections weren't given permission to change a

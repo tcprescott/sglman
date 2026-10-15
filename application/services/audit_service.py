@@ -226,6 +226,7 @@ class AuditActions:
     # Challonge integration
     CHALLONGE_CONNECTED = 'challonge.connected'
     CHALLONGE_DISCONNECTED = 'challonge.disconnected'
+    CHALLONGE_COMMUNITY_REMOVED = 'challonge.community_removed'
     CHALLONGE_PLAYER_LINKED = 'challonge.player_linked'
     CHALLONGE_PLAYER_UNLINKED = 'challonge.player_unlinked'
     CHALLONGE_PLAYER_USERNAME_UPDATED = 'challonge.player_username_updated'
@@ -235,6 +236,8 @@ class AuditActions:
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
     CHALLONGE_PARTICIPANT_ASSIGNED = 'challonge.participant_assigned'
     CHALLONGE_PARTICIPANT_UNASSIGNED = 'challonge.participant_unassigned'
+    CHALLONGE_PARTICIPANT_SIGNED_UP = 'challonge.participant_signed_up'
+    CHALLONGE_PARTICIPANT_WITHDRAWN = 'challonge.participant_withdrawn'
     CHALLONGE_STAGE_ADVANCED = 'challonge.stage_advanced'
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 

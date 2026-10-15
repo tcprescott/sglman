@@ -15,6 +15,7 @@ including whether the button should be there at all, so this page and the REST
 route cannot disagree about who may sign up.
 """
 
+from dataclasses import replace
 from typing import Optional
 
 from nicegui import app, background_tasks, context, ui
@@ -26,11 +27,17 @@ from application.services import (
     get_user_from_session,
 )
 from application.services.tournament_service import TournamentSignupCard
+from application.tenant_context import is_host_mode
+from application.utils.app_links import HOME_TOURNAMENTS, home_url
+from application.utils.environment import host_oauth_handoff_enabled
 from application.utils.safe_url import http_url_or_empty
 from application.utils.timezone import format_local_date, format_local_display
 from application.utils.tournament_signup import SignupWindow
 from models import FeatureFlag
+from pages.home_tabs._link_section import open_sign_in_first_dialog
+from pages.home_tabs.challonge_link_section import CONFIG as _CHALLONGE_LINK_SECTION
 from pages.home_tabs.triforce_texts import open_triforce_dialog, supporting_tournament_ids
+from theme.dialog.challonge_signup_dialog import open_challonge_signup_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.empty_state import empty_panel
 from theme.help import help_icon
@@ -38,27 +45,35 @@ from theme.help.render import render_blocks
 from theme.notify import notify_error
 from theme.page_header import page_header
 
+# The Profile's Challonge link, returning to this tab instead of the Profile so
+# the player finishes signing up where they started.
+CHALLONGE_LINK = replace(
+    _CHALLONGE_LINK_SECTION,
+    link_route=f'{_CHALLONGE_LINK_SECTION.link_route}?next={HOME_TOURNAMENTS}',
+)
+
 # Section title, and the predicate that puts a card in it. Order is the reading
 # order: what you can do something about, then what you are already in, then the
 # rest. A section with no cards is not drawn.
 _SECTIONS = (
-    # "Open for signup" is `can_sign_up`, not a re-derivation of it: reading the
-    # window alone put Challonge-synced tournaments under a heading whose whole
-    # promise is a button they will never show.
-    ('Open for signup', 'how_to_reg', lambda c: c.can_sign_up),
+    # "Open for signup" is the card's own answer, not a re-derivation of it:
+    # reading the window alone would put a started Challonge bracket under a
+    # heading whose whole promise is a button. A Challonge bracket the reader
+    # can enter once they link counts, because the card's button does the link.
+    ('Open for signup', 'how_to_reg', lambda c: c.can_sign_up or c.needs_challonge_link),
     ('My tournaments', 'emoji_events', lambda c: c.enrolled),
     (
         'Opening soon',
         'schedule',
-        lambda c: not c.enrolled and not c.can_sign_up
+        lambda c: not c.enrolled and not c.can_sign_up and not c.needs_challonge_link
         and c.window is SignupWindow.UPCOMING,
     ),
-    # Everything else you are not in: closed windows, and the Challonge-managed
-    # tournaments whose roster comes from the bracket instead.
+    # Everything else you are not in: closed windows, and Challonge brackets
+    # that have already started.
     (
         'Not taking signups',
         'lock',
-        lambda c: not c.enrolled and not c.can_sign_up
+        lambda c: not c.enrolled and not c.can_sign_up and not c.needs_challonge_link
         and c.window is not SignupWindow.UPCOMING,
     ),
 )
@@ -73,13 +88,32 @@ def signup_status(card: TournamentSignupCard) -> tuple[str, str]:
     """
     if card.enrolled:
         return 'wiz-chip--ok', 'Signed up'
-    if card.challonge_managed:
-        return 'wiz-chip--neutral', 'Roster from Challonge'
+    if card.challonge_managed and card.roster_locked:
+        return 'wiz-chip--cancelled', 'Bracket started'
     if card.window is SignupWindow.UPCOMING:
         return 'wiz-chip--candidate', 'Not open yet'
     if card.window is SignupWindow.CLOSED:
         return 'wiz-chip--cancelled', 'Signups closed'
     return 'wiz-chip--pending', 'Signups open'
+
+
+def challonge_note(card: TournamentSignupCard) -> Optional[str]:
+    """Which Challonge account the reader is, or will be, on the bracket as."""
+    if not card.challonge_managed:
+        return None
+    if card.enrolled:
+        return (
+            "You're on the Challonge bracket. If you haven't yet, accept the invite "
+            'Challonge emailed you to tie the entry to your account.'
+        )
+    if card.can_sign_up:
+        return f"You'll join the Challonge bracket as {card.challonge_name}."
+    if card.needs_challonge_link:
+        return (
+            'This bracket runs on Challonge, so link your Challonge account first. '
+            "You'll come straight back here to finish signing up."
+        )
+    return None
 
 
 def window_note(card: TournamentSignupCard) -> Optional[str]:
@@ -174,6 +208,23 @@ async def tournaments_tab() -> None:
                 await cards.refresh()
                 follow_card(tournament_id)
 
+        def confirm_challonge_signup(card: TournamentSignupCard) -> None:
+            client = context.client
+            open_challonge_signup_dialog(
+                card.tournament.name, card.challonge_name or '', card.entrant_count,
+                on_confirm=lambda: sign_up(card.tournament.id, client),
+            )
+
+        def start_challonge_link() -> None:
+            if is_host_mode() and not host_oauth_handoff_enabled():
+                # A custom domain without the handoff can only link from the
+                # main site, which the Profile's Connected accounts row explains.
+                ui.navigate.to(home_url('profile'))
+                return
+            open_sign_in_first_dialog(
+                CHALLONGE_LINK, CHALLONGE_LINK.sign_in_first_url or '',
+            )
+
         def confirm_withdraw(tournament) -> None:
             client = context.client
             ConfirmationDialog(
@@ -192,6 +243,10 @@ async def tournaments_tab() -> None:
                     ui.label(t.name).classes('text-subtitle1 text-weight-medium')
                     with ui.element('span').classes(f'wiz-chip {chip_class}'):
                         ui.label(status)
+                    if card.challonge_managed:
+                        with ui.element('span').classes('wiz-chip wiz-chip--neutral') \
+                                .tooltip('This bracket runs on Challonge'):
+                            ui.label('Challonge')
                     ui.space()
                     dates = event_dates(card)
                     if dates:
@@ -223,28 +278,43 @@ async def tournaments_tab() -> None:
                 with ui.expansion(
                     f'{card.entrant_count} signed up', icon='group',
                 ).classes('w-full').props('dense'):
-                    if not card.entrants:
+                    if not card.entrants and not card.unmapped_entrant_names:
                         ui.label('Nobody yet — be first.').classes('text-muted text-caption')
                     for entrant in card.entrants:
                         ui.label(entrant.display_name or entrant.username) \
                             .classes('text-caption')
+                    for name in card.unmapped_entrant_names:
+                        ui.label(name).classes('text-caption')
+
+                challonge_line = challonge_note(card)
+                if challonge_line:
+                    ui.label(challonge_line).classes('text-caption text-grey-7')
 
                 with ui.row().classes('items-center gap-2'):
-                    if card.can_sign_up:
+                    if card.can_sign_up and card.challonge_managed:
+                        ui.button(
+                            'Sign up', icon='how_to_reg',
+                            on_click=lambda _e, c=card: confirm_challonge_signup(c),
+                        ).props('color=primary no-caps')
+                    elif card.can_sign_up:
                         ui.button(
                             'Sign up', icon='how_to_reg',
                             on_click=lambda _e, tid=t.id: background_tasks.create(
                                 sign_up(tid, context.client)),
+                        ).props('color=primary no-caps')
+                    elif card.needs_challonge_link:
+                        ui.button(
+                            'Link Challonge to sign up', icon='link',
+                            on_click=start_challonge_link,
                         ).props('color=primary no-caps')
                     elif card.can_withdraw:
                         ui.button(
                             'Withdraw', icon='undo',
                             on_click=lambda _e, tour=t: confirm_withdraw(tour),
                         ).props('flat color=negative dense no-caps')
-                    elif card.challonge_managed:
+                    elif card.enrolled and card.challonge_managed and card.roster_locked:
                         ui.label(
-                            'Enrolment follows the Challonge bracket — link your '
-                            'Challonge account on your Profile.'
+                            'The bracket has started — ask staff if you need to drop out.'
                         ).classes('text-caption text-grey-7')
                     elif card.enrolled:
                         # Enrolled with the window shut — the only state that

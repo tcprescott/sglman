@@ -90,8 +90,10 @@ async def sign_up_for_tournament(
     """Sign yourself up to play in a tournament.
 
     Enters the person this connection belongs to, never anyone else. Refused
-    outside the signup window, for a non-member, and for a tournament whose
-    roster is synced from Challonge.
+    outside the signup window and for a non-member. A tournament linked to
+    Challonge adds you to its Challonge bracket under your linked Challonge
+    account, and is refused if you have not linked one or the bracket has
+    started.
     """
     actor = current_actor().user
     tournament = await TournamentService().self_enroll(tournament_id, actor)

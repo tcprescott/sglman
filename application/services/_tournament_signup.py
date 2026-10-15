@@ -21,6 +21,7 @@ from typing import List, Optional
 from application.errors import require_found
 from application.events import EventType
 from application.repositories import TournamentRepository
+from application.services._challonge_signup import roster_locked
 from application.services.audit_service import AuditActions, AuditService
 from application.services.tenant_membership_service import TenantMembershipService
 from application.utils.discord_embeds import COLOR_SCHEDULED
@@ -48,15 +49,38 @@ class TournamentSignupCard:
     enrolled: bool
     entrant_count: int
     entrants: List[User] = field(default_factory=list)
-    # Roster comes from a synced Challonge bracket, so nobody signs up here.
+    # Roster lives on a linked Challonge bracket: signing up adds the player
+    # there, under the Challonge account linked on their profile.
     challonge_managed: bool = False
+    # The viewer's linked Challonge username, None when they have not linked.
+    challonge_name: Optional[str] = None
+    # The bracket has started, so Challonge no longer takes roster changes.
+    roster_locked: bool = False
+    # Bracket entrants nobody has mapped to a Wizzrobe user, by Challonge name.
+    unmapped_entrant_names: List[str] = field(default_factory=list)
+
+    @property
+    def _roster_open(self) -> bool:
+        return not (self.challonge_managed and self.roster_locked)
 
     @property
     def can_sign_up(self) -> bool:
         return (
             not self.enrolled
-            and not self.challonge_managed
             and self.window is SignupWindow.OPEN
+            and self._roster_open
+            and (not self.challonge_managed or self.challonge_name is not None)
+        )
+
+    @property
+    def needs_challonge_link(self) -> bool:
+        """Open to this viewer once they link Challonge, which they have not."""
+        return (
+            self.challonge_managed
+            and not self.enrolled
+            and self.window is SignupWindow.OPEN
+            and self._roster_open
+            and self.challonge_name is None
         )
 
     @property
@@ -64,11 +88,12 @@ class TournamentSignupCard:
         # UPCOMING counts: staff can enrol someone before signups open, and
         # there is no roster to protect yet — locking them in before the window
         # has even started would be a rule with nothing behind it. Only a closed
-        # window makes withdrawing staff's call.
+        # window, or a Challonge bracket that has started, makes withdrawing
+        # staff's call.
         return (
             self.enrolled
-            and not self.challonge_managed
             and self.window is not SignupWindow.CLOSED
+            and self._roster_open
         )
 
 
@@ -158,7 +183,8 @@ class TournamentSignupMixin:
 
         One place resolves the window, the enrolment and the entrant list, so the
         tab, the REST payload and the MCP tool cannot describe the same
-        tournament differently.
+        tournament differently. A Challonge-linked tournament's roster is its
+        mirrored bracket, not the Wizzrobe player pool.
         """
         tournaments = await self.repository.get_all(active_only=True)
         if not tournaments:
@@ -170,17 +196,49 @@ class TournamentSignupMixin:
             await self.repository.enrolled_tournament_ids(user.id) if user else set()
         )
         challonge_ids = await self._challonge_managed_ids()
-        return [
-            TournamentSignupCard(
-                tournament=t,
-                window=signup_window_state(t.signups_open_at, t.signups_close_at, now),
-                enrolled=t.id in enrolled_ids,
-                entrant_count=counts.get(t.id, 0),
-                entrants=entrants.get(t.id, []),
-                challonge_managed=t.id in challonge_ids,
+        rosters = {}
+        if challonge_ids:
+            from application.services.challonge_service import ChallongeService
+
+            rosters = await ChallongeService().signup_rosters(
+                [t.id for t in tournaments if t.id in challonge_ids]
             )
-            for t in tournaments
-        ]
+        challonge_name = (
+            user.challonge_username if user and user.challonge_user_id else None
+        )
+        cards = []
+        for t in tournaments:
+            window = signup_window_state(t.signups_open_at, t.signups_close_at, now)
+            if t.id not in challonge_ids:
+                cards.append(TournamentSignupCard(
+                    tournament=t,
+                    window=window,
+                    enrolled=t.id in enrolled_ids,
+                    entrant_count=counts.get(t.id, 0),
+                    entrants=entrants.get(t.id, []),
+                ))
+                continue
+            roster = rosters.get(t.id, [])
+            cards.append(TournamentSignupCard(
+                tournament=t,
+                window=window,
+                enrolled=user is not None and any(p.user_id == user.id for p in roster),
+                entrant_count=len(roster),
+                entrants=[p.user for p in roster if p.user is not None],
+                challonge_managed=True,
+                challonge_name=challonge_name,
+                roster_locked=roster_locked(t.challonge_state),
+                unmapped_entrant_names=sorted(
+                    (p.name or '?' for p in roster if p.user is None), key=str.lower,
+                ),
+            ))
+        return cards
+
+    async def _is_challonge_managed(self, tournament: Tournament) -> bool:
+        # Asked of the row in hand rather than through ``_challonge_managed_ids``,
+        # which loads the tenant's whole tournament table — worth it once per
+        # page build, wasteful on every single signup.
+        return bool(tournament.challonge_tournament_id) and await self._challonge_live()
 
     async def _signup_target(self, tournament_id: int, *, joining: bool) -> Tournament:
         """Load a tournament a player may act on, or say why they may not.
@@ -199,14 +257,6 @@ class TournamentSignupMixin:
         )
         if not tournament.is_active:
             raise ValueError('That tournament is not accepting signups.')
-        # Asked of the row in hand rather than through ``_challonge_managed_ids``,
-        # which loads the tenant's whole tournament table — worth it once per
-        # page build, wasteful on every single signup.
-        if tournament.challonge_tournament_id and await self._challonge_live():
-            raise ValueError(
-                f'{tournament.name} takes its roster from its Challonge bracket — '
-                'link your Challonge account instead.'
-            )
         state = signup_window_state(tournament.signups_open_at, tournament.signups_close_at)
         if state is SignupWindow.CLOSED:
             raise ValueError(
@@ -226,6 +276,12 @@ class TournamentSignupMixin:
         tournament = await self._signup_target(tournament_id, joining=True)
         if not await TenantMembershipService().is_member(user):
             raise ValueError('Join this community before signing up for its tournaments.')
+        if await self._is_challonge_managed(tournament):
+            from application.services.challonge_service import ChallongeService
+
+            await ChallongeService().sign_up_player(tournament, user)
+            await self._notify_signup(user, tournament)
+            return tournament
         if await self.repository.is_player_enrolled(tournament, user):
             raise ValueError(f'You are already signed up for {tournament.name}.')
         await self.repository.enroll_player(tournament, user)
@@ -240,6 +296,11 @@ class TournamentSignupMixin:
         already been seeded from should not lose an entrant silently.
         """
         tournament = await self._signup_target(tournament_id, joining=False)
+        if await self._is_challonge_managed(tournament):
+            from application.services.challonge_service import ChallongeService
+
+            await ChallongeService().withdraw_player(tournament, user)
+            return tournament
         if not await self.repository.is_player_enrolled(tournament, user):
             raise ValueError(f'You are not signed up for {tournament.name}.')
         await self.repository.unenroll_player(tournament, user)

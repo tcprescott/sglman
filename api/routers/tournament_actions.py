@@ -148,8 +148,10 @@ async def remove_crew_coordinator(
     summary="Sign yourself up for a tournament",
     description=(
         "Self-service enrolment, the same act the Tournaments tab performs. "
-        "Refused outside the tournament's signup window, for a non-member, and "
-        "for a tournament whose roster is synced from Challonge. Staff enrolling "
+        "Refused outside the tournament's signup window and for a non-member. For "
+        "a tournament linked to Challonge it adds you to the Challonge bracket "
+        "under your linked Challonge account (link one first), until the bracket "
+        "starts. Staff enrolling "
         "someone else use PUT /users/{user_id}/tournaments, which ignores the window."
     ),
 )
@@ -162,7 +164,8 @@ async def sign_up_for_tournament(tournament_id: int, actor: User = Depends(requi
     "/{tournament_id}/signup",
     summary="Withdraw yourself from a tournament",
     description=(
-        "Allowed while the signup window is open. Once it closes, withdrawing is "
+        "Allowed while the signup window is open (and, for a Challonge bracket, "
+        "until it starts). Once it closes, withdrawing is "
         "staff's call — a roster a bracket was seeded from should not lose an "
         "entrant silently."
     ),
