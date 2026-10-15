@@ -473,7 +473,7 @@ Seed generation suppresses the notification when the service reports a generatio
 
 Two tab functions live in this module.
 
-**`admin_tournaments_page()`** — `TournamentTableView` over the tenant-scoped `Tournament.filter(tenant_id=…)` (`table_key=TableKeys.ADMIN_TOURNAMENTS`, `searchable=True`). Columns: Name, Description, Seed Generator, Active, Players/Match, Avg Match Duration, Max Match Duration, Player Count, Signups (the signup-window state; the ID column is hidden). **Add Tournament** renders only when `AuthService.is_staff(actor)` and opens `TournamentDialog`; name clicks edit, player-count clicks open `TournamentPlayersDialog`; both the edit dialog's save and its Danger-zone delete repaint the table. Listens for `selected_tab == 'Tournaments'` to refresh.
+**`admin_tournaments_page()`** — `TournamentTableView` over the tenant-scoped `Tournament.filter(tenant_id=…)` (`table_key=TableKeys.ADMIN_TOURNAMENTS`, `searchable=True`, `can_delete` for staff). Columns come from `tournament_columns()`: Tournament (name link with the format on a second line and an Inactive chip), Signups (state chip plus when the window next moves), Seed, Match length (average, with the maximum underneath; sorts by the average), Players (link), and a ⋮ row menu. Format, Description, Active and Players per match are hidden by default and offered in the gear. The toolbar is **Add tournament** (staff only, opens `TournamentDialog`), search, an **Actions** menu (Export CSV), the gear and refresh. Listens for `selected_tab == 'Tournaments'` to refresh.
 
 **`admin_stages_page()`** — a hand-rolled `ui.table` (not a shared table view). Rows from `StageService().get_all_stages()`: Name, Stream URL (as a link), Active (icon) — no ID column. **Add Stage** renders only when `AuthService.can_manage_stages(actor)`; the name link and the mobile-card edit button emit an `edit` event opening `StageEditDialog`. Mobile grid mode via `:grid="Quasar.Screen.lt.md"` with a custom `item` card slot.
 
@@ -984,9 +984,9 @@ It replaced a single `can_crud = is_staff or is_ta_any`, which stood in for all 
 
 ### `TournamentTableView` (`theme/tables/tournament.py`)
 
-- Toolbar: optional **Add Tournament** button (when `submit_tournament_callback` is provided) plus a refresh button.
-- Slots: clickable Name (emits `edit_tournament` → `TournamentDialog`), clickable Player Count (emits `show_players` → `TournamentPlayersDialog`), truncated Description with tooltip, icon rendering for Active and Staff Administered.
-- `refresh()` orders by name and builds rows from `get_query().prefetch_related('players')` (player count computed from the prefetched relation); `update_row_by_id` refreshes one row. Editing does not auto-refresh the row afterwards.
+- Toolbar: optional **Add tournament** button (when `submit_tournament_callback` is provided); with a `table_key`, a search box, an **Actions** menu (Export CSV) and the preferences gear; then refresh. On a phone the search box and refresh drop to a second line.
+- Slots: name link (emits `edit_tournament` → `TournamentDialog`), player-count link (emits `show_players` → `TournamentPlayersDialog`), a signup chip, and a ⋮ menu (`slot_more_menu`) with Edit, Manage players, Open bracket / Open rules (when the tournament has that link) and, with `can_delete`, Delete for an inactive tournament (`confirm_tournament_delete`, shared with the edit dialog's Danger zone). The phone `item` card shows the same four fields and the same ⋮.
+- `refresh()` annotates the player count in SQL and builds each row with `_tournament_row`; `update_row_by_id` refreshes one row.
 
 ### `UserTableView` (`theme/tables/user.py`)
 

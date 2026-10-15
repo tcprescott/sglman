@@ -3723,6 +3723,100 @@ td .wiz-crew-action {
     width: 100%;
 }
 
+/* Tournaments board (theme/tables/tournament.py). Headers line up with their
+   cells instead of the families' centred default, and a cell's detail goes on a
+   muted second line rather than into another column, so six columns fit a
+   laptop without the table scrolling sideways. */
+.tournament-table thead th {
+    text-align: left;
+}
+
+.tournament-table th.text-right,
+.tournament-table td.text-right {
+    text-align: right;
+}
+
+.tournament-table td.tournament-table__name-cell {
+    white-space: normal;
+    min-width: 14rem;
+    max-width: 30rem;
+}
+
+.tournament-table__sub {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    margin-top: 2px;
+    white-space: normal;
+}
+
+.tournament-table__mono {
+    font-family: var(--font-mono);
+}
+
+.tournament-table__unset {
+    color: var(--fg-muted);
+}
+
+.tournament-toolbar__search {
+    flex: 0 1 20rem;
+    min-width: 0;
+}
+
+/* On a phone Add and Actions keep the first line; search and refresh share the next. */
+@media (max-width: 1023.98px) {
+    .tournament-toolbar__search {
+        order: 1;
+        flex: 1 1 12rem;
+    }
+
+    .tournament-toolbar__refresh {
+        order: 2;
+    }
+}
+
+/* The phone card: name and ⋮ on top, then four label/value fields two across. */
+.tournament-grid-card {
+    padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.tournament-grid-card__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.tournament-grid-card__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--text-lg);
+    overflow-wrap: anywhere;
+}
+
+.tournament-grid-card__more {
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+    margin-top: -10px;
+}
+
+.tournament-grid-card__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    padding-right: var(--space-2);
+}
+
+.tournament-grid-card__label {
+    color: var(--status-neutral);
+    font-size: var(--text-sm);
+}
+
+.tournament-grid-card__value {
+    margin-top: 2px;
+}
+
 .equipment-table-container {
     margin-top: 1em;
     width: 100%;

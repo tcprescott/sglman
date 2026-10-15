@@ -14,7 +14,7 @@ from theme.help import help_icon
 from theme.page_header import page_header
 from theme.tables.admin_crud import refresh_button
 from theme.tables.preferences import TableKeys, customize_table, preferences_button
-from theme.tables.tournament import TournamentTableView
+from theme.tables.tournament import TournamentTableView, tournament_columns
 
 
 async def admin_tournaments_page() -> None:
@@ -23,36 +23,12 @@ async def admin_tournaments_page() -> None:
 
     with ui.column().classes('page-container'):
         with page_header(
-            'Tournament Management',
-            'The tournaments this community runs — players per match, durations, '
-            'and seed generator. Click a name to edit, or a player count to manage '
-            'entrants.',
+            'Tournaments',
+            'Click a tournament to edit it, or its player count to manage entrants.',
         ):
             await help_icon('admin-tournaments', user=actor)
 
-        columns: list[dict] = [
-            {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
-            {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
-            # Not sortable: free prose, where alphabetical order means nothing.
-            {'name': 'description', 'label': 'Description', 'field': 'description'},
-            {'name': 'seed_generator', 'label': 'Seed Generator', 'field': 'seed_generator',
-             'sortable': True},
-            {'name': 'is_active', 'label': 'Active', 'field': 'is_active', 'sortable': True},
-            {'name': 'players_per_match', 'label': 'Players/Match',
-             'field': 'players_per_match', 'sortable': True},
-            {'name': 'average_match_duration', 'label': 'Avg Match Duration (min)',
-             'field': 'average_match_duration', 'sortable': True},
-            {'name': 'max_match_duration', 'label': 'Max Match Duration (min)',
-             'field': 'max_match_duration', 'sortable': True},
-            {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count',
-             'sortable': True},
-            # Whether players can currently sign themselves up. Staff setting a
-            # window on the Tournaments tab need to see it took effect without
-            # reopening the dialog. Not sortable: the cell is a state plus the
-            # date it moves on, and sorting that string alphabetically is neither
-            # chronological nor state order — it just looks like it means something.
-            {'name': 'signups', 'label': 'Signups', 'field': 'signups'},
-        ]
+        columns = tournament_columns()
 
         async def add_tournament():
             async def after_submit(_):
@@ -66,7 +42,7 @@ async def admin_tournaments_page() -> None:
         table_view = TournamentTableView(
             columns=columns, get_query=get_query,
             submit_tournament_callback=add_tournament if can_create else None,
-            table_key=TableKeys.ADMIN_TOURNAMENTS, searchable=True,
+            table_key=TableKeys.ADMIN_TOURNAMENTS, searchable=True, can_delete=can_create,
         )
         
         # Route through the view's _bg so the tab-switch refresh rebinds the

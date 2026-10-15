@@ -455,47 +455,12 @@ class TournamentDialog:
                             ).classes('text-caption text-warning')
 
             async def confirm_delete() -> None:
-                preview = await self.tournament_service.deletion_preview(self.tournament)
-                lines = '\n'.join(
-                    f'• {count} {one if count == 1 else many}'
-                    for one, many, count in (
-                        ('match', 'matches', preview['matches']),
-                        ('enrolled player', 'enrolled players', preview['players']),
-                        ('bracket stage', 'bracket stages', preview['brackets']),
-                        ('triforce text', 'triforce texts', preview['triforce_texts']),
-                    )
-                    if count
-                ) or '• nothing else — this tournament has no matches or entrants'
-
-                async def do_delete() -> None:
-                    # The confirmation has already closed itself by now, so both
-                    # notices belong to the edit dialog still standing behind it.
-                    try:
-                        actor = await get_user_from_session(app.storage.user)
-                        await self.tournament_service.delete_tournament(
-                            self.tournament, actor=actor,
-                            confirmation=confirm.typed_phrase,
-                        )
-                    except (ValueError, PermissionError) as e:
-                        with self.dialog:
-                            notify_error(e)
-                        return
-                    with self.dialog:
-                        ui.notify(f'Deleted “{self.tournament.name}”.', color='positive')
-                        dialog.close()
+                async def after_delete() -> None:
+                    dialog.close()
                     if self.on_delete:
                         await self.on_delete()
 
-                confirm = ConfirmationDialog(
-                    f'Permanently delete “{self.tournament.name}”?\n\n'
-                    f'This also deletes:\n{lines}\n\n'
-                    'There is no undo.',
-                    on_confirm=do_delete,
-                    confirm_text='Delete forever',
-                    title='Delete tournament',
-                    require_phrase=DELETE_CONFIRMATION_PHRASE,
-                )
-                confirm.open()
+                await confirm_tournament_delete(self.tournament, on_deleted=after_delete)
 
             async def submit():
                 if not (name_input.value or '').strip():
@@ -615,3 +580,48 @@ class TournamentDialog:
 
             submit_on_enter(dialog, submit)
             dialog.open()
+
+
+async def confirm_tournament_delete(tournament, on_deleted=None) -> None:
+    """Ask before permanently deleting ``tournament``, listing what goes with it.
+
+    Shared by the edit dialog's Danger zone and the Tournaments board's row menu,
+    so both say the same thing and demand the same typed phrase. ``on_deleted``
+    runs (with no arguments) once the delete has gone through.
+    """
+    service = TournamentService()
+    preview = await service.deletion_preview(tournament)
+    lines = '\n'.join(
+        f'• {count} {one if count == 1 else many}'
+        for one, many, count in (
+            ('match', 'matches', preview['matches']),
+            ('enrolled player', 'enrolled players', preview['players']),
+            ('bracket stage', 'bracket stages', preview['brackets']),
+            ('triforce text', 'triforce texts', preview['triforce_texts']),
+        )
+        if count
+    ) or '• nothing else — this tournament has no matches or entrants'
+
+    async def do_delete() -> None:
+        try:
+            actor = await get_user_from_session(app.storage.user)
+            await service.delete_tournament(
+                tournament, actor=actor, confirmation=confirm.typed_phrase,
+            )
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify(f'Deleted “{tournament.name}”.', color='positive')
+        if on_deleted:
+            await on_deleted()
+
+    confirm = ConfirmationDialog(
+        f'Permanently delete “{tournament.name}”?\n\n'
+        f'This also deletes:\n{lines}\n\n'
+        'There is no undo.',
+        on_confirm=do_delete,
+        confirm_text='Delete forever',
+        title='Delete tournament',
+        require_phrase=DELETE_CONFIRMATION_PHRASE,
+    )
+    confirm.open()
