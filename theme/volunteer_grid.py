@@ -10,7 +10,7 @@ draws it.
 import math
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Awaitable, Callable, List, Optional, Sequence, Tuple, Union
 
 from nicegui import ui
 
@@ -103,7 +103,7 @@ def _px(hours: float) -> str:
 
 
 def render_day_bar(
-    days: Sequence[date], selected: Optional[date], on_pick: Callable[[date], None], *,
+    days: Sequence[date], selected: Optional[date], on_pick: Callable[[date], Union[Awaitable[None], None]], *,
     on_columns: Optional[Callable[[], None]] = None, customized: bool = False,
     trailing: Optional[Callable[[], None]] = None,
 ) -> None:
@@ -264,7 +264,7 @@ def render_day_grid(
     grid: DayGrid, day: date, *,
     staff: bool = False,
     on_shift: Optional[Callable[[GridShift, str], None]] = None,
-    on_empty: Optional[Callable[[int, datetime], None]] = None,
+    on_empty: Optional[Callable[[int, datetime], Union[Awaitable[None], None]]] = None,
     selected_shift_id: int = 0,
 ) -> None:
     """The grid itself. ``on_shift`` makes each shift a button (the Shift

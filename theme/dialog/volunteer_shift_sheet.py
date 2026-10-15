@@ -86,8 +86,11 @@ class VolunteerShiftSheet:
             return
         self._content.refresh()
 
-    async def _actor(self) -> Optional[User]:
-        return await get_user_from_session(app.storage.user)
+    async def _actor(self) -> User:
+        user = await get_user_from_session(app.storage.user)
+        if user is None:
+            raise PermissionError('Your session has ended. Sign in again.')
+        return user
 
     async def _changed(self) -> None:
         await self.on_changed()
@@ -107,7 +110,8 @@ class VolunteerShiftSheet:
         with ui.column().classes('match-sheet__body full-width'):
             ui.label(position).classes('match-sheet__title')
             ui.label(
-                f'{day_label(to_local(shift.starts_at).date())} · {shift_range(shift)} {timezone_label()}'
+                f'{day_label(to_local(shift.starts_at).date())} · '  # type: ignore[union-attr]
+                f'{shift_range(shift)} {timezone_label()}'
             ).classes('text-caption text-muted')
             if shift.label:
                 ui.label(shift.label).classes('text-caption')

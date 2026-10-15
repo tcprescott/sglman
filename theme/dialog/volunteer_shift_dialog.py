@@ -27,8 +27,8 @@ from theme.notify import notify_error
 class VolunteerShiftDialog:
     def __init__(
         self,
-        shift: VolunteerShift = None,
-        position: VolunteerPosition = None,
+        shift: VolunteerShift | None = None,
+        position: VolunteerPosition | None = None,
         default_day: str | None = None,
         on_submit=None,
         default_start: datetime | None = None,

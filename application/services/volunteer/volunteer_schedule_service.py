@@ -94,7 +94,7 @@ class VolunteerScheduleService:
         shifts = await self.shift_repository.list_for_window(start, end)
         positions = [(p.id, p.name) for p in await self.position_repository.list_active()]
         return build_day_grid(
-            shifts, midnight, actor.id, for_staff=True, positions=positions,
+            shifts, midnight, actor.id if actor else 0, for_staff=True, positions=positions,
             now=datetime.now(timezone.utc),
         )
 
