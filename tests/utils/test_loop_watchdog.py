@@ -12,7 +12,9 @@ from application.utils.background_loop import BackgroundLoop, worker_stats
 
 
 def _block_the_loop(seconds: float) -> None:
-    time.sleep(seconds)
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        pass
 
 
 @pytest.fixture
