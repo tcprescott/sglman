@@ -78,11 +78,6 @@ async def render_device_rows(
     if not service.is_configured():
         return False
 
-    # Order matters: web-push.js uses the helpers this defines, and both are
-    # plain (non-deferred) head scripts, so they execute in source order.
-    ui.add_head_html(f'<script src="{asset_url("js/web-push-common.js")}"></script>')
-    ui.add_head_html(f'<script src="{asset_url("js/web-push.js")}"></script>')
-
     request = context.client.request
     user_agent = request.headers.get('user-agent') if request else None
     public_key = service.get_public_key()
@@ -227,10 +222,28 @@ async def render_device_rows(
 
     await other_devices()
 
+    # Profile is usually opened by switching tabs, which builds this section
+    # inside an event handler, where ui.add_head_html falls back to
+    # insertAdjacentHTML and a <script> inserted that way never runs. So the
+    # scripts are appended as elements instead, and the switch stays disabled
+    # until they have loaded and reported a status.
+    scripts = json.dumps([asset_url('js/web-push-common.js'), asset_url('js/web-push.js')])
+
     async def ask_status() -> None:
         await context.client.connected()
         ui.run_javascript(
-            'window.wizWebPush.status().then((s) => emitEvent("wiz_web_push_status", s));'
+            f'Promise.all({scripts}.map((src) => {{'
+            'const loaded = (window.__wizScripts = window.__wizScripts || {});'
+            'return loaded[src] || (loaded[src] = new Promise((resolve, reject) => {'
+            "const el = document.createElement('script');"
+            'el.src = src; el.async = false; el.onload = resolve;'
+            'el.onerror = () => { delete loaded[src]; reject(new Error(src)); };'
+            'document.head.appendChild(el);'
+            '}));'
+            '}))'
+            '.then(() => window.wizWebPush.status())'
+            '.catch(() => ({ supported: false }))'
+            '.then((s) => emitEvent("wiz_web_push_status", s));'
         )
 
     ui.timer(0, ask_status, once=True)
