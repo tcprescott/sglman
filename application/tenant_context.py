@@ -86,7 +86,20 @@ def client_stash() -> Optional[dict]:
     try:
         return app.storage.client
     except Exception:
+        pass
+    # A handler whose own element was deleted while it awaited (a button inside
+    # a refreshable it refreshed) leaves a dead slot on top of the stack, so
+    # ``context.client`` raises; the client is still reachable from a live slot
+    # further down, which ``background_tasks`` pushes for exactly this case.
+    stack = Slot.get_stack()
+    if not stack or stack[-1]._parent() is not None:
         return None
+    for slot in reversed(stack):
+        try:
+            return slot.parent.client.storage
+        except Exception:
+            continue
+    return None
 
 
 def _client_stash_host_mode() -> bool:

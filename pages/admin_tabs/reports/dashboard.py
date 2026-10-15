@@ -14,6 +14,7 @@ from application.services import (
     SystemConfigService,
     get_user_from_session,
 )
+from application.timezone_context import pin_client_context
 from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
 from theme.page_header import page_header
@@ -123,13 +124,14 @@ async def dashboard_page(
             date_range_filter(start_d, end_d, on_change=nav)
             report_jumps(await event_jump_options(), start_d, end_d, on_pick=nav)
 
-        forecast, ops, coverage, utilization, max_stages = await asyncio.gather(
-            reports_service.generate_capacity_forecast(bounds_start, bounds_end),
-            reports_service.match_operations(bounds_start, bounds_end),
-            reports_service.crew_coverage(bounds_start, bounds_end),
-            reports_service.stage_utilization(bounds_start, bounds_end),
-            SystemConfigService.get_max_concurrent_stages(),
-        )
+        with pin_client_context():
+            forecast, ops, coverage, utilization, max_stages = await asyncio.gather(
+                reports_service.generate_capacity_forecast(bounds_start, bounds_end),
+                reports_service.match_operations(bounds_start, bounds_end),
+                reports_service.crew_coverage(bounds_start, bounds_end),
+                reports_service.stage_utilization(bounds_start, bounds_end),
+                SystemConfigService.get_max_concurrent_stages(),
+            )
 
         peak_players = max(forecast['player_counts']) if forecast['player_counts'] else 0
         if peak_players > 0:

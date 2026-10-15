@@ -37,7 +37,15 @@ from typing import Iterator, Optional
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from application.tenant_context import client_stash
+from application.tenant_context import (
+    client_stash,
+    get_current_tenant_id,
+    is_host_mode,
+    reset_host_mode,
+    reset_tenant_id,
+    set_host_mode,
+    set_tenant_id,
+)
 
 # The zone used when nothing else resolves: no tenant, no user, no browser hint.
 # Matches the app's historical hardcoded zone so an unresolvable context renders
@@ -233,3 +241,27 @@ def tz_scope(name: Optional[str]) -> Iterator[None]:
         yield
     finally:
         _tz_var.reset(token)
+
+
+@contextmanager
+def pin_client_context() -> Iterator[None]:
+    """Bind the tenant, host mode and zones the current UI handler resolves.
+
+    A websocket handler finds them through the NiceGUI client's slot stack, which
+    is per asyncio task, so a child task (``asyncio.gather``) sees none of them
+    and every tenant-scoped read raises. Contextvars *are* copied into child
+    tasks, so pinning them here first carries the context across.
+    """
+    tokens = (
+        set_tenant_id(get_current_tenant_id()),
+        set_host_mode(is_host_mode()),
+        _tz_var.set(get_current_timezone_name()),
+        _browser_tz_var.set(get_browser_timezone()),
+    )
+    try:
+        yield
+    finally:
+        _browser_tz_var.reset(tokens[3])
+        _tz_var.reset(tokens[2])
+        reset_host_mode(tokens[1])
+        reset_tenant_id(tokens[0])
