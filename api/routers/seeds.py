@@ -7,7 +7,8 @@ the existing :class:`SeedGenerationService`. Seed generation itself is ungated
 
 from typing import List
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.seeds import (
@@ -33,6 +34,11 @@ router = APIRouter(prefix="/seeds", tags=["Seeds"], route_class=ServiceErrorRout
     "/randomizers",
     response_model=List[RandomizerResponse],
     summary="List supported randomizers",
+    description=(
+        "Lists the randomizers this community can roll seeds for. Randomizers that need an "
+        "API key the community hasn't added are left out.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def list_randomizers(actor: User = Depends(require_api_actor)):
     # Drop randomizers whose upstream needs a key this community has not supplied,
@@ -48,9 +54,27 @@ async def list_randomizers(actor: User = Depends(require_api_actor)):
     ]
 
 
-@router.post("", summary="Generate a seed")
+@router.post(
+    "",
+    response_model=SeedResponse,
+    responses={
+        status.HTTP_202_ACCEPTED: {
+            "model": SeedTaskResponse,
+            "description": "The roll was queued. Poll `GET /seeds/tasks/{task_id}` for the seed.",
+        },
+    },
+    summary="Generate a seed",
+    description=(
+        "Rolls a seed, optionally from one of this community's presets. Most randomizers "
+        "answer 200 with the seed. Donkey Kong 64 rolls take minutes, so they answer 202 with "
+        "a task to poll at `GET /seeds/tasks/{task_id}`. Fails with 400 when the randomizer "
+        "is unknown, needs a preset or API key that's missing, or the randomizer site rejects "
+        "the roll.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def generate_seed(
-    body: SeedGenerateRequest, response: Response,
+    body: SeedGenerateRequest,
     actor: User = Depends(require_write_actor),
 ):
     """Roll a seed.
@@ -74,8 +98,10 @@ async def generate_seed(
             preset_id=preset.id if preset is not None else None,
         )
         task = await SeedRollService().submit(task, preset)
-        response.status_code = status.HTTP_202_ACCEPTED
-        return _task_response(task)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=_task_response(task).model_dump(),
+        )
 
     url = await SeedGenerationService().generate_seed(body.randomizer, preset)
     return SeedResponse(url=url)
@@ -85,6 +111,11 @@ async def generate_seed(
     "/tasks/{task_id}",
     response_model=SeedTaskResponse,
     summary="Check an asynchronous seed roll",
+    description=(
+        "Reports how a queued seed roll is going. Poll until `status` is `succeeded`, "
+        "`failed` or `abandoned`.\n\n"
+        "**Who can call this:** Any member."
+    ),
 )
 async def get_seed_task(task_id: int, actor: User = Depends(require_api_actor)):
     """Where a queued roll has got to. 404 for a task another community owns."""

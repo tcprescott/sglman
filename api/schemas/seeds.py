@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RandomizerResponse(BaseModel):
@@ -10,8 +10,10 @@ class RandomizerResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    randomizer: str
-    supports_triforce_texts: bool
+    randomizer: str = Field(..., description="Randomizer slug, such as `alttpr` or `ff1r`. Pass it to `POST /seeds`.")
+    supports_triforce_texts: bool = Field(
+        ..., description="Whether seeds from this randomizer can carry the community's triforce texts."
+    )
 
 
 class SeedGenerateRequest(BaseModel):
@@ -22,14 +24,20 @@ class SeedGenerateRequest(BaseModel):
     :class:`SeedTaskResponse`.
     """
 
-    randomizer: str
-    preset_id: Optional[int] = None
+    randomizer: str = Field(..., description="Randomizer slug from `GET /seeds/randomizers`.")
+    preset_id: Optional[int] = Field(
+        None,
+        description="One of this community's presets to roll with. Some randomizers refuse to roll without one.",
+    )
 
 
 class SeedResponse(BaseModel):
     """The permalink URL of a freshly generated seed."""
 
-    url: str
+    url: str = Field(
+        ...,
+        description="Link to the seed. Wind Waker and Zelda 1 seeds are a code to paste into the randomizer instead of a link.",
+    )
 
 
 class SeedTaskResponse(BaseModel):
@@ -42,8 +50,14 @@ class SeedTaskResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    task_id: int
-    randomizer: str
-    status: str
-    url: Optional[str] = None
-    error: Optional[str] = None
+    task_id: int = Field(..., description="Id to poll with `GET /seeds/tasks/{task_id}`.")
+    randomizer: str = Field(..., description="Randomizer slug the roll is for.")
+    status: str = Field(
+        ...,
+        description="Where the roll is: `queued`, `running`, `succeeded`, `failed` or `abandoned` (gave up waiting). The last three are final.",
+    )
+    url: Optional[str] = Field(
+        None,
+        description="Seed link once the roll succeeds. A roll made through this API with no match stays null even after it succeeds.",
+    )
+    error: Optional[str] = Field(None, description="Why the roll failed, when it did.")

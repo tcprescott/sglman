@@ -86,6 +86,20 @@ async def test_generate_seed_with_preset(db, app):
         assert resp.json()['url'].startswith('https://mock.seedgen.local/alttpr/')
 
 
+async def test_generate_seed_queued_randomizer_202(db, app):
+    # A task-queue randomizer answers 202 with a pollable task, not a permalink.
+    _, raw = await create_user_token(username='roller')
+    async with client_for(app, raw) as c:
+        resp = await c.post('/api/seeds', json={'randomizer': 'dk64r'})
+        assert resp.status_code == 202, resp.text
+        body = resp.json()
+        assert body['randomizer'] == 'dk64r'
+        assert set(body) == {'task_id', 'randomizer', 'status', 'url', 'error'}
+        polled = await c.get(f"/api/seeds/tasks/{body['task_id']}")
+        assert polled.status_code == 200
+        assert polled.json()['task_id'] == body['task_id']
+
+
 async def test_generate_seed_unknown_preset_404(db, app):
     _, raw = await create_user_token(username='roller')
     async with client_for(app, raw) as c:

@@ -35,7 +35,17 @@ async def _load_link_or_404(link_id: int) -> SpeedGamingEventLink:
 
 # --- Links ----------------------------------------------------------------
 
-@router.get("/links", response_model=List[SpeedGamingLinkResponse], summary="List SpeedGaming event links")
+@router.get(
+    "/links",
+    response_model=List[SpeedGamingLinkResponse],
+    summary="List SpeedGaming event links",
+    description=(
+        "Lists this community's SpeedGaming event links: the SpeedGaming events whose "
+        "schedule is pulled into a tournament as matches, with how each link's last sync "
+        "went.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
+)
 async def list_links(actor: User = Depends(require_api_actor)):
     return await SpeedGamingSyncService().list_links(actor)
 
@@ -44,6 +54,10 @@ async def list_links(actor: User = Depends(require_api_actor)):
     "/links/{link_id}/episodes",
     response_model=List[SpeedGamingEpisodeResponse],
     summary="List staged episodes for a link",
+    description=(
+        "Lists the episodes a link has pulled from SpeedGaming and where each one stands.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
 )
 async def list_episodes(link_id: int, actor: User = Depends(require_api_actor)):
     await _load_link_or_404(link_id)
@@ -55,12 +69,27 @@ async def list_episodes(link_id: int, actor: User = Depends(require_api_actor)):
     response_model=SpeedGamingLinkResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a SpeedGaming event link",
+    description=(
+        "Links a SpeedGaming event to a tournament. While the link is active, the background "
+        "sync pulls its episodes on the link's interval. Fails with 400 when the event slug "
+        "is empty or already linked to that tournament.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
 )
 async def create_link(body: SpeedGamingLinkCreateRequest, actor: User = Depends(require_write_actor)):
     return await SpeedGamingSyncService().create_link(actor, **body.model_dump())
 
 
-@router.patch("/links/{link_id}", response_model=SpeedGamingLinkResponse, summary="Update a SpeedGaming event link")
+@router.patch(
+    "/links/{link_id}",
+    response_model=SpeedGamingLinkResponse,
+    summary="Update a SpeedGaming event link",
+    description=(
+        "Edits a link; omitted fields keep their value. Fails with 400 when the event slug is "
+        "set to empty or is already linked to the same tournament.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
+)
 async def update_link(
     link_id: int,
     body: SpeedGamingLinkUpdateRequest,
@@ -69,12 +98,32 @@ async def update_link(
     return await SpeedGamingSyncService().update_link(actor, link_id, **body.model_dump(exclude_unset=True))
 
 
-@router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a SpeedGaming event link")
+@router.delete(
+    "/links/{link_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a SpeedGaming event link",
+    description=(
+        "Removes a link. Matches it already imported stay on the schedule.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
+)
 async def delete_link(link_id: int, actor: User = Depends(require_write_actor)):
     await SpeedGamingSyncService().delete_link(actor, link_id)
 
 
-@router.post("/links/{link_id}/sync", response_model=SyncResultResponse, summary="Run an on-demand sync for a link")
+@router.post(
+    "/links/{link_id}/sync",
+    response_model=SyncResultResponse,
+    summary="Run an on-demand sync for a link",
+    description=(
+        "Syncs one link now instead of waiting for its interval, and returns what changed. "
+        "New or changed episodes become or update matches; matches that are finished, under "
+        "way or have a race room are left alone; episodes gone from SpeedGaming are detached; "
+        "imported matches more than four hours past their start are marked finished. A failed "
+        "fetch shows up in `errors` and on the link rather than as an error response.\n\n"
+        "**Who can call this:** Staff or Sync admin."
+    ),
+)
 async def sync_link(link_id: int, actor: User = Depends(require_write_actor)):
     result = await SpeedGamingSyncService().sync_now(actor, link_id)
     return result.as_dict()

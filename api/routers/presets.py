@@ -21,9 +21,19 @@ from models import User
 router = APIRouter(prefix="/presets", tags=["Presets"], route_class=ServiceErrorRoute)
 
 
-@router.get("", response_model=List[PresetResponse], summary="List presets")
+@router.get(
+    "",
+    response_model=List[PresetResponse],
+    summary="List presets",
+    description=(
+        "Lists this community's seed presets. With `randomizer` set, returns only that "
+        "randomizer's presets.\n\n"
+        "**Who can call this:** Any member when `randomizer` is set; otherwise Staff or "
+        "Preset manager."
+    ),
+)
 async def list_presets(
-    randomizer: Optional[str] = Query(None, description="Filter to one randomizer (read-only, ungated)"),
+    randomizer: Optional[str] = Query(None, description="Return only this randomizer's presets. Open to any member."),
     actor: User = Depends(require_api_actor),
 ):
     service = PresetService()
@@ -32,17 +42,46 @@ async def list_presets(
     return await service.list_presets(actor)
 
 
-@router.get("/selectable", response_model=List[PresetResponse], summary="List selectable presets")
+@router.get(
+    "/selectable",
+    response_model=List[PresetResponse],
+    summary="List selectable presets",
+    description=(
+        "Lists every preset in this community, for choosing one on a tournament. The same "
+        "rows as `GET /presets`, open to every member.\n\n"
+        "**Who can call this:** Any member."
+    ),
+)
 async def list_selectable(actor: User = Depends(require_api_actor)):
     return await PresetService().list_selectable()
 
 
-@router.get("/{preset_id}", response_model=PresetResponse, summary="Get a preset")
+@router.get(
+    "/{preset_id}",
+    response_model=PresetResponse,
+    summary="Get a preset",
+    description=(
+        "Returns one preset with its settings.\n\n"
+        "**Who can call this:** Staff or Preset manager."
+    ),
+)
 async def get_preset(preset_id: int, actor: User = Depends(require_api_actor)):
     return await PresetService().get_preset(actor, preset_id)
 
 
-@router.post("", response_model=PresetResponse, status_code=status.HTTP_201_CREATED, summary="Create a preset")
+@router.post(
+    "",
+    response_model=PresetResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a preset",
+    description=(
+        "Creates a preset. Final Fantasy, Zelda 1 and Wind Waker settings are checked and "
+        "tidied before saving. Fails with 400 when the name is empty or over 255 characters, "
+        "the randomizer is unknown, the settings don't suit the randomizer, or the randomizer "
+        "already has a preset with that name.\n\n"
+        "**Who can call this:** Staff or Preset manager."
+    ),
+)
 async def create_preset(body: PresetCreateRequest, actor: User = Depends(require_write_actor)):
     return await PresetService().create_preset(
         actor,
@@ -53,18 +92,47 @@ async def create_preset(body: PresetCreateRequest, actor: User = Depends(require
     )
 
 
-@router.patch("/{preset_id}", response_model=PresetResponse, summary="Update a preset")
+@router.patch(
+    "/{preset_id}",
+    response_model=PresetResponse,
+    summary="Update a preset",
+    description=(
+        "Edits a preset; omitted fields keep their value. New settings, or a new randomizer, "
+        "are checked as they would be on create. Fails with 400 for the same reasons as "
+        "creating one.\n\n"
+        "**Who can call this:** Staff or Preset manager."
+    ),
+)
 async def update_preset(preset_id: int, body: PresetUpdateRequest, actor: User = Depends(require_write_actor)):
     return await PresetService().update_preset(
         actor, preset_id, **body.model_dump(exclude_unset=True)
     )
 
 
-@router.delete("/{preset_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a preset")
+@router.delete(
+    "/{preset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a preset",
+    description=(
+        "Deletes a preset. Tournaments that rolled from it are left with no preset, and "
+        "randomizers that need one won't roll for them until another is attached.\n\n"
+        "**Who can call this:** Staff or Preset manager."
+    ),
+)
 async def delete_preset(preset_id: int, actor: User = Depends(require_write_actor)):
     await PresetService().delete_preset(actor, preset_id)
 
 
-@router.post("/import-builtins", response_model=List[PresetResponse], summary="Import built-in presets")
+@router.post(
+    "/import-builtins",
+    response_model=List[PresetResponse],
+    summary="Import built-in presets",
+    description=(
+        "Adds the presets that ship with Wizzrobe, skipping any this community already has "
+        "with the same randomizer and name, so it's safe to run again. Returns only the "
+        "presets it created.\n\n"
+        "**Who can call this:** Staff or Preset manager."
+    ),
+)
 async def import_builtins(actor: User = Depends(require_write_actor)):
     return await PresetService().import_builtins(actor)

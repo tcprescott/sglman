@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProbeResultResponse(BaseModel):
@@ -14,9 +14,14 @@ class ProbeResultResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    key: str
-    label: str
-    category: str
-    status: str
-    message: str
-    checked_at: datetime
+    key: str = Field(..., description="Stable id of the checked service, such as `racetime_bots` or `challonge`.")
+    label: str = Field(..., description="Human-readable name of the service.")
+    category: str = Field(
+        ..., description="Group the service belongs to: `core`, `discord`, `racetime`, `integrations`, `seedgen` or `monitoring`."
+    )
+    status: str = Field(
+        ...,
+        description="Health: `healthy`, `degraded`, `credential_warning` (working, but a credential is expiring or was rejected), `down` or `unknown`.",
+    )
+    message: str = Field(..., description="What the check found, in a sentence.")
+    checked_at: datetime = Field(..., description="When the check ran (UTC).")
