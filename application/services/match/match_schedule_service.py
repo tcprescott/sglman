@@ -49,6 +49,7 @@ from application.utils.discord_messages import (
     DMLink,
     checked_in_dm,
     is_seed_link,
+    seed_code_line,
     seed_dm,
     seed_paste_block,
     state_changed_dm,
@@ -411,6 +412,7 @@ class MatchScheduleService(MatchNotificationMixin):
                     seed_url=seed_url,
                     settings=call.value.settings,
                     provider_meta=call.as_meta(),
+                    seed_code=call.value.code,
                 )
 
                 message = f"Seed generated successfully for match ID {match.id}"
@@ -487,6 +489,7 @@ class MatchScheduleService(MatchNotificationMixin):
     async def complete_seed_roll(
         self, match: Match, randomizer: str, preset, actor: Optional[User], *,
         seed_url: str, settings: Optional[dict], provider_meta: Optional[dict],
+        seed_code: Optional[list[str]] = None,
     ) -> str:
         """Record a finished roll, tell the players, and audit it.
 
@@ -506,6 +509,7 @@ class MatchScheduleService(MatchNotificationMixin):
             settings_snapshot=settings,
             rolled_by_id=actor.id if actor is not None else None,
             provider_meta=provider_meta,
+            seed_code=seed_code or None,
         )
         # The roll waited on the provider; the proctor may have checked the
         # players in meanwhile, so write the seed and nothing else.
@@ -536,6 +540,9 @@ class MatchScheduleService(MatchNotificationMixin):
             seed_description = seed_paste_block(seed_url, paste_instructions)
             embed_url = None
             seed_link = await notification_links.player_match(match.id, label='Copy it from Wizzrobe')
+        code_line = seed_code_line(seed_code)
+        if code_line:
+            seed_description = f'{seed_description}\n{code_line}'
         seed_embed = match_embed(
             title='🎲 Seed ready', color=COLOR_SEED,
             description=seed_description,
@@ -553,6 +560,7 @@ class MatchScheduleService(MatchNotificationMixin):
                         match.tournament.name,
                         seed_url,
                         paste_instructions=paste_instructions,
+                        code_line=code_line,
                         **descriptor,
                     )
                     success, err = await self.discord_service.send_dm(

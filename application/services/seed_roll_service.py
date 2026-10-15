@@ -121,6 +121,7 @@ class SeedRollService:
             await self._relation(User, task.requested_by_id),  # type: ignore[attr-defined]
             seed_url=result.seed.url,
             settings=result.seed.settings,
+            seed_code=result.seed.code,
             provider_meta={
                 'provider': task.provider,
                 'operation': task.operation,

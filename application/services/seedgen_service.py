@@ -19,6 +19,7 @@ import aiohttp
 import yaml
 from pyz3r import ALTTPR
 
+import application.services._seedgen_codes as seed_codes
 import application.services._seedgen_wwr as wwr_permalinks
 from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
@@ -369,7 +370,9 @@ class SeedGenerationService(DK64RBackend):
         # the waiting state that is the whole point of testing this backend.
         if is_mock_seedgen() and randomizer not in self.MOCK_EXEMPT_RANDOMIZERS:
             return ProviderCall(
-                value=RolledSeed(url=self._mock_seed_url(randomizer)),
+                value=RolledSeed(
+                    url=self._mock_seed_url(randomizer), code=seed_codes.mock_code(randomizer),
+                ),
                 provider=randomizer, operation='generate_seed', surface=surface,
             )
 
@@ -425,7 +428,9 @@ class SeedGenerationService(DK64RBackend):
             settings=settings,
             endpoint='/api/customizer',
         )
-        return RolledSeed(url=seed.url, settings=settings)
+        return RolledSeed(
+            url=seed.url, settings=settings, code=seed_codes.alttpr_code(seed.data.get('patch')),
+        )
 
     async def _generate_ff1r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """
@@ -500,6 +505,7 @@ class SeedGenerationService(DK64RBackend):
         # snapshot — settings only.
         return RolledSeed(
             url=f"https://maprando.com{seed_url}", settings=json.loads(settings),
+            code=seed_codes.smmap_code(data.get('seed_hash')),
         )
 
     async def _generate_ootr(self) -> RolledSeed:
@@ -533,6 +539,7 @@ class SeedGenerationService(DK64RBackend):
             )
         return RolledSeed(
             url=f"https://ootrandomizer.com/seed/get?id={seed_id}", settings=settings,
+            code=await seed_codes.fetch_ootr_code(seed_id, api_key),
         )
     
     async def _generate_smdash(self, preset: Optional[Preset] = None) -> RolledSeed:
@@ -577,7 +584,10 @@ class SeedGenerationService(DK64RBackend):
                 'DASH did not redirect to a seed page.',
                 provider='smdash', operation='generate_seed',
             )
-        return RolledSeed(url=seed_url, settings={'preset': tag, 'race': True})
+        return RolledSeed(
+            url=seed_url, settings={'preset': tag, 'race': True},
+            code=await seed_codes.fetch_dash_code(seed_url),
+        )
 
     async def _generate_dk64r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """Generate a Donkey Kong 64 Randomizer seed via the api.dk64rando.com queue.

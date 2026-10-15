@@ -567,6 +567,11 @@ def is_seed_link(seed: str) -> bool:
     return seed.startswith(('https://', 'http://'))
 
 
+def seed_code_line(code: Optional[list[str]]) -> str:
+    """The file-select code as one line, or ``''`` when there isn't one."""
+    return 'Code: ' + ' · '.join(code) if code else ''
+
+
 def seed_paste_block(seed: str, instructions: str) -> str:
     """The instructions, then the seed alone in a code block.
 
@@ -586,6 +591,7 @@ def seed_dm(
     stage_name: str = '',
     bracket_line: str = '',
     paste_instructions: Optional[str] = None,
+    code_line: str = '',
 ) -> str:
     """The seed DM's plain text: the web-push body, and the fallback without an embed.
 
@@ -601,6 +607,8 @@ def seed_dm(
     )
     block = ("\n".join(info) + "\n\n") if info else ''
     seed = f"{paste_instructions}\n\n{seed_url}" if paste_instructions else seed_url
+    if code_line:
+        seed = f"{seed}\n{code_line}"
     return (
         f"Hello {player_name},\n\n"
         f"A seed has been generated for your upcoming match in **{tournament_name}**.\n\n"

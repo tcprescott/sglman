@@ -1042,6 +1042,7 @@ Carries the seed's **provenance**: a `Preset` is an editable row, so without a s
 | `settings_snapshot` | `JSONField` | null | The resolved settings **as sent upstream** |
 | `rolled_by` | FK → `User` | null, `SET_NULL` | Who spent the match's single roll. `related_name='rolled_seeds'` |
 | `provider_meta` | `JSONField` | null | `{provider, operation, attempts, latency_ms, surface}` from the seed-provider envelope |
+| `seed_code` | `JSONField` | null | The file-select code players compare before a race, as a list of names (`["Bow", "Hookshot", …]`); null when the randomizer returns none. See [seed codes](seed-generation.md#seed-codes) |
 
 #### `ProviderTask`
 

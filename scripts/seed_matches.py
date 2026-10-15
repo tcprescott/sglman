@@ -206,6 +206,13 @@ async def seed_matches_for_tenant(
             },
         },
     )
+    # The file-select code line under a seed. Set after the fact so a dev
+    # database seeded before the column existed gets it too.
+    for rolled, code in ((seed, ['Bow', 'Hookshot', 'Bombs', 'Lamp', 'Cape']),
+                         (upcoming_seed, ['Moon Pearl', 'Ether', 'Shovel', 'Heart', 'Big Key'])):
+        if rolled.seed_code is None:
+            rolled.seed_code = code
+            await rolled.save(update_fields=["seed_code"])
     if stage3_match.generated_seed_id is None:
         stage3_match.generated_seed = upcoming_seed
         await stage3_match.save()

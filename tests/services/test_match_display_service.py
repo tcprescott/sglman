@@ -174,9 +174,17 @@ class TestFormatMatchForDisplay:
         assert result["seed"] == ""
 
     def test_seed_url_when_set(self, display_service):
-        match = make_match(generated_seed=SimpleNamespace(seed_url="https://alttpr.com/h/abc"))
+        match = make_match(generated_seed=SimpleNamespace(seed_url="https://alttpr.com/h/abc", seed_code=None))
         result = display_service._format_match_for_display(match)
         assert result["seed"] == "https://alttpr.com/h/abc"
+        assert result["seed_code"] == ""
+
+    def test_seed_code_is_one_line(self, display_service):
+        match = make_match(generated_seed=SimpleNamespace(
+            seed_url="https://alttpr.com/h/abc", seed_code=["Bow", "Hookshot", "Bombs", "Lamp", "Cape"],
+        ))
+        result = display_service._format_match_for_display(match)
+        assert result["seed_code"] == "Code: Bow · Hookshot · Bombs · Lamp · Cape"
 
     def test_tournament_name_in_result(self, display_service):
         result = display_service._format_match_for_display(make_match())

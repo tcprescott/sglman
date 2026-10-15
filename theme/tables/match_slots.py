@@ -288,7 +288,8 @@ def seed_value_template(expr: str) -> str:
     ``seed - flags`` string that players paste into their own copy of the
     randomizer, so those get a one-tap copy button rather than a dead block of
     text. ``expr`` is the Vue expression holding the seed (``props.value`` in a
-    cell slot, ``props.row.generated_seed`` in a card).
+    cell slot, ``props.row.generated_seed`` in a card). The row's ``seed_code``,
+    when the randomizer returned one, follows on its own line.
 
     A slot template's handlers only see Vue's short list of globals, so neither
     ``Quasar`` nor ``navigator`` resolves there: the clipboard comes from the
@@ -307,7 +308,8 @@ def seed_value_template(expr: str) -> str:
                    @click.stop="evt => { const clip = evt.view.navigator.clipboard; const copied = () => $q.notify({message: 'Seed copied to clipboard.', color: 'positive', icon: 'content_copy'}); const failed = () => $q.notify({message: 'Couldn\\'t copy the seed. Hover it to see the whole thing.', color: 'warning'}); if (clip) { clip.writeText(__SEED__).then(copied, failed) } else { failed() } }">
                 <q-tooltip>Copy seed</q-tooltip>
             </q-btn>
-        </span>'''.replace('__SEED__', expr)
+        </span>
+        <span v-if="props.row.seed_code" class="seed-code">{{ props.row.seed_code }}</span>'''.replace('__SEED__', expr)
 
 
 # The Generate button's own gate, shared with the mobile grid's seed detail.

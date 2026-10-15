@@ -279,6 +279,9 @@ class GeneratedSeeds(Model):
         'models.User', related_name='rolled_seeds', null=True, on_delete=fields.SET_NULL
     )
     provider_meta = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    # The file-select code players compare before a race (e.g. ALTTPR's five
+    # items), as a list of names; null when the randomizer doesn't return one.
+    seed_code = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

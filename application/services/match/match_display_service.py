@@ -22,6 +22,7 @@ from application.repositories import (
 )
 from application.services.match.match_status import has_recorded_result, legacy_label, resolve
 from application.services.reporting_shared import crew_requirement
+from application.utils.discord_messages import seed_code_line
 from application.utils.timezone import (
     format_local_datetime,
     format_local_display,
@@ -364,6 +365,8 @@ class MatchDisplayService:
             'is_racetime': match.tournament.is_racetime_enabled if match.tournament else False,
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
+            # The file-select code racers compare before starting, as one line.
+            'seed_code': seed_code_line(match.generated_seed.seed_code if match.generated_seed else None),
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
             # When an in-flight task-queue roll started, so the cell can show a
             # live elapsed clock. Server-side and therefore shared: it survives a

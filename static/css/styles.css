@@ -704,6 +704,20 @@ main.q-page:focus {
     font-size: 0.8rem;
 }
 
+/* The file-select code racers compare before starting ("Code: Bow · Hookshot
+   · …"), one line under the seed wherever the seed shows. */
+.seed-code {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--fg-secondary);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.mgc-detail-value > .seed-code {
+    flex-basis: 100%;
+}
+
 /* Read-back under a pasted preset value on the Presets tab: the FFR site
    version with a link to check it, or a sample Z1R seed. */
 .preset-check {
