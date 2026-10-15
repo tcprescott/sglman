@@ -122,7 +122,6 @@ class TableKeys:
     QUALIFIERS_LEADERBOARD = 'qualifiers.leaderboard'
 
     # Reports
-    REPORTS_AUDIT_LOG = 'reports.audit_log'
     REPORTS_CAPACITY_FOCUS = 'reports.capacity_focus'
     REPORTS_CAPACITY_FORECAST = 'reports.capacity_forecast'
     REPORTS_CREW_CONTRIBUTIONS = 'reports.crew_contributions'

@@ -566,6 +566,26 @@ async def seed_for_tenant(
              {"user_id": proctor.id, "role": Role.PROCTOR.value}),
             (staff, AuditActions.EQUIPMENT_CHECKED_OUT,
              {"equipment_id": equipment["Capture Card A"].id, "borrower_id": users["player_one"].id}),
+            # The detail shapes the Audit Log report renders differently: a JSON
+            # setting diffed per key, a previous_/current pair, a self-edit, a
+            # stage resolved to its name, and a counts-only sync.
+            (staff, AuditActions.MATCH_STAGE_ASSIGNED,
+             {"match_id": finished_match.id, "stage_id": stage1.id}),
+            (staff, AuditActions.SYSTEM_CONFIG_UPDATED,
+             {"key": "tournament_hours_by_date",
+              "old_value": json.dumps({"2026-10-22": {"open": "08:00", "close": "23:00"},
+                                       "2026-10-23": {"open": "08:00", "close": "23:00"}}),
+              "new_value": json.dumps({"2026-10-22": {"open": "08:00", "close": "23:59"},
+                                       "2026-10-23": {"open": "08:00", "close": "23:59"}})}),
+            (users["player_one"], AuditActions.USER_SELF_PROFILE_UPDATED,
+             {"changed_fields": {"pronouns": "they/them"}, "target_user_id": users["player_one"].id}),
+            (users["player_one"], AuditActions.PROFILE_NUDGE_DISMISSED,
+             {"check": "challonge", "tenant_id": tenant.id}),
+            (staff, AuditActions.ACCOMMODATION_STATUS_CHANGED,
+             {"previous_status": "acknowledged", "status": "arranged", "request_id": 1,
+              "user_id": users["player_one"].id}),
+            (staff, AuditActions.CHECK_IN_EVENT_SYNCED,
+             {"added": 3, "updated": 0, "withdrawn": 0, "total": 42, "event_id": 1}),
         ]
         # Per-row, not "only when the log is empty": anything else that writes an
         # audit row first — a preset import, a bracket created through its
