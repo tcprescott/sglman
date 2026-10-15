@@ -41,6 +41,10 @@ async def _entrant_response(service: CheckInService, entrant_id: int) -> CheckIn
     "/events",
     response_model=List[CheckInEventResponse],
     summary="List the check-in events you can work",
+    description=(
+        "Returns the check-in events you can work at the desk. Staff see every event, draft and closed ones included; Check-in desk volunteers see only open events.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def list_events(actor: User = Depends(require_api_actor)):
     return [CheckInEventResponse.from_row(e) for e in await CheckInDeskService().events_for(actor)]
@@ -50,6 +54,10 @@ async def list_events(actor: User = Depends(require_api_actor)):
     "/events/{event_id}/roster",
     response_model=List[CheckInEntrantResponse],
     summary="An event's roster, with each person's badges, lanyard and check-in state",
+    description=(
+        "Returns everyone on the event's roster: badge buyers, walk-ups and comps, with their badges, lanyard and check-in state. Check-in desk volunteers can read open events only.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def get_roster(event_id: int, actor: User = Depends(require_api_actor)):
     service = CheckInService()
@@ -62,6 +70,11 @@ async def get_roster(event_id: int, actor: User = Depends(require_api_actor)):
     "/events/{event_id}/sync",
     response_model=CheckInSyncResponse,
     summary="Pull the latest badge sales and comps into the roster",
+    description=(
+        "Pulls the event's latest Matcherino badge sales and applies its comp rules: new buyers are added, refunded ones are marked withdrawn, and accounts that match are linked. If Matcherino can't be reached, nothing changes. Check-in desk volunteers can sync open events only.\n\n"
+        "Fails with 400 when the event has no Matcherino venue and no comp rules, Matcherino returns an error, or the roster changed mid-sync (try again).\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def sync_event(event_id: int, actor: User = Depends(require_write_actor)):
     result = await CheckInService().sync_event(actor, event_id)
@@ -73,6 +86,11 @@ async def sync_event(event_id: int, actor: User = Depends(require_write_actor)):
     response_model=CheckInEntrantResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add someone who didn't buy a badge (Staff only)",
+    description=(
+        "Adds a walk-up to the roster, either a member (`user_id`) or just a name, and checks them in unless `check_in` is false. Checking in a member with a linked Discord account sends them a test DM; the result shows in `dm_status`.\n\n"
+        "Fails with 400 when neither a member nor a name is given, the member is already on this roster, or the account can't be linked.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def add_walk_up(event_id: int, body: WalkUpRequest, actor: User = Depends(require_write_actor)):
     service = CheckInService()
@@ -87,9 +105,9 @@ async def add_walk_up(event_id: int, body: WalkUpRequest, actor: User = Depends(
     response_model=CheckInResultResponse,
     summary="Check someone in",
     description=(
-        "Checking in someone already checked in changes nothing and returns `already: true`. "
-        "Someone withdrawn (refunded, no badge left) is refused unless a staff caller sends "
-        "`despite_withdrawn: true`."
+        "Checks the person in and records who did it. Checking in someone with a linked Discord account sends them a test DM; the result shows in `dm_status`. Checking in someone already checked in changes nothing and returns `already: true`. Check-in desk volunteers can do this on open events only.\n\n"
+        "Fails with 400 when the person no longer holds a badge (refunded, or no longer comped), unless a staff caller sends `despite_withdrawn: true`.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
     ),
 )
 async def check_in(
@@ -110,6 +128,10 @@ async def check_in(
     "/entrants/{entrant_id}/check-in",
     response_model=CheckInEntrantResponse,
     summary="Undo a check-in",
+    description=(
+        "Clears the check-in time and who did it. Undoing someone who isn't checked in changes nothing. Check-in desk volunteers can do this on open events only.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def undo_check_in(entrant_id: int, actor: User = Depends(require_write_actor)):
     service = CheckInService()
@@ -121,6 +143,11 @@ async def undo_check_in(entrant_id: int, actor: User = Depends(require_write_act
     "/entrants/{entrant_id}/user",
     response_model=CheckInEntrantResponse,
     summary="Link a roster row to a member's account",
+    description=(
+        "Links the roster row to a member's account, replacing any automatic match, and remembers their Matcherino account on it. Linking the account it already has changes nothing.\n\n"
+        "Fails with 400 when the row is a comp, the member is already on this roster under another row, the row's Matcherino account is already linked to someone else, or the account can't be linked.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def link_entrant(
     entrant_id: int, body: LinkEntrantRequest, actor: User = Depends(require_write_actor),
@@ -134,6 +161,11 @@ async def link_entrant(
     "/entrants/{entrant_id}/user",
     response_model=CheckInEntrantResponse,
     summary="Unlink a roster row from its account",
+    description=(
+        "Detaches the account from the roster row and clears the Matcherino account it recorded on the member. The sync won't link this row automatically again. A row with no account is left as it is.\n\n"
+        "Fails with 400 when the row is a comp.\n\n"
+        "**Who can call this:** Staff or Check-in desk."
+    ),
 )
 async def unlink_entrant(entrant_id: int, actor: User = Depends(require_write_actor)):
     service = CheckInService()

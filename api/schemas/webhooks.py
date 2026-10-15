@@ -5,56 +5,78 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+_EVENT_TYPES = (
+    "Event names this webhook receives, such as `match.created`, or `*` for every event."
+)
+
 
 class WebhookResponse(BaseModel):
     """A webhook as returned by list/GET — never includes the secret."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    name: str
-    url: str
-    event_types: List[str]
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    id: int = Field(..., description="ID of the webhook.")
+    name: str = Field(..., description="Label shown in the admin list.")
+    url: str = Field(..., description="Endpoint that receives each delivery as a POST.")
+    event_types: List[str] = Field(..., description=_EVENT_TYPES)
+    is_active: bool = Field(..., description="Whether the webhook is receiving deliveries. Paused webhooks get none.")
+    created_at: datetime = Field(..., description="When the webhook was created (UTC).")
+    updated_at: datetime = Field(..., description="When the webhook was last changed (UTC).")
 
 
 class WebhookCreatedResponse(WebhookResponse):
-    """Returned once on create/regenerate; carries the signing secret."""
+    """Returned once on create; carries the signing secret."""
 
-    secret: str
+    secret: str = Field(
+        ...,
+        description=(
+            "Key for verifying that a delivery came from this app. It's only shown in this response "
+            "and when the secret is rotated, so store it now."
+        ),
+    )
 
 
 class WebhookSecretResponse(BaseModel):
-    secret: str
+    secret: str = Field(
+        ...,
+        description=(
+            "The new key for verifying deliveries. Deliveries are signed with it from now on, and it "
+            "isn't shown again."
+        ),
+    )
 
 
 class WebhookCreate(BaseModel):
-    name: str = Field(..., description="Human-readable label")
-    url: str = Field(..., description="HTTPS endpoint that receives the POST")
+    name: str = Field(..., description="Label shown in the admin list. Can't be blank.")
+    url: str = Field(..., description="HTTPS endpoint that receives each delivery as a POST.")
     event_types: List[str] = Field(
-        ..., description="Event names to deliver, or ['*'] for all"
+        ..., description="Event names to deliver, such as `match.created`, or `[\"*\"]` for every event. At least one."
     )
-    is_active: bool = True
+    is_active: bool = Field(True, description="Whether the webhook starts receiving deliveries straight away.")
 
 
 class WebhookUpdate(BaseModel):
-    name: Optional[str] = None
-    url: Optional[str] = None
-    event_types: Optional[List[str]] = None
-    is_active: Optional[bool] = None
+    name: Optional[str] = Field(None, description="New label. Can't be blank. Omit to keep the current one.")
+    url: Optional[str] = Field(None, description="New HTTPS endpoint. Omit to keep the current one.")
+    event_types: Optional[List[str]] = Field(
+        None, description="Replacement list of event names, or `[\"*\"]` for every event. Omit to keep the current list."
+    )
+    is_active: Optional[bool] = Field(None, description="Pause (`false`) or resume (`true`) deliveries. Omit to leave as is.")
 
 
 class WebhookDeliveryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    webhook_id: int
-    event_type: str
-    response_status: Optional[int]
-    attempt_count: int
-    success: bool
-    error: Optional[str]
-    created_at: datetime
-    delivered_at: Optional[datetime]
+    id: int = Field(..., description="ID of the delivery record.")
+    webhook_id: int = Field(..., description="ID of the webhook it was sent to.")
+    event_type: str = Field(..., description="Name of the event that was delivered.")
+    response_status: Optional[int] = Field(
+        None, description="HTTP status the endpoint returned on the last attempt; null when no response came back."
+    )
+    attempt_count: int = Field(..., description="POST attempts made, up to 3.")
+    success: bool = Field(..., description="Whether an attempt got a 2xx response.")
+    error: Optional[str] = Field(
+        None, description="Why the last attempt failed, such as `HTTP 500` or a connection error; null on success."
+    )
+    created_at: datetime = Field(..., description="When the delivery finished, successful or not (UTC).")
+    delivered_at: Optional[datetime] = Field(None, description="When the endpoint accepted it (UTC); null when it never did.")

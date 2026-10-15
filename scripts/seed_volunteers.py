@@ -154,10 +154,9 @@ async def seed_volunteers_for_tenant(
                 if ends_at <= starts_at:
                     ends_at = ends_at + timedelta(days=1)
                 shift, _ = await VolunteerShift.get_or_create(
-                    position=pos, starts_at=starts_at, tenant=tenant,
+                    position=pos, starts_at=starts_at, label=label, tenant=tenant,
                     defaults={
-                        "ends_at": ends_at, "label": label,
-                        "slots_needed": default_slots[pos_name],
+                        "ends_at": ends_at, "slots_needed": default_slots[pos_name],
                     },
                 )
                 # Per-shift instructions, distinct from the position's standing

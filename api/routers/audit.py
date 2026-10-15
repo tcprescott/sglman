@@ -22,15 +22,19 @@ _decode_details = decode_json_details
     "",
     response_model=AuditLogPage,
     summary="List audit log entries",
-    description="Requires Staff. Supports filtering and pagination.",
+    description=(
+        "Returns the community's audit log newest first, one page at a time, with the total count of "
+        "matching entries so you can page through with `limit` and `offset`.\n\n"
+        "**Who can call this:** Staff."
+    ),
 )
 async def list_audit_logs(
-    start: Optional[datetime] = Query(None, description="Only entries at or after this time"),
-    end: Optional[datetime] = Query(None, description="Only entries at or before this time"),
-    user_id: Optional[int] = Query(None, description="Only entries by this user"),
-    action_contains: Optional[str] = Query(None, description="Substring match on the action string"),
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    start: Optional[datetime] = Query(None, description="Only entries at or after this time (UTC ISO 8601)."),
+    end: Optional[datetime] = Query(None, description="Only entries at or before this time (UTC ISO 8601)."),
+    user_id: Optional[int] = Query(None, description="Only entries performed by this user ID."),
+    action_contains: Optional[str] = Query(None, description="Only entries whose action contains this text, ignoring case."),
+    limit: int = Query(100, ge=1, le=500, description="Maximum entries to return."),
+    offset: int = Query(0, ge=0, description="Entries to skip before this page."),
     actor: User = Depends(require_staff),
 ):
     service = AuditService()

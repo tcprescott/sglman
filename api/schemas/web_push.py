@@ -19,11 +19,15 @@ class WebPushRotateRequest(BaseModel):
             'Proves the caller owns the subscription being rotated.'
         ),
     )
-    endpoint: str = Field(..., max_length=1024, description='Endpoint of the reissued subscription.')
+    endpoint: str = Field(..., max_length=1024, description='Endpoint of the reissued subscription. Must be an https URL.')
     p256dh: str = Field(..., max_length=128, description='Reissued client public key (base64url).')
     auth: str = Field(..., max_length=64, description='Reissued auth secret (base64url).')
-    user_agent: Optional[str] = Field(None, max_length=255)
+    user_agent: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="The browser's user-agent string, used to label the device in the person's device list.",
+    )
 
 
 class WebPushRotateResponse(BaseModel):
-    rotated: bool
+    rotated: bool = Field(..., description="Always true; a failed rotation returns an error instead.")

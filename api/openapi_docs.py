@@ -59,7 +59,8 @@ Click **Authorize** above and paste it to try endpoints from this page.
 ## Conventions
 
 - **Times are UTC**, in ISO 8601 (`2026-10-16T18:00:00Z`). Convert to local
-  time before showing them to people.
+  time before showing them to people. Reports are the exception: their times
+  are on the community's own clock, with the UTC offset included.
 - **Errors** come back as JSON with a `detail` message:
   `{"detail": "Staff access required"}`. `400` means a rule refused the
   request (the message says which), `401` a missing or expired token, `403` no
