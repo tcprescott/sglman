@@ -29,6 +29,7 @@ from application.services.match._dm_context import (  # noqa: F401  (re-exported
 )
 from application.services.match._match_recipients import (  # noqa: F401  (re-exported)
     _dm_opt_ok,
+    collect_match_audience,
     collect_match_recipients,
 )
 from application.services.match._schedule_notifications import MatchNotificationMixin

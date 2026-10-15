@@ -64,10 +64,12 @@ class TestCancelMatch:
         """
         match, player, commentator = await _match_with_people()
         sent: list[tuple[int, str]] = []
+        titles: dict[int, str] = {}
 
         class _Recorder:
             async def send_dm(self, discord_id, message, embed=None):
                 sent.append((discord_id, message))
+                titles[discord_id] = embed.title
                 return True, None
 
         await service.cancel_match(
@@ -87,6 +89,11 @@ class TestCancelMatch:
         body = sent[0][1]
         assert 'cancelled' in body
         assert 'Series clinched 2-0.' in body
+        # The commentator is told which slot they held; the player is not.
+        assert titles[commentator.discord_id] == 'Match cancelled · your commentator slot'
+        assert titles[player.discord_id] == 'Match cancelled'
+        by_id = dict(sent)
+        assert "You're on this match as commentator." in by_id[commentator.discord_id]
 
     async def test_cancels_a_live_racetime_room(self, service):
         match, _, _ = await _match_with_people()
