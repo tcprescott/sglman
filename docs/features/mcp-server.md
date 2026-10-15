@@ -223,7 +223,7 @@ prize money is not where to extend it first.
 `list_tournament_signups` reports the caller's own signup state per tournament,
 including `can_sign_up` / `can_withdraw`. Those two booleans are the service's
 own answer rather than something to re-derive from the window: a model reasoning
-from the dates alone would offer a signup that the tournament's Challonge link or
+from the dates alone would offer a signup that a started Challonge bracket, an unlinked Challonge account or
 the caller's existing enrolment already rules out.
 
 `suggest_match_time` mirrors `GET /tournaments/{id}/match-suggestion`. It reads

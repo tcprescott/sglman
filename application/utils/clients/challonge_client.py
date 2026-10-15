@@ -9,7 +9,7 @@ to know the JSON:API wire shape:
 
     me               -> {'user_id', 'username'}
     tournament       -> {'id', 'name', 'url', 'state'}
-    participant      -> {'participant_id', 'name', 'challonge_user_id', 'username'}
+    participant      -> {'participant_id', 'name', 'challonge_user_id', 'username', 'misc'}
     match            -> {'match_id', 'state', 'round',
                          'player1_participant_id', 'player2_participant_id',
                          'winner_participant_id'}
@@ -109,6 +109,7 @@ def _normalize_participant(resource: Dict[str, Any]) -> Dict[str, Any]:
             _attr(resource, 'challonge_user_id', 'user_id') or _rel_id(resource, 'user')
         ),
         'username': _attr(resource, 'challonge_username', 'username'),
+        'misc': _opt_str(_attr(resource, 'misc')),
     }
 
 
@@ -320,6 +321,34 @@ class ChallongeClient:
             json=body,
         )
 
+    async def create_participant(
+        self,
+        tournament_id: str,
+        *,
+        name: str,
+        username: str,
+        misc: Optional[str] = None,
+        community: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add an entrant by Challonge username; Challonge invites that account."""
+        attributes: Dict[str, Any] = {'name': name, 'username': username}
+        if misc:
+            attributes['misc'] = misc
+        body = {'data': {'type': 'Participant', 'attributes': attributes}}
+        data = await self._authed_request(
+            'POST', f'{_tournament_path(tournament_id, community)}/participants.json', json=body,
+        )
+        return _normalize_participant(data.get('data') or {})
+
+    async def delete_participant(
+        self, tournament_id: str, participant_id: str, community: Optional[str] = None,
+    ) -> None:
+        await self._authed_request(
+            'DELETE',
+            f'{_tournament_path(tournament_id, community)}/participants/'
+            f'{quote(str(participant_id), safe="")}.json',
+        )
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -415,7 +444,8 @@ class MockChallongeClient(ChallongeClient):
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
         return {'access_token': 'mock-access', 'refresh_token': 'mock-refresh', 'expires_in': 604800,
-                'scope': 'me tournaments:read tournaments:write matches:read matches:write participants:read communities:manage'}
+                'scope': 'me tournaments:read tournaments:write matches:read matches:write '
+                         'participants:read participants:write communities:manage'}
 
     async def refresh(self, refresh_token: str) -> Dict[str, Any]:
         return await self.exchange_code('mock', 'mock')
@@ -461,3 +491,13 @@ class MockChallongeClient(ChallongeClient):
     async def change_state(self, tournament_id, state, community=None) -> Dict[str, Any]:
         print(f"[MOCK Challonge] change_state t={tournament_id} state={state}")
         return await self.get_tournament(tournament_id, community=community)
+
+    async def create_participant(
+        self, tournament_id, *, name, username, misc=None, community=None,
+    ) -> Dict[str, Any]:
+        print(f"[MOCK Challonge] create_participant t={tournament_id} username={username}")
+        return {'participant_id': f'mock-{username}', 'name': name, 'challonge_user_id': None,
+                'username': username, 'misc': misc}
+
+    async def delete_participant(self, tournament_id, participant_id, community=None) -> None:
+        print(f"[MOCK Challonge] delete_participant t={tournament_id} p={participant_id}")

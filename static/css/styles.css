@@ -6232,3 +6232,15 @@ ol.wiz-help-list { list-style-type: decimal; }
 /* Password sign-in (/password-login): one centred card, the same at every width. */
 .password-login { padding-top: 10vh; }
 .password-login__card { max-width: 380px; padding: 24px 20px; }
+
+/* Challonge sign-up sheet: the bracket and name the player is about to join as. */
+.wiz-signup-facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px 16px;
+    align-self: stretch;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--surface-sunken);
+    overflow-wrap: anywhere;
+}

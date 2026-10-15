@@ -97,8 +97,8 @@ class TournamentSignupInfo(BaseModel):
 
     ``can_sign_up`` / ``can_withdraw`` are the service's own answer, not a
     guess from the window: a model that reasons from ``window`` alone would
-    offer a signup the tournament's Challonge link or the caller's existing
-    enrolment already rules out.
+    offer a signup a started Challonge bracket, an unlinked Challonge account or
+    the caller's existing enrolment already rules out.
     """
 
     model_config = ConfigDict(from_attributes=True)

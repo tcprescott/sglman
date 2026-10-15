@@ -7,7 +7,7 @@ No business logic.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from tortoise.expressions import Q
 
@@ -165,6 +165,30 @@ class ChallongeRepository:
         participant.user = user
         participant.user_assigned_manually = manual
         await participant.save(update_fields=['user_id', 'user_assigned_manually', 'updated_at'])
+
+    @staticmethod
+    async def get_participant_for_user(
+        tournament: Tournament, user: User,
+    ) -> Optional[ChallongeParticipant]:
+        return await scoped(
+            ChallongeParticipant.filter(tournament=tournament, user=user)
+        ).first()
+
+    @staticmethod
+    async def participants_by_tournament(
+        tournament_ids: List[int],
+    ) -> Dict[int, List[ChallongeParticipant]]:
+        rows = await scoped(
+            ChallongeParticipant.filter(tournament_id__in=tournament_ids)
+        ).prefetch_related('user')
+        grouped: Dict[int, List[ChallongeParticipant]] = {tid: [] for tid in tournament_ids}
+        for row in rows:
+            grouped.setdefault(row.tournament_id, []).append(row)
+        return grouped
+
+    @staticmethod
+    async def delete_participant(participant: ChallongeParticipant) -> None:
+        await participant.delete()
 
     @staticmethod
     async def participant_tournament_ids_for_user(user: User) -> Set[int]:

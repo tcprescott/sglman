@@ -29,6 +29,7 @@ from application.services.auth_service import AuthService, get_user_from_session
 from application.services.challonge_service import ChallongeService
 from application.services.feature_flag_service import FeatureFlagService
 from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.utils.app_links import HOME_TOURNAMENTS, home_url
 from application.utils.mocks.mock_challonge import is_mock_challonge
 from models import FeatureFlag
 from pages._browser_url import browser_url
@@ -50,6 +51,10 @@ _PROVIDER_KEY = 'challonge'
 
 _ADMIN_RETURN = '/admin/challonge'
 _PROFILE_RETURN = '/home/profile'
+# Where a link started from the Tournaments tab's "Link Challonge to sign up"
+# lands, so the player finishes signing up where they began. A fixed key, never
+# a path from the query string, so the parameter can't become an open redirect.
+_RETURNS = {HOME_TOURNAMENTS: home_url(HOME_TOURNAMENTS)}
 
 
 async def _challonge_live() -> bool:
@@ -196,16 +201,17 @@ def create() -> None:
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
         root_path = request.scope.get('root_path', '') or ''
+        player_return = _RETURNS.get(request.query_params.get('next', ''), _PROFILE_RETURN)
         user = await get_user_from_session(app.storage.user)
         if user is None:
             return RedirectResponse(f'{root_path}/login')
         if not await _challonge_live():
-            return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
+            return RedirectResponse(f'{root_path}{player_return}')
         # Custom domain + handoff: run the player OAuth on the platform host and
         # hand the verified identity back here (where the session/tenant live).
         # Tried before the mock short-circuit so the handoff is reachable under
         # MOCK_CHALLONGE; returns None in path mode and with handoff off.
-        handoff = await maybe_start_link_handoff(_PROVIDER_KEY, f'{root_path}{_PROFILE_RETURN}')
+        handoff = await maybe_start_link_handoff(_PROVIDER_KEY, f'{root_path}{player_return}')
         if handoff is not None:
             return handoff
         if is_mock_challonge():
@@ -222,15 +228,15 @@ def create() -> None:
             except Exception:
                 logger.exception('Challonge mock player linking failed')
                 stash_notice(f'Could not link {_PROVIDER_LABEL}. Please try again.', color='negative')
-            return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
+            return RedirectResponse(f'{root_path}{player_return}')
         # Custom domain + Design A (handoff off): bounce to the platform-host
         # path-mode surface. No-op in path mode / platform surface.
-        detour = await platform_link_redirect(_PROFILE_RETURN)
+        detour = await platform_link_redirect(player_return)
         if detour:
             return RedirectResponse(detour)
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_player_state'] = state
-        app.storage.user['challonge_player_return'] = f'{root_path}{_PROFILE_RETURN}'
+        app.storage.user['challonge_player_return'] = f'{root_path}{player_return}'
         app.storage.user['challonge_player_tenant'] = get_current_tenant_id()
         return RedirectResponse(ChallongeService.player_authorize_url(state))
 

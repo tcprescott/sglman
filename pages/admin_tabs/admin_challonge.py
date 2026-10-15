@@ -47,6 +47,11 @@ async def admin_challonge_page() -> None:
                         ui.label(f"Connected as {status.get('challonge_username') or 'unknown'}").classes('text-bold')
                     if status.get('scopes'):
                         ui.label(f"Scopes: {status['scopes']}").classes('text-caption text-muted')
+                    if not await service.can_add_participants():
+                        ui.label(
+                            "Players can't sign up for Challonge brackets from the "
+                            'Tournaments tab until you reconnect Challonge below.'
+                        ).classes('text-caption text-error')
                     if status.get('token_expires_at'):
                         ui.label(
                             f"Token expires: {format_local_display(status['token_expires_at'])}"

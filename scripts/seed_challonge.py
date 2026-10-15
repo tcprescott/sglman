@@ -71,13 +71,18 @@ async def seed_challonge_for_tenant(
         defaults={
             "access_token": "dev-access-token-not-real",
             "refresh_token": "dev-refresh-token-not-real",
-            "scopes": "me tournaments:read tournaments:write",
+            "scopes": "me tournaments:read tournaments:write participants:write",
             "token_expires_at": challonge_expiry,
             "connected_by": staff,
         },
     )
     if conn.token_expires_at is None:
         conn.token_expires_at = challonge_expiry
+        await conn.save()
+    # Lets players sign themselves up for a Challonge bracket from the
+    # Tournaments tab; healed onto a connection seeded before that existed.
+    if "participants:write" not in (conn.scopes or "").split():
+        conn.scopes = f"{conn.scopes or ''} participants:write".strip()
         await conn.save()
 
     participants: dict[str, ChallongeParticipant] = {}
@@ -127,8 +132,39 @@ async def seed_challonge_for_tenant(
         defaults={"round": 2, "state": ChallongeMatchState.PENDING},
     )
 
+    await _seed_open_challonge_bracket(tenant, users, now_utc)
+
     usage_period = today.strftime("%Y-%m")
     await ChallongeApiUsage.get_or_create(
         period=usage_period, tenant=tenant, defaults={"request_count": 42},
     )
     print(f"    [{tenant.slug}] challonge ok")
+
+
+async def _seed_open_challonge_bracket(
+    tenant: Tenant, users: dict[str, User], now_utc: datetime,
+) -> None:
+    """A Challonge bracket still taking entrants, for the Tournaments tab's
+    Sign up: player_one is already on it, player_two (linked) can sign up, and
+    an unlinked player sees "Link Challonge to sign up"."""
+    open_bracket, _ = await Tournament.get_or_create(
+        name="Challonge Open", tenant=tenant,
+        defaults={
+            "description": "Single elimination, best of 3. The bracket runs on Challonge.",
+            "is_active": True,
+            "challonge_tournament_id": f"cht_open_{tenant.slug}",
+            "challonge_tournament_url": f"https://challonge.com/wizzrobe_open_{tenant.slug}",
+            "challonge_state": "pending",
+            "challonge_last_synced_at": now_utc,
+            "allow_player_match_requests": False,
+            "signups_close_at": now_utc + timedelta(days=5),
+        },
+    )
+    for cp_id, name, challonge_uid, user in [
+        ("cpo_1", "playerone", "cu_1001", users["player_one"]),
+        ("cpo_2", "Walk-in Entrant", None, None),
+    ]:
+        await ChallongeParticipant.get_or_create(
+            tournament=open_bracket, challonge_participant_id=cp_id, tenant=tenant,
+            defaults={"name": name, "challonge_user_id": challonge_uid, "user": user},
+        )

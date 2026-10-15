@@ -235,6 +235,8 @@ class AuditActions:
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
     CHALLONGE_PARTICIPANT_ASSIGNED = 'challonge.participant_assigned'
     CHALLONGE_PARTICIPANT_UNASSIGNED = 'challonge.participant_unassigned'
+    CHALLONGE_PARTICIPANT_SIGNED_UP = 'challonge.participant_signed_up'
+    CHALLONGE_PARTICIPANT_WITHDRAWN = 'challonge.participant_withdrawn'
     CHALLONGE_STAGE_ADVANCED = 'challonge.stage_advanced'
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 
