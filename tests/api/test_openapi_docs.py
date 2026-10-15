@@ -2,31 +2,12 @@
 
 from typing import Any, Dict, Iterator, Tuple
 
-import pytest
 from fastapi.routing import APIRoute, iter_route_contexts
 
 from api.openapi_docs import TAG_GROUPS, WHO_CAN_CALL, api_description, install
 from api.rate_limit import limit_per_minute
 from application.events import EventType
 from tests.api_helpers import build_api_app
-
-# Routers still waiting on their write-up (done area by area in separate PRs).
-# Remove each as it lands; delete the set and its two checks once it is empty.
-PENDING_MODULES = {
-    'api.routers.async_qualifier_live_races', 'api.routers.async_qualifiers',
-    'api.routers.audit', 'api.routers.brackets', 'api.routers.check_in',
-    'api.routers.crew', 'api.routers.discord_events', 'api.routers.discord_role_mappings',
-    'api.routers.equipment', 'api.routers.feedback', 'api.routers.health',
-    'api.routers.match_actions', 'api.routers.matches', 'api.routers.memberships',
-    'api.routers.notifications', 'api.routers.payouts', 'api.routers.player_availability',
-    'api.routers.presets', 'api.routers.race_room_profiles', 'api.routers.race_rooms',
-    'api.routers.racetime_bots', 'api.routers.reports', 'api.routers.reschedule_requests',
-    'api.routers.seeds', 'api.routers.service_health', 'api.routers.speedgaming',
-    'api.routers.stage_actions', 'api.routers.stages', 'api.routers.system_config',
-    'api.routers.telemetry', 'api.routers.tokens', 'api.routers.tournament_actions',
-    'api.routers.tournaments', 'api.routers.triforce', 'api.routers.users',
-    'api.routers.volunteers', 'api.routers.web_push', 'api.routers.webhooks',
-}
 
 
 def _spec() -> Dict[str, Any]:
@@ -58,7 +39,7 @@ def test_every_endpoint_says_what_it_does_and_who_can_call_it():
     missing = [
         f'{method} {path} ({module})'
         for module, method, path, operation in _operations()
-        if module not in PENDING_MODULES and WHO_CAN_CALL not in (operation.get('description') or '')
+        if WHO_CAN_CALL not in (operation.get('description') or '')
     ]
     assert not missing, (
         f'Give these routes a description= ending in "{WHO_CAN_CALL} ..." '
@@ -70,7 +51,6 @@ def test_every_json_response_has_a_schema():
     untyped = [
         f'{method} {path} -> {code}'
         for module, method, path, operation in _operations()
-        if module not in PENDING_MODULES
         for code, response in operation['responses'].items()
         if code.startswith('2') and code != '204'
         and _is_untyped(response)
@@ -118,8 +98,3 @@ def test_webhooks_cover_every_deliverable_event():
         schema = entry['post']['requestBody']['content']['application/json']['schema']
         documented |= set(schema['properties']['event_type']['enum'])
     assert documented == EventType.ALL - {EventType.SERVICE_HEALTH_ALERT}
-
-
-@pytest.mark.parametrize('module', sorted(PENDING_MODULES))
-def test_pending_modules_exist(module):
-    __import__(module)
