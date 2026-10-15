@@ -199,7 +199,8 @@ def create() -> None:
         if tid is None:
             return await _not_found(request)
 
-        key = f'index:{tid}'
+        root = request.scope.get('root_path', '') or ''
+        key = f'index:{tid}:{root}'
         cached = _cache.get(tenant_id, key)
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
@@ -223,7 +224,7 @@ def create() -> None:
                 tournament_name=tournament.name,
                 brackets=brackets,
                 generated_at=datetime.now(timezone.utc),
-                root_path=request.scope.get('root_path', '') or '',
+                root_path=root,
                 primary_color=await _theme_primary(),
                 refresh_seconds=_INDEX_REFRESH_SECONDS,
             ))
@@ -242,7 +243,8 @@ def create() -> None:
         if stage_id is None:
             return await _not_found(request)
 
-        key = f'bracket:{stage_id}'
+        root = request.scope.get('root_path', '') or ''
+        key = f'bracket:{stage_id}:{root}'
         cached = _cache.get(tenant_id, key)
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
@@ -281,7 +283,7 @@ def create() -> None:
                 live_state=live_state,
                 advancement=advancement,
                 generated_at=datetime.now(timezone.utc),
-                root_path=request.scope.get('root_path', '') or '',
+                root_path=root,
                 primary_color=await _theme_primary(),
                 refresh_seconds=_PAGE_REFRESH_SECONDS,
             ))

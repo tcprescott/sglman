@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 from application.services.match.match_status import MatchStatus
 from application.services.match.match_status import label as status_label
 from application.services.match.match_status import tone as status_tone
+from application.utils.safe_url import http_url_or_empty
 from models import BracketMatch, BracketMatchState
 
 from ..cards import (
@@ -136,7 +137,7 @@ def _status_pill_html(match: BracketMatch, ctx: BracketContext) -> str:
     if status is None or status not in LIVE_STATUS_CLASS:
         return ''
     if status == MatchStatus.LIVE:
-        url = live.get('watch_url') or ''
+        url = http_url_or_empty(live.get('watch_url'))
         if url:
             return (
                 f'<a class="bracket-live-pill" href="{_esc(url)}" '

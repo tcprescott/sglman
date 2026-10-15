@@ -9,6 +9,7 @@ the socket behind it) is exactly what this view exists to avoid.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -120,6 +121,9 @@ _HOVER_JS = (
 )
 
 
+_HEX_COLOR = re.compile(r'#[0-9a-fA-F]{6}')
+
+
 def _document(
     *,
     title: str,
@@ -130,6 +134,10 @@ def _document(
     footer_links: str = '',
     description: str = '',
 ) -> str:
+    # HTML escaping does nothing inside <style>, so the colour is re-checked
+    # here rather than trusting every caller to have validated it.
+    if primary_color and not _HEX_COLOR.fullmatch(primary_color):
+        primary_color = None
     palette = (
         f'<style>body{{--q-primary:{_esc(primary_color)};'
         f'--wiz-header-bg:{_esc(primary_color)};}}</style>'
