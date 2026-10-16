@@ -26,8 +26,10 @@ def transports(monkeypatch):
         sent['email'].append({'to': to, 'subject': subject, 'text': text, 'html': html_body, 'headers': headers})
         return True
 
-    async def fake_send(chat_id, text, button_url=None, button_label=None):
+    async def fake_send(chat_id, text, button_url=None, button_label=None, silent=False):
         sent['telegram'].append({'chat_id': chat_id, 'text': text, 'url': button_url})
+        if silent:
+            sent['telegram'][-1]['silent'] = True
         return True
 
     async def fake_bot_username():
@@ -218,6 +220,13 @@ async def test_a_dm_is_copied_to_email_and_telegram(player, transports):
     assert 'Open the match: https://x.test/m/1' in email['text']
     assert email['headers']['List-Unsubscribe-Post'] == 'List-Unsubscribe=One-Click'
     assert transports['telegram'][-1] == {'chat_id': 5555, 'text': 'Your match is up\nStation 4', 'url': 'https://x.test/m/1'}
+
+
+async def test_a_silent_dm_reaches_telegram_quietly(player, transports):
+    await _with_both(player)
+    await NotificationChannelService().mirror_dm(700, 'Match started', silent=True)
+
+    assert transports['telegram'][-1]['silent'] is True
 
 
 async def test_the_copy_escapes_html(player, transports):

@@ -87,12 +87,17 @@ async def send_message(
     text: str,
     button_url: Optional[str] = None,
     button_label: Optional[str] = None,
+    silent: bool = False,
 ) -> bool:
     """Send plain text, with one link button when ``button_url`` is https.
+
+    ``silent`` delivers it without a sound or vibration.
 
     Raises :class:`TelegramBlocked` when the chat no longer accepts messages.
     """
     payload: dict = {'chat_id': chat_id, 'text': text, 'disable_web_page_preview': True}
+    if silent:
+        payload['disable_notification'] = True
     # Telegram rejects the whole message for a non-https button (a dev
     # localhost link), so that case falls back to text only.
     if button_url and button_url.startswith('https://'):

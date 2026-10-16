@@ -182,7 +182,7 @@ class TestPushMirrorGetsTheSameTarget:
             def is_configured():
                 return True
 
-            async def mirror_dm(self, discord_id, message, navigate=None):
+            async def mirror_dm(self, discord_id, message, navigate=None, silent=False):
                 captured['navigate'] = navigate
 
         with patch.object(discord_service, 'WebPushService', _FakePush), \

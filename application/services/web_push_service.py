@@ -300,6 +300,7 @@ class WebPushService:
 
     async def mirror_dm(
         self, discord_id: int, message: str, navigate: Optional[str] = None,
+        silent: bool = False,
     ) -> None:
         """Mirror a Discord DM to the recipient's subscribed devices.
 
@@ -322,6 +323,7 @@ class WebPushService:
                 title='Wizzrobe',
                 body=self._plain_text(message),
                 navigate=navigate,
+                silent=silent,
             )
         except Exception:
             logger.exception('web push DM mirror failed for discord id %s', discord_id)
@@ -346,15 +348,20 @@ class WebPushService:
             text = text[: self.MAX_BODY_LENGTH - 1] + '…'
         return text
 
-    def _build_payload(self, *, title: str, body: str, navigate: Optional[str] = None) -> bytes:
+    def _build_payload(
+        self, *, title: str, body: str, navigate: Optional[str] = None, silent: bool = False,
+    ) -> bytes:
         """The Declarative Web Push message body (also parsed by sw.js on Chrome)."""
+        notification: dict = {
+            'title': title,
+            'body': body,
+            'navigate': navigate or f'{get_base_url()}/',
+        }
+        if silent:
+            notification['silent'] = True
         return json.dumps({
             'web_push': DECLARATIVE_WEB_PUSH_VERSION,
-            'notification': {
-                'title': title,
-                'body': body,
-                'navigate': navigate or f'{get_base_url()}/',
-            },
+            'notification': notification,
         }, ensure_ascii=False).encode()
 
     async def _send_to_subscriptions(
@@ -364,11 +371,12 @@ class WebPushService:
         title: str,
         body: str,
         navigate: Optional[str] = None,
+        silent: bool = False,
     ) -> int:
         config = _vapid_config()
         if config is None:
             return 0
-        payload = self._build_payload(title=title, body=body, navigate=navigate)
+        payload = self._build_payload(title=title, body=body, navigate=navigate, silent=silent)
         client = _get_http_client()
         # Deliveries are independent — run them concurrently so one slow push
         # service can't serialize a whole fan-out.

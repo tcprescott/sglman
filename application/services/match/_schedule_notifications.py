@@ -83,6 +83,8 @@ class MatchNotificationMixin:
 
     async def notify_match_participants(
         self, match: Match, message: str, embed: Optional[discord.Embed] = None,
+        *, silent: bool = False, players: bool = True,
+        player_copies: Optional[dict] = None,
     ) -> None:
         """
         Send a DM to all opted-in players, approved crew, and watchers for a match.
@@ -91,7 +93,10 @@ class MatchNotificationMixin:
         (whether or not they are also a player/crew) receives the DM with an
         Unwatch button so they can opt out from Discord. ``embed`` is the
         colour-coded card rendered on Discord; the ``message`` text still feeds
-        the web-push mirror.
+        the web-push mirror. ``silent`` sends every copy without a ping;
+        ``players=False`` leaves the players out (crew and watchers still hear).
+        ``player_copies`` maps a player's Discord id to their own ``(text,
+        embed)``, used in place of the shared one.
 
         Never raises; partial DM failures are logged and swallowed so the
         calling lifecycle operation is never blocked.
@@ -99,10 +104,15 @@ class MatchNotificationMixin:
         try:
             recipients = await collect_match_audience(match)
             for discord_id, recipient in recipients.items():
-                text, card = _for_crew(recipient.crew_roles, message, embed)
+                if not players and recipient.audience == AUDIENCE_PLAYER:
+                    continue
+                if player_copies and recipient.audience == AUDIENCE_PLAYER and discord_id in player_copies:
+                    text, card = player_copies[discord_id]
+                else:
+                    text, card = _for_crew(recipient.crew_roles, message, embed)
                 await self._send_one(
                     match, discord_id, recipient, text, embed=card, link=None,
-                    log_label='notify_match_participants',
+                    log_label='notify_match_participants', silent=silent,
                 )
         except Exception:
             logger.exception("notify_match_participants unexpected error for match %s", match.id)
@@ -367,16 +377,17 @@ class MatchNotificationMixin:
         embed: Optional[discord.Embed],
         link: Optional[DMLink],
         log_label: str,
+        silent: bool = False,
     ) -> None:
         """One DM of a per-audience fan-out; a failure is logged, not raised."""
         try:
             if recipient.is_watcher:
                 success, err = await self.discord_service.send_dm_with_unwatch_button(
-                    discord_id, message, match.id, embed=embed, link=link,
+                    discord_id, message, match.id, embed=embed, link=link, silent=silent,
                 )
             else:
                 success, err = await self.discord_service.send_dm(
-                    discord_id, message, embed=embed, link=link,
+                    discord_id, message, embed=embed, link=link, silent=silent,
                 )
         except Exception:
             logger.exception("%s DM raised for %s", log_label, discord_id)

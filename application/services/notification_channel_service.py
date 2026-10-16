@@ -377,12 +377,13 @@ class NotificationChannelService:
     # feature-gate: exempt — soft integration point on every DM; checks the flag itself.
     async def mirror_dm(
         self, discord_id: int, message: str, navigate: Optional[str] = None,
-        label: Optional[str] = None,
+        label: Optional[str] = None, silent: bool = False,
     ) -> None:
         """Copy one Discord DM to the recipient's email and Telegram.
 
         Runs on the event dispatch worker inside the sending community's
-        ``tenant_scope``; never raises.
+        ``tenant_scope``; never raises. ``silent`` reaches Telegram only: an
+        email has no way to arrive quietly.
         """
         try:
             user = await self.repository.get_by_discord_id(discord_id)
@@ -401,7 +402,7 @@ class NotificationChannelService:
             if wants_email:
                 await self._email(user, message, navigate, label)
             if wants_telegram:
-                await self._telegram(user, message, navigate, label)
+                await self._telegram(user, message, navigate, label, silent=silent)
         except Exception:
             logger.exception('email/Telegram DM mirror failed for discord id %s', discord_id)
 
@@ -450,7 +451,10 @@ class NotificationChannelService:
             return await sendgrid_client.send_email(to, subject, text, html_body, headers)
         return False
 
-    async def _telegram(self, user: User, message: str, navigate: Optional[str], label: Optional[str]) -> bool:
+    async def _telegram(
+        self, user: User, message: str, navigate: Optional[str], label: Optional[str],
+        silent: bool = False,
+    ) -> bool:
         chat_id = user.telegram_chat_id
         if chat_id is None:
             return False
@@ -461,7 +465,7 @@ class NotificationChannelService:
             return True
         if telegram_client.is_configured():
             try:
-                return await telegram_client.send_message(chat_id, text, navigate, label)
+                return await telegram_client.send_message(chat_id, text, navigate, label, silent=silent)
             except telegram_client.TelegramBlocked:
                 # They blocked the bot or deleted the chat; stop trying.
                 logger.info('Telegram chat for user %s refused messages; disconnecting it', user.id)
