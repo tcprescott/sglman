@@ -39,6 +39,23 @@ _PASTE_FIELDS = {
         'flags', 'Flags', 'The flag string from the randomizer',
         'Each roll adds a fresh seed number to these flags.',
     ),
+    'z2r': (
+        'flags', 'Flags', 'The flag string from the randomizer',
+        'Each roll adds a fresh seed number to these flags.',
+    ),
+    'smb3r': (
+        'flags', 'Flags', 'The flag string from the randomizer',
+        'Each roll adds a fresh seed number to these flags.',
+    ),
+    'aosr': (
+        'url', 'Randomizer link', 'https://aosrando.surge.sh/?…',
+        'The aosrando.surge.sh link with your options in it. Each roll keeps the options and only changes the seed.',
+    ),
+    'avianart': (
+        'preset', 'AVIANART preset', 'crosskeys',
+        'The preset name from avianart.games, or owner/name for a user preset. '
+        'Import → From a randomizer… lists the published ones.',
+    ),
 }
 
 
@@ -269,6 +286,7 @@ async def admin_presets_page() -> None:
                         first_branches, label='Branch',
                         value=first_branches[0] if first_branches else None,
                     ).classes('w-full')
+                    branch_input.set_visibility(bool(first_branches))
 
                     def reset_catalogue() -> None:
                         selected.clear()
@@ -414,8 +432,8 @@ async def admin_presets_page() -> None:
                         'Settings (JSON)',
                         value=existing['settings'] if is_edit else '{}',
                     ).classes('w-full font-mono').props('rows=12')
-                    # Wind Waker, Final Fantasy and Zelda 1 settings are one string
-                    # copied out of the randomizer, so they get a field for that
+                    # Settings that are one string copied out of the randomizer (a
+                    # permalink, flags, a link, a preset name) get a field for that
                     # instead of JSON.
                     existing_paste = ''
                     if is_edit and existing['randomizer'] in _PASTE_FIELDS:
@@ -432,13 +450,15 @@ async def admin_presets_page() -> None:
                         if not value:
                             return
                         randomizer = randomizer_input.value
+                        if randomizer in ('aosr', 'avianart'):
+                            return
                         try:
                             if randomizer == 'wwr':
                                 info = SeedGenerationService.describe_wwr_permalink(value)
                             elif randomizer == 'ff1r':
                                 version = SeedGenerationService.describe_ff1r_link(value)
                             else:
-                                example = SeedGenerationService.example_z1r_seed(value)
+                                example = SeedGenerationService.example_flag_seed(randomizer, value)
                         except ValueError as e:
                             ui.label(str(e)).classes('text-negative text-body2')
                             return
@@ -453,7 +473,7 @@ async def admin_presets_page() -> None:
                                     'text-weight-medium no-wrap',
                                 )
                             return
-                        if randomizer == 'z1r':
+                        if SeedGenerationService.rolls_from_flags(randomizer):
                             with ui.column().classes('preset-check w-full gap-1'):
                                 ui.label('Players will get something like').classes('text-body2 text-grey')
                                 ui.label(example).classes('seed-value break-all')

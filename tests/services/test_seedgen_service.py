@@ -59,8 +59,8 @@ class TestAvailableRandomizers:
 
     def test_exact_membership(self):
         assert set(SeedGenerationService.AVAILABLE_RANDOMIZERS) == {
-            'alttpr', 'ff1r', 'z1r', 'smmap', 'ootr',
-            'smdash', 'dk64r', 'wwr', 'test',
+            'alttpr', 'avianart', 'ff1r', 'z1r', 'z2r', 'smb3r', 'aosr', 'sm', 'smz3',
+            'smmap', 'ootr', 'smdash', 'dk64r', 'wwr', 'test',
         }
 
     def test_wwr_is_no_longer_a_stub(self):
@@ -178,7 +178,9 @@ class TestMockSeedgen:
         monkeypatch.setenv('ENVIRONMENT', 'development')
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
         assert ' - ' in await service.generate_seed('z1r', _preset('z1r'))
-        assert SeedGenerationService.MOCK_EXEMPT_RANDOMIZERS == {'dk64r', 'wwr', 'z1r'}
+        assert SeedGenerationService.MOCK_EXEMPT_RANDOMIZERS == {
+            'aosr', 'dk64r', 'smb3r', 'wwr', 'z1r', 'z2r',
+        }
 
     async def test_mock_urls_are_distinct(self, service, monkeypatch):
         monkeypatch.setenv('ENVIRONMENT', 'development')
