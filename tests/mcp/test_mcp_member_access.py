@@ -40,3 +40,13 @@ async def test_get_user_returns_own_record(db):
     assert not error, detail
     assert detail['id'] == user.id
     assert detail['roles'] == []
+
+
+async def test_discord_id_is_a_string_so_javascript_cannot_round_it(db):
+    snowflake = 320395696098377729
+    user, raw = await create_oauth_token(username='snowflake', discord_id=snowflake)
+    await TenantMembership.create(user=user, tenant_id=1, source=MembershipSource.STAFF)
+    async with mcp_session() as client:
+        error, detail = await call_tool(client, raw, 'get_user', tenant='default', user_id=user.id)
+    assert not error, detail
+    assert detail['discord_id'] == str(snowflake)
