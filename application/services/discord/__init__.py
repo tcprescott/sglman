@@ -21,6 +21,7 @@ from application.services.discord import (
 from application.services.discord.discord_event_reconciler_service import (
     DiscordEventReconcilerService,
 )
+from application.services.discord.discord_email_service import DiscordEmailService
 from application.services.discord.discord_event_sync_service import DiscordEventSyncService
 from application.services.discord.discord_link_service import DiscordLinkService
 from application.services.discord.discord_login_service import DiscordLoginService
@@ -28,6 +29,7 @@ from application.services.discord.discord_role_mapping_service import DiscordRol
 from application.services.discord.discord_service import DiscordService
 
 __all__ = [
+    'DiscordEmailService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
     'DiscordLinkService',

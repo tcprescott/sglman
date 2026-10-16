@@ -44,6 +44,7 @@ class ProfileCheck(str, Enum):
     PRONOUNS = 'pronouns'
     TIMEZONE = 'timezone'
     MATCHERINO = 'matcherino'
+    NOTIFICATIONS = 'notifications'
 
 
 class ProfileSection(str, Enum):

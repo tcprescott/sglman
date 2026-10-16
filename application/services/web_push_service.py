@@ -326,6 +326,18 @@ class WebPushService:
         except Exception:
             logger.exception('web push DM mirror failed for discord id %s', discord_id)
 
+    async def send_test(self, user: User, message: str, navigate: Optional[str] = None) -> bool:
+        """Send ``message`` to every device ``user`` has. ``True`` if any took it."""
+        if not self.is_configured():
+            return False
+        subscriptions = await self.repository.list_for_user(user)
+        if not subscriptions:
+            return False
+        sent = await self._send_to_subscriptions(
+            subscriptions, title='Wizzrobe', body=self._plain_text(message), navigate=navigate,
+        )
+        return sent > 0
+
     # ----------------------------------------------------------- internals
 
     def _plain_text(self, message: str) -> str:

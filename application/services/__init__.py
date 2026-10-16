@@ -24,6 +24,7 @@ from . import (
     service_health_worker,
     speedgaming_sync_worker,
     staff_request_dms,
+    telegram_bot_worker,
 )
 from .accommodation_service import AccommodationService
 from .analytics_service import AnalyticsService
@@ -51,6 +52,7 @@ from .crew_service import CrewService
 from .discord import (
     DiscordEventReconcilerService,
     DiscordEventSyncService,
+    DiscordEmailService,
     DiscordLinkService,
     DiscordLoginService,
     DiscordRoleMappingService,
@@ -136,6 +138,7 @@ from .volunteer import (
     volunteer_reminder,
 )
 from .watch_layout_service import WatchLayoutService
+from .notification_channel_service import NotificationChannelService
 from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
@@ -159,6 +162,7 @@ __all__ = [
     'CrewService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
+    'DiscordEmailService',
     'DiscordLinkService',
     'DiscordLoginService',
     'DiscordRoleMappingService',
@@ -243,6 +247,7 @@ __all__ = [
     'VolunteerScheduleService',
     'WatchLayoutService',
     'WebPushService',
+    'NotificationChannelService',
     'WebhookService',
     'assert_sg_fields_unchanged',
     'async_qualifier_access',
@@ -254,6 +259,7 @@ __all__ = [
     'check_in_rules',
     'check_in_sales',
     'check_in_sync_worker',
+    'telegram_bot_worker',
     'community_event_reminder',
     'discord_event_worker',
     'discord_queue',

@@ -207,6 +207,15 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             service_modules=('application/services/emergency_contact_service.py',),
         ),
         FeatureFlagSpec(
+            FeatureFlag.NOTIFICATION_CHANNELS,
+            'Email and Telegram Notifications',
+            'Members can also get their notifications by email or Telegram, '
+            'confirmed from their profile. Uses the platform SendGrid and '
+            'Telegram bot accounts.',
+            'Community',
+            service_modules=('application/services/notification_channel_service.py',),
+        ),
+        FeatureFlagSpec(
             FeatureFlag.COMMUNITY_EVENTS,
             'Community Events',
             'Members submit the meetups, panels and side events they are running '

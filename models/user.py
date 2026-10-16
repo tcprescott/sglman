@@ -90,6 +90,19 @@ class User(Model):
     login_name = fields.CharField(max_length=64, null=True, unique=True)
     password_hash = fields.CharField(max_length=255, null=True)
     password_changed_at = fields.DatetimeField(null=True)
+    # Extra notification channels, each a copy of what goes out as a Discord DM
+    # (see ``NotificationChannelService``). Both are global identity like the
+    # rest of this row; whether anything is sent also needs the current
+    # community's ``notification_channels`` flag. ``email`` is only ever stored
+    # confirmed: by a code we sent, or from Discord's own ``verified`` address.
+    email = fields.CharField(max_length=254, null=True)
+    email_verified_at = fields.DatetimeField(null=True)
+    email_notifications = fields.BooleanField(default=False)
+    # Unique so one Telegram chat can't be bound to two accounts.
+    telegram_chat_id = fields.BigIntField(null=True, unique=True)
+    telegram_username = fields.CharField(max_length=64, null=True)
+    telegram_linked_at = fields.DatetimeField(null=True)
+    telegram_notifications = fields.BooleanField(default=False)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
@@ -122,6 +135,7 @@ class User(Model):
     volunteer_availability = fields.ReverseRelation["VolunteerAvailability"]
     challonge_participations = fields.ReverseRelation["ChallongeParticipant"]
     web_push_subscriptions = fields.ReverseRelation["WebPushSubscription"]
+    contact_verifications = fields.ReverseRelation["ContactVerification"]
     tenant_memberships = fields.ReverseRelation["TenantMembership"]
     profile_nudge_dismissals = fields.ReverseRelation["ProfileNudgeDismissal"]  # type: ignore[name-defined]
 
@@ -293,3 +307,29 @@ class WebPushSubscription(Model):
     class Meta:
         table = 'webpushsubscription'
         indexes = (('user',),)
+
+
+class ContactVerification(Model):
+    """A pending proof that a person controls an email address or Telegram chat.
+
+    ``channel='email'`` holds the address being confirmed and the hash of the
+    6-digit code we mailed to it; ``channel='telegram'`` holds the hash of the
+    one-time token in the ``t.me`` start link. Only hashes are stored, rows
+    expire, and a user has at most one open row per channel (a new request
+    replaces the old one). Global like ``User``: a channel is identity.
+    """
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField(
+        'models.User', related_name='contact_verifications', on_delete=fields.CASCADE
+    )
+    channel = fields.CharField(max_length=16)
+    target = fields.CharField(max_length=254, null=True)
+    secret_hash = fields.CharField(max_length=64, unique=True)
+    attempts = fields.IntField(default=0)
+    expires_at = fields.DatetimeField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'contactverification'
+        unique_together = (('user', 'channel'),)

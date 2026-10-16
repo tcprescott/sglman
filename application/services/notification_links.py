@@ -264,6 +264,10 @@ async def admin_reschedule_request(
     return await link_for(label, admin_reschedule_request_url(request_id))
 
 
+async def profile_notifications(*, label: str = 'Notification settings') -> Optional[DMLink]:
+    return await link_for(label, '/home/profile?focus=notifications')
+
+
 async def volunteer_my_shifts(*, label: str = 'My Shifts') -> Optional[DMLink]:
     """My Shifts, for a DM whose own buttons already carry the actions."""
     return await link_for(label, volunteer_my_shifts_url())

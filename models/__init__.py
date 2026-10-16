@@ -126,6 +126,7 @@ from .tournament import (
 )
 from .user import (
     ApiToken,
+    ContactVerification,
     DiscordRoleMapping,
     DiscordTournamentGrant,
     User,
@@ -301,6 +302,7 @@ __all__ = [
     'VolunteerShift',
     'WatchLayoutVote',
     'WebPushSubscription',
+    'ContactVerification',
     # webhooks
     'Webhook',
     'WebhookDelivery',
