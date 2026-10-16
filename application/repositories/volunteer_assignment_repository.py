@@ -128,6 +128,20 @@ class VolunteerAssignmentRepository:
         )
 
     @staticmethod
+    async def on_duty_users(at: datetime) -> List[User]:
+        """Who holds a published shift at ``at`` on a position that takes staff alerts."""
+        assignments = await scoped(VolunteerAssignment.filter(
+            auto_generated=False,
+            shift__position__staff_alerts=True,
+            shift__starts_at__lte=at,
+            shift__ends_at__gt=at,
+        )).prefetch_related('user')
+        users: dict = {}
+        for a in assignments:
+            users.setdefault(a.user_id, a.user)  # type: ignore[attr-defined]
+        return list(users.values())
+
+    @staticmethod
     async def published_for_window(
         start: datetime, end: datetime, user_id: Optional[int] = None,
     ) -> List[VolunteerAssignment]:

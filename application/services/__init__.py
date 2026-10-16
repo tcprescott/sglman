@@ -111,6 +111,7 @@ from .service_health_service import ProbeResult, ServiceHealthService, ServiceSt
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
 from .stage_service import StageService
+from .staff_alert_service import StaffAlertService
 from .startgg_link_service import StartggLinkService
 from .startgg_service import StartggService
 from .station_service import StationService
@@ -230,6 +231,7 @@ __all__ = [
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
     'StageService',
+    'StaffAlertService',
     'StartggLinkService',
     'StartggService',
     'StationService',

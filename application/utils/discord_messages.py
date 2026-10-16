@@ -20,6 +20,8 @@ own, all of them moved out as this module kept crossing the 800-line budget:
 
 from typing import NamedTuple, Optional, Sequence
 
+import discord
+
 from application.utils.match_labels import players_label
 
 
@@ -737,6 +739,21 @@ def hard_preset_withdraw_confirmation(preset_name: str) -> str:
     return (
         f"You're out of **{preset_name}**. This match will use the standard "
         "settings unless you opt back in before the seed is rolled."
+    )
+
+
+def player_comment_staff_dm(player_name: str, tournament_name: str, body: str) -> str:
+    """A player commented on their match; the copy staff get.
+
+    The comment and the name are player-written, so markdown and mentions are
+    escaped: a masked link must not hide where it goes.
+    """
+    def safe(text: str) -> str:
+        return discord.utils.escape_mentions(discord.utils.escape_markdown(text))
+
+    return (
+        f"**{safe(player_name)}** commented on their **{tournament_name}** match:\n\n"
+        f"{safe(body)}"
     )
 
 

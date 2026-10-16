@@ -182,25 +182,20 @@ class RescheduleNotificationMixin:
 
     @staticmethod
     async def _deciders(match: Match) -> Sequence[User]:
-        """Everyone who could actually answer this: STAFF ∪ the tournament's admins.
+        """Whoever could answer this: the admin on duty and the tournament's admins.
 
-        ``_decidable`` gates on ``can_crud_match``, which admits the tournament's
-        own admin as well as the community's staff. DMing only STAFF meant that in a
-        community where a tournament is run by a TA, nobody who owns it was told
-        a request existed — it surfaced only if someone happened to open the
-        board.
+        A match alert (see ``StaffAlertService``), so it no longer pings every
+        staff member, only the on-duty admin and the tournament's own admins,
+        falling back to all staff when nobody is on duty. ``can_crud_match``
+        filters both halves, because ``_decidable`` gates on it: an on-duty
+        volunteer who cannot decide would be sent to a dialog that refuses.
         """
-        from application.repositories import UserRoleRepository
-        from models import Role
+        from application.services.auth_service import AuthService
+        from application.services.staff_alert_service import StaffAlertService
 
-        recipients = {
-            member.id: member
-            for member in await UserRoleRepository.list_users_with_role(Role.STAFF)
-        }
-        await match.fetch_related('tournament__admins')
-        for admin in match.tournament.admins:
-            recipients.setdefault(admin.id, admin)
-        return list(recipients.values())
+        return await StaffAlertService.match_alert_recipients(
+            match, can_act=AuthService.can_crud_match,
+        )
 
     @staticmethod
     def _opponents(match: Match, requester: User) -> Sequence[User]:

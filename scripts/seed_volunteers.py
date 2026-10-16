@@ -77,6 +77,13 @@ async def seed_volunteers_for_tenant(
         broadcast_tech.stagger_minutes = 120
         await broadcast_tech.save()
 
+    # The admin on duty: whoever holds an Admin Desk shift gets match alerts
+    # (player comments, reschedule requests) instead of every staff member.
+    admin_desk = positions["Admin Desk"]
+    if not admin_desk.staff_alerts:
+        admin_desk.staff_alerts = True
+        await admin_desk.save()
+
     qual_specs = [
         ("proctor_user", "Race Proctor"),
         ("sm_user", "Broadcast Tech"),

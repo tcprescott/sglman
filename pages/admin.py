@@ -83,6 +83,7 @@ def build_admin_tabs(
     match_id: int | None = None,
     day: str | None = None,
     reschedule_request: int | None = None,
+    comments: int | None = None,
     qualifier: int | None = None,
     qualifier_tab: str | None = None,
     ada_request: int | None = None,
@@ -119,12 +120,15 @@ def build_admin_tabs(
     # reused for the board's state filter — one param must not mean two things.
     schedule_kwargs = {
         'access': board_access,
-        'match_id': match_id,
+        'match_id': match_id or comments,
         'tournament_ids': board_tournament_ids,
         # A request id from the "Reschedule request" DM's button: the board
         # opens that request's decision dialog on arrival, so the ask lands on
         # the control that answers it rather than on a row to go and find.
         'reschedule_request': reschedule_request,
+        # A match id from a staff alert DM (a player's comment): the board
+        # narrows to it and opens its sheet on the comments.
+        'comments': comments,
     }
 
     tabs: list[dict] = []
@@ -237,6 +241,7 @@ def create() -> None:
         match_id: int | None = None,
         day: str | None = None,
         reschedule_request: int | None = None,
+        comments: int | None = None,
         qualifier: int | None = None,
         tab: str | None = None,
         ada_request: int | None = None,
@@ -308,6 +313,7 @@ def create() -> None:
         tabs = build_admin_tabs(
             access, live, reports_kwargs, setup_steps, base_path,
             match_id=match_id, day=day, reschedule_request=reschedule_request,
+            comments=comments,
             qualifier=qualifier, qualifier_tab=tab, ada_request=ada_request,
             community_event=community_event,
             # A retired tab slug (/admin/appearance) names the pane that took it in.
