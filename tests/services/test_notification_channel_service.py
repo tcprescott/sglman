@@ -271,3 +271,21 @@ async def test_tests_go_where_asked_and_are_rate_limited(player, transports):
 async def test_a_test_to_an_unset_channel_reports_failure(player):
     results = await NotificationChannelService().send_test(player, ['email'])
     assert results == {Channel.EMAIL: False}
+
+
+async def test_discord_tests_work_with_the_flag_off_but_email_does_not(player, monkeypatch):
+    from application.services.discord.discord_service import DiscordService
+
+    async def fake_dm(self, discord_id, message, **kwargs):
+        return True, None
+
+    monkeypatch.setattr(DiscordService, 'send_dm', fake_dm)
+    await TenantFeatureFlag.filter(
+        tenant_id=DEFAULT_TEST_TENANT_ID, flag=FeatureFlag.NOTIFICATION_CHANNELS.value,
+    ).update(enabled=False)
+
+    with tenant_scope(DEFAULT_TEST_TENANT_ID):
+        results = await NotificationChannelService().send_test(player, [Channel.DISCORD])
+        assert results == {Channel.DISCORD: True}
+        with pytest.raises(ValueError, match="aren't turned on"):
+            await NotificationChannelService().send_test(player, [Channel.DISCORD, Channel.EMAIL])
