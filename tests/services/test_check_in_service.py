@@ -636,7 +636,9 @@ class TestWorker:
 
         assert await CheckInEntrant.filter(event=event).count() == 0
 
-    async def test_a_repeated_failure_drops_to_a_warning(self, staff, event, monkeypatch, caplog):
+    async def test_a_refused_login_logs_at_info_and_other_failures_escalate(
+        self, staff, event, monkeypatch, caplog,
+    ):
         import logging
 
         from application.services import check_in_sync_worker
@@ -655,11 +657,12 @@ class TestWorker:
         with caplog.at_level(logging.INFO, logger=check_in_sync_worker.__name__):
             await check_in_sync_worker._tick()
             await check_in_sync_worker._tick()
-            assert levels() == [logging.ERROR, logging.WARNING]
+            assert levels() == [logging.INFO, logging.INFO]
 
             failing.error = MatcherinoAPIError('shape changed')
             await check_in_sync_worker._tick()
-            assert levels()[-1] == logging.ERROR
+            await check_in_sync_worker._tick()
+            assert levels()[-2:] == [logging.ERROR, logging.WARNING]
 
         await event.refresh_from_db()
         assert event.last_sync_error == 'shape changed'

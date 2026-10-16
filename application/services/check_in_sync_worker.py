@@ -10,9 +10,9 @@ Ungated by an environment switch, like the async-qualifier worker: it only ever
 touches events staff have opened, and a deployment with none has nothing for it
 to find. A failing sync (Matcherino down, its shape changed) is recorded on the
 event by the service and retried next tick; it never stops the other events.
-Only a new failure is logged at ERROR: the same failure on the next tick (a
-refused login doesn't heal until someone replaces it) drops to WARNING, since
-the desk already shows it and staff were alerted the first time.
+A refused Matcherino login logs at INFO: the saved token expires routinely, and
+the app already warns staff on Admin → Check-in and by DM. Any other new
+failure logs at ERROR, and the same failure on the next tick drops to WARNING.
 """
 
 import logging
@@ -41,6 +41,14 @@ def _is_repeat(error: ValueError, previous_error: Optional[str]) -> bool:
     return cause is not None and previous_error is not None and str(cause)[:1000] == previous_error
 
 
+def _failure_level(error: ValueError, previous_error: Optional[str]) -> int:
+    from application.utils.clients.matcherino_client import MatcherinoAuthError
+
+    if isinstance(error.__cause__, MatcherinoAuthError):
+        return logging.INFO
+    return logging.WARNING if _is_repeat(error, previous_error) else logging.ERROR
+
+
 async def _tick() -> None:
     from application.repositories import CheckInEventRepository
     from application.services.check_in_service import CheckInService
@@ -65,8 +73,7 @@ async def _tick() -> None:
         try:
             result = await service.sync_event(system_user, event.id, audit=False)
         except ValueError as e:
-            level = logging.WARNING if _is_repeat(e, previous_error) else logging.ERROR
-            logger.log(level, 'Check-in sync for event %s failed: %s', event.id, e)
+            logger.log(_failure_level(e, previous_error), 'Check-in sync for event %s failed: %s', event.id, e)
             return
         logger.info('Check-in sync for event %s: %s', event.id, result.as_dict())
 
