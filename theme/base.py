@@ -754,7 +754,7 @@ class BaseLayout:
                 ui.label('This section failed to load. Try switching tabs again.') \
                     .classes('text-negative q-ma-md')
         finally:
-            if panel is not None:
+            if panel is not None and not panel.is_deleted:
                 container.remove(panel)
         return True
 
