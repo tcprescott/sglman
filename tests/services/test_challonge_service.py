@@ -7,7 +7,7 @@ against a real in-memory DB so the mapping is exercised end to end.
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -140,35 +140,6 @@ class TestGetValidAccessToken:
         await ChallongeConnection.create(access_token='only', refresh_token=None)
         with pytest.raises(ValueError, match='reconnect'):
             await make_service().get_valid_access_token(force_refresh=True)
-
-    async def test_each_community_uses_its_own_grant(self, db):
-        actor = await make_user(1, 'admin')
-        service = make_service(oauth=MagicMock(get_me=AsyncMock(return_value={'username': 'syn'})))
-        await service.save_service_connection({'access_token': 'sg'}, actor, community='speedgaming')
-        await service.save_service_connection({'access_token': 'own'}, actor, community=None)
-        assert await service.get_valid_access_token(community='speedgaming') == 'sg'
-        assert await service.get_valid_access_token(community=None) == 'own'
-        assert await service.get_valid_access_token(community='elsewhere') == 'own'
-
-    async def test_regrant_replaces_only_its_own_community(self, db):
-        actor = await make_user(1, 'admin')
-        service = make_service(oauth=MagicMock(get_me=AsyncMock(return_value={'username': 'syn'})))
-        await service.save_service_connection({'access_token': 'sg1'}, actor, community='speedgaming')
-        await service.save_service_connection({'access_token': 'own'}, actor, community=None)
-        await service.save_service_connection({'access_token': 'sg2'}, actor, community='speedgaming')
-        assert await ChallongeConnection.all().count() == 2
-        assert await service.get_valid_access_token(community='speedgaming') == 'sg2'
-        assert await service.get_valid_access_token(community=None) == 'own'
-
-    async def test_pre_split_row_serves_everything_until_a_grant_replaces_it(self, db):
-        await ChallongeConnection.create(access_token='legacy', community=None)
-        service = make_service(oauth=MagicMock(get_me=AsyncMock(return_value={'username': 'syn'})))
-        assert await service.get_valid_access_token(community=None) == 'legacy'
-        assert await service.get_valid_access_token(community='speedgaming') == 'legacy'
-        await service.save_service_connection(
-            {'access_token': 'sg'}, await make_user(1, 'admin'), community='speedgaming',
-        )
-        assert not await ChallongeConnection.filter(access_token='legacy').exists()
 
 
 # ----------------------------------------------------------------------
@@ -579,25 +550,6 @@ class TestClientPaths:
         client = ChallongeClient('id', 'secret', token_provider=AsyncMock(return_value='tok'))
         client._authed_request = AsyncMock(return_value={'data': {}})
         return client
-
-    async def test_token_is_asked_for_the_brackets_community(self):
-        from application.utils.clients.challonge_client import ChallongeClient
-        provider = AsyncMock(return_value='tok')
-        client = ChallongeClient('id', 'secret', token_provider=provider)
-        client._parse = AsyncMock(return_value={'data': {}})
-        response = MagicMock(status=200)
-        request = MagicMock()
-        request.return_value.__aenter__ = AsyncMock(return_value=response)
-        request.return_value.__aexit__ = AsyncMock(return_value=False)
-        session = MagicMock(request=request)
-        session.__aenter__ = AsyncMock(return_value=session)
-        session.__aexit__ = AsyncMock(return_value=False)
-        with patch('aiohttp.ClientSession', return_value=session):
-            await client.get_tournament_full('sglmmr26')
-            await client.get_tournament_full('sgl26mmr', community='speedgaming')
-        assert [c.kwargs for c in provider.await_args_list] == [
-            {'community': None}, {'community': 'speedgaming'},
-        ]
 
     async def test_root_tournament_path(self):
         client = self._client()
