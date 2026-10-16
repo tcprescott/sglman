@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.challonge_service import ChallongeService
-from models import ChallongeConnection, User
+from models import ChallongeConnection
+from tests.factories import make_user
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
@@ -15,10 +16,6 @@ def make_service() -> ChallongeService:
     oauth = MagicMock(get_me=AsyncMock(return_value={'username': 'syn'}))
     service._oauth_client = lambda: oauth
     return service
-
-
-async def make_user(discord_id: int, username: str = 'u') -> User:
-    return await User.create(discord_id=discord_id, username=username)
 
 
 async def test_each_community_uses_its_own_grant(db):
