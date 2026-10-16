@@ -17,7 +17,7 @@ still go to all staff.
 """
 
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Dict, Iterable, List, Optional
+from typing import Awaitable, Callable, Dict, Iterable, List, NamedTuple, Optional
 
 from application.errors import require_found
 from application.repositories import (
@@ -32,6 +32,14 @@ from models import Match, Role, Tournament, User
 #: May this person act on the alert? A DM that links somewhere the reader
 #: cannot act is worse than none, so recipients are filtered by it.
 CanAct = Callable[[User, Match], Awaitable[bool]]
+
+
+class DutySummary(NamedTuple):
+    """A person's alert-receiving shifts, for their profile."""
+
+    position_name: str
+    on_now: bool
+    next_start: Optional[datetime]
 
 
 class StaffAlertService:
@@ -78,6 +86,25 @@ class StaffAlertService:
                 if admin.id not in opted_out:
                     await add(admin)
         return list(recipients.values())
+
+    @staticmethod
+    async def duty_summary(user: User, at: Optional[datetime] = None) -> Optional[DutySummary]:
+        """Whether ``user`` is on duty now and when their next duty shift starts.
+
+        ``None`` when they hold no current or upcoming alert-receiving shift.
+        """
+        now = at or datetime.now(timezone.utc)
+        assignments = await VolunteerAssignmentRepository.alert_shifts_for_user(user.id, now)
+        if not assignments:
+            return None
+        shifts = [a.shift for a in assignments]  # type: ignore[attr-defined]
+        on_now = any(s.starts_at <= now for s in shifts)
+        upcoming = [s.starts_at for s in shifts if s.starts_at > now]
+        return DutySummary(
+            position_name=shifts[0].position.name,
+            on_now=on_now,
+            next_start=upcoming[0] if upcoming else None,
+        )
 
     @staticmethod
     async def admin_tournaments(user: User) -> List[tuple[Tournament, bool]]:

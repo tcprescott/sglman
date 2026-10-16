@@ -21,6 +21,7 @@ from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
 from pages.home_tabs.emergency_contact_section import render_emergency_contact_section
 from pages.home_tabs.my_feedback_section import render_my_feedback_section
+from pages.home_tabs.staff_alerts_section import render_staff_alerts_section
 from pages.home_tabs.notification_channels_section import ChannelRows, render_test_button
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.startgg_link_section import CONFIG as STARTGG_CONFIG
@@ -421,6 +422,10 @@ async def render_edit_info_tab(focus: str | None = None):
                                     on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
                                 ).props(f'outlined dense aria-label="Alerts for {tournament.name}"') \
                                     .classes('wiz-notify-follow__select')
+
+                await render_staff_alerts_section(
+                    user, on_saving=show_saving, on_saved=show_saved, on_error=show_error,
+                )
 
             # Connected accounts (Challonge / Twitch / racetime) — one compact card
             # of rows instead of three near-identical cards.

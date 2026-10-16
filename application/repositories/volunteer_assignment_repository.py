@@ -142,6 +142,16 @@ class VolunteerAssignmentRepository:
         return list(users.values())
 
     @staticmethod
+    async def alert_shifts_for_user(user_id: int, now: datetime) -> List[VolunteerAssignment]:
+        """The user's published shifts on alert-receiving positions not yet over, soonest first."""
+        return await scoped(VolunteerAssignment.filter(
+            user_id=user_id,
+            auto_generated=False,
+            shift__position__staff_alerts=True,
+            shift__ends_at__gt=now,
+        )).order_by('shift__starts_at').prefetch_related('shift__position')
+
+    @staticmethod
     async def published_for_window(
         start: datetime, end: datetime, user_id: Optional[int] = None,
     ) -> List[VolunteerAssignment]:

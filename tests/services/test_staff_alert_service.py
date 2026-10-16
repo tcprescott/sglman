@@ -230,3 +230,22 @@ class TestPlayerCommentDM:
         assert '\\[click]' in text
         assert '@everyone' not in text
         assert '\\*\\*Eve\\*\\*' in text
+
+
+class TestDutySummary:
+    async def test_on_duty_now_with_a_later_shift_next(self, db):
+        desk = await _staff(9001, 'desk')
+        await _on_shift(desk)
+        later = await _on_shift(desk, start=NOW + timedelta(hours=5), end=NOW + timedelta(hours=7))
+
+        summary = await StaffAlertService.duty_summary(desk, at=NOW)
+
+        assert summary.position_name == 'Admin Desk'
+        assert summary.on_now is True
+        assert summary.next_start == later.starts_at
+
+    async def test_nothing_for_someone_without_duty_shifts(self, db):
+        tech = await _staff(9002, 'tech')
+        await _on_shift(tech, staff_alerts=False, name='Broadcast Tech')
+
+        assert await StaffAlertService.duty_summary(tech, at=NOW) is None

@@ -202,7 +202,8 @@ class MatchSheet:
             else:
                 # A DM outlives its match: a deleted or filtered-out one must
                 # say so rather than leave a link that silently does nothing.
-                ui.notify("That match isn't on this board any more.", color='warning')
+                with self.dialog:
+                    ui.notify("That match isn't on this board any more.", color='warning')
         if self.row is None:
             return
         fresh = next((r for r in rows if r.get('id') == self.row.get('id')), None)
