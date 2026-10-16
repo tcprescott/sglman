@@ -8,6 +8,9 @@ class Tournament(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='tournaments', on_delete=fields.CASCADE)
     name = fields.CharField(max_length=255)
+    # Where a full name will not fit (the timeline, run sheets). Blank means
+    # use ``name``; read it through ``short_label``.
+    short_name = fields.CharField(max_length=40, null=True)
     description = fields.TextField(null=True)
     seed_generator = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
@@ -178,6 +181,10 @@ class Tournament(Model):
     triforce_texts = fields.ReverseRelation["TriforceText"]
     challonge_participants = fields.ReverseRelation["ChallongeParticipant"]
     challonge_matches = fields.ReverseRelation["ChallongeMatch"]
+
+    @property
+    def short_label(self) -> str:
+        return (self.short_name or '').strip() or self.name
 
     @property
     def is_racetime_enabled(self) -> bool:

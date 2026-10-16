@@ -73,6 +73,19 @@ def primary_action(assignment, now: datetime) -> Optional[str]:
     return None
 
 
+def open_shift_details(assignment) -> None:
+    """When, what the shift involves, and who else is on it."""
+    shift = assignment.shift
+    with form_dialog(shift_title(shift), card_classes='dialog-card dialog-card--sm') as dialog:
+        with ui.column().classes('q-pa-md gap-0 full-width'):
+            ui.label(
+                f'{format_local_display(shift.starts_at)} → '
+                f'{format_local_display(shift.ends_at)}'
+            ).classes('text-caption')
+            render_shift_brief(assignment)
+    dialog.open()
+
+
 def day_heading(starts_at: datetime) -> str:
     local = to_local(starts_at) or starts_at
     return f'{local:%A, %B} {local.day}'
@@ -137,17 +150,6 @@ async def my_volunteer_shifts_section(user: User) -> None:
             await rows.refresh()
         await open_release_dialog(assignment, user, lead_minutes, released)
 
-    def details(assignment) -> None:
-        shift = assignment.shift
-        with form_dialog(shift_title(shift), card_classes='dialog-card dialog-card--sm') as dialog:
-            with ui.column().classes('q-pa-md gap-0 full-width'):
-                ui.label(
-                    f'{format_local_display(shift.starts_at)} → '
-                    f'{format_local_display(shift.ends_at)}'
-                ).classes('text-caption')
-                render_shift_brief(assignment)
-        dialog.open()
-
     def render_row(assignment, now: datetime) -> None:
         shift = assignment.shift
         title = shift_title(shift)
@@ -171,7 +173,7 @@ async def my_volunteer_shifts_section(user: User) -> None:
                     ui.button('Acknowledge', icon='check',
                               on_click=lambda a=assignment: acknowledge(a)).props('color=primary no-caps')
                 with more_menu(title):
-                    menu_action('info', 'Shift details', lambda a=assignment: details(a))
+                    menu_action('info', 'Shift details', lambda a=assignment: open_shift_details(a))
                     if can_undo_check_in(assignment, user, now):
                         menu_action('undo', 'Undo check-in', lambda a=assignment: undo(a))
                     if can_release:

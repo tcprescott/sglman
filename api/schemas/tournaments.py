@@ -11,6 +11,9 @@ class TournamentResponse(BaseModel):
 
     id: int = Field(..., description="The tournament's ID.")
     name: str = Field(..., description="The tournament's name.")
+    short_name: Optional[str] = Field(
+        None, description="Abbreviation shown where the full name won't fit, such as run sheets. Null means use the name.",
+    )
     description: Optional[str] = Field(None, description="Long description shown to players, as markdown.")
     seed_generator: Optional[str] = Field(
         None,

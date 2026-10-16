@@ -312,7 +312,7 @@ _BODY_SLOT = r'''
         <template v-else-if="col.name === 'match'">
             <button type="button" class="run-sheet__open" @click.stop="$parent.$emit('open_match', props.row.id)">
                 {{ ''' + _TITLE + ''' }}</button>
-            <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
+            <span class="run-sheet__meta" :title="props.row.tournament">{{ props.row.tournament_short || props.row.tournament }}<template v-if="props.row.bracket"> · {{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></template></span>
         </template>
         <template v-else-if="col.name === 'stage'">''' + _STAGE + '''</template>
         <template v-else-if="col.name === 'commentators' || col.name === 'trackers'">
@@ -342,7 +342,7 @@ _ITEM_SLOT = r'''
                 <span class="run-sheet__when">''' + _WHEN + '''</span>
                 <span class="run-sheet__main">
                     <span class="run-sheet__who">{{ ''' + _TITLE + ''' }}</span>
-                    <span class="run-sheet__meta">{{ props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
+                    <span class="run-sheet__meta" :title="props.row.tournament">{{ props.row.tournament_short || props.row.tournament }}<template v-if="props.row._stage"> · {{ props.row._stage }}</template></span>
                 </span>
                 <span v-if="props.row._status !== 'Scheduled'" class="wiz-chip" :class="'wiz-chip--' + props.row._tone">{{ props.row._status }}</span>
             </button>''' + _BELL + '''__MENU__
