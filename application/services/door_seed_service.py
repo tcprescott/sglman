@@ -7,13 +7,23 @@ rule here: ``public`` is anyone with the link, ``staff`` is this community's
 staff (and super-admins), ``none`` is nobody, because it was never kept.
 """
 
-from typing import Optional
+import logging
+import time
+from typing import List, Optional
 
 from application.errors import NotFoundError, require_found
 from application.repositories.door_seed_repository import DoorSeedRepository
 from application.services.auth_service import AuthService
+from application.utils.clients import alttpr_sprites_client
 from application.utils.door_seed_store import DoorSeedStore
 from models import DoorSeed, User
+
+logger = logging.getLogger(__name__)
+
+SPRITE_LIST_TTL = 6 * 3600.0
+SPRITE_LIST_RETRY = 300.0
+# One copy for the whole process: it's the same public list for everyone.
+_sprite_cache: dict = {'sprites': None, 'expires': 0.0}
 
 
 class DoorSeedService:
@@ -57,3 +67,18 @@ class DoorSeedService:
             return await self.store.get_base_patch(version)
         except ValueError:
             return None
+
+    @staticmethod
+    async def sprite_list() -> List[dict]:
+        """The alttpr.com sprites, cached; a stale copy (or none) if alttpr.com is down."""
+        now = time.monotonic()
+        if _sprite_cache['sprites'] is not None and now < _sprite_cache['expires']:
+            return _sprite_cache['sprites']
+        try:
+            sprites = await alttpr_sprites_client.fetch_sprite_list()
+        except alttpr_sprites_client.SpriteListError as e:
+            logger.warning('Could not refresh the alttpr.com sprite list: %s', e)
+            _sprite_cache['expires'] = now + SPRITE_LIST_RETRY
+            return _sprite_cache['sprites'] or []
+        _sprite_cache.update(sprites=sprites, expires=now + SPRITE_LIST_TTL)
+        return sprites

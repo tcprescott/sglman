@@ -7,7 +7,7 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
@@ -248,6 +248,12 @@ def _register_root_routes(fastapi_app: FastAPI) -> None:
         if content is None:
             return Response(status_code=404, headers=_missing)
         return Response(content, media_type='application/octet-stream', headers=_immutable)
+
+    @fastapi_app.get('/door-seeds/sprites.json', include_in_schema=False)
+    async def _door_seed_sprites() -> Response:
+        from application.services import DoorSeedService
+
+        return JSONResponse(await DoorSeedService.sprite_list(), headers={'Cache-Control': 'public, max-age=3600'})
 
     @fastapi_app.get('/door-seeds/{token}/spoiler.json', include_in_schema=False)
     async def _door_seed_spoiler(token: str) -> Response:

@@ -11,7 +11,9 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from application.errors import NotFoundError
+from application.services import door_seed_service
 from application.services.door_seed_service import DoorSeedService
+from application.utils.clients import alttpr_sprites_client
 from application.services.seedgen_service import SeedGenerationService
 from application.utils.door_seed_store import DoorSeedStore
 from application.utils.seed_provider import SeedProviderInvalidRequest
@@ -163,3 +165,39 @@ async def test_store_refuses_path_tricks(tmp_path, name):
     with pytest.raises(ValueError):
         await DoorSeedStore(str(tmp_path)).get_patch(name)
     assert await DoorSeedService(DoorSeedStore(str(tmp_path))).patch(name) is None
+
+
+class TestSpriteList:
+    def test_trim_keeps_only_alttpr_asset_links(self):
+        prefix = alttpr_sprites_client.ASSET_PREFIX
+        sprites = alttpr_sprites_client.trim_sprite_list([
+            {'name': 'Link', 'author': 'Nintendo', 'file': prefix + '001.link.1.zspr', 'preview': prefix + 'l.png'},
+            {'name': 'Abigail', 'author': 'F', 'file': prefix + 'abigail.1.zspr', 'preview': 'https://evil.example/x.png',
+             'tags': ['Female', 3]},
+            {'name': 'Elsewhere', 'file': 'https://evil.example/x.zspr'},
+            'junk',
+        ])
+        assert [s['name'] for s in sprites] == ['Link', 'Abigail']
+        assert sprites[0]['default'] is True
+        assert sprites[1] == {
+            'default': False, 'name': 'Abigail', 'author': 'F', 'file': prefix + 'abigail.1.zspr',
+            'preview': None, 'tags': ['Female'],
+        }
+
+    async def test_list_is_cached_and_survives_an_outage(self, monkeypatch):
+        calls = []
+
+        async def fetch():
+            calls.append(1)
+            if len(calls) > 1:
+                raise alttpr_sprites_client.SpriteListError('down')
+            return [{'name': 'Abigail'}]
+
+        monkeypatch.setattr(alttpr_sprites_client, 'fetch_sprite_list', fetch)
+        monkeypatch.setattr(door_seed_service, '_sprite_cache', {'sprites': None, 'expires': 0.0})
+        assert await DoorSeedService.sprite_list() == [{'name': 'Abigail'}]
+        assert await DoorSeedService.sprite_list() == [{'name': 'Abigail'}]
+        assert len(calls) == 1
+        door_seed_service._sprite_cache['expires'] = 0.0
+        assert await DoorSeedService.sprite_list() == [{'name': 'Abigail'}]
+        assert len(calls) == 2
