@@ -184,9 +184,37 @@ class TestLinkTournament:
         actor = await make_user(1, 'admin')
         tournament = await Tournament.create(name='T')
         api = MagicMock()
-        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError('404 not found'))
-        with pytest.raises(ValueError, match='Could not find that Challonge tournament'):
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError(
+            'Challonge API error (422): {"errors":{"detail":"Name is too long","status":422}}', status=422,
+        ))
+        with pytest.raises(ValueError, match=r'^Could not find that Challonge tournament: Name is too long\.$'):
             await make_service(api=api).link_tournament(tournament.id, 'abc', actor)
+
+    async def test_not_found_names_the_connected_account(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError(
+            'Challonge API error (404): {"errors":{"detail":"Tournament with ID or URL sglmmr26 '
+            'does not exist","status":404}}', status=404,
+        ))
+        with pytest.raises(ValueError) as excinfo:
+            await make_service(api=api).link_tournament(
+                tournament.id, 'https://challonge.com/sglmmr26', actor,
+            )
+        message = str(excinfo.value)
+        assert "can't find 'sglmmr26' for the connected account" in message
+        assert "hasn't been granted brackets outside a community" in message
+        assert '{' not in message
+
+    async def test_not_found_with_a_grant_points_at_the_bracket(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T')
+        await ChallongeConnection.create(access_token='t', community='', challonge_username='syn')
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(side_effect=ChallongeAPIError('404', status=404))
+        with pytest.raises(ValueError, match="that syn is an admin of the bracket"):
+            await make_service(api=api).link_tournament(tournament.id, 'sglmmr26', actor)
 
     async def test_community_403_explains_how_to_reconnect(self, db):
         actor = await make_user(1, 'admin')
