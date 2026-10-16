@@ -30,7 +30,7 @@ def _name(value: str) -> str:
 
 class DoorSeedStore:
     def __init__(self, root: Optional[str] = None) -> None:
-        self.root = Path(root or os.getenv('DOOR_SEED_DIR', '.door-seeds'))
+        self.root = Path(root or os.getenv('DOOR_SEED_DIR') or '.door-seeds')
 
     def _path(self, *parts: str) -> Path:
         return self.root.joinpath(*parts)

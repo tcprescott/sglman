@@ -300,7 +300,7 @@ class DoorSeed(Model):
     """
 
     id = fields.IntField(pk=True)
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='door_seeds', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='door_seeds', on_delete=fields.CASCADE)  # type: ignore[var-annotated]
     token = fields.CharField(max_length=32, unique=True)
     # The randomizer build that rolled it; its base patch must be the same build's.
     version = fields.CharField(max_length=40)

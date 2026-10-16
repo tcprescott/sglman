@@ -15,7 +15,7 @@ setup, with the options folded under Customize.
 """
 
 import json
-from typing import Optional
+from typing import Any, Optional
 
 from nicegui import app, ui
 
@@ -229,7 +229,7 @@ class _SpritePicker:
 
 
 async def _render(seed: DoorSeed, user: Optional[User]) -> None:
-    state = {'options': dict(DEFAULTS), 'has_rom': False, 'ready': False, 'busy': False, 'failed': False}
+    state: dict[str, Any] = {'options': dict(DEFAULTS), 'has_rom': False, 'ready': False, 'busy': False, 'failed': False}
     spoiler_ok = await DoorSeedService.can_read_spoiler(seed, user)
     link = await _page_link(seed)
 
