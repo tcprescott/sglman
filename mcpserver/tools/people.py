@@ -79,9 +79,15 @@ async def get_user(
     # account on the platform by counting upwards.
     user = await load_community_user_or_404(user_id, actor.user)
     roles = await AuthService.get_roles(user)
-    detail = UserDetail.model_validate(user, from_attributes=True)
-    detail.roles = sorted(r.value for r in roles)
-    return detail
+    # Built field by field: `User.roles` is the ORM's reverse relation, which
+    # `from_attributes` would try (and fail) to read as the list of role names.
+    return UserDetail(
+        **UserSummary.model_validate(user, from_attributes=True).model_dump(),
+        roles=sorted(r.value for r in roles),
+        pronouns=user.pronouns,
+        twitch_username=user.twitch_username,
+        racetime_username=user.racetime_username,
+    )
 
 
 async def list_match_crew(

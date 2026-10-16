@@ -23,6 +23,7 @@ from application.errors import NotFoundError
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_service import TenantService
+from application.tenant_context import require_tenant_id
 from models import ApiToken, FeatureFlag, Tenant, User
 
 
@@ -85,6 +86,19 @@ class Gate(Enum):
     STAFF = 'staff'
 
 
+async def belongs_to_tenant(user: User) -> bool:
+    """Whether ``user`` belongs to the community in scope: a member, or a role holder.
+
+    Membership is the bar, the same one the web app's join door uses, so a
+    regular player reaches their community here exactly as they do in a browser.
+    A role implies membership, so the role check only covers rows that predate
+    that invariant.
+    """
+    if await TenantService.is_member(user.id, require_tenant_id()):
+        return True
+    return bool(await AuthService.get_roles(user))
+
+
 async def resolve_tenant(slug: Optional[str]) -> Optional[Tenant]:
     """Resolve a tool's ``tenant`` slug argument to a community.
 
@@ -126,7 +140,7 @@ async def authorize(
     # let any authenticated user read any community's tournaments, matches and
     # schedule. That is a cross-community disclosure the REST surface does not
     # permit, so the floor restores parity: a token reaches a community only
-    # where its user actually holds a role.
+    # where its user actually belongs.
     #
     # NotFoundError, not PermissionError, and worded identically to an unknown
     # slug: "hidden, not forbidden" is the posture used throughout the app, and
@@ -136,7 +150,7 @@ async def authorize(
     # discovers that they have access to none. Refusing them would leave a
     # role-less user unable to learn anything at all, including *that* fact.
     if gate is not Gate.GLOBAL and not await AuthService.is_super_admin(actor.user):
-        if not await AuthService.get_roles(actor.user):
+        if not await belongs_to_tenant(actor.user):
             raise NotFoundError(f"No community '{slug}' is available.")
 
     # After the floor, not before it: "not enabled here" confirms the community
