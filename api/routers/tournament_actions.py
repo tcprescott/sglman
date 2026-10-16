@@ -1,4 +1,4 @@
-"""Tournament write endpoints (create/update/delete, admin & crew-coordinator membership)."""
+"""Tournament write endpoints: create/update/delete, admins, crew coordinators, roster and Challonge link."""
 
 from typing import List, Optional
 
@@ -9,13 +9,16 @@ from api.dependencies import ServiceErrorRoute, require_api_actor, require_write
 from api.schemas.detail import DetailResponse
 from api.schemas.match_actions import MatchSuggestionResponse
 from api.schemas.tournament_actions import (
+    ChallongeLinkRequest,
+    ChallongeSyncResponse,
     MembershipRequest,
     TournamentCreateRequest,
     TournamentUpdateRequest,
 )
 from api.schemas.tournaments import TournamentResponse
+from api.schemas.users import UserListItem
 from application.errors import require_found
-from application.services import MatchSuggestionService, TournamentService
+from application.services import ChallongeService, MatchSuggestionService, TournamentService
 from application.tenant_context import require_tenant_id
 from models import Tournament, User
 
@@ -232,3 +235,99 @@ async def sign_up_for_tournament(tournament_id: int, actor: User = Depends(requi
 async def withdraw_from_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
     tournament = await TournamentService().self_withdraw(tournament_id, actor)
     return {"detail": f"Withdrew from {tournament.name}"}
+
+
+@router.get(
+    "/{tournament_id}/players",
+    response_model=List[UserListItem],
+    summary="List a tournament's players (Staff or Tournament Admin)",
+    description=(
+        "Everyone enrolled in the tournament, the same list as Manage players on the Tournaments "
+        "tab.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
+)
+async def list_players(tournament_id: int, actor: User = Depends(require_api_actor)):
+    tournament = await _load_tournament_or_404(tournament_id)
+    return await TournamentService().list_players(tournament, actor)
+
+
+@router.post(
+    "/{tournament_id}/players",
+    response_model=DetailResponse,
+    summary="Enroll a player (Staff only)",
+    description=(
+        "Adds a member to the tournament's roster. Unlike self-signup this ignores the signup "
+        "window. Fails with 400 when the person isn't a member of this community or is already "
+        "enrolled.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
+async def enroll_player(tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor)):
+    tournament = await _load_tournament_or_404(tournament_id)
+    target = await load_user_or_404(body.user_id)
+    await TournamentService().enroll_player(tournament, target, actor)
+    return {"detail": "Player enrolled"}
+
+
+@router.delete(
+    "/{tournament_id}/players/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a player from the roster (Staff only)",
+    description=(
+        "Takes the person off the tournament's roster, whatever the signup window says.\n\n"
+        "**Who can call this:** Staff."
+    ),
+)
+async def unenroll_player(tournament_id: int, user_id: int, actor: User = Depends(require_write_actor)):
+    tournament = await _load_tournament_or_404(tournament_id)
+    target = await load_user_or_404(user_id)
+    await TournamentService().unenroll_player(tournament, target, actor)
+
+
+@router.put(
+    "/{tournament_id}/challonge",
+    response_model=TournamentResponse,
+    summary="Link a tournament to a Challonge bracket (Staff or Tournament Admin)",
+    description=(
+        "Links the tournament to a Challonge bracket by its URL or ID and imports it. Needs the "
+        "Challonge feature on and the community's Challonge connection set up. Fails with 400 "
+        "when the tournament already has a native bracket or Challonge can't find the bracket.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
+)
+async def link_challonge(
+    tournament_id: int, body: ChallongeLinkRequest, actor: User = Depends(require_write_actor),
+):
+    await _load_tournament_or_404(tournament_id)
+    return await ChallongeService().link_tournament(tournament_id, body.challonge, actor)
+
+
+@router.delete(
+    "/{tournament_id}/challonge",
+    response_model=TournamentResponse,
+    summary="Unlink a tournament from Challonge (Staff or Tournament Admin)",
+    description=(
+        "Detaches the tournament from Challonge and drops the mirrored bracket here. Nothing on "
+        "Challonge is deleted, and linking again re-imports it.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
+)
+async def unlink_challonge(tournament_id: int, actor: User = Depends(require_write_actor)):
+    await _load_tournament_or_404(tournament_id)
+    return await ChallongeService().unlink_tournament(tournament_id, actor)
+
+
+@router.post(
+    "/{tournament_id}/challonge/sync",
+    response_model=ChallongeSyncResponse,
+    summary="Sync a tournament's Challonge bracket now (Staff or Tournament Admin)",
+    description=(
+        "Pulls the latest entrants and matches from Challonge, the same as Sync now on the "
+        "Challonge tab.\n\n"
+        "**Who can call this:** Staff or Admins of this tournament."
+    ),
+)
+async def sync_challonge(tournament_id: int, actor: User = Depends(require_write_actor)):
+    await _load_tournament_or_404(tournament_id)
+    return {"counts": await ChallongeService().sync_bracket(tournament_id, actor, force=True)}

@@ -75,5 +75,27 @@ class TournamentResponse(BaseModel):
     signups_close_at: Optional[datetime] = Field(
         None, description="When player self-signup closes (UTC). Null means signups stay open.",
     )
+    is_test: bool = Field(
+        False, description="A test tournament: usable, but left off the public event-info tournament list.",
+    )
+    preset_id: Optional[int] = Field(None, description="ID of the seed preset matches roll from, if any.")
+    hard_preset_id: Optional[int] = Field(
+        None, description="ID of the harder preset players can opt into instead, if any.",
+    )
+    stage_reminder_minutes: int = Field(
+        30, description="Minutes before a match that the stage reminder DM goes out. 0 means off.",
+    )
+    racetime_bot_id: Optional[int] = Field(None, description="ID of the racetime bot that opens rooms, if any.")
+    race_room_profile_id: Optional[int] = Field(None, description="ID of the race room profile new rooms use, if any.")
+    racetime_auto_create_rooms: bool = Field(False, description="Whether racetime rooms open automatically.")
+    room_open_minutes_before: int = Field(30, description="Minutes before the match an automatic room opens.")
+    require_racetime_link: bool = Field(False, description="Whether players need a linked racetime account.")
+    racetime_default_goal: Optional[str] = Field(None, description="Racetime goal new rooms use.")
+    challonge_tournament_url: Optional[str] = Field(
+        None, description="The linked Challonge bracket's page, when the tournament mirrors one.",
+    )
+    discord_events_enabled: bool = Field(
+        False, description="Whether matches appear as scheduled events in the community's Discord server.",
+    )
     created_at: datetime = Field(..., description="When the tournament was created (UTC).")
     updated_at: datetime = Field(..., description="When the tournament was last changed (UTC).")

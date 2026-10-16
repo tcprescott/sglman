@@ -1,7 +1,7 @@
 """Request schemas for tournament write actions."""
 
 from datetime import date, datetime
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,27 @@ _CREW_DESC = (
     'restrict signups.'
 )
 _UPDATE_NOTE = ' Omit to leave it unchanged.'
+_CLEAR_NOTE = ' Omit to leave it unchanged; null clears it.'
+_TEST_DESC = (
+    'Marks a test tournament: it stays usable but is left off the public '
+    'event-info tournament list.'
+)
+_REQUESTS_DESC = 'Whether players may request their own matches.'
+_PRESET_DESC = (
+    'ID of the seed preset matches roll from. Attaching one also sets '
+    '`seed_generator` to the preset\'s randomizer.'
+)
+_HARD_PRESET_DESC = (
+    'ID of a harder preset for the same randomizer, offered as an alternative '
+    'roll. Needs a standard preset.'
+)
+_BOT_DESC = 'ID of the racetime bot that opens race rooms (online tournaments).'
+_PROFILE_DESC = 'ID of the race room profile new rooms use (online tournaments).'
+_AUTO_ROOMS_DESC = 'Open racetime rooms automatically before each match. Needs a racetime bot.'
+_ROOM_OPEN_DESC = 'How many minutes before the match an automatic room opens.'
+_REQUIRE_LINK_DESC = 'Require players to have linked a racetime account.'
+_GOAL_DESC = 'Racetime goal new rooms use.'
+_STAGE_REMINDER_DESC = 'How many minutes before a match the stage reminder DM goes out. 0 turns it off.'
 
 
 class TournamentCreateRequest(BaseModel):
@@ -56,6 +77,17 @@ class TournamentCreateRequest(BaseModel):
     )
     signups_open_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
     signups_close_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
+    is_test: bool = Field(False, description=_TEST_DESC)
+    allow_player_match_requests: bool = Field(True, description=_REQUESTS_DESC)
+    preset_id: Optional[int] = Field(None, description=_PRESET_DESC)
+    hard_preset_id: Optional[int] = Field(None, description=_HARD_PRESET_DESC)
+    racetime_bot_id: Optional[int] = Field(None, description=_BOT_DESC)
+    race_room_profile_id: Optional[int] = Field(None, description=_PROFILE_DESC)
+    racetime_auto_create_rooms: bool = Field(False, description=_AUTO_ROOMS_DESC)
+    room_open_minutes_before: int = Field(30, ge=0, description=_ROOM_OPEN_DESC)
+    require_racetime_link: bool = Field(False, description=_REQUIRE_LINK_DESC)
+    racetime_default_goal: Optional[str] = Field(None, description=_GOAL_DESC)
+    stage_reminder_minutes: int = Field(30, ge=0, description=_STAGE_REMINDER_DESC)
 
 
 class TournamentUpdateRequest(BaseModel):
@@ -94,7 +126,30 @@ class TournamentUpdateRequest(BaseModel):
     )
     signups_open_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
     signups_close_at: Optional[datetime] = Field(default=None, description=_SIGNUP_DESC)
+    is_test: Optional[bool] = Field(None, description=_TEST_DESC + _UPDATE_NOTE)
+    allow_player_match_requests: Optional[bool] = Field(None, description=_REQUESTS_DESC + _UPDATE_NOTE)
+    preset_id: Optional[int] = Field(None, description=_PRESET_DESC + _CLEAR_NOTE)
+    hard_preset_id: Optional[int] = Field(None, description=_HARD_PRESET_DESC + _CLEAR_NOTE)
+    racetime_bot_id: Optional[int] = Field(None, description=_BOT_DESC + _CLEAR_NOTE)
+    race_room_profile_id: Optional[int] = Field(None, description=_PROFILE_DESC + _CLEAR_NOTE)
+    racetime_auto_create_rooms: Optional[bool] = Field(None, description=_AUTO_ROOMS_DESC + _UPDATE_NOTE)
+    room_open_minutes_before: Optional[int] = Field(None, ge=0, description=_ROOM_OPEN_DESC + _UPDATE_NOTE)
+    require_racetime_link: Optional[bool] = Field(None, description=_REQUIRE_LINK_DESC + _UPDATE_NOTE)
+    racetime_default_goal: Optional[str] = Field(None, description=_GOAL_DESC + _CLEAR_NOTE)
+    stage_reminder_minutes: Optional[int] = Field(None, ge=0, description=_STAGE_REMINDER_DESC + _UPDATE_NOTE)
 
 
 class MembershipRequest(BaseModel):
     user_id: int = Field(..., description="ID of the user to add as tournament admin or crew coordinator.")
+
+
+class ChallongeLinkRequest(BaseModel):
+    challonge: str = Field(
+        ..., description="The Challonge bracket's URL (https://challonge.com/...) or its ID.",
+    )
+
+
+class ChallongeSyncResponse(BaseModel):
+    counts: Dict[str, Any] = Field(
+        ..., description="What the sync found or changed, such as participant and match counts.",
+    )

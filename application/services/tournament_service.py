@@ -672,6 +672,15 @@ class TournamentService(TournamentSignupMixin):
     async def get_enrolled_players(self, tournament: Tournament) -> list:
         return await self.repository.get_enrolled_players(tournament)
 
+    async def list_players(self, tournament: Tournament, actor: User) -> list[User]:
+        """The tournament's roster, for whoever may edit the tournament."""
+        await AuthService.ensure(
+            await AuthService.can_edit_tournament(actor, tournament),
+            f"User cannot view tournament {tournament.id}'s roster",
+        )
+        rows = await self.repository.get_enrolled_players(tournament)
+        return [row.user for row in rows]
+
     async def enroll_player(self, tournament: Tournament, target: User, actor: User) -> None:
         """Enrol one player in one tournament, from the tournament's own screen.
 

@@ -21,6 +21,7 @@ from api.schemas.volunteers import (
     VolunteerPositionUpdate,
     VolunteerShiftCreate,
     VolunteerShiftResponse,
+    VolunteerShiftUpdate,
 )
 from application.errors import require_found
 from application.services.auth_service import AuthService
@@ -28,7 +29,7 @@ from application.services.volunteer.volunteer_availability_service import Volunt
 from application.services.volunteer.volunteer_hours import VolunteerHoursService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from models import User, VolunteerShift
+from models import User
 
 router = APIRouter(
     prefix="/volunteers",
@@ -43,27 +44,7 @@ router = APIRouter(
 _assignment_resp = VolunteerAssignmentResponse.from_row
 
 
-def _shift_resp(s: VolunteerShift, *, include_drafts: bool) -> VolunteerShiftResponse:
-    """A shift as the caller may see it.
-
-    Drafts are the coordinator's unannounced sketch: only someone who can manage
-    volunteers sees them, so a volunteer never learns of one sideways.
-    """
-    assignments = list(s.assignments) if hasattr(s, 'assignments') else []
-    if not include_drafts:
-        assignments = [a for a in assignments if not a.auto_generated]
-    return VolunteerShiftResponse(
-        id=s.id,
-        position_id=s.position_id,
-        position_name=(s.position.name if s.position else None),
-        starts_at=s.starts_at,
-        ends_at=s.ends_at,
-        label=s.label,
-        slots_needed=s.slots_needed,
-        notes=s.notes,
-        filled=len(assignments),
-        assignments=[_assignment_resp(a) for a in assignments],
-    )
+_shift_resp = VolunteerShiftResponse.from_row
 
 
 # --- Positions ------------------------------------------------------------
@@ -187,6 +168,28 @@ async def create_shift(payload: VolunteerShiftCreate, actor: User = Depends(requ
                     and s.starts_at == payload.starts_at), None)
     # create_shift has already required can_manage_volunteers.
     return _shift_resp(created or shifts[-1], include_drafts=True)
+
+
+@router.patch(
+    "/shifts/{shift_id}",
+    response_model=VolunteerShiftResponse,
+    summary="Update a shift",
+    description=(
+        "Changes only the fields you send. Moving the shift's start or end clears everyone's acknowledgment and DMs them the new time; changing slots, label or notes notifies nobody.\n\n"
+        "Fails with 400 when the shift wouldn't end after it starts, needs fewer than one slot, or names a position that doesn't exist in this community.\n\n"
+        "**Who can call this:** Staff or Volunteer coordinator."
+    ),
+)
+async def update_shift(shift_id: int, payload: VolunteerShiftUpdate, actor: User = Depends(require_write_actor)):
+    service = VolunteerScheduleService()
+    shift = require_found(await service.get_shift(shift_id), "Shift")
+    fields = payload.model_dump(exclude_unset=True)
+    for key in ('label', 'notes'):
+        if key in fields:
+            fields[key] = (fields[key] or '').strip() or None
+    if fields:
+        await service.update_shift(actor, shift, **fields)
+    return _shift_resp(require_found(await service.get_shift(shift_id), "Shift"), include_drafts=True)
 
 
 @router.delete(

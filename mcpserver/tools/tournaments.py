@@ -28,6 +28,7 @@ from mcpserver.schemas import (
     TournamentPayouts,
     TournamentSignupInfo,
     TournamentSummary,
+    UserSummary,
 )
 from models import FeatureFlag
 
@@ -81,6 +82,18 @@ async def list_tournament_signups(
         )
         for card in cards
     ]
+
+
+async def list_tournament_players(
+    tournament_id: int,
+    tenant: TenantArg = None,
+) -> List[UserSummary]:
+    """List everyone enrolled in a tournament. Staff or that tournament's admins."""
+    tournament = require_found(
+        await TournamentService().get_tournament_by_id(tournament_id), 'Tournament'
+    )
+    players = await TournamentService().list_players(tournament, current_actor().user)
+    return [UserSummary.model_validate(u, from_attributes=True) for u in players]
 
 
 async def sign_up_for_tournament(
@@ -187,6 +200,7 @@ def register_tools(mcp: MCPServer) -> None:
     register(mcp, list_tournaments, gate=Gate.ACTOR, title='List tournaments')
     register(mcp, get_tournament, gate=Gate.ACTOR, title='Get tournament')
     register(mcp, list_tournament_signups, gate=Gate.ACTOR, title='List tournament signups')
+    register(mcp, list_tournament_players, gate=Gate.ACTOR, title='List tournament players')
     register(
         mcp, sign_up_for_tournament, gate=Gate.ACTOR, write=True,
         title='Sign up for tournament',
