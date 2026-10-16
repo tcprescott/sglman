@@ -35,6 +35,7 @@ from .community_event_repository import (
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
 from .discord_tournament_grant_repository import DiscordTournamentGrantRepository
+from .door_seed_repository import DoorSeedRepository
 from .emergency_contact_repository import EmergencyContactRepository
 from .equipment_repository import EquipmentRepository
 from .feature_flag_group_repository import FeatureFlagGroupRepository
@@ -43,7 +44,6 @@ from .feedback_repository import FeedbackRepository
 from .log_level_override_repository import LogLevelOverrideRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_comment_repository import MatchCommentRepository
-from .door_seed_repository import DoorSeedRepository
 from .match_hard_preset_repository import MatchHardPresetRepository
 from .match_repository import MatchRepository
 from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
@@ -114,6 +114,7 @@ __all__ = [
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
     'DiscordTournamentGrantRepository',
+    'DoorSeedRepository',
     'EmergencyContactRepository',
     'EquipmentRepository',
     'FeatureFlagGroupRepository',
@@ -121,7 +122,6 @@ __all__ = [
     'LogLevelOverrideRepository',
     'MatchAcknowledgmentRepository',
     'MatchCommentRepository',
-    'DoorSeedRepository',
     'MatchHardPresetRepository',
     'MatchRepository',
     'MatchStreamVolunteerRepository',

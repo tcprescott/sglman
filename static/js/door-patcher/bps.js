@@ -33,6 +33,11 @@ function readU32(bytes, at) {
   return (bytes[at] | (bytes[at + 1] << 8) | (bytes[at + 2] << 16) | (bytes[at + 3] << 24)) >>> 0;
 }
 
+/** The CRC32 the patch expects its source file to have. */
+export function bpsSourceCrc(patch) {
+  return readU32(patch, patch.length - 12);
+}
+
 export function applyBps(patch, source) {
   const end = patch.length - 12;
   if (end < 4 || patch[0] !== 0x42 || patch[1] !== 0x50 || patch[2] !== 0x53 || patch[3] !== 0x31) {

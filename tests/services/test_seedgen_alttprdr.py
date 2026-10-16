@@ -13,8 +13,8 @@ from aiohttp.test_utils import TestServer
 from application.errors import NotFoundError
 from application.services import door_seed_service
 from application.services.door_seed_service import DoorSeedService
-from application.utils.clients import alttpr_sprites_client
 from application.services.seedgen_service import SeedGenerationService
+from application.utils.clients import alttpr_sprites_client
 from application.utils.door_seed_store import DoorSeedStore
 from application.utils.seed_provider import SeedProviderInvalidRequest
 from models import DoorSeed, Preset, Role, UserRole

@@ -29,6 +29,7 @@ What they cover:
   so they stay part of the same online fixture set.
 """
 import json
+import zlib
 from datetime import datetime, timedelta, timezone
 
 from application.randomizer_credentials import all_specs, credentials_for
@@ -38,8 +39,8 @@ from application.utils.timezone import now_local
 from models import (
     BotStatus,
     DiscordEventSource,
-    DoorSeed,
     DiscordScheduledEvent,
+    DoorSeed,
     Match,
     MatchHardPresetOptIn,
     MatchPlayers,
@@ -258,7 +259,9 @@ async def _seed_door_seed(tenant: Tenant) -> DoorSeed:
     """One hosted Door Randomizer seed, so ``/door/<token>`` opens in dev.
 
     The patch is a stand-in carrying a believable file-select code, not a
-    playable seed: dev has no sidecar, and no base patch, unless one is run.
+    playable seed: dev has no sidecar. Its base patch is made for a "ROM" of
+    1MB of zero bytes, so the patcher page runs end to end in dev with
+    ``head -c 1048576 /dev/zero > dev-rom.sfc`` standing in for the real one.
     """
     token = f"dev-door-{tenant.slug}"
     code = ["Bow", "Hookshot", "Bombs", "Mushroom", "Lamp"]
@@ -270,7 +273,30 @@ async def _seed_door_seed(tenant: Tenant) -> DoorSeed:
     if await store.get_patch(token) is None:
         await store.put_patch(token, json.dumps({"version": "dev", "patch": {str(0x180215): [0, 2, 3, 4, 11]}}).encode())
         await store.put_spoiler(token, json.dumps({"meta": {"seed": 1, "version": "dev"}}).encode())
+    if not await store.has_base_patch("dev"):
+        await store.put_base_patch("dev", _dev_base_patch())
     return seed
+
+
+def _dev_base_patch() -> bytes:
+    """A BPS taking 1MB of zeros to 2MB of zeros: keep the source, copy it again."""
+    def number(n: int) -> bytes:
+        out = bytearray()
+        while True:
+            x = n & 0x7F
+            n >>= 7
+            if n == 0:
+                return bytes(out + bytes([0x80 | x]))
+            out.append(x)
+            n -= 1
+
+    size = 0x100000
+    body = b"BPS1" + number(size) + number(2 * size) + number(0)
+    body += number((size - 1) << 2 | 0)            # SourceRead the whole source
+    body += number((size - 1) << 2 | 2) + number(0)  # SourceCopy it again from offset 0
+    body += zlib.crc32(bytes(size)).to_bytes(4, "little")
+    body += zlib.crc32(bytes(2 * size)).to_bytes(4, "little")
+    return body + zlib.crc32(body).to_bytes(4, "little")
 
 
 async def _seed_presets(tenant: Tenant, staff: User) -> Preset:

@@ -71,6 +71,7 @@
     { "name": "watch-live", "path": "/live" },
     { "name": "settings-watch", "path": "/admin/settings/watch" },
     { "name": "changelog", "path": "/changelog" },
+    { "name": "door-seed", "path": "/door/dev-door-default" },
     { "name": "event-info", "path": "/event-info" },
     { "name": "community-events", "path": "/home/community" },
     { "name": "admin-community-events", "path": "/admin/community-events" },

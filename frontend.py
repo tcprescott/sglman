@@ -34,6 +34,7 @@ from pages import (
     check_in,
     community_events,
     discord_email_oauth,
+    door_seed,
     email_unsubscribe,
     equipment,
     equipment_labels,
@@ -338,6 +339,7 @@ def init(fastapi_app: FastAPI) -> None:
     check_in.create()
     brackets.create()
     room_seeds.create()
+    door_seed.create()
     # Registered before ui.run_with so the cached, socket-free spectator views
     # sit on the same app (and behind the same tenant middleware) as the pages.
     static_brackets.create()
