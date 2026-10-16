@@ -5,25 +5,22 @@ from .enums import ChallongeMatchState
 
 
 class ChallongeConnection(Model):
-    """A Wizzrobe service-account OAuth grant to Challonge, one per community.
+    """Single shared Wizzrobe service-account OAuth connection to Challonge.
 
-    A tenant has one row per ``community`` it granted; the newest row stands in
-    when a request has no matching grant. Tokens are privileged secrets —
-    surfaced only to STAFF and never logged.
+    Only one connection is meaningful at a time; the most recently saved row is
+    authoritative. Tokens are privileged secrets — surfaced only to STAFF and
+    never logged.
     """
 
     id = fields.IntField(pk=True)
+    # One connection per tenant: the most recent row for a tenant is
+    # authoritative (each tenant links its own Challonge service account).
     tenant = fields.ForeignKeyField('models.Tenant', related_name='challonge_connections', on_delete=fields.CASCADE)
     access_token = fields.CharField(max_length=512)
     refresh_token = fields.CharField(max_length=512, null=True)
     token_expires_at = fields.DatetimeField(null=True)
     scopes = fields.CharField(max_length=255, null=True)
     challonge_username = fields.CharField(max_length=255, null=True)
-    # The Challonge community this grant was made for ('' = no community).
-    # Challonge hides brackets outside a grant's community, so a tenant keeps
-    # one grant per community plus one with none. NULL marks a row saved
-    # before grants were split; it serves any request until a reconnect.
-    community = fields.CharField(max_length=100, null=True)
     connected_by = fields.ForeignKeyField('models.User', related_name='challonge_connections', null=True, on_delete=fields.SET_NULL)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

@@ -216,9 +216,7 @@ class ChallongeClient:
     # Authenticated service calls (token via token_provider)
     # ------------------------------------------------------------------
     async def get_tournament(self, tournament_id: str, community: Optional[str] = None) -> Dict[str, Any]:
-        data = await self._authed_request(
-            'GET', f'{_tournament_path(tournament_id, community)}.json', community=community,
-        )
+        data = await self._authed_request('GET', f'{_tournament_path(tournament_id, community)}.json')
         resource = data.get('data') or {}
         return _normalize_tournament(resource)
 
@@ -226,7 +224,7 @@ class ChallongeClient:
         self, tournament_id: str, community: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         rows = await self._authed_get_all(
-            f'{_tournament_path(tournament_id, community)}/participants.json', community=community,
+            f'{_tournament_path(tournament_id, community)}/participants.json',
         )
         return [_normalize_participant(r) for r in rows]
 
@@ -234,7 +232,7 @@ class ChallongeClient:
         self, tournament_id: str, community: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         rows = await self._authed_get_all(
-            f'{_tournament_path(tournament_id, community)}/matches.json', community=community,
+            f'{_tournament_path(tournament_id, community)}/matches.json',
         )
         return [_normalize_match(r) for r in rows]
 
@@ -252,7 +250,6 @@ class ChallongeClient:
             'GET',
             f'{_tournament_path(tournament_id, community)}.json'
             '?include_participants=1&include_matches=1',
-            community=community,
         )
         resource = data.get('data') or {}
         tournament = _normalize_tournament(resource)
@@ -286,7 +283,6 @@ class ChallongeClient:
         body = {'data': {'type': 'TournamentState', 'attributes': {'state': state}}}
         data = await self._authed_request(
             'PUT', f'{_tournament_path(tournament_id, community)}/change_state.json', json=body,
-            community=community,
         )
         return _normalize_tournament(data.get('data') or {})
 
@@ -322,7 +318,7 @@ class ChallongeClient:
         }
         await self._authed_request(
             'PUT', f'{_tournament_path(tournament_id, community)}/matches/{match_id}.json',
-            json=body, community=community,
+            json=body,
         )
 
     async def create_participant(
@@ -341,7 +337,6 @@ class ChallongeClient:
         body = {'data': {'type': 'Participant', 'attributes': attributes}}
         data = await self._authed_request(
             'POST', f'{_tournament_path(tournament_id, community)}/participants.json', json=body,
-            community=community,
         )
         return _normalize_participant(data.get('data') or {})
 
@@ -352,7 +347,6 @@ class ChallongeClient:
             'DELETE',
             f'{_tournament_path(tournament_id, community)}/participants/'
             f'{quote(str(participant_id), safe="")}.json',
-            community=community,
         )
 
     # ------------------------------------------------------------------
@@ -372,7 +366,7 @@ class ChallongeClient:
             async with session.get(BASE_URL + path, headers=self._headers(token)) as resp:
                 return await self._parse(resp)
 
-    async def _authed_get_all(self, path: str, community: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def _authed_get_all(self, path: str) -> List[Dict[str, Any]]:
         """GET every page of a list endpoint (25 rows per page by default).
 
         Asks for 100 per page so a typical bracket is one request, and follows
@@ -381,7 +375,7 @@ class ChallongeClient:
         rows: List[Dict[str, Any]] = []
         next_path: Optional[str] = f'{path}?per_page={_PAGE_SIZE}'
         while next_path:
-            data = await self._authed_request('GET', next_path, community=community)
+            data = await self._authed_request('GET', next_path)
             rows.extend(data.get('data') or [])
             next_url = (data.get('links') or {}).get('next')
             next_path = next_url[len(BASE_URL):] if next_url and next_url.startswith(BASE_URL) else None
@@ -389,11 +383,10 @@ class ChallongeClient:
 
     async def _authed_request(
         self, method: str, path: str, *, json: Optional[Dict[str, Any]] = None,
-        community: Optional[str] = None,
     ) -> Dict[str, Any]:
         if self._token_provider is None:
             raise ChallongeAPIError('No token provider configured for authenticated calls')
-        token = await self._token_provider(community=community)
+        token = await self._token_provider()
         async with aiohttp.ClientSession() as session:
             await self._count_request()
             async with session.request(
@@ -401,7 +394,7 @@ class ChallongeClient:
             ) as resp:
                 if resp.status == 401:
                     # Token may have expired between refresh checks — force one refresh + retry.
-                    token = await self._token_provider(force_refresh=True, community=community)
+                    token = await self._token_provider(force_refresh=True)
                     await self._count_request()
                     async with session.request(
                         method, BASE_URL + path, headers=self._headers(token), json=json,

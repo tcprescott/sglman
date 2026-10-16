@@ -61,10 +61,7 @@ class ChallongeCommunitiesMixin:
 
     @requires_feature(FeatureFlag.CHALLONGE)
     async def communities_to_grant(self, extra: Optional[str] = None) -> List[str]:
-        """Every community a reconnect should ask Challonge for, ``extra`` next to last.
-
-        The list ends with ``''``, the grant with no community: Challonge hides
-        brackets outside a grant's community, so those need a grant of their own.
+        """Every community a reconnect should ask Challonge for, ``extra`` last.
 
         Raises ``ValueError`` when ``extra`` was typed but isn't a community subdomain.
         """
@@ -75,7 +72,7 @@ class ChallongeCommunitiesMixin:
                 raise ValueError("That doesn't look like a Challonge community subdomain.")
             if slug not in slugs:
                 slugs.append(slug)
-        return [*slugs, '']
+        return slugs
 
     async def _remember_community(self, community: Optional[str]) -> None:
         slug = self.normalize_community(community)
