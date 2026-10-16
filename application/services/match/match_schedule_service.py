@@ -94,7 +94,7 @@ def _seats_line(match: Match) -> str:
     """"Alice: A1 · Bob: A2" for the players who have a seat, '' for none."""
     return ' · '.join(
         f'{p.user.preferred_name}: {p.assigned_station}'
-        for p in match.players if p.assigned_station
+        for p in match.players if p.assigned_station  # type: ignore[attr-defined]
     )
 
 
@@ -127,7 +127,7 @@ def _checked_in_player_copies(match: Match, community: str, bracket_line: str = 
         p.user.discord_id: _checked_in_notification(
             match, community, bracket_line, your_seat=p.assigned_station,
         )
-        for p in match.players if p.assigned_station and p.user.discord_id
+        for p in match.players if p.assigned_station and p.user.discord_id  # type: ignore[attr-defined]
     }
 
 
