@@ -13,8 +13,8 @@ from nicegui import ui
 from application.services import NotificationChannelService, UserService, WebPushService
 from application.services.notification_channel_service import (
     TELEGRAM_LINK_TTL,
-    TESTS_PER_WINDOW,
     TEST_WINDOW_SECONDS,
+    TESTS_PER_WINDOW,
     Channel,
     email_available,
     telegram_available,
@@ -31,7 +31,7 @@ _TELEGRAM_POLL_SECONDS = 3
 class ChannelRows:
     """The email and Telegram rows; ``any_on()`` feeds the "everything's off" note."""
 
-    def __init__(self, user: User, on_change: Optional[Callable[[], None]] = None) -> None:
+    def __init__(self, user: User, on_change: Optional[Callable[[], object]] = None) -> None:
         self.user = user
         self.on_change = on_change or (lambda: None)
         self.service = NotificationChannelService()

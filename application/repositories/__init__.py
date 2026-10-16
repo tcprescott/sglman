@@ -49,6 +49,7 @@ from .match_stream_volunteer_repository import MatchStreamVolunteerRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .matcherino_login_repository import MatcherinoLoginRepository
 from .mcp_auth_repository import McpAuthRepository
+from .notification_channel_repository import NotificationChannelRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .preset_repository import PresetRepository
 from .profile_nudge_repository import ProfileNudgeRepository
@@ -84,7 +85,6 @@ from .volunteer_qualification_repository import VolunteerQualificationRepository
 from .volunteer_role_mapping_repository import VolunteerRoleMappingRepository
 from .volunteer_shift_repository import VolunteerShiftRepository
 from .watch_layout_repository import WatchLayoutRepository
-from .notification_channel_repository import NotificationChannelRepository
 from .web_push_repository import WebPushRepository
 from .webhook_delivery_repository import WebhookDeliveryRepository
 from .webhook_repository import WebhookRepository
@@ -126,6 +126,7 @@ __all__ = [
     'MatchWatcherRepository',
     'MatcherinoLoginRepository',
     'McpAuthRepository',
+    'NotificationChannelRepository',
     'PlayedPermalinks',
     'PlayerAvailabilityRepository',
     'PresetRepository',
@@ -164,7 +165,6 @@ __all__ = [
     'VolunteerShiftRepository',
     'WatchLayoutRepository',
     'WebPushRepository',
-    'NotificationChannelRepository',
     'WebhookDeliveryRepository',
     'WebhookRepository',
 ]

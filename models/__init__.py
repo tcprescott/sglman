@@ -206,6 +206,7 @@ __all__ = [
     'CommunityEventSeen',
     'CommunityEventStatus',
     'CommunityEventSubscription',
+    'ContactVerification',
     'DiscordEventSource',
     'DiscordRoleMapping',
     # discord events
@@ -302,7 +303,6 @@ __all__ = [
     'VolunteerShift',
     'WatchLayoutVote',
     'WebPushSubscription',
-    'ContactVerification',
     # webhooks
     'Webhook',
     'WebhookDelivery',

@@ -44,7 +44,7 @@ async def handle_text(chat_id: int, username: Optional[str], text: str) -> Optio
 
 async def _tick() -> None:
     global _offset
-    updates = await telegram_client.get_updates(_offset, timeout=POLL_TIMEOUT)
+    updates = await telegram_client.get_updates(_offset, poll_seconds=POLL_TIMEOUT)
     for update in updates:
         _offset = update.update_id + 1
         if update.chat_id is None or update.chat_type != 'private' or not update.text.startswith('/'):

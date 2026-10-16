@@ -44,8 +44,8 @@ class NotificationChannelRepository:
 
     @staticmethod
     async def set_email(user: User, email: Optional[str], enabled: bool) -> None:
-        user.email = email
-        user.email_verified_at = datetime.now(timezone.utc) if email else None
+        user.email = email  # type: ignore[assignment]
+        user.email_verified_at = datetime.now(timezone.utc) if email else None  # type: ignore[assignment]
         user.email_notifications = enabled and email is not None
         await user.save(update_fields=['email', 'email_verified_at', 'email_notifications', 'updated_at'])
 
@@ -60,9 +60,9 @@ class NotificationChannelRepository:
 
     @staticmethod
     async def set_telegram(user: User, chat_id: Optional[int], username: Optional[str]) -> None:
-        user.telegram_chat_id = chat_id
-        user.telegram_username = username
-        user.telegram_linked_at = datetime.now(timezone.utc) if chat_id else None
+        user.telegram_chat_id = chat_id  # type: ignore[assignment]
+        user.telegram_username = username  # type: ignore[assignment]
+        user.telegram_linked_at = datetime.now(timezone.utc) if chat_id else None  # type: ignore[assignment]
         user.telegram_notifications = chat_id is not None
         await user.save(update_fields=[
             'telegram_chat_id', 'telegram_username', 'telegram_linked_at',

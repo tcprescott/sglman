@@ -120,14 +120,14 @@ async def render_edit_info_tab(focus: str | None = None):
 
         # This tab is not itself flag-gated, so the Challonge row in Connected
         # accounts has to be skipped when the community lacks the feature.
-        live_flags = await FeatureFlagService().enabled_flags()
-        challonge_live = FeatureFlag.CHALLONGE in live_flags
+        live = await FeatureFlagService().enabled_flags()
+        challonge_live = FeatureFlag.CHALLONGE in live
         # The Matcherino handle only means anything where prize money is paid,
         # so a community without payouts is not asked for one.
-        payouts_live = FeatureFlag.PAYOUTS in live_flags
-        accommodations_live = FeatureFlag.ADA_ACCOMMODATIONS in live_flags
-        emergency_contacts_live = FeatureFlag.EMERGENCY_CONTACTS in live_flags
-        channels_live = FeatureFlag.NOTIFICATION_CHANNELS in live_flags
+        payouts_live = FeatureFlag.PAYOUTS in live
+        accommodations_live = FeatureFlag.ADA_ACCOMMODATIONS in live
+        emergency_contacts_live = FeatureFlag.EMERGENCY_CONTACTS in live
+        channels_live = FeatureFlag.NOTIFICATION_CHANNELS in live
 
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()

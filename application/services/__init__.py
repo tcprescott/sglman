@@ -50,9 +50,9 @@ from .check_in_service import CheckInService
 from .community_event_service import CommunityEventService, EventDraft
 from .crew_service import CrewService
 from .discord import (
+    DiscordEmailService,
     DiscordEventReconcilerService,
     DiscordEventSyncService,
-    DiscordEmailService,
     DiscordLinkService,
     DiscordLoginService,
     DiscordRoleMappingService,
@@ -85,6 +85,7 @@ from .match import (
 from .match_reschedule_service import MatchRescheduleService
 from .matcherino_login_service import MatcherinoLoginService, MatcherinoLoginStatus
 from .mcp_auth_service import McpAuthService
+from .notification_channel_service import NotificationChannelService
 from .password_auth_service import PasswordAuthService
 from .payout_service import PayoutService
 from .player_availability_service import PlayerAvailabilityService
@@ -138,7 +139,6 @@ from .volunteer import (
     volunteer_reminder,
 )
 from .watch_layout_service import WatchLayoutService
-from .notification_channel_service import NotificationChannelService
 from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
@@ -160,9 +160,9 @@ __all__ = [
     'CheckInService',
     'CommunityEventService',
     'CrewService',
+    'DiscordEmailService',
     'DiscordEventReconcilerService',
     'DiscordEventSyncService',
-    'DiscordEmailService',
     'DiscordLinkService',
     'DiscordLoginService',
     'DiscordRoleMappingService',
@@ -195,6 +195,7 @@ __all__ = [
     'MatcherinoLoginStatus',
     'McpAuthService',
     'NotFoundError',
+    'NotificationChannelService',
     'PasswordAuthService',
     'PayoutService',
     'PlayerAvailabilityService',
@@ -247,7 +248,6 @@ __all__ = [
     'VolunteerScheduleService',
     'WatchLayoutService',
     'WebPushService',
-    'NotificationChannelService',
     'WebhookService',
     'assert_sg_fields_unchanged',
     'async_qualifier_access',
@@ -259,7 +259,6 @@ __all__ = [
     'check_in_rules',
     'check_in_sales',
     'check_in_sync_worker',
-    'telegram_bot_worker',
     'community_event_reminder',
     'discord_event_worker',
     'discord_queue',
@@ -274,6 +273,7 @@ __all__ = [
     'service_health_worker',
     'speedgaming_sync_worker',
     'staff_request_dms',
+    'telegram_bot_worker',
     'validate_async_qualifier_config',
     'validate_bracket_config',
     'validate_counts',

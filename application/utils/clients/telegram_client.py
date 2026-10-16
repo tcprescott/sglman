@@ -102,9 +102,9 @@ async def send_message(
     return await _call('sendMessage', payload) is not None
 
 
-async def get_updates(offset: Optional[int], timeout: int = 25) -> List[TelegramUpdate]:
+async def get_updates(offset: Optional[int], poll_seconds: int = 25) -> List[TelegramUpdate]:
     """Long-poll for new messages to the bot."""
-    payload: dict = {'timeout': timeout, 'allowed_updates': ['message']}
+    payload: dict = {'timeout': poll_seconds, 'allowed_updates': ['message']}
     if offset is not None:
         payload['offset'] = offset
     try:
