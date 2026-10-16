@@ -222,3 +222,17 @@ def test_an_unknown_embed_shows_as_text_rather_than_vanishing():
 def test_the_sgl_schedule_embeds_the_live_tournament_list():
     article = article_for_tenant('sgl26', 'schedule')
     assert any(b.kind == 'embed' and b.name == 'tournaments' for b in article.blocks)
+
+
+def test_the_sgl_handbook_ships_the_organisers_guide():
+    from application.event_info import guide_pdf_for_tenant
+
+    guide = guide_pdf_for_tenant('sgl26')
+    assert guide is not None and guide.name == 'SGLive-2026-Event-Guide.pdf'
+    assert guide.read_bytes().startswith(b'%PDF')
+
+
+def test_an_unsafe_slug_never_reaches_the_filesystem():
+    from application.event_info import guide_pdf_for_tenant
+
+    assert guide_pdf_for_tenant('../sgl26') is None

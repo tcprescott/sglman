@@ -16,6 +16,7 @@ from application.event_info.catalog import (
     CONTENT_ROOT,
     article_for_tenant,
     articles_for_tenant,
+    guide_pdf_for_tenant,
     snippet_for_tenant,
     tenant_slugs,
 )
@@ -25,6 +26,7 @@ __all__ = [
     'CONTENT_ROOT',
     'article_for_tenant',
     'articles_for_tenant',
+    'guide_pdf_for_tenant',
     'snippet_for_tenant',
     'tenant_slugs',
 ]

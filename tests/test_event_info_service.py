@@ -161,3 +161,28 @@ class TestTheTournamentList:
         await make_tournament(name='Default Cup')
         with tenant_scope(handbookless_tenant.id):
             assert await EventInfoService.list_tournaments() == []
+
+
+class TestTheEventGuide:
+    async def test_a_community_gets_the_pdf_it_ships(self, db):
+        guide = await EventInfoService.get_guide()
+        assert guide is not None
+        assert guide.filename.endswith('.pdf')
+        assert guide.path.read_bytes().startswith(b'%PDF')
+        assert guide.size_bytes == guide.path.stat().st_size
+
+    async def test_a_community_with_no_handbook_has_no_guide(self, handbookless_tenant):
+        with tenant_scope(handbookless_tenant.id):
+            assert await EventInfoService.get_guide() is None
+
+    async def test_it_is_refused_where_the_feature_is_off(self, bare_tenant):
+        with tenant_scope(bare_tenant.id):
+            with pytest.raises(FeatureDisabledError):
+                await EventInfoService.get_guide()
+
+
+@pytest.mark.parametrize(('size', 'label'), [(200, '1 KB'), (203_025, '198 KB'), (3 * 1024 * 1024, '3.0 MB')])
+def test_the_guide_size_reads_for_a_person(size, label, tmp_path):
+    from application.services import EventGuide
+
+    assert EventGuide(path=tmp_path, filename='g.pdf', size_bytes=size).size_label == label

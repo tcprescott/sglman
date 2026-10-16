@@ -33,6 +33,7 @@ def render_article(
     back_label: str,
     for_staff: Optional[Callable[[ContentArticle], bool]] = None,
     embeds: Optional[Mapping[str, Callable[[], None]]] = None,
+    intro_extra: Optional[Callable[[], None]] = None,
 ) -> None:
     """Render ``article`` with its sidebar; ``articles`` is the reader's list.
 
@@ -71,6 +72,8 @@ def render_article(
                 page_title(article.title)
             if article.summary:
                 ui.label(article.summary).classes('text-muted')
+            if intro_extra is not None:
+                intro_extra()
             ui.separator().classes('separator-spacing')
             # Block flow rather than the enclosing flex column, so the blocks'
             # own margins set the rhythm instead of a uniform flex gap.
